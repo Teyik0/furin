@@ -1,0 +1,30 @@
+{
+  "name": "elysion",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@elysiajs/static": "^1.4.7"
+  },
+  "peerDependencies": {
+    "elysia": "^1.4.23",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "tailwindcss": "4"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "dev": "bun run --watch example/src/server.ts",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "tsc": "tsc --noEmit",
+    "iup": "bun update --interactive --recursive"
+  }
+}

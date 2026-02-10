@@ -5,10 +5,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import { isPageModule, type PageModule, type PageOptions } from "./page";
 import { handleISR, prerenderSSG, renderSSR } from "./render";
 
-export function createRoutePlugin(
-  route: ResolvedRoute,
-  config: StaticOptions<string>
-): AnyElysia {
+export function createRoutePlugin(route: ResolvedRoute, config: StaticOptions<string>): AnyElysia {
   const { pattern, mode } = route;
   const { query, params, loader, action } = route.module.options ?? {};
 
@@ -117,13 +114,8 @@ export const scanPages = async (pagesDir: string) => {
   const routes: ResolvedRoute[] = [];
 
   const glob = new Glob("**/*.tsx");
-  for await (const absolutePath of glob.scan({
-    cwd: pagesDir,
-    absolute: true,
-  })) {
-    if (
-      ![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))
-    ) {
+  for await (const absolutePath of glob.scan({ cwd: pagesDir, absolute: true })) {
+    if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))) {
       continue;
     }
     if (absolutePath.startsWith("_")) {
@@ -132,9 +124,7 @@ export const scanPages = async (pagesDir: string) => {
 
     const page = (await import(absolutePath)).default;
     if (!isPageModule(page)) {
-      console.warn(
-        `[elysion] Skipping ${absolutePath}: no valid page() export found`
-      );
+      console.warn(`[elysion] Skipping ${absolutePath}: no valid page() export found`);
       continue;
     }
     const relativePath = absolutePath.replace(`${pagesDir}/`, "");
@@ -154,11 +144,7 @@ function resolveMode(pageModule: PageModule) {
   const { options } = pageModule;
 
   // Validate: explicit mode conflicts with revalidate
-  if (
-    options?.mode !== "isr" &&
-    options?.revalidate &&
-    options.revalidate > 0
-  ) {
+  if (options?.mode !== "isr" && options?.revalidate && options.revalidate > 0) {
     throw new Error(
       `[elysion] Invalid config: cannot set both 'mode' and 'revalidate'. Use 'mode: "isr"' with 'revalidate' or remove 'mode'.`
     );

@@ -3,42 +3,25 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "elysion",
+      "name": "prj-tst",
+      "dependencies": {
+        "@elysiajs/eden": "^1.4.6",
+        "@elysiajs/static": "^1.4.7",
+        "elysia": "^1.4.23",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "tailwindcss": "4",
+      },
       "devDependencies": {
         "@biomejs/biome": "2.3.13",
         "@types/bun": "latest",
         "@types/react": "^19.2.13",
         "@types/react-dom": "^19.2.3",
+        "bun-plugin-tailwind": "^0.1.2",
         "ultracite": "7.1.5",
       },
       "peerDependencies": {
         "typescript": "^5",
-      },
-    },
-    "examples/simple": {
-      "name": "@elysion/example-simple",
-      "version": "0.1.0",
-      "dependencies": {
-        "bun-plugin-tailwind": "^0.1.2",
-        "elysion": "workspace:*",
-        "react": "^19",
-        "react-dom": "^19",
-        "tailwindcss": "^4.1.11",
-      },
-    },
-    "packages/core": {
-      "name": "elysion",
-      "version": "0.1.0",
-      "dependencies": {
-        "@elysiajs/static": "^1.4.7",
-      },
-      "devDependencies": {
-        "tailwindcss": "4",
-      },
-      "peerDependencies": {
-        "elysia": "^1.4.23",
-        "react": "^19.2.4",
-        "react-dom": "^19.2.4",
       },
     },
   },
@@ -67,9 +50,9 @@
 
     "@clack/prompts": ["@clack/prompts@1.0.0", "", { "dependencies": { "@clack/core": "1.0.0", "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-rWPXg9UaCFqErJVQ+MecOaWsozjaxol4yjnmYcGNipAWzdaWa2x+VJmKfGq7L0APwBohQOYdHC+9RO4qRXej+A=="],
 
-    "@elysiajs/static": ["@elysiajs/static@1.4.7", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-Go4kIXZ0G3iWfkAld07HmLglqIDMVXdyRKBQK/sVEjtpDdjHNb+rUIje73aDTWpZYg4PEVHUpi9v4AlNEwrQug=="],
+    "@elysiajs/eden": ["@elysiajs/eden@1.4.6", "", { "peerDependencies": { "elysia": ">=1.4.19" } }, "sha512-Tsa4NwXEWg/u73vWiYZQ3L5/ecgZSxqiEjYwpS+4qBKXeTZqZKl2hcgHJSVBL+InEDMi35Xugct7qyAXE5oM4Q=="],
 
-    "@elysion/example-simple": ["@elysion/example-simple@workspace:examples/simple"],
+    "@elysiajs/static": ["@elysiajs/static@1.4.7", "", { "peerDependencies": { "elysia": ">= 1.4.0" } }, "sha512-Go4kIXZ0G3iWfkAld07HmLglqIDMVXdyRKBQK/sVEjtpDdjHNb+rUIje73aDTWpZYg4PEVHUpi9v4AlNEwrQug=="],
 
     "@isaacs/balanced-match": ["@isaacs/balanced-match@4.0.1", "", {}, "sha512-yzMTt9lEb8Gv7zRioUilSglI0c0smZ9k5D65677DLWLtWJaXIS3CqcGyUFByYKlnUj6TkjLVs54fBl6+TiGQDQ=="],
 
@@ -130,8 +113,6 @@
     "deepmerge": ["deepmerge@4.3.1", "", {}, "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="],
 
     "elysia": ["elysia@1.4.23", "", { "dependencies": { "cookie": "^1.1.1", "exact-mirror": "^0.2.7", "fast-decode-uri-component": "^1.0.1", "memoirist": "^0.4.0" }, "peerDependencies": { "@sinclair/typebox": ">= 0.34.0 < 1", "@types/bun": ">= 1.2.0", "file-type": ">= 20.0.0", "openapi-types": ">= 12.0.0", "typescript": ">= 5.0.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-mFIT/hEnNfrfbjGRUqunLNcURJfSXpKY4j+EWr4vP6Eoulf7feqs0WQLZwlgFZCxhdyfu0mrypIZ4mNJcEVVlQ=="],
-
-    "elysion": ["elysion@workspace:packages/core"],
 
     "exact-mirror": ["exact-mirror@0.2.7", "", { "peerDependencies": { "@sinclair/typebox": "^0.34.15" }, "optionalPeers": ["@sinclair/typebox"] }, "sha512-+MeEmDcLA4o/vjK2zujgk+1VTxPR4hdp23qLqkWfStbECtAq9gmsvQa3LW6z/0GXZyHJobrCnmy1cdeE7BjsYg=="],
 

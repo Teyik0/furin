@@ -17,6 +17,8 @@ interface ShellProps {
   data?: Record<string, unknown>;
   headData?: HeadData;
   bootstrapScripts?: string[];
+  clientJsPath?: string;
+  clientCssPath?: string;
 }
 
 export function Shell({
@@ -24,6 +26,8 @@ export function Shell({
   data,
   headData,
   bootstrapScripts = [],
+  clientJsPath,
+  clientCssPath,
 }: ShellProps) {
   return (
     <html lang="en">
@@ -41,6 +45,8 @@ export function Shell({
           //biome-ignore lint/suspicious/noArrayIndexKey: ok
           <link key={i} {...link} />
         ))}
+
+        {clientCssPath && <link href={clientCssPath} rel="stylesheet" />}
 
         {headData?.scripts?.map((script, i) => (
           //biome-ignore lint/suspicious/noArrayIndexKey: ok
@@ -60,6 +66,7 @@ export function Shell({
         {bootstrapScripts.map((src) => (
           <script key={src} src={src} type="module" />
         ))}
+        {clientJsPath && <script defer src={clientJsPath} type="module" />}
       </body>
     </html>
   );

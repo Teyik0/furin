@@ -8,5 +8,14 @@
     "parser": {
       "tailwindDirectives": true
     }
+  },
+  "javascript": {
+    "globals": [
+      "Bun"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "lineWidth": 140
   }
 }

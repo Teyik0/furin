@@ -3,14 +3,8 @@ import { elysion } from "elysion";
 
 // Mock database d'utilisateurs
 const users = new Map([
-  [
-    "user1-token",
-    { id: "1", email: "user@example.com", name: "John Doe", role: "user" },
-  ],
-  [
-    "admin-token",
-    { id: "2", email: "admin@example.com", name: "Admin", role: "admin" },
-  ],
+  ["user1-token", { id: "1", email: "user@example.com", name: "John Doe", role: "user" }],
+  ["admin-token", { id: "2", email: "admin@example.com", name: "Admin", role: "admin" }],
 ]);
 
 // Type pour les utilisateurs
@@ -74,9 +68,7 @@ const app = new Elysia()
       const { email } = body as { email: string };
 
       // Trouve l'utilisateur par email
-      const user = Array.from(users.entries()).find(
-        ([_, u]) => u.email === email
-      );
+      const user = Array.from(users.entries()).find(([_, u]) => u.email === email);
 
       if (!user) {
         return { success: false, error: "Utilisateur non trouvé" };

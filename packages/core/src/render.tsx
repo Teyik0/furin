@@ -1,6 +1,7 @@
 import type { StaticOptions } from "@elysiajs/static/types";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { getClientAssets } from "./build";
 import type { PageModule } from "./page";
 import type { ResolvedRoute } from "./router";
 import { Shell } from "./shell";
@@ -33,15 +34,21 @@ async function streamToString(stream: ReadableStream): Promise<string> {
 
 interface RenderableRoute {
   module: PageModule;
+  path: string;
 }
 
 function buildElement(
   route: RenderableRoute,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  clientAssets?: { js?: string; css?: string }
 ): ReactNode {
   const Component = route.module.component;
   return (
-    <Shell data={data}>
+    <Shell
+      clientCssPath={clientAssets?.css}
+      clientJsPath={clientAssets?.js}
+      data={data}
+    >
       <Component {...(data ?? {})} />
     </Shell>
   );
@@ -58,7 +65,7 @@ export async function renderToHTML(
   route: RenderableRoute,
   params: Record<string, string>,
   query: Record<string, string>
-): Promise<string> {
+) {
   let data: Record<string, unknown> | undefined;
 
   if (route.module.options?.loader?.handler) {
@@ -68,7 +75,10 @@ export async function renderToHTML(
       )) ?? undefined;
   }
 
-  const element = buildElement(route, data);
+  // Get client assets from manifest using the URL pattern
+  const clientAssets = await getClientAssets(route.pattern);
+
+  const element = buildElement(route, data, clientAssets);
   const stream = await renderToReadableStream(element);
   await stream.allReady;
   return streamToString(stream);
@@ -83,7 +93,7 @@ export async function renderToStream(
   route: RenderableRoute,
   params: Record<string, string>,
   query: Record<string, string>
-): Promise<ReadableStream> {
+) {
   let data: Record<string, unknown> | undefined;
 
   if (route.module.options?.loader?.handler) {
@@ -93,7 +103,10 @@ export async function renderToStream(
       )) ?? undefined;
   }
 
-  const element = buildElement(route, data);
+  // Get client assets from manifest using the URL pattern
+  const clientAssets = await getClientAssets(route.pattern);
+
+  const element = buildElement(route, data, clientAssets);
   return renderToReadableStream(element);
 }
 

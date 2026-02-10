@@ -1,21 +1,17 @@
 {
-  "name": "elysion",
+  "name": "@elysion/root",
   "module": "index.ts",
   "type": "module",
-  "dependencies": {
-    "@elysiajs/eden": "^1.4.6",
-    "@elysiajs/static": "^1.4.7",
-    "elysia": "^1.4.23",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "tailwindcss": "4"
-  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "examples/*"
+  ],
   "devDependencies": {
     "@biomejs/biome": "2.3.13",
     "@types/bun": "latest",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
-    "bun-plugin-tailwind": "^0.1.2",
     "ultracite": "7.1.5"
   },
   "peerDependencies": {
@@ -27,6 +23,7 @@
     "check": "ultracite check",
     "fix": "ultracite fix",
     "tsc": "tsc --noEmit",
+    "cache:clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules && bun pm cache rm",
     "iup": "bun update --interactive --recursive"
   }
 }
