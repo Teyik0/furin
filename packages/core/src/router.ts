@@ -2,21 +2,22 @@ import { parse } from "node:path";
 import type { StaticOptions } from "@elysiajs/static/types";
 import { Glob } from "bun";
 import { type AnyElysia, Elysia } from "elysia";
-import { isPageModule, type PageModule, type PageOptions } from "./page";
+import { isActionConfig, isLoaderConfig, isPageModule, type PageModule, type PageOptions } from "./react";
 import { handleISR, prerenderSSG, renderSSR } from "./render";
 
 export function createRoutePlugin(route: ResolvedRoute, config: StaticOptions<string>): AnyElysia {
   const { pattern, mode } = route;
   const { query, params, loader, action } = route.module.options ?? {};
 
+  const loaderOption = isLoaderConfig(loader) ? loader : undefined;
+  const actionOption = isActionConfig(action) ? action : undefined;
+
   const plugins: AnyElysia[] = [];
 
-  // 1. Guard for query/params validation
   if (query || params) {
     plugins.push(new Elysia().guard({ query, params }));
   }
 
-  // 2. Resolve for loader data if handler exists
   if (loader?.handler) {
     plugins.push(
       new Elysia().resolve(async (ctx) => ({

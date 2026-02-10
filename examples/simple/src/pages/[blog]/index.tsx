@@ -1,4 +1,4 @@
-import "../../public/global.css";
+import "../../../public/global.css";
 
 import { page } from "elysion/react";
 import { useState } from "react";
@@ -9,7 +9,7 @@ export default page(
 
     return (
       <div>
-        <h1>Counter example</h1>
+        <h1>Counter example 2</h1>
         <span>{count}</span>
         <button onClick={() => setCount((prev) => prev + 1)} type="button">
           Increment

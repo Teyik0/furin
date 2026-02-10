@@ -1,16 +1,12 @@
 import type { StaticOptions } from "@elysiajs/static/types";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
-import { getClientAssets } from "./build";
-import type { PageModule } from "./page";
+import type { PageModule } from "./react";
 import type { ResolvedRoute } from "./router";
 import { Shell } from "./shell";
 
 // ISR Cache
-const isrCache = new Map<
-  string,
-  { html: string; generatedAt: number; revalidate: number }
->();
+const isrCache = new Map<string, { html: string; generatedAt: number; revalidate: number }>();
 
 // SSG Cache (pre-rendered at startup)
 const ssgCache = new Map<string, string>();
@@ -32,23 +28,16 @@ async function streamToString(stream: ReadableStream): Promise<string> {
   return html;
 }
 
+const CLIENT_JS_PATH = "/_client/_hydrate.js";
+
 interface RenderableRoute {
   module: PageModule;
-  path: string;
 }
 
-function buildElement(
-  route: RenderableRoute,
-  data?: Record<string, unknown>,
-  clientAssets?: { js?: string; css?: string }
-): ReactNode {
+function buildElement(route: RenderableRoute, data?: Record<string, unknown>): ReactNode {
   const Component = route.module.component;
   return (
-    <Shell
-      clientCssPath={clientAssets?.css}
-      clientJsPath={clientAssets?.js}
-      data={data}
-    >
+    <Shell clientJsPath={CLIENT_JS_PATH} data={data}>
       <Component {...(data ?? {})} />
     </Shell>
   );
@@ -61,24 +50,14 @@ function buildElement(
  *
  * Used by SSG and ISR (which need full strings for caching).
  */
-export async function renderToHTML(
-  route: RenderableRoute,
-  params: Record<string, string>,
-  query: Record<string, string>
-) {
+export async function renderToHTML(route: RenderableRoute, params: Record<string, string>, query: Record<string, string>) {
   let data: Record<string, unknown> | undefined;
 
   if (route.module.options?.loader?.handler) {
-    data =
-      (await Promise.resolve(
-        route.module.options.loader.handler({ params, query })
-      )) ?? undefined;
+    data = (await Promise.resolve(route.module.options.loader.handler({ params, query }))) ?? undefined;
   }
 
-  // Get client assets from manifest using the URL pattern
-  const clientAssets = await getClientAssets(route.pattern);
-
-  const element = buildElement(route, data, clientAssets);
+  const element = buildElement(route, data);
   const stream = await renderToReadableStream(element);
   await stream.allReady;
   return streamToString(stream);
@@ -89,39 +68,22 @@ export async function renderToHTML(
  * The returned stream starts emitting as soon as the shell is ready.
  * Suspense boundaries resolve progressively.
  */
-export async function renderToStream(
-  route: RenderableRoute,
-  params: Record<string, string>,
-  query: Record<string, string>
-) {
+export async function renderToStream(route: RenderableRoute, params: Record<string, string>, query: Record<string, string>) {
   let data: Record<string, unknown> | undefined;
 
   if (route.module.options?.loader?.handler) {
-    data =
-      (await Promise.resolve(
-        route.module.options.loader.handler({ params, query })
-      )) ?? undefined;
+    data = (await Promise.resolve(route.module.options.loader.handler({ params, query }))) ?? undefined;
   }
 
-  // Get client assets from manifest using the URL pattern
-  const clientAssets = await getClientAssets(route.pattern);
-
-  const element = buildElement(route, data, clientAssets);
+  const element = buildElement(route, data);
   return renderToReadableStream(element);
 }
 
-export async function prerenderSSG(
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  _config: StaticOptions<string>
-) {
-  const resolvedPath = Object.entries(params ?? {}).reduce(
-    (path: string, [key, val]) => {
-      const placeholder = key === "*" ? "*" : `:${key}`;
-      return path.replace(placeholder, () => val);
-    },
-    route.pattern
-  );
+export async function prerenderSSG(route: ResolvedRoute, params: Record<string, string>, _config: StaticOptions<string>) {
+  const resolvedPath = Object.entries(params ?? {}).reduce((path: string, [key, val]) => {
+    const placeholder = key === "*" ? "*" : `:${key}`;
+    return path.replace(placeholder, () => val);
+  }, route.pattern);
   console.log(resolvedPath);
 
   const html = await renderToHTML(route, params, {});
@@ -154,13 +116,10 @@ export async function handleISR(
   const params = ctx.params ?? {};
 
   // Build a cache key from the pattern with params resolved
-  const cacheKey = Object.entries(params).reduce(
-    (path: string, [key, val]: [string, string]) => {
-      const placeholder = key === "*" ? "*" : `:${key}`;
-      return path.replace(placeholder, () => val);
-    },
-    route.pattern
-  );
+  const cacheKey = Object.entries(params).reduce((path: string, [key, val]: [string, string]) => {
+    const placeholder = key === "*" ? "*" : `:${key}`;
+    return path.replace(placeholder, () => val);
+  }, route.pattern);
 
   const cached = isrCache.get(cacheKey);
 
@@ -195,12 +154,7 @@ export async function handleISR(
   });
 }
 
-function revalidateInBackground(
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  cacheKey: string,
-  revalidate: number
-) {
+function revalidateInBackground(route: ResolvedRoute, params: Record<string, string>, cacheKey: string, revalidate: number) {
   renderToHTML(route, params, {})
     .then((freshHtml: string) => {
       isrCache.set(cacheKey, {

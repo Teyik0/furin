@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { page } from "elysion";
+import { page } from "elysion/react";
 
 export default page(Admin, {
   // Active les macros isAdmin (qui hérite de isAuthenticated)
@@ -174,15 +174,9 @@ function Admin({ user, users }) {
         <tbody>
           {users.map((u) => (
             <tr key={u.id}>
-              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>
-                {u.id}
-              </td>
-              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>
-                {u.name}
-              </td>
-              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>
-                {u.email}
-              </td>
+              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>{u.id}</td>
+              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>{u.name}</td>
+              <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>{u.email}</td>
               <td style={{ padding: "12px", border: "1px solid #dee2e6" }}>
                 <span
                   style={{
@@ -211,8 +205,7 @@ function Admin({ user, users }) {
       >
         <h3>💡 Exemple d'action POST</h3>
         <p>
-          Cette page définit aussi une <strong>action POST</strong> accessible
-          sur le même chemin:
+          Cette page définit aussi une <strong>action POST</strong> accessible sur le même chemin:
         </p>
         <pre
           style={{

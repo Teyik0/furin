@@ -1,47 +1,31 @@
-import { page } from "elysion";
+import { t } from "elysia";
+import { page } from "elysion/react";
 
-interface DashboardProps {
-  user: {
-    name: string;
-    email: string;
-    role: string;
-  };
-  stats: {
-    visits: number;
-    lastLogin: string;
-  };
-}
+export default page(Dashboard, {
+  query: t.Object({
+    visits: t.Optional(t.Number()),
+  }),
+  loader: {
+    isAuthenticated: true,
+    handler: ({ query }) => {
+      const lastLogin = new Date().toLocaleDateString("fr-FR");
 
-export default page(
-  // biome-ignore lint/suspicious/noExplicitAny: Component props from loader
-  Dashboard as any,
-  {
-    // Active la macro isAuthenticated - redirige si non connecté
-    loader: {
-      isAuthenticated: true,
-      handler: ({ query }: { query: Record<string, string> }) => {
-        // Note: Dans une vraie app, le user viendrait du contexte de la macro
-        // Pour l'exemple, on simule avec les query params
-        const visits = Number.parseInt((query?.visits as string) || "42");
-        const lastLogin = new Date().toLocaleDateString("fr-FR");
-
-        return {
-          user: {
-            name: "Utilisateur Connecté",
-            email: "user@example.com",
-            role: "user",
-          },
-          stats: {
-            visits,
-            lastLogin,
-          },
-        };
-      },
+      return {
+        user: {
+          name: "Utilisateur Connecté",
+          email: "user@example.com",
+          role: "user",
+        },
+        stats: {
+          visits: query.visits,
+          lastLogin,
+        },
+      };
     },
-  }
-);
+  },
+});
 
-function Dashboard({ user, stats }: DashboardProps) {
+function Dashboard({ user, stats }) {
   const handleLogout = async () => {
     await fetch("/api/logout", { method: "POST" });
     window.location.href = "/";
@@ -126,8 +110,7 @@ function Dashboard({ user, stats }: DashboardProps) {
           fontSize: "14px",
         }}
       >
-        <strong>💡 Info:</strong> Cette page utilise la macro{" "}
-        <code>isAuthenticated</code> définie dans server.ts. Si vous n'êtes pas
+        <strong>💡 Info:</strong> Cette page utilise la macro <code>isAuthenticated</code> définie dans server.ts. Si vous n'êtes pas
         connecté, vous serez redirigé vers la page de login.
       </div>
 

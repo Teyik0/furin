@@ -18,17 +18,9 @@ interface ShellProps {
   headData?: HeadData;
   bootstrapScripts?: string[];
   clientJsPath?: string;
-  clientCssPath?: string;
 }
 
-export function Shell({
-  children,
-  data,
-  headData,
-  bootstrapScripts = [],
-  clientJsPath,
-  clientCssPath,
-}: ShellProps) {
+export function Shell({ children, data, headData, bootstrapScripts = [], clientJsPath }: ShellProps) {
   return (
     <html lang="en">
       <head>
@@ -46,8 +38,6 @@ export function Shell({
           <link key={i} {...link} />
         ))}
 
-        {clientCssPath && <link href={clientCssPath} rel="stylesheet" />}
-
         {headData?.scripts?.map((script, i) => (
           //biome-ignore lint/suspicious/noArrayIndexKey: ok
           <script key={i} {...script} />
@@ -55,14 +45,12 @@ export function Shell({
       </head>
       <body>
         <div id="root">{children}</div>
-        {data && (
-          <script
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: ok
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-            id="__ELYSION_DATA__"
-            type="application/json"
-          />
-        )}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: ok
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+          id="__ELYSION_DATA__"
+          type="application/json"
+        />
         {bootstrapScripts.map((src) => (
           <script key={src} src={src} type="module" />
         ))}
@@ -116,10 +104,5 @@ export function renderHead(headData?: HeadData): string {
 }
 
 function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }

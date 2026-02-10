@@ -20,6 +20,7 @@
       "version": "0.1.0",
       "dependencies": {
         "bun-plugin-tailwind": "^0.1.2",
+        "elysia": "^1.4.23",
         "elysion": "workspace:*",
         "react": "^19",
         "react-dom": "^19",

@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { staticPlugin } from "@elysiajs/static";
 import type { StaticOptions } from "@elysiajs/static/types";
 import { type AnyElysia, Elysia } from "elysia";
-import { buildPages, watchPages } from "./build";
+import { buildClient, watchPages } from "./build";
 import { createRoutePlugin, scanPages } from "./router";
 
 interface ElysionProps {
@@ -11,25 +11,14 @@ interface ElysionProps {
   dev?: boolean;
 }
 
-export async function elysion({
-  pagesDir,
-  staticOptions,
-  dev = process.env.NODE_ENV !== "production",
-}: ElysionProps) {
+export async function elysion({ pagesDir, staticOptions, dev = process.env.NODE_ENV !== "production" }: ElysionProps) {
   const resolvedPagesDir = resolve(process.cwd(), pagesDir ?? "./src/pages");
-
-  // Build client bundles first
-  await buildPages(resolvedPagesDir, {
-    minify: !dev,
-    sourcemap: dev,
-  });
-
-  // Watch for changes in dev mode
-  if (dev) {
-    watchPages(resolvedPagesDir).catch(console.error);
-  }
-
   const routes = await scanPages(resolvedPagesDir);
+
+  await buildClient(routes, { dev });
+  if (dev) {
+    watchPages(resolvedPagesDir, routes);
+  }
 
   const plugins: AnyElysia[] = [];
 
@@ -42,16 +31,11 @@ export async function elysion({
     plugins.push(createRoutePlugin(route, staticOptions));
   }
 
-  // Serve static files from both user public/ and dist/client/
-  const clientStaticOptions: StaticOptions<string> = {
-    assets: resolve(process.cwd(), "dist", "client"),
-    prefix: "/client",
-  };
+  // Serve the client hydration bundle from .elysion/client/ at /_client/
+  const clientStaticPlugin = await staticPlugin({
+    assets: resolve(process.cwd(), ".elysion", "client"),
+    prefix: "/_client",
+  });
 
-  return plugins.reduce(
-    (app, plugin) => app.use(plugin),
-    new Elysia()
-      .use(await staticPlugin(clientStaticOptions))
-      .use(await staticPlugin(staticOptions))
-  );
+  return plugins.reduce((app, plugin) => app.use(plugin), new Elysia().use(clientStaticPlugin).use(await staticPlugin(staticOptions)));
 }

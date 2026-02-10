@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
     // Environment setup & latest features
-    "lib": [
-      "ESNext"
-    ],
+    "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
@@ -23,24 +21,8 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noPropertyAccessFromIndexSignature": false,
-    // Project specific
-    "baseUrl": ".",
-    "paths": {
-      "elysion": [
-        "./src/index.ts"
-      ],
-      "elysion/page": [
-        "./src/page.ts"
-      ]
-    }
+    "noPropertyAccessFromIndexSignature": false
   },
-  "include": [
-    "src/**/*",
-    "example/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

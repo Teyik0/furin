@@ -1,4 +1,4 @@
-import { page } from "elysion";
+import { page } from "elysion/react";
 import { useState } from "react";
 import "../../public/global.css";
 
