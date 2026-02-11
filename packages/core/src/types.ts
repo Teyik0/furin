@@ -1,6 +1,35 @@
 import type { Context } from "elysia";
 import type { AnySchema, SingletonBase, UnwrapSchema } from "elysia/types";
 
+type MetaDescriptor =
+  | { charSet: "utf-8" }
+  | { title: string }
+  | { name: string; content: string }
+  | { property: string; content: string }
+  | { httpEquiv: string; content: string }
+  | { "script:ld+json": object }
+  | { tagName: "meta" | "link"; [name: string]: string | undefined };
+
+export interface HeadOptions {
+  meta?: MetaDescriptor[];
+  links?: Array<{ rel: string; href: string; [key: string]: string }>;
+  scripts?: Array<{
+    src?: string;
+    type?: string;
+    children?: string;
+    [key: string]: string | undefined;
+  }>;
+  styles?: Array<{ type?: string; children: string }>;
+}
+
+export interface HeadContext<
+  TParams extends AnySchema | undefined,
+  TData extends Record<string, unknown>,
+> {
+  params: TParams extends AnySchema ? UnwrapSchema<TParams> : Record<string, string>;
+  loaderData?: TData;
+}
+
 export interface PageRouteSchema<
   TQuery extends AnySchema | undefined,
   TParams extends AnySchema | undefined,
@@ -24,29 +53,24 @@ interface PageOptions<
   TData extends Record<string, unknown>,
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
-  TActionBody extends AnySchema | undefined = undefined,
-  > {
-  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : unknown;
+> {
+  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : Record<string, string>;
   query?: TQuery;
   loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
-  action?: {
-    body: TActionBody;
-    handler: (ctx: LoaderContext<TQuery, TParams, TActionBody>) => Promise<unknown>;
-  };
+  head?: (ctx: HeadContext<TParams, TData>) => HeadOptions;
   component: React.FC<TData>;
-  mode?: "ssr";
-  revalidate?: 60;
+  mode?: "ssr" | "ssg" | "isr";
+  revalidate?: number | false;
 }
 
 export function page<
   TData extends Record<string, unknown>,
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
-  TActionBody extends AnySchema | undefined = undefined,
->(props: PageOptions<TData, TQuery, TParams, TActionBody>) {
+>(props: PageOptions<TData, TQuery, TParams>) {
   return {
     __brand: "ELYSION_REACT_PAGE",
-    ...props
+    ...props,
   };
 }
 
@@ -54,6 +78,9 @@ export type PageModule = typeof page;
 
 export function isPageModule(value: unknown): value is PageModule {
   return (
-    typeof value === "object" && value !== null && "__brand" in value && (value as { __brand?: string }).__brand === "ELYSION_REACT_PAGE"
+    typeof value === "object" &&
+    value !== null &&
+    "__brand" in value &&
+    (value as { __brand?: string }).__brand === "ELYSION_REACT_PAGE"
   );
 }

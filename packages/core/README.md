@@ -111,10 +111,6 @@ interface PageOptions<
   params?: TParams extends AnySchema ? UnwrapSchema<TParams> : unknown;
   query?: TQuery;
   loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
-  action?: {
-    body: TActionBody;
-    handler: (ctx: LoaderContext<TQuery, TParams, TActionBody>) => Promise<unknown>;
-  };
   component: React.FC<TData>;
   mode?: "ssr";
   revalidate?: 60;
@@ -138,14 +134,10 @@ new Eylisa()
   .guard({ query: queryModel })
   .resolve(async (ctx) => await loaderFunction())
   .get(routePath, async ({ query, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
-  .post(routePath, async ({ body }) => await actionFunction(actionModel)) 
   // If param is set
   .guard({ query: queryModel, params: paramsModel })
   .resolve(async (ctx) => await loaderFunction())
   .get(`${routePath}/:params`, async ({ params, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
-  .post(`${routePath}/:params`, async ({ body }) => await actionFunction(actionModel), {
-  	body: actionModel,
-  })
 
 // This generated code will be appended under the hood to the elysion plugin
 const app = new Elysia()

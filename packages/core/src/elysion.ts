@@ -11,7 +11,11 @@ interface ElysionProps {
   dev?: boolean;
 }
 
-export async function elysion({ pagesDir, staticOptions, dev = process.env.NODE_ENV !== "production" }: ElysionProps) {
+export async function elysion({
+  pagesDir,
+  staticOptions,
+  dev = process.env.NODE_ENV !== "production",
+}: ElysionProps) {
   const resolvedPagesDir = resolve(process.cwd(), pagesDir ?? "./src/pages");
   const routes = await scanPages(resolvedPagesDir);
 
@@ -37,5 +41,8 @@ export async function elysion({ pagesDir, staticOptions, dev = process.env.NODE_
     prefix: "/_client",
   });
 
-  return plugins.reduce((app, plugin) => app.use(plugin), new Elysia().use(clientStaticPlugin).use(await staticPlugin(staticOptions)));
+  return plugins.reduce(
+    (app, plugin) => app.use(plugin),
+    new Elysia().use(clientStaticPlugin).use(await staticPlugin(staticOptions))
+  );
 }
