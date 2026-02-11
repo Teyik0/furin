@@ -102,41 +102,63 @@ bun test          # Run tests
 
 ```ts
 // Abstraction using page function in our framework
-export default page(Component, {
-  // Validation (using Elysia guard)
-  query: queryModel,
-  params: paramsModel,
-  // GET - simple data fetching, forward data to the Component
-  loader: async ({ query, params }) => {
-    return await loaderFunction();
-  },
-  beforeHandle: async (ctx) => await beforeFunction(),  
-  afterHandle: async (ctx) => await afterFunction(),
-  
-  // POST - Separate mutation
-  action: {
-    body: actionModel,
-    handler: async ({ body }) => {
-      return await actionFunction(body);
-    }
-  },
-  
-  mode: "ssr",
-  revalidate: 60,
-})
+interface PageOptions<
+  TData extends Record<string, unknown>,
+  TQuery extends AnySchema | undefined = undefined,
+  TParams extends AnySchema | undefined = undefined,
+  TActionBody extends AnySchema | undefined = undefined,
+  > {
+  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : unknown;
+  query?: TQuery;
+  loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
+  action?: {
+    body: TActionBody;
+    handler: (ctx: LoaderContext<TQuery, TParams, TActionBody>) => Promise<unknown>;
+  };
+  component: React.FC<TData>;
+  mode?: "ssr";
+  revalidate?: 60;
+}
+
+export function page<
+  TData extends Record<string, unknown>,
+  TQuery extends AnySchema | undefined = undefined,
+  TParams extends AnySchema | undefined = undefined,
+  TActionBody extends AnySchema | undefined = undefined,
+>(props: PageOptions<TData, TQuery, TParams, TActionBody>) {
+  return {
+    __brand: "ELYSION_REACT_PAGE",
+    ...props
+  };
+}
 
 // This will create this behind the scene
 new Eylisa()
   // If param is not set
   .guard({ query: queryModel })
   .resolve(async (ctx) => await loaderFunction())
-  .get(routePath, async ({ query }) => Component)
+  .get(routePath, async ({ query, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
   .post(routePath, async ({ body }) => await actionFunction(actionModel)) 
   // If param is set
   .guard({ query: queryModel, params: paramsModel })
   .resolve(async (ctx) => await loaderFunction())
-  .get(`${routePath}/:params`, async ({ params }) => await productService.getById(params))
+  .get(`${routePath}/:params`, async ({ params, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
   .post(`${routePath}/:params`, async ({ body }) => await actionFunction(actionModel), {
   	body: actionModel,
   })
+
+// This generated code will be appended under the hood to the elysion plugin
+const app = new Elysia()
+  .use(authPlugin)
+  .use(
+    await elysion({
+      pagesDir: `${import.meta.dir}/pages`,
+      staticOptions: {
+        assets: `${import.meta.dir}/../public`,
+        prefix: "/public",
+        staticLimit: 1024,
+        alwaysStatic: process.env.NODE_ENV === "production",
+      },
+    })
+  )
 ```
