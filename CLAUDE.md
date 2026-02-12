@@ -59,9 +59,59 @@ Pages go in a `pages/` directory (configurable via `pagesDir`):
 
 ### Page File Convention
 
-Every page must default-export the result of `page(Component, options?)`:
+Every page must default-export the result of `page(props)`:
 
-```tsx
-import { page } from "elysion";
-export default page(MyComponent, { mode: "ssr", loader: async () => {...} });
+```ts
+// Abstraction using page function in our framework
+interface PageOptions<
+  TData extends Record<string, unknown>,
+  TQuery extends AnySchema | undefined = undefined,
+  TParams extends AnySchema | undefined = undefined,
+> {
+  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : Record<string, string>;
+  query?: TQuery;
+  loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
+  head?: (ctx: HeadContext<TParams, TData>) => HeadOptions;
+  component: React.FC<TData>;
+  mode?: "ssr" | "ssg" | "isr";
+  revalidate?: number | false;
+}
+
+export function page<
+  TData extends Record<string, unknown>,
+  TQuery extends AnySchema | undefined = undefined,
+  TParams extends AnySchema | undefined = undefined,
+  TActionBody extends AnySchema | undefined = undefined,
+>(props: PageOptions<TData, TQuery, TParams, TActionBody>) {
+  return {
+    __brand: "ELYSION_REACT_PAGE",
+    ...props
+  };
+}
+
+// This will create this behind the scene
+new Eylisa()
+  // If param is not set
+  .guard({ query: queryModel })
+  .resolve(async (ctx) => await loaderFunction())
+  .get(routePath, async ({ query, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
+  // If param is set
+  .guard({ query: queryModel, params: paramsModel })
+  .resolve(async (ctx) => await loaderFunction())
+  .get(`${routePath}/:params`, async ({ params, loaderData }) => render(ReactComponent(loaderData), { mode, revalidate }))
+
+// This generated code will be appended under the hood to the elysion plugin
+const app = new Elysia()
+  .use(authPlugin)
+  .use(
+    await elysion({
+      pagesDir: `${import.meta.dir}/pages`,
+      staticOptions: {
+        assets: `${import.meta.dir}/../public`,
+        prefix: "/public",
+        staticLimit: 1024,
+        alwaysStatic: process.env.NODE_ENV === "production",
+      },
+    })
+  )
 ```

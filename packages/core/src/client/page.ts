@@ -1,26 +1,6 @@
 import type { Context } from "elysia";
 import type { AnySchema, SingletonBase, UnwrapSchema } from "elysia/types";
-
-type MetaDescriptor =
-  | { charSet: "utf-8" }
-  | { title: string }
-  | { name: string; content: string }
-  | { property: string; content: string }
-  | { httpEquiv: string; content: string }
-  | { "script:ld+json": object }
-  | { tagName: "meta" | "link"; [name: string]: string | undefined };
-
-export interface HeadOptions {
-  meta?: MetaDescriptor[];
-  links?: Array<{ rel: string; href: string; [key: string]: string }>;
-  scripts?: Array<{
-    src?: string;
-    type?: string;
-    children?: string;
-    [key: string]: string | undefined;
-  }>;
-  styles?: Array<{ type?: string; children: string }>;
-}
+import type { HeadOptions } from "./shared";
 
 export interface HeadContext<
   TParams extends AnySchema | undefined,
@@ -43,22 +23,26 @@ export interface PageRouteSchema<
   response: unknown;
 }
 
-export type LoaderContext<
+export interface LoaderContext<
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
   TBody extends AnySchema | undefined = undefined,
-> = Context<PageRouteSchema<TQuery, TParams, TBody>, SingletonBase>;
+  TParentData extends Record<string, unknown> = Record<string, never>,
+> extends Context<PageRouteSchema<TQuery, TParams, TBody>, SingletonBase> {
+  parentData: TParentData;
+}
 
 interface PageOptions<
   TData extends Record<string, unknown>,
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
+  TParentData extends Record<string, unknown> = Record<string, never>,
 > {
   params?: TParams extends AnySchema ? UnwrapSchema<TParams> : Record<string, string>;
   query?: TQuery;
   loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
   head?: (ctx: HeadContext<TParams, TData>) => HeadOptions;
-  component: React.FC<TData>;
+  component: React.FC<TData & TParentData>;
   mode?: "ssr" | "ssg" | "isr";
   revalidate?: number | false;
 }
@@ -67,7 +51,8 @@ export function page<
   TData extends Record<string, unknown>,
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
->(props: PageOptions<TData, TQuery, TParams>) {
+  TParentData extends Record<string, unknown> = Record<string, never>,
+>(props: PageOptions<TData, TQuery, TParams, TParentData>) {
   return {
     __brand: "ELYSION_REACT_PAGE",
     ...props,

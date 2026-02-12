@@ -1,6 +1,6 @@
 import "../../public/global.css";
 
-import { page } from "elysion/react";
+import { page } from "elysion/page";
 import { useState } from "react";
 
 export default page(

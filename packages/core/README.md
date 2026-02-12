@@ -106,14 +106,14 @@ interface PageOptions<
   TData extends Record<string, unknown>,
   TQuery extends AnySchema | undefined = undefined,
   TParams extends AnySchema | undefined = undefined,
-  TActionBody extends AnySchema | undefined = undefined,
-  > {
-  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : unknown;
+> {
+  params?: TParams extends AnySchema ? UnwrapSchema<TParams> : Record<string, string>;
   query?: TQuery;
   loader?: (ctx: LoaderContext<TQuery, TParams>) => Promise<TData> | TData;
+  head?: (ctx: HeadContext<TParams, TData>) => HeadOptions;
   component: React.FC<TData>;
-  mode?: "ssr";
-  revalidate?: 60;
+  mode?: "ssr" | "ssg" | "isr";
+  revalidate?: number | false;
 }
 
 export function page<
