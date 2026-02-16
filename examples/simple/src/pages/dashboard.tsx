@@ -1,37 +1,27 @@
 import { t } from "elysia";
-import { page } from "elysion/react";
+import { createRoute } from "elysion/client";
 
-export default page(Dashboard, {
-  query: t.Object({
-    visits: t.Optional(t.Number()),
-  }),
-  loader: {
-    isAuthenticated: true,
-    handler: ({ query }) => {
-      const lastLogin = new Date().toLocaleDateString("fr-FR");
+const route = createRoute({
+  query: t.Object({ visits: t.Number() }),
+  loader: ({ query: { visits } }) => {
+    const lastLogin = new Date().toLocaleDateString("fr-FR");
 
-      return {
-        user: {
-          name: "Utilisateur Connecté",
-          email: "user@example.com",
-          role: "user",
-        },
-        stats: {
-          visits: query.visits,
-          lastLogin,
-        },
-      };
-    },
+    return {
+      user: {
+        name: "Utilisateur Connecté",
+        email: "user@example.com",
+        role: "user",
+      },
+      stats: {
+        visits,
+        lastLogin,
+      },
+    };
   },
 });
 
-function Dashboard({ user, stats }) {
-  const handleLogout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/";
-  };
-
-  return (
+export default route.page({
+  component: ({ user, stats }) => (
     <main
       style={{
         maxWidth: "800px",
@@ -49,20 +39,6 @@ function Dashboard({ user, stats }) {
         }}
       >
         <h1>Dashboard</h1>
-        <button
-          onClick={handleLogout}
-          style={{
-            padding: "10px 20px",
-            background: "#dc3545",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
-          type="button"
-        >
-          Déconnexion
-        </button>
       </div>
 
       <div
@@ -101,35 +77,6 @@ function Dashboard({ user, stats }) {
           <strong>Dernière connexion:</strong> {stats.lastLogin}
         </p>
       </div>
-
-      <div
-        style={{
-          padding: "15px",
-          background: "#fff3cd",
-          borderRadius: "8px",
-          fontSize: "14px",
-        }}
-      >
-        <strong>💡 Info:</strong> Cette page utilise la macro <code>isAuthenticated</code> définie dans server.ts. Si vous n'êtes pas
-        connecté, vous serez redirigé vers la page de login.
-      </div>
-
-      <div style={{ marginTop: "20px" }}>
-        <a
-          href="/admin"
-          style={{
-            display: "inline-block",
-            padding: "10px 20px",
-            background: "#28a745",
-            color: "white",
-            textDecoration: "none",
-            borderRadius: "4px",
-            marginRight: "10px",
-          }}
-        >
-          Aller à l'Admin (nécessite droits admin)
-        </a>
-      </div>
     </main>
-  );
-}
+  ),
+});

@@ -1,15 +1,15 @@
-import "../../../public/global.css";
-
-import { page } from "elysion/react";
+import { createRoute } from "elysion/client";
 import { useState } from "react";
 
-export default page(
-  () => {
+const route = createRoute({ mode: "ssr" });
+
+export default route.page({
+  component: () => {
     const [count, setCount] = useState(0);
 
     return (
       <div>
-        <h1>Counter example 2</h1>
+        <h1>Blog Page</h1>
         <span>{count}</span>
         <button onClick={() => setCount((prev) => prev + 1)} type="button">
           Increment
@@ -17,5 +17,4 @@ export default page(
       </div>
     );
   },
-  { mode: "ssr" }
-);
+});

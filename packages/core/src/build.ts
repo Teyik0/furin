@@ -8,8 +8,7 @@ const FILE_EXTENSION_REGEX = /\.(tsx?|jsx?)$/;
  * Build the client-side hydration bundle using Bun.build.
  *
  * Generates a single `_hydrate.tsx` entrypoint that imports all page
- * components, matches the current URL, and calls `hydrateRoot`.
- * Pages must import from "elysion/react" to avoid server-only dependencies.
+ * components and layout components, matches the current URL, and calls `hydrateRoot`.
  */
 export async function buildClient(
   routes: ResolvedRoute[],
@@ -66,23 +65,47 @@ export async function buildClient(
  * 1. Reads the current URL
  * 2. Finds the matching page component
  * 3. Reads `__ELYSION_DATA__` from the script tag
- * 4. Calls `hydrateRoot` with the correct component + props
+ * 4. Wraps with layout components (outermost first)
+ * 5. Calls `hydrateRoot` with the correct element tree
  */
 function generateHydrateEntry(routes: ResolvedRoute[]): string {
   const imports: string[] = [];
   const routeEntries: string[] = [];
 
+  // Track unique route file imports to avoid duplicates
+  const routeFileImports = new Map<string, string>();
+  let routeImportCounter = 0;
+
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i] as ResolvedRoute;
-    const componentName = `Page${i}`;
+    const pageName = `Page${i}`;
 
-    imports.push(`import ${componentName} from "${route.path.replace(/\\/g, "/")}";`);
+    // Import the page file
+    imports.push(`import ${pageName} from "${route.path.replace(/\\/g, "/")}";`);
+
+    // Import layout components from route.tsx files
+    const layoutNames: string[] = [];
+    for (let j = 0; j < route.routeChain.length; j++) {
+      const ancestor = route.routeChain[j];
+      const filePath = route.routeFilePaths[j];
+
+      if (ancestor?.layout && filePath) {
+        const normalizedPath = filePath.replace(/\\/g, "/");
+        let importName = routeFileImports.get(normalizedPath);
+        if (!importName) {
+          importName = `Route${routeImportCounter++}`;
+          routeFileImports.set(normalizedPath, importName);
+          imports.push(`import { route as ${importName} } from "${normalizedPath}";`);
+        }
+        layoutNames.push(`${importName}.layout`);
+      }
+    }
 
     // Convert Elysia :param to regex for client-side matching
     const regexPattern = route.pattern.replace(/:[^/]+/g, "([^/]+)").replace(/\*/g, "(.*)");
 
     routeEntries.push(
-      `  { pattern: "${route.pattern}", regex: new RegExp("^${regexPattern}$"), component: ${componentName}.component ?? ${componentName} }`
+      `  { pattern: "${route.pattern}", regex: new RegExp("^${regexPattern}$"), component: ${pageName}.component, layouts: [${layoutNames.join(", ")}] }`
     );
   }
 
@@ -103,7 +126,15 @@ if (match) {
   const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
   const root = document.getElementById("root");
   if (root) {
-    hydrateRoot(root, createElement(match.component, loaderData));
+    // Build element tree: wrap page with layouts (outermost first)
+    let element = createElement(match.component, loaderData);
+    for (let i = match.layouts.length - 1; i >= 0; i--) {
+      const Layout = match.layouts[i];
+      if (Layout) {
+        element = createElement(Layout, { ...loaderData, children: element });
+      }
+    }
+    hydrateRoot(root, element);
   }
 } else {
   console.warn("[elysion] No matching route for", pathname);

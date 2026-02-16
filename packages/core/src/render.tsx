@@ -1,7 +1,6 @@
 import type { StaticOptions } from "@elysiajs/static/types";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
-import type { PageModule } from "./react";
 import type { ResolvedRoute } from "./router";
 import { Shell } from "./shell";
 
@@ -30,34 +29,65 @@ async function streamToString(stream: ReadableStream): Promise<string> {
 
 const CLIENT_JS_PATH = "/_client/_hydrate.js";
 
-interface RenderableRoute {
-  module: PageModule;
-}
+function buildElement(route: ResolvedRoute, data: Record<string, unknown>): ReactNode {
+  const Component = route.page.component;
+  let element: ReactNode = <Component {...data} />;
 
-function buildElement(route: RenderableRoute, data?: Record<string, unknown>): ReactNode {
-  const Component = route.module.component;
+  // Wrap inside-out with layouts from routeChain (outermost first in array)
+  for (let i = route.routeChain.length - 1; i >= 0; i--) {
+    const routeEntry = route.routeChain[i];
+    if (routeEntry?.layout) {
+      const Layout = routeEntry.layout;
+      element = <Layout {...data}>{element}</Layout>;
+    }
+  }
+
   return (
     <Shell clientJsPath={CLIENT_JS_PATH} data={data}>
-      <Component {...(data ?? {})} />
+      {element}
     </Shell>
   );
 }
 
 /**
- * Render a route to a full HTML string.
- * Calls the loader if present, waits for all content (allReady),
- * and returns the complete HTML.
- *
- * Used by SSG and ISR (which need full strings for caching).
+ * Run all loaders in the route chain + page loader, accumulating data flat.
  */
-export async function renderToHTML(route: RenderableRoute, params: Record<string, string>, query: Record<string, string>) {
-  let data: Record<string, unknown> | undefined;
+async function runLoaders(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  query: Record<string, string>
+): Promise<Record<string, unknown>> {
+  let data: Record<string, unknown> = {};
 
-  if (route.module.options?.loader?.handler) {
-    data = (await Promise.resolve(route.module.options.loader.handler({ params, query }))) ?? undefined;
+  // Run route chain loaders in order (top-down)
+  for (const ancestor of route.routeChain) {
+    if (ancestor.loader) {
+      const result = await ancestor.loader({ ...data, params, query });
+      data = { ...data, ...result };
+    }
   }
 
-  const element = buildElement(route, data);
+  // Run page-level loader
+  if (route.page.loader) {
+    const result = await route.page.loader({ ...data, params, query });
+    data = { ...data, ...result };
+  }
+
+  return data;
+}
+
+/**
+ * Render a route to a full HTML string.
+ * Runs all loaders, waits for all content (allReady),
+ * and returns the complete HTML.
+ */
+export async function renderToHTML(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  query: Record<string, string>
+) {
+  const data = await runLoaders(route, params, query);
+  const element = buildElement(route, { ...data, params, query });
   const stream = await renderToReadableStream(element);
   await stream.allReady;
   return streamToString(stream);
@@ -65,26 +95,31 @@ export async function renderToHTML(route: RenderableRoute, params: Record<string
 
 /**
  * Render a route to a ReadableStream for streaming SSR.
- * The returned stream starts emitting as soon as the shell is ready.
- * Suspense boundaries resolve progressively.
  */
-export async function renderToStream(route: RenderableRoute, params: Record<string, string>, query: Record<string, string>) {
-  let data: Record<string, unknown> | undefined;
-
-  if (route.module.options?.loader?.handler) {
-    data = (await Promise.resolve(route.module.options.loader.handler({ params, query }))) ?? undefined;
-  }
-
-  const element = buildElement(route, data);
+export async function renderToStream(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  query: Record<string, string>
+) {
+  const data = await runLoaders(route, params, query);
+  const element = buildElement(route, { ...data, params, query });
   return renderToReadableStream(element);
 }
 
-export async function prerenderSSG(route: ResolvedRoute, params: Record<string, string>, _config: StaticOptions<string>) {
+export async function prerenderSSG(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  _config: StaticOptions<string>
+) {
   const resolvedPath = Object.entries(params ?? {}).reduce((path: string, [key, val]) => {
     const placeholder = key === "*" ? "*" : `:${key}`;
     return path.replace(placeholder, () => val);
   }, route.pattern);
-  console.log(resolvedPath);
+
+  const cached = ssgCache.get(resolvedPath);
+  if (cached) {
+    return cached;
+  }
 
   const html = await renderToHTML(route, params, {});
   ssgCache.set(resolvedPath, html);
@@ -112,10 +147,9 @@ export async function handleISR(
   ctx: { params?: Record<string, string>; query?: Record<string, string> },
   _config: StaticOptions<string>
 ): Promise<Response> {
-  const revalidate = route.module.options?.revalidate ?? 60;
+  const revalidate = route.page._route.revalidate ?? 60;
   const params = ctx.params ?? {};
 
-  // Build a cache key from the pattern with params resolved
   const cacheKey = Object.entries(params).reduce((path: string, [key, val]: [string, string]) => {
     const placeholder = key === "*" ? "*" : `:${key}`;
     return path.replace(placeholder, () => val);
@@ -128,7 +162,6 @@ export async function handleISR(
     const isFresh = age < revalidate * 1000;
 
     if (!isFresh) {
-      // Stale — serve stale, revalidate in background
       revalidateInBackground(route, params, cacheKey, revalidate);
     }
 
@@ -142,7 +175,6 @@ export async function handleISR(
     });
   }
 
-  // Not cached — render fresh
   const html = await renderToHTML(route, params, {});
   isrCache.set(cacheKey, { html, generatedAt: Date.now(), revalidate });
 
@@ -154,7 +186,12 @@ export async function handleISR(
   });
 }
 
-function revalidateInBackground(route: ResolvedRoute, params: Record<string, string>, cacheKey: string, revalidate: number) {
+function revalidateInBackground(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  cacheKey: string,
+  revalidate: number
+) {
   renderToHTML(route, params, {})
     .then((freshHtml: string) => {
       isrCache.set(cacheKey, {

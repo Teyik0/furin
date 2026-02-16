@@ -2,171 +2,170 @@ import { parse } from "node:path";
 import type { StaticOptions } from "@elysiajs/static/types";
 import { Glob } from "bun";
 import { type AnyElysia, Elysia } from "elysia";
-import { isActionConfig, isLoaderConfig, isPageModule, type PageModule, type PageOptions } from "./react";
+import type { AnySchema } from "elysia/types";
 import { handleISR, prerenderSSG, renderSSR } from "./render";
+import {
+  collectRouteChain,
+  type ElysionPageObject,
+  type ElysionRouteObject,
+  isElysionPage,
+  isElysionRoute,
+} from "./types";
+
+export interface ResolvedRoute {
+  pattern: string;
+  path: string;
+  page: ElysionPageObject;
+  routeChain: ElysionRouteObject[];
+  /** File paths of route.tsx files in the chain (same order as routeChain) */
+  routeFilePaths: (string | undefined)[];
+  mode: "ssr" | "ssg" | "isr";
+  isrCache?: { html: string; generatedAt: number; revalidate: number };
+  ssgHtml?: string;
+}
 
 export function createRoutePlugin(route: ResolvedRoute, config: StaticOptions<string>): AnyElysia {
-  const { pattern, mode } = route;
-  const { query, params, loader, action } = route.module.options ?? {};
-
-  const loaderOption = isLoaderConfig(loader) ? loader : undefined;
-  const actionOption = isActionConfig(action) ? action : undefined;
+  const { pattern, mode, routeChain, page } = route;
 
   const plugins: AnyElysia[] = [];
 
-  if (query || params) {
-    plugins.push(new Elysia().guard({ query, params }));
-  }
-
-  if (loader?.handler) {
+  // 1. Merge params/query schemas from the full route chain
+  const allParams = routeChain.find((r) => r.params)?.params;
+  const allQuery = routeChain.find((r) => r.query)?.query;
+  if (allParams || allQuery) {
     plugins.push(
-      new Elysia().resolve(async (ctx) => ({
-        __pageData: await loader.handler(ctx),
-      }))
+      new Elysia().guard({ params: allParams as AnySchema, query: allQuery as AnySchema })
     );
   }
 
-  // 3. Extract hooks from loader (everything except handler)
-  const { handler: _loaderHandler, ...loaderHooks } = loader || {};
+  // 2. Chain .resolve() for each ancestor route loader (top-down, flat accumulation)
+  for (const ancestor of routeChain) {
+    if (ancestor.loader) {
+      const loaderFn = ancestor.loader;
+      plugins.push(new Elysia().resolve(async (ctx) => loaderFn(ctx)));
+    }
+  }
 
-  // 4. Add GET route with all loader hooks (macros, beforeHandle, etc.)
+  // 3. Chain .resolve() for the page's own loader
+  if (page.loader) {
+    const pageLoaderFn = page.loader;
+    plugins.push(new Elysia().resolve(async (ctx) => pageLoaderFn(ctx)));
+  }
+
+  // 4. GET handler
   plugins.push(
-    new Elysia().get(
-      pattern,
-      async (ctx) => {
-        switch (mode) {
-          case "ssg": {
-            const html = await prerenderSSG(route, ctx.params ?? {}, config);
-            return new Response(html, {
-              headers: {
-                "Content-Type": "text/html; charset=utf-8",
-                "Cache-Control": "public, max-age=0, must-revalidate",
-              },
-            });
-          }
-
-          case "isr":
-            return handleISR(route, ctx, config);
-
-          default:
-            return renderSSR(route, ctx, config);
+    new Elysia().get(pattern, async (ctx) => {
+      switch (mode) {
+        case "ssg": {
+          const html = await prerenderSSG(route, ctx.params ?? {}, config);
+          return new Response(html, {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "public, max-age=0, must-revalidate",
+            },
+          });
         }
-      },
-      // Spread loader hooks (macros, beforeHandle, afterHandle, etc.)
-      Object.keys(loaderHooks).length > 0 ? loaderHooks : undefined
-    )
+
+        case "isr":
+          return handleISR(route, ctx, config);
+
+        default:
+          return renderSSR(route, ctx, config);
+      }
+    })
   );
 
-  // 5. POST route for action
-  if (action) {
-    const { handler: actionHandler, body, ...actionHooks } = action;
-
-    const actionPlugin = new Elysia().guard({ body });
-
-    // Add POST route with all action hooks
-    plugins.push(
-      actionPlugin.post(
-        pattern,
-        actionHandler,
-        // Spread action hooks (macros, beforeHandle, afterHandle, etc.)
-        Object.keys(actionHooks).length > 0 ? actionHooks : undefined
-      )
-    );
-  }
-
   return plugins.reduce((app, plugin) => app.use(plugin), new Elysia());
-}
-
-export interface ResolvedRoute {
-  pattern: string; // URL pattern e.g. /blog/:slug
-  path: string;
-  module: PageModule;
-  mode: NonNullable<PageOptions["mode"]>;
-
-  /** ISR cache entry if applicable */
-  isrCache?: {
-    html: string;
-    generatedAt: number;
-    revalidate: number;
-  };
-
-  /** Pre-rendered HTML for SSG pages */
-  ssgHtml?: string;
 }
 
 /**
  * Scan the pages directory and resolve all routes.
  *
- * @param pagesDir - Absolute path to the pages directory
- * @returns Array of resolved routes with patterns, modules, and modes
- *
- * @example
  * File-based routing conventions:
- * ```
- * index.tsx        → /
- * about.tsx        → /about
- * blog/index.tsx   → /blog
- * blog/[slug].tsx  → /blog/:slug
- * [...catch].tsx   → /* (catch-all)
- * _hidden.tsx      → ignored (underscore prefix)
- * ```
+ * - `index.tsx`       → `/`
+ * - `about.tsx`       → `/about`
+ * - `blog/index.tsx`  → `/blog`
+ * - `blog/[slug].tsx` → `/blog/:slug`
+ * - `[...catch].tsx`  → `/*` (catch-all)
+ * - `_hidden.tsx`     → ignored (underscore prefix)
+ * - `route.tsx`       → skipped (imported by page files via parent)
  */
 export const scanPages = async (pagesDir: string) => {
   const routes: ResolvedRoute[] = [];
 
+  // Phase 1: Scan route.tsx files to build identity → file path map
+  const routeFileMap = new Map<ElysionRouteObject, string>();
+  const routeGlob = new Glob("**/route.tsx");
+  for await (const absolutePath of routeGlob.scan({ cwd: pagesDir, absolute: true })) {
+    const mod = await import(absolutePath);
+    const routeExport = mod.route ?? mod.default;
+    if (routeExport && isElysionRoute(routeExport)) {
+      routeFileMap.set(routeExport, absolutePath);
+    }
+  }
+
+  // Phase 2: Scan page files
   const glob = new Glob("**/*.tsx");
   for await (const absolutePath of glob.scan({ cwd: pagesDir, absolute: true })) {
     if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))) {
       continue;
     }
-    if (absolutePath.startsWith("_")) {
+
+    const relativePath = absolutePath.replace(`${pagesDir}/`, "");
+    const fileName = parse(relativePath).name;
+
+    // Skip underscore-prefixed files and route.tsx files
+    if (fileName.startsWith("_") || fileName === "route") {
       continue;
     }
 
     const page = (await import(absolutePath)).default;
-    if (!isPageModule(page)) {
-      console.warn(`[elysion] Skipping ${absolutePath}: no valid page() export found`);
+    if (!isElysionPage(page)) {
+      console.warn(
+        `[elysion] Skipping ${relativePath}: no valid createRoute().page() export found`
+      );
       continue;
     }
-    const relativePath = absolutePath.replace(`${pagesDir}/`, "");
+
+    const routeChain = collectRouteChain(page);
+    const routeFilePaths = routeChain.map((r) => routeFileMap.get(r));
 
     routes.push({
       pattern: filePathToPattern(relativePath),
-      module: page,
+      page,
       path: absolutePath,
-      mode: resolveMode(page),
+      routeChain,
+      routeFilePaths,
+      mode: resolveMode(page, routeChain),
     });
   }
 
   return routes;
 };
 
-function resolveMode(pageModule: PageModule) {
-  const { options } = pageModule;
-
-  // Validate: explicit mode conflicts with revalidate
-  if (options?.mode !== "isr" && options?.revalidate && options.revalidate > 0) {
-    throw new Error(
-      `[elysion] Invalid config: cannot set both 'mode' and 'revalidate'. Use 'mode: "isr"' with 'revalidate' or remove 'mode'.`
-    );
-  }
+function resolveMode(
+  page: ElysionPageObject,
+  routeChain: ElysionRouteObject[]
+): "ssr" | "ssg" | "isr" {
+  const routeConfig = page._route;
 
   // Explicit mode always wins
-  if (options?.mode) {
-    return options.mode;
+  if (routeConfig.mode) {
+    return routeConfig.mode;
   }
 
-  // No loader → static
-  if (!options?.loader) {
+  // Check if any loader exists in the chain or on the page
+  const hasLoader = routeChain.some((r) => r.loader) || !!page.loader;
+
+  if (!hasLoader) {
     return "ssg";
   }
 
   // Has revalidate → ISR
-  if (options?.revalidate && options?.revalidate > 0) {
+  if (routeConfig.revalidate && routeConfig.revalidate > 0) {
     return "isr";
   }
 
-  // Has loader → SSR
   return "ssr";
 }
 
@@ -178,15 +177,12 @@ function filePathToPattern(path: string): string {
     const name = parse(part).name;
 
     if (name === "index") {
-      // index files map to the parent directory
       continue;
     }
 
-    // [slug] → :slug
     if (name.startsWith("[") && name.endsWith("]")) {
       const inner = name.slice(1, -1);
 
-      // [...catch] → * (catch-all)
       if (inner.startsWith("...")) {
         segments.push("*");
         continue;

@@ -29,8 +29,9 @@ export async function elysion({
   console.log(`Configuration: ${routes.length} page(s)`);
   for (const route of routes) {
     const modeLabel = route.mode.toUpperCase();
-    const hasAction = route.module.options?.action ? " + action" : "";
-    console.log(`${modeLabel.padEnd(4)} ${route.pattern}${hasAction}`);
+    const hasLayout = route.routeChain.some((r) => r.layout);
+    const layoutLabel = hasLayout ? " + layout" : "";
+    console.log(`${modeLabel.padEnd(4)} ${route.pattern}${layoutLabel}`);
 
     plugins.push(createRoutePlugin(route, staticOptions));
   }
