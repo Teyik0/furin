@@ -3,9 +3,10 @@ import "../../public/global.css";
 import { createRoute } from "elysion/client";
 import { useState } from "react";
 
-const route = createRoute({ mode: "ssg" });
+const { page } = createRoute({ mode: "ssg" });
 
-export default route.page({
+export default page({
+  head: () => ({ meta: [{ title: "ggpzzge" }] }),
   component: () => {
     const [count, setCount] = useState(0);
 

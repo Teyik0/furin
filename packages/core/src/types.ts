@@ -1,41 +1,12 @@
 /**
- * Server-side runtime types for Elysion.
- * These are the "untyped" runtime shapes consumed by router.ts, render.tsx, build.ts.
- * The strongly-typed client API lives in client/types.ts.
+ * Runtime types and utilities for Elysion.
+ * Derived from the canonical types in client.ts.
  */
-
-// ---- Runtime interfaces ----
-
-export interface ElysionRouteObject {
-  __type: "ELYSION_ROUTE";
-  mode?: "ssr" | "ssg" | "isr";
-  revalidate?: number;
-  params?: unknown;
-  query?: unknown;
-  loader?: (
-    ctx: Record<string, unknown>
-  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  layout?: React.FC<Record<string, unknown> & { children: React.ReactNode }>;
-  parent?: ElysionRouteObject;
-}
-
-export interface ElysionPageObject {
-  __type: "ELYSION_PAGE";
-  component: React.FC<Record<string, unknown>>;
-  loader?: (
-    ctx: Record<string, unknown>
-  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  head?: (ctx: {
-    data: Record<string, unknown>;
-    params: Record<string, unknown>;
-    query: Record<string, unknown>;
-  }) => unknown;
-  _route: Omit<ElysionRouteObject, "__type" | "page">;
-}
+import type { RuntimePage, RuntimeRoute } from "./client";
 
 // ---- Type guards ----
 
-export function isElysionPage(value: unknown): value is ElysionPageObject {
+export function isElysionPage(value: unknown): value is RuntimePage {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -44,7 +15,7 @@ export function isElysionPage(value: unknown): value is ElysionPageObject {
   );
 }
 
-export function isElysionRoute(value: unknown): value is ElysionRouteObject {
+export function isElysionRoute(value: unknown): value is RuntimeRoute {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -59,9 +30,9 @@ export function isElysionRoute(value: unknown): value is ElysionRouteObject {
  * Walk up the parent chain from a page's _route and return
  * the ancestor routes in top-down order: [root, ..., leaf].
  */
-export function collectRouteChain(page: ElysionPageObject): ElysionRouteObject[] {
-  const chain: ElysionRouteObject[] = [];
-  let current: ElysionRouteObject | undefined = page._route as ElysionRouteObject | undefined;
+export function collectRouteChain(page: RuntimePage): RuntimeRoute[] {
+  const chain: RuntimeRoute[] = [];
+  let current: RuntimeRoute | undefined = page._route;
 
   while (current) {
     chain.unshift(current);

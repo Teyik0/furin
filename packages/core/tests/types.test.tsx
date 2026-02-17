@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "elysia";
 import { expectTypeOf } from "expect-type";
-import { createRoute, type InferProps } from "../src/client/types";
+import { createRoute, type InferProps } from "../src/client";
 import { collectRouteChain, isElysionPage, isElysionRoute } from "../src/types";
 
 describe("createRoute types", () => {
@@ -9,9 +9,11 @@ describe("createRoute types", () => {
     const route = createRoute({ mode: "ssg" });
 
     route.page({
-      component: ({ params, query }) => {
-        expectTypeOf(params).toEqualTypeOf<unknown>();
-        expectTypeOf(query).toEqualTypeOf<unknown>();
+      component: (props) => {
+        // @ts-expect-error — params doesn't exist when not defined
+        props.params;
+        // @ts-expect-error — query doesn't exist when not defined
+        props.query;
         return null;
       },
     });

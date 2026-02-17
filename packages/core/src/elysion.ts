@@ -5,7 +5,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import { buildClient, watchPages } from "./build";
 import { createRoutePlugin, scanPages } from "./router";
 
-interface ElysionProps {
+export interface ElysionProps {
   pagesDir?: string;
   staticOptions: StaticOptions<string>;
   dev?: boolean;

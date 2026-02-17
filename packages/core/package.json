@@ -4,11 +4,11 @@
   "type": "module",
   "exports": {
     ".": {
-      "default": "./src/index.ts"
+      "default": "./src/elysion.ts"
     },
     "./client": {
-      "types": "./src/client/index.ts",
-      "default": "./src/client/index.ts"
+      "types": "./src/client.ts",
+      "default": "./src/client.ts"
     }
   },
   "dependencies": {

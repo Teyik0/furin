@@ -3,20 +3,15 @@ import type { StaticOptions } from "@elysiajs/static/types";
 import { Glob } from "bun";
 import { type AnyElysia, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
+import type { RuntimePage, RuntimeRoute } from "./client";
 import { handleISR, prerenderSSG, renderSSR } from "./render";
-import {
-  collectRouteChain,
-  type ElysionPageObject,
-  type ElysionRouteObject,
-  isElysionPage,
-  isElysionRoute,
-} from "./types";
+import { collectRouteChain, isElysionPage, isElysionRoute } from "./types";
 
 export interface ResolvedRoute {
   pattern: string;
   path: string;
-  page: ElysionPageObject;
-  routeChain: ElysionRouteObject[];
+  page: RuntimePage;
+  routeChain: RuntimeRoute[];
   /** File paths of route.tsx files in the chain (same order as routeChain) */
   routeFilePaths: (string | undefined)[];
   mode: "ssr" | "ssg" | "isr";
@@ -94,7 +89,7 @@ export const scanPages = async (pagesDir: string) => {
   const routes: ResolvedRoute[] = [];
 
   // Phase 1: Scan route.tsx files to build identity → file path map
-  const routeFileMap = new Map<ElysionRouteObject, string>();
+  const routeFileMap = new Map<RuntimeRoute, string>();
   const routeGlob = new Glob("**/route.tsx");
   for await (const absolutePath of routeGlob.scan({ cwd: pagesDir, absolute: true })) {
     const mod = await import(absolutePath);
@@ -143,10 +138,7 @@ export const scanPages = async (pagesDir: string) => {
   return routes;
 };
 
-function resolveMode(
-  page: ElysionPageObject,
-  routeChain: ElysionRouteObject[]
-): "ssr" | "ssg" | "isr" {
+function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr" | "ssg" | "isr" {
   const routeConfig = page._route;
 
   // Explicit mode always wins
