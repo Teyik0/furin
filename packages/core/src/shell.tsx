@@ -51,6 +51,18 @@ export function Shell({
           <meta key={i} {...meta} />
         ))}
 
+        {headData?.meta
+          ?.filter((m): m is { "script:ld+json": object } => "script:ld+json" in m)
+          .map((m, i) => (
+            <script
+              //biome-ignore lint/suspicious/noArrayIndexKey: ok
+              dangerouslySetInnerHTML={{ __html: JSON.stringify(m["script:ld+json"]) }}
+              key={i}
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: ok
+              type="application/ld+json"
+            />
+          ))}
+
         {headData?.links?.map((link, i) => (
           //biome-ignore lint/suspicious/noArrayIndexKey: ok
           <link key={i} {...link} />
@@ -98,6 +110,14 @@ function renderMetaTags(meta: MetaDescriptor[]): string[] {
     .map((m) => `<meta ${renderAttrs(m as Record<string, string>, true)} />`);
 }
 
+function renderJsonLdTags(meta: MetaDescriptor[]): string[] {
+  return meta
+    .filter((m): m is { "script:ld+json": object } => "script:ld+json" in m)
+    .map(
+      (m) => `<script type="application/ld+json">${JSON.stringify(m["script:ld+json"])}</script>`
+    );
+}
+
 function renderLinkTags(links: HeadOptions["links"]): string[] {
   return (links ?? []).map((link) => `<link ${renderAttrs(link)} />`);
 }
@@ -132,6 +152,7 @@ export function renderHead(headData?: HeadOptions): string {
 
   if (headData.meta) {
     parts.push(...renderMetaTags(headData.meta));
+    parts.push(...renderJsonLdTags(headData.meta));
   }
   if (headData.links) {
     parts.push(...renderLinkTags(headData.links));

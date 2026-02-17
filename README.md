@@ -211,10 +211,10 @@ function BlogLayout({ children, post, related, params, query }: InferProps<typeo
 import { route } from './route';
 
 export default route.page({
-  head: ({ data }) => ({
-    title: data.post.title,
+  head: ({ post }) => ({
+    title: post.title,
     meta: [
-      { name: 'description', content: data.post.excerpt }
+      { name: 'description', content: post.excerpt }
     ]
   }),
 
