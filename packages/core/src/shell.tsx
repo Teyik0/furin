@@ -55,10 +55,10 @@ export function Shell({
           ?.filter((m): m is { "script:ld+json": object } => "script:ld+json" in m)
           .map((m, i) => (
             <script
-              //biome-ignore lint/suspicious/noArrayIndexKey: ok
-              dangerouslySetInnerHTML={{ __html: JSON.stringify(m["script:ld+json"]) }}
-              key={i}
               // biome-ignore lint/security/noDangerouslySetInnerHtml: ok
+              dangerouslySetInnerHTML={{ __html: JSON.stringify(m["script:ld+json"]) }}
+              //biome-ignore lint/suspicious/noArrayIndexKey: ok
+              key={i}
               type="application/ld+json"
             />
           ))}
