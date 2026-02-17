@@ -186,10 +186,8 @@ export function createRoute<
   return route as Route<R["data"], R["params"], R["query"]>;
 }
 
-export type InferProps<T> = T extends { __type: "ELYSION_PAGE"; _route: infer TRoute }
-  ? TRoute extends Route<infer D, infer P, infer Q>
-    ? D & RouteContext<P, Q>
-    : never
+export type InferProps<T> = T extends { __type: "ELYSION_PAGE"; component: React.FC<infer P> }
+  ? P
   : T extends Route<infer D, infer P, infer Q>
     ? D & { children: React.ReactNode } & RouteContext<P, Q>
     : never;

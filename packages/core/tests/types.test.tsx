@@ -115,6 +115,25 @@ describe("createRoute types", () => {
       return null;
     }
   });
+
+  test("InferProps on page includes page-level loader data", () => {
+    const route = createRoute({
+      loader: async () => ({ post: { title: "Hello" } }),
+    });
+
+    const page = route.page({
+      loader: async () => ({
+        comments: [{ text: "Nice" }] as Array<{ text: string }>,
+      }),
+      component: (props) => <Component {...props} />,
+    });
+
+    function Component({ post, comments }: InferProps<typeof page>) {
+      expectTypeOf(post).toEqualTypeOf<{ title: string }>();
+      expectTypeOf(comments).toEqualTypeOf<Array<{ text: string }>>();
+      return null;
+    }
+  });
 });
 
 describe("nested layouts", () => {
@@ -236,7 +255,7 @@ describe("page head", () => {
 
     route.page({
       loader: async () => ({
-        comments: [{ text: "Nice" }] as Array<{ text: string }>,
+        comments: [{ text: "Nice" }],
       }),
       head: ({ post, comments }) => {
         expectTypeOf(post.title).toBeString();
