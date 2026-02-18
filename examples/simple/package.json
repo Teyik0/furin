@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/server.ts",
+    "dev": "bun --hot src/server.ts",
     "start": "NODE_ENV=production bun src/index.ts",
     "build": "bun run build.ts"
   },
@@ -14,5 +14,8 @@
     "react": "^19",
     "react-dom": "^19",
     "tailwindcss": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7.20.5"
   }
 }
