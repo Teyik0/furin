@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import type { RuntimeRoute } from "./client";
 import { getCachedCss } from "./css";
+import { getModuleVersion } from "./hmr/watcher";
 import type { ResolvedRoute, RootLayout } from "./router";
 import { buildBodyInjection, buildHeadInjection, postProcessHTML } from "./shell";
 
@@ -36,7 +37,7 @@ async function loadPageModule(route: ResolvedRoute, dev: boolean) {
 
   if (dev) {
     try {
-      const mod = await import(`${route.pagePath}?v=${Date.now()}`);
+      const mod = await import(`${route.pagePath}?v=${getModuleVersion(route.pagePath)}`);
       const page = mod.default;
       route.page = page;
       return page;
@@ -58,7 +59,7 @@ async function loadRootModule(root: RootLayout, _dev: boolean): Promise<RuntimeR
   }
 
   try {
-    const mod = await import(`${root.path}?v=${Date.now()}`);
+    const mod = await import(`${root.path}?v=${getModuleVersion(root.path)}`);
     const rootRoute = mod.route ?? mod.default;
     if (rootRoute && rootRoute.__type === "ELYSION_ROUTE") {
       return rootRoute;
@@ -128,7 +129,7 @@ async function buildElement(
     // reflects the latest file content (avoids SSR/client hydration mismatches).
     if (dev && filePath) {
       try {
-        const freshMod = await import(`${filePath}?v=${Date.now()}`);
+        const freshMod = await import(`${filePath}?v=${getModuleVersion(filePath)}`);
         const freshRoute = freshMod.route ?? freshMod.default;
         if (freshRoute) {
           routeEntry = freshRoute;
