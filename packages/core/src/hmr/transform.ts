@@ -21,6 +21,24 @@ const presetTypescript = require.resolve("@babel/preset-typescript");
 const presetReact = require.resolve("@babel/preset-react");
 const reactRefreshBabelPlugin = require.resolve("react-refresh/babel");
 
+// ---------------------------------------------------------------------------
+// Top-level regex constants (satisfies lint/performance/useTopLevelRegex)
+// ---------------------------------------------------------------------------
+const RELATIVE_IMPORT_RE = /^(import\b[^'"]*?from\s*)(["'])(\.\.?\/[^"']+)\2/gm;
+const IMPORT_LINE_RE = /^import\s+(.+?)\s+from\s*["'][^"']+["'];?\s*$/;
+const NAMED_IMPORTS_RE = /^\{([^}]+)\}$/;
+const DEFAULT_IMPORT_RE = /^(\w+)(?:\s*,\s*\{([^}]+)\})?$/;
+const NAMESPACE_IMPORT_RE = /^\*\s+as\s+(\w+)$/;
+const SINGLE_LINE_COMMENT_RE = /\/\/[^\n]*/g;
+const MULTI_LINE_COMMENT_RE = /\/\*[\s\S]*?\*\//g;
+const STRING_LITERAL_RE = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+const IMPORT_META_HOT_RE = /if\s*\(import\.meta\.hot\)\s*\{/g;
+const AS_SPECIFIER_RE = /\s+as\s+/;
+
+// ---------------------------------------------------------------------------
+// Babel AST helpers
+// ---------------------------------------------------------------------------
+
 function findObjectProperty(
   obj: Babel.types.ObjectExpression,
   name: string
@@ -85,6 +103,45 @@ function insertFunctionBeforeExport(
 
 const SERVER_ONLY_PROPERTIES = ["loader"];
 
+// ---------------------------------------------------------------------------
+// Component extraction from page() calls
+// ---------------------------------------------------------------------------
+
+function handlePageCallExtraction(
+  path: NodePath<Babel.types.ExportDefaultDeclaration>,
+  arg: Babel.types.Expression,
+  onExtract: (name: string) => void
+): void {
+  if (!isObjectExpression(arg)) {
+    return;
+  }
+
+  removeServerProperties(arg, SERVER_ONLY_PROPERTIES);
+
+  const componentProp = findComponentProperty(arg);
+  if (!componentProp) {
+    return;
+  }
+
+  const componentValue = componentProp.value;
+  if (!shouldExtractComponent(componentValue)) {
+    return;
+  }
+
+  const extractedName = path.scope.generateUidIdentifier("ElysionPage");
+  onExtract(extractedName.name);
+
+  if (isArrowFunctionExpression(componentValue) || isFunctionExpression(componentValue)) {
+    const namedFunction = createNamedFunctionFromArrow(
+      componentValue.params,
+      componentValue.body,
+      extractedName
+    );
+    componentProp.value = extractedName;
+    insertFunctionBeforeExport(path, namedFunction);
+  }
+}
+
 function createExtractPlugin(onExtract: (name: string) => void): Babel.PluginObj {
   return {
     name: "extract-page-component",
@@ -100,31 +157,7 @@ function createExtractPlugin(onExtract: (name: string) => void): Babel.PluginObj
         const callee = decl.callee;
 
         if (isIdentifier(callee, { name: "page" })) {
-          if (isObjectExpression(arg)) {
-            removeServerProperties(arg, SERVER_ONLY_PROPERTIES);
-
-            const componentProp = findComponentProperty(arg);
-            if (componentProp) {
-              const componentValue = componentProp.value;
-              if (shouldExtractComponent(componentValue)) {
-                const extractedName = path.scope.generateUidIdentifier("ElysionPage");
-                onExtract(extractedName.name);
-
-                if (
-                  isArrowFunctionExpression(componentValue) ||
-                  isFunctionExpression(componentValue)
-                ) {
-                  const namedFunction = createNamedFunctionFromArrow(
-                    componentValue.params,
-                    componentValue.body,
-                    extractedName
-                  );
-                  componentProp.value = extractedName;
-                  insertFunctionBeforeExport(path, namedFunction);
-                }
-              }
-            }
-          }
+          handlePageCallExtraction(path, arg as Babel.types.Expression, onExtract);
           return;
         }
 
@@ -167,6 +200,10 @@ function createExtractPlugin(onExtract: (name: string) => void): Babel.PluginObj
   };
 }
 
+// ---------------------------------------------------------------------------
+// Relative import rewriting
+// ---------------------------------------------------------------------------
+
 function rewriteRelativeImports(
   code: string,
   filePath: string,
@@ -175,24 +212,98 @@ function rewriteRelativeImports(
 ): string {
   const fileDir = dirname(filePath);
 
-  return code.replace(
-    /^(import\b[^'"]*?from\s*)(["'])(\.\.?\/[^"']+)\2/gm,
-    (match, prefix, quote, importPath) => {
-      const absoluteImportPath = resolve(fileDir, importPath);
+  return code.replace(RELATIVE_IMPORT_RE, (match, prefix, quote, importPath) => {
+    const absoluteImportPath = resolve(fileDir, importPath);
 
-      if (!absoluteImportPath.startsWith(srcDir)) {
-        return match;
-      }
-
-      const relativeToSrc = relative(srcDir, absoluteImportPath).replace(/\\/g, "/");
-      return `${prefix}${quote}/_modules/src/${relativeToSrc}${quote}`;
+    if (!absoluteImportPath.startsWith(srcDir)) {
+      return match;
     }
-  );
+
+    const relativeToSrc = relative(srcDir, absoluteImportPath).replace(/\\/g, "/");
+    return `${prefix}${quote}/_modules/src/${relativeToSrc}${quote}`;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Unused import removal — helpers reduce cognitive complexity
+// ---------------------------------------------------------------------------
+
+function parseNamedSpecifiers(specStr: string): string[] {
+  const namedMatch = specStr.match(NAMED_IMPORTS_RE);
+  if (!namedMatch?.[1]) {
+    return [];
+  }
+
+  const identifiers: string[] = [];
+  for (const spec of namedMatch[1].split(",")) {
+    const trimmed = spec.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const parts = trimmed.split(AS_SPECIFIER_RE);
+    const localName = (parts.length > 1 ? parts[1] : parts[0])?.trim();
+    if (localName) {
+      identifiers.push(localName);
+    }
+  }
+  return identifiers;
+}
+
+function parseDefaultAndNamedSpecifiers(specStr: string): string[] {
+  const defaultMatch = specStr.match(DEFAULT_IMPORT_RE);
+  if (!defaultMatch?.[1]) {
+    return [];
+  }
+
+  const identifiers: string[] = [defaultMatch[1]];
+  if (defaultMatch[2]) {
+    for (const spec of defaultMatch[2].split(",")) {
+      const trimmed = spec.trim();
+      if (!trimmed) {
+        continue;
+      }
+      const parts = trimmed.split(AS_SPECIFIER_RE);
+      const localName = (parts.length > 1 ? parts[1] : parts[0])?.trim();
+      if (localName) {
+        identifiers.push(localName);
+      }
+    }
+  }
+  return identifiers;
+}
+
+function parseImportLine(line: string): string[] {
+  const match = line.match(IMPORT_LINE_RE);
+  if (!match?.[1]) {
+    return [];
+  }
+
+  const specStr = match[1];
+
+  // Named: { a, b as c }
+  if (NAMED_IMPORTS_RE.test(specStr)) {
+    return parseNamedSpecifiers(specStr);
+  }
+
+  // Namespace: * as Foo
+  const namespaceMatch = specStr.match(NAMESPACE_IMPORT_RE);
+  if (namespaceMatch?.[1]) {
+    return [namespaceMatch[1]];
+  }
+
+  // Default (with optional named): Foo, { bar }
+  return parseDefaultAndNamedSpecifiers(specStr);
+}
+
+function isIdentifierUsed(name: string, strippedCode: string): boolean {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`\\b${escapedName}\\b`, "g");
+  const matches = strippedCode.match(regex);
+  return matches !== null && matches.length > 0;
 }
 
 function removeUnusedImports(code: string): string {
   const lines = code.split("\n");
-  const importPattern = /^import\s+(.+?)\s+from\s*["'][^"']+["'];?\s*$/;
   const importLines: Map<number, string[]> = new Map();
   const allIdentifiers = new Set<string>();
 
@@ -201,55 +312,12 @@ function removeUnusedImports(code: string): string {
     if (!line) {
       continue;
     }
-    const match = line.match(importPattern);
-    if (match?.[1]) {
-      const specStr = match[1];
-      const identifiers: string[] = [];
 
-      const namedMatch = specStr.match(/^\{([^}]+)\}$/);
-      if (namedMatch?.[1]) {
-        for (const spec of namedMatch[1].split(",")) {
-          const trimmed = spec.trim();
-          if (!trimmed) {
-            continue;
-          }
-          const parts = trimmed.split(/\s+as\s+/);
-          const localName = (parts.length > 1 ? parts[1] : parts[0])?.trim();
-          if (localName) {
-            identifiers.push(localName);
-            allIdentifiers.add(localName);
-          }
-        }
-      } else {
-        const defaultMatch = specStr.match(/^(\w+)(?:\s*,\s*\{([^}]+)\})?$/);
-        if (defaultMatch?.[1]) {
-          identifiers.push(defaultMatch[1]);
-          allIdentifiers.add(defaultMatch[1]);
-          if (defaultMatch[2]) {
-            for (const spec of defaultMatch[2].split(",")) {
-              const trimmed = spec.trim();
-              if (!trimmed) {
-                continue;
-              }
-              const parts = trimmed.split(/\s+as\s+/);
-              const localName = (parts.length > 1 ? parts[1] : parts[0])?.trim();
-              if (localName) {
-                identifiers.push(localName);
-                allIdentifiers.add(localName);
-              }
-            }
-          }
-        } else {
-          const namespaceMatch = specStr.match(/^\*\s+as\s+(\w+)$/);
-          if (namespaceMatch?.[1]) {
-            identifiers.push(namespaceMatch[1]);
-            allIdentifiers.add(namespaceMatch[1]);
-          }
-        }
-      }
-
-      if (identifiers.length > 0) {
-        importLines.set(i, identifiers);
+    const identifiers = parseImportLine(line);
+    if (identifiers.length > 0) {
+      importLines.set(i, identifiers);
+      for (const id of identifiers) {
+        allIdentifiers.add(id);
       }
     }
   }
@@ -259,17 +327,13 @@ function removeUnusedImports(code: string): string {
   // Strip comments and string literals so identifiers inside them don't
   // count as "used" (avoids false positives that prevent import removal)
   const strippedCode = codeWithoutImports
-    .replace(/\/\/[^\n]*/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
+    .replace(SINGLE_LINE_COMMENT_RE, "")
+    .replace(MULTI_LINE_COMMENT_RE, "")
+    .replace(STRING_LITERAL_RE, '""');
 
   const usedIdentifiers = new Set<string>();
   for (const name of allIdentifiers) {
-    // Escape regex metacharacters in the identifier (e.g. $store, $t)
-    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`\\b${escapedName}\\b`, "g");
-    const matches = strippedCode.match(regex);
-    if (matches && matches.length > 0) {
+    if (isIdentifierUsed(name, strippedCode)) {
       usedIdentifiers.add(name);
     }
   }
@@ -283,6 +347,10 @@ function removeUnusedImports(code: string): string {
 
   return lines.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Main transform entry point
+// ---------------------------------------------------------------------------
 
 export function transformForReactRefresh(
   code: string,
@@ -390,11 +458,10 @@ function injectGlobals(code: string): string {
 }
 
 function stripImportMetaHotBlocks(code: string): string {
-  const pattern = /if\s*\(import\.meta\.hot\)\s*\{/g;
   let result = "";
   let lastIndex = 0;
 
-  for (const match of code.matchAll(pattern)) {
+  for (const match of code.matchAll(IMPORT_META_HOT_RE)) {
     const matchIndex = match.index;
     if (matchIndex === undefined) {
       continue;

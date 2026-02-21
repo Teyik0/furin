@@ -12,5 +12,12 @@
   "formatter": {
     "enabled": true,
     "lineWidth": 100
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noAssignInExpressions": "off"
+      }
+    }
   }
 }

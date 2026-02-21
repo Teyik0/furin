@@ -4,11 +4,11 @@ import { route as dashboardRoute } from "../route";
 
 export const route = createRoute({
   parent: dashboardRoute,
-  loader: async () => {
+  loader: () => {
     const posts = queries.getPosts.all();
     return { posts };
   },
-  layout: ({ children, posts }) => (
+  layout: ({ children }) => (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h2 className="font-bold text-2xl text-gray-900">Posts</h2>

@@ -1,6 +1,6 @@
 import { transformSync } from "@babel/core";
 import generate from "@babel/generator";
-import traverse from "@babel/traverse";
+import traverse, { type NodePath } from "@babel/traverse";
 import type * as t from "@babel/types";
 import {
   isCallExpression,
@@ -62,37 +62,37 @@ function removeServerProperties(obj: t.ObjectExpression, properties: string[]): 
   return removed;
 }
 
+function pruneImportDeclaration(
+  node: t.ImportDeclaration,
+  index: number,
+  body: t.Statement[],
+  programPath: NodePath<t.Program>
+): void {
+  const { specifiers } = node;
+  if (!specifiers || specifiers.length === 0) {
+    return;
+  }
+
+  const newSpecifiers = specifiers.filter((spec) => {
+    const binding = programPath.scope.getBinding(spec.local.name);
+    return binding?.referenced;
+  });
+
+  if (newSpecifiers.length === 0) {
+    body.splice(index, 1);
+  } else if (newSpecifiers.length !== specifiers.length) {
+    node.specifiers = newSpecifiers;
+  }
+}
+
 function deadCodeElimination(ast: t.File): void {
   traverse(ast, {
     Program(programPath) {
       const body = programPath.node.body;
-
       for (let i = body.length - 1; i >= 0; i--) {
         const node = body[i] as t.Statement;
-        if (node.type !== "ImportDeclaration") {
-          continue;
-        }
-
-        const specifiers = node.specifiers;
-        if (!specifiers || specifiers.length === 0) {
-          continue;
-        }
-
-        const newSpecifiers: t.ImportDeclaration["specifiers"] = [];
-
-        for (const spec of specifiers) {
-          const localName = spec.local.name;
-          const binding = programPath.scope.getBinding(localName);
-
-          if (binding?.referenced) {
-            newSpecifiers.push(spec);
-          }
-        }
-
-        if (newSpecifiers.length === 0) {
-          body.splice(i, 1);
-        } else if (newSpecifiers.length !== specifiers.length) {
-          node.specifiers = newSpecifiers;
+        if (node.type === "ImportDeclaration") {
+          pruneImportDeclaration(node, i, body, programPath);
         }
       }
     },

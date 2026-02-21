@@ -59,7 +59,7 @@ export const route = createRoute({
                     onClick={(e) => {
                       e.preventDefault();
                       fetch("/api/logout", { method: "POST" }).then(() => {
-                        window.location.href = "/login";
+                        location.href = "/login";
                       });
                     }}
                   >
@@ -78,7 +78,7 @@ export const route = createRoute({
 });
 
 function NavItem({ href, icon, label }: { href: string; icon: string; label: string }) {
-  const isActive = typeof window !== "undefined" && window.location.pathname === href;
+  const isActive = location.pathname === href;
 
   const icons: Record<string, React.ReactNode> = {
     home: (

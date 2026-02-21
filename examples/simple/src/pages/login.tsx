@@ -19,7 +19,7 @@ export default route.page({
       if (data) {
         setMessage("Connected! Redirecting...");
         setTimeout(() => {
-          globalThis.location.href = "/dashboard";
+          location.href = "/dashboard";
         }, 1000);
       } else {
         console.log("login error", error);

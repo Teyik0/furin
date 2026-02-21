@@ -8,7 +8,7 @@ export const route = createRoute({
 
 export default route.page({
   head: () => ({ meta: [{ title: "New Post - Dashboard" }] }),
-  component: ({ user }) => {
+  component: () => {
     const [title, setTitle] = useState("");
     const [excerpt, setExcerpt] = useState("");
     const [content, setContent] = useState("");
@@ -17,7 +17,7 @@ export default route.page({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SubmitEvent) => {
       e.preventDefault();
       setSaving(true);
       setError("");
@@ -36,7 +36,7 @@ export default route.page({
         };
 
         if (data.success && data.post) {
-          window.location.href = `/dashboard/posts/${data.post.id}/edit`;
+          location.href = `/dashboard/posts/${data.post.id}/edit`;
         } else {
           setError(data.error || "Failed to create post");
         }

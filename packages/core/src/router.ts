@@ -53,13 +53,9 @@ export function createRoutePlugin(
     new Elysia().get(pattern, async (ctx) => {
       switch (mode) {
         case "ssg": {
-          const html = await prerenderSSG(route, ctx.params ?? {}, config, root, dev);
-          return new Response(html, {
-            headers: {
-              "Content-Type": "text/html; charset=utf-8",
-              "Cache-Control": "public, max-age=0, must-revalidate",
-            },
-          });
+          ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+          ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
+          return await prerenderSSG(route, ctx.params ?? {}, config, root, dev);
         }
 
         case "isr":
@@ -84,33 +80,35 @@ async function loadRouteModule(routePath: string): Promise<RuntimeRoute | undefi
   return mod.route ?? mod.default;
 }
 
-export async function scanPages(
-  pagesDir: string,
-  _dev = false
-): Promise<{
-  root: RootLayout | null;
-  routes: ResolvedRoute[];
-}> {
-  const routes: ResolvedRoute[] = [];
-  let root: RootLayout | null = null;
+// ---------------------------------------------------------------------------
+// scanPages helpers — each kept under the complexity budget
+// ---------------------------------------------------------------------------
 
-  // Phase 0: Scan for root.tsx
+async function scanRootLayout(pagesDir: string): Promise<RootLayout | null> {
   const rootPath = `${pagesDir}/root.tsx`;
   const rootFile = Bun.file(rootPath);
-  if (await rootFile.exists()) {
-    const mod = await import(rootPath);
-    const rootExport = mod.route ?? mod.default;
-    if (rootExport && isElysionRoute(rootExport)) {
-      if (!rootExport.layout) {
-        console.warn(
-          "[elysion] root.tsx: createRoute() has no layout — the root layout will be skipped."
-        );
-      }
-      root = { path: rootPath, route: rootExport };
-    }
+  if (!(await rootFile.exists())) {
+    return null;
   }
 
-  // Phase 1: Scan route.tsx files (nested layouts)
+  const mod = await import(rootPath);
+  const rootExport = mod.route ?? mod.default;
+  if (!(rootExport && isElysionRoute(rootExport))) {
+    return null;
+  }
+
+  if (!rootExport.layout) {
+    console.warn(
+      "[elysion] root.tsx: createRoute() has no layout — the root layout will be skipped."
+    );
+  }
+  return { path: rootPath, route: rootExport };
+}
+
+async function scanRouteFiles(
+  pagesDir: string,
+  root: RootLayout | null
+): Promise<Map<RuntimeRoute, string>> {
   const routeFileMap = new Map<RuntimeRoute, string>();
   // Pre-register root so its path appears in routeFilePaths (enables dedup in render/build)
   if (root) {
@@ -123,9 +121,16 @@ export async function scanPages(
       routeFileMap.set(routeExport, absolutePath);
     }
   }
+  return routeFileMap;
+}
 
-  // Phase 2: Scan page files
+async function scanPageFiles(
+  pagesDir: string,
+  routeFileMap: Map<RuntimeRoute, string>
+): Promise<ResolvedRoute[]> {
+  const routes: ResolvedRoute[] = [];
   const glob = new Glob("**/*.tsx");
+
   for await (const absolutePath of glob.scan({ cwd: pagesDir, absolute: true })) {
     if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))) {
       continue;
@@ -161,6 +166,19 @@ export async function scanPages(
     });
   }
 
+  return routes;
+}
+
+export async function scanPages(
+  pagesDir: string,
+  _dev = false
+): Promise<{
+  root: RootLayout | null;
+  routes: ResolvedRoute[];
+}> {
+  const root = await scanRootLayout(pagesDir);
+  const routeFileMap = await scanRouteFiles(pagesDir, root);
+  const routes = await scanPageFiles(pagesDir, routeFileMap);
   return { root, routes };
 }
 
@@ -213,7 +231,4 @@ function filePathToPattern(path: string): string {
   return `/${segments.join("/")}`;
 }
 
-// HMR: Accept hot module replacement
-if (import.meta.hot) {
-  import.meta.hot.accept();
-}
+import.meta.hot.accept();

@@ -11,13 +11,15 @@ type HmrClient = ServerWebSocket<{
 
 // WebSocket clients — persisted across hot reloads via import.meta.hot.data.
 // This is a true server singleton (live connections), not HMR infrastructure.
-const clients: Set<HmrClient> = import.meta.hot?.data.clients ?? new Set<HmrClient>();
+const clients: Set<HmrClient> = (import.meta.hot.data.clients ??= new Set<HmrClient>());
 
 // Per-file version counters — persisted across hot reloads.
 // Incremented by the file watcher so SSR always uses the latest module version
 // without creating a new cache entry on every request (which would leak memory).
-const moduleVersions: Map<string, number> =
-  import.meta.hot?.data.moduleVersions ?? new Map<string, number>();
+const moduleVersions: Map<string, number> = (import.meta.hot.data.moduleVersions ??= new Map<
+  string,
+  number
+>());
 
 export function getModuleVersion(absolutePath: string): number {
   return moduleVersions.get(absolutePath) ?? 0;
@@ -67,7 +69,13 @@ export async function getTransformedModule(
       target: "browser",
       conditions: ["browser"],
       minify: false,
-      external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
+      external: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+      ],
     });
 
     if (!result.success) {
@@ -88,10 +96,7 @@ export async function getTransformedModule(
 }
 
 // HMR lifecycle — persist clients and module versions across hot reloads.
-if (import.meta.hot) {
-  import.meta.hot.dispose((data) => {
-    data.clients = clients;
-    data.moduleVersions = moduleVersions;
-  });
-  import.meta.hot.accept();
-}
+import.meta.hot.dispose((data) => {
+  data.clients = clients;
+  data.moduleVersions = moduleVersions;
+});

@@ -19,8 +19,8 @@ let _cssWatcher: ReturnType<typeof watch> | null = null;
 
 // Config is persisted across hot reloads so watchers can be restarted
 // automatically when this module itself is hot-replaced.
-let _pagesDir: string | null = import.meta.hot?.data.pagesDir ?? null;
-let _cssInputPath: string | undefined = import.meta.hot?.data.cssInputPath;
+let _pagesDir: string | null = (import.meta.hot.data.pagesDir ??= null);
+let _cssInputPath: string | undefined = import.meta.hot.data.cssInputPath;
 
 function stopWatchers(): void {
   _pagesWatcher?.close();
@@ -145,8 +145,6 @@ if (_pagesDir) {
   startWatchers(_pagesDir, _cssInputPath);
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 export function createHmrPlugin(pagesDir: string, cssInputPath?: string) {
   // Persist config so it survives a hot reload of this module
   _pagesDir = pagesDir;
@@ -234,11 +232,8 @@ export function createHmrPlugin(pagesDir: string, cssInputPath?: string) {
 // ─── HMR lifecycle ────────────────────────────────────────────────────────────
 // Stop file watchers before this module is replaced; persist config so the
 // incoming version can restart them without being called by elysion() again.
-if (import.meta.hot) {
-  import.meta.hot.dispose((data) => {
-    data.pagesDir = _pagesDir;
-    data.cssInputPath = _cssInputPath;
-    stopWatchers();
-  });
-  import.meta.hot.accept();
-}
+import.meta.hot.dispose((data) => {
+  data.pagesDir = _pagesDir;
+  data.cssInputPath = _cssInputPath;
+  stopWatchers();
+});

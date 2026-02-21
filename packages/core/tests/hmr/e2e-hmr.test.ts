@@ -37,6 +37,8 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { createHmrPlugin } from "../../src/hmr/plugin";
 
+const MODULE_ERROR_RE = /^\/\/ Error:/;
+
 // ---------------------------------------------------------------------------
 // Shared test infrastructure
 // ---------------------------------------------------------------------------
@@ -142,7 +144,7 @@ describe("E2E HMR — initial module serving (cold path)", () => {
     expect(status).toBe(200);
     expect(body.length).toBeGreaterThan(0);
     // Must not be an error response
-    expect(body).not.toMatch(/^\/\/ Error:/);
+    expect(body).not.toMatch(MODULE_ERROR_RE);
   });
 
   test("React Refresh instrumentation ($RefreshReg$) is injected", async () => {

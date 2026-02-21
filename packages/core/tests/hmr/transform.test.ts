@@ -11,6 +11,15 @@ const PAGES_DIR = "/fake/project/src/pages";
 const INDEX_FILE = "/fake/project/src/pages/index.tsx";
 const INDEX_MODULE_ID = "/_modules/src/pages/index.tsx";
 
+// ---------------------------------------------------------------------------
+// Top-level regex constants (satisfies lint/performance/useTopLevelRegex)
+// ---------------------------------------------------------------------------
+const REACT_IMPORT_RE = /from\s+["']react["']/;
+const ELYSION_CLIENT_IMPORT_RE = /from\s+["']elysion\/client["']/;
+const ELYSIA_IMPORT_RE = /from\s+["']elysia["']/;
+const HMR_RUNTIME_COMMENT_RE = /^\/\/ HMR Runtime Setup for/;
+const REFRESH_REG_RE = /\$RefreshReg\$\s*\(\s*\w*ElysionPage/;
+
 /**
  * Run the full transform pipeline with sensible defaults.
  * Individual tests override only what they need.
@@ -39,27 +48,27 @@ function transform(
 describe("server import stripping", () => {
   test("strips default React import", () => {
     const result = transform(`import React from "react";\nexport const x = 1;`);
-    expect(result).not.toMatch(/from\s+["']react["']/);
+    expect(result).not.toMatch(REACT_IMPORT_RE);
   });
 
   test("strips named React import { useState, useEffect }", () => {
     const result = transform(`import { useState, useEffect } from "react";\nexport const x = 1;`);
-    expect(result).not.toMatch(/from\s+["']react["']/);
+    expect(result).not.toMatch(REACT_IMPORT_RE);
   });
 
   test("strips namespace import * as React from 'react'", () => {
     const result = transform(`import * as React from "react";\nexport const x = 1;`);
-    expect(result).not.toMatch(/from\s+["']react["']/);
+    expect(result).not.toMatch(REACT_IMPORT_RE);
   });
 
   test("strips elysion/client import", () => {
     const result = transform(`import { createRoute } from "elysion/client";\nexport const x = 1;`);
-    expect(result).not.toMatch(/from\s+["']elysion\/client["']/);
+    expect(result).not.toMatch(ELYSION_CLIENT_IMPORT_RE);
   });
 
   test("strips elysia import", () => {
     const result = transform(`import { t } from "elysia";\nexport const x = 1;`);
-    expect(result).not.toMatch(/from\s+["']elysia["']/);
+    expect(result).not.toMatch(ELYSIA_IMPORT_RE);
   });
 
   test("strips CSS import", () => {
@@ -222,7 +231,7 @@ describe("page() component extraction", () => {
     // Extraction happened — the generated name is present in the output
     expect(result).toContain("ElysionPage");
     // The extracted function must be followed by a $RefreshReg$ call
-    expect(result).toMatch(/\$RefreshReg\$\s*\(\s*\w*ElysionPage/);
+    expect(result).toMatch(REFRESH_REG_RE);
   });
 
   test("does not throw when component is already a named reference", () => {
@@ -349,7 +358,7 @@ describe("output shape invariants", () => {
 
   test("output starts with the HMR runtime comment", () => {
     const result = transform("export const x = 1;");
-    expect(result.trimStart()).toMatch(/^\/\/ HMR Runtime Setup for/);
+    expect(result.trimStart()).toMatch(HMR_RUNTIME_COMMENT_RE);
   });
 
   test("output contains inline source map", () => {
