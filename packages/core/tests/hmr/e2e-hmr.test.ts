@@ -57,7 +57,8 @@ async function startDevServer(pagesDir: string): Promise<DevServer> {
   const app = new Elysia().use(createHmrPlugin(pagesDir));
   app.listen(0);
   // Give the OS time to bind the port and the watcher to initialise.
-  await Bun.sleep(200);
+  // CI environments (Linux/inotify) can be slower than local macOS (FSEvents).
+  await Bun.sleep(400);
   const port = app.server?.port;
   if (!port) {
     throw new Error("Server failed to bind a port");
@@ -69,19 +70,21 @@ async function startDevServer(pagesDir: string): Promise<DevServer> {
   };
 }
 
-interface HmrConnection {
-  /** Close the WebSocket. */
-  close(): void;
-  /** All non-"connected" messages received so far. */
-  messages(): Record<string, unknown>[];
-}
-
 /**
- * Open a WebSocket to /__elysion/hmr and wait for the "connected" ack.
- * Returned `messages()` reflects live state — call it at any time.
+ * Opens a WebSocket to /__elysion/hmr, waits for the "connected" ack,
+ * calls `action`, waits for events to settle, then closes the socket
+ * and returns every non-"connected" message received.
+ *
+ * Uses a settling mechanism instead of a fixed timeout to handle
+ * variable latency in CI environments (inotify on Linux is slower
+ * than FSEvents on macOS).
  */
-async function connectHmr(wsUrl: string): Promise<HmrConnection> {
-  const collected: Record<string, unknown>[] = [];
+async function collectHmrMessages(
+  wsUrl: string,
+  action: () => void | Promise<void>,
+  { waitMs = 500, settleMs = 200 }: { waitMs?: number; settleMs?: number } = {}
+): Promise<Record<string, unknown>[]> {
+  const messages: Record<string, unknown>[] = [];
   const ws = new WebSocket(`${wsUrl}/__elysion/hmr`);
 
   await new Promise<void>((resolve, reject) => {
@@ -89,18 +92,26 @@ async function connectHmr(wsUrl: string): Promise<HmrConnection> {
     ws.onerror = () => reject(new Error(`WebSocket could not connect to ${wsUrl}`));
   });
 
+  let lastMessageAt = 0;
   ws.onmessage = (e) => {
     const data = JSON.parse(e.data as string) as Record<string, unknown>;
-    // Ignore the initial handshake ack.
     if (data.type !== "connected") {
-      collected.push(data);
+      messages.push(data);
+      lastMessageAt = Date.now();
     }
   };
 
-  return {
-    messages: () => collected,
-    close: () => ws.close(),
-  };
+  await action();
+
+  // Wait at least waitMs then keep polling until no new messages have arrived
+  // for settleMs — avoids closing the socket while messages are still in-flight.
+  await Bun.sleep(waitMs);
+  while (Date.now() - lastMessageAt < settleMs && messages.length === 0) {
+    await Bun.sleep(50);
+  }
+
+  ws.close();
+  return messages;
 }
 
 /**
@@ -212,40 +223,27 @@ describe("E2E HMR — file change triggers update and module content refreshes",
     const filePath = join(PAGES_DIR, "counter.tsx");
     writeFileSync(filePath, "export const count = 0;");
 
-    const hmr = await connectHmr(server.wsUrl);
+    const msgs = await collectHmrMessages(server.wsUrl, () => {
+      writeFileSync(filePath, "export const count = 1;");
+    });
 
-    // Simulate Ctrl+S: overwrite the file with new content
-    writeFileSync(filePath, "export const count = 1;");
-
-    // Wait for debounce (50 ms) + OS event propagation
-    await Bun.sleep(600);
-
-    const msgs = hmr.messages();
     expect(msgs.length).toBeGreaterThanOrEqual(1);
     expect(msgs[0]?.type).toBe("update");
-
-    hmr.close();
   });
 
   test("HMR message includes the correct module path for the changed file", async () => {
     const filePath = join(PAGES_DIR, "post.tsx");
     writeFileSync(filePath, `export const title = "old";`);
 
-    const hmr = await connectHmr(server.wsUrl);
+    const msgs = await collectHmrMessages(server.wsUrl, () => {
+      writeFileSync(filePath, `export const title = "new";`);
+    });
 
-    writeFileSync(filePath, `export const title = "new";`);
-    await Bun.sleep(600);
-
-    const msgs = hmr.messages();
     expect(msgs.length).toBeGreaterThanOrEqual(1);
     const msg = msgs[0] as { path: string; modules: string[] };
 
-    // The path must point to the right file inside /src/pages/
     expect(msg.path).toContain("pages/post.tsx");
-    // modules array must mirror path (the browser iterates this to re-import)
     expect(msg.modules).toContain(msg.path);
-
-    hmr.close();
   });
 
   test("module content is updated after file change (no stale cache)", async () => {
@@ -403,22 +401,17 @@ describe("E2E HMR — CSS update flag in HMR message", () => {
     const filePath = join(PAGES_DIR, "styled.tsx");
     writeFileSync(filePath, `export const Styled = () => <div className="text-red-500">old</div>;`);
 
-    const hmr = await connectHmr(server.wsUrl);
+    const msgs = await collectHmrMessages(server.wsUrl, () => {
+      writeFileSync(
+        filePath,
+        `export const Styled = () => <div className="text-blue-500">new</div>;`
+      );
+    });
 
-    writeFileSync(
-      filePath,
-      `export const Styled = () => <div className="text-blue-500">new</div>;`
-    );
-    await Bun.sleep(600);
-
-    const msgs = hmr.messages();
     expect(msgs.length).toBeGreaterThanOrEqual(1);
     const msg = msgs[0] as { type: string; cssUpdate?: boolean };
     expect(msg.type).toBe("update");
-    // cssUpdate flag lets the client refresh inline CSS without full reload
     expect(msg.cssUpdate).toBe(true);
-
-    hmr.close();
   });
 });
 

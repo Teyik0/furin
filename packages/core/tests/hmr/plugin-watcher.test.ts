@@ -35,7 +35,8 @@ async function startHmrServer(pagesDir: string): Promise<TestServer> {
   app.listen(0);
   // Give the OS a moment to bind the port and start the watcher.
   // @parcel/watcher.subscribe() is async — wait long enough for it to be ready.
-  await Bun.sleep(200);
+  // CI environments (Linux/inotify) can be slower than local macOS (FSEvents).
+  await Bun.sleep(400);
   const port = app.server?.port;
   if (!port) {
     throw new Error("Server failed to bind a port");

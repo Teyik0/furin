@@ -54,14 +54,7 @@ async function startWatchers(pagesDir: string, cssInputPath?: string): Promise<v
 
     for (const event of events) {
       const filename = event.path;
-      if (
-        !(
-          filename.endsWith(".tsx") ||
-          filename.endsWith(".ts") ||
-          filename.endsWith(".jsx") ||
-          filename.endsWith(".js")
-        )
-      ) {
+      if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => filename.endsWith(ext))) {
         continue;
       }
 
