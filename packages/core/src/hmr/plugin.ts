@@ -29,9 +29,19 @@ let _pagesDir: string | null = (hmrData.pagesDir ??= null) as string | null;
 let _cssInputPath: string | undefined = hmrData.cssInputPath as string | undefined;
 
 async function stopWatchers(): Promise<void> {
-  await _pagesWatcher?.unsubscribe();
+  try {
+    await _pagesWatcher?.unsubscribe();
+  } catch {
+    // @parcel/watcher can throw "Unable to remove watcher: Invalid argument"
+    // on Linux when the watched directory was already deleted (e.g., tmpdir cleanup in tests).
+    // See: https://github.com/parcel-bundler/watcher/issues/129
+  }
   _pagesWatcher = null;
-  await _cssWatcher?.unsubscribe();
+  try {
+    await _cssWatcher?.unsubscribe();
+  } catch {
+    // Same as above
+  }
   _cssWatcher = null;
 }
 
