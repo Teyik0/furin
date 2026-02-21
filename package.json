@@ -1,31 +1,31 @@
 {
   "name": "@elysion/root",
-  "module": "index.ts",
-  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*",
     "examples/*"
   ],
+  "scripts": {
+    "prepare": "lefthook install",
+    "fix": "ultracite fix",
+    "test": "bun run --parallel --filter './packages/*' test",
+    "test:types": "tsc --build --noEmit",
+    "cache:clean": "rm -rf node_modules examples/*/node_modules packages/*/node_modules && bun pm cache rm",
+    "iup": "bun update --interactive --recursive"
+  },
   "devDependencies": {
-    "@biomejs/biome": "2.4.3",
-    "@playwright/test": "^1.58.2",
+    "@biomejs/biome": "2.4.4",
+    "@commitlint/cli": "^20.4.1",
+    "@commitlint/config-conventional": "^20.4.1",
     "@types/bun": "1.3.9",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "playwright": "^1.58.2",
+    "typescript": "^5.9.3",
     "ultracite": "7.2.3"
   },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun",
-    "dev": "bun run --watch example/src/server.ts",
-    "check": "ultracite check",
-    "fix": "ultracite fix",
-    "tsc": "tsc --noEmit",
-    "cache:clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules && bun pm cache rm",
-    "iup": "bun update --interactive --recursive"
+  "catalog": {
+    "elysia": "^1.4.25",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   }
 }

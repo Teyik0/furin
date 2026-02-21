@@ -11,13 +11,15 @@
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",
     "@tailwindcss/postcss": "^4.1.11",
-    "elysia": "^1.4.25",
+    "elysia": "catalog:",
     "elysion": "workspace:*",
-    "react": "^19",
-    "react-dom": "^19",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {
-    "@types/babel__core": "^7.20.5"
+    "@types/babel__core": "^7.20.5",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
   }
 }

@@ -1,0 +1,22 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: files format
+      run: bun run fix
+      stage_fixed: true
+
+    - name: typescript check (monorepo)
+      run: bun run tsc
+      stage_fixed: true
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: Test
+      run: bun run test
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    lint-commit-message:
+      run: bun run commitlint --edit {1}
