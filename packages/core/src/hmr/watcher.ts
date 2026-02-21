@@ -71,6 +71,11 @@ function resolveImportPath(importPath: string, fromFile: string): string | null 
 /** Scan a source file's imports and register them in the reverse dep graph. */
 function updateDepGraph(fullPath: string, source: string): void {
   const normalizedFullPath = realpath(fullPath);
+
+  for (const dependents of depGraph.values()) {
+    dependents.delete(normalizedFullPath);
+  }
+
   const imports = scanTranspiler.scanImports(source);
   for (const { path: importPath } of imports) {
     const resolved = resolveImportPath(importPath, normalizedFullPath);

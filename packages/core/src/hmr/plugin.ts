@@ -85,7 +85,7 @@ async function startWatchers(pagesDir: string, cssInputPath?: string): Promise<v
       // Filters to files inside pagesDir since only those can be re-imported by the browser.
       const affectedRaw = getAffectedModules(filename);
       const affectedModulePaths = affectedRaw
-        .filter((p) => p.startsWith(normalizedPagesDir))
+        .filter((p) => p.startsWith(`${normalizedPagesDir}/`))
         .map(
           (p) =>
             `/src/${pagesDirName}/${p.slice(normalizedPagesDir.length + 1).replace(/\\/g, "/")}`
