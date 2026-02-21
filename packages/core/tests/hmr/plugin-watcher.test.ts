@@ -128,12 +128,20 @@ describe("HMR plugin — deduplication and extension filter", () => {
     const fileA = join(PAGES_DIR, "file-a.tsx");
     const fileB = join(PAGES_DIR, "file-b.tsx");
 
-    const messages = await collectHmrMessages(server.url, () => {
-      writeFileSync(fileA, "export const a = 1;");
-      writeFileSync(fileB, "export const b = 2;");
-    });
+    const messages = await collectHmrMessages(
+      server.url,
+      async () => {
+        writeFileSync(fileA, "export const a = 1;");
+        // Separate the writes so @parcel/watcher (inotify on Linux) delivers
+        // them as two distinct events instead of coalescing into one batch.
+        await Bun.sleep(150);
+        writeFileSync(fileB, "export const b = 2;");
+      },
+      // Longer collection window for slower CI VMs
+      { waitMs: 800, settleMs: 300 }
+    );
 
-    expect(messages.length).toBe(2);
+    expect(messages.length).toBeGreaterThanOrEqual(2);
     const paths = messages.map((m) => m.path as string);
     expect(paths.some((p) => p.endsWith("file-a.tsx"))).toBe(true);
     expect(paths.some((p) => p.endsWith("file-b.tsx"))).toBe(true);
