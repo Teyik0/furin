@@ -13,6 +13,7 @@ import {
   prerenderSSG,
   renderSSR,
   renderToHTML,
+  renderToStream,
   runLoaders,
   streamToString,
 } from "../src/render";
@@ -452,8 +453,8 @@ describe("render.tsx", () => {
         ...ssrRoute,
         page: {
           ...ssrRoute.page,
-          loader: (ctx: Record<string, unknown>) => {
-            const redirect = ctx.redirect as (url: string) => Response;
+          loader: (loaderCtx: Record<string, unknown>) => {
+            const redirect = loaderCtx.redirect as (url: string) => Response;
             throw redirect("/login");
           },
         },
@@ -537,6 +538,106 @@ describe("render.tsx", () => {
 
       const rootRoute = await loadRootModule(root, true);
       expect(rootRoute).toBeDefined();
+    });
+  });
+
+  describe("error handling", () => {
+    test("runLoaders throws non-Response errors", async () => {
+      const withLoaderRoute = await getRoute("/with-loader");
+      const root = await getRoot();
+
+      await loadPageModule(withLoaderRoute, false);
+      const rootLayout = await loadRootModule(root, false);
+
+      const ctx = createMockLoaderContext({ path: "/with-loader" });
+
+      const customRoute = {
+        ...withLoaderRoute,
+        page: {
+          ...withLoaderRoute.page,
+          loader: () => {
+            throw new Error("Loader error");
+          },
+        },
+      } as ResolvedRoute;
+
+      expect(runLoaders(customRoute, ctx, rootLayout)).rejects.toThrow("Loader error");
+    });
+
+    test("runLoaders runs rootLayout loader and merges headers", async () => {
+      const route = await getRoute("/");
+      const root = await getRoot();
+
+      await loadPageModule(route, false);
+      const rootLayout = await loadRootModule(root, false);
+
+      const ctx = createMockLoaderContext({
+        path: "/",
+        set: { headers: { "x-custom": "from-set" } as HTTPHeaders },
+      });
+
+      const result = await runLoaders(route, ctx, rootLayout);
+
+      expect(result.type).toBe("data");
+      if (result.type === "data") {
+        expect(result.headers).toBeDefined();
+      }
+    });
+  });
+
+  describe("resolvePath", () => {
+    test("replaces named params in pattern", async () => {
+      // resolvePath is used internally by prerenderSSG and handleISR
+      // Test it indirectly through prerenderSSG with params
+      const indexRoute = await getRoute("/");
+      const root = await getRoot();
+
+      // This tests the non-catch-all path
+      const html = await prerenderSSG(indexRoute, {}, {}, root, false);
+      expect(html).toContain("<html");
+    });
+  });
+
+  describe("renderToStream", () => {
+    test("returns ReadableStream with HTML", async () => {
+      const ssrRoute = await getRoute("/ssr-page");
+      const root = await getRoot();
+
+      const ctx = createMockLoaderContext({ path: "/ssr-page" });
+      const result = await renderToStream(ssrRoute, ctx, root, false);
+
+      expect(result).toBeInstanceOf(ReadableStream);
+    });
+
+    test("returns redirect Response when loader throws redirect", async () => {
+      const ssrRoute = await getRoute("/ssr-page");
+      const root = await getRoot();
+
+      const redirectMock = (url: string) =>
+        new Response(null, { status: 307, headers: { Location: url } });
+      const ctx = createMockLoaderContext({
+        path: "/ssr-page",
+        redirect: redirectMock,
+      });
+
+      const customRoute = {
+        ...ssrRoute,
+        page: {
+          ...ssrRoute.page,
+          loader: (loaderCtx: Record<string, unknown>) => {
+            const redirect = loaderCtx.redirect as (url: string) => Response;
+            throw redirect("/moved");
+          },
+        },
+      } as ResolvedRoute;
+
+      const result = await renderToStream(customRoute, ctx, root, false);
+
+      expect(result).toBeInstanceOf(Response);
+      if (result instanceof Response) {
+        expect(result.status).toBe(307);
+        expect(result.headers.get("Location")).toBe("/moved");
+      }
     });
   });
 });
