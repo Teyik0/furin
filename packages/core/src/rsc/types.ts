@@ -28,8 +28,3 @@ export interface ClientReference {
 }
 
 export const CLIENT_REFERENCE_SYMBOL = Symbol.for("react.client.reference");
-export const SERVER_REFERENCE_SYMBOL = Symbol.for("react.server.reference");
-
-export interface RSCConfig {
-  mode: "server" | "client" | "auto";
-}

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+  createManifestEntry,
   generateClientManifest,
   resolveClientReference,
-  createManifestEntry,
 } from "../../src/rsc/manifest";
-import type { ModuleAnalysis, ClientManifest } from "../../src/rsc/types";
+import type { ClientManifest, ModuleAnalysis } from "../../src/rsc/types";
 
 describe("generateClientManifest", () => {
   test("generates manifest for single export client component", () => {
@@ -17,9 +17,7 @@ describe("generateClientManifest", () => {
       },
     ];
 
-    const outputs = [
-      { path: "/dist/Counter.a1b2.js", moduleIds: ["/src/components/Counter.tsx"] },
-    ];
+    const outputs = [{ path: "/dist/Counter.a1b2.js", moduleIds: ["/src/components/Counter.tsx"] }];
 
     const manifest = generateClientManifest(analyses, outputs);
 
@@ -85,9 +83,7 @@ describe("generateClientManifest", () => {
       },
     ];
 
-    const outputs = [
-      { path: "/dist/index.js", moduleIds: ["/src/components/index.tsx"] },
-    ];
+    const outputs = [{ path: "/dist/index.js", moduleIds: ["/src/components/index.tsx"] }];
 
     const manifest = generateClientManifest(analyses, outputs);
 
@@ -103,11 +99,7 @@ describe("generateClientManifest", () => {
 
 describe("createManifestEntry", () => {
   test("creates entry for single export", () => {
-    const entry = createManifestEntry(
-      "/src/Counter.tsx",
-      "Counter",
-      ["Counter.a1b2.js"]
-    );
+    const entry = createManifestEntry("/src/Counter.tsx", "Counter", ["Counter.a1b2.js"]);
 
     expect(entry.id).toBe("/src/Counter.tsx#Counter");
     expect(entry.name).toBe("Counter");
@@ -115,11 +107,7 @@ describe("createManifestEntry", () => {
   });
 
   test("creates entry with default export", () => {
-    const entry = createManifestEntry(
-      "/src/Page.tsx",
-      "default",
-      ["Page.js"]
-    );
+    const entry = createManifestEntry("/src/Page.tsx", "default", ["Page.js"]);
 
     expect(entry.id).toBe("/src/Page.tsx#default");
     expect(entry.name).toBe("default");

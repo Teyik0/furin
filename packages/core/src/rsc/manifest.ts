@@ -12,7 +12,9 @@ export function generateClientManifest(
   const manifest: ClientManifest = {};
 
   for (const analysis of analyses) {
-    if (analysis.type !== "client") continue;
+    if (analysis.type !== "client") {
+      continue;
+    }
 
     const chunks = findChunksForModule(analysis.path, outputs);
     const clientExports = analysis.exports.filter((e) => e.type === "client");

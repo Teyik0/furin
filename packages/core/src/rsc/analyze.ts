@@ -1,16 +1,25 @@
 import { detectClientFeatures } from "./detect";
 import type { ModuleAnalysis } from "./types";
 
-const CLIENT_SUFFIX = ".client.tsx";
-const SERVER_SUFFIX = ".server.tsx";
+const CLIENT_FILE_SUFFIX = ".client.tsx";
+const SERVER_FILE_SUFFIX = ".server.tsx";
 
 export async function analyzeModule(path: string): Promise<ModuleAnalysis> {
-  const code = await Bun.file(path).text();
+  let code: string;
+  try {
+    code = await Bun.file(path).text();
+  } catch {
+    return {
+      path,
+      type: "server",
+      exports: [],
+      clientFeatures: [],
+    };
+  }
 
-  // Extract exports for all files
   const rawExports = extractExports(code);
 
-  if (path.endsWith(CLIENT_SUFFIX)) {
+  if (path.endsWith(CLIENT_FILE_SUFFIX)) {
     return {
       path,
       type: "client",
@@ -19,7 +28,7 @@ export async function analyzeModule(path: string): Promise<ModuleAnalysis> {
     };
   }
 
-  if (path.endsWith(SERVER_SUFFIX)) {
+  if (path.endsWith(SERVER_FILE_SUFFIX)) {
     return {
       path,
       type: "server",
@@ -28,9 +37,8 @@ export async function analyzeModule(path: string): Promise<ModuleAnalysis> {
     };
   }
 
-  // Auto-detection path
   const detection = detectClientFeatures(code);
-  const exportType = detection.isClient ? "client" as const : "server" as const;
+  const exportType = detection.isClient ? ("client" as const) : ("server" as const);
 
   return {
     path,
@@ -44,7 +52,6 @@ function extractExports(code: string): { name: string }[] {
   const exports: { name: string }[] = [];
   let match: RegExpExecArray | null;
 
-  // export function Name() {}
   const exportFunctionPattern = /export\s+(?:async\s+)?function\s+([A-Z][a-zA-Z0-9]*)/g;
   while ((match = exportFunctionPattern.exec(code)) !== null) {
     if (match[1]) {
@@ -52,7 +59,6 @@ function extractExports(code: string): { name: string }[] {
     }
   }
 
-  // export const Name = ...
   const exportConstPattern = /export\s+const\s+([A-Z][a-zA-Z0-9]*)\s*=/g;
   while ((match = exportConstPattern.exec(code)) !== null) {
     if (match[1]) {
@@ -60,7 +66,6 @@ function extractExports(code: string): { name: string }[] {
     }
   }
 
-  // export default function Name() {}
   const exportDefaultFunctionPattern = /export\s+default\s+function\s+([A-Z][a-zA-Z0-9]*)/g;
   while ((match = exportDefaultFunctionPattern.exec(code)) !== null) {
     if (match[1]) {
@@ -68,9 +73,11 @@ function extractExports(code: string): { name: string }[] {
     }
   }
 
-  // export default (anonymous function, arrow function, or expression)
   const exportDefaultPattern = /export\s+default\s+(?!function\s+[A-Z])/g;
-  const codeWithoutNamedDefault = code.replace(/export\s+default\s+function\s+[A-Z][a-zA-Z0-9]*/g, "");
+  const codeWithoutNamedDefault = code.replace(
+    /export\s+default\s+function\s+[A-Z][a-zA-Z0-9]*/g,
+    ""
+  );
   if (exportDefaultPattern.test(codeWithoutNamedDefault)) {
     exports.push({ name: "default" });
   }

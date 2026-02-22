@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdir, rm, writeFile } from "fs/promises";
-import { join } from "path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { ResolvedRoute } from "../../src/router";
 import { analyzeAllPages, analyzeModule } from "../../src/rsc/analyze";
 

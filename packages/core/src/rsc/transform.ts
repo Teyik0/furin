@@ -1,16 +1,11 @@
 import type { ClientReference, ModuleAnalysis } from "./types";
+import { CLIENT_REFERENCE_SYMBOL } from "./types";
 
-const CLIENT_REFERENCE_SYMBOL = Symbol.for("react.client.reference");
 const IMPORT_PATTERN = /import\s+(?:\{([^}]+)\}|(\w+))\s+from\s+["']([^"']+)["']/g;
 const LOADER_PATTERN = /\.loader\s*=\s*async/;
+const CLIENT_IMPORT_SUFFIX = ".client";
 
-const CLIENT_SUFFIX = ".client";
-
-export function createClientReference(
-  id: string,
-  name: string,
-  chunks: string[]
-): ClientReference {
+export function createClientReference(id: string, name: string, chunks: string[]): ClientReference {
   return {
     $$typeof: CLIENT_REFERENCE_SYMBOL,
     $$id: id,
@@ -36,10 +31,7 @@ export function transformServerComponent(
     while ((importMatch = IMPORT_PATTERN.exec(line)) !== null) {
       const importPath = importMatch[3] ?? "";
 
-      if (
-        importPath.endsWith(CLIENT_SUFFIX) &&
-        clientReferences.has(importPath)
-      ) {
+      if (importPath.endsWith(CLIENT_IMPORT_SUFFIX) && clientReferences.has(importPath)) {
         transformedLine = transformedLine.replace(importMatch[0], "");
         usedRefs.add(importPath);
       }
@@ -68,10 +60,7 @@ export function transformServerComponent(
   return result;
 }
 
-export function transformClientComponent(
-  code: string,
-  _analysis: ModuleAnalysis
-): string {
+export function transformClientComponent(code: string, _analysis: ModuleAnalysis): string {
   const lines = code.split("\n");
   const processedLines: string[] = [];
 
