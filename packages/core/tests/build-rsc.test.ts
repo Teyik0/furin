@@ -5,7 +5,9 @@ import { buildClientWithRSC } from "../src/build";
 import type { ResolvedRoute } from "../src/router";
 import { analyzeModule } from "../src/rsc/analyze";
 
-describe("buildClientWithRSC — manifest generation", () => {
+// Use describe.serial to prevent Bun parallel test race conditions
+// with Bun.build() accessing the same .bun cache
+describe.serial("buildClientWithRSC — manifest generation", () => {
   const tmpDir = join(import.meta.dir, "tmp-build-test");
 
   beforeEach(async () => {
