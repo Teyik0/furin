@@ -7,7 +7,8 @@
   3. Is transparent in intersections(`{} & T = T`)
 */
 
-import type { AnySchema, UnwrapSchema } from "elysia/types";
+import type { Cookie, StatusMap } from "elysia";
+import type { AnySchema, HTTPHeaders, UnwrapSchema } from "elysia/types";
 
 declare const UNSET: unique symbol;
 type Unset = typeof UNSET;
@@ -24,13 +25,19 @@ type MergeSchema<TParent, TOwn> = [TParent] extends [Unset]
     ? TParent
     : TParent & TOwn;
 
-type ConditionalParams<T> = [T] extends [Unset] ? {} : { params: T };
-type ConditionalQuery<T> = [T] extends [Unset] ? {} : { query: T };
-
-// The incoming server Request is always available in loaders so they can
-// forward headers (e.g. Cookie) when making server-side HTTP calls.
-type RouteContext<TParams, TQuery> = ConditionalParams<TParams> &
-  ConditionalQuery<TQuery> & { request?: Request };
+export interface RouteContext<TParams = {}, TQuery = {}> {
+  cookie: Record<string, Cookie<unknown>>;
+  headers: Record<string, string | undefined>;
+  params: TParams;
+  path: string;
+  query: TQuery;
+  redirect: (url: string, status?: 301 | 302 | 303 | 307 | 308) => Response;
+  request: Request;
+  set: {
+    headers: HTTPHeaders;
+    status?: number | keyof StatusMap;
+  };
+}
 
 type ResolveParent<T> =
   T extends RouteRef<infer D, infer P, infer Q>

@@ -64,7 +64,7 @@ export function createRoutePlugin(
           return handleISR(route, ctx, config, root, dev);
 
         default:
-          return renderSSR(route, ctx, config, root, dev, ctx.request);
+          return renderSSR(route, ctx, config, root, dev);
       }
     })
   );

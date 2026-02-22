@@ -1,15 +1,39 @@
 import type { StaticOptions } from "@elysiajs/static/types";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
-import type { RuntimeRoute } from "./client";
+import type { RouteContext, RuntimeRoute } from "./client";
 import { getCachedCss } from "./css";
 import { getModuleVersion } from "./hmr/watcher";
 import type { ResolvedRoute, RootLayout } from "./router";
 import { buildBodyInjection, buildHeadInjection, postProcessHTML } from "./shell";
 
+export type LoaderContext = RouteContext<Record<string, string>, Record<string, string>>;
+
 const isrCache = new Map<string, { html: string; generatedAt: number; revalidate: number }>();
 
 const ssgCache = new Map<string, string>();
+
+const CLIENT_JS_PATH = "/_client/_hydrate.js";
+
+function resolvePath(pattern: string, params: Record<string, string>): string {
+  return Object.entries(params).reduce((path, [key, val]) => {
+    const placeholder = key === "*" ? "*" : `:${key}`;
+    return path.replace(placeholder, () => val);
+  }, pattern);
+}
+
+function createSSGContext(params: Record<string, string>, resolvedPath: string): LoaderContext {
+  return {
+    params,
+    query: {},
+    request: new Request(`http://localhost${resolvedPath}`),
+    headers: {},
+    cookie: {},
+    redirect: (url) => new Response(null, { status: 302, headers: { Location: url } }),
+    set: { headers: {} },
+    path: resolvedPath,
+  };
+}
 
 export async function streamToString(stream: ReadableStream): Promise<string> {
   const reader = stream.getReader();
@@ -27,8 +51,6 @@ export async function streamToString(stream: ReadableStream): Promise<string> {
   html += decoder.decode();
   return html;
 }
-
-const CLIENT_JS_PATH = "/_client/_hydrate.js";
 
 export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
   if (!dev && route.page) {
@@ -117,8 +139,6 @@ export function buildElement(
   const Component = page.component;
   let element: ReactNode = <Component {...data} />;
 
-  // Wrap with nested layouts (skip root at index 0 - applied separately below)
-  // Iterate from innermost to outermost, matching client's collectLayouts().slice(1)
   for (let i = route.routeChain.length - 1; i >= 1; i--) {
     const routeEntry = route.routeChain[i];
 
@@ -128,7 +148,6 @@ export function buildElement(
     }
   }
 
-  // Wrap with root layout
   if (rootLayout?.layout) {
     const RootLayoutComponent = rootLayout.layout;
     element = <RootLayoutComponent {...data}>{element}</RootLayoutComponent>;
@@ -137,68 +156,87 @@ export function buildElement(
   return element;
 }
 
+export type LoaderResult =
+  | { type: "data"; data: Record<string, unknown>; headers: Record<string, string> }
+  | { type: "redirect"; response: Response };
+
 export async function runLoaders(
   route: ResolvedRoute,
-  params: Record<string, string>,
-  query: Record<string, string>,
-  rootLayout: RuntimeRoute | null,
-  request?: Request
-): Promise<Record<string, unknown>> {
+  ctx: LoaderContext,
+  rootLayout: RuntimeRoute | null
+): Promise<LoaderResult> {
   let data: Record<string, unknown> = {};
+  const headers: Record<string, string> = {};
 
-  // Run root loader first
-  if (rootLayout?.loader) {
-    const result = await rootLayout.loader({ ...data, params, query, request });
-    data = { ...data, ...result };
-  }
+  const loaderCtx = {
+    ...ctx,
+    ...data,
+  };
 
-  // Run nested layout loaders (skip root at index 0 - already ran above)
-  for (let i = 1; i < route.routeChain.length; i++) {
-    const ancestor = route.routeChain[i];
-    if (ancestor?.loader) {
-      const result = await ancestor.loader({ ...data, params, query, request });
+  try {
+    if (rootLayout?.loader) {
+      const result = await rootLayout.loader(loaderCtx);
       data = { ...data, ...result };
+      Object.assign(headers, ctx.set.headers);
     }
-  }
 
-  // Run page loader
-  if (route.page?.loader) {
-    const result = await route.page.loader({ ...data, params, query, request });
-    data = { ...data, ...result };
-  }
+    for (let i = 1; i < route.routeChain.length; i++) {
+      const ancestor = route.routeChain[i];
+      if (ancestor?.loader) {
+        const result = await ancestor.loader({ ...loaderCtx, ...data });
+        data = { ...data, ...result };
+        Object.assign(headers, ctx.set.headers);
+      }
+    }
 
-  return data;
+    if (route.page?.loader) {
+      const result = await route.page.loader({ ...loaderCtx, ...data });
+      data = { ...data, ...result };
+      Object.assign(headers, ctx.set.headers);
+    }
+
+    return { type: "data", data, headers };
+  } catch (err) {
+    if (err instanceof Response) {
+      return { type: "redirect", response: err };
+    }
+    throw err;
+  }
+}
+
+interface RenderResult {
+  headers: Record<string, string>;
+  html: string;
 }
 
 async function renderAndProcess(
   route: ResolvedRoute,
-  params: Record<string, string>,
-  query: Record<string, string>,
+  ctx: LoaderContext,
   root: RootLayout | null,
-  dev: boolean,
-  request?: Request
-): Promise<string> {
+  dev: boolean
+): Promise<RenderResult> {
   await loadPageModule(route, dev);
 
   const rootLayout = root ? await loadRootModule(root, dev) : null;
 
-  const data = await runLoaders(route, params, query, rootLayout, request);
+  const loaderResult = await runLoaders(route, ctx, rootLayout);
 
-  // Get head data from page BEFORE building element
-  const headData = route.page?.head?.({ ...data, params, query });
+  if (loaderResult.type === "redirect") {
+    throw loaderResult.response;
+  }
 
-  // Get CSS
+  const { data, headers } = loaderResult;
+
+  const headData = route.page?.head?.({ ...data, ...ctx });
+
   const cssContext = await getCachedCss(process.cwd());
 
-  // Build the element tree
-  const element = await buildElement(route, { ...data, params, query }, rootLayout, dev);
+  const element = await buildElement(route, { ...data, ...ctx }, rootLayout, dev);
 
-  // Render to HTML — inject suppressHydrationWarning to match client hydration
   const stream = await renderToReadableStream(injectSuppressHydration(element));
   await stream.allReady;
   const html = await streamToString(stream);
 
-  // Warn if root layout is missing required HTML structure
   if (root) {
     if (!html.includes("<html")) {
       console.warn(
@@ -212,33 +250,32 @@ async function renderAndProcess(
     }
   }
 
-  // Post-process HTML to inject scripts (React doesn't need to know about these)
   const headInjection = buildHeadInjection(headData, cssContext);
   const bodyInjection = buildBodyInjection(data, CLIENT_JS_PATH, dev);
 
-  return postProcessHTML(html, headInjection, bodyInjection);
+  return {
+    html: postProcessHTML(html, headInjection, bodyInjection),
+    headers,
+  };
 }
 
 export function renderToHTML(
   route: ResolvedRoute,
-  params: Record<string, string>,
-  query: Record<string, string>,
+  ctx: LoaderContext,
   root: RootLayout | null,
-  dev = false,
-  request?: Request
-) {
-  return renderAndProcess(route, params, query, root, dev, request);
+  dev = false
+): Promise<RenderResult> {
+  return renderAndProcess(route, ctx, root, dev);
 }
 
 export async function renderToStream(
   route: ResolvedRoute,
-  params: Record<string, string>,
-  query: Record<string, string>,
+  ctx: LoaderContext,
   root: RootLayout | null,
   dev = false
 ) {
-  const html = await renderAndProcess(route, params, query, root, dev);
-  return new Response(html).body;
+  const result = await renderAndProcess(route, ctx, root, dev);
+  return new Response(result.html).body;
 }
 
 export async function prerenderSSG(
@@ -248,46 +285,52 @@ export async function prerenderSSG(
   root: RootLayout | null,
   dev = false
 ) {
-  const resolvedPath = Object.entries(params ?? {}).reduce((path: string, [key, val]) => {
-    const placeholder = key === "*" ? "*" : `:${key}`;
-    return path.replace(placeholder, () => val);
-  }, route.pattern);
+  const resolvedPath = resolvePath(route.pattern, params);
 
   const cached = ssgCache.get(resolvedPath);
   if (cached && !dev) {
     return cached;
   }
 
-  const html = await renderToHTML(route, params, {}, root, dev);
+  const ctx = createSSGContext(params, resolvedPath);
+
+  const result = await renderToHTML(route, ctx, root, dev);
 
   if (!dev) {
-    ssgCache.set(resolvedPath, html);
+    ssgCache.set(resolvedPath, result.html);
   }
 
-  return html;
+  return result.html;
 }
 
 export async function renderSSR(
   route: ResolvedRoute,
-  ctx: { params?: Record<string, string>; query?: Record<string, string> },
+  ctx: LoaderContext,
   _config: StaticOptions<string>,
   root: RootLayout | null,
-  dev = false,
-  request?: Request
+  dev = false
 ): Promise<Response> {
-  const html = await renderToHTML(route, ctx.params ?? {}, ctx.query ?? {}, root, dev, request);
+  try {
+    const result = await renderToHTML(route, ctx, root, dev);
 
-  return new Response(html, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  });
+    return new Response(result.html, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        ...result.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Response) {
+      return err;
+    }
+    throw err;
+  }
 }
 
 export async function handleISR(
   route: ResolvedRoute,
-  ctx: { params?: Record<string, string>; query?: Record<string, string> },
+  ctx: LoaderContext,
   _config: StaticOptions<string>,
   root: RootLayout | null,
   dev = false
@@ -295,10 +338,7 @@ export async function handleISR(
   const revalidate = route.page?._route.revalidate ?? 60;
   const params = ctx.params ?? {};
 
-  const cacheKey = Object.entries(params).reduce((path: string, [key, val]: [string, string]) => {
-    const placeholder = key === "*" ? "*" : `:${key}`;
-    return path.replace(placeholder, () => val);
-  }, route.pattern);
+  const cacheKey = resolvePath(route.pattern, params);
 
   const cached = isrCache.get(cacheKey);
 
@@ -320,18 +360,26 @@ export async function handleISR(
     });
   }
 
-  const html = await renderToHTML(route, params, {}, root, dev);
+  try {
+    const result = await renderToHTML(route, ctx, root, dev);
 
-  if (!dev) {
-    isrCache.set(cacheKey, { html, generatedAt: Date.now(), revalidate });
+    if (!dev) {
+      isrCache.set(cacheKey, { html: result.html, generatedAt: Date.now(), revalidate });
+    }
+
+    return new Response(result.html, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`,
+        ...result.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Response) {
+      return err;
+    }
+    throw err;
   }
-
-  return new Response(html, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`,
-    },
-  });
 }
 
 function revalidateInBackground(
@@ -342,10 +390,14 @@ function revalidateInBackground(
   root: RootLayout | null,
   dev: boolean
 ) {
-  renderToHTML(route, params, {}, root, dev)
-    .then((freshHtml: string) => {
+  const resolvedPath = resolvePath(route.pattern, params);
+
+  const ctx = createSSGContext(params, resolvedPath);
+
+  renderToHTML(route, ctx, root, dev)
+    .then((result) => {
       isrCache.set(cacheKey, {
-        html: freshHtml,
+        html: result.html,
         generatedAt: Date.now(),
         revalidate,
       });
