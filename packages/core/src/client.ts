@@ -27,8 +27,11 @@ type MergeSchema<TParent, TOwn> = [TParent] extends [Unset]
 
 type NormalizeUnset<T> = [T] extends [Unset] ? {} : T;
 
-// biome-ignore lint/style/useConsistentTypeDefinitions: Type required for conditional type inference with NormalizeUnset
-export type RouteContext<TParams = {}, TQuery = {}> = {
+/**
+ * Full context passed to loaders.
+ * Contains server-only properties (request, cookie, headers, redirect, set).
+ */
+export interface RouteContext<TParams = {}, TQuery = {}> {
   cookie: Record<string, Cookie<unknown>>;
   headers: Record<string, string | undefined>;
   params: NormalizeUnset<TParams>;
@@ -40,7 +43,18 @@ export type RouteContext<TParams = {}, TQuery = {}> = {
     headers: HTTPHeaders;
     status?: number | keyof StatusMap;
   };
-};
+}
+
+/**
+ * Props passed to components (serializable only).
+ * Does NOT include request, cookie, headers, redirect, set.
+ * Loaders should extract needed values from those.
+ */
+export interface ComponentProps<TParams = {}, TQuery = {}> {
+  params: NormalizeUnset<TParams>;
+  path: string;
+  query: NormalizeUnset<TQuery>;
+}
 
 type ResolveParent<T> =
   T extends RouteRef<infer D, infer P, infer Q>
@@ -60,50 +74,13 @@ export type MetaDescriptor =
   | { property: string; content: string }
   | { httpEquiv: string; content: string }
   | { "script:ld+json": object }
-  | { tagName: "meta" | "link"; [name: string]: string | undefined };
+  | { tagName: "link" | "meta"; [key: string]: string };
 
 export interface HeadOptions {
-  links?: Array<{ rel: string; href: string; [key: string]: string }>;
+  links?: Record<string, string | undefined>[];
   meta?: MetaDescriptor[];
-  scripts?: Array<{
-    src?: string;
-    type?: string;
-    children?: string;
-    [key: string]: string | undefined;
-  }>;
-  styles?: Array<{ type?: string; children: string }>;
-}
-
-export interface PageConfig<
-  TParentData extends Record<string, unknown>,
-  TParams,
-  TQuery,
-  TPageLoaderData extends Record<string, unknown> = {},
-> {
-  component: React.FC<TParentData & TPageLoaderData & RouteContext<TParams, TQuery>>;
-  head?: (ctx: RouteContext<TParams, TQuery> & TParentData & TPageLoaderData) => HeadOptions;
-  loader?: (
-    ctx: RouteContext<TParams, TQuery> & TParentData
-  ) => Promise<TPageLoaderData> | TPageLoaderData;
-}
-
-export interface RuntimeRoute {
-  __type: "ELYSION_ROUTE";
-  layout?: React.FC<Record<string, unknown> & { children: React.ReactNode }>;
-  loader?(ctx: Record<string, unknown>): Promise<Record<string, unknown>> | Record<string, unknown>;
-  mode?: "ssr" | "ssg" | "isr";
-  params?: unknown;
-  parent?: RuntimeRoute;
-  query?: unknown;
-  revalidate?: number;
-}
-
-export interface RuntimePage {
-  __type: "ELYSION_PAGE";
-  _route: RuntimeRoute;
-  component: React.FC<Record<string, unknown>>;
-  head?(ctx: Record<string, unknown>): HeadOptions;
-  loader?(ctx: Record<string, unknown>): Promise<Record<string, unknown>> | Record<string, unknown>;
+  scripts?: (Record<string, string | undefined> & { children?: string })[];
+  styles?: { type?: string; children: string }[];
 }
 
 export interface RouteRef<
@@ -115,7 +92,63 @@ export interface RouteRef<
   readonly __phantom: { data: TData; params: TParams; query: TQuery };
 }
 
-interface PageResult<
+export interface PageConfig<
+  TParentData extends Record<string, unknown>,
+  TParams,
+  TQuery,
+  TPageLoaderData extends Record<string, unknown>,
+> {
+  component: React.FC<TParentData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
+  head?: (ctx: ComponentProps<TParams, TQuery> & TParentData & TPageLoaderData) => HeadOptions;
+  loader?: (
+    ctx: RouteContext<TParams, TQuery> & TParentData
+  ) => Promise<TPageLoaderData> | TPageLoaderData;
+}
+
+export interface RuntimeRoute {
+  __type: "ELYSION_ROUTE";
+  layout?: React.FC<Record<string, unknown> & { children: React.ReactNode }>;
+  loader?: (
+    ctx: Record<string, unknown>
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  mode?: "ssr" | "ssg" | "isr";
+  params?: unknown;
+  parent?: RuntimeRoute;
+  query?: unknown;
+  revalidate?: number;
+}
+
+export interface RuntimePage {
+  __type: "ELYSION_PAGE";
+  _route: RuntimeRoute;
+  component: React.FC<Record<string, unknown>>;
+  head?: (ctx: Record<string, unknown>) => HeadOptions;
+  loader?: (
+    ctx: Record<string, unknown>
+  ) => Promise<Record<string, unknown>> | Record<string, unknown>;
+}
+
+export interface Route<
+  TParentData extends Record<string, unknown> = Record<string, unknown>,
+  TParams = unknown,
+  TQuery = unknown,
+> {
+  __type: "ELYSION_ROUTE";
+  layout?: React.FC<TParentData & { children: React.ReactNode } & ComponentProps<TParams, TQuery>>;
+  loader?: (ctx: RouteContext<TParams, TQuery> & TParentData) => Promise<TParentData> | TParentData;
+  mode?: "ssr" | "ssg" | "isr";
+  page<TPageLoaderData extends Record<string, unknown> = {}>(
+    config: PageConfig<TParentData, TParams, TQuery, TPageLoaderData>
+  ): PageResult<TParentData, TParams, TQuery, TPageLoaderData>;
+  params?: unknown;
+  parent?: RuntimeRoute;
+  query?: unknown;
+  /** Branded ref for type inference when used as a parent. */
+  ref: RouteRef<TParentData, TParams, TQuery>;
+  revalidate?: number;
+}
+
+export interface PageResult<
   TData extends Record<string, unknown>,
   TParams,
   TQuery,
@@ -123,28 +156,11 @@ interface PageResult<
 > {
   __type: "ELYSION_PAGE";
   _route: Route<TData, TParams, TQuery>;
-  component: React.FC<TData & TPageLoaderData & RouteContext<TParams, TQuery>>;
-  head?(ctx: RouteContext<TParams, TQuery> & TData & TPageLoaderData): HeadOptions;
-  loader?(ctx: RouteContext<TParams, TQuery> & TData): Promise<TPageLoaderData> | TPageLoaderData;
-}
-
-export interface Route<TParentData extends Record<string, unknown>, TParams, TQuery> {
-  __type: "ELYSION_ROUTE";
-  layout?: React.FC<TParentData & { children: React.ReactNode } & RouteContext<TParams, TQuery>>;
-  loader?(ctx: RouteContext<TParams, TQuery> & TParentData): Promise<TParentData> | TParentData;
-  mode?: "ssr" | "ssg" | "isr";
-
-  page<TPageLoaderData extends Record<string, unknown> = {}>(
-    config: PageConfig<TParentData, TParams, TQuery, TPageLoaderData>
-  ): PageResult<TParentData, TParams, TQuery, TPageLoaderData>;
-
-  params?: unknown;
-  parent?: RuntimeRoute;
-  query?: unknown;
-
-  /** Branded ref for type inference when used as a parent. */
-  ref: RouteRef<TParentData, TParams, TQuery>;
-  revalidate?: number;
+  component: React.FC<TData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
+  head?: (ctx: ComponentProps<TParams, TQuery> & TData & TPageLoaderData) => HeadOptions;
+  loader?: (
+    ctx: RouteContext<TParams, TQuery> & TData
+  ) => Promise<TPageLoaderData> | TPageLoaderData;
 }
 
 export function createRoute<
@@ -153,11 +169,14 @@ export function createRoute<
   TQuerySchema extends AnySchema | Unset = Unset,
   TLoaderData extends Record<string, unknown> = {},
 >(config?: {
-  parent?: { ref: TParentRef } & { __type: "ELYSION_ROUTE" };
-  mode?: "ssr" | "ssg" | "isr";
-  revalidate?: number;
-  params?: TParamsSchema;
-  query?: TQuerySchema;
+  layout?: React.FC<
+    Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["data"] & {
+      children: React.ReactNode;
+    } & ComponentProps<
+        Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["params"],
+        Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["query"]
+      >
+  >;
   loader?: (
     ctx: RouteContext<
       Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["params"],
@@ -165,14 +184,11 @@ export function createRoute<
     > &
       ResolveParent<TParentRef>["data"]
   ) => Promise<TLoaderData> | TLoaderData;
-  layout?: React.FC<
-    Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["data"] & {
-      children: React.ReactNode;
-    } & RouteContext<
-        Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["params"],
-        Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["query"]
-      >
-  >;
+  mode?: "ssr" | "ssg" | "isr";
+  params?: TParamsSchema;
+  parent?: { ref: TParentRef } & { __type: "ELYSION_ROUTE" };
+  query?: TQuerySchema;
+  revalidate?: number;
 }): Route<
   Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["data"],
   Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["params"],
@@ -195,6 +211,7 @@ export function createRoute<
       };
     },
   };
+
   return route as Route<R["data"], R["params"], R["query"]>;
 }
 
@@ -204,5 +221,5 @@ export type InferProps<T> = T extends {
 }
   ? P
   : T extends Route<infer D, infer P, infer Q>
-    ? D & { children: React.ReactNode } & RouteContext<P, Q>
+    ? D & { children: React.ReactNode } & ComponentProps<P, Q>
     : never;

@@ -323,7 +323,8 @@ describe("render.tsx", () => {
         ...withLoaderRoute,
         page: {
           ...withLoaderRoute.page,
-          loader: ({ redirect }: { redirect: (url: string) => Response }) => {
+          loader: (ctx: Record<string, unknown>) => {
+            const redirect = ctx.redirect as (url: string) => Response;
             throw redirect("/login");
           },
         },
@@ -451,7 +452,8 @@ describe("render.tsx", () => {
         ...ssrRoute,
         page: {
           ...ssrRoute.page,
-          loader: ({ redirect }: { redirect: (url: string) => Response }) => {
+          loader: (ctx: Record<string, unknown>) => {
+            const redirect = ctx.redirect as (url: string) => Response;
             throw redirect("/login");
           },
         },

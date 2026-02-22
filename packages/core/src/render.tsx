@@ -227,11 +227,18 @@ async function renderAndProcess(
 
   const { data, headers } = loaderResult;
 
-  const headData = route.page?.head?.({ ...data, ...ctx });
+  const componentProps = {
+    ...data,
+    params: ctx.params,
+    query: ctx.query,
+    path: ctx.path,
+  };
+
+  const headData = route.page?.head?.(componentProps);
 
   const cssContext = await getCachedCss(process.cwd());
 
-  const element = await buildElement(route, { ...data, ...ctx }, rootLayout, dev);
+  const element = await buildElement(route, componentProps, rootLayout, dev);
 
   const stream = await renderToReadableStream(injectSuppressHydration(element));
   await stream.allReady;

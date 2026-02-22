@@ -5,11 +5,16 @@ import type { Cookie, StatusMap } from "elysia";
 import { t } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { expectTypeOf } from "expect-type";
-import { createRoute, type InferProps, type RouteContext } from "../src/client";
+import {
+  type ComponentProps,
+  createRoute,
+  type InferProps,
+  type RouteContext,
+} from "../src/client";
 import { collectRouteChain, isElysionPage, isElysionRoute } from "../src/utils";
 
-describe("RouteContext types", () => {
-  test("exposes Elysia context properties", () => {
+describe("RouteContext types (for loaders)", () => {
+  test("exposes full Elysia context properties", () => {
     type Ctx = RouteContext<{ id: string }, { page: number }>;
 
     expectTypeOf<Ctx["params"]>().toEqualTypeOf<{ id: string }>();
@@ -32,7 +37,7 @@ describe("RouteContext types", () => {
     expectTypeOf<Ctx["query"]>().toEqualTypeOf<{}>();
   });
 
-  test("loader receives extended context with cookie and redirect", () => {
+  test("loader receives full context with cookie and redirect", () => {
     const route = createRoute({
       loader: (ctx) => {
         expectTypeOf(ctx.request).toEqualTypeOf<Request>();
@@ -43,7 +48,6 @@ describe("RouteContext types", () => {
           headers: HTTPHeaders;
           status?: number | keyof StatusMap;
         }>();
-
         expectTypeOf(ctx.path).toEqualTypeOf<string>();
         expectTypeOf(ctx.params).toEqualTypeOf<{}>();
         expectTypeOf(ctx.query).toEqualTypeOf<{}>();
@@ -53,8 +57,24 @@ describe("RouteContext types", () => {
 
     expect(route).toBeDefined();
   });
+});
 
-  test("component receives context + loader data", () => {
+describe("ComponentProps types (for components)", () => {
+  test("exposes only serializable properties", () => {
+    type Props = ComponentProps<{ id: string }, { page: number }>;
+
+    expectTypeOf<Props["params"]>().toEqualTypeOf<{ id: string }>();
+    expectTypeOf<Props["query"]>().toEqualTypeOf<{ page: number }>();
+    expectTypeOf<Props["path"]>().toEqualTypeOf<string>();
+  });
+
+  test("params and query default to {} when Unset", () => {
+    type Props = ComponentProps;
+    expectTypeOf<Props["params"]>().toEqualTypeOf<{}>();
+    expectTypeOf<Props["query"]>().toEqualTypeOf<{}>();
+  });
+
+  test("component receives loader data + serializable props only", () => {
     const route = createRoute({
       loader: async () => ({ user: { name: "test" } }),
     });
@@ -62,45 +82,24 @@ describe("RouteContext types", () => {
     const page = route.page({
       component: (props) => {
         expectTypeOf(props.user).toEqualTypeOf<{ name: string }>();
-        expectTypeOf(props.request).toEqualTypeOf<Request>();
-        expectTypeOf(props.cookie).toEqualTypeOf<Record<string, Cookie<unknown>>>();
-        expectTypeOf(props.redirect).toBeCallableWith("/login", 302);
+        expectTypeOf(props.params).toEqualTypeOf<{}>();
+        expectTypeOf(props.query).toEqualTypeOf<{}>();
         expectTypeOf(props.path).toEqualTypeOf<string>();
+        // @ts-expect-error — request is NOT available in components
+        props.request;
+        // @ts-expect-error — cookie is NOT available in components
+        props.cookie;
+        // @ts-expect-error — headers is NOT available in components
+        props.headers;
+        // @ts-expect-error — redirect is NOT available in components
+        props.redirect;
+        // @ts-expect-error — set is NOT available in components
+        props.set;
         return null;
       },
     });
 
     expect(page).toBeDefined();
-  });
-
-  test("parent data merges with context in child loader", () => {
-    const parentRoute = createRoute({
-      loader: async () => ({ org: { id: "org-1" } }),
-    });
-
-    const childRoute = createRoute({
-      parent: parentRoute,
-      loader: (ctx) => {
-        expectTypeOf(ctx.org).toEqualTypeOf<{ id: string }>();
-        expectTypeOf(ctx.request).toEqualTypeOf<Request>();
-        expectTypeOf(ctx.cookie).toEqualTypeOf<Record<string, Cookie<unknown>>>();
-        return { user: { name: "test" } };
-      },
-    });
-
-    expect(childRoute).toBeDefined();
-  });
-
-  test("InferProps includes context properties", () => {
-    const route = createRoute({
-      loader: async () => ({ count: 42 }),
-    });
-
-    type Props = InferProps<typeof route>;
-
-    expectTypeOf<Props["count"]>().toEqualTypeOf<number>();
-    expectTypeOf<Props["request"]>().toEqualTypeOf<Request>();
-    expectTypeOf<Props["cookie"]>().toEqualTypeOf<Record<string, Cookie<unknown>>>();
   });
 });
 
@@ -110,7 +109,6 @@ describe("createRoute types", () => {
 
     route.page({
       component: (props) => {
-        // params and query are {} when not defined, so accessing properties errors
         // @ts-expect-error — params is {} so 'foo' doesn't exist
         props.params.foo;
         // @ts-expect-error — query is {} so 'bar' doesn't exist
@@ -157,28 +155,6 @@ describe("createRoute types", () => {
     });
   });
 
-  test("route with loader + layout — layout sees loader data and Component infer props via InferProps", () => {
-    const route = createRoute({
-      loader: async () => ({
-        post: { id: 1, title: "Hello" },
-      }),
-      layout: (props) => <Component {...props} />,
-    });
-
-    function Component({ post, children }: InferProps<typeof route>) {
-      expectTypeOf(post).toEqualTypeOf<{ id: number; title: string }>();
-      expectTypeOf(children).toEqualTypeOf<React.ReactNode>();
-      return null;
-    }
-
-    route.page({
-      component: ({ post }) => {
-        expectTypeOf(post).toEqualTypeOf<{ id: number; title: string }>();
-        return null;
-      },
-    });
-  });
-
   test("route with params + query — schemas are inferred", () => {
     const route = createRoute({
       params: t.Object({ slug: t.String() }),
@@ -197,43 +173,38 @@ describe("createRoute types", () => {
     });
   });
 
-  test("route with params + query — schemas are inferred and Component infer props via InferProps", () => {
+  test("loader can use cookie to extract values for component", () => {
     const route = createRoute({
-      params: t.Object({ slug: t.String() }),
-      query: t.Object({ page: t.Optional(t.Number()) }),
-      loader: async ({ params }) => ({
-        post: { id: 1, slug: params.slug },
+      loader: async ({ cookie }) => ({
+        theme: (cookie.theme?.value as string | undefined) ?? "light",
+        sessionId: cookie.session?.value as string | undefined,
       }),
     });
 
-    const page = route.page({
-      component: (props) => <Component {...props} />,
+    route.page({
+      component: ({ theme, sessionId }) => {
+        expectTypeOf(theme).toEqualTypeOf<string>();
+        expectTypeOf(sessionId).toEqualTypeOf<string | undefined>();
+        return null;
+      },
     });
-
-    function Component({ params, post }: InferProps<typeof page>) {
-      expectTypeOf(params.slug).toBeString();
-      expectTypeOf(post).toEqualTypeOf<{ id: number; slug: string }>();
-      return null;
-    }
   });
 
-  test("InferProps on page includes page-level loader data", () => {
+  test("loader can use headers to extract values for component", () => {
     const route = createRoute({
-      loader: async () => ({ post: { title: "Hello" } }),
-    });
-
-    const page = route.page({
-      loader: async () => ({
-        comments: [{ text: "Nice" }] as Array<{ text: string }>,
+      loader: async ({ headers }) => ({
+        userAgent: headers["user-agent"],
+        acceptLanguage: headers["accept-language"],
       }),
-      component: (props) => <Component {...props} />,
     });
 
-    function Component({ post, comments }: InferProps<typeof page>) {
-      expectTypeOf(post).toEqualTypeOf<{ title: string }>();
-      expectTypeOf(comments).toEqualTypeOf<Array<{ text: string }>>();
-      return null;
-    }
+    route.page({
+      component: ({ userAgent, acceptLanguage }) => {
+        expectTypeOf(userAgent).toEqualTypeOf<string | undefined>();
+        expectTypeOf(acceptLanguage).toEqualTypeOf<string | undefined>();
+        return null;
+      },
+    });
   });
 });
 
@@ -248,7 +219,6 @@ describe("nested layouts", () => {
     const childRoute = createRoute({
       parent: parentRoute,
       loader: ({ user }) => {
-        // user is flat from parent, not nested in parentData
         expectTypeOf(user.orgId).toBeString();
         return {
           users: [{ id: 1 }] as Array<{ id: number }>,
@@ -260,27 +230,6 @@ describe("nested layouts", () => {
       component: ({ user, users }) => {
         expectTypeOf(user.name).toBeString();
         expectTypeOf(users).toEqualTypeOf<Array<{ id: number }>>();
-        return null;
-      },
-    });
-  });
-
-  test("parent → child — layout sees parent + own loader data", () => {
-    const parentRoute = createRoute({
-      loader: async () => ({
-        user: { id: 1, name: "Alice" },
-      }),
-    });
-
-    createRoute({
-      parent: parentRoute,
-      loader: async () => ({
-        users: [{ id: 1 }] as Array<{ id: number }>,
-      }),
-      layout: ({ user, users, children }) => {
-        expectTypeOf(user.name).toBeString();
-        expectTypeOf(users).toEqualTypeOf<Array<{ id: number }>>();
-        expectTypeOf(children).toEqualTypeOf<React.ReactNode>();
         return null;
       },
     });
@@ -368,6 +317,23 @@ describe("page head", () => {
   });
 });
 
+describe("InferProps", () => {
+  test("includes loader data + component props", () => {
+    const route = createRoute({
+      loader: async () => ({ count: 42 }),
+    });
+
+    type Props = InferProps<typeof route>;
+
+    expectTypeOf<Props["count"]>().toEqualTypeOf<number>();
+    expectTypeOf<Props["params"]>().toEqualTypeOf<{}>();
+    expectTypeOf<Props["query"]>().toEqualTypeOf<{}>();
+    expectTypeOf<Props["path"]>().toEqualTypeOf<string>();
+    // request, cookie, headers, redirect, set are NOT in ComponentProps
+    // so they should NOT be accessible in InferProps
+  });
+});
+
 describe("isElysionRoute", () => {
   test("returns true for a createRoute() result", () => {
     const route = createRoute({ mode: "ssg" });
@@ -434,11 +400,8 @@ describe("collectRouteChain", () => {
     const chain = collectRouteChain(page);
 
     expect(chain).toHaveLength(2);
-    // First element is the parent (root), second is the child (leaf)
     expect(chain[0]).not.toBe(chain[1]);
-    // Parent has no parent
     expect(chain[0]?.parent).toBeUndefined();
-    // Child's parent is the first element
     expect(chain[1]?.parent).toBe(chain[0]);
   });
 
@@ -461,7 +424,6 @@ describe("collectRouteChain", () => {
     const chain = collectRouteChain(page);
 
     expect(chain).toHaveLength(3);
-    // Verify top-down order
     expect(chain[0]?.parent).toBeUndefined();
     expect(chain[1]?.parent).toBe(chain[0]);
     expect(chain[2]?.parent).toBe(chain[1]);
