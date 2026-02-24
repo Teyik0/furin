@@ -1,5 +1,4 @@
 import { parse } from "node:path";
-import type { StaticOptions } from "@elysiajs/static/types";
 import { Glob } from "bun";
 import { type AnyElysia, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
@@ -25,7 +24,6 @@ export interface RootLayout {
 
 export function createRoutePlugin(
   route: ResolvedRoute,
-  config: StaticOptions<string>,
   root: RootLayout | null,
   dev = false
 ): AnyElysia {
@@ -57,14 +55,14 @@ export function createRoutePlugin(
         case "ssg": {
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
-          return await prerenderSSG(route, ctx.params ?? {}, config, root, dev);
+          return await prerenderSSG(route, ctx.params ?? {}, root, dev);
         }
 
         case "isr":
-          return handleISR(route, ctx, config, root, dev);
+          return handleISR(route, ctx, root, dev);
 
         default:
-          return renderSSR(route, ctx, config, root, dev);
+          return renderSSR(route, ctx, root, dev);
       }
     })
   );
@@ -143,10 +141,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise
   return routes;
 }
 
-export async function scanPages(
-  pagesDir: string,
-  _dev = false
-): Promise<{
+export async function scanPages(pagesDir: string): Promise<{
   root: RootLayout | null;
   routes: ResolvedRoute[];
 }> {

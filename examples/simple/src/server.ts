@@ -1,5 +1,5 @@
 import { elysion } from "@teyik0/elysion";
-import Elysia from "elysia";
+import { Elysia } from "elysia";
 import { api } from "./api";
 
 const app = new Elysia()
@@ -12,10 +12,6 @@ const app = new Elysia()
         prefix: "/public",
         staticLimit: 1024,
         alwaysStatic: process.env.NODE_ENV === "production",
-      },
-      css: {
-        input: "./src/styles/global.css",
-        mode: "auto",
       },
     })
   )

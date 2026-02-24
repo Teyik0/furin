@@ -9,17 +9,20 @@
     "test:e2e": "bun run ./tests/hmr.ts"
   },
   "dependencies": {
-    "@elysiajs/eden": "^1.4.8",
-    "@tailwindcss/postcss": "^4.1.11",
-    "elysia": "catalog:",
+    "@elysiajs/eden": "catalog:",
     "@teyik0/elysion": "workspace:*",
+    "elysia": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "tailwindcss": "^4.1.11"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@vitejs/plugin-react": "^5.1.4",
     "@types/babel__core": "^7.20.5",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1",
+    "vite-tsconfig-paths": "^6.1.1"
   }
 }

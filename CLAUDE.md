@@ -14,6 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun run build` — Build the library to `dist/`
 - `bun run test:types` — Type-check without emitting
 
+## Guidelin
+
+- Always use the git hook when commit/push
+- Never commit/push using --no-verify
+
 ## Tooling
 
 - **Runtime**: Bun only. Never use Node.js, npm, yarn, pnpm, dotenv, express, vite, or webpack.
