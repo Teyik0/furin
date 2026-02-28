@@ -9,6 +9,7 @@ coverage = true
 coveragePathIgnorePatterns = [
   "**/*.test.ts",
   "**/fixtures/**/*",
+  "**/bun-strip-plugin.ts",  # Bun build-time plugin, not unit-testable
   "**/private/var/**",  # macOS temp files
   "**/var/folders/**", # macOS temp files (symlink)
   "**/tmp/**" # linux CI temp files
