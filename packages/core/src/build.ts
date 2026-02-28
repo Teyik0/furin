@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { ResolvedRoute } from "./router";
 import { transformForClient } from "./transform-client";
 
 export interface BuildClientOptions {
   dev?: boolean;
   outDir?: string;
+  /** Pages source directory — needed so writeDevFiles can pre-transform files. */
+  pagesDir?: string;
   rootPath?: string | null;
 }
 
@@ -20,21 +22,31 @@ const REACT_IMPORT_RE = /import\s+React\b/;
  * Renders into <div id="root"> (the SSR outlet element) and retains the React
  * root across hot reloads via import.meta.hot.data.root so React Fast Refresh
  * applies in-place instead of remounting.
+ *
+ * @param clientPaths - Optional map from source abs path → pre-transformed abs path.
+ *   When provided, imports reference the browser-safe pre-transformed files in
+ *   .elysion/pages/ instead of the TypeScript source files.
  */
-function generateHydrateEntry(routes: ResolvedRoute[], rootPath: string | null): string {
+function generateHydrateEntry(
+  routes: ResolvedRoute[],
+  rootPath: string | null,
+  clientPaths?: Map<string, string>
+): string {
   const imports: string[] = [];
   const routeEntries: string[] = [];
 
   const hasRoot = rootPath !== null;
   if (hasRoot) {
-    imports.push(`import { route as root } from "${rootPath.replace(/\\/g, "/")}";`);
+    const resolvedRoot = (clientPaths?.get(rootPath) ?? rootPath).replace(/\\/g, "/");
+    imports.push(`import { route as root } from "${resolvedRoot}";`);
   }
 
   for (let i = 0; i < routes.length; i++) {
     const route = routes[i] as ResolvedRoute;
     const pageName = `Page${i}`;
 
-    imports.push(`import ${pageName} from "${route.path.replace(/\\/g, "/")}";`);
+    const resolvedPage = (clientPaths?.get(route.path) ?? route.path).replace(/\\/g, "/");
+    imports.push(`import ${pageName} from "${resolvedPage}";`);
 
     const regexPattern = route.pattern.replace(/:[^/]+/g, "([^/]+)").replace(/\*/g, "(.*)");
     routeEntries.push(
@@ -129,19 +141,83 @@ export function generateIndexHtml(): string {
 }
 
 /**
+ * Pre-transforms all TypeScript/TSX files in pagesDir for browser consumption.
+ *
+ * Runs transformForClient() on every .ts/.tsx file in pagesDir, stripping
+ * server-only code (loader, query, params) and the imports that become dead
+ * after removal.  Writes the resulting plain JS to `${outDir}/pages/`,
+ * preserving the source directory structure so relative imports between page
+ * and route files resolve correctly.
+ *
+ * Returns a map from each source absolute path to its pre-transformed path.
+ * Only rewrites a file when its content has changed to avoid spurious reloads.
+ */
+function writeClientPages(pagesDir: string, outDir: string): Map<string, string> {
+  const clientPagesDir = join(outDir, "pages");
+  const sourceToClientPath = new Map<string, string>();
+
+  const glob = new Bun.Glob("**/*.{tsx,ts}");
+
+  for (const relPath of glob.scanSync({ cwd: pagesDir, absolute: false })) {
+    const sourcePath = join(pagesDir, relPath).replace(/\\/g, "/");
+    const clientRelPath = relPath.replace(/\.tsx?$/, ".js");
+    const clientPath = join(clientPagesDir, clientRelPath);
+
+    const clientDir = dirname(clientPath);
+    if (!existsSync(clientDir)) {
+      mkdirSync(clientDir, { recursive: true });
+    }
+
+    const source = readFileSync(sourcePath, "utf8");
+    let code: string;
+    try {
+      const result = transformForClient(source, sourcePath);
+      code = result.code;
+      if (code.includes("React.createElement") && !REACT_IMPORT_RE.test(code)) {
+        code = `import React from "react";\n${code}`;
+      }
+    } catch (err) {
+      console.error(`[elysion] client pre-transform failed for ${relPath}:`, err);
+      code = source;
+    }
+
+    const existingCode = existsSync(clientPath) ? readFileSync(clientPath, "utf8") : "";
+    if (code !== existingCode) {
+      writeFileSync(clientPath, code);
+    }
+
+    sourceToClientPath.set(sourcePath, clientPath);
+  }
+
+  return sourceToClientPath;
+}
+
+/**
  * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode.
+ *
+ * When pagesDir is provided, also pre-transforms all pages-dir files into
+ * .elysion/pages/ (browser-safe JS) so that _hydrate.tsx imports server-free
+ * modules — preventing "Browser build cannot import Bun builtin" errors that
+ * occur when bundlers encounter bun:sqlite or elysia imports from page files.
  *
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
 export function writeDevFiles(routes: ResolvedRoute[], options: BuildClientOptions = {}): void {
-  const { outDir = "./.elysion", rootPath = null } = options;
+  const { outDir = "./.elysion", rootPath = null, pagesDir } = options;
 
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootPath);
+  // Pre-transform all page/route files to strip server-only code.
+  // _hydrate.tsx will import from these browser-safe copies instead of source.
+  let clientPaths: Map<string, string> | undefined;
+  if (pagesDir) {
+    clientPaths = writeClientPages(pagesDir, outDir);
+  }
+
+  const hydrateCode = generateHydrateEntry(routes, rootPath, clientPaths);
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";
   if (hydrateCode !== existingHydrate) {

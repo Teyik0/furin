@@ -29,6 +29,11 @@
       "types": "./src/router.ts",
       "bun": "./src/router.ts",
       "import": "./dist/router.js"
+    },
+    "./strip-plugin": {
+      "types": "./src/strip-plugin.ts",
+      "bun": "./src/strip-plugin.ts",
+      "import": "./dist/strip-plugin.js"
     }
   },
   "scripts": {

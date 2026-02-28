@@ -3,7 +3,6 @@ import { staticPlugin } from "@elysiajs/static";
 import type { StaticOptions } from "@elysiajs/static/types";
 import { Elysia } from "elysia";
 import { buildClient, writeDevFiles } from "./build";
-import { registerBunStripPlugin } from "./bun-strip-plugin";
 import { createRoutePlugin, scanPages } from "./router";
 
 export interface ElysionProps {
@@ -73,14 +72,8 @@ export async function elysion({
   if (dev) {
     const elysionDir = resolve(cwd, ".elysion");
 
-    // 1. Register the Bun build plugin that strips server-only code from pages
-    //    and stubs elysia.  Must happen before the static HTML import in the
-    //    user's server.ts is evaluated (works because elysion() is awaited at
-    //    module top-level before the import is resolved by Bun).
-    registerBunStripPlugin(resolvedPagesDir);
-
-    // 2. Regenerate .elysion/_hydrate.tsx with the current page list.
-    //    Only writes when content changed so Bun --hot doesn't reload needlessly.
+    // Regenerate .elysion/_hydrate.tsx with the current page list.
+    // Only writes when content changed so Bun --hot doesn't reload needlessly.
     writeDevFiles(routes, { outDir: elysionDir, rootPath: root?.path ?? null });
 
     return routes

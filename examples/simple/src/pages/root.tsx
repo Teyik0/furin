@@ -1,4 +1,5 @@
 import { createRoute } from "@teyik0/elysion/client";
+import "../styles/globals.css";
 
 // Root layout renders body content only — <html>, <head>, <body> are provided
 // by .elysion/index.html (the SSR template processed by Bun's HTML bundler).

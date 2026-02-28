@@ -29,7 +29,9 @@ const bunTranspiler = new Bun.Transpiler({
   },
 });
 
-const SERVER_ONLY_PROPERTIES = ["loader"];
+// loader: data fetching (runs on server only)
+// query / params: Elysia TypeBox schemas — validated server-side, not used in browser
+const SERVER_ONLY_PROPERTIES = ["loader", "query", "params"];
 
 interface TransformResult {
   code: string;
@@ -105,6 +107,9 @@ function pruneImportDeclaration(
 export function deadCodeElimination(ast: t.File): void {
   traverse(ast, {
     Program(programPath) {
+      // Crawl on THIS path instance so binding.referenced reflects the
+      // post-removal AST before we check which imports to prune.
+      programPath.scope.crawl();
       const body = programPath.node.body;
       for (let i = body.length - 1; i >= 0; i--) {
         const node = body[i] as t.Statement;
@@ -177,11 +182,6 @@ export function transformForClient(code: string, filename: string): TransformRes
   const removedServerCode = removeServerExports(ast);
 
   if (removedServerCode) {
-    traverse(ast, {
-      Program(programPath) {
-        programPath.scope.crawl();
-      },
-    });
     deadCodeElimination(ast);
   }
 

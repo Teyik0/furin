@@ -4,6 +4,7 @@ import { api } from "./api";
 
 const app = new Elysia()
   .use(api)
+  .onBeforeHandle(({ request }) => console.log("USER REQ - ", request.url))
   .use(
     await elysion({
       pagesDir: `${import.meta.dir}/pages`,
