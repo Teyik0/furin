@@ -16,6 +16,10 @@ pre-push:
       run: bun run test
       stage_fixed: true
 
+    - name: Build
+      run: bun run build
+      stage_fixed: true
+
 commit-msg:
   commands:
     lint-commit-message:

@@ -1,12 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Cookie } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
-import { createElement } from "react";
 import {
+  _setProdTemplate,
   buildElement,
   handleISR,
-  injectSuppressHydration,
   type LoaderContext,
   loadPageModule,
   loadRootModule,
@@ -21,6 +20,23 @@ import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 
 const FIXTURES_DIR = join(import.meta.dirname, "fixtures/pages");
+
+// Provide a minimal SSR template so renderToHTML/renderSSR work without disk I/O.
+// The placeholders match the real template produced by generateIndexHtml().
+const TEST_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--ssr-head-->
+  </head>
+  <body>
+    <div id="root"><!--ssr-outlet--></div>
+  </body>
+</html>`;
+
+beforeAll(() => {
+  _setProdTemplate(TEST_TEMPLATE);
+});
 
 function createMockLoaderContext(overrides: Partial<LoaderContext> = {}): LoaderContext {
   return {
@@ -95,95 +111,6 @@ describe("render.tsx", () => {
     });
   });
 
-  describe("injectSuppressHydration", () => {
-    test("adds suppressHydrationWarning to html element", () => {
-      const element = createElement("html", null, "content");
-      const result = injectSuppressHydration(element) as {
-        type: string;
-        props: { suppressHydrationWarning: boolean };
-      };
-
-      expect(result.type).toBe("html");
-      expect(result.props.suppressHydrationWarning).toBe(true);
-    });
-
-    test("adds suppressHydrationWarning to head element", () => {
-      const element = createElement("head", null, "content");
-      const result = injectSuppressHydration(element) as {
-        type: string;
-        props: { suppressHydrationWarning: boolean };
-      };
-
-      expect(result.type).toBe("head");
-      expect(result.props.suppressHydrationWarning).toBe(true);
-    });
-
-    test("adds suppressHydrationWarning to body element", () => {
-      const element = createElement("body", null, "content");
-      const result = injectSuppressHydration(element) as {
-        type: string;
-        props: { suppressHydrationWarning: boolean };
-      };
-
-      expect(result.type).toBe("body");
-      expect(result.props.suppressHydrationWarning).toBe(true);
-    });
-
-    test("recursively processes children", () => {
-      const child = createElement("body", null, "child");
-      const element = createElement("html", null, child);
-      const result = injectSuppressHydration(element) as {
-        type: string;
-        props: { suppressHydrationWarning: boolean; children: unknown };
-      };
-
-      expect(result.props.suppressHydrationWarning).toBe(true);
-      const childResult = result.props.children as {
-        props: { suppressHydrationWarning: boolean };
-      };
-      expect(childResult.props.suppressHydrationWarning).toBe(true);
-    });
-
-    test("processes children of non-matching elements", () => {
-      const element = createElement("div", { className: "test" }, "content");
-      const result = injectSuppressHydration(element) as {
-        type: string;
-        props: { className: string; children: string };
-      };
-
-      expect(result.type).toBe("div");
-      expect(result.props.className).toBe("test");
-      expect(result.props.children).toBe("content");
-    });
-
-    test("handles null element", () => {
-      expect(injectSuppressHydration(null)).toBeNull();
-    });
-
-    test("handles undefined element", () => {
-      expect(injectSuppressHydration(undefined)).toBeUndefined();
-    });
-
-    test("handles string element", () => {
-      expect(injectSuppressHydration("string")).toBe("string");
-    });
-
-    test("handles array of children", () => {
-      const child1 = createElement("head", null, "head");
-      const child2 = createElement("body", null, "body");
-      const element = createElement("html", null, [child1, child2]);
-      const result = injectSuppressHydration(element) as {
-        props: { children: unknown[] };
-      };
-
-      const children = result.props.children as Array<{
-        props: { suppressHydrationWarning: boolean };
-      }>;
-      expect(children[0]?.props.suppressHydrationWarning).toBe(true);
-      expect(children[1]?.props.suppressHydrationWarning).toBe(true);
-    });
-  });
-
   describe("buildElement", () => {
     test("wraps component with nested layouts", async () => {
       const nestedRoute = await getRoute("/nested");
@@ -192,7 +119,7 @@ describe("render.tsx", () => {
       await loadPageModule(nestedRoute, false);
       const rootLayout = await loadRootModule(root, false);
 
-      const element = buildElement(nestedRoute, {}, rootLayout, false);
+      const element = buildElement(nestedRoute, {}, rootLayout);
       expect(element).toBeDefined();
     });
 
@@ -203,7 +130,7 @@ describe("render.tsx", () => {
       await loadPageModule(deepRoute, false);
       const rootLayout = await loadRootModule(root, false);
 
-      const element = buildElement(deepRoute, {}, rootLayout, false);
+      const element = buildElement(deepRoute, {}, rootLayout);
       expect(element).toBeDefined();
     });
 
@@ -214,7 +141,7 @@ describe("render.tsx", () => {
       await loadPageModule(nestedRoute, false);
       const rootLayout = await loadRootModule(root, false);
 
-      const element = buildElement(nestedRoute, {}, rootLayout, false);
+      const element = buildElement(nestedRoute, {}, rootLayout);
       expect(element).toBeDefined();
     });
 
@@ -224,7 +151,7 @@ describe("render.tsx", () => {
         routeChain: [],
       } as unknown as Parameters<typeof buildElement>[0];
 
-      const element = buildElement(route, {}, null, false);
+      const element = buildElement(route, {}, null);
       expect(element).toBeDefined();
     });
   });
@@ -342,13 +269,14 @@ describe("render.tsx", () => {
   });
 
   describe("renderToHTML", () => {
-    test("renders page with layouts", async () => {
+    test("renders page with layout content", async () => {
       const nestedRoute = await getRoute("/nested");
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/nested" });
       const result = await renderToHTML(nestedRoute, ctx, root, false);
 
+      // Template provides <html>, page content appears in the outlet
       expect(result.html).toContain("<html");
       expect(result.html).toContain("nested-page");
     });
@@ -363,7 +291,7 @@ describe("render.tsx", () => {
       expect(result.html).toContain("__ELYSION_DATA__");
     });
 
-    test("post-processes HTML with head injection", async () => {
+    test("injects head tags from page head() function", async () => {
       const ssgRoute = await getRoute("/ssg-page");
       const root = await getRoot();
 
@@ -372,6 +300,18 @@ describe("render.tsx", () => {
 
       expect(result.html).toContain("<title>SSG Test Page</title>");
     });
+
+    test("page content appears between ssr-outlet placeholders", async () => {
+      const nestedRoute = await getRoute("/nested");
+      const root = await getRoot();
+
+      const ctx = createMockLoaderContext({ path: "/nested" });
+      const result = await renderToHTML(nestedRoute, ctx, root, false);
+
+      // The outlet comment is replaced by React-rendered content
+      expect(result.html).not.toContain("<!--ssr-outlet-->");
+      expect(result.html).toContain("nested-page");
+    });
   });
 
   describe("prerenderSSG", () => {
@@ -379,17 +319,17 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html1 = await prerenderSSG(indexRoute, {}, {}, root, false);
-      const html2 = await prerenderSSG(indexRoute, {}, {}, root, false);
+      const html1 = await prerenderSSG(indexRoute, {}, root, false);
+      const html2 = await prerenderSSG(indexRoute, {}, root, false);
 
       expect(html1).toBe(html2);
     });
 
-    test("replaces params in pattern", async () => {
+    test("renders HTML with template structure", async () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html = await prerenderSSG(indexRoute, {}, {}, root, false);
+      const html = await prerenderSSG(indexRoute, {}, root, false);
       expect(html).toContain("<html");
     });
 
@@ -397,8 +337,8 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html1 = await prerenderSSG(indexRoute, {}, {}, root, false);
-      const html2 = await prerenderSSG(indexRoute, {}, {}, root, false);
+      const html1 = await prerenderSSG(indexRoute, {}, root, false);
+      const html2 = await prerenderSSG(indexRoute, {}, root, false);
 
       expect(html1).toBe(html2);
     });
@@ -410,7 +350,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/ssr-page" });
-      const response = await renderSSR(ssrRoute, ctx, {}, root, false);
+      const response = await renderSSR(ssrRoute, ctx, root, false);
 
       expect(response).toBeInstanceOf(Response);
       const html = await response.text();
@@ -422,7 +362,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/ssr-page" });
-      const response = await renderSSR(ssrRoute, ctx, {}, root, false);
+      const response = await renderSSR(ssrRoute, ctx, root, false);
 
       expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
       expect(response.headers.get("Cache-Control")).toBe("no-cache, no-store, must-revalidate");
@@ -433,7 +373,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/with-loader" });
-      const response = await renderSSR(withLoaderRoute, ctx, {}, root, false);
+      const response = await renderSSR(withLoaderRoute, ctx, root, false);
 
       expect(response.headers.get("x-loader-ran")).toBe("true");
     });
@@ -460,7 +400,7 @@ describe("render.tsx", () => {
         },
       } as ResolvedRoute;
 
-      const response = await renderSSR(customRoute, ctx, {}, root, false);
+      const response = await renderSSR(customRoute, ctx, root, false);
 
       expect(response.status).toBe(302);
       expect(response.headers.get("Location")).toBe("/login");
@@ -473,7 +413,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/isr-page" });
-      const response = await handleISR(isrRoute, ctx, {}, root, false);
+      const response = await handleISR(isrRoute, ctx, root, false);
       const html = await response.text();
 
       expect(html).toContain("<html");
@@ -485,7 +425,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/isr-page" });
-      const response = await handleISR(isrRoute, ctx, {}, root, false);
+      const response = await handleISR(isrRoute, ctx, root, false);
 
       const cacheControl = response.headers.get("Cache-Control");
       expect(cacheControl).toContain("public");
@@ -497,10 +437,10 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const ctx = createMockLoaderContext({ path: "/isr-page" });
-      const response1 = await handleISR(isrRoute, ctx, {}, root, false);
+      const response1 = await handleISR(isrRoute, ctx, root, false);
       const html1 = await response1.text();
 
-      const response2 = await handleISR(isrRoute, ctx, {}, root, false);
+      const response2 = await handleISR(isrRoute, ctx, root, false);
       const html2 = await response2.text();
 
       expect(html1).toBe(html2);
@@ -513,7 +453,7 @@ describe("render.tsx", () => {
 
       const page = await loadPageModule(indexRoute, false);
       expect(page).toBeDefined();
-      expect(page.component).toBeDefined();
+      expect(page?.component).toBeDefined();
     });
 
     test("reloads page in dev mode", async () => {
@@ -588,12 +528,10 @@ describe("render.tsx", () => {
   describe("resolvePath", () => {
     test("replaces named params in pattern", async () => {
       // resolvePath is used internally by prerenderSSG and handleISR
-      // Test it indirectly through prerenderSSG with params
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      // This tests the non-catch-all path
-      const html = await prerenderSSG(indexRoute, {}, {}, root, false);
+      const html = await prerenderSSG(indexRoute, {}, root, false);
       expect(html).toContain("<html");
     });
   });

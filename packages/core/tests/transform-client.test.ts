@@ -6,6 +6,7 @@ import { transformForClient } from "../src/transform-client";
 // ---------------------------------------------------------------------------
 const LOADER_PROPERTY_RE = /\bloader\s*:/;
 const IMPORT_DB_RE = /from\s+["']\.\/db["']/;
+const IMPORT_RELATIVE_DB_RE = /from\s+["'][^"']*db["']/;
 
 // ---------------------------------------------------------------------------
 // Basic transformation
@@ -131,6 +132,43 @@ describe("transformForClient — dead code elimination", () => {
 
     // getUser was only used in the loader → import should be removed
     expect(result.code).not.toMatch(IMPORT_DB_RE);
+    expect(result.removedServerCode).toBe(true);
+  });
+
+  test("createRoute loader-only import removed when layout with JSX also exists", () => {
+    const input = `
+      import { queries } from "../../db";
+      import { route as rootRoute } from "../root";
+      export const route = createRoute({
+        parent: rootRoute,
+        loader: () => {
+          const posts = queries.getPosts.all();
+          return { posts };
+        },
+        layout: ({ children }) => <div>{children}</div>,
+      });
+    `;
+    const result = transformForClient(input, "test.tsx");
+
+    expect(result.code).not.toMatch(IMPORT_RELATIVE_DB_RE);
+    expect(result.removedServerCode).toBe(true);
+  });
+
+  test("route.page() loader-only import removed when component also exists", () => {
+    const input = `
+      import { queries } from "../../db";
+      import { route } from "./route";
+      export default route.page({
+        loader: () => {
+          const posts = queries.getPosts.all();
+          return { posts };
+        },
+        component: ({ posts }) => <ul>{posts.map(p => <li key={p.id}>{p.title}</li>)}</ul>,
+      });
+    `;
+    const result = transformForClient(input, "test.tsx");
+
+    expect(result.code).not.toMatch(IMPORT_RELATIVE_DB_RE);
     expect(result.removedServerCode).toBe(true);
   });
 

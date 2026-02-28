@@ -3,9 +3,3 @@ bun = true
 
 [install]
 linker = "isolated"
-
-[test]
-coverage-exclude = [
-  "tests/fixtures/**",
-  "examples/**",
-]

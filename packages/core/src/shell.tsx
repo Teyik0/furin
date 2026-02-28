@@ -37,13 +37,8 @@ export function renderAttrs(obj: Record<string, string | undefined>): string {
     .join(" ");
 }
 
-export interface CssContext {
-  code?: string;
-  mode: "inline" | "external";
-}
-
 // ---------------------------------------------------------------------------
-// Head injection helpers — extracted to stay under complexity budget
+// Head injection helpers
 // ---------------------------------------------------------------------------
 
 export function buildMetaParts(meta: MetaDescriptor[]): string[] {
@@ -63,16 +58,6 @@ export function buildMetaParts(meta: MetaDescriptor[]): string[] {
     }
   }
   return parts;
-}
-
-export function buildCssPart(cssContext: CssContext | null): string {
-  if (cssContext?.mode === "inline" && cssContext.code) {
-    return `<style id="__elysion_css__">${cssContext.code}</style>`;
-  }
-  if (cssContext?.mode === "external") {
-    return `<link id="__elysion_css_link__" href="/_client/styles.css" rel="stylesheet" />`;
-  }
-  return "";
 }
 
 export function buildLinkParts(links: NonNullable<HeadOptions["links"]>): string[] {
@@ -97,19 +82,16 @@ export function buildStyleParts(styles: NonNullable<HeadOptions["styles"]>): str
   });
 }
 
-export function buildHeadInjection(
-  headData: HeadOptions | undefined,
-  cssContext: CssContext | null
-): string {
+/**
+ * Builds the string to inject into the <!--ssr-head--> placeholder.
+ * Handles title, meta tags, links, inline scripts, and inline styles from
+ * the page's `head()` function.  CSS is handled by Bun (imported in user files).
+ */
+export function buildHeadInjection(headData: HeadOptions | undefined): string {
   const parts: string[] = [];
 
   if (headData?.meta) {
     parts.push(...buildMetaParts(headData.meta));
-  }
-
-  const cssPart = buildCssPart(cssContext);
-  if (cssPart) {
-    parts.push(cssPart);
   }
 
   if (headData?.links) {
@@ -125,46 +107,4 @@ export function buildHeadInjection(
   }
 
   return parts.length > 0 ? `\n  ${parts.join("\n  ")}\n` : "";
-}
-
-export function buildBodyInjection(
-  data: Record<string, unknown> | undefined,
-  clientJsPath: string,
-  dev: boolean
-): string {
-  const parts: string[] = [];
-
-  if (data) {
-    parts.push(
-      `<script id="__ELYSION_DATA__" type="application/json">${JSON.stringify(data)}</script>`
-    );
-  }
-
-  if (dev) {
-    parts.push('<script src="/__refresh-setup.js"></script>');
-  }
-
-  parts.push(`<script src="${clientJsPath}" type="module" defer></script>`);
-
-  return `\n${parts.join("\n")}\n`;
-}
-
-export function postProcessHTML(
-  html: string,
-  headInjection: string,
-  bodyInjection: string
-): string {
-  let result = html;
-
-  // Inject into </head>
-  if (headInjection && result.includes("</head>")) {
-    result = result.replace("</head>", `${headInjection}</head>`);
-  }
-
-  // Inject before </body>
-  if (bodyInjection && result.includes("</body>")) {
-    result = result.replace("</body>", `${bodyInjection}</body>`);
-  }
-
-  return result;
 }

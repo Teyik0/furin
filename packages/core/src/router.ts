@@ -1,5 +1,4 @@
 import { parse } from "node:path";
-import type { StaticOptions } from "@elysiajs/static/types";
 import { Glob } from "bun";
 import { type AnyElysia, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
@@ -25,7 +24,6 @@ export interface RootLayout {
 
 export function createRoutePlugin(
   route: ResolvedRoute,
-  config: StaticOptions<string>,
   root: RootLayout | null,
   dev = false
 ): AnyElysia {
@@ -57,14 +55,15 @@ export function createRoutePlugin(
         case "ssg": {
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
-          return await prerenderSSG(route, ctx.params ?? {}, config, root, dev);
+          const origin = new URL(ctx.request.url).origin;
+          return await prerenderSSG(route, ctx.params ?? {}, root, dev, origin);
         }
 
         case "isr":
-          return handleISR(route, ctx, config, root, dev);
+          return handleISR(route, ctx, root, dev);
 
         default:
-          return renderSSR(route, ctx, config, root, dev);
+          return renderSSR(route, ctx, root, dev);
       }
     })
   );
@@ -100,7 +99,7 @@ async function loadPageModule(pagePath: string): Promise<RuntimePage> {
 
 async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise<ResolvedRoute[]> {
   const routes: ResolvedRoute[] = [];
-  const glob = new Glob("**/*.tsx");
+  const glob = new Glob("**/*.{tsx,ts}");
 
   for await (const absolutePath of glob.scan({
     cwd: pagesDir,
@@ -204,4 +203,4 @@ export function filePathToPattern(path: string): string {
   return `/${segments.join("/")}`;
 }
 
-import.meta.hot.accept();
+import.meta.hot?.accept();

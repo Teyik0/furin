@@ -4,6 +4,7 @@ import { api } from "./api";
 
 const app = new Elysia()
   .use(api)
+  .onBeforeHandle(({ request }) => console.log("USER REQ - ", request.url))
   .use(
     await elysion({
       pagesDir: `${import.meta.dir}/pages`,
@@ -12,10 +13,6 @@ const app = new Elysia()
         prefix: "/public",
         staticLimit: 1024,
         alwaysStatic: process.env.NODE_ENV === "production",
-      },
-      css: {
-        input: "./src/styles/global.css",
-        mode: "auto",
       },
     })
   )

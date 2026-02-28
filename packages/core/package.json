@@ -8,17 +8,32 @@
   ],
   "main": "./dist/elysion.js",
   "module": "./dist/elysion.js",
-  "types": "./dist/elysion.d.ts",
+  "types": "./src/elysion.ts",
   "exports": {
     ".": {
-      "types": "./dist/elysion.d.ts",
+      "types": "./src/elysion.ts",
       "bun": "./src/elysion.ts",
       "import": "./dist/elysion.js"
     },
     "./client": {
-      "types": "./dist/client.d.ts",
+      "types": "./src/client.ts",
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
+    },
+    "./build": {
+      "types": "./src/build.ts",
+      "bun": "./src/build.ts",
+      "import": "./dist/build.js"
+    },
+    "./router": {
+      "types": "./src/router.ts",
+      "bun": "./src/router.ts",
+      "import": "./dist/router.js"
+    },
+    "./strip-plugin": {
+      "types": "./src/strip-plugin.ts",
+      "bun": "./src/strip-plugin.ts",
+      "import": "./dist/strip-plugin.js"
     }
   },
   "scripts": {
@@ -29,14 +44,9 @@
   "dependencies": {
     "@babel/core": "^7.26.0",
     "@babel/generator": "^7.29.1",
-    "@babel/preset-react": "^7.26.0",
-    "@babel/preset-typescript": "^7.26.0",
     "@babel/traverse": "^7.29.0",
     "@babel/types": "^7.29.0",
-    "@elysiajs/static": "^1.4.7",
-    "@parcel/watcher": "^2.5.6",
-    "postcss": "^8.5.3",
-    "react-refresh": "^0.18.0"
+    "@elysiajs/static": "^1.4.7"
   },
   "devDependencies": {
     "@types/babel__core": "^7.20.5",
@@ -45,7 +55,6 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "expect-type": "^1.3.0",
-    "lru-cache": "^11.0.0",
     "tailwindcss": "4"
   },
   "peerDependencies": {

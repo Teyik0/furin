@@ -1,11 +1,10 @@
-import type { StaticOptions } from "@elysiajs/static/types";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import type { RouteContext, RuntimeRoute } from "./client";
-import { getCachedCss } from "./css";
-import { getModuleVersion } from "./hmr/watcher";
 import type { ResolvedRoute, RootLayout } from "./router";
-import { buildBodyInjection, buildHeadInjection, postProcessHTML } from "./shell";
+import { buildHeadInjection } from "./shell";
 
 export type LoaderContext = RouteContext<Record<string, string>, Record<string, string>>;
 
@@ -13,7 +12,48 @@ const isrCache = new Map<string, { html: string; generatedAt: number; revalidate
 
 const ssgCache = new Map<string, string>();
 
-const CLIENT_JS_PATH = "/_client/_hydrate.js";
+// ── Dev template ────────────────────────────────────────────────────────────
+
+let _devTemplatePromise: Promise<string> | null = null;
+
+function getDevTemplate(origin: string): Promise<string> {
+  _devTemplatePromise ??= fetch(`${origin}/_bun_hmr_entry`)
+    .then((r) => {
+      if (!r.ok) {
+        throw new Error(`/_bun_hmr_entry returned ${r.status}`);
+      }
+      return r.text();
+    })
+    .catch((err) => {
+      _devTemplatePromise = null;
+      throw err;
+    });
+  return _devTemplatePromise;
+}
+
+// ── Template cache ──────────────────────────────────────────────────────────
+
+let _prodTemplate: string | null = null;
+
+/**
+ * Reads the production SSR template from disk once and caches it.
+ * The template is .elysion/client/index.html produced by buildClient().
+ */
+function getProdTemplate(): string {
+  if (_prodTemplate) {
+    return _prodTemplate;
+  }
+  const templatePath = resolve(process.cwd(), ".elysion", "client", "index.html");
+  _prodTemplate = readFileSync(templatePath, "utf8");
+  return _prodTemplate;
+}
+
+/** Override the prod template (used in tests to avoid disk reads). */
+export function _setProdTemplate(template: string): void {
+  _prodTemplate = template;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function resolvePath(pattern: string, params: Record<string, string>): string {
   return Object.entries(params).reduce((path, [key, val]) => {
@@ -22,11 +62,15 @@ function resolvePath(pattern: string, params: Record<string, string>): string {
   }, pattern);
 }
 
-function createSSGContext(params: Record<string, string>, resolvedPath: string): LoaderContext {
+function createSSGContext(
+  params: Record<string, string>,
+  resolvedPath: string,
+  origin: string
+): LoaderContext {
   return {
     params,
     query: {},
-    request: new Request(`http://localhost${resolvedPath}`),
+    request: new Request(`${origin}${resolvedPath}`),
     headers: {},
     cookie: {},
     redirect: (url, status = 302) => new Response(null, { status, headers: { Location: url } }),
@@ -58,11 +102,12 @@ export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
   }
 
   if (dev) {
+    // In bun --hot mode Bun invalidates its module registry when watched files
+    // change, so a plain import() always returns the current version.
     try {
-      const mod = await import(`${route.pagePath}?v=${getModuleVersion(route.pagePath)}`);
-      const page = mod.default;
-      route.page = page;
-      return page;
+      const mod = await import(route.pagePath);
+      route.page = mod.default;
+      return route.page;
     } catch (error) {
       console.error(`[elysion] Failed to load page ${route.pagePath}:`, error);
       if (route.page) {
@@ -75,15 +120,15 @@ export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
   return route.page;
 }
 
-export async function loadRootModule(root: RootLayout, _dev: boolean): Promise<RuntimeRoute> {
-  if (!_dev) {
+export async function loadRootModule(root: RootLayout, dev: boolean): Promise<RuntimeRoute> {
+  if (!dev) {
     return root.route;
   }
 
   try {
-    const mod = await import(`${root.path}?v=${getModuleVersion(root.path)}`);
+    const mod = await import(root.path);
     const rootRoute = mod.route ?? mod.default;
-    if (rootRoute && rootRoute.__type === "ELYSION_ROUTE") {
+    if (rootRoute?.__type === "ELYSION_ROUTE") {
       return rootRoute;
     }
     return root.route;
@@ -93,43 +138,10 @@ export async function loadRootModule(root: RootLayout, _dev: boolean): Promise<R
   }
 }
 
-export function injectSuppressHydration(element: ReactNode): ReactNode {
-  if (!element || typeof element !== "object") {
-    return element;
-  }
-  const el = element as { type?: unknown; props?: Record<string, unknown> };
-  const type = el.type;
-  const props = el.props ?? {};
-
-  if (type === "html" || type === "head" || type === "body") {
-    const newProps: Record<string, unknown> = {
-      ...props,
-      suppressHydrationWarning: true,
-    };
-    if (props.children) {
-      newProps.children = Array.isArray(props.children)
-        ? props.children.map(injectSuppressHydration)
-        : injectSuppressHydration(props.children as ReactNode);
-    }
-    return { ...element, props: newProps };
-  }
-
-  if (props.children) {
-    const newProps = { ...props };
-    newProps.children = Array.isArray(props.children)
-      ? props.children.map(injectSuppressHydration)
-      : injectSuppressHydration(props.children as ReactNode);
-    return { ...element, props: newProps };
-  }
-
-  return element;
-}
-
 export function buildElement(
   route: ResolvedRoute,
   data: Record<string, unknown>,
-  rootLayout: RuntimeRoute | null,
-  _dev: boolean
+  rootLayout: RuntimeRoute | null
 ): ReactNode {
   const page = route.page;
   if (!page) {
@@ -209,6 +221,41 @@ interface RenderResult {
   html: string;
 }
 
+/**
+ * Splits the HTML template on the <!--ssr-head--> and <!--ssr-outlet-->
+ * placeholders and assembles the final SSR page.
+ *
+ * Template structure (after Bun processes index.html):
+ *   <html>
+ *     <head>
+ *       ...static meta...
+ *       <!--ssr-head-->          ← page-specific title/meta injected here
+ *       <script src="/_bun/..."> ← Bun injects hashed chunk + HMR WS client
+ *     </head>
+ *     <body>
+ *       <div id="root">
+ *         <!--ssr-outlet-->      ← React SSR HTML injected here
+ *       </div>
+ *       <script src="/_bun/..."> ← if Bun places scripts in body
+ *     </body>
+ *   </html>
+ */
+function assembleHTML(
+  template: string,
+  headData: ReturnType<typeof buildHeadInjection>,
+  reactHtml: string,
+  data: Record<string, unknown> | undefined
+): string {
+  const [headPre, afterHead = ""] = template.split("<!--ssr-head-->");
+  const [bodyPre, bodyPost = ""] = afterHead.split("<!--ssr-outlet-->");
+
+  const dataScript = data
+    ? `<script id="__ELYSION_DATA__" type="application/json">${JSON.stringify(data)}</script>`
+    : "";
+
+  return headPre + headData + bodyPre + reactHtml + dataScript + bodyPost;
+}
+
 async function renderAndProcess(
   route: ResolvedRoute,
   ctx: LoaderContext,
@@ -234,34 +281,20 @@ async function renderAndProcess(
     path: ctx.path,
   };
 
-  const headData = route.page?.head?.(componentProps);
+  const headData = buildHeadInjection(route.page?.head?.(componentProps));
 
-  const cssContext = await getCachedCss(process.cwd());
-
-  const element = await buildElement(route, componentProps, rootLayout, dev);
-
-  const stream = await renderToReadableStream(injectSuppressHydration(element));
+  const element = await buildElement(route, componentProps, rootLayout);
+  const stream = await renderToReadableStream(element);
   await stream.allReady;
-  const html = await streamToString(stream);
+  const reactHtml = await streamToString(stream);
 
-  if (root) {
-    if (!html.includes("<html")) {
-      console.warn(
-        "[elysion] root.tsx layout is missing an <html> element. Add <html> to your root layout."
-      );
-    }
-    if (!html.includes("<body")) {
-      console.warn(
-        "[elysion] root.tsx layout is missing a <body> element. Add <body> to your root layout."
-      );
-    }
-  }
-
-  const headInjection = buildHeadInjection(headData, cssContext);
-  const bodyInjection = buildBodyInjection(data, CLIENT_JS_PATH, dev);
+  // Dev: self-fetch /_bun_hmr_entry (once, then cached) to get the Bun-processed
+  // HTML template with content-hashed chunk paths and HMR WebSocket client.
+  // Prod: read .elysion/client/index.html from disk.
+  const template = dev ? await getDevTemplate(new URL(ctx.request.url).origin) : getProdTemplate();
 
   return {
-    html: postProcessHTML(html, headInjection, bodyInjection),
+    html: assembleHTML(template, headData, reactHtml, data),
     headers,
   };
 }
@@ -295,9 +328,9 @@ export async function renderToStream(
 export async function prerenderSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
-  _config: StaticOptions<string>,
   root: RootLayout | null,
-  dev = false
+  dev = false,
+  origin = "http://localhost:3000"
 ) {
   const resolvedPath = resolvePath(route.pattern, params);
 
@@ -306,7 +339,7 @@ export async function prerenderSSG(
     return cached;
   }
 
-  const ctx = createSSGContext(params, resolvedPath);
+  const ctx = createSSGContext(params, resolvedPath, origin);
 
   const result = await renderToHTML(route, ctx, root, dev);
 
@@ -320,7 +353,6 @@ export async function prerenderSSG(
 export async function renderSSR(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  _config: StaticOptions<string>,
   root: RootLayout | null,
   dev = false
 ): Promise<Response> {
@@ -345,7 +377,6 @@ export async function renderSSR(
 export async function handleISR(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  _config: StaticOptions<string>,
   root: RootLayout | null,
   dev = false
 ): Promise<Response> {
@@ -361,7 +392,7 @@ export async function handleISR(
     const isFresh = age < revalidate * 1000;
 
     if (!isFresh) {
-      revalidateInBackground(route, params, cacheKey, revalidate, root, dev);
+      revalidateInBackground(route, params, cacheKey, revalidate, root, dev, ctx);
     }
 
     return new Response(cached.html, {
@@ -402,11 +433,12 @@ function revalidateInBackground(
   cacheKey: string,
   revalidate: number,
   root: RootLayout | null,
-  dev: boolean
+  dev: boolean,
+  originalCtx: LoaderContext
 ) {
   const resolvedPath = resolvePath(route.pattern, params);
-
-  const ctx = createSSGContext(params, resolvedPath);
+  const origin = new URL(originalCtx.request.url).origin;
+  const ctx = createSSGContext(params, resolvedPath, origin);
 
   renderToHTML(route, ctx, root, dev)
     .then((result) => {

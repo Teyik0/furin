@@ -17,7 +17,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for SSG route", async () => {
     const { route, root } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, {} as never, root, false);
+    const plugin = createRoutePlugin(route, root, false);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -27,7 +27,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for SSR route", async () => {
     const { route, root } = await getRoute("/ssr-page");
 
-    const plugin = createRoutePlugin(route, {} as never, root, false);
+    const plugin = createRoutePlugin(route, root, false);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -36,7 +36,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for ISR route", async () => {
     const { route, root } = await getRoute("/isr-page");
 
-    const plugin = createRoutePlugin(route, {} as never, root, false);
+    const plugin = createRoutePlugin(route, root, false);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -45,7 +45,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for route with loader", async () => {
     const { route, root } = await getRoute("/with-loader");
 
-    const plugin = createRoutePlugin(route, {} as never, root, false);
+    const plugin = createRoutePlugin(route, root, false);
 
     expect(plugin).toBeDefined();
   });
@@ -53,7 +53,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for nested route", async () => {
     const { route, root } = await getRoute("/nested/deep");
 
-    const plugin = createRoutePlugin(route, {} as never, root, false);
+    const plugin = createRoutePlugin(route, root, false);
 
     expect(plugin).toBeDefined();
   });
@@ -61,7 +61,7 @@ describe("createRoutePlugin", () => {
   test("handles null root", async () => {
     const { route } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, {} as never, null, false);
+    const plugin = createRoutePlugin(route, null, false);
 
     expect(plugin).toBeDefined();
   });
@@ -69,7 +69,7 @@ describe("createRoutePlugin", () => {
   test("handles dev mode", async () => {
     const { route, root } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, {} as never, root, true);
+    const plugin = createRoutePlugin(route, root, true);
 
     expect(plugin).toBeDefined();
   });

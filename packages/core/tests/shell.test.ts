@@ -1,18 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { HeadOptions, MetaDescriptor } from "../src/client";
 import {
-  buildBodyInjection,
-  buildCssPart,
   buildHeadInjection,
   buildLinkParts,
   buildMetaParts,
   buildScriptParts,
   buildStyleParts,
-  type CssContext,
   escapeHtml,
   extractTitle,
   isMetaTag,
-  postProcessHTML,
   renderAttrs,
 } from "../src/shell";
 
@@ -174,31 +170,6 @@ describe("shell.tsx", () => {
     });
   });
 
-  describe("buildCssPart", () => {
-    test("returns inline CSS style tag", () => {
-      const css: CssContext = { mode: "inline", code: "body { margin: 0; }" };
-      const result = buildCssPart(css);
-      expect(result).toBe('<style id="__elysion_css__">body { margin: 0; }</style>');
-    });
-
-    test("returns external CSS link tag", () => {
-      const css: CssContext = { mode: "external" };
-      const result = buildCssPart(css);
-      expect(result).toBe(
-        '<link id="__elysion_css_link__" href="/_client/styles.css" rel="stylesheet" />'
-      );
-    });
-
-    test("returns empty string for inline mode without code", () => {
-      const css: CssContext = { mode: "inline" };
-      expect(buildCssPart(css)).toBe("");
-    });
-
-    test("returns empty string for null context", () => {
-      expect(buildCssPart(null)).toBe("");
-    });
-  });
-
   describe("buildLinkParts", () => {
     test("builds single link tag", () => {
       const links = [{ rel: "stylesheet", href: "/style.css" }];
@@ -284,126 +255,32 @@ describe("shell.tsx", () => {
         scripts: [{ src: "/app.js" }],
         styles: [{ children: "body {}" }],
       };
-      const css: CssContext = { mode: "inline", code: "html {}" };
 
-      const result = buildHeadInjection(headData, css);
+      const result = buildHeadInjection(headData);
 
       expect(result).toContain("<title>Test</title>");
       expect(result).toContain("description");
       expect(result).toContain("stylesheet");
       expect(result).toContain("/app.js");
       expect(result).toContain("body {}");
-      expect(result).toContain("html {}");
     });
 
-    test("returns empty string for empty headData", () => {
-      const result = buildHeadInjection(undefined, null);
+    test("returns empty string for undefined headData", () => {
+      const result = buildHeadInjection(undefined);
       expect(result).toBe("");
-    });
-
-    test("includes only CSS when no headData", () => {
-      const css: CssContext = { mode: "inline", code: "body {}" };
-      const result = buildHeadInjection(undefined, css);
-      expect(result).toContain("__elysion_css__");
     });
 
     test("formats with newlines and indentation", () => {
       const headData: HeadOptions = {
         meta: [{ title: "Test" }],
       };
-      const result = buildHeadInjection(headData, null);
+      const result = buildHeadInjection(headData);
       expect(result).toContain("\n");
     });
-  });
 
-  describe("buildBodyInjection", () => {
-    test("includes data script", () => {
-      const data = { foo: "bar", count: 42 };
-      const result = buildBodyInjection(data, "/_client/hydrate.js", false);
-
-      expect(result).toContain("__ELYSION_DATA__");
-      expect(result).toContain('"foo":"bar"');
-      expect(result).toContain('"count":42');
-    });
-
-    test("includes refresh setup in dev mode", () => {
-      const result = buildBodyInjection({}, "/_client/hydrate.js", true);
-      expect(result).toContain("/__refresh-setup.js");
-    });
-
-    test("excludes refresh setup in prod mode", () => {
-      const result = buildBodyInjection({}, "/_client/hydrate.js", false);
-      expect(result).not.toContain("/__refresh-setup.js");
-    });
-
-    test("includes client script", () => {
-      const result = buildBodyInjection({}, "/_client/hydrate.js", false);
-      expect(result).toContain('src="/_client/hydrate.js"');
-      expect(result).toContain('type="module"');
-      expect(result).toContain("defer");
-    });
-
-    test("handles undefined data", () => {
-      const result = buildBodyInjection(undefined, "/_client/hydrate.js", false);
-      expect(result).not.toContain("__ELYSION_DATA__");
-      expect(result).toContain("hydrate.js");
-    });
-
-    test("formats with newlines", () => {
-      const result = buildBodyInjection({}, "/_client/hydrate.js", false);
-      expect(result.startsWith("\n")).toBe(true);
-      expect(result.endsWith("\n")).toBe(true);
-    });
-  });
-
-  describe("postProcessHTML", () => {
-    test("injects head before </head>", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "<title>Test</title>", "");
-      expect(result).toBe("<html><head><title>Test</title></head><body></body></html>");
-    });
-
-    test("injects body before </body>", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "", "<script>app.js</script>");
-      expect(result).toBe("<html><head></head><body><script>app.js</script></body></html>");
-    });
-
-    test("injects both head and body", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "<title>T</title>", "<script>S</script>");
-      expect(result).toContain("<title>T</title></head>");
-      expect(result).toContain("<script>S</script></body>");
-    });
-
-    test("does not inject when head injection is empty", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "", "<script>S</script>");
-      expect(result).toBe("<html><head></head><body><script>S</script></body></html>");
-    });
-
-    test("does not inject when body injection is empty", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "<title>T</title>", "");
-      expect(result).toBe("<html><head><title>T</title></head><body></body></html>");
-    });
-
-    test("returns unchanged HTML when no injections", () => {
-      const html = "<html><head></head><body></body></html>";
-      const result = postProcessHTML(html, "", "");
-      expect(result).toBe(html);
-    });
-
-    test("handles missing </head> tag", () => {
-      const html = "<html><body></body></html>";
-      const result = postProcessHTML(html, "<title>T</title>", "");
-      expect(result).toBe(html);
-    });
-
-    test("handles missing </body> tag", () => {
-      const html = "<html><head></head></html>";
-      const result = postProcessHTML(html, "", "<script>S</script>");
-      expect(result).toBe(html);
+    test("handles empty headData object", () => {
+      const result = buildHeadInjection({});
+      expect(result).toBe("");
     });
   });
 });
