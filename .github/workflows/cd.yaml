@@ -47,8 +47,14 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Setup auth for Bun
+        working-directory: packages/core
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          echo "registry=https://registry.npmjs.org/" >> .npmrc
+
       - name: Publish
         working-directory: packages/core
-        run: bun publish
+        run: bun publish --access public
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
