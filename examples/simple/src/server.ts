@@ -13,21 +13,23 @@ const formattedDate = () =>
     hour12: false,
   });
 
-let startTime = performance.now();
+const requestStartTimes = new WeakMap<Request, number>();
 
 const app = new Elysia()
-  .onTransform(({ body, params, path, request: { method } }) => {
-    startTime = performance.now();
-    console.log(`${formattedDate()} - ${method} ${path}`, {
+  .onTransform(({ body, params, path, request }) => {
+    requestStartTimes.set(request, performance.now());
+    console.log(`${formattedDate()} - ${request.method} ${path}`, {
       body,
       params,
     });
   })
-  .onAfterResponse(({ path, set }) => {
+  .onAfterResponse(({ path, set, request }) => {
+    const startedAt = requestStartTimes.get(request) ?? performance.now();
     console.log(`${formattedDate()} - RESPONSE ${path}`, {
-      performance: `${(performance.now() - startTime).toFixed(2)} ms`,
+      performance: `${(performance.now() - startedAt).toFixed(2)} ms`,
       status: set.status,
     });
+    requestStartTimes.delete(request);
   })
   .use(api)
   .use(
