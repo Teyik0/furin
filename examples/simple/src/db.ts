@@ -91,7 +91,7 @@ const users: User[] = [
 const posts: Post[] = [
   {
     id: "1",
-    slug: "introduction-to-elysion",
+    slug: "introduction-to-elyra",
     title: "Introduction to Elyra",
     excerpt:
       "Discover Elyra, the React meta-framework built on Elysia and Bun for blazing fast web applications.",
@@ -110,7 +110,7 @@ Elyra is a powerful React meta-framework that combines the speed of Bun with the
 ## Getting Started
 
 \`\`\`bash
-bun create elysion my-app
+bun create elyra my-app
 cd my-app
 bun dev
 \`\`\`
