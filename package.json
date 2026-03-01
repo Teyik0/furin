@@ -15,6 +15,7 @@
     "iup": "bun update --interactive --recursive"
   },
   "devDependencies": {
+    "@babel/types": "^7.29.0",
     "@biomejs/biome": "2.4.4",
     "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^20.4.1",

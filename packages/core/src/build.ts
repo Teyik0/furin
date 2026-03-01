@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { transformForClient } from "./adapter/transform-client";
 import type { ResolvedRoute } from "./router";
-import { transformForClient } from "./transform-client";
 
 export interface BuildClientOptions {
   dev?: boolean;
