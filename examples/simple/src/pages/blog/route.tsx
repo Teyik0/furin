@@ -1,4 +1,5 @@
 import { createRoute } from "@teyik0/elysion/client";
+import { Link } from "@teyik0/elysion/link";
 import { t } from "elysia";
 import { getAllTags, queries } from "../../db";
 import { route as rootRoute } from "../root";
@@ -21,20 +22,21 @@ export const route = createRoute({
           <div className="sticky top-8">
             <h3 className="mb-4 font-semibold text-gray-900">Tags</h3>
             <div className="space-y-2">
-              <a
+              <Link
                 className="block text-gray-600 transition-colors hover:text-indigo-600"
-                href="/blog"
+                to="/blog"
               >
                 All Posts
-              </a>
+              </Link>
               {tags.map((tag) => (
-                <a
+                <Link
                   className="block text-gray-600 transition-colors hover:text-indigo-600"
-                  href={`/blog?tag=${encodeURIComponent(tag)}`}
                   key={tag}
+                  search={{ tag }}
+                  to="/blog"
                 >
                   {tag}
-                </a>
+                </Link>
               ))}
             </div>
           </div>

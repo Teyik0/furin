@@ -32,19 +32,11 @@ Monorepo structure with framework in `packages/core/` and example app in `exampl
 | `elysion.ts` | Main plugin. Exports `elysion()` which scans pages, builds client, creates route plugins, mounts static serving. |
 | `client.ts` | Client-side types. Exports `createRoute()`, `RouteRef`, `Route`, `RuntimePage`, `RuntimeRoute`, `HeadOptions`, `InferProps`. |
 | `router.ts` | File-based router. `scanPages()` globs `**/*.tsx` in pages directory, resolves routes, `createRoutePlugin()` creates Elysia plugin per route. |
-| `render.tsx` | SSR/SSG/ISR rendering logic. `buildElement()` wraps component in layout chain. Executes loaders, handles caching. |
+| `build.ts` | Client bundle generation via `Bun.build()`. Generates hydrate entry, includes React Fast Refresh in dev. |
+| `utils.ts` | Runtime type guards: `isElysionPage()`, `isElysionRoute()`, `collectRouteChain()`. |
+| `render/` | SSR/SSG/ISR rendering logic: `index.ts` (main), `assemble.ts`, `loaders.ts`, `cache.ts`, `template.ts`, `module-loader.ts`. |
 | `shell.tsx` | HTML template with head management, `__ELYSION_DATA__` hydration payload, script tags. |
-| `build.ts` | Client bundle generation via `Bun.build()`. Generates hydrate entry, includes React Refresh in dev. |
-| `types.ts` | Runtime type guards: `isElysionPage()`, `isElysionRoute()`, `collectRouteChain()`. |
-
-### HMR (`packages/core/src/hmr/`)
-
-| File | Purpose |
-|------|---------|
-| `plugin.ts` | Elysia plugin for HMR. WebSocket endpoint `/__elysion/hmr`, module serving `/_modules/pages/*`, client bundle `/__elysion/client.js`. |
-| `watcher.ts` | File watcher with `fs.watch`. Debounces events, invalidates module cache, increments version for SSR, broadcasts via WebSocket. |
-| `transform.ts` | Babel transform for React Fast Refresh. TypeScript → JSX → React Refresh, extracts component from `page()` calls. |
-| `refresh-setup.ts` | DevTools hook setup script. Creates `__REACT_DEVTOOLS_GLOBAL_HOOK__` before React DOM loads. |
+| `adapter/` | Build adapters: `bun-plugin.ts`, `transform-client.ts`. |
 
 ### Example App (`examples/simple/`)
 
@@ -187,13 +179,14 @@ export default route.page({
 
 ## HMR Architecture
 
-1. **File Watcher** (`hmr/watcher.ts`) — Watches pages directory, broadcasts changes via WebSocket
-2. **WebSocket** (`hmr/plugin.ts`) — `/__elysion/hmr` endpoint, sends update messages to clients
-3. **Module Transform** (`hmr/transform.ts`) — Babel pipeline with React Refresh
-4. **Client Bundle** (`build.ts`) — Includes HMR client with auto-reconnect
-5. **DevTools Setup** (`hmr/refresh-setup.ts`) — Creates React DevTools hook
+HMR works via **Bun natively** (no custom HMR implemented). In dev:
 
-Key: Module IDs must be consistent between hydration and HMR updates (`/_modules/pages/<path>`).
+1. `writeDevFiles()` generates `.elysion/_hydrate.tsx` with page imports
+2. The `index.html` file imports `./_hydrate.tsx`
+3. Bun's HTML bundler processes everything, injects the HMR WebSocket client
+4. `import.meta.hot` handles React Fast Refresh
+
+No custom WebSocket or file watcher - Bun handles everything.
 
 ## Type Inference
 
@@ -250,3 +243,12 @@ import.meta.hot.accept();
 // OK: `data` can be passed to functions:
 doSomething(import.meta.hot.data);
 ```
+
+## Navigation & SPA
+
+Currently the framework does SSR/ISR for the first request, then hydrates for client-side navigation. Future updates will include:
+
+- **useRouter / useRoute** — Client-side hooks for programmatic navigation
+- **Link prefetching** — Preload route data on hover/visible
+- **Pending states** — Loading UI during navigation
+- **Scroll restoration** — Preserve scroll position on navigation

@@ -10,9 +10,37 @@ import {
   extractTitle,
   isMetaTag,
   renderAttrs,
+  safeJson,
 } from "../src/shell";
 
 describe("shell.tsx", () => {
+  describe("safeJson", () => {
+    test("escapes </script> — prevents script tag breakout", () => {
+      expect(safeJson({ x: "</script><script>alert(1)</script>" })).toBe(
+        '{"x":"\\u003c/script>\\u003cscript>alert(1)\\u003c/script>"}'
+      );
+    });
+
+    test("safe data is unchanged (round-trips through JSON.parse)", () => {
+      const data = { a: 1, b: "hello", c: true, d: null };
+      expect(JSON.parse(safeJson(data))).toEqual(data);
+    });
+
+    test("< in values is replaced with \\u003c", () => {
+      expect(safeJson({ v: "<b>bold</b>" })).toBe('{"v":"\\u003cb>bold\\u003c/b>"}');
+    });
+
+    test("values without < are not modified", () => {
+      expect(safeJson({ n: 42, s: "hello" })).toBe('{"n":42,"s":"hello"}');
+    });
+
+    test("nested objects with < are escaped recursively", () => {
+      const result = safeJson({ outer: { inner: "</script>" } });
+      expect(result).not.toContain("</script>");
+      expect(JSON.parse(result)).toEqual({ outer: { inner: "</script>" } });
+    });
+  });
+
   describe("escapeHtml", () => {
     test("escapes & character", () => {
       expect(escapeHtml("foo & bar")).toBe("foo &amp; bar");

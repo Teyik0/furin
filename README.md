@@ -524,7 +524,6 @@ my-app/
 │           ├── shell.tsx      # HTML template
 │           ├── build.ts       # Client bundle
 │           ├── types.ts       # Type guards
-│           └── hmr/           # Hot Module Replacement
 ├── examples/
 │   └── simple/            # Example app
 │       ├── src/
@@ -545,6 +544,11 @@ import { Elysia } from "elysia";
 import { elysion } from "elysion";
 
 const app = new Elysia()
+  .get("/api/health", () => ({ status: "ok" }))
+  .post("/api/users", async ({ body }) => {
+    // Your API logic here
+    return { success: true };
+  })
   .use(
     await elysion({
       pagesDir: "./src/pages",
@@ -554,11 +558,6 @@ const app = new Elysia()
       },
     })
   )
-  .get("/api/health", () => ({ status: "ok" }))
-  .post("/api/users", async ({ body }) => {
-    // Your API logic here
-    return { success: true };
-  })
   .listen(3000);
 
 console.log(`🦊 Server running at http://localhost:${app.server?.port}`);
@@ -570,12 +569,10 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for de
 
 ## License
 
-MIT © [Your Name]
+MIT © Teyik0
 
 ## Credits
 
 Built with:
 - [Elysia](https://elysiajs.com/) - Fast and ergonomic web framework
 - [Bun](https://bun.sh/) - All-in-one JavaScript runtime
-- [React](https://react.dev/) - UI library
-- [TypeBox](https://github.com/sinclairzx81/typebox) - JSON Schema type builder

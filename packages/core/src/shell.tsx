@@ -30,6 +30,10 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
+export function safeJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function renderAttrs(obj: Record<string, string | undefined>): string {
   return Object.entries(obj)
     .filter(([, v]) => v !== undefined)
@@ -52,9 +56,7 @@ export function buildMetaParts(meta: MetaDescriptor[]): string[] {
       parts.push(`<meta ${renderAttrs(m as Record<string, string>)} />`);
     }
     if ("script:ld+json" in m) {
-      parts.push(
-        `<script type="application/ld+json">${JSON.stringify(m["script:ld+json"])}</script>`
-      );
+      parts.push(`<script type="application/ld+json">${safeJson(m["script:ld+json"])}</script>`);
     }
   }
   return parts;

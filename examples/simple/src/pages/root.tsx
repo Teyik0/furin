@@ -1,4 +1,5 @@
 import { createRoute } from "@teyik0/elysion/client";
+import { Link } from "@teyik0/elysion/link";
 import "../styles/globals.css";
 
 // Root layout renders body content only — <html>, <head>, <body> are provided
@@ -10,43 +11,46 @@ export const route = createRoute({
         <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 justify-between">
             <div className="flex">
-              <a className="flex items-center font-bold text-indigo-600 text-xl" href="/">
+              <Link className="flex items-center font-bold text-indigo-600 text-xl" to="/">
                 Elysion Blog
-              </a>
+              </Link>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <a
+                <Link
                   className="inline-flex items-center px-1 pt-1 font-medium text-gray-900 text-sm transition-colors hover:text-indigo-600"
-                  href="/"
+                  to="/"
                 >
                   Home
-                </a>
-                <a
+                </Link>
+                <Link
                   className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  href="/blog"
+                  preload="viewport"
+                  to="/blog"
                 >
                   Blog
-                </a>
-                <a
+                </Link>
+                <Link
                   className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  href="/about"
+                  preload="viewport"
+                  to="/about"
                 >
                   About
-                </a>
-                <a
+                </Link>
+                <Link
                   className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  href="/dashboard"
+                  preload="viewport"
+                  to="/dashboard"
                 >
                   Dashboard
-                </a>
+                </Link>
               </div>
             </div>
             <div className="flex items-center">
-              <a
+              <Link
                 className="ml-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-indigo-700"
-                href="/login"
+                to="/login"
               >
                 Sign In
-              </a>
+              </Link>
             </div>
           </div>
         </nav>

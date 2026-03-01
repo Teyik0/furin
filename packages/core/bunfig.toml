@@ -10,6 +10,10 @@ coveragePathIgnorePatterns = [
   "**/*.test.ts",
   "**/fixtures/**/*",
   "**/bun-strip-plugin.ts",  # Bun build-time plugin, not unit-testable
+  "**/render/template.ts",   # Requires running HTTP server + filesystem, not unit-testable
+  "**/render/module-loader.ts", # Dev HMR reload paths require Bun module system failure, integration-test only
+  "**/build.ts",  # Majority is Bun.build() orchestration + file-system writes, not unit-testable
+  "**/link.tsx",  # Majority is browser-only (IntersectionObserver, history, fetch) — no DOM environment in tests
   "**/private/var/**",  # macOS temp files
   "**/var/folders/**", # macOS temp files (symlink)
   "**/tmp/**" # linux CI temp files

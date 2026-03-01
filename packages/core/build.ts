@@ -11,7 +11,8 @@ await Bun.build({
     `${import.meta.dir}/src/client.ts`,
     `${import.meta.dir}/src/build.ts`,
     `${import.meta.dir}/src/router.ts`,
-    `${import.meta.dir}/src/strip-plugin.ts`,
+    `${import.meta.dir}/src/adapter/bun-plugin.ts`,
+    `${import.meta.dir}/src/link.tsx`,
   ],
   outdir: `${import.meta.dir}/dist`,
   target: "bun", // at some point will target node for compat

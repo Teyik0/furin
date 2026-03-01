@@ -405,6 +405,47 @@ describe("render.tsx", () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("Location")).toBe("/login");
     });
+
+    describe("Suspense streaming", () => {
+      test("response body is a ReadableStream (not a buffered string)", async () => {
+        const suspenseRoute = await getRoute("/suspense-page");
+        const root = await getRoot();
+
+        const ctx = createMockLoaderContext({ path: "/suspense-page" });
+        const response = await renderSSR(suspenseRoute, ctx, root, false);
+
+        expect(response.body).toBeInstanceOf(ReadableStream);
+      });
+
+      test("Suspense content resolves in the final HTML", async () => {
+        const suspenseRoute = await getRoute("/suspense-page");
+        const root = await getRoot();
+
+        const ctx = createMockLoaderContext({ path: "/suspense-page" });
+        const response = await renderSSR(suspenseRoute, ctx, root, false);
+        const html = await response.text();
+
+        // The resolved Suspense content must appear — either inline (if React
+        // resolves synchronously) or via the script-based hydration injection.
+        expect(html).toContain("Suspense Content Loaded");
+        expect(html).not.toContain('data-testid="suspense-fallback"');
+      });
+
+      test("HTML structure is valid with Suspense (head + body placeholders replaced)", async () => {
+        const suspenseRoute = await getRoute("/suspense-page");
+        const root = await getRoot();
+
+        const ctx = createMockLoaderContext({ path: "/suspense-page" });
+        const response = await renderSSR(suspenseRoute, ctx, root, false);
+        const html = await response.text();
+
+        expect(html).toContain("<html");
+        expect(html).not.toContain("<!--ssr-head-->");
+        expect(html).not.toContain("<!--ssr-outlet-->");
+        expect(html).toContain('data-testid="suspense-page"');
+        expect(html).toContain("__ELYSION_DATA__");
+      });
+    });
   });
 
   describe("handleISR", () => {

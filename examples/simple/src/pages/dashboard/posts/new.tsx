@@ -1,3 +1,4 @@
+import { Link } from "@teyik0/elysion/link";
 import { useState } from "react";
 import { route } from "./route";
 
@@ -45,9 +46,9 @@ export default route.page({
     return (
       <div className="max-w-3xl">
         <div className="mb-6">
-          <a className="text-indigo-600 text-sm hover:text-indigo-700" href="/dashboard/posts">
+          <Link className="text-indigo-600 text-sm hover:text-indigo-700" to="/dashboard">
             ← Back to Posts
-          </a>
+          </Link>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-6">
@@ -126,12 +127,12 @@ export default route.page({
             </div>
 
             <div className="flex justify-end gap-3">
-              <a
+              <Link
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
-                href="/dashboard/posts"
+                to="/dashboard"
               >
                 Cancel
-              </a>
+              </Link>
               <button
                 className="rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 disabled={saving}

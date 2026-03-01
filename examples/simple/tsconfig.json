@@ -7,6 +7,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", ".elysion/routes.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
