@@ -42,13 +42,6 @@ export function createRoutePlugin(
     );
   }
 
-  for (const ancestor of routeChain) {
-    if (ancestor.loader) {
-      const loaderFn = ancestor.loader;
-      plugins.push(new Elysia().resolve(async (ctx) => loaderFn(ctx)));
-    }
-  }
-
   plugins.push(
     new Elysia().get(pattern, async (ctx) => {
       switch (mode) {

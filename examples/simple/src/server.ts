@@ -45,7 +45,5 @@ const app = new Elysia()
   )
   .listen(3000);
 
-console.log(`\n Elyra Blog + Dashboard running at http://localhost:${app.server?.port}`);
-console.log("\nTest accounts:");
-console.log("  user@example.com (role: user)");
-console.log("  admin@example.com (role: admin)");
+console.log(`\nElyra Blog + Dashboard running at http://localhost:${app.server?.port}`);
+console.log("Initial cold start: ", performance.now().toFixed(2), "ms");

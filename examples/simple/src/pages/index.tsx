@@ -1,3 +1,4 @@
+import { Link } from "elyra/link";
 import { route } from "./root";
 
 export default route.page({
@@ -15,18 +16,18 @@ export default route.page({
             nested layouts, and full TypeScript inference.
           </p>
           <div className="flex justify-center gap-4">
-            <a
+            <Link
               className="rounded-lg bg-white px-6 py-3 font-medium text-indigo-600 transition-colors hover:bg-gray-100"
-              href="/blog"
+              to="/blog"
             >
               Read the Blog
-            </a>
-            <a
+            </Link>
+            <Link
               className="rounded-lg bg-indigo-500 px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-400"
-              href="/dashboard"
+              to="/dashboard"
             >
               View Dashboard
-            </a>
+            </Link>
           </div>
         </div>
       </section>

@@ -248,6 +248,32 @@ export async function handleISR(
   }
 }
 
+// ── SSG warm-up ──────────────────────────────────────────────────────────────
+
+/**
+ * Pre-renders all SSG routes that declare `staticParams` and populates the
+ * in-memory cache before the first real request arrives.
+ * Should be called from the Elysia `onStart` hook (production only).
+ */
+export async function warmSSGCache(
+  routes: ResolvedRoute[],
+  root: RootLayout | null,
+  origin: string
+): Promise<void> {
+  const targets = routes.filter((r) => r.mode === "ssg" && r.page?.staticParams);
+
+  await Promise.all(
+    targets.map(async (route) => {
+      // biome-ignore lint/style/noNonNullAssertion: route.page has been filtered
+      const paramSets = await route.page!.staticParams?.();
+      await Promise.all(
+        // biome-ignore lint/style/noNonNullAssertion: route.page.paramSets has been filtered
+        paramSets!.map((params) => prerenderSSG(route, params, root, false, origin))
+      );
+    })
+  );
+}
+
 function revalidateInBackground(
   route: ResolvedRoute,
   params: Record<string, string>,

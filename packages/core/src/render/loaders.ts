@@ -1,4 +1,4 @@
-import type { RuntimeRoute } from "../client";
+import type { LoaderDeps, RuntimeRoute } from "../client";
 import type { ResolvedRoute } from "../router";
 import type { LoaderContext } from "./assemble";
 
@@ -11,30 +11,47 @@ export async function runLoaders(
   ctx: LoaderContext,
   rootLayout: RuntimeRoute | null
 ): Promise<LoaderResult> {
-  let data: Record<string, unknown> = {};
-  const headers: Record<string, string> = {};
-
   try {
-    if (rootLayout?.loader) {
-      const result = await rootLayout.loader({ ...ctx, ...data });
-      data = { ...data, ...result };
-      Object.assign(headers, ctx.set.headers);
-    }
+    // Step 1: root loader runs first — provides global context (user, auth, etc.)
+    // Root data is merged into ctxWithRoot so all subsequent loaders receive it
+    // automatically (backward-compatible with the previous waterfall behaviour).
+    const rootData: Record<string, unknown> = rootLayout?.loader
+      ? ((await rootLayout.loader({ ...ctx })) ?? {})
+      : {};
+    const ctxWithRoot = { ...ctx, ...rootData };
+
+    // Step 2: launch all ancestor + page loaders immediately in parallel.
+    // Each is stored in loaderMap keyed by object identity so that deps()
+    // can resolve a Promise for any route in the chain.
+    //
+    // Loaders are inserted in chain order (index 1, 2, 3 …) so when loader N
+    // calls `await deps(routeAtIndexM)` where M < N, the Promise is already
+    // present in the map — no deadlock is possible for backward dependencies.
+    const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
+
+    const deps: LoaderDeps = (routeRef) =>
+      loaderMap.get(routeRef as RuntimeRoute) ?? Promise.resolve({});
 
     for (let i = 1; i < route.routeChain.length; i++) {
       const ancestor = route.routeChain[i];
       if (ancestor?.loader) {
-        const result = await ancestor.loader({ ...ctx, ...data });
-        data = { ...data, ...result };
-        Object.assign(headers, ctx.set.headers);
+        loaderMap.set(
+          ancestor,
+          Promise.resolve(ancestor.loader(ctxWithRoot, deps)).then((r) => r ?? {})
+        );
       }
     }
 
-    if (route.page?.loader) {
-      const result = await route.page.loader({ ...ctx, ...data });
-      data = { ...data, ...result };
-      Object.assign(headers, ctx.set.headers);
-    }
+    // Page loader — all ancestors are already in the map at this point.
+    const pagePromise: Promise<Record<string, unknown>> = route.page?.loader
+      ? Promise.resolve(route.page.loader(ctxWithRoot, deps)).then((r) => r ?? {})
+      : Promise.resolve({});
+
+    // Step 3: await all in parallel, then flat-merge results.
+    const results = await Promise.all([...loaderMap.values(), pagePromise]);
+    const data = Object.assign({}, rootData, ...results);
+    const headers: Record<string, string> = {};
+    Object.assign(headers, ctx.set.headers);
 
     return { type: "data", data, headers };
   } catch (err) {

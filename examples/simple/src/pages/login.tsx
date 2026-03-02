@@ -19,9 +19,7 @@ export default route.page({
 
       if (data) {
         setMessage("Connected! Redirecting...");
-        setTimeout(() => {
-          location.href = "/dashboard";
-        }, 1000);
+        location.href = "/dashboard";
       } else {
         console.log("login error", error);
         setMessage(error?.value?.message ?? "Login failed");
