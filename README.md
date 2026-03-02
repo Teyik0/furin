@@ -1,6 +1,6 @@
 # Elyra
 
-React meta-framework powered by Elysia + Bun with file-based routing, SSR/SSG/ISR modes, nested layouts, HMR, and full TypeScript type inference.
+Web meta-framework as a plugin powered by Elysia with file-based routing, SSR/SSG/ISR modes, and full TypeScript type inference. No vite, one process, backend and frontend at the same place.
 
 ## Features
 
@@ -8,7 +8,7 @@ React meta-framework powered by Elysia + Bun with file-based routing, SSR/SSG/IS
 - ⚡ **SSR/SSG/ISR** rendering modes with automatic resolution
 - 🔒 **Type-safe** params, query, and loader data (zero codegen)
 - 🎨 **Nested layouts** with automatic data propagation
-- 🔄 **Hot Module Replacement** with React Fast Refresh
+- 🔄 **Hot Module Replacement** with Bun HMR
 - 🌐 **API routes** via Elysia
 - 🎯 **Zero-config** TypeScript support
 

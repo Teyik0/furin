@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Cookie } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
+import type { RuntimeRoute } from "../src/client";
 import {
   _setProdTemplate,
   buildElement,
@@ -15,7 +16,9 @@ import {
   renderToStream,
   runLoaders,
   streamToString,
+  warmSSGCache,
 } from "../src/render";
+import { ssgCache } from "../src/render/cache";
 import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 
@@ -67,6 +70,10 @@ async function getRoot() {
     throw new Error("Root not found");
   }
   return result.root;
+}
+
+function makeRuntimeRoute(opts: Partial<Omit<RuntimeRoute, "__type">> = {}): RuntimeRoute {
+  return { __type: "ELYSION_ROUTE", ...opts };
 }
 
 describe("render.tsx", () => {
@@ -265,6 +272,114 @@ describe("render.tsx", () => {
         expect(result.response.status).toBe(302);
         expect(result.response.headers.get("Location")).toBe("/login");
       }
+    });
+
+    describe("parallel execution", () => {
+      test("deps() returns {} for a route not in the loader map", async () => {
+        const unknown = makeRuntimeRoute();
+        let captured: Record<string, unknown> | undefined;
+        const ancestor = makeRuntimeRoute({
+          loader: async (_ctx, deps) => {
+            captured = (await deps?.(unknown)) ?? {};
+            return {};
+          },
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = await loadRootModule(await getRoot(), false);
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], ancestor],
+          page: { ...withLoaderRoute.page, loader: undefined },
+        } as unknown as ResolvedRoute;
+        await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        expect(captured).toEqual({});
+      });
+
+      test("deps() resolves the data returned by an earlier ancestor loader", async () => {
+        let capturedFromDeps: Record<string, unknown> | undefined;
+        const ancestor1 = makeRuntimeRoute({
+          loader: async () => ({ token: "abc" }),
+        });
+        const ancestor2 = makeRuntimeRoute({
+          loader: async (_ctx, deps) => {
+            capturedFromDeps = (await deps?.(ancestor1)) ?? {};
+            return {};
+          },
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = await loadRootModule(await getRoot(), false);
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], ancestor1, ancestor2],
+          page: { ...withLoaderRoute.page, loader: undefined },
+        } as unknown as ResolvedRoute;
+        await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        expect(capturedFromDeps?.token).toBe("abc");
+      });
+
+      test("all ancestor loaders start before any completes (parallel, not waterfall)", async () => {
+        const DELAY = 40;
+        let start0 = 0;
+        let start1 = 0;
+        let end0 = 0;
+        let end1 = 0;
+
+        const a1 = makeRuntimeRoute({
+          loader: async () => {
+            start0 = performance.now();
+            await new Promise((r) => setTimeout(r, DELAY));
+            end0 = performance.now();
+            return { a1: true };
+          },
+        });
+        const a2 = makeRuntimeRoute({
+          loader: async () => {
+            start1 = performance.now();
+            await new Promise((r) => setTimeout(r, DELAY));
+            end1 = performance.now();
+            return { a2: true };
+          },
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = await loadRootModule(await getRoot(), false);
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], a1, a2],
+          page: { ...withLoaderRoute.page, loader: undefined },
+        } as unknown as ResolvedRoute;
+
+        const before = performance.now();
+        await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        const elapsed = performance.now() - before;
+
+        // Both loaders started before either one finished
+        expect(start0).toBeLessThan(end1);
+        expect(start1).toBeLessThan(end0);
+        // Total time ≈ DELAY, not 2×DELAY
+        expect(elapsed).toBeLessThan(DELAY * 2.5);
+      });
+
+      test("results from all loaders are flat-merged into the final data", async () => {
+        const a1 = makeRuntimeRoute({ loader: async () => ({ keyA: "valueA" }) });
+        const a2 = makeRuntimeRoute({ loader: async () => ({ keyB: "valueB" }) });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = await loadRootModule(await getRoot(), false);
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], a1, a2],
+          page: {
+            ...withLoaderRoute.page,
+            loader: async () => ({ keyC: "valueC" }),
+          },
+        } as unknown as ResolvedRoute;
+        const result = await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        expect(result.type).toBe("data");
+        if (result.type === "data") {
+          expect(result.data.keyA).toBe("valueA");
+          expect(result.data.keyB).toBe("valueB");
+          expect(result.data.keyC).toBe("valueC");
+        }
+      });
     });
   });
 
@@ -563,6 +678,89 @@ describe("render.tsx", () => {
       if (result.type === "data") {
         expect(result.headers).toBeDefined();
       }
+    });
+  });
+
+  describe("warmSSGCache", () => {
+    test("is a no-op for an empty routes array", async () => {
+      await expect(warmSSGCache([], null, "http://localhost:3000")).resolves.toBeUndefined();
+    });
+
+    test("skips SSG routes that have no staticParams", async () => {
+      const indexRoute = await getRoute("/");
+      const sizeBefore = ssgCache.size;
+      await warmSSGCache([indexRoute], null, "http://localhost:3000");
+      expect(ssgCache.size).toBe(sizeBefore);
+    });
+
+    test("skips non-SSG routes even when they carry a staticParams function", async () => {
+      const ssrRoute = await getRoute("/ssr-page");
+      const routeWithFakeParams = {
+        ...ssrRoute,
+        mode: "ssr" as const,
+        page: { ...ssrRoute.page, staticParams: async () => [{}] },
+      } as ResolvedRoute;
+      const sizeBefore = ssgCache.size;
+      await warmSSGCache([routeWithFakeParams], null, "http://localhost:3000");
+      expect(ssgCache.size).toBe(sizeBefore);
+    });
+
+    test("populates ssgCache for an SSG route with staticParams", async () => {
+      const root = await getRoot();
+      const indexRoute = await getRoute("/");
+      ssgCache.delete("/");
+      const routeWithParams = {
+        ...indexRoute,
+        mode: "ssg" as const,
+        page: { ...indexRoute.page, staticParams: async () => [{}] },
+      } as ResolvedRoute;
+      await warmSSGCache([routeWithParams], root, "http://localhost:3000");
+      expect(ssgCache.has("/")).toBe(true);
+      expect(ssgCache.get("/")).toContain("<html");
+    });
+
+    test("calls staticParams() exactly once and pre-renders every returned param set", async () => {
+      const root = await getRoot();
+      const indexRoute = await getRoute("/");
+      let callCount = 0;
+      const routeWithParams = {
+        ...indexRoute,
+        mode: "ssg" as const,
+        page: {
+          ...indexRoute.page,
+          staticParams: () => {
+            callCount++;
+            return Promise.resolve([{}, {}]); // two sets, same pattern → same cache key; second hits cache
+          },
+        },
+      } as ResolvedRoute;
+      ssgCache.delete("/");
+      await warmSSGCache([routeWithParams], root, "http://localhost:3000");
+      expect(callCount).toBe(1);
+      expect(ssgCache.has("/")).toBe(true);
+    });
+
+    test("warms multiple routes in a single call", async () => {
+      const root = await getRoot();
+      const indexRoute = await getRoute("/");
+      const ssgRoute = await getRoute("/ssg-page");
+      ssgCache.delete("/");
+      ssgCache.delete("/ssg-page");
+      const routes = [
+        {
+          ...indexRoute,
+          mode: "ssg" as const,
+          page: { ...indexRoute.page, staticParams: async () => [{}] },
+        },
+        {
+          ...ssgRoute,
+          mode: "ssg" as const,
+          page: { ...ssgRoute.page, staticParams: async () => [{}] },
+        },
+      ] as ResolvedRoute[];
+      await warmSSGCache(routes, root, "http://localhost:3000");
+      expect(ssgCache.has("/")).toBe(true);
+      expect(ssgCache.has("/ssg-page")).toBe(true);
     });
   });
 
