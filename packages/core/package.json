@@ -10,7 +10,7 @@
   "module": "./dist/elyra.js",
   "types": "./src/elyra.ts",
   "bin": {
-    "elyra": "./dist/cli.js"
+    "elyra": "./dist/cli/index.js"
   },
   "exports": {
     ".": {

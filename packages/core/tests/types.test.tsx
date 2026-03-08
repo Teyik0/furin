@@ -11,7 +11,7 @@ import {
   type InferProps,
   type RouteContext,
 } from "../src/client";
-import { collectRouteChain, isElysionPage, isElysionRoute } from "../src/utils";
+import { collectRouteChainFromRoute, isElyraPage, isElyraRoute } from "../src/utils";
 
 describe("RouteContext types (for loaders)", () => {
   test("exposes full Elysia context properties", () => {
@@ -334,56 +334,56 @@ describe("InferProps", () => {
   });
 });
 
-describe("isElysionRoute", () => {
+describe("isElyraRoute", () => {
   test("returns true for a createRoute() result", () => {
     const route = createRoute({ mode: "ssg" });
-    expect(isElysionRoute(route)).toBe(true);
+    expect(isElyraRoute(route)).toBe(true);
   });
 
   test("returns false for a page object", () => {
     const route = createRoute();
     const page = route.page({ component: () => null });
-    expect(isElysionRoute(page)).toBe(false);
+    expect(isElyraRoute(page)).toBe(false);
   });
 
   test("returns false for arbitrary objects", () => {
-    expect(isElysionRoute(null)).toBe(false);
-    expect(isElysionRoute(undefined)).toBe(false);
-    expect(isElysionRoute(42)).toBe(false);
-    expect(isElysionRoute("hello")).toBe(false);
-    expect(isElysionRoute({ __type: "OTHER" })).toBe(false);
-    expect(isElysionRoute({})).toBe(false);
+    expect(isElyraRoute(null)).toBe(false);
+    expect(isElyraRoute(undefined)).toBe(false);
+    expect(isElyraRoute(42)).toBe(false);
+    expect(isElyraRoute("hello")).toBe(false);
+    expect(isElyraRoute({ __type: "OTHER" })).toBe(false);
+    expect(isElyraRoute({})).toBe(false);
   });
 });
 
-describe("isElysionPage", () => {
+describe("isElyraPage", () => {
   test("returns true for a route.page() result", () => {
     const route = createRoute();
     const page = route.page({ component: () => null });
-    expect(isElysionPage(page)).toBe(true);
+    expect(isElyraPage(page)).toBe(true);
   });
 
   test("returns false for a route object", () => {
     const route = createRoute({ mode: "ssr" });
-    expect(isElysionPage(route)).toBe(false);
+    expect(isElyraPage(route)).toBe(false);
   });
 
   test("returns false for arbitrary objects", () => {
-    expect(isElysionPage(null)).toBe(false);
-    expect(isElysionPage(undefined)).toBe(false);
-    expect(isElysionPage({ __type: "ELYSION_ROUTE" })).toBe(false);
-    expect(isElysionPage({})).toBe(false);
+    expect(isElyraPage(null)).toBe(false);
+    expect(isElyraPage(undefined)).toBe(false);
+    expect(isElyraPage({ __type: "ELYRA_ROUTE" })).toBe(false);
+    expect(isElyraPage({})).toBe(false);
   });
 });
 
-describe("collectRouteChain", () => {
+describe("collectRouteChainFromRoute", () => {
   test("single route — chain has one element", () => {
     const route = createRoute({ mode: "ssg" });
     const page = route.page({ component: () => null }) as any;
-    const chain = collectRouteChain(page);
+    const chain = collectRouteChainFromRoute(page);
 
     expect(chain).toHaveLength(1);
-    expect(chain[0]?.__type).toBe("ELYSION_ROUTE");
+    expect(chain[0]?.__type).toBe("ELYRA_ROUTE");
   });
 
   test("nested route — chain is [parent, child] top-down", () => {
@@ -397,7 +397,7 @@ describe("collectRouteChain", () => {
     });
 
     const page = childRoute.page({ component: () => null }) as any;
-    const chain = collectRouteChain(page);
+    const chain = collectRouteChainFromRoute(page);
 
     expect(chain).toHaveLength(2);
     expect(chain[0]).not.toBe(chain[1]);
@@ -421,7 +421,7 @@ describe("collectRouteChain", () => {
     });
 
     const page = child.page({ component: () => null }) as any;
-    const chain = collectRouteChain(page);
+    const chain = collectRouteChainFromRoute(page);
 
     expect(chain).toHaveLength(3);
     expect(chain[0]?.parent).toBeUndefined();

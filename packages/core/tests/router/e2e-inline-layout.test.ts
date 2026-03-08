@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { scanPages } from "../../src/router";
-import { collectRouteChain } from "../../src/utils";
+import { collectRouteChainFromRoute } from "../../src/utils";
+import { expectDefined } from "../helpers/utils";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/pages");
 
@@ -13,10 +14,9 @@ describe("E2E: route chain works without routeFilePaths", () => {
     expect(result.routes.length).toBeGreaterThan(0);
 
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
-    expect(nestedRoute).toBeDefined();
-    expect(nestedRoute?.page).toBeDefined();
+    expectDefined(nestedRoute);
 
-    const chain = collectRouteChain(nestedRoute?.page);
+    const chain = collectRouteChainFromRoute(nestedRoute.page._route);
 
     expect(chain.length).toBeGreaterThanOrEqual(2);
     expect(chain[0]?.layout).toBeDefined();
@@ -27,10 +27,9 @@ describe("E2E: route chain works without routeFilePaths", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const deepRoute = result.routes.find((r) => r.pattern === "/nested/deep");
-    expect(deepRoute).toBeDefined();
-    expect(deepRoute?.page).toBeDefined();
+    expectDefined(deepRoute);
 
-    const chain = collectRouteChain(deepRoute?.page);
+    const chain = collectRouteChainFromRoute(deepRoute.page._route);
 
     expect(chain).toHaveLength(3);
     expect(chain[0]?.layout).toBeDefined();
@@ -42,10 +41,8 @@ describe("E2E: route chain works without routeFilePaths", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const inlineRoute = result.routes.find((r) => r.pattern === "/inline-layout");
-    expect(inlineRoute).toBeDefined();
-    expect(inlineRoute?.page).toBeDefined();
-
-    const chain = collectRouteChain(inlineRoute?.page);
+    expectDefined(inlineRoute);
+    const chain = collectRouteChainFromRoute(inlineRoute.page._route);
 
     expect(chain).toHaveLength(2);
     expect(chain[0]?.layout).toBeDefined();
@@ -56,10 +53,9 @@ describe("E2E: route chain works without routeFilePaths", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const skipRoute = result.routes.find((r) => r.pattern === "/skip-layout");
-    expect(skipRoute).toBeDefined();
-    expect(skipRoute?.page).toBeDefined();
+    expectDefined(skipRoute);
 
-    const chain = collectRouteChain(skipRoute?.page);
+    const chain = collectRouteChainFromRoute(skipRoute.page._route);
 
     expect(chain).toHaveLength(1);
     expect(chain[0]).toBe(result.root?.route);
@@ -70,8 +66,8 @@ describe("E2E: route chain works without routeFilePaths", () => {
 
     for (const route of result.routes) {
       if (route.page) {
-        const chain = collectRouteChain(route.page);
-        const hasRoot = chain.some((r) => r === result.root?.route);
+        const chain = collectRouteChainFromRoute(route.page._route);
+        const hasRoot = chain.some((r) => r === result.root.route);
         expect(hasRoot, `Route ${route.pattern} should have root in chain`).toBe(true);
       }
     }

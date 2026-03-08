@@ -1,5 +1,5 @@
 import { queries } from "../../db";
-import { route } from "./route";
+import { route } from "./_route";
 
 export default route.page({
   loader: () => {

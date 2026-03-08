@@ -1,6 +1,6 @@
 import { Link } from "elyra/link";
 import { useState } from "react";
-import { route } from "./route";
+import { route } from "./_route";
 
 export default route.page({
   head: () => ({ meta: [{ title: "New Post - Dashboard" }] }),

@@ -1,26 +1,26 @@
 import type { RuntimePage, RuntimeRoute } from "./client";
 
-export function isElysionPage(value: unknown): value is RuntimePage {
+export function isElyraPage(value: unknown): value is RuntimePage {
   return (
     typeof value === "object" &&
     value !== null &&
     "__type" in value &&
-    (value as { __type: unknown }).__type === "ELYSION_PAGE"
+    (value as { __type: unknown }).__type === "ELYRA_PAGE"
   );
 }
 
-export function isElysionRoute(value: unknown): value is RuntimeRoute {
+export function isElyraRoute(value: unknown): value is RuntimeRoute {
   return (
     typeof value === "object" &&
     value !== null &&
     "__type" in value &&
-    (value as { __type: unknown }).__type === "ELYSION_ROUTE"
+    (value as { __type: unknown }).__type === "ELYRA_ROUTE"
   );
 }
 
-export function collectRouteChainFromRoute(route: RuntimeRoute | undefined): RuntimeRoute[] {
+export function collectRouteChainFromRoute(route: RuntimeRoute): RuntimeRoute[] {
   const chain: RuntimeRoute[] = [];
-  let current = route;
+  let current: RuntimeRoute | undefined = route;
 
   while (current) {
     chain.unshift(current);
@@ -28,13 +28,6 @@ export function collectRouteChainFromRoute(route: RuntimeRoute | undefined): Run
   }
 
   return chain;
-}
-
-export function collectRouteChain(page: RuntimePage | undefined): RuntimeRoute[] {
-  if (!page) {
-    return [];
-  }
-  return collectRouteChainFromRoute(page._route);
 }
 
 export function hasCycle(route: RuntimeRoute): boolean {
@@ -54,30 +47,22 @@ export function hasCycle(route: RuntimeRoute): boolean {
 
 export function validateRouteChain(
   chain: RuntimeRoute[],
-  root: RuntimeRoute | null,
+  root: RuntimeRoute,
   pagePath?: string
 ): void {
-  if (!root) {
-    throw new Error(
-      "[elysion] No root layout found. Create a root.tsx file with a createRoute() that includes a layout."
-    );
-  }
-
   const hasRoot = chain.some((r) => r === root);
 
   if (!hasRoot) {
-    const location = pagePath ? ` in ${pagePath}` : "";
+    const location = pagePath ? `in ${pagePath}` : "";
     throw new Error(
-      `[elysion] Page${location} must inherit from root route. ` +
+      `[elyra] Page ${location} must inherit from root route. ` +
         'Add: import { route } from "./root"; and use route.page() or set parent: route'
     );
   }
 
   for (const route of chain) {
     if (hasCycle(route)) {
-      throw new Error(
-        "[elysion] Cycle detected in route chain. A route cannot be its own ancestor."
-      );
+      throw new Error("[elyra] Cycle detected in route chain. A route cannot be its own ancestor.");
     }
   }
 }

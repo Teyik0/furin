@@ -133,7 +133,7 @@ describe("writeRouteTypes", () => {
     return patterns.map((pattern) => ({
       pattern,
       routeChain: querySchemas[pattern]
-        ? [{ __type: "ELYSION_ROUTE" as const, query: querySchemas[pattern] }]
+        ? [{ __type: "ELYRA_ROUTE" as const, query: querySchemas[pattern] }]
         : [],
     })) as ResolvedRoute[];
   }

@@ -1,6 +1,6 @@
 import { createRoute } from "elyra/client";
 import { queries } from "../../../db";
-import { route as dashboardRoute } from "../route";
+import { route as dashboardRoute } from "../_route";
 
 export const route = createRoute({
   parent: dashboardRoute,

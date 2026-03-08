@@ -5,12 +5,12 @@ import { type AnyElysia, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client";
 import { handleISR, prerenderSSG, renderSSR } from "./render";
-import { collectRouteChain, isElysionPage, isElysionRoute, validateRouteChain } from "./utils";
+import { collectRouteChainFromRoute, isElyraPage, isElyraRoute, validateRouteChain } from "./utils";
 
 export interface ResolvedRoute {
   isrCache?: { html: string; generatedAt: number; revalidate: number };
   mode: "ssr" | "ssg" | "isr";
-  page?: RuntimePage;
+  page: RuntimePage;
   pagePath: string;
   path: string;
   pattern: string;
@@ -61,36 +61,28 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout | null)
   return plugins.reduce((app, plugin) => app.use(plugin), new Elysia());
 }
 
-export async function scanRootLayout(pagesDir: string): Promise<RootLayout | null> {
+export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   const rootPath = `${pagesDir}/root.tsx`;
   if (!existsSync(rootPath)) {
-    return null;
+    throw new Error("[elyra] root.tsx: not found.");
   }
 
   const mod = await import(rootPath);
   const rootExport = mod.route ?? mod.default;
-  if (!(rootExport && isElysionRoute(rootExport))) {
-    return null;
+  if (!(rootExport && isElyraRoute(rootExport))) {
+    throw new Error("[elyra] root.tsx: createRoute() export not found.");
   }
 
   if (!rootExport.layout) {
-    console.warn(
-      "[elysion] root.tsx: createRoute() has no layout — the root layout will be skipped."
-    );
+    throw new Error("[elyra] root.tsx: createRoute() has no layout.");
   }
   return { path: rootPath, route: rootExport };
 }
 
-async function loadPageModule(pagePath: string): Promise<RuntimePage> {
-  const mod = await import(pagePath);
-  return mod.default;
-}
-
 async function collectPageFilePaths(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
   const files: string[] = [];
 
-  for (const entry of entries) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
     const absolutePath = join(dir, entry.name);
 
     if (entry.isDirectory()) {
@@ -106,7 +98,7 @@ async function collectPageFilePaths(dir: string): Promise<string[]> {
   return files;
 }
 
-async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise<ResolvedRoute[]> {
+async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<ResolvedRoute[]> {
   const routes: ResolvedRoute[] = [];
 
   for (const absolutePath of await collectPageFilePaths(pagesDir)) {
@@ -117,22 +109,19 @@ async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise
     const relativePath = absolutePath.replace(`${pagesDir}/`, "");
     const fileName = parse(relativePath).name;
 
-    // Skip root.tsx, route.tsx, and files starting with _
-    if (fileName.startsWith("_") || fileName === "route" || fileName === "root") {
+    // Skip root.tsx, and files starting with _
+    if (fileName.startsWith("_") || fileName === "root") {
       continue;
     }
 
-    const page = await loadPageModule(absolutePath);
-    if (!isElysionPage(page)) {
-      console.warn(
-        `[elysion] Skipping ${relativePath}: no valid createRoute().page() export found`
-      );
-      continue;
+    const page: RuntimePage = (await import(absolutePath)).default;
+    if (!isElyraPage(page)) {
+      throw new Error(`[elyra] ${relativePath}: no valid createRoute().page() export found`);
     }
 
-    const routeChain = collectRouteChain(page);
+    const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
 
-    validateRouteChain(routeChain, root?.route ?? null, relativePath);
+    validateRouteChain(routeChain, root.route, relativePath);
 
     routes.push({
       pattern: filePathToPattern(relativePath),
@@ -148,7 +137,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise
 }
 
 export async function scanPages(pagesDir: string): Promise<{
-  root: RootLayout | null;
+  root: RootLayout;
   routes: ResolvedRoute[];
 }> {
   const root = await scanRootLayout(pagesDir);
@@ -204,5 +193,3 @@ export function filePathToPattern(path: string): string {
 
   return `/${segments.join("/")}`;
 }
-
-import.meta.hot?.accept();

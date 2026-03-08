@@ -52,7 +52,7 @@ if (command === "build") {
 
   const result = await buildApp({
     target: target as BuildTarget | "all",
-    compile: values.compile,
+    compile: values.compile ?? config.bun?.compile,
     rootDir: config.rootDir,
     pagesDir: values.pagesDir ?? config.pagesDir,
     outDir: values.outDir ?? config.outDir,
@@ -63,7 +63,7 @@ if (command === "build") {
 
   const built = Object.keys(result.targets).join(", ") || "none";
   log(`Done: ${built} → ${values.outDir ?? config.outDir ?? ".elyra/build"}`);
-} else {
+} else if (!command || command === "help") {
   console.log(
     `Elyra CLI
 
@@ -77,4 +77,6 @@ OPTIONS
   --compile   Compile to binary (bun only)
 `
   );
+} else {
+  bail(`Unknown command "${command}". Run "elyra help" for usage.`);
 }

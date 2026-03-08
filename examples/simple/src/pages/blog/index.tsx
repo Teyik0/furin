@@ -1,6 +1,6 @@
 import { Link } from "elyra/link";
 import { type Post, parseTags, queries } from "../../db";
-import { route } from "./route";
+import { route } from "./_route";
 
 type PostWithParsedTags = Omit<Post, "tags"> & { tags: string[] };
 

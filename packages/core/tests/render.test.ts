@@ -56,7 +56,7 @@ async function getRoot() {
 }
 
 function makeRuntimeRoute(opts: Partial<Omit<RuntimeRoute, "__type">> = {}): RuntimeRoute {
-  return { __type: "ELYSION_ROUTE", ...opts };
+  return { __type: "ELYRA_ROUTE", ...opts };
 }
 
 describe("render.tsx", () => {

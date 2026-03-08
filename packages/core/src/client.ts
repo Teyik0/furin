@@ -97,7 +97,7 @@ export interface PageConfig<
 }
 
 export interface RuntimeRoute {
-  __type: "ELYSION_ROUTE";
+  __type: "ELYRA_ROUTE";
   layout?: React.FC<Record<string, unknown> & { children: React.ReactNode }>;
   loader?(
     ctx: Record<string, unknown>,
@@ -111,7 +111,7 @@ export interface RuntimeRoute {
 }
 
 export interface RuntimePage {
-  __type: "ELYSION_PAGE";
+  __type: "ELYRA_PAGE";
   _route: RuntimeRoute;
   component: React.FC<Record<string, unknown>>;
   head?(ctx: Record<string, unknown>): HeadOptions;
@@ -127,7 +127,7 @@ export interface RouteRef<
   TParams = unknown,
   TQuery = unknown,
 > {
-  readonly __brand: "ELYSION_ROUTE_REF";
+  readonly __brand: "ELYRA_ROUTE_REF";
   readonly __phantom: { data: TData; params: TParams; query: TQuery };
 }
 
@@ -137,7 +137,7 @@ interface PageResult<
   TQuery,
   TPageLoaderData extends Record<string, unknown>,
 > {
-  __type: "ELYSION_PAGE";
+  __type: "ELYRA_PAGE";
   _route: Route<TData, TParams, TQuery>;
   component: React.FC<TData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
   head?: (ctx: ComponentProps<TParams, TQuery> & TData & TPageLoaderData) => HeadOptions;
@@ -148,7 +148,7 @@ interface PageResult<
 }
 
 export interface Route<TParentData extends Record<string, unknown>, TParams, TQuery> {
-  __type: "ELYSION_ROUTE";
+  __type: "ELYRA_ROUTE";
   layout?: React.FC<TParentData & { children: React.ReactNode } & ComponentProps<TParams, TQuery>>;
   loader?(
     ctx: RouteContext<TParams, TQuery> & TParentData,
@@ -181,7 +181,7 @@ export function createRoute<
   TQuerySchema extends AnySchema | Unset = Unset,
   TLoaderData extends Record<string, unknown> = {},
 >(config?: {
-  parent?: { ref: TParentRef } & { __type: "ELYSION_ROUTE" };
+  parent?: { ref: TParentRef } & { __type: "ELYRA_ROUTE" };
   mode?: "ssr" | "ssg" | "isr";
   revalidate?: number;
   params?: TParamsSchema;
@@ -211,7 +211,7 @@ export function createRoute<
 
   const route = {
     ...config,
-    __type: "ELYSION_ROUTE" as const,
+    __type: "ELYRA_ROUTE" as const,
     ref: {} as RouteRef<R["data"], R["params"], R["query"]>,
 
     page<TPageLoaderData extends Record<string, unknown> = {}>(
@@ -219,7 +219,7 @@ export function createRoute<
     ) {
       return {
         ...pageConfig,
-        __type: "ELYSION_PAGE" as const,
+        __type: "ELYRA_PAGE" as const,
         _route: route,
       };
     },
@@ -228,7 +228,7 @@ export function createRoute<
 }
 
 export type InferProps<T> = T extends {
-  __type: "ELYSION_PAGE";
+  __type: "ELYRA_PAGE";
   component: React.FC<infer P>;
 }
   ? P

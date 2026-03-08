@@ -5,7 +5,7 @@ import { type Comment, type Post, parseTags, queries } from "../../db";
 
 type PostWithParsedTags = Omit<Post, "tags"> & { tags: string[] };
 
-import { route as blogRoute } from "./route";
+import { route as blogRoute } from "./_route";
 
 export const route = createRoute({
   parent: blogRoute,

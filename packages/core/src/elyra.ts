@@ -47,12 +47,6 @@ export async function elyra({ pagesDir }: ElysionProps) {
 
   const { root, routes } = await scanPages(resolvedPagesDir);
 
-  if (!root) {
-    throw new Error(
-      "[elyra] No root.tsx found. Create a root.tsx in your pages directory with a layout component."
-    );
-  }
-
   console.info(
     `[elyra] Configuration: ${routes.length} page(s) — ${IS_DEV ? "dev (Bun HMR)" : "production"}`
   );

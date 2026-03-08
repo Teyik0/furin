@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { scanPages } from "../../src/router";
-import { collectRouteChain } from "../../src/utils";
+import { collectRouteChainFromRoute } from "../../src/utils";
+import { expectDefined } from "../helpers/utils";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/pages");
 
@@ -11,7 +12,7 @@ describe("hydration: SSR and client apply layouts in same order", () => {
     expect(result.root).not.toBeNull();
 
     for (const route of result.routes) {
-      const chain = collectRouteChain(route.page);
+      const chain = collectRouteChainFromRoute(route.page._route);
       if (chain.length > 0) {
         expect(chain[0]).toBe(result.root?.route);
       }
@@ -22,9 +23,9 @@ describe("hydration: SSR and client apply layouts in same order", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
-    expect(nestedRoute).toBeDefined();
+    expectDefined(nestedRoute);
 
-    const chain = collectRouteChain(nestedRoute?.page);
+    const chain = collectRouteChainFromRoute(nestedRoute.page._route);
 
     expect(chain).toHaveLength(2);
 
@@ -45,9 +46,9 @@ describe("hydration: SSR and client apply layouts in same order", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const deepRoute = result.routes.find((r) => r.pattern === "/nested/deep");
-    expect(deepRoute).toBeDefined();
+    expectDefined(deepRoute);
 
-    const chain = collectRouteChain(deepRoute?.page);
+    const chain = collectRouteChainFromRoute(deepRoute.page._route);
 
     expect(chain).toHaveLength(3);
 
@@ -70,12 +71,12 @@ describe("hydration: SSR and client apply layouts in same order", () => {
     const result = await scanPages(FIXTURES_DIR);
 
     for (const route of result.routes) {
-      const chain = collectRouteChain(route.page);
+      const chain = collectRouteChainFromRoute(route.page._route);
 
       if (chain.length > 0) {
-        expect(chain[0]).toBe(result.root?.route);
+        expect(chain[0]).toBe(result.root.route);
 
-        const rootCount = chain.filter((r) => r === result.root?.route).length;
+        const rootCount = chain.filter((r) => r === result.root.route).length;
         expect(rootCount).toBe(1);
       }
     }
