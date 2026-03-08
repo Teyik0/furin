@@ -1,0 +1,23 @@
+examples/simple/src/pages/root.tsx
+  74f944c773e0d40a 14-16,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "9a8e924128efcecf870e43fe02ea04d31c83207a",
+  "prompts": {
+    "74f944c773e0d40a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08b3e576-e989-4676-878d-426c2a02b05c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 1
+    }
+  }
+}
