@@ -7,12 +7,15 @@ import { warmSSGCache } from "./render/index";
 import { createRoutePlugin, scanPages } from "./router";
 
 export interface ElysionProps {
-  dev?: boolean;
   pagesDir?: string;
   staticOptions: StaticOptions<string>;
 }
 
-export const IS_DEV = process.env.NODE_ENV !== "production";
+export let IS_DEV = process.env.NODE_ENV !== "production";
+/** @internal test-only — overrides IS_DEV via live binding */
+export function __setDevMode(val: boolean): void {
+  IS_DEV = val;
+}
 
 /**
  * Main Elyra plugin.

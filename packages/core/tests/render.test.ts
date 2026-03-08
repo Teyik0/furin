@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Cookie } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import type { RuntimeRoute } from "../src/client";
+import { __setDevMode } from "../src/elyra";
 import {
   buildElement,
   handleISR,
@@ -59,6 +60,9 @@ function makeRuntimeRoute(opts: Partial<Omit<RuntimeRoute, "__type">> = {}): Run
 }
 
 describe("render.tsx", () => {
+  beforeAll(() => __setDevMode(false));
+  afterAll(() => __setDevMode(true));
+
   describe("streamToString", () => {
     test("converts readable stream to string", async () => {
       const encoder = new TextEncoder();
