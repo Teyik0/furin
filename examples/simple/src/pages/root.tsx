@@ -11,8 +11,15 @@ export const route = createRoute({
         <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 justify-between">
             <div className="flex">
-              <Link className="flex items-center font-bold text-indigo-600 text-xl" to="/">
-                Elyra Blog
+              <Link className="flex items-center gap-2 font-bold text-indigo-600 text-xl" to="/">
+                <img
+                  alt="Elyra logo"
+                  className="rounded-full"
+                  height={30}
+                  src="/public/elyra-logo.png"
+                  width={30}
+                />
+                Elyra
               </Link>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                 <Link

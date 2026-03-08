@@ -4,8 +4,12 @@ import { route as dashboardRoute } from "../route";
 
 export const route = createRoute({
   parent: dashboardRoute,
-  loader: () => {
-    const posts = queries.getPosts.all();
+  loader: async (_ctx, deps) => {
+    // This loader starts immediately in parallel with dashboard/route.tsx (auth check).
+    // deps() suspends only when the user data is actually needed.
+    const { user } = await deps(dashboardRoute);
+    // Admins see all posts (including drafts); regular users see published only.
+    const posts = user?.role === "admin" ? queries.getPosts.all() : queries.getPublishedPosts.all();
     return { posts };
   },
   layout: ({ children }) => (

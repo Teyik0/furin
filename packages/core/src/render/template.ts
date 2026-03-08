@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 // ── Dev template ─────────────────────────────────────────────────────────────
 
 let _devTemplatePromise: Promise<string> | null = null;
@@ -22,22 +19,37 @@ export function getDevTemplate(origin: string): Promise<string> {
 
 // ── Prod template ─────────────────────────────────────────────────────────────
 
-let _prodTemplate: string | null = null;
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { generateIndexHtml } from "../build";
+
+// Keyed by the resolved absolute path so different outDirs are cached
+// independently and don't clobber each other.
+const _prodTemplateCache = new Map<string, string>();
 
 /**
- * Reads the production SSR template from disk once and caches it.
- * The template is .elysion/client/index.html produced by buildClient().
+ * Returns the production HTML template.
+ * Reads the Bun.build()-processed `.elyra/client/index.html` (which contains
+ * content-hashed JS/CSS asset tags) and caches it in memory, keyed by the
+ * resolved path so multiple outDir values remain independent.
+ * Falls back to the raw `generateIndexHtml()` shell when the file is absent
+ * (e.g. in unit tests that run without a prior `bun run build`).
  */
-export function getProdTemplate(): string {
-  if (_prodTemplate !== null) {
-    return _prodTemplate;
+export function readProdTemplate(outDir = ".elyra"): string {
+  const path = join(process.cwd(), outDir, "client", "index.html");
+  const cached = _prodTemplateCache.get(path);
+  if (cached !== undefined) {
+    return cached;
   }
-  const templatePath = resolve(process.cwd(), ".elysion", "client", "index.html");
-  _prodTemplate = readFileSync(templatePath, "utf8");
-  return _prodTemplate;
+  if (existsSync(path)) {
+    const template = readFileSync(path, "utf8");
+    _prodTemplateCache.set(path, template);
+    return template;
+  }
+  return generateIndexHtml();
 }
 
-/** Override the prod template (used in tests to avoid disk reads). */
-export function _setProdTemplate(template: string): void {
-  _prodTemplate = template;
+/** @internal test-only — clears the cached prod templates so tests are isolated. */
+export function resetProdTemplate(): void {
+  _prodTemplateCache.clear();
 }

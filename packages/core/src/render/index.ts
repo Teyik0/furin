@@ -12,7 +12,7 @@ import { isrCache, ssgCache } from "./cache";
 import { buildElement } from "./element";
 import { runLoaders } from "./loaders";
 import { loadPageModule, loadRootModule } from "./module-loader";
-import { getDevTemplate, getProdTemplate } from "./template";
+import { getDevTemplate, readProdTemplate } from "./template";
 
 // ── Re-exports (public API) ──────────────────────────────────────────────────
 // biome-ignore lint/performance/noBarrelFile: acnowledged
@@ -20,10 +20,10 @@ export { type LoaderContext, streamToString } from "./assemble";
 export { buildElement } from "./element";
 export { type LoaderResult, runLoaders } from "./loaders";
 export { loadPageModule, loadRootModule } from "./module-loader";
-export { _setProdTemplate } from "./template";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+import { IS_DEV } from "../elyra";
 import type { ResolvedRoute } from "../router";
 import type { LoaderContext } from "./assemble";
 
@@ -45,12 +45,11 @@ async function renderForPath(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout | null,
-  dev: boolean,
   origin: string
 ): Promise<RenderResult> {
   const resolvedPath = resolvePath(route.pattern, params);
   const ctx = createSSGContext(params, resolvedPath, origin);
-  return await renderToHTML(route, ctx, root, dev);
+  return await renderToHTML(route, ctx, root);
 }
 
 // ── Core pipeline ────────────────────────────────────────────────────────────
@@ -58,12 +57,11 @@ async function renderForPath(
 export async function renderToHTML(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  root: RootLayout | null,
-  dev = false
+  root: RootLayout | null
 ): Promise<RenderResult> {
-  await loadPageModule(route, dev);
+  await loadPageModule(route);
 
-  const rootLayout = root ? await loadRootModule(root, dev) : null;
+  const rootLayout = root ? await loadRootModule(root) : null;
 
   const loaderResult = await runLoaders(route, ctx, rootLayout);
 
@@ -90,7 +88,9 @@ export async function renderToHTML(
   // Dev: self-fetch /_bun_hmr_entry (once, then cached) to get the Bun-processed
   // HTML template with content-hashed chunk paths and HMR WebSocket client.
   // Prod: read .elysion/client/index.html from disk.
-  const template = dev ? await getDevTemplate(new URL(ctx.request.url).origin) : getProdTemplate();
+  const template = IS_DEV
+    ? await getDevTemplate(new URL(ctx.request.url).origin)
+    : readProdTemplate();
 
   return {
     html: assembleHTML(template, headData, reactHtml, data),
@@ -103,10 +103,9 @@ export async function renderToHTML(
 export async function renderToStream(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  root: RootLayout | null,
-  dev = false
+  root: RootLayout | null
 ): Promise<ReadableStream | Response> {
-  const response = await renderSSR(route, ctx, root, dev);
+  const response = await renderSSR(route, ctx, root);
   if (!response.ok) {
     return response;
   }
@@ -117,19 +116,18 @@ export async function prerenderSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout | null,
-  dev = false,
   origin = "http://localhost:3000"
 ): Promise<string> {
   const resolvedPath = resolvePath(route.pattern, params);
 
   const cached = ssgCache.get(resolvedPath);
-  if (cached && !dev) {
+  if (cached && !IS_DEV) {
     return cached;
   }
 
-  const result = await renderForPath(route, params, root, dev, origin);
+  const result = await renderForPath(route, params, root, origin);
 
-  if (!dev) {
+  if (!IS_DEV) {
     ssgCache.set(resolvedPath, result.html);
   }
 
@@ -139,13 +137,12 @@ export async function prerenderSSG(
 export async function renderSSR(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  root: RootLayout | null,
-  dev = false
+  root: RootLayout | null
 ): Promise<Response> {
   try {
     // Phase 1: modules + loaders (blocking — needed to build head injection)
-    await loadPageModule(route, dev);
-    const rootLayout = root ? await loadRootModule(root, dev) : null;
+    await loadPageModule(route);
+    const rootLayout = root ? await loadRootModule(root) : null;
 
     const loaderResult = await runLoaders(route, ctx, rootLayout);
     if (loaderResult.type === "redirect") {
@@ -156,9 +153,9 @@ export async function renderSSR(
     const componentProps = { ...data, params: ctx.params, query: ctx.query, path: ctx.path };
 
     const headData = buildHeadInjection(route.page?.head?.(componentProps));
-    const template = dev
+    const template = IS_DEV
       ? await getDevTemplate(new URL(ctx.request.url).origin)
-      : getProdTemplate();
+      : readProdTemplate();
 
     // Phase 2: split template around placeholders
     const { headPre, bodyPre, bodyPost } = splitTemplate(template);
@@ -202,8 +199,7 @@ export async function renderSSR(
 export async function handleISR(
   route: ResolvedRoute,
   ctx: LoaderContext,
-  root: RootLayout | null,
-  dev = false
+  root: RootLayout | null
 ): Promise<Response> {
   const revalidate = route.page?._route.revalidate ?? 60;
   const params = ctx.params ?? {};
@@ -211,12 +207,12 @@ export async function handleISR(
 
   const cached = isrCache.get(cacheKey);
 
-  if (cached && !dev) {
+  if (cached && !IS_DEV) {
     const age = Date.now() - cached.generatedAt;
     const isFresh = age < revalidate * 1000;
 
     if (!isFresh) {
-      revalidateInBackground(route, params, cacheKey, revalidate, root, dev, ctx);
+      revalidateInBackground(route, params, cacheKey, revalidate, root, ctx);
     }
 
     return new Response(cached.html, {
@@ -230,9 +226,9 @@ export async function handleISR(
   }
 
   try {
-    const result = await renderToHTML(route, ctx, root, dev);
+    const result = await renderToHTML(route, ctx, root);
 
-    if (!dev) {
+    if (!IS_DEV) {
       isrCache.set(cacheKey, { html: result.html, generatedAt: Date.now(), revalidate });
     }
 
@@ -248,18 +244,75 @@ export async function handleISR(
   }
 }
 
+// ── SSG warm-up ──────────────────────────────────────────────────────────────
+
+/** Maximum number of concurrent `prerenderSSG` calls during SSG warm-up. */
+const SSG_WARM_CONCURRENCY = 4;
+
+/**
+ * Pre-renders all SSG routes that declare `staticParams` and populates the
+ * in-memory cache before the first real request arrives.
+ * Should be called from the Elysia `onStart` hook (production only).
+ *
+ * Uses a bounded worker pool (SSG_WARM_CONCURRENCY slots) so large sites
+ * with many routes × param sets cannot exhaust memory or CPU during startup.
+ * Failures are isolated per (route, params) pair and logged without aborting
+ * the rest of the warm-up.
+ */
+export async function warmSSGCache(
+  routes: ResolvedRoute[],
+  root: RootLayout | null,
+  origin: string
+): Promise<void> {
+  const targets = routes.filter((r) => r.mode === "ssg" && r.page?.staticParams);
+
+  // Collect all (route, params) render tasks, handling per-route errors early.
+  const tasks: Array<() => Promise<void>> = [];
+  for (const route of targets) {
+    let paramSets: Record<string, string>[];
+    try {
+      // biome-ignore lint/style/noNonNullAssertion: route.page has been filtered
+      paramSets = (await route.page!.staticParams?.()) ?? [];
+    } catch (err) {
+      console.error(`[elyra] SSG warm-up failed for ${route.pattern}:`, err);
+      continue;
+    }
+    for (const params of paramSets) {
+      tasks.push(async () => {
+        try {
+          await prerenderSSG(route, params, root, origin);
+        } catch (err) {
+          console.error(`[elyra] SSG prerender failed for ${route.pattern}:`, err);
+        }
+      });
+    }
+  }
+
+  if (tasks.length === 0) {
+    return;
+  }
+
+  // Drain the task queue with a fixed-size worker pool.
+  const queue = [...tasks];
+  const workers = Array.from({ length: Math.min(SSG_WARM_CONCURRENCY, tasks.length) }, async () => {
+    while (queue.length > 0) {
+      await queue.shift()?.();
+    }
+  });
+  await Promise.all(workers);
+}
+
 function revalidateInBackground(
   route: ResolvedRoute,
   params: Record<string, string>,
   cacheKey: string,
   revalidate: number,
   root: RootLayout | null,
-  dev: boolean,
   originalCtx: LoaderContext
 ) {
   const origin = new URL(originalCtx.request.url).origin;
 
-  renderForPath(route, params, root, dev, origin)
+  renderForPath(route, params, root, origin)
     .then((result) => {
       isrCache.set(cacheKey, {
         html: result.html,

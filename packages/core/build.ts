@@ -5,19 +5,25 @@ $.cwd(import.meta.dir);
 await $`rm -rf dist`;
 await $`tsc --project tsconfig.dts.json`;
 
-await Bun.build({
-  entrypoints: [
-    `${import.meta.dir}/src/elyra.ts`,
-    `${import.meta.dir}/src/client.ts`,
-    `${import.meta.dir}/src/build.ts`,
-    `${import.meta.dir}/src/router.ts`,
-    `${import.meta.dir}/src/adapter/bun-plugin.ts`,
-    `${import.meta.dir}/src/link.tsx`,
-  ],
+// Each entrypoint is built in its own Bun.build() call.
+// Bun bug: when entrypoints share imports (elyra → router, elyra → build),
+// Bun folds some outputs into others or omits them entirely. Building each
+// entrypoint separately produces correct, self-contained bundles.
+const shared = {
   outdir: `${import.meta.dir}/dist`,
-  target: "bun", // at some point will target node for compat
-  format: "esm",
-  external: ["elysia", "react", "react-dom", "@elysiajs/static", "@babel/*"],
+  root: `${import.meta.dir}/src`,
+  target: "bun" as const,
+  format: "esm" as const,
+  external: ["elysia", "react", "react-dom", "@elysiajs/static"],
   minify: false,
   sourcemap: false,
-});
+};
+
+await Promise.all([
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/elyra.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/build.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/router.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/adapter/bun-plugin.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/link.tsx`] }),
+]);

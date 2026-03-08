@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { __setDevMode, IS_DEV } from "../../src/elyra";
 import { createRoutePlugin, scanPages } from "../../src/router";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/pages");
@@ -17,7 +18,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for SSG route", async () => {
     const { route, root } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, root, false);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -27,7 +28,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for SSR route", async () => {
     const { route, root } = await getRoute("/ssr-page");
 
-    const plugin = createRoutePlugin(route, root, false);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -36,7 +37,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for ISR route", async () => {
     const { route, root } = await getRoute("/isr-page");
 
-    const plugin = createRoutePlugin(route, root, false);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
     expect(typeof plugin.use).toBe("function");
@@ -45,7 +46,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for route with loader", async () => {
     const { route, root } = await getRoute("/with-loader");
 
-    const plugin = createRoutePlugin(route, root, false);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
   });
@@ -53,7 +54,7 @@ describe("createRoutePlugin", () => {
   test("creates Elysia instance for nested route", async () => {
     const { route, root } = await getRoute("/nested/deep");
 
-    const plugin = createRoutePlugin(route, root, false);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
   });
@@ -61,16 +62,23 @@ describe("createRoutePlugin", () => {
   test("handles null root", async () => {
     const { route } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, null, false);
+    const plugin = createRoutePlugin(route, null);
 
     expect(plugin).toBeDefined();
   });
 
   test("handles dev mode", async () => {
-    const { route, root } = await getRoute("/ssg-page");
+    const originalDevMode = IS_DEV;
+    __setDevMode(true);
+    try {
+      const { route, root } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, root, true);
+      const plugin = createRoutePlugin(route, root);
 
-    expect(plugin).toBeDefined();
+      expect(plugin).toBeDefined();
+      expect(typeof plugin.use).toBe("function");
+    } finally {
+      __setDevMode(originalDevMode);
+    }
   });
 });

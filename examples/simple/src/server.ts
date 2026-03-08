@@ -16,36 +16,21 @@ const formattedDate = () =>
 const requestStartTimes = new WeakMap<Request, number>();
 
 const app = new Elysia()
-  .onTransform(({ body, params, path, request }) => {
+  .onTransform(({ request }) => {
     requestStartTimes.set(request, performance.now());
-    console.log(`${formattedDate()} - ${request.method} ${path}`, {
-      body,
-      params,
-    });
   })
-  .onAfterResponse(({ path, set, request }) => {
+  .onAfterResponse(({ path, request }) => {
     const startedAt = requestStartTimes.get(request) ?? performance.now();
-    console.log(`${formattedDate()} - RESPONSE ${path}`, {
-      performance: `${(performance.now() - startedAt).toFixed(2)} ms`,
-      status: set.status,
-    });
+    console.log(`${formattedDate()} - ${path} - ${(performance.now() - startedAt).toFixed(2)} ms`);
     requestStartTimes.delete(request);
   })
   .use(api)
   .use(
     await elyra({
       pagesDir: `${import.meta.dir}/pages`,
-      staticOptions: {
-        assets: `${import.meta.dir}/../public`,
-        prefix: "/public",
-        staticLimit: 1024,
-        alwaysStatic: process.env.NODE_ENV === "production",
-      },
     })
   )
   .listen(3000);
 
-console.log(`\n Elyra Blog + Dashboard running at http://localhost:${app.server?.port}`);
-console.log("\nTest accounts:");
-console.log("  user@example.com (role: user)");
-console.log("  admin@example.com (role: admin)");
+console.log(`\nElyra Blog + Dashboard running at http://localhost:${app.server?.port}`);
+console.log("Initial cold start: ", performance.now().toFixed(2), "ms");

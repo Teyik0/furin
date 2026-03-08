@@ -1,4 +1,5 @@
 import type { RuntimeRoute } from "../client";
+import { IS_DEV } from "../elyra";
 import type { ResolvedRoute, RootLayout } from "../router";
 
 /**
@@ -9,12 +10,12 @@ import type { ResolvedRoute, RootLayout } from "../router";
  * Coverage note: error-recovery paths require Bun's module system to fail,
  * which is not possible in unit tests — covered by integration tests only.
  */
-export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
-  if (!dev && route.page) {
+export async function loadPageModule(route: ResolvedRoute) {
+  if (!IS_DEV && route.page) {
     return route.page;
   }
 
-  if (dev) {
+  if (IS_DEV) {
     try {
       const mod = await import(route.pagePath);
       route.page = mod.default;
@@ -23,7 +24,7 @@ export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
       if (!route.page) {
         throw error;
       }
-      console.error(`[elysion] Failed to load page ${route.pagePath}:`, error);
+      console.error(`[elyra] Failed to load page ${route.pagePath}:`, error);
       return route.page;
     }
   }
@@ -35,8 +36,8 @@ export async function loadPageModule(route: ResolvedRoute, dev: boolean) {
  * Loads the root layout module.
  * In dev mode, always re-imports to pick up HMR changes.
  */
-export async function loadRootModule(root: RootLayout, dev: boolean): Promise<RuntimeRoute> {
-  if (!dev) {
+export async function loadRootModule(root: RootLayout): Promise<RuntimeRoute> {
+  if (!IS_DEV) {
     return root.route;
   }
 
@@ -48,7 +49,7 @@ export async function loadRootModule(root: RootLayout, dev: boolean): Promise<Ru
     }
     return root.route;
   } catch (error) {
-    console.error(`[elysion] Failed to load root layout ${root.path}:`, error);
+    console.error(`[elyra] Failed to load root layout ${root.path}:`, error);
     return root.route;
   }
 }

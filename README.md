@@ -1,6 +1,6 @@
 # Elyra
 
-React meta-framework powered by Elysia + Bun with file-based routing, SSR/SSG/ISR modes, nested layouts, HMR, and full TypeScript type inference.
+Web meta-framework as a plugin powered by Elysia with file-based routing, SSR/SSG/ISR modes, and full TypeScript type inference. No vite, one process, backend and frontend at the same place.
 
 ## Features
 
@@ -8,7 +8,7 @@ React meta-framework powered by Elysia + Bun with file-based routing, SSR/SSG/IS
 - ⚡ **SSR/SSG/ISR** rendering modes with automatic resolution
 - 🔒 **Type-safe** params, query, and loader data (zero codegen)
 - 🎨 **Nested layouts** with automatic data propagation
-- 🔄 **Hot Module Replacement** with React Fast Refresh
+- 🔄 **Hot Module Replacement** with Bun HMR
 - 🌐 **API routes** via Elysia
 - 🎯 **Zero-config** TypeScript support
 
@@ -308,6 +308,83 @@ export default route.page({
 });
 ```
 
+### SSG with Dynamic Routes
+
+Use `staticParams` on `route.page()` to enumerate all paths for a dynamic SSG route.
+Elyra calls this function once on server start (production) and pre-renders every
+returned parameter set before the first request arrives.
+
+```tsx
+// src/pages/blog/[slug].tsx
+import { createRoute } from 'elyra/client';
+import { t } from "elysia";
+
+export const route = createRoute({
+  mode: "ssg",
+  params: t.Object({ slug: t.String() }),
+});
+
+export default route.page({
+  // Enumerate all paths — called once at startup, not per-request.
+  staticParams: () => getPosts().map((post) => ({ slug: post.slug })),
+
+  loader: ({ params }) => ({ post: getPost(params.slug) }),
+
+  component: ({ post }) => <Article post={post} />,
+});
+```
+
+On production start you will see:
+```
+[elyra] Warming SSG cache for 1 route(s)…
+[elyra] SSG warm-up complete.
+```
+
+The first request to `/blog/my-post` is served instantly from the in-memory cache.
+In dev mode the cache is bypassed so content is always fresh.
+
+### Parallel Loaders
+
+After the root loader completes, **all ancestor and page loaders start in parallel**.
+Use the optional `deps` second argument when a loader needs data from a specific
+ancestor without creating a waterfall.
+
+```tsx
+// src/pages/dashboard/route.tsx
+export const route = createRoute({
+  loader: async () => {
+    const user = await fetchCurrentUser(); // ~100 ms
+    return { user };
+  },
+});
+
+// src/pages/dashboard/posts/route.tsx
+import { route as dashboardRoute } from "../route";
+
+export const route = createRoute({
+  parent: dashboardRoute,
+  loader: async (ctx, deps) => {
+    // Starts immediately — runs in parallel with dashboard/route.tsx.
+    // deps() suspends only when the value is actually awaited.
+    const { user } = await deps(dashboardRoute); // typed: { user: User }
+
+    return {
+      posts: user.role === "admin" ? getAllPosts() : getPublishedPosts(),
+    };
+  },
+});
+```
+
+Execution timeline:
+```
+root loader          ████  (always runs first)
+dashboard/route           ████████ 100 ms ↘
+posts/route               ████░░░░████        } parallel — total ≈ 100 ms, not 200 ms
+```
+
+`deps(routeRef)` returns a `Promise` typed to the exact data returned by `routeRef`'s loader.
+Omitting `deps` entirely is fine — loaders that don't need sibling data run freely in parallel.
+
 ## File-Based Routing
 
 Automatic routing based on file structure:
@@ -459,7 +536,7 @@ Create a route with loader, layout, and options. Import from `"elyra/client"`.
 - `revalidate?: number` - ISR revalidation interval (seconds)
 - `params?: TSchema` - Elysia schema for URL parameters
 - `query?: TSchema` - Elysia schema for query parameters
-- `loader?: (ctx) => data` - Data fetching function (ctx has typed query/params/loader data from parent)
+- `loader?: (ctx, deps?) => data` - Data fetching function (ctx has typed params/query + root context). Use `deps(routeRef)` to read ancestor loader data while preserving parallel execution.
 - `layout?: (props) => JSX` - React layout component (receives children, loader data, params, query)
 
 **Returns:** `Route` - A route object with a `page()` method
@@ -469,9 +546,10 @@ Create a route with loader, layout, and options. Import from `"elyra/client"`.
 Create a page for this route.
 
 **Config:**
-- `loader?: (ctx) => data` - Page-specific data fetching (receives all accumulated data from parent routes)
+- `loader?: (ctx, deps?) => data` - Page-specific data fetching (receives all accumulated data from parent routes)
 - `component: (props) => JSX` - React component (receives all accumulated data + page loader data)
 - `head?: (ctx) => HeadOptions` - Head metadata function (SEO)
+- `staticParams?: () => TParams[]` - Enumerate all URL parameter sets for SSG dynamic routes. Called once at server start (production only) to pre-render every path into the in-memory cache.
 
 **Returns:** `Page` - A page module that can be exported as default
 

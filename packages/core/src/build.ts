@@ -1,18 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { transformForClient } from "./adapter/transform-client";
 import type { ResolvedRoute } from "./router";
 
 export interface BuildClientOptions {
   dev?: boolean;
   outDir?: string;
-  /** Pages source directory — needed so writeDevFiles can pre-transform files. */
   pagesDir?: string;
-  rootPath?: string | null;
+  rootPath: string;
 }
 
 const TS_FILE_FILTER = /\.(tsx|ts)$/;
-const TS_EXT_RE = /\.tsx?$/;
 const REACT_IMPORT_RE = /import\s+React\b/;
 
 // ── Hydrate entry ──────────────────────────────────────────────────────────
@@ -28,26 +26,12 @@ const REACT_IMPORT_RE = /import\s+React\b/;
  *   When provided, imports reference the browser-safe pre-transformed files in
  *   .elyra/pages/ instead of the TypeScript source files.
  */
-function generateHydrateEntry(
-  routes: ResolvedRoute[],
-  rootPath: string | null,
-  clientPaths?: Map<string, string>
-): string {
-  const staticImports: string[] = [];
+function generateHydrateEntry(routes: ResolvedRoute[], rootPath: string): string {
   const routeEntries: string[] = [];
-
-  const hasRoot = rootPath !== null;
-  if (hasRoot) {
-    const resolvedRoot = (clientPaths?.get(rootPath) ?? rootPath).replace(/\\/g, "/");
-    staticImports.push(`import { route as root } from "${resolvedRoot}";`);
-  }
 
   for (const route of routes) {
     const resolvedRoute = route as ResolvedRoute;
-    const resolvedPage = (clientPaths?.get(resolvedRoute.path) ?? resolvedRoute.path).replace(
-      /\\/g,
-      "/"
-    );
+    const resolvedPage = resolvedRoute.path.replace(/\\/g, "/");
 
     const regexPattern = resolvedRoute.pattern.replace(/:[^/]+/g, "([^/]+)").replace(/\*/g, "(.*)");
 
@@ -59,8 +43,7 @@ function generateHydrateEntry(
   return `import { hydrateRoot, createRoot } from "react-dom/client";
 import { createElement } from "react";
 import { RouterProvider } from "elyra/link";
-
-${staticImports.join("\n")}
+import { route as root } from "${rootPath.replace(/\\/g, "/")}";
 
 const routes = [
 ${routeEntries.join(",\n")}
@@ -81,7 +64,7 @@ if (_match) {
 
   const app = createElement(RouterProvider, {
     routes,
-    root: ${hasRoot ? "root" : "null"},
+    root,
     initialMatch: match,
     initialData: loaderData,
   } as any);
@@ -217,58 +200,6 @@ export function generateIndexHtml(): string {
 }
 
 /**
- * Pre-transforms all TypeScript/TSX files in pagesDir for browser consumption.
- *
- * Runs transformForClient() on every .ts/.tsx file in pagesDir, stripping
- * server-only code (loader, query, params) and the imports that become dead
- * after removal.  Writes the resulting plain JS to `${outDir}/pages/`,
- * preserving the source directory structure so relative imports between page
- * and route files resolve correctly.
- *
- * Returns a map from each source absolute path to its pre-transformed path.
- * Only rewrites a file when its content has changed to avoid spurious reloads.
- */
-function writeClientPages(pagesDir: string, outDir: string): Map<string, string> {
-  const clientPagesDir = join(outDir, "pages");
-  const sourceToClientPath = new Map<string, string>();
-
-  const glob = new Bun.Glob("**/*.{tsx,ts}");
-
-  for (const relPath of glob.scanSync({ cwd: pagesDir, absolute: false })) {
-    const sourcePath = join(pagesDir, relPath).replace(/\\/g, "/");
-    const clientRelPath = relPath.replace(TS_EXT_RE, ".js");
-    const clientPath = join(clientPagesDir, clientRelPath);
-
-    const clientDir = dirname(clientPath);
-    if (!existsSync(clientDir)) {
-      mkdirSync(clientDir, { recursive: true });
-    }
-
-    const source = readFileSync(sourcePath, "utf8");
-    let code: string;
-    try {
-      const result = transformForClient(source, sourcePath);
-      code = result.code;
-      if (code.includes("React.createElement") && !REACT_IMPORT_RE.test(code)) {
-        code = `import React from "react";\n${code}`;
-      }
-    } catch (err) {
-      console.error(`[elyra] client pre-transform failed for ${relPath}:`, err);
-      code = source;
-    }
-
-    const existingCode = existsSync(clientPath) ? readFileSync(clientPath, "utf8") : "";
-    if (code !== existingCode) {
-      writeFileSync(clientPath, code);
-    }
-
-    sourceToClientPath.set(sourcePath, clientPath);
-  }
-
-  return sourceToClientPath;
-}
-
-/**
  * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode.
  *
  * When pagesDir is provided, also pre-transforms all pages-dir files into
@@ -279,21 +210,14 @@ function writeClientPages(pagesDir: string, outDir: string): Map<string, string>
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
-export function writeDevFiles(routes: ResolvedRoute[], options: BuildClientOptions = {}): void {
-  const { outDir = "./.elyra", rootPath = null, pagesDir } = options;
+export function writeDevFiles(routes: ResolvedRoute[], options: BuildClientOptions): void {
+  const { outDir = "./.elyra", rootPath } = options;
 
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
 
-  // Pre-transform all page/route files to strip server-only code.
-  // _hydrate.tsx will import from these browser-safe copies instead of source.
-  let clientPaths: Map<string, string> | undefined;
-  if (pagesDir) {
-    clientPaths = writeClientPages(pagesDir, outDir);
-  }
-
-  const hydrateCode = generateHydrateEntry(routes, rootPath, clientPaths);
+  const hydrateCode = generateHydrateEntry(routes, rootPath);
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";
   if (hydrateCode !== existingHydrate) {
@@ -329,9 +253,9 @@ export function writeDevFiles(routes: ResolvedRoute[], options: BuildClientOptio
  */
 export async function buildClient(
   routes: ResolvedRoute[],
-  options: BuildClientOptions = {}
+  options: BuildClientOptions
 ): Promise<void> {
-  const { outDir = "./.elyra", rootPath = null } = options;
+  const { outDir = "./.elyra", rootPath } = options;
   const clientDir = join(outDir, "client");
 
   if (!existsSync(outDir)) {

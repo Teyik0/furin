@@ -79,6 +79,8 @@ export interface HeadOptions {
   styles?: Array<{ type?: string; children: string }>;
 }
 
+export type LoaderDeps = (route: { __type: string }) => Promise<Record<string, unknown>>;
+
 export interface PageConfig<
   TParentData extends Record<string, unknown>,
   TParams,
@@ -88,14 +90,19 @@ export interface PageConfig<
   component: React.FC<TParentData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
   head?: (ctx: ComponentProps<TParams, TQuery> & TParentData & TPageLoaderData) => HeadOptions;
   loader?: (
-    ctx: RouteContext<TParams, TQuery> & TParentData
+    ctx: RouteContext<TParams, TQuery> & TParentData,
+    deps: TypedDeps
   ) => Promise<TPageLoaderData> | TPageLoaderData;
+  staticParams?: () => Promise<NormalizeUnset<TParams>[]> | NormalizeUnset<TParams>[];
 }
 
 export interface RuntimeRoute {
   __type: "ELYSION_ROUTE";
   layout?: React.FC<Record<string, unknown> & { children: React.ReactNode }>;
-  loader?(ctx: Record<string, unknown>): Promise<Record<string, unknown>> | Record<string, unknown>;
+  loader?(
+    ctx: Record<string, unknown>,
+    deps: LoaderDeps
+  ): Promise<Record<string, unknown>> | Record<string, unknown>;
   mode?: "ssr" | "ssg" | "isr";
   params?: unknown;
   parent?: RuntimeRoute;
@@ -108,7 +115,11 @@ export interface RuntimePage {
   _route: RuntimeRoute;
   component: React.FC<Record<string, unknown>>;
   head?(ctx: Record<string, unknown>): HeadOptions;
-  loader?(ctx: Record<string, unknown>): Promise<Record<string, unknown>> | Record<string, unknown>;
+  loader?(
+    ctx: Record<string, unknown>,
+    deps: LoaderDeps
+  ): Promise<Record<string, unknown>> | Record<string, unknown>;
+  staticParams?(): Promise<Record<string, string>[]> | Record<string, string>[];
 }
 
 export interface RouteRef<
@@ -131,14 +142,18 @@ interface PageResult<
   component: React.FC<TData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
   head?: (ctx: ComponentProps<TParams, TQuery> & TData & TPageLoaderData) => HeadOptions;
   loader?: (
-    ctx: RouteContext<TParams, TQuery> & TData
+    ctx: RouteContext<TParams, TQuery> & TData,
+    deps: TypedDeps
   ) => Promise<TPageLoaderData> | TPageLoaderData;
 }
 
 export interface Route<TParentData extends Record<string, unknown>, TParams, TQuery> {
   __type: "ELYSION_ROUTE";
   layout?: React.FC<TParentData & { children: React.ReactNode } & ComponentProps<TParams, TQuery>>;
-  loader?(ctx: RouteContext<TParams, TQuery> & TParentData): Promise<TParentData> | TParentData;
+  loader?(
+    ctx: RouteContext<TParams, TQuery> & TParentData,
+    deps: TypedDeps
+  ): Promise<TParentData> | TParentData;
   mode?: "ssr" | "ssg" | "isr";
 
   page<TPageLoaderData extends Record<string, unknown> = {}>(
@@ -153,6 +168,12 @@ export interface Route<TParentData extends Record<string, unknown>, TParams, TQu
   ref: RouteRef<TParentData, TParams, TQuery>;
   revalidate?: number;
 }
+
+// User-facing typed deps: infers the loader data type from the route ref.
+type TypedDeps = <TData extends Record<string, unknown>>(
+  // biome-ignore lint/suspicious/noExplicitAny: any needed for flexible route type inference
+  route: Route<TData, any, any>
+) => Promise<TData>;
 
 export function createRoute<
   TParentRef extends RouteRef | undefined = undefined,
@@ -170,7 +191,8 @@ export function createRoute<
       Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["params"],
       Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["query"]
     > &
-      ResolveParent<TParentRef>["data"]
+      ResolveParent<TParentRef>["data"],
+    deps: TypedDeps
   ) => Promise<TLoaderData> | TLoaderData;
   layout?: React.FC<
     Resolved<TParentRef, TLoaderData, TParamsSchema, TQuerySchema>["data"] & {

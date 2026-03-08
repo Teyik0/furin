@@ -10,10 +10,14 @@ import { route as blogRoute } from "./route";
 export const route = createRoute({
   parent: blogRoute,
   params: t.Object({ slug: t.String() }),
-  revalidate: 60,
+  mode: "ssg",
 });
 
 export default route.page({
+  // Pre-renders every published post on server start (production only).
+  // In dev the cache is skipped so you always get fresh content.
+  staticParams: () => queries.getPublishedPosts.all().map((p) => ({ slug: p.slug })),
+
   loader: ({ params: { slug } }) => {
     const post = queries.getPostBySlug.get(slug);
     if (!post) {
@@ -69,7 +73,7 @@ export default route.page({
                 })}
               </time>
               <span>•</span>
-              <span>ISR (revalidates every 60s)</span>
+              <span>SSG (pre-rendered)</span>
             </div>
             <div className="mt-4 flex gap-2">
               {post.tags.map((tag) => (

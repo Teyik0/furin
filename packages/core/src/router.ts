@@ -22,11 +22,7 @@ export interface RootLayout {
   route: RuntimeRoute;
 }
 
-export function createRoutePlugin(
-  route: ResolvedRoute,
-  root: RootLayout | null,
-  dev = false
-): AnyElysia {
+export function createRoutePlugin(route: ResolvedRoute, root: RootLayout | null): AnyElysia {
   const { pattern, mode, routeChain } = route;
 
   const plugins: AnyElysia[] = [];
@@ -42,13 +38,6 @@ export function createRoutePlugin(
     );
   }
 
-  for (const ancestor of routeChain) {
-    if (ancestor.loader) {
-      const loaderFn = ancestor.loader;
-      plugins.push(new Elysia().resolve(async (ctx) => loaderFn(ctx)));
-    }
-  }
-
   plugins.push(
     new Elysia().get(pattern, async (ctx) => {
       switch (mode) {
@@ -56,14 +45,14 @@ export function createRoutePlugin(
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
           const origin = new URL(ctx.request.url).origin;
-          return await prerenderSSG(route, ctx.params ?? {}, root, dev, origin);
+          return await prerenderSSG(route, ctx.params ?? {}, root, origin);
         }
 
         case "isr":
-          return handleISR(route, ctx, root, dev);
+          return handleISR(route, ctx, root);
 
         default:
-          return renderSSR(route, ctx, root, dev);
+          return renderSSR(route, ctx, root);
       }
     })
   );
@@ -142,10 +131,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout | null): Promise
   return routes;
 }
 
-export async function scanPages(
-  pagesDir: string,
-  _dev = false
-): Promise<{
+export async function scanPages(pagesDir: string): Promise<{
   root: RootLayout | null;
   routes: ResolvedRoute[];
 }> {
