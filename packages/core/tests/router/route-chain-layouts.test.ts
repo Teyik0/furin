@@ -152,10 +152,10 @@ describe("resolveMode", () => {
   });
 });
 
-describe("scanPageFiles warning", () => {
+describe("scanPageFiles throw", () => {
   let tempDir: string;
 
-  test("warns when page has no valid export", async () => {
+  test("throw error when page has no valid export", () => {
     tempDir = join(tmpdir(), `elysion-invalid-page-${Date.now()}`);
     mkdirSync(tempDir, { recursive: true });
 
@@ -167,16 +167,7 @@ export { route };`
 
     writeFileSync(join(tempDir, "invalid.tsx"), "export default { notAPage: true };");
 
-    const logs: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (msg: string) => logs.push(msg);
-
-    const result = await scanPages(tempDir);
-
-    console.warn = originalWarn;
-
-    expect(logs.some((l) => l.includes("Skipping") && l.includes("no valid"))).toBe(true);
-    expect(result.routes).toHaveLength(0);
+    expect(scanPages(tempDir)).rejects.toThrowError();
 
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });

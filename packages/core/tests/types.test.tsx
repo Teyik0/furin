@@ -380,7 +380,7 @@ describe("collectRouteChainFromRoute", () => {
   test("single route — chain has one element", () => {
     const route = createRoute({ mode: "ssg" });
     const page = route.page({ component: () => null }) as any;
-    const chain = collectRouteChainFromRoute(page);
+    const chain = collectRouteChainFromRoute(page._route);
 
     expect(chain).toHaveLength(1);
     expect(chain[0]?.__type).toBe("ELYRA_ROUTE");
@@ -397,7 +397,7 @@ describe("collectRouteChainFromRoute", () => {
     });
 
     const page = childRoute.page({ component: () => null }) as any;
-    const chain = collectRouteChainFromRoute(page);
+    const chain = collectRouteChainFromRoute(page._route);
 
     expect(chain).toHaveLength(2);
     expect(chain[0]).not.toBe(chain[1]);
@@ -421,7 +421,7 @@ describe("collectRouteChainFromRoute", () => {
     });
 
     const page = child.page({ component: () => null }) as any;
-    const chain = collectRouteChainFromRoute(page);
+    const chain = collectRouteChainFromRoute(page._route);
 
     expect(chain).toHaveLength(3);
     expect(chain[0]?.parent).toBeUndefined();

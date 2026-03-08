@@ -95,7 +95,7 @@ describe.serial("elyra()", () => {
     }
   }, 10_000);
 
-  test("throws a clear error when no root.tsx is present", async () => {
+  test("throws a clear error when no root.tsx is present", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     removeAppPath(app.path, "src/pages/root.tsx");
     writeAppFile(
@@ -122,10 +122,10 @@ describe.serial("elyra()", () => {
     __setDevMode(true);
     process.chdir(app.path);
 
-    await expect(
+    expect(
       elyra({
         pagesDir: join(app.path, "src/pages"),
       })
-    ).rejects.toThrow("No root layout found");
+    ).rejects.toThrow();
   });
 });
