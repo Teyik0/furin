@@ -59,10 +59,10 @@ describe("createRoutePlugin", () => {
     expect(plugin).toBeDefined();
   });
 
-  test("handles null root", async () => {
-    const { route } = await getRoute("/ssg-page");
+  test("works with root layout", async () => {
+    const { route, root } = await getRoute("/ssg-page");
 
-    const plugin = createRoutePlugin(route, null);
+    const plugin = createRoutePlugin(route, root);
 
     expect(plugin).toBeDefined();
   });

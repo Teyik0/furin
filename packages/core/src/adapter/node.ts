@@ -30,8 +30,7 @@ function generateNodeRuntimeModule(
 
   const pageImports = routes
     .map(
-      (route, index) =>
-        `import page${index} from "${toImportSpecifier(targetDir, route.pagePath)}";`
+      (route, index) => `import page${index} from "${toImportSpecifier(targetDir, route.path)}";`
     )
     .join("\n");
 
@@ -45,7 +44,7 @@ function generateNodeRuntimeModule(
         "  return {",
         `    pattern: ${JSON.stringify(route.pattern)},`,
         "    page,",
-        `    pagePath: ${JSON.stringify(route.pagePath)},`,
+        `    pagePath: ${JSON.stringify(route.path)},`,
         `    path: ${JSON.stringify(route.path)},`,
         "    routeChain,",
         "    mode: resolveMode(page, routeChain),",
@@ -166,7 +165,7 @@ export async function buildNodeTarget(
 
   await buildClient(routes, {
     outDir: targetDir,
-    rootPath,
+    rootLayout: rootPath,
   });
 
   writeFileSync(runtimeEntryPath, generateNodeRuntimeModule(routes, rootPath, targetDir));

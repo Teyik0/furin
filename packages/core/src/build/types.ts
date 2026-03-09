@@ -2,10 +2,9 @@ import type { BuildTarget } from "../config";
 import type { ResolvedRoute } from "../router";
 
 export interface BuildClientOptions {
-  dev?: boolean;
-  outDir?: string;
+  outDir: string;
   pagesDir?: string;
-  rootPath: string;
+  rootLayout: string;
 }
 
 export interface BuildRouteManifestEntry {

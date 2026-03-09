@@ -24,9 +24,8 @@ const REACT_IMPORT_RE = /import\s+React\b/;
  */
 export async function buildClient(
   routes: ResolvedRoute[],
-  options: BuildClientOptions
+  {outDir, rootLayout}: BuildClientOptions
 ): Promise<void> {
-  const { outDir = "./.elyra", rootPath } = options;
   const clientDir = join(outDir, "client");
 
   if (!existsSync(outDir)) {
@@ -36,7 +35,7 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootPath);
+  const hydrateCode = generateHydrateEntry(routes, rootLayout);
   const hydratePath = join(outDir, "_hydrate.tsx");
   writeFileSync(hydratePath, hydrateCode);
 

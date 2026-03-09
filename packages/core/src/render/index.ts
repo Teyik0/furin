@@ -1,16 +1,9 @@
 import { renderToReadableStream } from "react-dom/server";
 import type { RootLayout } from "../router";
-import {
-  assembleHTML,
-  createSSGContext,
-  resolvePath,
-  splitTemplate,
-  streamToString,
-} from "./assemble";
+import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble";
 import { isrCache, ssgCache } from "./cache";
 import { buildElement } from "./element";
 import { runLoaders } from "./loaders";
-import { loadPageModule, loadRootModule } from "./module-loader";
 import { buildHeadInjection, safeJson } from "./shell";
 import { getDevTemplate, getProductionTemplate } from "./template";
 
@@ -19,10 +12,10 @@ import { getDevTemplate, getProductionTemplate } from "./template";
 export { type LoaderContext, streamToString } from "./assemble";
 export { buildElement } from "./element";
 export { type LoaderResult, runLoaders } from "./loaders";
-export { loadPageModule, loadRootModule } from "./module-loader";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+import type { Context } from "elysia";
 import type { ResolvedRoute } from "../router";
 import { IS_DEV } from "../runtime-env";
 import type { LoaderContext } from "./assemble";
@@ -45,26 +38,34 @@ function catchRedirect(err: unknown): Response {
 async function renderForPath(
   route: ResolvedRoute,
   params: Record<string, string>,
-  root: RootLayout | null,
+  root: RootLayout,
   origin: string
 ): Promise<RenderResult> {
   const resolvedPath = resolvePath(route.pattern, params);
-  const ctx = createSSGContext(params, resolvedPath, origin);
-  return await renderToHTML(route, ctx, root);
+  return await renderToHTML(
+    route,
+    {
+      params,
+      query: {},
+      request: new Request(`${origin}${resolvedPath}`),
+      headers: {},
+      cookie: {},
+      redirect: (url, status = 302) => new Response(null, { status, headers: { Location: url } }),
+      set: { headers: {} },
+      path: resolvedPath,
+    } as Context,
+    root
+  );
 }
 
 // ── Core pipeline ────────────────────────────────────────────────────────────
 
 export async function renderToHTML(
   route: ResolvedRoute,
-  ctx: LoaderContext,
-  root: RootLayout | null
+  ctx: Context,
+  root: RootLayout
 ): Promise<RenderResult> {
-  await loadPageModule(route);
-
-  const rootLayout = root ? await loadRootModule(root) : null;
-
-  const loaderResult = await runLoaders(route, ctx, rootLayout);
+  const loaderResult = await runLoaders(route, ctx, root.route);
 
   if (loaderResult.type === "redirect") {
     throw loaderResult.response;
@@ -81,14 +82,14 @@ export async function renderToHTML(
 
   const headData = buildHeadInjection(route.page?.head?.(componentProps));
 
-  const element = buildElement(route, componentProps, rootLayout);
+  const element = buildElement(route, componentProps, root.route);
   const stream = await renderToReadableStream(element);
   await stream.allReady;
   const reactHtml = await streamToString(stream);
 
   // Dev: self-fetch /_bun_hmr_entry (once, then cached) to get the Bun-processed
   // HTML template with content-hashed chunk paths and HMR WebSocket client.
-  // Prod: read .elysion/client/index.html from disk.
+  // Prod: read .elyra/client/index.html from disk.
   const template = IS_DEV
     ? await getDevTemplate(new URL(ctx.request.url).origin)
     : (getProductionTemplate() ?? generateIndexHtml());
@@ -103,8 +104,8 @@ export async function renderToHTML(
 
 export async function renderToStream(
   route: ResolvedRoute,
-  ctx: LoaderContext,
-  root: RootLayout | null
+  ctx: Context,
+  root: RootLayout
 ): Promise<ReadableStream | Response> {
   const response = await renderSSR(route, ctx, root);
   if (!response.ok) {
@@ -116,7 +117,7 @@ export async function renderToStream(
 export async function prerenderSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
-  root: RootLayout | null,
+  root: RootLayout,
   origin = "http://localhost:3000"
 ): Promise<string> {
   const resolvedPath = resolvePath(route.pattern, params);
@@ -137,15 +138,11 @@ export async function prerenderSSG(
 
 export async function renderSSR(
   route: ResolvedRoute,
-  ctx: LoaderContext,
-  root: RootLayout | null
+  ctx: Context,
+  root: RootLayout
 ): Promise<Response> {
   try {
-    // Phase 1: modules + loaders (blocking — needed to build head injection)
-    await loadPageModule(route);
-    const rootLayout = root ? await loadRootModule(root) : null;
-
-    const loaderResult = await runLoaders(route, ctx, rootLayout);
+    const loaderResult = await runLoaders(route, ctx, root.route);
     if (loaderResult.type === "redirect") {
       return loaderResult.response;
     }
@@ -153,17 +150,17 @@ export async function renderSSR(
     const { data, headers } = loaderResult;
     const componentProps = { ...data, params: ctx.params, query: ctx.query, path: ctx.path };
 
-    const headData = buildHeadInjection(route.page?.head?.(componentProps));
+    const headData = buildHeadInjection(route.page.head?.(componentProps));
     const template = IS_DEV
       ? await getDevTemplate(new URL(ctx.request.url).origin)
       : (getProductionTemplate() ?? generateIndexHtml());
 
     // Phase 2: split template around placeholders
     const { headPre, bodyPre, bodyPost } = splitTemplate(template);
-    const dataScript = `<script id="__ELYSION_DATA__" type="application/json">${safeJson(data)}</script>`;
+    const dataScript = `<script id="__ELYRA_DATA__" type="application/json">${safeJson(data)}</script>`;
 
     // Phase 3: start React render without awaiting allReady
-    const element = buildElement(route, componentProps, rootLayout);
+    const element = buildElement(route, componentProps, root.route);
     const reactStream = await renderToReadableStream(element);
 
     // Phase 4: pipe head + React stream + tail into a single ReadableStream
@@ -197,12 +194,8 @@ export async function renderSSR(
   }
 }
 
-export async function handleISR(
-  route: ResolvedRoute,
-  ctx: LoaderContext,
-  root: RootLayout | null
-): Promise<Response> {
-  const revalidate = route.page?._route.revalidate ?? 60;
+export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLayout) {
+  const revalidate = route.page._route.revalidate ?? 60;
   const params = ctx.params ?? {};
   const cacheKey = resolvePath(route.pattern, params);
 
@@ -216,14 +209,12 @@ export async function handleISR(
       revalidateInBackground(route, params, cacheKey, revalidate, root, ctx);
     }
 
-    return new Response(cached.html, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": isFresh
-          ? `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`
-          : "public, s-maxage=0, must-revalidate",
-      },
-    });
+    ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+    ctx.set.headers["cache-control"] = isFresh
+      ? `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`
+      : "public, s-maxage=0, must-revalidate";
+
+    return cached.html;
   }
 
   try {
@@ -233,13 +224,10 @@ export async function handleISR(
       isrCache.set(cacheKey, { html: result.html, generatedAt: Date.now(), revalidate });
     }
 
-    return new Response(result.html, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`,
-        ...result.headers,
-      },
-    });
+    ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+    ctx.set.headers["cache-control"] =
+      `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+    return result.html;
   } catch (err) {
     return catchRedirect(err);
   }
@@ -262,18 +250,17 @@ const SSG_WARM_CONCURRENCY = 4;
  */
 export async function warmSSGCache(
   routes: ResolvedRoute[],
-  root: RootLayout | null,
+  root: RootLayout,
   origin: string
 ): Promise<void> {
-  const targets = routes.filter((r) => r.mode === "ssg" && r.page?.staticParams);
+  const targets = routes.filter((r) => r.mode === "ssg" && r.page.staticParams);
 
   // Collect all (route, params) render tasks, handling per-route errors early.
   const tasks: Array<() => Promise<void>> = [];
   for (const route of targets) {
     let paramSets: Record<string, string>[];
     try {
-      // biome-ignore lint/style/noNonNullAssertion: route.page has been filtered
-      paramSets = (await route.page!.staticParams?.()) ?? [];
+      paramSets = (await route.page.staticParams?.()) ?? [];
     } catch (err) {
       console.error(`[elyra] SSG warm-up failed for ${route.pattern}:`, err);
       continue;
@@ -308,12 +295,10 @@ function revalidateInBackground(
   params: Record<string, string>,
   cacheKey: string,
   revalidate: number,
-  root: RootLayout | null,
+  root: RootLayout,
   originalCtx: LoaderContext
 ) {
-  const origin = new URL(originalCtx.request.url).origin;
-
-  renderForPath(route, params, root, origin)
+  renderForPath(route, params, root, new URL(originalCtx.request.url).origin)
     .then((result) => {
       isrCache.set(cacheKey, {
         html: result.html,
@@ -322,6 +307,6 @@ function revalidateInBackground(
       });
     })
     .catch((err: unknown) => {
-      console.error("[elysion] ISR background revalidation failed:", err);
+      console.error("[elyra] ISR background revalidation failed:", err);
     });
 }

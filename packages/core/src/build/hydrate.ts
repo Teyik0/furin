@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { generateIndexHtml } from "../render/shell";
 import type { ResolvedRoute } from "../router";
 import { writeRouteTypes } from "./route-types";
@@ -13,27 +13,24 @@ import type { BuildClientOptions } from "./types";
  * applies in-place instead of remounting.
  *
  * @param routes - Resolved routes to include in the hydration manifest.
- * @param rootPath - Absolute path to the root layout module.
+ * @param rootLayout - Absolute path to the root layout module.
  */
-export function generateHydrateEntry(routes: ResolvedRoute[], rootPath: string): string {
-  const linkPath = resolve(import.meta.dir, "../link.tsx").replace(/\\/g, "/");
+export function generateHydrateEntry(routes: ResolvedRoute[], rootLayout: string): string {
   const routeEntries: string[] = [];
 
   for (const route of routes) {
-    const resolvedRoute = route as ResolvedRoute;
-    const resolvedPage = resolvedRoute.path.replace(/\\/g, "/");
-
-    const regexPattern = resolvedRoute.pattern.replace(/:[^/]+/g, "([^/]+)").replace(/\*/g, "(.*)");
+    const resolvedPage = route.path.replace(/\\/g, "/");
+    const regexPattern = route.pattern.replace(/:[^/]+/g, "([^/]+)").replace(/\*/g, "(.*)");
 
     routeEntries.push(
-      ` { pattern: "${resolvedRoute.pattern}", regex: new RegExp("^${regexPattern}$"), load: () => import("${resolvedPage}") }`
+      ` { pattern: "${route.pattern}", regex: new RegExp("^${regexPattern}$"), load: () => import("${resolvedPage}") }`
     );
   }
 
   return `import { hydrateRoot, createRoot } from "react-dom/client";
 import { createElement } from "react";
-import { RouterProvider } from "${linkPath}";
-import { route as root } from "${rootPath.replace(/\\/g, "/")}";
+import { RouterProvider } from "elyra/link";
+import { route as root } from "${rootLayout.replace(/\\/g, "/")}";
 
 const routes = [
 ${routeEntries.join(",\n")}
@@ -48,7 +45,7 @@ if (_match) {
   const _mod = await _match.load();
   const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
 
-  const dataEl = document.getElementById("__ELYSION_DATA__");
+  const dataEl = document.getElementById("__ELYRA_DATA__");
   const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
   const rootEl = document.getElementById("root") as HTMLElement;
 
@@ -71,7 +68,7 @@ if (_match) {
     createRoot(rootEl).render(app);
   }
 } else {
-  console.warn("[elyra] No matching route for", pathname);
+  console.error("[elyra] No matching route for", pathname);
 }
 `;
 }
@@ -82,14 +79,12 @@ if (_match) {
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
-export function writeDevFiles(routes: ResolvedRoute[], options: BuildClientOptions): void {
-  const { outDir = "./.elyra", rootPath } = options;
-
+export function writeDevFiles(routes: ResolvedRoute[], {outDir, rootLayout}: BuildClientOptions): void {
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootPath);
+  const hydrateCode = generateHydrateEntry(routes, rootLayout);
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";
   if (hydrateCode !== existingHydrate) {

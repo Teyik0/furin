@@ -60,7 +60,7 @@ export function toBuildRouteManifestEntry(
   return {
     pattern: route.pattern,
     mode: route.mode,
-    pagePath: toPosixPath(relative(rootDir, route.pagePath)),
+    pagePath: toPosixPath(relative(rootDir, route.path)),
     hasLayout: route.routeChain.some((entry) => !!entry.layout),
     hasStaticParams: !!route.page?.staticParams,
     revalidate: route.page?._route.revalidate ?? null,

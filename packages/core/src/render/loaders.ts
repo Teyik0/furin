@@ -1,6 +1,6 @@
+import type { Context } from "elysia";
 import type { LoaderDeps, RuntimeRoute } from "../client";
 import type { ResolvedRoute } from "../router";
-import type { LoaderContext } from "./assemble";
 
 export type LoaderResult =
   | { type: "data"; data: Record<string, unknown>; headers: Record<string, string> }
@@ -8,8 +8,8 @@ export type LoaderResult =
 
 export async function runLoaders(
   route: ResolvedRoute,
-  ctx: LoaderContext,
-  rootLayout: RuntimeRoute | null
+  ctx: Context,
+  rootLayout: RuntimeRoute
 ): Promise<LoaderResult> {
   try {
     // Step 1: root loader runs first — provides global context (user, auth, etc.)
@@ -23,7 +23,7 @@ export async function runLoaders(
     const deps: LoaderDeps = (routeRef) =>
       loaderMap.get(routeRef as RuntimeRoute) ?? Promise.resolve({});
 
-    const rootData: Record<string, unknown> = rootLayout?.loader
+    const rootData: Record<string, unknown> = rootLayout.loader
       ? ((await rootLayout.loader({ ...ctx }, deps)) ?? {})
       : {};
     const ctxWithRoot = { ...ctx, ...rootData };

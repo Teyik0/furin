@@ -6,7 +6,7 @@ export type LoaderContext = RouteContext<Record<string, string>, Record<string, 
 
 export function resolvePath(pattern: string, params: Record<string, string>): string {
   let path = pattern;
-  for (const [key, val] of Object.entries(params)) {
+  for (const [key, val] of Object.entries(params ?? {})) {
     path = path.replace(key === "*" ? "*" : `:${key}`, val);
   }
   return path;
@@ -67,7 +67,7 @@ export function assembleHTML(
   const { headPre, bodyPre, bodyPost } = splitTemplate(template);
 
   const dataScript = data
-    ? `<script id="__ELYSION_DATA__" type="application/json">${safeJson(data)}</script>`
+    ? `<script id="__ELYRA_DATA__" type="application/json">${safeJson(data)}</script>`
     : "";
 
   return headPre + headData + bodyPre + reactHtml + dataScript + bodyPost;

@@ -60,15 +60,12 @@ export async function elyra({ pagesDir }: ElysionProps) {
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
   if (IS_DEV) {
     const elysionDir = resolve(cwd, ".elyra");
-
-    // Regenerate .elyra/_hydrate.tsx with the current page list.
-    // Only writes when content changed so Bun --hot doesn't reload needlessly.
-    writeDevFiles(routes, { outDir: elysionDir, rootPath: root.path });
+    writeDevFiles(routes, { outDir: elysionDir, rootLayout: root.path });
 
     let instance = new Elysia()
       .use(
         await staticPlugin({
-          assets: resolve(cwd, ".elyra"),
+          assets: elysionDir,
           prefix: "/_bun_hmr_entry",
         })
       )
@@ -89,7 +86,7 @@ export async function elyra({ pagesDir }: ElysionProps) {
     setProductionTemplatePath(resolve(cwd, prebuiltManifest.templatePath));
   } else {
     setProductionTemplatePath(null);
-    await buildClient(routes, { dev: false, outDir: elysionDir, rootPath: root.path });
+    await buildClient(routes, { outDir: elysionDir, rootLayout: root.path });
   }
 
   let instance = new Elysia()

@@ -252,7 +252,7 @@ export function RouterProvider({
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
 
-        const dataEl = doc.getElementById("__ELYSION_DATA__");
+        const dataEl = doc.getElementById("__ELYRA_DATA__");
         const data = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
 
         const loadedMatch: LoadedClientRoute = {

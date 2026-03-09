@@ -29,7 +29,7 @@ export async function buildBunTarget(
 
   await buildClient(routes, {
     outDir: targetDir,
-    rootPath,
+    rootLayout: rootPath,
   });
 
   writeJsonFile(resolve(rootDir, targetManifest.manifestPath), targetManifest);

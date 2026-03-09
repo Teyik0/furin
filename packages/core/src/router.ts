@@ -11,7 +11,6 @@ export interface ResolvedRoute {
   isrCache?: { html: string; generatedAt: number; revalidate: number };
   mode: "ssr" | "ssg" | "isr";
   page: RuntimePage;
-  pagePath: string;
   path: string;
   pattern: string;
   routeChain: RuntimeRoute[];
@@ -23,7 +22,7 @@ export interface RootLayout {
   route: RuntimeRoute;
 }
 
-export function createRoutePlugin(route: ResolvedRoute, root: RootLayout | null): AnyElysia {
+export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
   const { pattern, mode, routeChain } = route;
 
   const plugins: AnyElysia[] = [];
@@ -46,7 +45,7 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout | null)
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
           const origin = new URL(ctx.request.url).origin;
-          return await prerenderSSG(route, ctx.params ?? {}, root, origin);
+          return await prerenderSSG(route, ctx.params, root, origin);
         }
 
         case "isr":
@@ -126,7 +125,6 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     routes.push({
       pattern: filePathToPattern(relativePath),
       page,
-      pagePath: absolutePath,
       path: absolutePath,
       routeChain,
       mode: resolveMode(page, routeChain),
