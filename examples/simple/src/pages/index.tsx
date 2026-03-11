@@ -66,6 +66,16 @@ export default route.page({
               icon="api"
               title="API Routes"
             />
+            <FeatureCard
+              description='Compile to a standalone server binary with Bun. "split" keeps client assets separate; "embed" produces a single self-contained executable.'
+              icon="compile"
+              title="Bun Binary Compile"
+            />
+            <FeatureCard
+              description="Pass Bun plugins (e.g. Tailwind, custom transforms) directly in elyra.config.ts. They run before the internal client transform."
+              icon="plugin"
+              title="User Plugins"
+            />
           </div>
         </div>
       </section>
@@ -185,6 +195,28 @@ function FeatureCard({
         <title>api</title>
         <path
           d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+        />
+      </svg>
+    ),
+    compile: (
+      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <title>compile</title>
+        <path
+          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+        />
+      </svg>
+    ),
+    plugin: (
+      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <title>plugin</title>
+        <path
+          d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={2}

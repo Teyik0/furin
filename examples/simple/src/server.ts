@@ -27,7 +27,7 @@ const app = new Elysia()
   .use(api)
   .use(
     await elyra({
-      pagesDir: `${import.meta.dir}/pages`,
+      pagesDir: "./src/pages",
     })
   )
   .listen(3000);
