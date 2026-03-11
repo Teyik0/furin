@@ -1,0 +1,27 @@
+examples/simple/src/server.ts
+  9042419100b04f07 30
+examples/simple/src/pages/index.tsx
+  9042419100b04f07 69-78,204-225
+examples/simple/elyra.config.ts
+  9042419100b04f07 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.9",
+  "base_commit_sha": "3d983ca4c6b8aa6b39d4c225f2f64bc0e6f8a8fd",
+  "prompts": {
+    "9042419100b04f07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50e6221f-a58f-4865-8544-562ac5526577",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 1034,
+      "total_deletions": 228,
+      "accepted_lines": 869,
+      "overriden_lines": 3
+    }
+  }
+}
