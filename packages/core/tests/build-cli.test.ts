@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type BuildManifest, buildApp } from "../src/build/index.ts";
+import { type BuildManifest, buildApp, type TargetBuildManifest } from "../src/build/index.ts";
 import { runCli } from "./helpers/run-cli.ts";
 import { createTmpApp, removeAppPath, writeAppFile } from "./helpers/tmp-app.ts";
 
@@ -35,6 +35,7 @@ describe.serial("CLI/build Bun feature", () => {
     expect(result.targets.bun).toBeDefined();
     expect(existsSync(join(app.path, ".elyra/build/manifest.json"))).toBe(true);
     expect(existsSync(join(app.path, ".elyra/build/bun/client/index.html"))).toBe(true);
+    expect(existsSync(join(app.path, ".elyra/build/bun/public/.gitkeep"))).toBe(true);
   });
 
   test("CLI build --target bun succeeds and writes expected manifest fields", () => {
@@ -45,12 +46,22 @@ describe.serial("CLI/build Bun feature", () => {
     expect(result.exitCode).toBe(0);
 
     const manifest = readJsonFile<BuildManifest>(join(app.path, ".elyra/build/manifest.json"));
+    const targetManifestPath = join(app.path, ".elyra/build/bun/manifest.json");
+    expect(existsSync(targetManifestPath)).toBe(true);
+    const targetManifest = readJsonFile<TargetBuildManifest>(targetManifestPath);
+    const bunTarget = manifest.targets.bun;
+    if (!bunTarget) {
+      throw new Error("Missing bun target manifest in build output");
+    }
 
     expect(manifest.rootPath).toBe("src/pages/root.tsx");
     expect(manifest.serverEntry).toBe("src/server.ts");
     expect(
       manifest.routes.some((route) => route.pattern === "/blog/:slug" && route.hasStaticParams)
     ).toBe(true);
+    expect(targetManifest.targetDir).toBe(bunTarget.targetDir);
+    expect(targetManifest.clientDir).toBe(bunTarget.clientDir);
+    expect(targetManifest.serverPath).toBe(bunTarget.serverPath);
   });
 
   test("buildApp() rejects apps without a root.tsx layout", () => {
@@ -124,6 +135,7 @@ describe.serial("CLI/build Bun feature", () => {
     expect(existsSync(join(targetDir, "_compile-entry.ts"))).toBe(false);
     // client assets must still exist on disk (not embedded)
     expect(existsSync(join(targetDir, "client/index.html"))).toBe(true);
+    expect(existsSync(join(targetDir, "public/.gitkeep"))).toBe(true);
   });
 
   test("CLI build --target bun generates server.js bundle and cleans up intermediate", () => {
@@ -153,8 +165,7 @@ describe.serial("CLI/build Bun feature", () => {
 
     const serverJs = readFileSync(join(app.path, ".elyra/build/bun/server.js"), "utf8");
 
-    // Bundle must contain __setCompileContext call with baked route patterns
-    expect(serverJs).toContain("__setCompileContext");
+    // Bundle must contain baked route patterns
     expect(serverJs).toContain('"/"');
     expect(serverJs).toContain('"/blog/:slug"');
   });

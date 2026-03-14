@@ -15,28 +15,43 @@ export interface ElysionProps {
 }
 
 function resolveClientDirFromArgv(): string {
-  const envClientDir = process.env.ELYRA_CLIENT_DIR;
-  if (envClientDir) {
-    const resolvedEnvDir = envClientDir.startsWith("/")
-      ? envClientDir
-      : resolve(process.cwd(), envClientDir);
-    return resolvedEnvDir;
-  }
+  return (
+    resolveClientDirFromEnv() ??
+    resolveClientDirFromModuleUrl() ??
+    resolveClientDirFromProcessArgs() ??
+    resolveFallbackClientDir()
+  );
+}
 
+function resolveClientDirFromEnv(): string | null {
+  const envClientDir = process.env.ELYRA_CLIENT_DIR;
+  if (!envClientDir) {
+    return null;
+  }
+  return envClientDir.startsWith("/") ? envClientDir : resolve(process.cwd(), envClientDir);
+}
+
+function resolveClientDirFromModuleUrl(): string | null {
   try {
     const moduleUrl = new URL(import.meta.url);
-    if (moduleUrl.protocol === "file:") {
-      const modulePath = fileURLToPath(moduleUrl);
-      if (!modulePath.includes("/$bunfs/")) {
-        const moduleClientDir = join(dirname(modulePath), "client");
-        if (existsSync(join(moduleClientDir, "index.html"))) {
-          return moduleClientDir;
-        }
-      }
+    if (moduleUrl.protocol !== "file:") {
+      return null;
+    }
+    const modulePath = fileURLToPath(moduleUrl);
+    if (modulePath.includes("/$bunfs/")) {
+      return null;
+    }
+    const moduleClientDir = join(dirname(modulePath), "client");
+    if (existsSync(join(moduleClientDir, "index.html"))) {
+      return moduleClientDir;
     }
   } catch {
     // ignore, fallback to argv-based resolution
   }
+  return null;
+}
+
+function resolveClientDirFromProcessArgs(): string | null {
   const candidates = [
     process.argv[1],
     process.argv[0],
@@ -45,28 +60,48 @@ function resolveClientDirFromArgv(): string {
   ].filter((value): value is string => typeof value === "string" && value.length > 0);
 
   for (const candidate of candidates) {
-    const name = basename(candidate);
-    if (name === "bun" || name === "node") {
-      continue;
-    }
-    if (candidate.includes("/$bunfs/") || candidate.startsWith("bunfs:")) {
-      continue;
-    }
-    const absolute = candidate.startsWith("/") ? candidate : resolve(process.cwd(), candidate);
-    if (existsSync(absolute)) {
-      return join(dirname(absolute), "client");
-    }
-
-    if (!candidate.includes("/") && process.env.PATH) {
-      for (const dir of process.env.PATH.split(":")) {
-        const fullPath = join(dir, candidate);
-        if (existsSync(fullPath)) {
-          return join(dirname(fullPath), "client");
-        }
-      }
+    const resolved = resolveClientDirFromCandidate(candidate);
+    if (resolved) {
+      return resolved;
     }
   }
 
+  return null;
+}
+
+function resolveClientDirFromCandidate(candidate: string): string | null {
+  const name = basename(candidate);
+  if (name === "bun" || name === "node") {
+    return null;
+  }
+  if (candidate.includes("/$bunfs/") || candidate.startsWith("bunfs:")) {
+    return null;
+  }
+
+  const absolute = candidate.startsWith("/") ? candidate : resolve(process.cwd(), candidate);
+  if (existsSync(absolute)) {
+    return join(dirname(absolute), "client");
+  }
+
+  if (!candidate.includes("/")) {
+    return resolveClientDirFromPath(candidate);
+  }
+
+  return null;
+}
+
+function resolveClientDirFromPath(candidate: string): string | null {
+  const pathEntries = process.env.PATH?.split(":") ?? [];
+  for (const dir of pathEntries) {
+    const fullPath = join(dir, candidate);
+    if (existsSync(fullPath)) {
+      return join(dirname(fullPath), "client");
+    }
+  }
+  return null;
+}
+
+function resolveFallbackClientDir(): string {
   const defaultClientDir = resolve(process.cwd(), ".elyra/build/bun/client");
   if (existsSync(join(defaultClientDir, "index.html"))) {
     return defaultClientDir;
@@ -102,25 +137,35 @@ function buildEmbedInstance(
 ): Elysia {
   const { assets } = embedded;
   // Explicit wildcard route — lifecycle hooks don't fire for unmatched routes.
-  return new Elysia({ name: instanceName, seed: resolvedPagesDir }).get(
-    "/_client/*",
-    ({ params }) => {
+  return new Elysia({ name: instanceName, seed: resolvedPagesDir })
+    .get("/_client/*", ({ params }) => {
       const filePath = assets[`/_client/${params["*"]}`];
       return filePath
         ? new Response(Bun.file(filePath))
         : new Response("Not Found", { status: 404 });
-    }
-  ) as unknown as Elysia;
+    })
+    .get("/public/*", ({ params }) => {
+      const filePath = assets[`/public/${params["*"]}`];
+      return filePath
+        ? new Response(Bun.file(filePath))
+        : new Response("Not Found", { status: 404 });
+    }) as unknown as Elysia;
 }
 
 async function buildDiskInstance(
   instanceName: string,
   resolvedPagesDir: string,
-  clientDir: string
+  clientDir: string,
+  publicDir: string
 ): Promise<Elysia> {
-  return new Elysia({ name: instanceName, seed: resolvedPagesDir })
-    .use(await staticPlugin())
-    .use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+  let instance = new Elysia({ name: instanceName, seed: resolvedPagesDir });
+
+  if (existsSync(publicDir)) {
+    instance = instance.use(await staticPlugin({ assets: publicDir, prefix: "/public" }));
+  }
+
+  instance = instance.use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+  return instance;
 }
 
 /**
@@ -148,8 +193,8 @@ export async function elyra({ pagesDir }: ElysionProps) {
   const instanceName = `elyra-${resolvedPagesDir.replaceAll("\\", "/")}`;
 
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
-  const elyraDir = resolve(cwd, ".elyra");
   if (IS_DEV) {
+    const elyraDir = resolve(cwd, ".elyra");
     const { root, routes } = await scanPages(resolvedPagesDir);
     console.info(
       `[elyra] Configuration: ${routes.length} page(s) — ${IS_DEV ? "dev (Bun HMR)" : "production"}`
@@ -183,12 +228,13 @@ export async function elyra({ pagesDir }: ElysionProps) {
 
   const embedded = ctx?.embedded;
   const clientDir = embedded ? "" : resolveClientDirFromArgv();
+  const publicDir = embedded ? "" : join(dirname(clientDir), "public");
 
   await setupProdTemplate(embedded, clientDir);
 
   let instance = embedded
     ? buildEmbedInstance(instanceName, resolvedPagesDir, embedded)
-    : await buildDiskInstance(instanceName, resolvedPagesDir, clientDir);
+    : await buildDiskInstance(instanceName, resolvedPagesDir, clientDir, publicDir);
 
   for (const route of routes) {
     instance = instance.use(createRoutePlugin(route, root));

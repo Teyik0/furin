@@ -12,8 +12,6 @@ import { createTmpApp, removeAppPath, writeAppFile } from "./helpers/tmp-app.ts"
 const tmpApps: Array<{ cleanup: () => void }> = [];
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
-const originalBuildOutDir = process.env.ELYRA_BUILD_OUT_DIR;
-const originalBuildTarget = process.env.ELYRA_BUILD_TARGET;
 
 function rememberTmpApp<T extends { cleanup: () => void }>(app: T): T {
   tmpApps.push(app);
@@ -27,20 +25,6 @@ afterEach(() => {
   process.chdir(originalCwd);
   process.argv.length = 0;
   process.argv.push(...originalArgv);
-
-  if (originalBuildOutDir === undefined) {
-    // biome-ignore lint/performance/noDelete: process.env requires delete to properly unset a variable
-    delete process.env.ELYRA_BUILD_OUT_DIR;
-  } else {
-    process.env.ELYRA_BUILD_OUT_DIR = originalBuildOutDir;
-  }
-
-  if (originalBuildTarget === undefined) {
-    // biome-ignore lint/performance/noDelete: process.env requires delete to properly unset a variable
-    delete process.env.ELYRA_BUILD_TARGET;
-  } else {
-    process.env.ELYRA_BUILD_TARGET = originalBuildTarget;
-  }
 
   while (tmpApps.length > 0) {
     tmpApps.pop()?.cleanup();

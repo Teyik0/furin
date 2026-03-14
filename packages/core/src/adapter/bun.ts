@@ -1,9 +1,15 @@
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
 import { generateServerRoutesEntry } from "../build/server-routes-entry.ts";
-import { buildTargetManifest, ensureDir, toPosixPath } from "../build/shared.ts";
+import {
+  buildTargetManifest,
+  copyDirRecursive,
+  ensureDir,
+  toPosixPath,
+  writeTargetManifest,
+} from "../build/shared.ts";
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import type { BuildTarget } from "../config.ts";
 import type { ResolvedRoute } from "../router.ts";
@@ -37,6 +43,12 @@ export async function buildBunTarget(
   });
 
   const routeManifest = routes.map((r) => ({ pattern: r.pattern, path: r.path, mode: r.mode }));
+  const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
+  const targetPublicDir = publicDir ? join(targetDir, "public") : undefined;
+
+  if (publicDir && targetPublicDir && options.compile !== "embed") {
+    copyDirRecursive(publicDir, targetPublicDir);
+  }
 
   if (options.compile && serverEntry) {
     const clientDir = join(targetDir, "client");
@@ -48,6 +60,7 @@ export async function buildBunTarget(
       serverEntry,
       outDir: targetDir,
       embed: options.compile === "embed" ? { clientDir } : undefined,
+      publicDir,
     });
 
     await Bun.build({
@@ -99,6 +112,8 @@ export async function buildBunTarget(
   ]) {
     rmSync(join(targetDir, file), { force: true });
   }
+
+  writeTargetManifest(targetDir, targetManifest);
 
   return targetManifest;
 }

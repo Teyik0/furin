@@ -596,6 +596,11 @@ By default, Elyra resolves client assets from a `client/` folder next to the run
 ELYRA_CLIENT_DIR=/absolute/path/to/client ./server
 ```
 
+In `--compile embed` mode, Elyra bundles `public/` into the executable and serves it under `/public/*`.
+For non-embed builds, `public/` is copied to `.elyra/build/bun/public` and served from there so the build stays portable.
+Embed includes every file under `public/` (including subfolders), so keep secrets out of that directory.
+Each target also writes its own manifest at `.elyra/build/bun/manifest.json`.
+
 ### Project Structure
 
 ```

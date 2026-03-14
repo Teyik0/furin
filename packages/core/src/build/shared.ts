@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { BuildTarget } from "../config";
 import type { ResolvedRoute } from "../router";
@@ -15,6 +15,29 @@ export function ensureDir(path: string): void {
 
 export function toPosixPath(path: string): string {
   return path.replace(/\\/g, "/");
+}
+
+export function collectFilesRecursive(dir: string): string[] {
+  const files: string[] = [];
+  const entries = readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const absolutePath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectFilesRecursive(absolutePath));
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(absolutePath);
+    }
+  }
+
+  return files.sort();
+}
+
+export function copyDirRecursive(sourceDir: string, targetDir: string): void {
+  rmSync(targetDir, { force: true, recursive: true });
+  cpSync(sourceDir, targetDir, { recursive: true });
 }
 
 export function toBuildRouteManifestEntry(
@@ -49,4 +72,9 @@ export function buildTargetManifest(
     serverPath: null,
     serverEntry: serverEntry ? toPosixPath(relative(rootDir, serverEntry)) : null,
   };
+}
+
+export function writeTargetManifest(targetDir: string, targetManifest: TargetBuildManifest): void {
+  const manifestPath = join(targetDir, "manifest.json");
+  writeFileSync(manifestPath, `${JSON.stringify(targetManifest, null, 2)}\n`);
 }
