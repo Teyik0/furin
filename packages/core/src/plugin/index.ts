@@ -1,5 +1,4 @@
-import type { BunPlugin } from "bun";
-import { transformForClient } from "./transform-client";
+import { transformForClient } from "./transform-client.ts";
 
 const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
@@ -34,7 +33,7 @@ export default {};
  *  3. Strips server-only code (loader, query, params) from page files before
  *     they are bundled into the client entry.
  */
-const plugin: BunPlugin = {
+const plugin: Bun.BunPlugin = {
   name: "elyra-strip-server",
   setup(build) {
     // ── browser stubs ───────────────────────────────────────────────────────

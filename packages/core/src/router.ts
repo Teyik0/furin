@@ -3,9 +3,15 @@ import { readdir } from "node:fs/promises";
 import { join, parse } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
-import type { RuntimePage, RuntimeRoute } from "./client";
-import { handleISR, prerenderSSG, renderSSR } from "./render";
-import { collectRouteChainFromRoute, isElyraPage, isElyraRoute, validateRouteChain } from "./utils";
+import type { RuntimePage, RuntimeRoute } from "./client.ts";
+import { type CompileContext, getCompileContext } from "./internal.ts";
+import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
+import {
+  collectRouteChainFromRoute,
+  isElyraPage,
+  isElyraRoute,
+  validateRouteChain,
+} from "./utils.ts";
 
 export interface ResolvedRoute {
   isrCache?: { html: string; generatedAt: number; revalidate: number };
@@ -62,11 +68,12 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyEl
 
 export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   const rootPath = `${pagesDir}/root.tsx`;
-  if (!existsSync(rootPath)) {
+  const ctx = getCompileContext();
+  if (!(existsSync(rootPath) || ctx?.modules[rootPath])) {
     throw new Error("[elyra] root.tsx: not found.");
   }
 
-  const mod = await import(rootPath);
+  const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as Record<string, unknown>;
   const rootExport = mod.route ?? mod.default;
   if (!(rootExport && isElyraRoute(rootExport))) {
     throw new Error("[elyra] root.tsx: createRoute() export not found.");
@@ -113,7 +120,11 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       continue;
     }
 
-    const page: RuntimePage = (await import(absolutePath)).default;
+    const ctx = getCompileContext();
+    const pageMod = (ctx?.modules[absolutePath] ?? (await import(absolutePath))) as {
+      default: RuntimePage;
+    };
+    const page: RuntimePage = pageMod.default;
     if (!isElyraPage(page)) {
       throw new Error(`[elyra] ${relativePath}: no valid createRoute().page() export found`);
     }
@@ -138,8 +149,38 @@ export async function scanPages(pagesDir: string): Promise<{
   root: RootLayout;
   routes: ResolvedRoute[];
 }> {
+  const ctx = getCompileContext();
+  if (ctx) {
+    return loadProdRoutes(ctx);
+  }
   const root = await scanRootLayout(pagesDir);
   const routes = await scanPageFiles(pagesDir, root);
+  return { root, routes };
+}
+
+export function loadProdRoutes(ctx: CompileContext): {
+  root: RootLayout;
+  routes: ResolvedRoute[];
+} {
+  const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
+  const rootExport = rootMod.route ?? rootMod.default;
+  if (!(rootExport && isElyraRoute(rootExport) && rootExport.layout)) {
+    throw new Error("[elyra] root.tsx: createRoute() with layout not found in CompileContext.");
+  }
+  const root: RootLayout = { path: ctx.rootPath, route: rootExport };
+
+  const routes: ResolvedRoute[] = [];
+  for (const { pattern, path, mode } of ctx.routes) {
+    const pageMod = ctx.modules[path] as { default: RuntimePage };
+    const page: RuntimePage = pageMod.default;
+    if (!isElyraPage(page)) {
+      throw new Error(`[elyra] ${path}: invalid page module in CompileContext.`);
+    }
+    const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+    validateRouteChain(routeChain, root.route, path);
+    routes.push({ pattern, page, path, routeChain, mode });
+  }
+
   return { root, routes };
 }
 

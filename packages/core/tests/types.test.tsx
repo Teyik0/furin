@@ -319,11 +319,11 @@ describe("page head", () => {
 
 describe("InferProps", () => {
   test("includes loader data + component props", () => {
-    const route = createRoute({
+    const _route = createRoute({
       loader: async () => ({ count: 42 }),
     });
 
-    type Props = InferProps<typeof route>;
+    type Props = InferProps<typeof _route>;
 
     expectTypeOf<Props["count"]>().toEqualTypeOf<number>();
     expectTypeOf<Props["params"]>().toEqualTypeOf<{}>();

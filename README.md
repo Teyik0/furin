@@ -588,6 +588,19 @@ bun run tsc           # Type-check
 bun test              # Run tests
 ```
 
+### Production Runtime
+
+By default, Elyra resolves client assets from a `client/` folder next to the running server (`server.js` or compiled `server`). If you run the binary from a different working directory, set `ELYRA_CLIENT_DIR` to the client bundle path:
+
+```bash
+ELYRA_CLIENT_DIR=/absolute/path/to/client ./server
+```
+
+In `--compile embed` mode, Elyra bundles `public/` into the executable and serves it under `/public/*`.
+For non-embed builds, `public/` is copied to `.elyra/build/bun/public` and served from there so the build stays portable.
+Embed includes every file under `public/` (including subfolders), so keep secrets out of that directory.
+Each target also writes its own manifest at `.elyra/build/bun/manifest.json`.
+
 ### Project Structure
 
 ```

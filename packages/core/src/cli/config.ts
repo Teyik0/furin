@@ -1,30 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { t } from "elysia";
 import { TypeCompiler } from "elysia/type-system";
-import { BUILD_TARGETS, type BuildTarget, type ElyraConfig } from "../config";
-
-const buildTargetSchema = t.Union(BUILD_TARGETS.map((v) => t.Literal(v)));
-
-const configSchema = t.Object({
-  rootDir: t.Optional(t.String()),
-  pagesDir: t.Optional(t.String()),
-  outDir: t.Optional(t.String()),
-  serverEntry: t.Optional(t.String()),
-  targets: t.Optional(t.Array(buildTargetSchema)),
-  client: t.Optional(
-    t.Object({
-      minify: t.Optional(t.Boolean()),
-      sourcemap: t.Optional(t.Boolean()),
-    })
-  ),
-  bun: t.Optional(
-    t.Object({
-      compile: t.Optional(t.Boolean()),
-    })
-  ),
-});
+import { configSchema, type ElyraConfig } from "../config.ts";
 
 const compiledConfigSchema = TypeCompiler.Compile(configSchema);
 
@@ -37,24 +15,8 @@ const DEFAULT_CONFIG_FILENAMES = [
 interface ResolvedCliConfig extends ElyraConfig {
   configPath: string | null;
   pagesDir: string;
+  plugins?: Bun.BunPlugin[];
   rootDir: string;
-}
-
-export function resolveServerEntrypoint(rootDir: string, target?: BuildTarget): string | null {
-  const candidates = [
-    target ? `src/server.${target}.ts` : undefined,
-    "src/server.ts",
-    "src/app.ts",
-  ].filter((value): value is string => !!value);
-
-  for (const candidate of candidates) {
-    const path = resolve(rootDir, candidate);
-    if (existsSync(path)) {
-      return path;
-    }
-  }
-
-  return null;
 }
 
 export async function loadCliConfig(
@@ -77,20 +39,30 @@ export async function loadCliConfig(
   }
 
   const imported = await import(pathToFileURL(configPath).href);
-  const config: ElyraConfig = imported.default ?? imported;
+  const rawConfig: ElyraConfig = imported.default ?? imported;
 
-  if (!compiledConfigSchema.Check(config)) {
-    const [firstError] = compiledConfigSchema.Errors(config);
+  // Extract plugins before TypeBox validation: functions cannot be JSON-schema validated
+  const { plugins, ...configToValidate } = rawConfig;
+
+  if (plugins !== undefined && !Array.isArray(plugins)) {
+    throw new Error(
+      `[elyra] Invalid config at ${configPath}: "plugins" must be an array of BunPlugin objects`
+    );
+  }
+
+  if (!compiledConfigSchema.Check(configToValidate)) {
+    const [firstError] = compiledConfigSchema.Errors(configToValidate);
     throw new Error(
       `[elyra] Invalid config at ${configPath}: ${firstError?.message ?? "unknown error"} (path: ${firstError?.path ?? "/"})`
     );
   }
 
-  const resolvedRootDir = resolve(rootDir, config.rootDir ?? ".");
+  const resolvedRootDir = resolve(rootDir, configToValidate.rootDir ?? ".");
   return {
-    ...config,
+    ...configToValidate,
+    plugins,
     configPath,
     rootDir: resolvedRootDir,
-    pagesDir: resolve(resolvedRootDir, config.pagesDir ?? "src/pages"),
+    pagesDir: resolve(resolvedRootDir, configToValidate.pagesDir ?? "src/pages"),
   };
 }

@@ -23,7 +23,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## HMR
 
-- **Leverage Bun**: In dev-mode we use bun HMR and a bun plugin to make HMR fast and efficient. No vite, 1 process, backend and frontend at the same place.
+**Leverage Bun**: In dev-mode we use bun HMR and a bun plugin to make HMR fast and efficient. No vite, 1 process, backend and frontend at the same place.
+The user can then use this plugin in this project as such:
+
+```toml
+# in bunfig.toml
+[serve.static]
+plugins = ["bun-plugin-tailwind", "elyra/strip-plugin"]
+env = "ELYRA_PUBLIC_*"
+```
+
+And for the production build
+
+```ts
+// in elyra.config.ts
+import tailwind from "bun-plugin-tailwind";
+import { defineConfig } from "elyra/config";
+
+export default defineConfig({
+  plugins: [tailwind],
+});
+```
 
 ## DX
 

@@ -7,7 +7,9 @@
     "test:types": "tsc --noEmit",
     "start": "NODE_ENV=production bun src/server.ts",
     "test:e2e": "bun run ./tests/hmr.ts",
-    "build": "bun run ../../packages/core/src/cli/index.ts build --target bun"
+    "build": "bun run ../../packages/core/src/cli/index.ts build --target bun",
+    "build:compiled": "bun run ../../packages/core/src/cli/index.ts build --target bun --compile server",
+    "build:embed": "bun run ../../packages/core/src/cli/index.ts build --target bun --compile embed"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",

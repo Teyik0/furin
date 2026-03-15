@@ -1,4 +1,4 @@
-import type { HeadOptions, MetaDescriptor } from "../client";
+import type { HeadOptions, MetaDescriptor } from "../client.ts";
 
 export function extractTitle(meta?: MetaDescriptor[]): string | undefined {
   if (!meta) {

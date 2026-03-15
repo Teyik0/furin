@@ -1,25 +1,25 @@
 import { renderToReadableStream } from "react-dom/server";
-import type { RootLayout } from "../router";
-import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble";
-import { isrCache, ssgCache } from "./cache";
-import { buildElement } from "./element";
-import { runLoaders } from "./loaders";
-import { buildHeadInjection, safeJson } from "./shell";
-import { getDevTemplate, getProductionTemplate } from "./template";
+import type { RootLayout } from "../router.ts";
+import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
+import { isrCache, ssgCache } from "./cache.ts";
+import { buildElement } from "./element.tsx";
+import { runLoaders } from "./loaders.ts";
+import { buildHeadInjection, safeJson } from "./shell.ts";
+import { getDevTemplate, getProductionTemplate } from "./template.ts";
 
 // ── Re-exports (public API) ──────────────────────────────────────────────────
 // biome-ignore lint/performance/noBarrelFile: acnowledged
-export { type LoaderContext, streamToString } from "./assemble";
-export { buildElement } from "./element";
-export { type LoaderResult, runLoaders } from "./loaders";
+export { type LoaderContext, streamToString } from "./assemble.ts";
+export { buildElement } from "./element.tsx";
+export { type LoaderResult, runLoaders } from "./loaders.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 import type { Context } from "elysia";
-import type { ResolvedRoute } from "../router";
-import { IS_DEV } from "../runtime-env";
-import type { LoaderContext } from "./assemble";
-import { generateIndexHtml } from "./shell";
+import type { ResolvedRoute } from "../router.ts";
+import { IS_DEV } from "../runtime-env.ts";
+import type { LoaderContext } from "./assemble.ts";
+import { generateIndexHtml } from "./shell.ts";
 
 interface RenderResult {
   headers: Record<string, string>;

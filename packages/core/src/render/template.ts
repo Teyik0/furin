@@ -33,15 +33,18 @@ export function setProductionTemplatePath(path: string | null): void {
   _prodTemplateContent = null;
 }
 
-export function getProductionTemplate(): string | null {
-  if (!_prodTemplatePath) {
-    return null;
-  }
+export function setProductionTemplateContent(content: string): void {
+  _prodTemplatePath = null;
+  _prodTemplateContent = content;
+}
 
+export function getProductionTemplate(): string | null {
   if (_prodTemplateContent !== null) {
     return _prodTemplateContent;
   }
-
+  if (!_prodTemplatePath) {
+    return null;
+  }
   try {
     _prodTemplateContent = readFileSync(_prodTemplatePath, "utf8");
     return _prodTemplateContent;

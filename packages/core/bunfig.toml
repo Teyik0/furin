@@ -9,6 +9,7 @@ coverage = true
 coveragePathIgnorePatterns = [
   "**/tests/**",
   "**/fixtures/**/*",
+  "**/internal.ts", # __setCompileContext is only called from generated compile entries (subprocess)
   "**/render/module-loader.ts", # Dev HMR reload paths require Bun module system failure, integration-test only
   "**/link.tsx",  # Majority is browser-only (IntersectionObserver, history, fetch) — no DOM environment in tests
   "**/.tmp-tests/**", # Temporary apps created by CLI/build integration tests

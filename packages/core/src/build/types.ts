@@ -4,6 +4,7 @@ import type { ResolvedRoute } from "../router";
 export interface BuildClientOptions {
   outDir: string;
   pagesDir?: string;
+  plugins?: Bun.BunPlugin[];
   rootLayout: string;
 }
 
@@ -20,10 +21,8 @@ export interface TargetBuildManifest {
   clientDir: string;
   generatedAt: string;
   manifestPath: string;
-  routeTypesPath: string;
   serverEntry: string | null;
   serverPath: string | null;
-  target: BuildTarget;
   targetDir: string;
   templatePath: string;
 }
@@ -40,25 +39,17 @@ export interface BuildManifest {
 }
 
 export interface BuildAppOptions {
-  compile?: boolean;
-  minify?: boolean;
-  outDir?: string;
+  compile?: "server" | "embed";
   pagesDir?: string;
+  plugins?: Bun.BunPlugin[];
   rootDir?: string;
   serverEntry?: string;
-  sourcemap?: boolean;
   target: BuildTarget | "all";
 }
 
 export interface BuildAppResult {
   manifest: BuildManifest;
   targets: Partial<Record<BuildTarget, TargetBuildManifest>>;
-}
-
-export interface TypegenOptions {
-  outDir?: string;
-  pagesDir?: string;
-  rootDir?: string;
 }
 
 export type BunBuildAliasConfig = Bun.BuildConfig & {

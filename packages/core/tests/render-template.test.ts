@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   getDevTemplate,
   getProductionTemplate,
+  setProductionTemplateContent,
   setProductionTemplatePath,
 } from "../src/render/template";
 
@@ -25,6 +26,23 @@ describe.serial("render/template", () => {
     setProductionTemplatePath(file);
 
     expect(getProductionTemplate()).toBe("<html>prod-template</html>");
+  });
+
+  test("setProductionTemplateContent is returned by getProductionTemplate (embed mode)", () => {
+    setProductionTemplateContent("<html>embedded</html>");
+    expect(getProductionTemplate()).toBe("<html>embedded</html>");
+  });
+
+  test("setProductionTemplateContent takes priority over path-based template", () => {
+    const dir = mkdtempSync(join(tmpdir(), "elyra-template-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, "<html>from-disk</html>");
+
+    setProductionTemplatePath(file);
+    expect(getProductionTemplate()).toBe("<html>from-disk</html>");
+
+    setProductionTemplateContent("<html>from-memory</html>");
+    expect(getProductionTemplate()).toBe("<html>from-memory</html>");
   });
 
   test("getDevTemplate caches a successful fetch result", async () => {

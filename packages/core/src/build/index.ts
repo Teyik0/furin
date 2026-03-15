@@ -1,23 +1,18 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { buildBunTarget } from "../adapter/bun";
-import type { BuildTarget } from "../config";
+import { BUILD_TARGETS, type BuildTarget } from "../config";
 import { scanPages } from "../router";
-import { writeRouteTypes } from "./route-types";
+import { scanElyraInstances } from "./scan-server";
 import {
-  assertBuildTarget,
   ensureDir,
-  resolveBuildRoot,
-  resolveServerEntry,
   toBuildRouteManifestEntry,
   toPosixPath,
-  writeJsonFile,
 } from "./shared";
 import type {
   BuildAppOptions,
   BuildAppResult,
   BuildManifest,
-  TypegenOptions,
 } from "./types";
 
 export type {
@@ -27,53 +22,50 @@ export type {
   BuildManifest,
   BuildRouteManifestEntry,
   TargetBuildManifest,
-  TypegenOptions,
 } from "./types";
 export { buildClient } from "./client";
 export { writeDevFiles } from "./hydrate";
 export { patternToTypeString, schemaToTypeString, writeRouteTypes } from "./route-types";
 
-const IMPLEMENTED_TARGETS = ["bun", "node"] as const satisfies BuildTarget[];
+const IMPLEMENTED_TARGETS = ["bun"] as const satisfies BuildTarget[];
+export const BUILD_OUTPUT_DIR = ".elyra/build";
 
-export async function generateTypes(options: TypegenOptions): Promise<string> {
-  const rootDir = resolve(options.rootDir ?? process.cwd());
-  const pagesDir = resolve(rootDir, options.pagesDir ?? "src/pages");
-  const buildRoot = resolveBuildRoot(rootDir, options.outDir);
-  const typesDir = join(buildRoot, "shared");
-  const { routes } = await scanPages(pagesDir);
-
-  ensureDir(typesDir);
-  writeRouteTypes(routes, typesDir);
-
-  return join(typesDir, "routes.d.ts");
-}
-
-export function readTargetBuildManifest(
-  rootDir: string,
-  target: BuildTarget,
-  outDir?: string
-): import("./types").TargetBuildManifest | null {
-  const buildRoot = resolveBuildRoot(rootDir, outDir);
-  const path = join(buildRoot, target, "manifest.json");
-  if (!existsSync(path)) {
-    return null;
-  }
-
-  return JSON.parse(readFileSync(path, "utf8")) as import("./types").TargetBuildManifest;
+function resolvePagesDirFromServer(serverEntry: string | null, rootDir: string): string | null {
+  if (!serverEntry) return null;
+  const detected = scanElyraInstances(serverEntry);
+  if (detected.length === 0) return null;
+  // Use the first detected pagesDir relative to rootDir
+  return resolve(rootDir, detected[0] as string);
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
   const rootDir = resolve(options.rootDir ?? process.cwd());
-  const pagesDir = resolve(rootDir, options.pagesDir ?? "src/pages");
-  const buildRoot = resolveBuildRoot(rootDir, options.outDir);
-  const sharedDir = join(buildRoot, "shared");
-  const serverEntry = resolveServerEntry(rootDir, options.serverEntry);
+  const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
+  const serverEntry = (() => {
+    if (options.serverEntry) {
+      const resolved = resolve(rootDir, options.serverEntry);
+      if (existsSync(resolved)) return resolved;
+    }
+    const serverEntry = resolve(rootDir, "src/server.ts");
+    if (!existsSync(serverEntry)) {
+      throw new Error("[elyra] Entrypoint server.ts not found");
+    }
+    return serverEntry
+  })();
+
+  // Priority: explicit config > auto-detected from server entry > default
+  const rawPagesDir =
+    options.pagesDir ?? resolvePagesDirFromServer(serverEntry, rootDir) ?? "src/pages";
+  const pagesDir = resolve(rootDir, rawPagesDir);
+
   const requestedTargets =
     options.target === "all"
       ? [...IMPLEMENTED_TARGETS]
       : [options.target].map((target) => {
-          assertBuildTarget(target);
-          return target;
+          if (!(BUILD_TARGETS as readonly string[]).includes(target)) {
+            throw new Error(`[elyra] Unsupported build target "${target}"`);
+          }
+          return target as BuildTarget;
         });
 
   const { root, routes } = await scanPages(pagesDir);
@@ -84,8 +76,6 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
   }
 
   ensureDir(buildRoot);
-  ensureDir(sharedDir);
-  writeRouteTypes(routes, sharedDir);
 
   const manifest: BuildManifest = {
     version: 1,
@@ -121,7 +111,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
     }
   }
 
-  writeJsonFile(join(buildRoot, "manifest.json"), manifest);
+  writeFileSync(join(buildRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
 
   return {
     manifest,
