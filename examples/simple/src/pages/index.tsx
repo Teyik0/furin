@@ -1,11 +1,26 @@
+import { codeToHtml } from "shiki";
 import { route } from "./root";
+
+const CODE = `import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+`;
 
 export default route.page({
   head: () => ({
     meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
     links: [{ rel: "canonical", href: "/" }],
   }),
-  component: () => (
+  loader: async () => ({
+    codeHtml: await codeToHtml(CODE, {
+      lang: "typescript",
+      theme: "github-dark",
+    }),
+  }),
+  component: ({ codeHtml }) => (
     <div>
       {/* Hero */}
       <section
@@ -64,59 +79,20 @@ export default route.page({
 
           {/* Right: code window */}
           <div className="flex items-center justify-center">
-            <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl shadow-black/60">
+            <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-700/50 shadow-2xl shadow-black/60">
               {/* Window chrome */}
-              <div className="flex items-center gap-2 border-slate-700/50 border-b bg-slate-800/60 px-4 py-3">
+              <div className="flex items-center gap-2 border-slate-700/50 border-b bg-[#161b22] px-4 py-3">
                 <span className="h-3 w-3 rounded-full bg-red-500/80" />
                 <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
                 <span className="h-3 w-3 rounded-full bg-green-500/80" />
                 <span className="ml-2 font-mono text-slate-400 text-xs">server.ts</span>
               </div>
-
-              {/* Syntax-highlighted code */}
-              <pre className="overflow-auto p-6 font-mono text-slate-300 text-sm leading-relaxed">
-                <code>
-                  <span className="text-violet-400">import</span>
-                  {" { "}
-                  <span className="text-slate-200">Elysia</span>
-                  {" } "}
-                  <span className="text-violet-400">from</span>{" "}
-                  <span className="text-amber-300">"elysia"</span>
-                  {"\n"}
-                  <span className="text-violet-400">import</span>
-                  {" { "}
-                  <span className="text-slate-200">furin</span>
-                  {" } "}
-                  <span className="text-violet-400">from</span>{" "}
-                  <span className="text-amber-300">"@teyik0/furin"</span>
-                  {"\n\n"}
-                  <span className="text-violet-400">const</span>{" "}
-                  <span className="text-sky-400">app</span>
-                  {" = "}
-                  <span className="text-violet-400">new</span>{" "}
-                  <span className="text-sky-300">Elysia</span>
-                  {"()\n  ."}
-                  <span className="text-sky-300">use</span>
-                  {"(\n    "}
-                  <span className="text-sky-300">furin</span>
-                  {"({"}
-                  {"\n      "}
-                  <span className="text-slate-300">pagesDir</span>
-                  <span className="text-slate-500">:</span>{" "}
-                  <span className="text-amber-300">"./src/pages"</span>
-                  {",\n    })\n  )\n  ."}
-                  <span className="text-sky-300">listen</span>
-                  {"("}
-                  <span className="text-amber-300">3000</span>
-                  {");"}
-                  {"\n\n"}
-                  <span className="text-slate-600">{"// File-based routing"}</span>
-                  {"\n"}
-                  <span className="text-slate-600">{"// SSR / SSG / ISR"}</span>
-                  {"\n"}
-                  <span className="text-slate-600">{"// Full type safety"}</span>
-                </code>
-              </pre>
+              {/* Shiki-rendered code */}
+              <div
+                className="[&>pre]:!bg-[#0d1117] [&>pre]:overflow-auto [&>pre]:p-6 [&>pre]:text-sm [&>pre]:leading-relaxed"
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted shiki output
+                dangerouslySetInnerHTML={{ __html: codeHtml }}
+              />
             </div>
           </div>
         </div>

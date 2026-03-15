@@ -13,11 +13,12 @@
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",
+    "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
-    "@teyik0/furin": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "shiki": "^4.0.2"
   },
   "devDependencies": {
     "@types/react": "catalog:",
