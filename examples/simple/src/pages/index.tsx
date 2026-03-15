@@ -1,124 +1,200 @@
-import { Link } from "@teyik0/furin/link";
 import { route } from "./root";
 
 export default route.page({
   head: () => ({
-    meta: [{ title: "Furin Read the Blog - React Meta-Framework" }],
+    meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
     links: [{ rel: "canonical", href: "/" }],
   }),
   component: () => (
     <div>
-      <section className="bg-linear-to-r from-indigo-600 to-purple-600 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6 lg:px-8">
-          <h1 className="mb-6 font-bold text-4xl sm:text-5xl">Build Modern Web Apps with Furin</h1>
-          <p className="mx-auto mb-8 max-w-2xl text-indigo-100 text-xl">
-            A React meta-framework powered by Elysia and Bun. File-based routing, SSR/SSG/ISR,
-            nested layouts, and full TypeScript inference.
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link
-              className="rounded-lg bg-white px-6 py-3 font-medium text-indigo-600 transition-colors hover:bg-gray-100"
-              to="/blog"
-            >
-              Read the Blog
-            </Link>
-            <Link
-              className="rounded-lg bg-indigo-500 px-6 py-3 font-medium text-white transition-colors hover:bg-indigo-400"
-              to="/dashboard"
-            >
-              View Dashboard
-            </Link>
+      {/* Hero */}
+      <section
+        className="relative flex min-h-[calc(100vh-4rem)] items-center overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(59,130,246,0.12), transparent)",
+        }}
+      >
+        {/* Grid background */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+          }}
+        />
+
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:px-8">
+          {/* Left: headline */}
+          <div className="flex flex-col justify-center">
+            <div className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 font-medium text-blue-400 text-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+              Open Source · v0.1
+            </div>
+
+            <h1 className="mb-6 font-bold text-5xl text-white leading-[1.1] sm:text-6xl lg:text-[3.75rem]">
+              Furin.{" "}
+              <span className="text-slate-400">
+                The Fast, Minimal, and Modern React Framework for Bun.
+              </span>
+            </h1>
+
+            <p className="mb-10 max-w-lg text-lg text-slate-400 leading-relaxed">
+              Rethinking web development speed and simplicity with Bun.
+            </p>
+
+            <div className="flex flex-wrap gap-4">
+              <a
+                className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
+                href="/dashboard"
+              >
+                Get Started
+              </a>
+              <a
+                className="rounded-full border border-slate-700 px-8 py-3 font-medium text-slate-300 text-sm transition-all hover:border-slate-500 hover:text-white"
+                href="https://github.com/teyik0/furin"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                View on GitHub
+              </a>
+            </div>
+          </div>
+
+          {/* Right: code window */}
+          <div className="flex items-center justify-center">
+            <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-700/50 bg-slate-900 shadow-2xl shadow-black/60">
+              {/* Window chrome */}
+              <div className="flex items-center gap-2 border-slate-700/50 border-b bg-slate-800/60 px-4 py-3">
+                <span className="h-3 w-3 rounded-full bg-red-500/80" />
+                <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
+                <span className="h-3 w-3 rounded-full bg-green-500/80" />
+                <span className="ml-2 font-mono text-slate-400 text-xs">server.ts</span>
+              </div>
+
+              {/* Syntax-highlighted code */}
+              <pre className="overflow-auto p-6 font-mono text-slate-300 text-sm leading-relaxed">
+                <code>
+                  <span className="text-violet-400">import</span>
+                  {" { "}
+                  <span className="text-slate-200">Elysia</span>
+                  {" } "}
+                  <span className="text-violet-400">from</span>{" "}
+                  <span className="text-amber-300">"elysia"</span>
+                  {"\n"}
+                  <span className="text-violet-400">import</span>
+                  {" { "}
+                  <span className="text-slate-200">furin</span>
+                  {" } "}
+                  <span className="text-violet-400">from</span>{" "}
+                  <span className="text-amber-300">"@teyik0/furin"</span>
+                  {"\n\n"}
+                  <span className="text-violet-400">const</span>{" "}
+                  <span className="text-sky-400">app</span>
+                  {" = "}
+                  <span className="text-violet-400">new</span>{" "}
+                  <span className="text-sky-300">Elysia</span>
+                  {"()\n  ."}
+                  <span className="text-sky-300">use</span>
+                  {"(\n    "}
+                  <span className="text-sky-300">furin</span>
+                  {"({"}
+                  {"\n      "}
+                  <span className="text-slate-300">pagesDir</span>
+                  <span className="text-slate-500">:</span>{" "}
+                  <span className="text-amber-300">"./src/pages"</span>
+                  {",\n    })\n  )\n  ."}
+                  <span className="text-sky-300">listen</span>
+                  {"("}
+                  <span className="text-amber-300">3000</span>
+                  {");"}
+                  {"\n\n"}
+                  <span className="text-slate-600">{"// File-based routing"}</span>
+                  {"\n"}
+                  <span className="text-slate-600">{"// SSR / SSG / ISR"}</span>
+                  {"\n"}
+                  <span className="text-slate-600">{"// Full type safety"}</span>
+                </code>
+              </pre>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-white py-20">
+      {/* Features */}
+      <section className="border-white/5 border-t py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="mb-12 text-center font-bold text-3xl">Features</h2>
-          <div className="grid gap-8 md:grid-cols-3">
+          <h2 className="mb-4 text-center font-bold text-3xl text-white">Everything you need</h2>
+          <p className="mb-12 text-center text-slate-400">
+            A complete React meta-framework — batteries included.
+          </p>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <FeatureCard
               description="Automatic route generation from your file structure. Dynamic routes, nested layouts, and catch-all patterns."
-              icon="file"
+              icon={<FileIcon />}
               title="File-Based Routing"
             />
             <FeatureCard
               description="SSR for dynamic content, SSG for static pages, ISR for the best of both worlds."
-              icon="render"
+              icon={<RenderIcon />}
               title="Multiple Rendering Modes"
             />
             <FeatureCard
               description="Complete TypeScript inference across the stack. No code generation required."
-              icon="type"
+              icon={<TypeIcon />}
               title="Full Type Safety"
             />
             <FeatureCard
               description="Compose your UI with powerful layout patterns. Data flows flat through the component tree."
-              icon="layout"
+              icon={<LayoutIcon />}
               title="Nested Layouts"
             />
             <FeatureCard
               description="React Fast Refresh for instant feedback during development. Powered by Bun's speed."
-              icon="hmr"
+              icon={<HmrIcon />}
               title="Fast Refresh"
             />
             <FeatureCard
               description="Build your backend alongside your frontend with Elysia's powerful API capabilities."
-              icon="api"
+              icon={<ApiIcon />}
               title="API Routes"
             />
             <FeatureCard
-              description='Compile to a standalone server binary with Bun. "server" keeps client assets separate; "embed" produces a single self-contained executable.'
-              icon="compile"
+              description='Compile to a standalone binary with Bun. "server" separates client assets; "embed" produces a single executable.'
+              icon={<CompileIcon />}
               title="Bun Binary Compile"
             />
             <FeatureCard
               description="Pass Bun plugins (e.g. Tailwind, custom transforms) directly in furin.config.ts. They run before the internal client transform."
-              icon="plugin"
+              icon={<PluginIcon />}
               title="User Plugins"
             />
           </div>
         </div>
       </section>
 
-      <section className="bg-gray-50 py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="mb-4 text-center font-bold text-3xl">This Demo App</h2>
-          <p className="mx-auto mb-12 max-w-2xl text-center text-gray-600">
-            Explore all Furin features through this complete blog + admin dashboard example.
+      {/* CTA */}
+      <section className="border-white/5 border-t py-24">
+        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="mb-4 font-bold text-3xl text-white">Ready to build?</h2>
+          <p className="mb-10 text-lg text-slate-400">
+            Explore the live demo or dive into the documentation.
           </p>
-          <div className="grid gap-6 md:grid-cols-2">
-            <DemoCard
-              description="SSR list with pagination, ISR post pages with revalidation, nested layouts with sidebar"
-              features={["SSR with query params", "ISR with revalidate", "Dynamic routes [slug]"]}
+          <div className="flex flex-wrap justify-center gap-4">
+            <a
+              className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
               href="/blog"
-              title="Public Read the Blog"
-            />
-            <DemoCard
-              description="Protected routes, nested layouts, CRUD operations with SQLite persistence"
-              features={[
-                "Auth-protected routes",
-                "3-level nested layouts",
-                "Create, Edit, Delete posts",
-              ]}
-              href="/dashboard"
-              title="Admin Dashboard"
-            />
+            >
+              Explore Examples
+            </a>
+            <a
+              className="rounded-full border border-slate-700 px-8 py-3 font-medium text-slate-300 text-sm transition-all hover:border-slate-500 hover:text-white"
+              href="/about"
+            >
+              Read the Docs
+            </a>
           </div>
-        </div>
-      </section>
-
-      <section className="bg-indigo-600 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="mb-4 font-bold text-2xl">Ready to Get Started?</h2>
-          <p className="mb-8 text-indigo-100">
-            Explore the blog or sign in to access the admin dashboard.
-          </p>
-          <a
-            className="inline-block rounded-lg bg-white px-6 py-3 font-medium text-indigo-600 transition-colors hover:bg-gray-100"
-            href="/login"
-          >
-            Sign In to Dashboard
-          </a>
         </div>
       </section>
     </div>
@@ -130,145 +206,129 @@ function FeatureCard({
   title,
   description,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   description: string;
 }) {
-  const icons: Record<string, React.ReactNode> = {
-    file: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>file</title>
-        <path
-          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    render: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>render</title>
-        <path
-          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    type: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>type</title>
-        <path
-          d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    layout: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>layout</title>
-        <path
-          d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    hmr: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>hmr</title>
-        <path
-          d="M13 10V3L4 14h7v7l9-11h-7z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    api: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>api</title>
-        <path
-          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    compile: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>compile</title>
-        <path
-          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-    plugin: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <title>plugin</title>
-        <path
-          d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-        />
-      </svg>
-    ),
-  };
-
   return (
-    <div className="rounded-xl bg-gray-50 p-6">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-        {icons[icon]}
+    <div className="rounded-xl border border-white/5 bg-white/3 p-8 transition-all hover:border-white/10 hover:bg-white/5">
+      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-400">
+        {icon}
       </div>
-      <h3 className="mb-2 font-semibold text-lg">{title}</h3>
-      <p className="text-gray-600">{description}</p>
+      <h3 className="mb-3 font-semibold text-lg text-white">{title}</h3>
+      <p className="text-slate-400 leading-relaxed">{description}</p>
     </div>
   );
 }
 
-function DemoCard({
-  title,
-  description,
-  href,
-  features,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  features: string[];
-}) {
+function FileIcon() {
   return (
-    <a
-      className="block rounded-xl border border-gray-200 bg-white p-6 transition-all hover:border-indigo-300 hover:shadow-lg"
-      href={href}
-    >
-      <h3 className="mb-2 font-semibold text-lg">{title}</h3>
-      <p className="mb-4 text-gray-600">{description}</p>
-      <ul className="space-y-1">
-        {features.map((feature) => (
-          <li className="flex items-center text-gray-500 text-sm" key={feature}>
-            <svg className="mr-2 h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-              <title>{feature}</title>
-              <path
-                clipRule="evenodd"
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                fillRule="evenodd"
-              />
-            </svg>
-            {feature}
-          </li>
-        ))}
-      </ul>
-    </a>
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>File-Based Routing</title>
+      <path
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function RenderIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>Multiple Rendering Modes</title>
+      <path
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function TypeIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>Full Type Safety</title>
+      <path
+        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function LayoutIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>Nested Layouts</title>
+      <path
+        d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function HmrIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>Fast Refresh</title>
+      <path
+        d="M13 10V3L4 14h7v7l9-11h-7z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function ApiIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>API Routes</title>
+      <path
+        d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function CompileIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>Bun Binary Compile</title>
+      <path
+        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
+  );
+}
+
+function PluginIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <title>User Plugins</title>
+      <path
+        d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+      />
+    </svg>
   );
 }
