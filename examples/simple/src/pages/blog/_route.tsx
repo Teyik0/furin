@@ -1,6 +1,6 @@
+import { createRoute } from "@teyik0/furin/client";
+import { Link } from "@teyik0/furin/link";
 import { t } from "elysia";
-import { createRoute } from "furinjs/client";
-import { Link } from "furinjs/link";
 import { getAllTags, queries } from "../../db";
 import { route as rootRoute } from "../root";
 

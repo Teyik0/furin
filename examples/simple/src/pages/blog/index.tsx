@@ -1,4 +1,4 @@
-import { Link } from "furinjs/link";
+import { Link } from "@teyik0/furin/link";
 import { type Post, parseTags, queries } from "../../db";
 import { route } from "./_route";
 

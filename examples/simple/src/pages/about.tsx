@@ -1,4 +1,4 @@
-import { Link } from "furinjs/link";
+import { Link } from "@teyik0/furin/link";
 import { route } from "./root";
 
 export default route.page({

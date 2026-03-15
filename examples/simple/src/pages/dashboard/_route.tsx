@@ -1,5 +1,5 @@
-import { createRoute } from "furinjs/client";
-import { Link, type RouteTo } from "furinjs/link";
+import { createRoute } from "@teyik0/furin/client";
+import { Link, type RouteTo } from "@teyik0/furin/link";
 import { client } from "../../client";
 import { route as rootRoute } from "../root";
 

@@ -1,4 +1,4 @@
-import { Link } from "furinjs/link";
+import { Link } from "@teyik0/furin/link";
 import { useState } from "react";
 import { route } from "./_route";
 

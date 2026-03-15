@@ -1,4 +1,4 @@
-import { createRoute } from "furinjs/client";
+import { createRoute } from "@teyik0/furin/client";
 import { queries } from "../../../db";
 import { route as dashboardRoute } from "../_route";
 
