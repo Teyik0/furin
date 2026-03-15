@@ -23,7 +23,7 @@ export default {};
  *
  * ```toml
  * [serve.static]
- * plugins = ["furin/strip-plugin"]
+ * plugins = ["furinjs/strip-plugin"]
  * ```
  *
  * The plugin:

@@ -1,5 +1,5 @@
 {
-  "name": "@furin/root",
+  "name": "@furinjs/root",
   "workspaces": [
     "apps/*",
     "packages/*",

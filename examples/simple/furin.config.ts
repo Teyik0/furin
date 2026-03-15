@@ -1,5 +1,5 @@
 import tailwind from "bun-plugin-tailwind";
-import { defineConfig } from "furin/config";
+import { defineConfig } from "furinjs/config";
 
 /**
  * Furin build config.

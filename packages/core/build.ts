@@ -6,7 +6,7 @@ await $`rm -rf dist bin`;
 await $`bunx tsc --project tsconfig.dts.json`;
 
 // Each entrypoint is built in its own Bun.build() call.
-// Bun bug: when entrypoints share imports (furin → router, furin → build),
+// Bun bug: when entrypoints share imports (furinjs → router, furinjs → build),
 // Bun folds some outputs into others or omits them entirely. Building each
 // entrypoint separately produces correct, self-contained bundles.
 const shared = {

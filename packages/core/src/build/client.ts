@@ -63,9 +63,9 @@ export async function buildClient(
           }
 
           transformed = transformed
-            .replaceAll(`"furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
+            .replaceAll(`"furinjs/client"`, JSON.stringify(CLIENT_MODULE_PATH))
             .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-            .replaceAll(`"furin/link"`, JSON.stringify(LINK_MODULE_PATH))
+            .replaceAll(`"furinjs/link"`, JSON.stringify(LINK_MODULE_PATH))
             .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH));
 
           return {
@@ -93,8 +93,8 @@ export async function buildClient(
     // User plugins run before the internal transform so they pre-process files first
     plugins: plugins ? [...plugins, transformPlugin] :  [transformPlugin],
     alias: {
-      "furin/client": CLIENT_MODULE_PATH,
-      "furin/link": LINK_MODULE_PATH,
+      "furinjs/client": CLIENT_MODULE_PATH,
+      "furinjs/link": LINK_MODULE_PATH,
     },
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),

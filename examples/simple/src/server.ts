@@ -1,5 +1,5 @@
 import Elysia from "elysia";
-import { furin } from "furin";
+import { furin } from "furinjs";
 import { api } from "./api/index.ts";
 
 const formattedDate = () =>

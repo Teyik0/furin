@@ -1,16 +1,16 @@
-import { Link } from "furin/link";
+import { Link } from "furinjs/link";
 import { route } from "./root";
 
 export default route.page({
   head: () => ({
-    meta: [{ title: "Elyra Read the Blog - React Meta-Framework" }],
+    meta: [{ title: "Furin Read the Blog - React Meta-Framework" }],
     links: [{ rel: "canonical", href: "/" }],
   }),
   component: () => (
     <div>
       <section className="bg-linear-to-r from-indigo-600 to-purple-600 text-white">
         <div className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6 lg:px-8">
-          <h1 className="mb-6 font-bold text-4xl sm:text-5xl">Build Modern Web Apps with Elyra</h1>
+          <h1 className="mb-6 font-bold text-4xl sm:text-5xl">Build Modern Web Apps with Furin</h1>
           <p className="mx-auto mb-8 max-w-2xl text-indigo-100 text-xl">
             A React meta-framework powered by Elysia and Bun. File-based routing, SSR/SSG/ISR,
             nested layouts, and full TypeScript inference.
@@ -67,7 +67,7 @@ export default route.page({
               title="API Routes"
             />
             <FeatureCard
-              description='Compile to a standalone server binary with Bun. "split" keeps client assets separate; "embed" produces a single self-contained executable.'
+              description='Compile to a standalone server binary with Bun. "server" keeps client assets separate; "embed" produces a single self-contained executable.'
               icon="compile"
               title="Bun Binary Compile"
             />

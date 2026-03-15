@@ -1,16 +1,16 @@
 {
-  "name": "furin",
+  "name": "furinjs",
   "version": "0.1.0-alpha.3",
   "type": "module",
   "files": [
     "dist",
     "src"
   ],
-  "main": "./dist/furin.js",
-  "module": "./dist/furin.js",
-  "types": "./src/furin.ts",
+  "main": "./dist/furinjs.js",
+  "module": "./dist/furinjs.js",
+  "types": "./src/furinjs.ts",
   "bin": {
-    "furin": "./dist/cli/index.js"
+    "furinjs": "./dist/cli/index.js"
   },
   "exports": {
     ".": {

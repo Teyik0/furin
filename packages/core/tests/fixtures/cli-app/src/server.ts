@@ -1,5 +1,5 @@
 import Elysia from "elysia";
-import { furin } from "furin";
+import { furin } from "furinjs";
 
 const port = Number(process.env.PORT ?? 3111);
 

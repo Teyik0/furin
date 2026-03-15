@@ -33,7 +33,7 @@ describe("CLI config resolution", () => {
       app.path,
       "furin.config.ts",
       [
-        'import { defineConfig } from "furin/config";',
+        'import { defineConfig } from "furinjs/config";',
         "export default defineConfig({",
         '  pagesDir: "src/custom-pages",',
         "});",
@@ -53,8 +53,8 @@ describe("CLI config resolution", () => {
       app.path,
       "furin.config.ts",
       [
-        'import { defineConfig } from "furin/config";',
-        'const mockPlugin: import("furin/config").BunPlugin = { name: "test-plugin", setup() {} };',
+        'import { defineConfig } from "furinjs/config";',
+        'const mockPlugin: import("furinjs/config").BunPlugin = { name: "test-plugin", setup() {} };',
         "export default defineConfig({ plugins: [mockPlugin] });",
       ].join("\n")
     );
@@ -72,8 +72,8 @@ describe("CLI config resolution", () => {
       app.path,
       "furin.config.ts",
       [
-        'import { defineConfig } from "furin/config";',
-        'const p: import("furin/config").BunPlugin = { name: "p", setup() {} };',
+        'import { defineConfig } from "furinjs/config";',
+        'const p: import("furinjs/config").BunPlugin = { name: "p", setup() {} };',
         "export default defineConfig({",
         "  plugins: [p],",
         "});",

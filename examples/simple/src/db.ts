@@ -145,9 +145,9 @@ Tailwind CSS v4 brings exciting new features and improvements.
 - **New utilities**: Additional helper classes
 - **Better DX**: Enhanced developer experience
 
-## Integration with Elyra
+## Integration with Furin
 
-Elyra supports Tailwind v4 out of the box via \`bun-plugin-tailwind\`.
+Furin supports Tailwind v4 out of the box via \`bun-plugin-tailwind\`.
 
 ### Configuration
 
@@ -193,9 +193,9 @@ Best for:
 - News sites
 - Content that updates periodically
 
-## Elyra's Approach
+## Furin's Approach
 
-Elyra makes it easy to use all three strategies in a single application:
+Furin makes it easy to use all three strategies in a single application:
 
 \`\`\`tsx
 // SSG - no loader
@@ -222,10 +222,10 @@ const route = createRoute({
     id: "4",
     slug: "nested-layouts-patterns",
     title: "Mastering Nested Layouts",
-    excerpt: "Learn how to build complex UI hierarchies with Elyra's nested layout system.",
+    excerpt: "Learn how to build complex UI hierarchies with Furin's nested layout system.",
     content: `# Mastering Nested Layouts
 
-Elyra's nested layout system allows you to compose your UI in powerful ways.
+Furin's nested layout system allows you to compose your UI in powerful ways.
 
 ## How It Works
 

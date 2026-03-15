@@ -1,5 +1,5 @@
-import { createRoute } from "furin/client";
-import { Link } from "furin/link";
+import { createRoute } from "furinjs/client";
+import { Link } from "furinjs/link";
 import "../styles/globals.css";
 
 // Root layout renders body content only — <html>, <head>, <body> are provided

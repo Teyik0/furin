@@ -17,13 +17,13 @@
       },
     },
     "examples/simple": {
-      "name": "@furin/example-simple",
+      "name": "@furinjs/example-simple",
       "version": "0.1.0",
       "dependencies": {
         "@elysiajs/eden": "^1.4.8",
         "bun-plugin-tailwind": "^0.1.2",
         "elysia": "catalog:",
-        "furin": "workspace:*",
+        "furinjs": "workspace:*",
         "react": "catalog:",
         "react-dom": "catalog:",
       },
@@ -35,10 +35,10 @@
       },
     },
     "packages/core": {
-      "name": "furin",
+      "name": "furinjs",
       "version": "0.1.0-alpha.3",
       "bin": {
-        "furin": "./dist/cli/index.js",
+        "furinjs": "./dist/cli/index.js",
       },
       "dependencies": {
         "@elysiajs/static": "^1.4.7",
@@ -187,7 +187,7 @@
 
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.4.1", "", { "dependencies": { "@eslint/core": "^0.17.0", "levn": "^0.4.1" } }, "sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA=="],
 
-    "@furin/example-simple": ["@furin/example-simple@workspace:examples/simple"],
+    "@furinjs/example-simple": ["@furinjs/example-simple@workspace:examples/simple"],
 
     "@humanfs/core": ["@humanfs/core@0.19.1", "", {}, "sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA=="],
 
@@ -529,7 +529,7 @@
 
     "formatly": ["formatly@0.3.0", "", { "dependencies": { "fd-package-json": "^2.0.0" }, "bin": { "formatly": "bin/index.mjs" } }, "sha512-9XNj/o4wrRFyhSMJOvsuyMwy8aUfBaZ1VrqHVfohyXf0Sw0e+yfKG+xZaY3arGCOMdwFsqObtzVOc1gU9KiT9w=="],
 
-    "furin": ["furin@workspace:packages/core"],
+    "furinjs": ["furinjs@workspace:packages/core"],
 
     "gensync": ["gensync@1.0.0-beta.2", "", {}, "sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg=="],
 

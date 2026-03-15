@@ -1,5 +1,5 @@
 import { t } from "elysia";
-import { createRoute } from "furin/client";
+import { createRoute } from "furinjs/client";
 import { useState } from "react";
 import { type Comment, type Post, parseTags, queries } from "../../db";
 

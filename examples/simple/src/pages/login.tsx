@@ -1,4 +1,4 @@
-import { Link } from "furin/link";
+import { Link } from "furinjs/link";
 import { useState } from "react";
 import { client } from "../client";
 import { route } from "./root";

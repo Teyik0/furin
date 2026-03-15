@@ -29,7 +29,7 @@ export function generateHydrateEntry(routes: ResolvedRoute[], rootLayout: string
 
   return `import { hydrateRoot, createRoot } from "react-dom/client";
 import { createElement } from "react";
-import { RouterProvider } from "furin/link";
+import { RouterProvider } from "furinjs/link";
 import { route as root } from "${rootLayout.replace(/\\/g, "/")}";
 
 const routes = [

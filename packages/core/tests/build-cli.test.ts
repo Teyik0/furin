@@ -71,7 +71,7 @@ describe.serial("CLI/build Bun feature", () => {
       app.path,
       "src/pages/index.tsx",
       [
-        'import { createRoute } from "furin/client";',
+        'import { createRoute } from "furinjs/client";',
         "const route = createRoute({ mode: 'ssg' });",
         "export default route.page({ component: () => <main>No root</main> });",
       ].join("\n")
@@ -80,7 +80,7 @@ describe.serial("CLI/build Bun feature", () => {
       app.path,
       "src/pages/blog/[slug].tsx",
       [
-        'import { createRoute } from "furin/client";',
+        'import { createRoute } from "furinjs/client";',
         "const route = createRoute({ mode: 'ssg' });",
         "export default route.page({",
         "  staticParams: () => [{ slug: 'hello-world' }],",

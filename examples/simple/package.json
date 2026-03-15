@@ -1,5 +1,5 @@
 {
-  "name": "@furin/example-simple",
+  "name": "@furinjs/example-simple",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "@elysiajs/eden": "^1.4.8",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
-    "furin": "workspace:*",
+    "furinjs": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
