@@ -18,13 +18,12 @@ export interface BuildRouteManifestEntry {
 }
 
 export interface TargetBuildManifest {
-  clientDir: string;
+  clientDir: string | null;
   generatedAt: string;
-  manifestPath: string;
   serverEntry: string | null;
   serverPath: string | null;
   targetDir: string;
-  templatePath: string;
+  templatePath: string | null;
 }
 
 export interface BuildManifest {

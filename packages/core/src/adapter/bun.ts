@@ -3,13 +3,7 @@ import { join, resolve } from "node:path";
 import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
 import { generateServerRoutesEntry } from "../build/server-routes-entry.ts";
-import {
-  buildTargetManifest,
-  copyDirRecursive,
-  ensureDir,
-  toPosixPath,
-  writeTargetManifest,
-} from "../build/shared.ts";
+import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import type { BuildTarget } from "../config.ts";
 import type { ResolvedRoute } from "../router.ts";
@@ -77,6 +71,8 @@ export async function buildBunTarget(
     // Embed mode: assets are in the binary — clean up client dir too.
     if (options.compile === "embed") {
       rmSync(clientDir, { force: true, recursive: true });
+      targetManifest.clientDir = null;
+      targetManifest.templatePath = null;
     }
   } else if (serverEntry) {
     // Disk mode: generate server.ts then bundle it into self-contained server.js
@@ -112,8 +108,6 @@ export async function buildBunTarget(
   ]) {
     rmSync(join(targetDir, file), { force: true });
   }
-
-  writeTargetManifest(targetDir, targetManifest);
 
   return targetManifest;
 }

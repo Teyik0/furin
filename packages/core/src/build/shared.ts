@@ -61,14 +61,12 @@ export function buildTargetManifest(
   serverEntry: string | null
 ): TargetBuildManifest {
   const targetDir = join(buildRoot, target);
-  const manifestPath = join(targetDir, "manifest.json");
 
   return {
     generatedAt: new Date().toISOString(),
     targetDir: toPosixPath(relative(rootDir, targetDir)),
     clientDir: toPosixPath(relative(rootDir, join(targetDir, "client"))),
     templatePath: toPosixPath(relative(rootDir, join(targetDir, "client", "index.html"))),
-    manifestPath: toPosixPath(relative(rootDir, manifestPath)),
     serverPath: null,
     serverEntry: serverEntry ? toPosixPath(relative(rootDir, serverEntry)) : null,
   };
