@@ -95,6 +95,40 @@ export function buildHref(
   return url;
 }
 
+// ── Fetch interceptor ──────────────────────────────────────────────────────────
+
+// Module-level reference to the active RouterProvider's invalidatePrefetch.
+// Set on mount, cleared on unmount.
+let _globalInvalidateFn: ((path: string, type?: "page" | "layout") => void) | null = null;
+
+// Keep a reference to the real fetch before any patching.
+const _originalFetch: typeof fetch =
+  typeof window !== "undefined" ? window.fetch.bind(window) : fetch;
+
+/**
+ * Reads the `X-Furin-Revalidate` response header and calls the provided
+ * `invalidate` function for each path listed in it.
+ *
+ * Header format: comma-separated paths, layout entries suffixed with `:layout`.
+ * Example: `/blog/post-1,/blog:layout`
+ *
+ * @internal Exported for unit testing only.
+ */
+export function applyRevalidateHeader(
+  headers: Headers,
+  invalidate: (path: string, type?: "page" | "layout") => void
+): void {
+  const header = headers.get("x-furin-revalidate");
+  if (!header) return;
+  for (const entry of header.split(",")) {
+    if (entry.endsWith(":layout")) {
+      invalidate(entry.slice(0, -7), "layout");
+    } else {
+      invalidate(entry, "page");
+    }
+  }
+}
+
 // ── Router context ─────────────────────────────────────────────────────────────
 
 export interface RouterContextValue {
@@ -284,18 +318,6 @@ export function RouterProvider({
         // The browser module cache makes match.load() near-instant for already-loaded pages.
         const [res, loadedMod] = await Promise.all([fetch(href), match.load()]);
 
-        // Auto-evict prefetch entries invalidated server-side via revalidatePath().
-        const revalidateHeader = res.headers.get("x-furin-revalidate");
-        if (revalidateHeader) {
-          for (const entry of revalidateHeader.split(",")) {
-            if (entry.endsWith(":layout")) {
-              invalidatePrefetch(entry.slice(0, -7), "layout");
-            } else {
-              invalidatePrefetch(entry, "page");
-            }
-          }
-        }
-
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
 
@@ -313,7 +335,7 @@ export function RouterProvider({
         return null;
       }
     },
-    [routes, invalidatePrefetch]
+    [routes]
   );
 
   const prefetch = useCallback(
@@ -382,6 +404,23 @@ export function RouterProvider({
       setIsNavigating(false);
     }
   }, [fetchPageState]);
+
+  // Patch window.fetch to auto-evict prefetch cache entries when any response
+  // carries the X-Furin-Revalidate header (set by the server via revalidatePath).
+  // This means a single server-side revalidatePath() call is enough — the client
+  // cache is kept in sync automatically without any manual invalidatePrefetch() call.
+  useEffect(() => {
+    _globalInvalidateFn = invalidatePrefetch;
+    window.fetch = (...args: Parameters<typeof fetch>) =>
+      _originalFetch(...args).then((res) => {
+        applyRevalidateHeader(res.headers, invalidatePrefetch);
+        return res;
+      });
+    return () => {
+      _globalInvalidateFn = null;
+      window.fetch = _originalFetch;
+    };
+  }, [invalidatePrefetch]);
 
   // Handle browser back/forward
   useEffect(() => {

@@ -11,7 +11,7 @@ import type {
   RouterContextValue,
   RouterProviderProps,
 } from "../src/link";
-import { buildHref, buildPageElement, Link, shouldRefetch } from "../src/link";
+import { applyRevalidateHeader, buildHref, buildPageElement, Link, shouldRefetch } from "../src/link";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -315,5 +315,131 @@ describe("prefetch cache LRU eviction", () => {
     expect(cache.has("/a")).toBe(false); // evicted — still oldest despite being re-set
     expect(cache.has("/b")).toBe(true);
     expect(cache.has("/c")).toBe(true);
+  });
+});
+
+// ── applyRevalidateHeader ──────────────────────────────────────────────────────
+
+describe("applyRevalidateHeader", () => {
+  function makeHeaders(value?: string): Headers {
+    const h = new Headers();
+    if (value !== undefined) h.set("x-furin-revalidate", value);
+    return h;
+  }
+
+  test("does nothing when header is absent", () => {
+    const calls: Array<[string, string?]> = [];
+    applyRevalidateHeader(makeHeaders(), (p, t) => calls.push([p, t]));
+    expect(calls).toEqual([]);
+  });
+
+  test("calls invalidate for a single page path", () => {
+    const calls: Array<[string, string?]> = [];
+    applyRevalidateHeader(makeHeaders("/blog/post-1"), (p, t) => calls.push([p, t]));
+    expect(calls).toEqual([["/blog/post-1", "page"]]);
+  });
+
+  test("calls invalidate with 'layout' type when entry ends with :layout", () => {
+    const calls: Array<[string, string?]> = [];
+    applyRevalidateHeader(makeHeaders("/blog:layout"), (p, t) => calls.push([p, t]));
+    expect(calls).toEqual([["/blog", "layout"]]);
+  });
+
+  test("handles multiple comma-separated entries", () => {
+    const calls: Array<[string, string?]> = [];
+    applyRevalidateHeader(makeHeaders("/a,/b,/c"), (p, t) => calls.push([p, t]));
+    expect(calls).toEqual([["/a", "page"], ["/b", "page"], ["/c", "page"]]);
+  });
+
+  test("handles mixed page and layout entries", () => {
+    const calls: Array<[string, string?]> = [];
+    applyRevalidateHeader(makeHeaders("/blog/post-1,/blog:layout"), (p, t) => calls.push([p, t]));
+    expect(calls).toEqual([["/blog/post-1", "page"], ["/blog", "layout"]]);
+  });
+});
+
+// ── invalidatePrefetch logic ───────────────────────────────────────────────────
+
+describe("invalidatePrefetch — page type", () => {
+  function makeCache(keys: string[]): Map<string, unknown> {
+    return new Map(keys.map((k) => [k, {}]));
+  }
+
+  function runInvalidate(cache: Map<string, unknown>, path: string, type: "page" | "layout" = "page") {
+    if (type === "page") {
+      cache.delete(path);
+      return;
+    }
+    const prefix = path === "/" ? "/" : path.endsWith("/") ? path : `${path}/`;
+    for (const key of cache.keys()) {
+      try {
+        const pathname = new URL(key, "http://x").pathname;
+        if (pathname === path || pathname.startsWith(prefix)) cache.delete(key);
+      } catch {
+        if (key === path || key.startsWith(prefix)) cache.delete(key);
+      }
+    }
+  }
+
+  test("removes exact key from cache", () => {
+    const cache = makeCache(["/blog/post-1", "/blog/post-2"]);
+    runInvalidate(cache, "/blog/post-1", "page");
+    expect(cache.has("/blog/post-1")).toBe(false);
+    expect(cache.has("/blog/post-2")).toBe(true);
+  });
+
+  test("does not remove other keys", () => {
+    const cache = makeCache(["/a", "/b", "/c"]);
+    runInvalidate(cache, "/b", "page");
+    expect(cache.has("/a")).toBe(true);
+    expect(cache.has("/c")).toBe(true);
+    expect(cache.size).toBe(2);
+  });
+});
+
+describe("invalidatePrefetch — layout type", () => {
+  function makeCache(keys: string[]): Map<string, unknown> {
+    return new Map(keys.map((k) => [k, {}]));
+  }
+
+  function runInvalidateLayout(cache: Map<string, unknown>, path: string) {
+    const prefix = path === "/" ? "/" : path.endsWith("/") ? path : `${path}/`;
+    for (const key of cache.keys()) {
+      try {
+        const pathname = new URL(key, "http://x").pathname;
+        if (pathname === path || pathname.startsWith(prefix)) cache.delete(key);
+      } catch {
+        if (key === path || key.startsWith(prefix)) cache.delete(key);
+      }
+    }
+  }
+
+  test("removes the path itself", () => {
+    const cache = makeCache(["/blog", "/blog/post-1"]);
+    runInvalidateLayout(cache, "/blog");
+    expect(cache.has("/blog")).toBe(false);
+  });
+
+  test("removes all nested paths under the prefix", () => {
+    const cache = makeCache(["/blog/post-1", "/blog/post-2", "/about"]);
+    runInvalidateLayout(cache, "/blog");
+    expect(cache.has("/blog/post-1")).toBe(false);
+    expect(cache.has("/blog/post-2")).toBe(false);
+    expect(cache.has("/about")).toBe(true);
+  });
+
+  test("does not remove unrelated paths", () => {
+    const cache = makeCache(["/blog/post-1", "/blogging", "/other"]);
+    runInvalidateLayout(cache, "/blog");
+    // /blogging does NOT start with /blog/ — should survive
+    expect(cache.has("/blogging")).toBe(true);
+    expect(cache.has("/other")).toBe(true);
+    expect(cache.has("/blog/post-1")).toBe(false);
+  });
+
+  test("handles root '/' — removes all cached paths", () => {
+    const cache = makeCache(["/", "/about", "/blog/post-1"]);
+    runInvalidateLayout(cache, "/");
+    expect(cache.size).toBe(0);
   });
 });

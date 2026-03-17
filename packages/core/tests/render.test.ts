@@ -14,7 +14,7 @@ import {
   streamToString,
   warmSSGCache,
 } from "../src/render";
-import { ssgCache } from "../src/render/cache";
+import { consumePendingInvalidations, isrCache, revalidatePath, ssgCache } from "../src/render/cache";
 import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 import { __setDevMode, IS_DEV } from "../src/runtime-env";
@@ -715,5 +715,101 @@ describe("render.tsx", () => {
         expect(result.headers.get("Location")).toBe("/moved");
       }
     });
+  });
+});
+
+// ── revalidatePath ─────────────────────────────────────────────────────────────
+
+describe("revalidatePath", () => {
+  function seedCaches() {
+    isrCache.set("/blog/post-1", { html: "<html>post-1</html>", generatedAt: Date.now(), revalidate: 60 });
+    isrCache.set("/blog/post-2", { html: "<html>post-2</html>", generatedAt: Date.now(), revalidate: 60 });
+    isrCache.set("/about", { html: "<html>about</html>", generatedAt: Date.now(), revalidate: 60 });
+    ssgCache.set("/blog/post-1", "<html>ssg-post-1</html>");
+    ssgCache.set("/blog/post-2", "<html>ssg-post-2</html>");
+    ssgCache.set("/about", "<html>ssg-about</html>");
+  }
+
+  function clearCaches() {
+    isrCache.clear();
+    ssgCache.clear();
+    consumePendingInvalidations(); // drain queue
+  }
+
+  test("returns false when path is not in either cache", () => {
+    clearCaches();
+    expect(revalidatePath("/not-cached")).toBe(false);
+  });
+
+  test("deletes an ISR cache entry and returns true", () => {
+    clearCaches();
+    isrCache.set("/my-page", { html: "<html/>", generatedAt: Date.now(), revalidate: 60 });
+    expect(revalidatePath("/my-page")).toBe(true);
+    expect(isrCache.has("/my-page")).toBe(false);
+  });
+
+  test("deletes an SSG cache entry and returns true", () => {
+    clearCaches();
+    ssgCache.set("/my-page", "<html/>");
+    expect(revalidatePath("/my-page")).toBe(true);
+    expect(ssgCache.has("/my-page")).toBe(false);
+  });
+
+  test("type='page' — only removes the exact path, leaves siblings untouched", () => {
+    clearCaches();
+    seedCaches();
+    revalidatePath("/blog/post-1", "page");
+    expect(isrCache.has("/blog/post-1")).toBe(false);
+    expect(isrCache.has("/blog/post-2")).toBe(true);
+    expect(isrCache.has("/about")).toBe(true);
+    expect(ssgCache.has("/blog/post-1")).toBe(false);
+    expect(ssgCache.has("/blog/post-2")).toBe(true);
+  });
+
+  test("type='layout' — removes path + all children from isrCache", () => {
+    clearCaches();
+    seedCaches();
+    revalidatePath("/blog", "layout");
+    expect(isrCache.has("/blog/post-1")).toBe(false);
+    expect(isrCache.has("/blog/post-2")).toBe(false);
+    expect(isrCache.has("/about")).toBe(true);
+  });
+
+  test("type='layout' — removes path + all children from ssgCache", () => {
+    clearCaches();
+    seedCaches();
+    revalidatePath("/blog", "layout");
+    expect(ssgCache.has("/blog/post-1")).toBe(false);
+    expect(ssgCache.has("/blog/post-2")).toBe(false);
+    expect(ssgCache.has("/about")).toBe(true);
+  });
+
+  test("type='layout' with '/' — clears all entries from both caches", () => {
+    clearCaches();
+    seedCaches();
+    revalidatePath("/", "layout");
+    expect(isrCache.size).toBe(0);
+    expect(ssgCache.size).toBe(0);
+  });
+
+  test("queues the path in pendingInvalidations (type='page')", () => {
+    clearCaches();
+    revalidatePath("/my-page");
+    const pending = consumePendingInvalidations();
+    expect(pending).toContain("/my-page");
+  });
+
+  test("queues the path with :layout suffix (type='layout')", () => {
+    clearCaches();
+    revalidatePath("/blog", "layout");
+    const pending = consumePendingInvalidations();
+    expect(pending).toContain("/blog:layout");
+  });
+
+  test("consumePendingInvalidations clears the queue after calling", () => {
+    clearCaches();
+    revalidatePath("/x");
+    consumePendingInvalidations();
+    expect(consumePendingInvalidations()).toEqual([]);
   });
 });
