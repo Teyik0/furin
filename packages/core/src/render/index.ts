@@ -1,7 +1,7 @@
 import { renderToReadableStream } from "react-dom/server";
 import type { RootLayout } from "../router.ts";
 import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
-import { isrCache, ssgCache } from "./cache.ts";
+import { getBuildId, isrCache, ssgCache } from "./cache.ts";
 import { buildElement } from "./element.tsx";
 import { runLoaders } from "./loaders.ts";
 import { buildHeadInjection, safeJson } from "./shell.ts";
@@ -201,9 +201,17 @@ export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLa
 
   const cached = isrCache.get(cacheKey);
 
+  const buildId = getBuildId();
+
   if (cached && !IS_DEV) {
     const age = Date.now() - cached.generatedAt;
     const isFresh = age < revalidate * 1000;
+    const etag = buildId ? `"${buildId}:${cached.generatedAt}"` : null;
+
+    if (etag && ctx.request.headers.get("if-none-match") === etag) {
+      ctx.set.status = 304;
+      return;
+    }
 
     if (!isFresh) {
       revalidateInBackground(route, params, cacheKey, revalidate, root, ctx);
@@ -213,6 +221,7 @@ export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLa
     ctx.set.headers["cache-control"] = isFresh
       ? `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`
       : "public, s-maxage=0, must-revalidate";
+    if (etag) ctx.set.headers["etag"] = etag;
 
     return cached.html;
   }
@@ -220,13 +229,16 @@ export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLa
   try {
     const result = await renderToHTML(route, ctx, root);
 
+    const entry = { html: result.html, generatedAt: Date.now(), revalidate };
     if (!IS_DEV) {
-      isrCache.set(cacheKey, { html: result.html, generatedAt: Date.now(), revalidate });
+      isrCache.set(cacheKey, entry);
     }
 
+    const etag = buildId ? `"${buildId}:${entry.generatedAt}"` : null;
     ctx.set.headers["content-type"] = "text/html; charset=utf-8";
     ctx.set.headers["cache-control"] =
       `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+    if (etag) ctx.set.headers["etag"] = etag;
     return result.html;
   } catch (err) {
     return catchRedirect(err);

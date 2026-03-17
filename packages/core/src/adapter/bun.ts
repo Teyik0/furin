@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
@@ -36,6 +36,25 @@ export async function buildBunTarget(
     plugins: options.plugins,
   });
 
+  // Generate a deterministic build ID from the produced index.html.
+  // The index.html contains content-hashed chunk filenames, so any JS/CSS
+  // change causes a new build ID — without any CDN purge needed.
+  const clientIndexPath = join(targetDir, "client/index.html");
+  const clientIndexContent = readFileSync(clientIndexPath, "utf8");
+  const hasher = new Bun.CryptoHasher("sha1");
+  hasher.update(clientIndexContent);
+  const buildId = hasher.digest("hex").slice(0, 16);
+
+  // Inject the build ID into the SSR template so every rendered page carries
+  // <meta name="furin-build-id"> — used by the client to detect stale deploys.
+  writeFileSync(
+    clientIndexPath,
+    clientIndexContent.replace(
+      "<!--ssr-head-->",
+      `<meta name="furin-build-id" content="${buildId}">\n  <!--ssr-head-->`
+    )
+  );
+
   const routeManifest = routes.map((r) => ({ pattern: r.pattern, path: r.path, mode: r.mode }));
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
   const targetPublicDir = publicDir ? join(targetDir, "public") : undefined;
@@ -49,6 +68,7 @@ export async function buildBunTarget(
     const outfile = join(targetDir, "server");
 
     const entryPath = generateCompileEntry({
+      buildId,
       rootPath,
       routes: routeManifest,
       serverEntry,
@@ -77,6 +97,7 @@ export async function buildBunTarget(
   } else if (serverEntry) {
     // Disk mode: generate server.ts then bundle it into self-contained server.js
     const entryPath = generateServerRoutesEntry({
+      buildId,
       rootPath,
       routes: routeManifest,
       serverEntry,

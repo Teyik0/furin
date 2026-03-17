@@ -8,6 +8,20 @@ export const isrCache = new Map<string, ISRCacheEntry>();
 
 export const ssgCache = new Map<string, string>();
 
+// ── Build ID ─────────────────────────────────────────────────────────────────
+
+let _buildId = "";
+
+/** Set once at server startup from the CompileContext. */
+export function setBuildId(id: string): void {
+  _buildId = id;
+}
+
+/** Returns the current deployment build ID, or empty string in dev / before set. */
+export function getBuildId(): string {
+  return _buildId;
+}
+
 // Queue of invalidated paths to send to the client via response header.
 const pendingInvalidations = new Set<string>();
 

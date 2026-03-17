@@ -4,6 +4,7 @@ const INTERNAL_MODULE_PATH = resolve(import.meta.dir, "../internal.ts").replace(
 const RUNTIME_ENV_MODULE_PATH = resolve(import.meta.dir, "../runtime-env.ts").replace(/\\/g, "/");
 
 export interface EntryTemplateOptions {
+  buildId?: string;
   headerComment: string;
   rootPath: string;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
@@ -13,8 +14,15 @@ export interface EntryTemplateOptions {
 }
 
 export function buildEntrySource(options: EntryTemplateOptions): string {
-  const { headerComment, rootPath, routes, serverEntry, extraImports = [], extraContext = [] } =
-    options;
+  const {
+    buildId = "",
+    headerComment,
+    rootPath,
+    routes,
+    serverEntry,
+    extraImports = [],
+    extraContext = [],
+  } = options;
 
   const allModulePaths = [rootPath, ...routes.map((r) => r.path)];
   const moduleImports: string[] = [];
@@ -44,6 +52,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     'process.env.NODE_ENV = "production";',
     "",
     "__setCompileContext({",
+    `  buildId: ${JSON.stringify(buildId)},`,
     `  rootPath: ${JSON.stringify(rootPath.replace(/\\/g, "/"))},`,
     "  modules: {",
     ...moduleEntries,

@@ -318,6 +318,16 @@ export function RouterProvider({
         // The browser module cache makes match.load() near-instant for already-loaded pages.
         const [res, loadedMod] = await Promise.all([fetch(href), match.load()]);
 
+        // If the server is running a different build (e.g. rolling deploy), fall back
+        // to a full navigation so the browser loads the new HTML + assets from scratch.
+        const serverBuildId = res.headers.get("x-furin-build-id");
+        const clientBuildId =
+          document.querySelector('meta[name="furin-build-id"]')?.getAttribute("content") ?? null;
+        if (serverBuildId && clientBuildId && serverBuildId !== clientBuildId) {
+          window.location.href = href;
+          return null;
+        }
+
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
 

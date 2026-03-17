@@ -6,6 +6,7 @@ import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
+import { getBuildId } from "./render/cache.ts";
 import {
   collectRouteChainFromRoute,
   isFurinPage,
@@ -48,8 +49,15 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyEl
     new Elysia().get(pattern, async (ctx) => {
       switch (mode) {
         case "ssg": {
+          const buildId = getBuildId();
+          const etag = buildId ? `"${buildId}"` : null;
+          if (etag && ctx.request.headers.get("if-none-match") === etag) {
+            ctx.set.status = 304;
+            return;
+          }
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
+          if (etag) ctx.set.headers["etag"] = etag;
           const origin = new URL(ctx.request.url).origin;
           return await prerenderSSG(route, ctx.params, root, origin);
         }

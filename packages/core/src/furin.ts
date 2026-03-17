@@ -5,7 +5,7 @@ import { staticPlugin } from "@elysiajs/static";
 import { Elysia } from "elysia";
 import type { EmbeddedAppData } from "./internal.ts";
 import { getCompileContext } from "./internal.ts";
-import { consumePendingInvalidations } from "./render/cache.ts";
+import { consumePendingInvalidations, getBuildId, setBuildId } from "./render/cache.ts";
 import { warmSSGCache } from "./render/index.ts";
 import { setProductionTemplateContent, setProductionTemplatePath } from "./render/template.ts";
 import { createRoutePlugin, loadProdRoutes, scanPages } from "./router.ts";
@@ -133,12 +133,13 @@ function buildEmbedInstance(
   embedded: EmbeddedAppData
 ): Elysia {
   const { assets } = embedded;
+  const immutableHeaders = { "Cache-Control": "public, max-age=31536000, immutable" };
   // Explicit wildcard route — lifecycle hooks don't fire for unmatched routes.
   return new Elysia({ name: instanceName, seed: resolvedPagesDir })
     .get("/_client/*", ({ params }) => {
       const filePath = assets[`/_client/${params["*"]}`];
       return filePath
-        ? new Response(Bun.file(filePath))
+        ? new Response(Bun.file(filePath), { headers: immutableHeaders })
         : new Response("Not Found", { status: 404 });
     })
     .get("/public/*", ({ params }) => {
@@ -161,7 +162,13 @@ async function buildDiskInstance(
     instance = instance.use(await staticPlugin({ assets: publicDir, prefix: "/public" }));
   }
 
-  instance = instance.use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+  instance = instance.use(
+    await staticPlugin({
+      assets: clientDir,
+      prefix: "/_client",
+      headers: { "Cache-Control": "public, max-age=31536000, immutable" },
+    })
+  );
   return instance;
 }
 
@@ -224,11 +231,13 @@ export async function furin({ pagesDir }: { pagesDir?: string }) {
     return instance;
   }
 
-  // ── Production ──────────────────────────────────────────────────────────
+  // ── Production ─────────────────────────────────────────────────────────
   if (!ctx) {
     throw new Error("[furin] No pre-built assets found. Run `bun run build` first.");
   }
   const { root, routes } = loadProdRoutes(ctx);
+
+  setBuildId(ctx.buildId ?? "");
 
   const embedded = ctx?.embedded;
   const clientDir = embedded ? "" : resolveClientDirFromArgv();
@@ -259,6 +268,10 @@ export async function furin({ pagesDir }: { pagesDir?: string }) {
     const paths = consumePendingInvalidations();
     if (paths.length > 0) {
       set.headers["x-furin-revalidate"] = paths.join(",");
+    }
+    const buildId = getBuildId();
+    if (buildId) {
+      set.headers["x-furin-build-id"] = buildId;
     }
   });
 
