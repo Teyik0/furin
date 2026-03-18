@@ -183,18 +183,18 @@ export default route.page({
             Explore the live demo or dive into the documentation.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <a
+            <Link
               className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
-              href="/blog"
+              to="/docs"
             >
               Explore Examples
-            </a>
-            <a
+            </Link>
+            <Link
               className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-all hover:border-foreground/40 hover:text-foreground"
-              href="/about"
+              to="/docs"
             >
               Read the Docs
-            </a>
+            </Link>
           </div>
         </div>
       </section>

@@ -254,6 +254,7 @@ export async function warmSSGCache(
   origin: string
 ): Promise<void> {
   const targets = routes.filter((r) => r.mode === "ssg" && r.page.staticParams);
+  console.log(`[furin] Warming SSG cache for ${targets.length} route(s)…`);
 
   // Collect all (route, params) render tasks, handling per-route errors early.
   const tasks: Array<() => Promise<void>> = [];

@@ -1,3 +1,4 @@
+import { Link, type RouteManifest } from "@teyik0/furin/link";
 import { route } from "./_route";
 
 export default route.page({
@@ -38,10 +39,10 @@ export default route.page({
             badge: null,
           },
         ].map((card) => (
-          <a
+          <Link
             className="group rounded-xl border border-border bg-card p-6 transition-all hover:border-foreground/20 hover:shadow-sm"
-            href={card.href}
             key={card.href}
+            to={card.href as keyof RouteManifest}
           >
             <div className="mb-2 flex items-center gap-2">
               <h3 className="font-semibold text-foreground">{card.title}</h3>
@@ -52,7 +53,7 @@ export default route.page({
               )}
             </div>
             <p className="text-muted-foreground text-sm">{card.desc}</p>
-          </a>
+          </Link>
         ))}
       </div>
     </div>

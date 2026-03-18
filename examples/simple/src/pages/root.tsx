@@ -50,12 +50,12 @@ function RootLayout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="hidden items-center gap-8 sm:flex">
-            <a
+            <Link
               className="text-muted-foreground text-sm transition-colors hover:text-foreground"
-              href="/docs"
+              to="/docs"
             >
               Documentation
-            </a>
+            </Link>
             <a
               className="text-muted-foreground text-sm transition-colors hover:text-foreground"
               href="https://github.com/teyik0/furin"
