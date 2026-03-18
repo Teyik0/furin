@@ -1,0 +1,37 @@
+packages/core/src/furin.ts
+  73f04e04f0d46414 174,176
+  eced88559e9b7455 178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "87ab21f9b069a1ea69527023f97f7656cefe25e8",
+  "prompts": {
+    "73f04e04f0d46414": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90557199-a6fa-4f63-afa3-ab89fb066644",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 135,
+      "accepted_lines": 19,
+      "overriden_lines": 9
+    },
+    "eced88559e9b7455": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a56eb6b-711d-4ec5-8806-4e56a94cbfa0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 634,
+      "total_deletions": 240,
+      "accepted_lines": 331,
+      "overriden_lines": 3
+    }
+  }
+}
