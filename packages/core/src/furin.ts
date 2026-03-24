@@ -3,6 +3,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysiajs/static";
 import { Elysia, file } from "elysia";
+import { type DrainContext, initLogger } from "evlog";
+import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import type { EmbeddedAppData } from "./internal.ts";
 import { getCompileContext } from "./internal.ts";
 import { warmSSGCache } from "./render/index.ts";
@@ -140,7 +142,38 @@ async function setupProdTemplate(
  *   .listen(3000)
  * ```
  */
-export async function furin({ pagesDir }: { pagesDir?: string }) {
+export async function furin({
+  pagesDir,
+  logger,
+}: {
+  pagesDir?: string;
+  logger?: EvlogElysiaOptions;
+}) {
+  const { exclude: userExclude, ...evlogOptions } = logger ?? {};
+  initLogger({ env: { service: "furin" } });
+
+  const loggerPlugin = new Elysia()
+    .use(
+      evlog({
+        ...evlogOptions,
+        exclude: [
+          "/_client/**",
+          "/public/**",
+          "/favicon.ico",
+          "/_furin/!(ingest)",
+          "/_bun_hmr_entry/**",
+          ...(userExclude ?? []),
+        ],
+      })
+    )
+    .post("/_furin/ingest", ({ body, log }) => {
+      const batch = body as DrainContext[];
+      for (const entry of batch) {
+        log.set({ ...entry.event, service: "furin:browser" });
+      }
+      return new Response(null, { status: 204 });
+    });
+
   const cwd = process.cwd();
   const ctx = getCompileContext();
   const resolvedPagesDir = ctx?.rootPath
@@ -153,22 +186,15 @@ export async function furin({ pagesDir }: { pagesDir?: string }) {
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
   if (IS_DEV) {
     const furinDir = resolve(cwd, ".furin");
-    const { scanPages } = await import("./router.ts");
-    const { root, routes } = await scanPages(resolvedPagesDir);
-    console.info(
-      `[furin] Configuration: ${routes.length} page(s) — ${IS_DEV ? "dev (Bun HMR)" : "production"}`
-    );
-    for (const route of routes) {
-      const hasLayout = route.routeChain.some((r) => r.layout);
-      console.info(
-        `  ${route.mode.toUpperCase().padEnd(4)} ${route.pattern}${hasLayout ? " + layout" : ""}`
-      );
-    }
     // Lazy import — build pipeline has native deps not available in compiled binaries
+    const { scanPages } = await import("./router.ts");
     const { writeDevFiles } = await import("./build/hydrate.ts");
+
+    const { root, routes } = await scanPages(resolvedPagesDir);
     writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path });
 
     return new Elysia({ name: instanceName, seed: resolvedPagesDir })
+      .use(loggerPlugin)
       .get("/favicon.ico", file(join(resolve(cwd, "public"), "favicon.ico")))
       .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry" }))
       .use(await staticPlugin())
@@ -188,31 +214,33 @@ export async function furin({ pagesDir }: { pagesDir?: string }) {
 
   const embedded = ctx?.embedded;
   const clientDir = embedded ? "" : resolveClientDirFromArgv();
-
   await setupProdTemplate(embedded, clientDir);
 
   return new Elysia({ name: instanceName, seed: resolvedPagesDir })
-    .onStart((app) => {
-      return app.onStart(async ({ server }) => {
-        const origin = server?.url?.origin ?? "http://localhost:3000";
-        await warmSSGCache(routes, root, origin);
-      });
+    .use(loggerPlugin)
+    .onStart(async ({ server }) => {
+      const origin = server?.url?.origin ?? "http://localhost:3000";
+      await warmSSGCache(routes, root, origin);
     })
-    .use(async (app) => {
-      if (embedded) {
-        return app
-          .get("/_client/*", ({ params }) =>
-            file(embedded.assets[`/_client/${params["*"]}`] as string)
+    .use(
+      await (async () => {
+        if (embedded) {
+          return new Elysia()
+            .get("/_client/*", ({ params }) =>
+              Bun.file(embedded.assets[`/_client/${params["*"]}`] as string)
+            )
+            .get("/public/*", ({ params }) =>
+              Bun.file(embedded.assets[`/public/${params["*"]}`] as string)
+            );
+        }
+        return new Elysia()
+          .get("/favicon.ico", file(join(dirname(clientDir), "public", "favicon.ico")))
+          .use(
+            await staticPlugin({ assets: join(dirname(clientDir), "public"), prefix: "/public" })
           )
-          .get("/public/*", ({ params }) =>
-            file(embedded.assets[`/public/${params["*"]}`] as string)
-          );
-      }
-      return app
-        .get("/favicon.ico", file(join(join(dirname(clientDir), "public"), "favicon.ico")))
-        .use(await staticPlugin({ assets: join(dirname(clientDir), "public"), prefix: "/public" }))
-        .use(await staticPlugin({ assets: resolveClientDirFromArgv(), prefix: "/_client" }));
-    })
+          .use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+      })()
+    )
     .use((app) => {
       for (const route of routes) {
         app.use(createRoutePlugin(route, root));

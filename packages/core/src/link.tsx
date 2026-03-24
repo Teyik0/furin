@@ -1,3 +1,4 @@
+import { log } from "evlog";
 import type React from "react";
 import {
   createContext,
@@ -262,7 +263,8 @@ export function RouterProvider({
         };
 
         return { match: loadedMatch, data, title: doc.title };
-      } catch {
+      } catch (err: unknown) {
+        log.error({ action: "navigate_failed", href, error: String(err) });
         return null;
       }
     },
@@ -296,6 +298,7 @@ export function RouterProvider({
       try {
         const newState = await prefetchCache.current.get(href)?.promise;
         if (!newState) {
+          log.warn({ action: "navigate_fallback", href, reason: "prefetch_returned_null" });
           window.location.href = href;
           return;
         }
@@ -322,6 +325,7 @@ export function RouterProvider({
     try {
       const newState = await fetchPageState(href);
       if (!newState) {
+        log.warn({ action: "popstate_fallback", href, reason: "fetchPageState_returned_null" });
         window.location.reload();
         return;
       }

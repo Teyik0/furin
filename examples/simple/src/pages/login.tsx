@@ -1,9 +1,11 @@
+import { log } from "evlog/client";
 import { authClient } from "@/lib/auth-client";
 import { route } from "./root";
 
 export default route.page({
   component: () => {
     const handleLogin = async () => {
+      log.info({ action: "test_log", from: "homepage" });
       await authClient.signIn.social({
         provider: "github",
         callbackURL: "/docs",

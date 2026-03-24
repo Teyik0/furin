@@ -29,8 +29,12 @@ export function generateHydrateEntry(routes: ResolvedRoute[], rootLayout: string
 
   return `import { hydrateRoot, createRoot } from "react-dom/client";
 import { createElement } from "react";
+import { initLogger, log } from "evlog";
+import { createBrowserLogDrain } from "evlog/browser";
 import { RouterProvider } from "@teyik0/furin/link";
 import { route as root } from "${rootLayout.replace(/\\/g, "/")}";
+
+initLogger({ drain: createBrowserLogDrain({ drain: { endpoint: "/_furin/ingest" } }) });
 
 const routes = [
 ${routeEntries.join(",\n")}
@@ -67,8 +71,9 @@ if (_match) {
   } else {
     createRoot(rootEl).render(app);
   }
+  log.info({ action: "hydrate_complete", pathname });
 } else {
-  console.error("[furin] No matching route for", pathname);
+  log.error({ action: "hydrate_no_match", pathname });
 }
 `;
 }
@@ -79,7 +84,7 @@ if (_match) {
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
-export function writeDevFiles(routes: ResolvedRoute[], {outDir, rootLayout}: BuildClientOptions): void {
+export function writeDevFiles(routes: ResolvedRoute[], { outDir, rootLayout }: BuildClientOptions): void {
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
