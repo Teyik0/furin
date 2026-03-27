@@ -51,7 +51,9 @@ describe.serial("furin()", () => {
     __setDevMode(false);
     process.chdir(app.path);
 
-    expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow("bun run build");
+    expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
+      "Run `bunx furin build` first"
+    );
   });
 
   test("uses the prebuilt bun manifest in production via CompileContext", async () => {

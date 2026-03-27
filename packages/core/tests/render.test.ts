@@ -1,6 +1,16 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { join } from "node:path";
 import type { Context, Cookie } from "elysia";
+
+// renderSSR / handleISR call useLogger() which requires an Elysia evlog
+// request context.  These unit tests call render functions directly, so we
+// provide a no-op stub.
+mock.module("evlog/elysia", () => ({
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
+  useLogger: () => ({ set() {} }),
+  evlog: () => (app: unknown) => app,
+}));
+
 import type { HTTPHeaders } from "elysia/types";
 import type { RuntimeRoute } from "../src/client";
 import {

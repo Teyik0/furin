@@ -1,10 +1,15 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { scanPages } from "../../src/router";
+import { __setDevMode } from "../../src/runtime-env";
 import { collectRouteChainFromRoute } from "../../src/utils";
 import { expectDefined } from "../helpers/utils";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/pages");
+
+// These tests verify production scan behaviour (pages imported at startup).
+beforeAll(() => __setDevMode(false));
+afterAll(() => __setDevMode(true));
 
 describe("hydration: SSR and client apply layouts in same order", () => {
   test("root is always at index 0 in routeChain", async () => {

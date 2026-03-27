@@ -229,19 +229,30 @@ export async function furin({
       await (async () => {
         if (embedded) {
           return new Elysia()
-            .get("/_client/*", ({ params }) =>
-              Bun.file(embedded.assets[`/_client/${params["*"]}`] as string)
-            )
-            .get("/public/*", ({ params }) =>
-              Bun.file(embedded.assets[`/public/${params["*"]}`] as string)
-            );
+            .get("/_client/*", ({ params, status }) => {
+              const asset = embedded.assets[`/_client/${params["*"]}`];
+              if (!asset) {
+                return status("Not Found");
+              }
+              return Bun.file(asset);
+            })
+            .get("/public/*", ({ params, status }) => {
+              const asset = embedded.assets[`/public/${params["*"]}`];
+              if (!asset) {
+                return status("Not Found");
+              }
+              return Bun.file(asset);
+            });
         }
-        return new Elysia()
-          .get("/favicon.ico", file(join(dirname(clientDir), "public", "favicon.ico")))
-          .use(
-            await staticPlugin({ assets: join(dirname(clientDir), "public"), prefix: "/public" })
-          )
-          .use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+        const publicDir = join(dirname(clientDir), "public");
+        const app = new Elysia();
+        if (existsSync(publicDir)) {
+          app
+            .get("/favicon.ico", file(join(publicDir, "favicon.ico")))
+            .use(await staticPlugin({ assets: publicDir, prefix: "/public" }));
+        }
+        app.use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+        return app;
       })()
     )
     .use((app) => {
