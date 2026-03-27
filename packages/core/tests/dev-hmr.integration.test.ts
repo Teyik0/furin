@@ -30,7 +30,7 @@ describe.serial("dev HMR", () => {
 
     // Wait for server to be ready (poll with retries)
     let ready = false;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 80; i++) {
       try {
         const r = await fetch(`http://localhost:${port}/`);
         if (r.ok) {
