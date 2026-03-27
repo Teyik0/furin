@@ -1,0 +1,33 @@
+packages/core/src/furin.ts
+  a5ea1a97e44c7a19 233-234,236-238,240-241,243-245,247-255
+packages/core/tests/furinjs.test.ts
+  a5ea1a97e44c7a19 55
+packages/core/tests/router/route-chain-layouts.test.ts
+  a5ea1a97e44c7a19 1,7,13-15
+packages/core/tests/router/hydration-order.test.ts
+  a5ea1a97e44c7a19 1,4,10-12
+packages/core/tests/router/e2e-inline-layout.test.ts
+  a5ea1a97e44c7a19 1,4,10-11
+packages/core/tests/render.test.ts
+  a5ea1a97e44c7a19 1,4-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "6b35c1d19850b6af3eff98096fe3d5c212b35598",
+  "prompts": {
+    "a5ea1a97e44c7a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82aa2fe3-9657-4c95-9567-022d73c8b91e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 70,
+      "total_deletions": 23,
+      "accepted_lines": 57,
+      "overriden_lines": 2
+    }
+  }
+}
