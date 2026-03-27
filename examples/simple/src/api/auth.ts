@@ -4,6 +4,14 @@ import { Elysia } from "elysia";
 import { db } from "../db";
 import { accounts, sessions, users, verifications } from "../db/schema";
 
+const githubClientId = process.env.GITHUB_CLIENT_ID;
+const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+if (!(githubClientId && githubClientSecret)) {
+  throw new Error(
+    "[auth] Missing required environment variables: GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set."
+  );
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "sqlite",
@@ -16,8 +24,8 @@ export const auth = betterAuth({
   }),
   socialProviders: {
     github: {
-      clientId: process.env.GITHUB_CLIENT_ID as string,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
     },
   },
 });

@@ -1,7 +1,19 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import { startProcess } from "./helpers/run-cli.ts";
 import { createTmpApp, writeAppFile } from "./helpers/tmp-app.ts";
+
+function getFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.listen(0, () => {
+      const addr = srv.address();
+      srv.close(() => resolve((addr as { port: number }).port));
+    });
+    srv.on("error", reject);
+  });
+}
 
 /**
  * Integration test for the dev-mode HMR pipeline.
@@ -14,8 +26,12 @@ import { createTmpApp, writeAppFile } from "./helpers/tmp-app.ts";
  */
 describe.serial("dev HMR", () => {
   const app = createTmpApp("cli-app");
-  const port = 4321 + Math.floor(Math.random() * 1000);
+  let port: number;
   let server: ReturnType<typeof startProcess>;
+
+  beforeAll(async () => {
+    port = await getFreePort();
+  });
 
   afterAll(() => {
     server?.kill();
@@ -68,11 +84,15 @@ describe.serial("dev HMR", () => {
       ].join("\n")
     );
 
-    // Wait a bit for the file system notification to propagate
-    await Bun.sleep(500);
-
-    // Request should return FRESH SSR content
-    const html = await (await fetch(`http://localhost:${port}/`)).text();
+    // Poll until SSR returns updated content (or timeout after ~10s)
+    let html = "";
+    for (let i = 0; i < 40; i++) {
+      html = await (await fetch(`http://localhost:${port}/`)).text();
+      if (html.includes("Updated via HMR")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
     expect(html).toContain("Updated via HMR");
     expect(html).not.toContain("Home page");
 
@@ -96,9 +116,15 @@ describe.serial("dev HMR", () => {
       ].join("\n")
     );
 
-    await Bun.sleep(500);
-
-    const html = await (await fetch(`http://localhost:${port}/`)).text();
+    // Poll until SSR reflects the second edit (or timeout after ~10s)
+    let html = "";
+    for (let i = 0; i < 40; i++) {
+      html = await (await fetch(`http://localhost:${port}/`)).text();
+      if (html.includes("Second edit works")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
     expect(html).toContain("Second edit works");
     expect(html).not.toContain("Updated via HMR");
 

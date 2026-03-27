@@ -3,7 +3,7 @@ import { h } from "hastscript";
 import { codeToHtml } from "shiki";
 import { visitParents } from "unist-util-visit-parents";
 
-const LANG_RE = /language-(\w+)/;
+const LANG_RE = /language-([\w-]+)/;
 const FILE_COMMENT_RE = /^(?:\/\/|#)\s*([\w./\-[\]]+\.\w+)\s*\n/;
 
 // biome-ignore lint/suspicious/noExplicitAny: hast node types

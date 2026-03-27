@@ -51,7 +51,13 @@ const RELATIVE_SPECIFIER_RE = /(?:from|import)\s+["'](\.\.?\/[^"']+)["']/g;
 
 /** @internal exported for testing */
 export function rewriteRelativeImports(source: string, dir: string): string {
-  return source.replace(RELATIVE_SPECIFIER_RE, (match, relPath) => {
+  return source.replace(RELATIVE_SPECIFIER_RE, (match, relPath, offset) => {
+    // Skip matches that appear on a comment line (// ...)
+    const lineStart = source.lastIndexOf("\n", offset - 1) + 1;
+    const linePrefix = source.slice(lineStart, offset).trimStart();
+    if (linePrefix.startsWith("//") || linePrefix.startsWith("*")) {
+      return match;
+    }
     const absPath = resolve(dir, relPath);
     const keyword = match.startsWith("import") ? "import" : "from";
     return `${keyword} "${absPath}"`;

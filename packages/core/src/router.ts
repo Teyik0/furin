@@ -178,8 +178,13 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyEl
           console.error(`[furin] Dev page load error for ${route.path}:`, err);
         }
 
-        // Fallback: page couldn't load — render with root loader data only
-        return renderSSR(route, ctx, root);
+        // Fallback: page couldn't load — return a clear error response rather
+        // than delegating to renderSSR with an undefined page, which would
+        // throw an opaque TypeError on route.page.head?.().
+        return new Response(
+          `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
+          { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
       }
 
       switch (route.mode) {

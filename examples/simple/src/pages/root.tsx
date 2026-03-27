@@ -30,12 +30,12 @@ function NavbarAuth() {
   }
 
   return (
-    <a
+    <Link
       className="rounded-full bg-blue-600 px-5 py-2 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
-      href="/login"
+      to="/login"
     >
       Sign in
-    </a>
+    </Link>
   );
 }
 

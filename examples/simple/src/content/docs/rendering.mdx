@@ -36,15 +36,15 @@ export default route.page({
 })
 ```
 
-For pages with dynamic segments, export a `paths` function to tell Furin which paths to pre-render:
+For pages with dynamic segments, export a `staticParams` function to tell Furin which paths to pre-render:
 
 ```tsx
 // src/pages/blog/[slug].tsx
 export default route.page({
   mode: "ssg",
-  paths: async () => {
+  staticParams: async () => {
     const slugs = await db.getAllSlugs()
-    return slugs.map(slug => ({ params: { slug } }))
+    return slugs.map(slug => ({ slug }))
   },
   loader: async ({ params }) => {
     const post = await db.getPost(params.slug)
