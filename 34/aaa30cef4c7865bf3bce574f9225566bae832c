@@ -1,0 +1,39 @@
+packages/core/src/build/hydrate.ts
+  a5ea1a97e44c7a19 91-94,114,116
+packages/core/src/build/route-types.ts
+  a5ea1a97e44c7a19 54-56,58-59,62,84
+packages/core/src/link.tsx
+  a5ea1a97e44c7a19 17,21,31,36
+packages/core/tests/furinjs.test.ts
+  a5ea1a97e44c7a19 47
+examples/simple/tsconfig.json
+  a5ea1a97e44c7a19 9
+examples/simple/src/content/docs/routing.mdx
+  a5ea1a97e44c7a19 74,78
+packages/core/src/furin.ts
+  a5ea1a97e44c7a19 197
+packages/core/src/env.d.ts
+  a5ea1a97e44c7a19 2
+packages/core/tests/route-types.test.ts
+  a5ea1a97e44c7a19 141,144,154,166,173,181,188,200,216,218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "34aaa30cef4c7865bf3bce574f9225566bae832c",
+  "prompts": {
+    "a5ea1a97e44c7a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82aa2fe3-9657-4c95-9567-022d73c8b91e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 32,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
