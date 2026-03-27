@@ -1,0 +1,39 @@
+packages/core/tests/dev-hmr.integration.test.ts
+  8a988c28418985c7 1-2,7-17,29,32-34,87-90,92,94-95,119-122,124,126-127
+packages/core/tests/router/hydration-order.test.ts
+  8a988c28418985c7 11-16
+examples/simple/src/lib/rehype-shiki.ts
+  8a988c28418985c7 6
+packages/core/src/render/assemble.ts
+  8a988c28418985c7 56-63
+packages/core/src/router.ts
+  8a988c28418985c7 181-187
+examples/simple/src/content/docs/rendering.mdx
+  8a988c28418985c7 39,45,47
+examples/simple/src/pages/root.tsx
+  8a988c28418985c7 33,35,38
+packages/core/src/dev-page-plugin.ts
+  8a988c28418985c7 54-60
+examples/simple/src/api/auth.ts
+  8a988c28418985c7 7-8,10-14,27-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "8003f0e87ef85be3b725d0930d260df0dc8ece7f",
+  "prompts": {
+    "8a988c28418985c7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa09f04d-885b-4fc0-80e6-d7d00fbfeb72",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 32,
+      "accepted_lines": 76,
+      "overriden_lines": 3
+    }
+  }
+}
