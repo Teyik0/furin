@@ -1,0 +1,65 @@
+packages/core/src/dev-page-plugin.ts
+  a5ea1a97e44c7a19 1-93
+packages/core/src/build/route-types.ts
+  a5ea1a97e44c7a19 74
+packages/core/src/build/client.ts
+  6ce0dc6c49256a86 2,4,14-15,17-22,84-88,98,113-123
+packages/core/src/router.ts
+  a5ea1a97e44c7a19 102-117,148-149,159,164-174,176-181,183-185
+packages/core/src/build/hydrate.ts
+  6ce0dc6c49256a86 48-53,57,59-64,66-77,79,81
+  a5ea1a97e44c7a19 55-56
+packages/core/src/env.d.ts
+  a5ea1a97e44c7a19 1-44
+packages/core/src/furin.ts
+  a5ea1a97e44c7a19 192-194
+doc/dev-hmr.md
+  a5ea1a97e44c7a19 1-77
+packages/core/tests/dev-hmr.integration.test.ts
+  a5ea1a97e44c7a19 1-110
+packages/core/src/render/shell.ts
+  6ce0dc6c49256a86 129-156
+packages/core/tests/render-template.test.ts
+  a5ea1a97e44c7a19 48,66,72,76
+packages/core/package.json
+  a5ea1a97e44c7a19 50-52
+packages/core/src/render/template.ts
+  a5ea1a97e44c7a19 8-11,13
+packages/core/src/render/assemble.ts
+  a5ea1a97e44c7a19 58
+packages/core/tests/dev-page-plugin.test.ts
+  a5ea1a97e44c7a19 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "8b2f51317ab5a47eaeac40b5f93dbd70a1667db5",
+  "prompts": {
+    "6ce0dc6c49256a86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0421d0cb-c612-423a-ba81-666821fcaf75",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 37,
+      "accepted_lines": 86,
+      "overriden_lines": 0
+    },
+    "a5ea1a97e44c7a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82aa2fe3-9657-4c95-9567-022d73c8b91e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 1112,
+      "total_deletions": 609,
+      "accepted_lines": 562,
+      "overriden_lines": 5
+    }
+  }
+}
