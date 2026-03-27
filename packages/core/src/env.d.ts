@@ -1,5 +1,5 @@
 // Global type declarations shipped by Furin.
-// Referenced automatically via .furin/routes.d.ts — no user config needed.
+// Referenced automatically via furin-env.d.ts — no user config needed.
 
 declare module "*.css" {}
 declare module "*.svg" {

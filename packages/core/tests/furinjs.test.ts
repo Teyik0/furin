@@ -44,6 +44,7 @@ describe.serial("furin()", () => {
     expect(instance).toBeInstanceOf(Elysia);
     expect(existsSync(join(app.path, ".furin/index.html"))).toBe(true);
     expect(existsSync(join(app.path, ".furin/_hydrate.tsx"))).toBe(true);
+    expect(existsSync(join(app.path, "furin-env.d.ts"))).toBe(true);
   });
 
   test("throws a clear error in production when no CompileContext is set", () => {

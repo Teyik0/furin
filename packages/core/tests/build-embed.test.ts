@@ -51,7 +51,6 @@ describe.serial("compile: embed", () => {
       "index.html",
       "_compile-entry.ts",
       "_compile-entry.js.map",
-      "routes.d.ts",
     ]) {
       expect(existsSync(join(targetDir, file))).toBe(false);
     }

@@ -6,6 +6,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", ".furin/routes.d.ts"],
+  "include": ["src/**/*", "furin-env.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

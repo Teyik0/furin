@@ -194,7 +194,7 @@ export async function furin({
     registerDevPagePlugin();
 
     const { root, routes } = await scanPages(resolvedPagesDir);
-    writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path });
+    writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path }, cwd);
 
     return new Elysia({ name: instanceName, seed: resolvedPagesDir })
       .use(loggerPlugin)

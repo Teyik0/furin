@@ -88,7 +88,11 @@ const _match = routes.find((r) => r.regex.test(pathname));
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
-export function writeDevFiles(routes: ResolvedRoute[], { outDir, rootLayout }: BuildClientOptions): void {
+export function writeDevFiles(
+  routes: ResolvedRoute[],
+  { outDir, rootLayout }: BuildClientOptions,
+  projectRoot: string,
+): void {
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
@@ -107,9 +111,7 @@ export function writeDevFiles(routes: ResolvedRoute[], { outDir, rootLayout }: B
     writeFileSync(indexPath, indexHtml);
   }
 
-  writeRouteTypes(routes, outDir);
+  writeRouteTypes(routes, projectRoot);
 
-  console.log(
-    "[furin] Dev files written (.furin/_hydrate.tsx + .furin/index.html + .furin/routes.d.ts)"
-  );
+  console.log("[furin] Dev files written (.furin/_hydrate.tsx + .furin/index.html + furin-env.d.ts)");
 }

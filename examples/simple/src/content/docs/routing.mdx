@@ -71,10 +71,10 @@ import { Link } from "@teyik0/furin/link"
 <Link to="/blog" search={{ page: 2 }} />
 ```
 
-Add `.furin/routes.d.ts` to your `tsconfig.json` includes:
+Add `furin-env.d.ts` to your `tsconfig.json` includes:
 
 ```json
 {
-  "include": ["src/**/*", ".furin/routes.d.ts"]
+  "include": ["src/**/*", "furin-env.d.ts"]
 }
 ```
