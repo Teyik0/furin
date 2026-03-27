@@ -47,6 +47,9 @@
       "types": "./src/link.tsx",
       "bun": "./src/link.tsx",
       "import": "./dist/link.js"
+    },
+    "./env": {
+      "types": "./src/env.d.ts"
     }
   },
   "scripts": {
@@ -66,7 +69,7 @@
   },
   "peerDependencies": {
     "elysia": "catalog:",
-    "evlog": "^2.9.0",
+    "evlog": "^2.10.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": ">=6.0.2",

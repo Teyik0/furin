@@ -10,9 +10,6 @@ const app = new Elysia()
   .use(
     await furin({
       pagesDir: "./src/pages",
-      logger: {
-        browser: true,
-      },
     })
   )
   .listen(3000);

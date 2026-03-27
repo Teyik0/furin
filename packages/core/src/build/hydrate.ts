@@ -45,36 +45,40 @@ const _match = routes.find((r) => r.regex.test(pathname));
 
 // Eagerly load only the current page module for initial hydration.
 // All other pages are loaded on demand when the user navigates to them.
-if (_match) {
-  const _mod = await _match.load();
-  const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
+// Wrapped in an async IIFE to avoid top-level await, which causes Bun's HTML
+// bundler to misidentify which chunk to reference as the entry in index.html.
+(async () => {
+  if (_match) {
+    const _mod = await _match.load();
+    const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
 
-  const dataEl = document.getElementById("__FURIN_DATA__");
-  const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
-  const rootEl = document.getElementById("root") as HTMLElement;
+    const dataEl = document.getElementById("__FURIN_DATA__");
+    const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
+    const rootEl = document.getElementById("root") as HTMLElement;
 
-  const app = createElement(RouterProvider, {
-    routes,
-    root,
-    initialMatch: match,
-    initialData: loaderData,
-  } as any);
+    const app = createElement(RouterProvider, {
+      routes,
+      root,
+      initialMatch: match,
+      initialData: loaderData,
+    } as any);
 
-  if (import.meta.hot) {
-    // Retain React root across hot reloads so Fast Refresh applies in-place.
-    const hotRoot = (import.meta.hot.data.root ??= rootEl.innerHTML.trim()
-      ? hydrateRoot(rootEl, app)
-      : createRoot(rootEl));
-    hotRoot.render(app);
-  } else if (rootEl.innerHTML.trim()) {
-    hydrateRoot(rootEl, app);
+    if (import.meta.hot) {
+      // Retain React root across hot reloads so Fast Refresh applies in-place.
+      const hotRoot = (import.meta.hot.data.root ??= rootEl.innerHTML.trim()
+        ? hydrateRoot(rootEl, app)
+        : createRoot(rootEl));
+      hotRoot.render(app);
+    } else if (rootEl.innerHTML.trim()) {
+      hydrateRoot(rootEl, app);
+    } else {
+      createRoot(rootEl).render(app);
+    }
+    log.info({ action: "hydrate_complete", pathname });
   } else {
-    createRoot(rootEl).render(app);
+    log.error({ action: "hydrate_no_match", pathname });
   }
-  log.info({ action: "hydrate_complete", pathname });
-} else {
-  log.error({ action: "hydrate_no_match", pathname });
-}
+})();
 `;
 }
 

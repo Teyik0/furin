@@ -53,5 +53,7 @@ export function assembleHTML(
     ? `<script id="__FURIN_DATA__" type="application/json">${safeJson(data)}</script>`
     : "";
 
-  return headPre + headData + bodyPre + reactHtml + dataScript + bodyPost;
+  return (
+    headPre + headData + bodyPre + reactHtml + bodyPost.replace("</body>", `${dataScript}</body>`)
+  );
 }

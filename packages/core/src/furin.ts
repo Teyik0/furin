@@ -189,6 +189,9 @@ export async function furin({
     // Lazy import — build pipeline has native deps not available in compiled binaries
     const { scanPages } = await import("./router.ts");
     const { writeDevFiles } = await import("./build/hydrate.ts");
+    const { registerDevPagePlugin } = await import("./dev-page-plugin.ts");
+
+    registerDevPagePlugin();
 
     const { root, routes } = await scanPages(resolvedPagesDir);
     writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path });

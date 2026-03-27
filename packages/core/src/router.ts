@@ -6,6 +6,7 @@ import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
+import { IS_DEV } from "./runtime-env.ts";
 import {
   collectRouteChainFromRoute,
   isFurinPage,
@@ -98,6 +99,22 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       continue;
     }
 
+    // In dev mode, don't import page modules at startup so they stay out of
+    // bun --hot's module graph. Page modules are lazily imported on first
+    // request in createRoutePlugin instead. This prevents server re-evaluation
+    // when only client-side page code changes.
+    if (IS_DEV) {
+      routes.push({
+        pattern: filePathToPattern(relativePath),
+        path: absolutePath,
+        mode: "ssr",
+        // Populated lazily on first request — see createRoutePlugin
+        page: undefined as unknown as RuntimePage,
+        routeChain: [],
+      });
+      continue;
+    }
+
     const ctx = getCompileContext();
     const pageMod = (ctx?.modules[absolutePath] ?? (await import(absolutePath))) as {
       default: RuntimePage;
@@ -124,24 +141,48 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
 }
 
 export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
-  const { pattern, mode, routeChain } = route;
+  const { pattern, routeChain } = route;
 
   const plugins: AnyElysia[] = [];
 
-  const allParams = routeChain.find((r) => r.params)?.params;
-  const allQuery = routeChain.find((r) => r.query)?.query;
-  if (allParams || allQuery) {
-    plugins.push(
-      new Elysia().guard({
-        params: allParams as AnySchema,
-        query: allQuery as AnySchema,
-      })
-    );
+  // In dev mode, routeChain is empty (pages not imported at startup), skip guards.
+  if (!IS_DEV) {
+    const allParams = routeChain.find((r) => r.params)?.params;
+    const allQuery = routeChain.find((r) => r.query)?.query;
+    if (allParams || allQuery) {
+      plugins.push(
+        new Elysia().guard({
+          params: allParams as AnySchema,
+          query: allQuery as AnySchema,
+        })
+      );
+    }
   }
 
   plugins.push(
     new Elysia().get(pattern, async (ctx) => {
-      switch (mode) {
+      if (IS_DEV) {
+        // Dev mode: load the page via ?furin-server virtual namespace so it
+        // stays out of --hot's file watcher, then hand off to renderSSR which
+        // runs loaders, renders React to HTML, and injects __FURIN_DATA__.
+        try {
+          const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
+          const page = pageMod.default;
+
+          if (page && isFurinPage(page)) {
+            const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+            const devRoute: ResolvedRoute = { ...route, page, routeChain };
+            return renderSSR(devRoute, ctx, root);
+          }
+        } catch (err) {
+          console.error(`[furin] Dev page load error for ${route.path}:`, err);
+        }
+
+        // Fallback: page couldn't load — render with root loader data only
+        return renderSSR(route, ctx, root);
+      }
+
+      switch (route.mode) {
         case "ssg": {
           ctx.set.headers["content-type"] = "text/html; charset=utf-8";
           ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
