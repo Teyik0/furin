@@ -1,0 +1,27 @@
+packages/core/tests/router/route-plugin.test.ts
+  a5ea1a97e44c7a19 1-22,24,26-39,41,43-54,56,58-69,71,74-79
+packages/core/src/build/shared.ts
+  a5ea1a97e44c7a19 1
+packages/core/bunfig.toml
+  a5ea1a97e44c7a19 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c2314ae22746f4dcd0a8e511942630556abcbfdb",
+  "prompts": {
+    "a5ea1a97e44c7a19": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82aa2fe3-9657-4c95-9567-022d73c8b91e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 13,
+      "accepted_lines": 73,
+      "overriden_lines": 4
+    }
+  }
+}
