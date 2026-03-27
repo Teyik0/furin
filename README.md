@@ -26,7 +26,7 @@ bun install
 
 ```tsx
 // src/pages/about/index.tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 
 const { page } = createRoute({ mode: 'ssg' });
 
@@ -48,7 +48,7 @@ Fetch data server-side with full type safety:
 
 ```tsx
 // src/pages/dashboard/route.tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 import { t } from "elysia";
 
 export const route = createRoute({
@@ -109,7 +109,7 @@ Create nested layouts with automatic data propagation:
 
 ```tsx
 // src/pages/dashboard/route.tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 
 export const route = createRoute({
   loader: async () => ({ user: await getCurrentUser() }),
@@ -122,7 +122,7 @@ export const route = createRoute({
 });
 
 // src/pages/dashboard/users/route.tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 import { route as dashboardRoute } from '../route';
 
 export const route = createRoute({
@@ -172,7 +172,7 @@ export default route.page({
 
 ```tsx
 // src/pages/blog/[slug]/route.tsx
-import { createRoute, type InferProps } from 'furin/client';
+import { createRoute, type InferProps } from '@teyik0/furin/client';
 import { t } from "elysia";
 
 export const route = createRoute({
@@ -316,7 +316,7 @@ returned parameter set before the first request arrives.
 
 ```tsx
 // src/pages/blog/[slug].tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 import { t } from "elysia";
 
 export const route = createRoute({
@@ -419,7 +419,7 @@ pages/
 
 ```tsx
 // src/pages/blog/[slug]/route.tsx
-import { createRoute } from 'furin/client';
+import { createRoute } from '@teyik0/furin/client';
 import { t } from "elysia";
 
 export const route = createRoute({
@@ -528,7 +528,7 @@ export const route = createRoute({
 
 ### `createRoute(config)`
 
-Create a route with loader, layout, and options. Import from `"furin/client"`.
+Create a route with loader, layout, and options. Import from `"@teyik0/furin/client"`.
 
 **Config:**
 - `parent?: Route` - Parent route for nested layouts
@@ -631,7 +631,7 @@ my-app/
 ```tsx
 // src/server.ts
 import { Elysia } from "elysia";
-import { furin } from "furin";
+import { furin } from "@teyik0/furin";
 
 const app = new Elysia()
   .get("/api/health", () => ({ status: "ok" }))

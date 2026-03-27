@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { BuildTarget } from "../config";
 import type { ResolvedRoute } from "../router";
@@ -70,9 +70,4 @@ export function buildTargetManifest(
     serverPath: null,
     serverEntry: serverEntry ? toPosixPath(relative(rootDir, serverEntry)) : null,
   };
-}
-
-export function writeTargetManifest(targetDir: string, targetManifest: TargetBuildManifest): void {
-  const manifestPath = join(targetDir, "manifest.json");
-  writeFileSync(manifestPath, `${JSON.stringify(targetManifest, null, 2)}\n`);
 }

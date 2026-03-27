@@ -126,3 +126,31 @@ export function generateIndexHtml(): string {
 </html>
 `;
 }
+
+/**
+ * Generates the production SSR template (index.html) with hashed asset paths.
+ * Called after Bun.build() completes so we can inject the correct entry chunk
+ * and CSS paths derived from result.outputs.
+ */
+export function generateProdIndexHtml(entryChunk: string | undefined, cssChunks: string[]): string {
+  const cssLinks = cssChunks
+    .map((c) => `    <link rel="stylesheet" crossorigin href="${c}">`)
+    .join("\n");
+  const scriptTag = entryChunk
+    ? `<script type="module" crossorigin src="${entryChunk}"></script>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+${cssLinks ? `${cssLinks}\n` : ""}    <!--ssr-head-->
+  </head>
+  <body>
+    <div id="root"><!--ssr-outlet--></div>
+    ${scriptTag}
+  </body>
+</html>
+`;
+}

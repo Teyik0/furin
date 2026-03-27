@@ -1,0 +1,111 @@
+# Nested Layouts
+
+Layouts let you share UI across multiple pages — navbars, sidebars, footers — without repeating code.
+
+## Defining a Layout
+
+Create a `_route.tsx` file in any directory. It becomes the layout for all pages inside that directory.
+
+```tsx
+// src/pages/blog/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  layout: ({ children }) => (
+    <div className="mx-auto max-w-4xl px-4 py-12">
+      <BlogSidebar />
+      <main>{children}</main>
+    </div>
+  ),
+})
+```
+
+Pages in `src/pages/blog/` import this route and automatically render inside it:
+
+```tsx
+// src/pages/blog/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  component: () => <BlogList />,
+})
+```
+
+## The Root Layout
+
+`src/pages/root.tsx` is the top-level layout. It must render `<html>`, `<head>`, and `<body>`:
+
+```tsx
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body>{children}</body>
+    </html>
+  ),
+})
+```
+
+## Nesting Depth
+
+You can nest layouts as deep as needed:
+
+```
+src/pages/
+├── root.tsx            ← wraps everything
+├── docs/
+│   ├── _route.tsx      ← wraps /docs/*  (parent: root)
+│   └── advanced/
+│       ├── _route.tsx  ← wraps /docs/advanced/*  (parent: docs)
+│       └── plugins.tsx
+```
+
+Each `_route.tsx` declares its `parent`:
+
+```tsx
+// src/pages/docs/advanced/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as docsRoute } from "../_route"
+
+export const route = createRoute({
+  parent: docsRoute,
+  layout: ({ children }) => (
+    <div className="advanced-layout">{children}</div>
+  ),
+})
+```
+
+## Layout Data Loading
+
+Layouts can have their own loader. The data is passed as props to the layout component:
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    if (!user) return Response.redirect("/login")
+    return { user }
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+})
+```
+
+All child pages automatically benefit from the layout's loader — no need to repeat the auth check.

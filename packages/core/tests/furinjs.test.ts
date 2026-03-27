@@ -44,6 +44,7 @@ describe.serial("furin()", () => {
     expect(instance).toBeInstanceOf(Elysia);
     expect(existsSync(join(app.path, ".furin/index.html"))).toBe(true);
     expect(existsSync(join(app.path, ".furin/_hydrate.tsx"))).toBe(true);
+    expect(existsSync(join(app.path, "furin-env.d.ts"))).toBe(true);
   });
 
   test("throws a clear error in production when no CompileContext is set", () => {
@@ -51,7 +52,9 @@ describe.serial("furin()", () => {
     __setDevMode(false);
     process.chdir(app.path);
 
-    expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow("bun run build");
+    expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow(
+      "Run `bunx furin build` first"
+    );
   });
 
   test("uses the prebuilt bun manifest in production via CompileContext", async () => {

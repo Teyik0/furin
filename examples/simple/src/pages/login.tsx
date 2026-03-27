@@ -1,141 +1,39 @@
-import { Link } from "@teyik0/furin/link";
-import { useState } from "react";
-import { client } from "../client";
+import { log } from "evlog/client";
+import { authClient } from "@/lib/auth-client";
 import { route } from "./root";
 
 export default route.page({
   component: () => {
-    const [email, setEmail] = useState("");
-    const [message, setMessage] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleLogin = async (e: React.SubmitEvent) => {
-      e.preventDefault();
-      setIsLoading(true);
-      setMessage("");
-
-      console.log("login started");
-      const { data, error } = await client.api.login.post({ email });
-
-      if (data) {
-        setMessage("Connected! Redirecting...");
-        location.href = "/dashboard";
-      } else {
-        console.log("login error", error);
-        setMessage(error?.value?.message ?? "Login failed");
-      }
-
-      setIsLoading(false);
+    const handleLogin = async () => {
+      log.info({ action: "test_log", from: "homepage" });
+      await authClient.signIn.social({
+        provider: "github",
+        callbackURL: "/docs",
+      });
     };
 
     return (
-      <main className="flex min-h-[80vh] items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md">
-          <div className="mb-8 text-center">
-            <Link className="font-bold text-2xl text-indigo-600" to="/">
-              Elyra Blog
-            </Link>
-            <h1 className="mt-4 font-bold text-3xl text-gray-900">Sign in to your account</h1>
-            <p className="mt-2 text-gray-600">Access the admin dashboard to manage your posts</p>
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="space-y-2 text-center">
+            <h1 className="font-bold text-2xl tracking-tight">Sign in</h1>
+            <p className="text-muted-foreground text-sm">
+              Sign in with your GitHub account to leave comments on the docs.
+            </p>
           </div>
 
-          <div className="border border-gray-200 bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
-            <form className="space-y-6" onSubmit={handleLogin}>
-              <div>
-                <label className="mb-1 block font-medium text-gray-700 text-sm" htmlFor="email">
-                  Email address
-                </label>
-                <input
-                  autoComplete="email"
-                  className="block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  id="email"
-                  name="email"
-                  onChange={(e) => setEmail(e.currentTarget.value)}
-                  placeholder="user@example.com"
-                  required
-                  type="email"
-                  value={email}
-                />
-              </div>
-
-              <div>
-                <button
-                  className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 font-medium text-sm text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-                  disabled={isLoading}
-                  type="submit"
-                >
-                  {isLoading ? "Signing in..." : "Sign in"}
-                </button>
-              </div>
-
-              {message && (
-                <div
-                  className={`rounded-md p-3 text-sm ${
-                    message.includes("Connected")
-                      ? "bg-green-50 text-green-700"
-                      : "bg-red-50 text-red-700"
-                  }`}
-                >
-                  {message}
-                </div>
-              )}
-            </form>
-
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-gray-300 border-t" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="bg-white px-2 text-gray-500">Demo accounts</span>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                <button
-                  className="flex w-full items-center justify-between rounded-md border border-gray-300 px-4 py-3 transition-colors hover:bg-gray-50"
-                  onClick={() => setEmail("user@example.com")}
-                  type="button"
-                >
-                  <div className="flex items-center">
-                    <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                      <span className="font-medium text-blue-600 text-sm">JD</span>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-medium text-gray-900 text-sm">John Doe</p>
-                      <p className="text-gray-500 text-xs">user@example.com</p>
-                    </div>
-                  </div>
-                  <span className="rounded bg-blue-100 px-2 py-1 text-blue-700 text-xs">User</span>
-                </button>
-
-                <button
-                  className="flex w-full items-center justify-between rounded-md border border-gray-300 px-4 py-3 transition-colors hover:bg-gray-50"
-                  onClick={() => setEmail("admin@example.com")}
-                  type="button"
-                >
-                  <div className="flex items-center">
-                    <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-purple-100">
-                      <span className="font-medium text-purple-600 text-sm">AU</span>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-medium text-gray-900 text-sm">Admin User</p>
-                      <p className="text-gray-500 text-xs">admin@example.com</p>
-                    </div>
-                  </div>
-                  <span className="rounded bg-purple-100 px-2 py-1 text-purple-700 text-xs">
-                    Admin
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-4 text-center text-gray-500 text-sm">
-            This is a demo. Click on any account above to auto-fill the email.
-          </p>
+          <button
+            className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5 font-medium text-sm transition-colors hover:bg-muted"
+            onClick={handleLogin}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="currentColor" height="20" viewBox="0 0 24 24" width="20">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            Continue with GitHub
+          </button>
         </div>
-      </main>
+      </div>
     );
   },
 });

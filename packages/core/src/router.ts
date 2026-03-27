@@ -6,6 +6,7 @@ import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
+import { IS_DEV } from "./runtime-env.ts";
 import {
   collectRouteChainFromRoute,
   isFurinPage,
@@ -28,42 +29,39 @@ export interface RootLayout {
   route: RuntimeRoute;
 }
 
-export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
-  const { pattern, mode, routeChain } = route;
+export function loadProdRoutes(ctx: CompileContext): {
+  root: RootLayout;
+  routes: ResolvedRoute[];
+} {
+  const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
+  const rootExport = rootMod.route ?? rootMod.default;
+  if (!(rootExport && isFurinRoute(rootExport) && rootExport.layout)) {
+    throw new Error("[furin] root.tsx: createRoute() with layout not found in CompileContext.");
+  }
+  const root: RootLayout = { path: ctx.rootPath, route: rootExport };
 
-  const plugins: AnyElysia[] = [];
-
-  const allParams = routeChain.find((r) => r.params)?.params;
-  const allQuery = routeChain.find((r) => r.query)?.query;
-  if (allParams || allQuery) {
-    plugins.push(
-      new Elysia().guard({
-        params: allParams as AnySchema,
-        query: allQuery as AnySchema,
-      })
-    );
+  const routes: ResolvedRoute[] = [];
+  for (const { pattern, path, mode } of ctx.routes) {
+    const pageMod = ctx.modules[path] as { default: RuntimePage };
+    const page: RuntimePage = pageMod.default;
+    if (!isFurinPage(page)) {
+      throw new Error(`[furin] ${path}: invalid page module in CompileContext.`);
+    }
+    const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+    validateRouteChain(routeChain, root.route, path);
+    routes.push({ pattern, page, path, routeChain, mode });
   }
 
-  plugins.push(
-    new Elysia().get(pattern, async (ctx) => {
-      switch (mode) {
-        case "ssg": {
-          ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-          ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
-          const origin = new URL(ctx.request.url).origin;
-          return await prerenderSSG(route, ctx.params, root, origin);
-        }
+  return { root, routes };
+}
 
-        case "isr":
-          return handleISR(route, ctx, root);
-
-        default:
-          return renderSSR(route, ctx, root);
-      }
-    })
-  );
-
-  return plugins.reduce((app, plugin) => app.use(plugin), new Elysia());
+export async function scanPages(pagesDir: string): Promise<{
+  root: RootLayout;
+  routes: ResolvedRoute[];
+}> {
+  const root = await scanRootLayout(pagesDir);
+  const routes = await scanPageFiles(pagesDir, root);
+  return { root, routes };
 }
 
 export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
@@ -85,25 +83,6 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   return { path: rootPath, route: rootExport };
 }
 
-async function collectPageFilePaths(dir: string): Promise<string[]> {
-  const files: string[] = [];
-
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const absolutePath = join(dir, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(...(await collectPageFilePaths(absolutePath)));
-      continue;
-    }
-
-    if (entry.isFile()) {
-      files.push(absolutePath);
-    }
-  }
-
-  return files;
-}
-
 async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<ResolvedRoute[]> {
   const routes: ResolvedRoute[] = [];
 
@@ -117,6 +96,22 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
 
     // Skip root.tsx, and files starting with _
     if (fileName.startsWith("_") || fileName === "root") {
+      continue;
+    }
+
+    // In dev mode, don't import page modules at startup so they stay out of
+    // bun --hot's module graph. Page modules are lazily imported on first
+    // request in createRoutePlugin instead. This prevents server re-evaluation
+    // when only client-side page code changes.
+    if (IS_DEV) {
+      routes.push({
+        pattern: filePathToPattern(relativePath),
+        path: absolutePath,
+        mode: "ssr",
+        // Populated lazily on first request — see createRoutePlugin
+        page: undefined as unknown as RuntimePage,
+        routeChain: [],
+      });
       continue;
     }
 
@@ -145,43 +140,92 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
   return routes;
 }
 
-export async function scanPages(pagesDir: string): Promise<{
-  root: RootLayout;
-  routes: ResolvedRoute[];
-}> {
-  const ctx = getCompileContext();
-  if (ctx) {
-    return loadProdRoutes(ctx);
+export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
+  const { pattern, routeChain } = route;
+
+  const plugins: AnyElysia[] = [];
+
+  // In dev mode, routeChain is empty (pages not imported at startup), skip guards.
+  if (!IS_DEV) {
+    // TODO: merge schemas from all routeChain entries (requires TypeBox t.Object/t.Composite)
+    // For now, prefer the leaf route's schema (last in chain) over ancestor routes.
+    const allParams = [...routeChain].reverse().find((r) => r.params)?.params;
+    const allQuery = [...routeChain].reverse().find((r) => r.query)?.query;
+    if (allParams || allQuery) {
+      plugins.push(
+        new Elysia().guard({
+          params: allParams as AnySchema,
+          query: allQuery as AnySchema,
+        })
+      );
+    }
   }
-  const root = await scanRootLayout(pagesDir);
-  const routes = await scanPageFiles(pagesDir, root);
-  return { root, routes };
+
+  plugins.push(
+    new Elysia().get(pattern, async (ctx) => {
+      if (IS_DEV) {
+        // Dev mode: load the page via ?furin-server virtual namespace so it
+        // stays out of --hot's file watcher, then hand off to renderSSR which
+        // runs loaders, renders React to HTML, and injects __FURIN_DATA__.
+        try {
+          const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
+          const page = pageMod.default;
+
+          if (page && isFurinPage(page)) {
+            const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+            const devRoute: ResolvedRoute = { ...route, page, routeChain };
+            return renderSSR(devRoute, ctx, root);
+          }
+        } catch (err) {
+          console.error(`[furin] Dev page load error for ${route.path}:`, err);
+        }
+
+        // Fallback: page couldn't load — return a clear error response rather
+        // than delegating to renderSSR with an undefined page, which would
+        // throw an opaque TypeError on route.page.head?.().
+        return new Response(
+          `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
+          { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
+      }
+
+      switch (route.mode) {
+        case "ssg": {
+          ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+          ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
+          const origin = new URL(ctx.request.url).origin;
+          return await prerenderSSG(route, ctx.params, root, origin);
+        }
+
+        case "isr":
+          return handleISR(route, ctx, root);
+
+        default:
+          return renderSSR(route, ctx, root);
+      }
+    })
+  );
+
+  return plugins.reduce((app, plugin) => app.use(plugin), new Elysia());
 }
 
-export function loadProdRoutes(ctx: CompileContext): {
-  root: RootLayout;
-  routes: ResolvedRoute[];
-} {
-  const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
-  const rootExport = rootMod.route ?? rootMod.default;
-  if (!(rootExport && isFurinRoute(rootExport) && rootExport.layout)) {
-    throw new Error("[furin] root.tsx: createRoute() with layout not found in CompileContext.");
-  }
-  const root: RootLayout = { path: ctx.rootPath, route: rootExport };
+async function collectPageFilePaths(dir: string): Promise<string[]> {
+  const files: string[] = [];
 
-  const routes: ResolvedRoute[] = [];
-  for (const { pattern, path, mode } of ctx.routes) {
-    const pageMod = ctx.modules[path] as { default: RuntimePage };
-    const page: RuntimePage = pageMod.default;
-    if (!isFurinPage(page)) {
-      throw new Error(`[furin] ${path}: invalid page module in CompileContext.`);
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const absolutePath = join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...(await collectPageFilePaths(absolutePath)));
+      continue;
     }
-    const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
-    validateRouteChain(routeChain, root.route, path);
-    routes.push({ pattern, page, path, routeChain, mode });
+
+    if (entry.isFile()) {
+      files.push(absolutePath);
+    }
   }
 
-  return { root, routes };
+  return files;
 }
 
 export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr" | "ssg" | "isr" {

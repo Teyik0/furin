@@ -1,5 +1,6 @@
 import { defineConfig } from "@teyik0/furin/config";
 import tailwind from "bun-plugin-tailwind";
+import mdxPlugin from "./src/lib/bun-mdx-plugin";
 
 /**
  * Furin build config.
@@ -7,5 +8,5 @@ import tailwind from "bun-plugin-tailwind";
  *                (Tailwind here: matches the dev bunfig.toml entry for parity)
  */
 export default defineConfig({
-  plugins: [tailwind],
+  plugins: [tailwind, mdxPlugin],
 });

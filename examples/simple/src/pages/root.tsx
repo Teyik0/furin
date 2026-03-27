@@ -1,88 +1,119 @@
 import { createRoute } from "@teyik0/furin/client";
 import { Link } from "@teyik0/furin/link";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { authClient } from "@/lib/auth-client";
 import "../styles/globals.css";
 
-// Root layout renders body content only — <html>, <head>, <body> are provided
-// by .furin/index.html (the SSR template processed by Bun's HTML bundler).
-export const route = createRoute({
-  layout: ({ children }) => (
-    <div className="flex min-h-screen flex-col bg-gray-50 text-gray-900">
-      <header className="border-gray-200 border-b bg-white">
-        <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 justify-between">
-            <div className="flex">
-              <Link className="flex items-center gap-2 font-bold text-indigo-600 text-xl" to="/">
-                <img
-                  alt="Furin logo"
-                  className="rounded-full"
-                  height={30}
-                  src="/public/furin-logo.png"
-                  width={30}
-                />
-                Furin
-              </Link>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link
-                  className="inline-flex items-center px-1 pt-1 font-medium text-gray-900 text-sm transition-colors hover:text-indigo-600"
-                  to="/"
-                >
-                  Home
-                </Link>
-                <Link
-                  className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  preload="viewport"
-                  to="/blog"
-                >
-                  Blog
-                </Link>
-                <Link
-                  className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  preload="viewport"
-                  to="/about"
-                >
-                  About
-                </Link>
-                <Link
-                  className="inline-flex items-center px-1 pt-1 font-medium text-gray-500 text-sm transition-colors hover:text-indigo-600"
-                  preload="viewport"
-                  to="/dashboard"
-                >
-                  Dashboard
-                </Link>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Link
-                className="ml-4 rounded-md bg-indigo-600 px-4 py-2 font-medium text-sm text-white transition-colors hover:bg-indigo-700"
-                to="/login"
-              >
-                Sign In
-              </Link>
-            </div>
+function NavbarAuth() {
+  const { data: session } = authClient.useSession();
+
+  if (session?.user) {
+    return (
+      <div className="flex items-center gap-3">
+        <img
+          alt={session.user.name ?? "User"}
+          className="h-8 w-8 rounded-full"
+          height={32}
+          src={session.user.image ?? undefined}
+          width={32}
+        />
+        <button
+          className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+          onClick={() => authClient.signOut()}
+          type="button"
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      className="rounded-full bg-blue-600 px-5 py-2 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
+      to="/login"
+    >
+      Sign in
+    </Link>
+  );
+}
+
+function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <header className="fixed top-0 z-50 w-full border-white/5 border-b bg-background/80 backdrop-blur-md">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link className="flex items-center gap-2.5" to="/">
+            <img alt="Furin logo" height={60} src="/public/furin-logo.webp" width={60} />
+            <span className="font-bold text-lg">Furin</span>
+          </Link>
+
+          <div className="hidden items-center gap-8 sm:flex">
+            <Link
+              className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+              to="/docs"
+            >
+              Documentation
+            </Link>
+            <a
+              className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+              href="https://github.com/teyik0/furin"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              GitHub
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <NavbarAuth />
           </div>
         </nav>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main className="pt-16">{children}</main>
 
-      <footer className="mt-auto border-gray-200 border-t bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-sm">Built with Furin - React meta-framework on Bun</p>
-            <div className="flex space-x-6">
+      <footer className="border-border border-t bg-background">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <p className="text-muted-foreground text-sm">
+              Built with Furin — React meta-framework on Bun + Elysia
+            </p>
+            <div className="flex gap-6">
               <a
-                className="text-gray-400 text-sm hover:text-gray-500"
+                className="text-muted-foreground text-sm transition-colors hover:text-foreground"
                 href="https://github.com/teyik0/furin"
+                rel="noopener noreferrer"
+                target="_blank"
               >
                 GitHub
               </a>
-              <a className="text-gray-400 text-sm hover:text-gray-500" href="https://elysiajs.com">
+              <a
+                className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                href="https://elysiajs.com"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
                 Elysia
+              </a>
+              <a
+                className="text-muted-foreground text-sm transition-colors hover:text-foreground"
+                href="https://bun.com"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Bun
               </a>
             </div>
           </div>
         </div>
       </footer>
-    </div>
-  ),
+    </ThemeProvider>
+  );
+}
+
+export const route = createRoute({
+  layout: ({ children }) => <RootLayout>{children}</RootLayout>,
 });

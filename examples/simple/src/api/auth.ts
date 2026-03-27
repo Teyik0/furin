@@ -1,78 +1,46 @@
-import Elysia, { t } from "elysia";
-import { queries, type User } from "../db";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { Elysia } from "elysia";
+import { db } from "../db";
+import { accounts, sessions, users, verifications } from "../db/schema";
 
-export const authPlugin = new Elysia({ name: "auth" })
-  .macro("isAuthenticated", {
-    resolve({ cookie: { session } }) {
-      const token = session?.value;
+const githubClientId = process.env.GITHUB_CLIENT_ID;
+const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+if (!(githubClientId && githubClientSecret)) {
+  throw new Error(
+    "[auth] Missing required environment variables: GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set."
+  );
+}
 
-      if (!token || typeof token !== "string") {
-        return { user: null as User | null, isAuthenticated: false };
-      }
-
-      const user = queries.getUserByEmail.get(token);
-
-      if (!user) {
-        return { user: null as User | null, isAuthenticated: false };
-      }
-
-      return { user, isAuthenticated: true };
+export const auth = betterAuth({
+  database: drizzleAdapter(db, {
+    provider: "sqlite",
+    schema: {
+      user: users,
+      session: sessions,
+      account: accounts,
+      verification: verifications,
     },
-  })
-  .macro("requireAuth", {
-    isAuthenticated: true,
-    resolve: ({ user, isAuthenticated, status }) => {
-      if (!(isAuthenticated && user)) {
-        return status(401, { error: "Unauthorized" });
-      }
-      return { user };
+  }),
+  socialProviders: {
+    github: {
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
     },
-  })
-  .get(
-    "/api/me",
-    ({ user, isAuthenticated }) => {
-      if (!(isAuthenticated && user)) {
-        return { user: null };
+  },
+});
+
+export const authPlugin = new Elysia({ name: "better-auth-macro" }).mount(auth.handler).macro({
+  auth: {
+    async resolve({ status, request: { headers } }) {
+      const session = await auth.api.getSession({ headers });
+      if (!session) {
+        return status(401);
       }
       return {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user: session.user,
+        session: session.session,
       };
     },
-    { isAuthenticated: true }
-  )
-  .post(
-    "/api/login",
-    ({ body: { email }, cookie: { session } }) => {
-      const user = queries.getUserByEmail.get(email);
-      if (!user) {
-        return { success: false, error: "Utilisateur non trouve" };
-      }
-      if (session) {
-        session.value = email;
-        session.httpOnly = true;
-        session.maxAge = 7 * 86_400;
-        session.path = "/";
-      }
-      return {
-        success: true,
-        user: { id: user.id, name: user.name, role: user.role },
-      };
-    },
-    {
-      body: t.Object({
-        email: t.String(),
-      }),
-    }
-  )
-  .post("/api/logout", ({ cookie: { session } }) => {
-    if (session) {
-      session.value = "";
-      session.maxAge = 0;
-    }
-    return { success: true };
-  });
+  },
+});

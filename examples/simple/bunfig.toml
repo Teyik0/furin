@@ -1,3 +1,3 @@
 [serve.static]
-plugins = ["bun-plugin-tailwind", "furin/strip-plugin"]
+plugins = ["bun-plugin-tailwind", "furin/strip-plugin", "./src/lib/bun-mdx-plugin.ts"]
 env = "FURIN_PUBLIC_*"

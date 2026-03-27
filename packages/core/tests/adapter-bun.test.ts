@@ -22,12 +22,12 @@ afterEach(() => {
 });
 
 async function withCompileStub<T>(run: () => Promise<T>): Promise<T> {
-  Bun.build = ((config: Bun.BuildConfig) => {
-    if ("compile" in config && config.compile) {
-      return Promise.resolve({ success: true, outputs: [], logs: [] } as Bun.BuildOutput);
-    }
-    return originalBunBuild(config);
-  }) as typeof Bun.build;
+  Bun.build = (() =>
+    Promise.resolve({
+      success: true,
+      outputs: [],
+      logs: [],
+    } as Bun.BuildOutput)) as typeof Bun.build;
 
   try {
     return await run();

@@ -7,6 +7,7 @@ import { createTmpApp, removeAppPath, writeAppFile } from "./helpers/tmp-app.ts"
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
 const SERVER_JS_RE = /server\.js$/;
+const originalBunBuild = Bun.build;
 
 function rememberTmpApp<T extends { cleanup: () => void }>(app: T): T {
   tmpApps.push(app);
@@ -17,7 +18,22 @@ function readJsonFile<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
+async function withBuildStub<T>(run: () => Promise<T>): Promise<T> {
+  Bun.build = (() =>
+    Promise.resolve({
+      success: true,
+      outputs: [],
+      logs: [],
+    } as Bun.BuildOutput)) as typeof Bun.build;
+  try {
+    return await run();
+  } finally {
+    Bun.build = originalBunBuild;
+  }
+}
+
 afterEach(() => {
+  Bun.build = originalBunBuild;
   while (tmpApps.length > 0) {
     tmpApps.pop()?.cleanup();
   }
@@ -27,10 +43,12 @@ describe.serial("CLI/build Bun feature", () => {
   test("buildApp({ target: 'bun' }) writes manifest and built client assets", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
-    const result = await buildApp({
-      rootDir: app.path,
-      target: "bun",
-    });
+    const result = await withBuildStub(() =>
+      buildApp({
+        rootDir: app.path,
+        target: "bun",
+      })
+    );
 
     expect(result.targets.bun).toBeDefined();
     expect(existsSync(join(app.path, ".furin/build/manifest.json"))).toBe(true);

@@ -1,0 +1,101 @@
+# Rendering Modes
+
+Furin supports three rendering modes per page. You pick the right one based on how dynamic your content is.
+
+## SSR — Server-Side Rendering
+
+The default. The page is rendered on every request using fresh data.
+
+```tsx
+// src/pages/dashboard.tsx
+export default route.page({
+  // mode defaults to "ssr"
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+  component: ({ user }) => <Dashboard user={user} />,
+})
+```
+
+Use SSR for pages that depend on session state, real-time data, or personalization.
+
+## SSG — Static Site Generation
+
+The page is rendered once at build time and served as a static HTML file.
+
+```tsx
+// src/pages/about.tsx
+export default route.page({
+  mode: "ssg",
+  loader: async () => {
+    const team = await cms.getTeam()
+    return { team }
+  },
+  component: ({ team }) => <AboutPage team={team} />,
+})
+```
+
+For pages with dynamic segments, export a `staticParams` function to tell Furin which paths to pre-render:
+
+```tsx
+// src/pages/blog/[slug].tsx
+export default route.page({
+  mode: "ssg",
+  staticParams: async () => {
+    const slugs = await db.getAllSlugs()
+    return slugs.map(slug => ({ slug }))
+  },
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  component: ({ post }) => <Post post={post} />,
+})
+```
+
+## ISR — Incremental Static Regeneration
+
+Combines the speed of SSG with the freshness of SSR. Pages are statically served and regenerated in the background after a set interval.
+
+```tsx
+// src/pages/products/[id].tsx
+export default route.page({
+  mode: "isr",
+  revalidate: 60, // regenerate every 60 seconds
+  loader: async ({ params }) => {
+    const product = await db.getProduct(params.id)
+    return { product }
+  },
+  component: ({ product }) => <ProductPage product={product} />,
+})
+```
+
+## Comparison
+
+| Mode | When to use | Build time | Request time |
+|---|---|---|---|
+| `ssr` | User-specific, real-time | — | Rendered each time |
+| `ssg` | Rarely changes | Pre-rendered | Static file served |
+| `isr` | Changes periodically | Pre-rendered | Static + background refresh |
+
+## Head Management
+
+All modes support `head()` for per-page meta tags:
+
+```tsx
+// src/pages/blog/[slug].tsx
+export default route.page({
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  head: ({ post }) => ({
+    meta: [
+      { title: post.title },
+      { name: "description", content: post.excerpt },
+    ],
+  }),
+  component: ({ post }) => <Post post={post} />,
+})
+```

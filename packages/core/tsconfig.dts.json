@@ -3,6 +3,7 @@
   "compilerOptions": {
     "module": "preserve", // at some point will target node for compat
     "moduleResolution": "bundler", // at some point will target node for compat
+    "rootDir": "./src",
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "./dist",

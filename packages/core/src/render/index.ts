@@ -16,6 +16,7 @@ export { type LoaderResult, runLoaders } from "./loaders.ts";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 import type { Context } from "elysia";
+import { useLogger } from "evlog/elysia";
 import type { ResolvedRoute } from "../router.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { LoaderContext } from "./assemble.ts";
@@ -142,10 +143,15 @@ export async function renderSSR(
   root: RootLayout
 ): Promise<Response> {
   try {
+    const loaderStart = Date.now();
     const loaderResult = await runLoaders(route, ctx, root.route);
     if (loaderResult.type === "redirect") {
       return loaderResult.response;
     }
+
+    useLogger().set({
+      furin: { render: "ssr", route: route.pattern, loader_ms: Date.now() - loaderStart },
+    });
 
     const { data, headers } = loaderResult;
     const componentProps = { ...data, params: ctx.params, query: ctx.query, path: ctx.path };
@@ -214,11 +220,24 @@ export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLa
       ? `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`
       : "public, s-maxage=0, must-revalidate";
 
+    useLogger().set({
+      furin: { render: "isr", route: route.pattern, cache: "hit" },
+    });
+
     return cached.html;
   }
 
   try {
+    const renderStart = Date.now();
     const result = await renderToHTML(route, ctx, root);
+    useLogger().set({
+      furin: {
+        render: "isr",
+        route: route.pattern,
+        cache: "miss",
+        render_ms: Date.now() - renderStart,
+      },
+    });
 
     if (!IS_DEV) {
       isrCache.set(cacheKey, { html: result.html, generatedAt: Date.now(), revalidate });
@@ -254,6 +273,7 @@ export async function warmSSGCache(
   origin: string
 ): Promise<void> {
   const targets = routes.filter((r) => r.mode === "ssg" && r.page.staticParams);
+  console.log(`[furin] Warming SSG cache for ${targets.length} route(s)…`);
 
   // Collect all (route, params) render tasks, handling per-route errors early.
   const tasks: Array<() => Promise<void>> = [];

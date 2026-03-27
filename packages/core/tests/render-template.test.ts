@@ -45,7 +45,7 @@ describe.serial("render/template", () => {
     expect(getProductionTemplate()).toBe("<html>from-memory</html>");
   });
 
-  test("getDevTemplate caches a successful fetch result", async () => {
+  test("getDevTemplate fetches fresh template on every call (no cache)", async () => {
     let requestCount = 0;
     const server = Bun.serve({
       port: 0,
@@ -63,36 +63,23 @@ describe.serial("render/template", () => {
 
       expect(first).toBe("<html>dev-template</html>");
       expect(second).toBe("<html>dev-template</html>");
-      expect(requestCount).toBe(1);
+      expect(requestCount).toBe(2);
     } finally {
       server.stop(true);
     }
   }, 10_000);
 
-  test("getDevTemplate resets its cache after a failed fetch", async () => {
-    let shouldFail = true;
-    let requestCount = 0;
+  test("getDevTemplate throws on failed fetch", async () => {
     const server = Bun.serve({
       port: 0,
       fetch() {
-        requestCount += 1;
-        if (shouldFail) {
-          return new Response("boom", { status: 500 });
-        }
-        return new Response("<html>recovered-template</html>");
+        return new Response("boom", { status: 500 });
       },
     });
 
     try {
       const origin = server.url.origin;
-
       await expect(getDevTemplate(origin)).rejects.toThrow("/_bun_hmr_entry returned 500");
-
-      shouldFail = false;
-      const recovered = await getDevTemplate(origin);
-
-      expect(recovered).toBe("<html>recovered-template</html>");
-      expect(requestCount).toBe(2);
     } finally {
       server.stop(true);
     }

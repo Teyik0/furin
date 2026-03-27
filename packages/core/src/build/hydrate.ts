@@ -29,8 +29,12 @@ export function generateHydrateEntry(routes: ResolvedRoute[], rootLayout: string
 
   return `import { hydrateRoot, createRoot } from "react-dom/client";
 import { createElement } from "react";
+import { initLogger, log } from "evlog";
+import { createBrowserLogDrain } from "evlog/browser";
 import { RouterProvider } from "@teyik0/furin/link";
 import { route as root } from "${rootLayout.replace(/\\/g, "/")}";
+
+initLogger({ drain: createBrowserLogDrain({ drain: { endpoint: "/_furin/ingest" } }) });
 
 const routes = [
 ${routeEntries.join(",\n")}
@@ -41,35 +45,47 @@ const _match = routes.find((r) => r.regex.test(pathname));
 
 // Eagerly load only the current page module for initial hydration.
 // All other pages are loaded on demand when the user navigates to them.
-if (_match) {
-  const _mod = await _match.load();
-  const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
+// Wrapped in an async IIFE to avoid top-level await, which causes Bun's HTML
+// bundler to misidentify which chunk to reference as the entry in index.html.
+(async () => {
+  if (_match) {
+    const _mod = await _match.load();
+    const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
 
-  const dataEl = document.getElementById("__FURIN_DATA__");
-  const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
-  const rootEl = document.getElementById("root") as HTMLElement;
+    const dataEl = document.getElementById("__FURIN_DATA__");
+    const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
+    const rootEl = document.getElementById("root") as HTMLElement;
 
-  const app = createElement(RouterProvider, {
-    routes,
-    root,
-    initialMatch: match,
-    initialData: loaderData,
-  } as any);
+    const app = createElement(RouterProvider, {
+      routes,
+      root,
+      initialMatch: match,
+      initialData: loaderData,
+    } as any);
 
-  if (import.meta.hot) {
-    // Retain React root across hot reloads so Fast Refresh applies in-place.
-    const hotRoot = (import.meta.hot.data.root ??= rootEl.innerHTML.trim()
-      ? hydrateRoot(rootEl, app)
-      : createRoot(rootEl));
-    hotRoot.render(app);
-  } else if (rootEl.innerHTML.trim()) {
-    hydrateRoot(rootEl, app);
+    if (import.meta.hot) {
+      if (import.meta.hot.data.root) {
+        // HMR re-render — update in place without remounting
+        import.meta.hot.data.root.render(app);
+      } else if (rootEl.innerHTML.trim()) {
+        // First load with SSR content — hydrateRoot renders on construction
+        import.meta.hot.data.root = hydrateRoot(rootEl, app);
+      } else {
+        // First load without SSR content — createRoot requires explicit .render()
+        const freshRoot = createRoot(rootEl);
+        freshRoot.render(app);
+        import.meta.hot.data.root = freshRoot;
+      }
+    } else if (rootEl.innerHTML.trim()) {
+      hydrateRoot(rootEl, app);
+    } else {
+      createRoot(rootEl).render(app);
+    }
+    log.info({ action: "hydrate_complete", pathname });
   } else {
-    createRoot(rootEl).render(app);
+    log.error({ action: "hydrate_no_match", pathname });
   }
-} else {
-  console.error("[furin] No matching route for", pathname);
-}
+})();
 `;
 }
 
@@ -79,7 +95,11 @@ if (_match) {
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
-export function writeDevFiles(routes: ResolvedRoute[], {outDir, rootLayout}: BuildClientOptions): void {
+export function writeDevFiles(
+  routes: ResolvedRoute[],
+  { outDir, rootLayout }: BuildClientOptions,
+  projectRoot: string,
+): void {
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
@@ -98,9 +118,7 @@ export function writeDevFiles(routes: ResolvedRoute[], {outDir, rootLayout}: Bui
     writeFileSync(indexPath, indexHtml);
   }
 
-  writeRouteTypes(routes, outDir);
+  writeRouteTypes(routes, projectRoot);
 
-  console.log(
-    "[furin] Dev files written (.furin/_hydrate.tsx + .furin/index.html + .furin/routes.d.ts)"
-  );
+  console.log("[furin] Dev files written (.furin/_hydrate.tsx + .furin/index.html + furin-env.d.ts)");
 }

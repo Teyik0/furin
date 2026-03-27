@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
-import { generateIndexHtml } from "../render/shell";
+import { generateProdIndexHtml } from "../render/shell";
 import type { ResolvedRoute } from "../router";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "./shared";
@@ -11,11 +11,15 @@ const TS_FILE_FILTER = /\.(tsx|ts)$/;
 const REACT_IMPORT_RE = /import\s+React\b/;
 
 /**
- * Builds the production client bundle via Bun.build() using the generated
- * index.html as the HTML entrypoint. Bun produces:
- *   <outDir>/client/index.html  — processed template with hashed chunk paths
+ * Builds the production client bundle via Bun.build() using _hydrate.tsx as
+ * the JS entrypoint (NOT an HTML entrypoint). Bun produces:
  *   <outDir>/client/chunk-*.js  — code-split bundles
- *   <outDir>/client/styles.css  — CSS (if imported)
+ *   <outDir>/client/chunk-*.css — extracted CSS (if imported)
+ *
+ * After the build, index.html is written manually using the entry chunk path
+ * from result.outputs. Using an HTML entrypoint with code-splitting causes a
+ * Bun bug where the output index.html references a leaf chunk instead of the
+ * actual entry chunk, preventing React from mounting in production.
  *
  * The output index.html is NOT served to browsers directly. The server reads
  * it as an SSR template, injects the pre-rendered React HTML into
@@ -37,10 +41,6 @@ export async function buildClient(
   const hydrateCode = generateHydrateEntry(routes, rootLayout);
   const hydratePath = join(outDir, "_hydrate.tsx");
   writeFileSync(hydratePath, hydrateCode);
-
-  const indexHtml = generateIndexHtml();
-  const indexPath = join(outDir, "index.html");
-  writeFileSync(indexPath, indexHtml);
 
   console.log("[furin] Building production client bundle…");
 
@@ -81,7 +81,11 @@ export async function buildClient(
   };
 
   const clientBuildConfig: BunBuildAliasConfig = {
-    entrypoints: [indexPath],
+    // Use the JS file as entrypoint — NOT an HTML file. Bun's HTML bundler
+    // with code-splitting incorrectly references a leaf chunk in the output
+    // index.html instead of the actual entry chunk, preventing React from
+    // mounting. We write index.html ourselves after the build.
+    entrypoints: [hydratePath],
     outdir: clientDir,
     target: "browser",
     format: "esm",
@@ -91,7 +95,7 @@ export async function buildClient(
     // Absolute public path so SSR template asset URLs resolve on any route
     publicPath: "/_client/",
     // User plugins run before the internal transform so they pre-process files first
-    plugins: plugins ? [...plugins, transformPlugin] :  [transformPlugin],
+    plugins: plugins ? [...plugins, transformPlugin] : [transformPlugin],
     alias: {
       "@teyik0/furin/client": CLIENT_MODULE_PATH,
       "@teyik0/furin/link": LINK_MODULE_PATH,
@@ -105,6 +109,18 @@ export async function buildClient(
   for (const output of result.outputs) {
     console.log(`[furin]   ${output.path} (${(output.size / 1024).toFixed(1)} KB)`);
   }
+
+  // Build index.html (SSR template) with correct chunk references.
+  // We derive these from result.outputs rather than letting Bun write the HTML,
+  // because Bun's HTML entrypoint + code-splitting produces the wrong entry chunk.
+  const entryOutput = result.outputs.find((o) => o.kind === "entry-point");
+  const cssOutputs = result.outputs.filter(
+    (o) => o.path.endsWith(".css") && !o.path.endsWith(".css.map")
+  );
+  const entryChunk = entryOutput ? `/_client/${basename(entryOutput.path)}` : undefined;
+  const cssChunks = cssOutputs.map((o) => `/_client/${basename(o.path)}`);
+
+  writeFileSync(join(clientDir, "index.html"), generateProdIndexHtml(entryChunk, cssChunks));
 
   console.log("[furin] Production client build complete");
 }

@@ -1,0 +1,127 @@
+# Deployment
+
+Furin separates the build step from the runtime. Run `bun run build` once, then deploy the output anywhere.
+
+## Build
+
+<CodeTabs>
+<CodeTab title="Terminal">
+```bash
+bun run build
+```
+</CodeTab>
+<CodeTab title="furin.config.ts">
+```ts
+// furin.config.ts
+import { defineConfig, bunAdapter } from "@teyik0/furin/config"
+import tailwind from "bun-plugin-tailwind"
+
+export default defineConfig({
+  plugins: [tailwind],
+  adapter: bunAdapter(),
+})
+```
+</CodeTab>
+</CodeTabs>
+
+This runs `furin/build-cli`, which reads `furin.config.ts` and produces:
+
+- `.furin/client/` — bundled client assets (JS, CSS)
+- `.furin/server/` — server bundle (SSG output if applicable)
+
+## Bun (Default)
+
+The default adapter. Serves the app directly with Bun's HTTP server.
+
+```ts
+// furin.config.ts
+import { defineConfig, bunAdapter } from "@teyik0/furin/config"
+import tailwind from "bun-plugin-tailwind"
+
+export default defineConfig({
+  plugins: [tailwind],
+  adapter: bunAdapter(),
+})
+```
+
+Start the production server:
+
+```bash
+bun run build
+bun run start
+```
+
+### Binary Compile
+
+Package your app as a standalone executable:
+
+```bash
+bun build --compile --target bun src/server.ts --outfile my-app
+./my-app
+```
+
+## Vercel
+
+The Vercel adapter generates `.vercel/output/` using the [Build Output API v3](https://vercel.com/docs/build-output-api/v3):
+
+```ts
+// furin.config.ts
+import { defineConfig, vercelAdapter } from "@teyik0/furin/config"
+
+export default defineConfig({
+  adapter: vercelAdapter(),
+})
+```
+
+```bash
+bun run build
+# Deploy with Vercel CLI
+vercel deploy --prebuilt
+```
+
+ISR pages use `Cache-Control` headers automatically.
+
+## Cloudflare Workers
+
+The Cloudflare adapter generates a `wrangler.toml` and a worker bundle:
+
+```ts
+// furin.config.ts
+import { defineConfig, cloudflareAdapter } from "@teyik0/furin/config"
+
+export default defineConfig({
+  adapter: cloudflareAdapter(),
+})
+```
+
+```bash
+bun run build
+wrangler deploy
+```
+
+## Environment Variables
+
+Prefix public variables with `FURIN_PUBLIC_` to expose them to the client bundle:
+
+```bash
+# .env
+FURIN_PUBLIC_API_URL=https://api.example.com
+DATABASE_URL=postgres://...  # server-only, never sent to the client
+```
+
+Access in your code:
+
+```ts
+// Available anywhere
+const apiUrl = process.env.FURIN_PUBLIC_API_URL
+
+// Server-only (loader, API routes)
+const db = postgres(process.env.DATABASE_URL)
+```
+
+Configure in `bunfig.toml`:
+
+```toml
+[serve.static]
+env = "FURIN_PUBLIC_*"
+```
