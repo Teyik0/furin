@@ -1,0 +1,121 @@
+packages/core/tests/fixtures/pages/query-default/_route.tsx
+  db853942d1a7f890 1-10
+packages/core/tests/link.test.tsx
+  3aec30bb18305645 235-310,327,334-356,366-375
+packages/core/tests/fixtures/pages/query-default/index.tsx
+  db853942d1a7f890 1-4,6-9
+packages/core/tests/router/route-plugin.test.ts
+  db853942d1a7f890 11,84-203
+packages/core/src/client.ts
+  569bad89f1875a10 84-92,97,168-193,249-250
+packages/core/src/link.tsx
+  3aec30bb18305645 37,41,58-64,67-68,71-75,82-90,129-130,135,148,271,273,339,360,363-380,382,430,452-456,469-474,519,535,540,555,560-567,577,579-580,582
+  db853942d1a7f890 201-202,289-296,309,353-354,356,358,361-362,405-413
+packages/core/src/render/index.ts
+  794e10d95d0fe522 99-101,168-169
+packages/core/tests/types.test.tsx
+  569bad89f1875a10 300-336,338,340-360,362,364-396
+README.md
+  97dd4cbc9cbaf241 3,7-12,17,20,23,26,29,32-33,36-43,49-50,53,57-60,62-64,66-67,69,71,73-79,81,83-86,88,91-93,96-99,101,103,106,112,115-119,123,125,128,135,139,143-144,148,152-154,156,160,162-172,175-178,180,182,185,187,190,192,194,196-199,201-204,207,209,212,215,217-218,221,223-224,226,228,230,232-235,238,240-243,245,247-249,251
+  57beae3b58ac1866 25
+packages/core/src/router.ts
+  db853942d1a7f890 4,167-173,175-176,178,180-189,191,193-195,197,199-200,203-204,212,214-215,217,220-222,226-228,230,232,234-245,247-248,251-258,260-265,268-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "7201eadc5f484ea6e606e61f317c0d4e90b14795",
+  "prompts": {
+    "3aec30bb18305645": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d38d1b07-1b11-47ab-bbd3-710b67ab3947",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    },
+    "569bad89f1875a10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2a324db-47c3-4728-a97f-ac459e4c9011",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 134,
+      "overriden_lines": 0
+    },
+    "57beae3b58ac1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3351-f1b8-76a0-8ecd-f6d7be94da7b",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "794e10d95d0fe522": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75113785-7f97-4797-b323-7ffdc9d5c1c9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "97dd4cbc9cbaf241": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3118-4a71-7d90-bc0f-af756a276b1f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 134,
+      "overriden_lines": 0
+    },
+    "d3068cb89d11d8ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fab0ded-4783-41e7-9f15-554fd93511e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "db853942d1a7f890": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d7b811f-c1db-418d-9729-119b515d7f8f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 313,
+      "total_deletions": 111,
+      "accepted_lines": 243,
+      "overriden_lines": 11
+    }
+  }
+}
