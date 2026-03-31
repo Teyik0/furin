@@ -297,6 +297,103 @@ describe("nested layouts", () => {
   });
 });
 
+describe("page-level loader", () => {
+  test("page loader data flows to component", () => {
+    const route = createRoute({
+      loader: async () => ({ user: { id: 1 } }),
+    });
+
+    route.page({
+      loader: async () => ({ comments: [{ text: "hi" }] as Array<{ text: string }> }),
+      component: ({ user, comments }) => {
+        expectTypeOf(user).toEqualTypeOf<{ id: number }>();
+        expectTypeOf(comments).toEqualTypeOf<Array<{ text: string }>>();
+        return null;
+      },
+    });
+  });
+
+  test("page loader only — no route loader", () => {
+    const route = createRoute();
+
+    route.page({
+      loader: async () => ({ title: "Hello", count: 42 }),
+      component: ({ title, count }) => {
+        expectTypeOf(title).toBeString();
+        expectTypeOf(count).toBeNumber();
+        return null;
+      },
+    });
+  });
+
+  test("page loader with union return type (multiple code paths)", () => {
+    const route = createRoute({
+      query: t.Object({ city: t.Optional(t.String()) }),
+    });
+
+    route.page({
+      loader: ({ query }) => {
+        const data = null as null | { name: string };
+        if (!data) {
+          return { result: null, error: `not found: ${query.city}` };
+        }
+        return { result: data, error: null };
+      },
+      component: ({ result, error }) => {
+        expectTypeOf(result).toEqualTypeOf<{ name: string } | null>();
+        expectTypeOf(error).toEqualTypeOf<string | null>();
+        return null;
+      },
+    });
+  });
+
+  test("page loader union return + head (loader declared first)", () => {
+    // TypeScript infers TPageLoaderData from the loader's return type in a single
+    // pass over the object literal, so `loader` must appear before `head`/`component`
+    // for the contextual typing of those to reflect the loader data correctly.
+    const route = createRoute({
+      query: t.Object({ city: t.Optional(t.String()) }),
+    });
+
+    route.page({
+      loader: ({ query }) => {
+        const data = null as null | { name: string; country: string };
+        if (!data) {
+          return { result: null, error: `not found: ${query.city}` };
+        }
+        return { result: data, error: null };
+      },
+      head: ({ query, result }) => ({
+        meta: [{ title: `${result?.name ?? query.city}` }],
+      }),
+      component: ({ result, error, query }) => {
+        expectTypeOf(result).toEqualTypeOf<{ name: string; country: string } | null>();
+        expectTypeOf(error).toEqualTypeOf<string | null>();
+        expectTypeOf(query.city).toEqualTypeOf<string | undefined>();
+        return null;
+      },
+    });
+  });
+
+  test("page loader context receives route loader data", () => {
+    const route = createRoute({
+      loader: async () => ({ org: { id: "org-1" } }),
+    });
+
+    route.page({
+      loader: ({ org }) => {
+        expectTypeOf(org.id).toBeString();
+        return { members: 5 };
+      },
+      component: ({ org, members }) => {
+        expectTypeOf(org.id).toBeString();
+        expectTypeOf(members).toBeNumber();
+        return null;
+      },
+    });
+  });
+});
+
 describe("page head", () => {
   test("head receives accumulated data + page loader data", () => {
     const route = createRoute({

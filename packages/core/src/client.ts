@@ -81,11 +81,20 @@ export interface HeadOptions {
 
 export type LoaderDeps = (route: { __type: string }) => Promise<Record<string, unknown>>;
 
+// Extracts the resolved return type from a loader function type.
+// Using ReturnType + Awaited here means TLoader is inferred as the whole function
+// first, and then we extract the data — so inference is order-independent.
+type ExtractLoaderReturn<TLoader> = TLoader extends (...args: never[]) => unknown
+  ? Awaited<ReturnType<TLoader>> extends Record<string, unknown>
+    ? Awaited<ReturnType<TLoader>>
+    : {}
+  : {};
+
 export interface PageConfig<
   TParentData extends Record<string, unknown>,
   TParams,
   TQuery,
-  TPageLoaderData extends Record<string, unknown> = {},
+  TPageLoaderData extends object = {},
 > {
   component: React.FC<TParentData & TPageLoaderData & ComponentProps<TParams, TQuery>>;
   head?: (ctx: ComponentProps<TParams, TQuery> & TParentData & TPageLoaderData) => HeadOptions;
@@ -156,9 +165,32 @@ export interface Route<TParentData extends Record<string, unknown>, TParams, TQu
   ): Promise<TParentData> | TParentData;
   mode?: "ssr" | "ssg" | "isr";
 
-  page<TPageLoaderData extends Record<string, unknown> = {}>(
-    config: PageConfig<TParentData, TParams, TQuery, TPageLoaderData>
-  ): PageResult<TParentData, TParams, TQuery, TPageLoaderData>;
+  // Overload 1 — loader present (required).
+  // Two type params: TLoader is inferred solely from the `loader` position; TPageLoaderData
+  // has no inference sites (all NoInfer) so TypeScript applies its default AFTER TLoader is
+  // resolved — making declaration order of head/component irrelevant.
+  page<
+    TLoader extends (ctx: RouteContext<TParams, TQuery> & TParentData, deps: TypedDeps) => unknown,
+    TPageLoaderData extends Record<string, unknown> = ExtractLoaderReturn<TLoader>,
+  >(config: {
+    loader: TLoader;
+    mode?: "ssr" | "ssg" | "isr";
+    revalidate?: number;
+    staticParams?: () => Promise<NormalizeUnset<TParams>[]> | NormalizeUnset<TParams>[];
+    component: React.FC<NoInfer<TParentData & TPageLoaderData & ComponentProps<TParams, TQuery>>>;
+    head?: (
+      ctx: NoInfer<ComponentProps<TParams, TQuery> & TParentData & TPageLoaderData>
+    ) => HeadOptions;
+  }): PageResult<TParentData, TParams, TQuery, TPageLoaderData>;
+
+  // Overload 2 — no loader.
+  page(config: {
+    mode?: "ssr" | "ssg" | "isr";
+    revalidate?: number;
+    staticParams?: () => Promise<NormalizeUnset<TParams>[]> | NormalizeUnset<TParams>[];
+    component: React.FC<TParentData & ComponentProps<TParams, TQuery>>;
+    head?: (ctx: ComponentProps<TParams, TQuery> & TParentData) => HeadOptions;
+  }): PageResult<TParentData, TParams, TQuery, {}>;
 
   params?: unknown;
   parent?: RuntimeRoute;
@@ -214,9 +246,8 @@ export function createRoute<
     __type: "FURIN_ROUTE" as const,
     ref: {} as RouteRef<R["data"], R["params"], R["query"]>,
 
-    page<TPageLoaderData extends Record<string, unknown> = {}>(
-      pageConfig: PageConfig<R["data"], R["params"], R["query"], TPageLoaderData>
-    ) {
+    // biome-ignore lint/suspicious/noExplicitAny: implementation signature for both overloads
+    page(pageConfig: any) {
       return {
         ...pageConfig,
         __type: "FURIN_PAGE" as const,

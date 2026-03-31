@@ -232,6 +232,82 @@ describe("Link", () => {
     );
     expect(html).toBe('<a href="/about#team">Team</a>');
   });
+
+  test("data-status='active' when to matches the fallback currentHref '/'", () => {
+    // Outside RouterProvider, currentHref fallback = "/" (window is undefined in SSR/tests)
+    const html = renderToStaticMarkup(createElement(Link, { to: "/" as string }, "Home"));
+    expect(html).toContain('data-status="active"');
+  });
+
+  test("no data-status attribute when link is inactive", () => {
+    const html = renderToStaticMarkup(createElement(Link, { to: "/blog" as string }, "Blog"));
+    expect(html).not.toContain("data-status");
+  });
+
+  test("children as render function — receives isActive=false outside RouterProvider", () => {
+    // Function-children must be passed via the props object because createElement's rest-arg
+    // children parameter is typed as ReactNode (not a function). biome-ignore is needed here.
+    const html = renderToStaticMarkup(
+      createElement(Link, {
+        to: "/blog" as string,
+        // biome-ignore lint/correctness/noChildrenProp: function-children must be passed via props
+        children: ({ isActive }: { isActive: boolean }) =>
+          createElement("span", { "data-active": String(isActive) }, "Blog"),
+      })
+    );
+    expect(html).toContain('data-active="false"');
+    expect(html).toContain("<span");
+  });
+
+  test("children as render function — receives isActive=true when to='/'", () => {
+    const html = renderToStaticMarkup(
+      createElement(Link, {
+        to: "/" as string,
+        // biome-ignore lint/correctness/noChildrenProp: function-children must be passed via props
+        children: ({ isActive }: { isActive: boolean }) =>
+          createElement("span", { "data-active": String(isActive) }, "Home"),
+      })
+    );
+    expect(html).toContain('data-active="true"');
+  });
+
+  test("activeProps — merges className when link is active (to='/')", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        Link,
+        {
+          to: "/" as string,
+          activeProps: ({ isActive }) => (isActive ? { className: "active-link" } : {}),
+        },
+        "Home"
+      )
+    );
+    expect(html).toContain('class="active-link"');
+    expect(html).toContain('data-status="active"');
+  });
+
+  test("inactiveProps — merges className when link is inactive", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        Link,
+        {
+          to: "/blog" as string,
+          inactiveProps: () => ({ className: "muted-link" }),
+        },
+        "Blog"
+      )
+    );
+    expect(html).toContain('class="muted-link"');
+    expect(html).not.toContain("data-status");
+  });
+
+  test("disabled — renders aria-disabled and keeps href", () => {
+    const html = renderToStaticMarkup(
+      createElement(Link, { to: "/about" as string, disabled: true }, "About")
+    );
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain('href="/about"');
+  });
 });
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -248,10 +324,34 @@ describe("types", () => {
     expectTypeOf<RouterContextValue["defaultPreload"]>().toEqualTypeOf<PreloadStrategy>();
     expectTypeOf<RouterContextValue["defaultPreloadDelay"]>().toEqualTypeOf<number>();
     expectTypeOf<RouterContextValue["defaultPreloadStaleTime"]>().toEqualTypeOf<number>();
+    expectTypeOf<RouterContextValue["currentHref"]>().toEqualTypeOf<string>();
   });
 
   test("LinkProps.preload is an optional PreloadStrategy", () => {
     expectTypeOf<LinkProps["preload"]>().toEqualTypeOf<PreloadStrategy | undefined>();
+  });
+
+  test("LinkProps.replace is an optional boolean", () => {
+    expectTypeOf<LinkProps["replace"]>().toEqualTypeOf<boolean | undefined>();
+  });
+
+  test("LinkProps.resetScroll is an optional boolean", () => {
+    expectTypeOf<LinkProps["resetScroll"]>().toEqualTypeOf<boolean | undefined>();
+  });
+
+  test("LinkProps.disabled is an optional boolean", () => {
+    expectTypeOf<LinkProps["disabled"]>().toEqualTypeOf<boolean | undefined>();
+  });
+
+  test("LinkProps.activeProps is an optional function returning AnchorHTMLAttributes", () => {
+    expectTypeOf<LinkProps["activeProps"]>().toEqualTypeOf<
+      ((opts: { isActive: boolean }) => React.AnchorHTMLAttributes<HTMLAnchorElement>) | undefined
+    >();
+  });
+
+  test("RouterContextValue.navigate accepts resetScroll option", () => {
+    expectTypeOf<RouterContextValue["navigate"]>().toBeCallableWith("/", { resetScroll: true });
+    expectTypeOf<RouterContextValue["navigate"]>().toBeCallableWith("/", { replace: true });
   });
 
   test("LinkProps.preloadDelay and preloadStaleTime are optional numbers", () => {
@@ -261,6 +361,16 @@ describe("types", () => {
 
   test("LinkProps.to is a string (RouteTo fallback when RouteManifest is unaugmented)", () => {
     expectTypeOf<LinkProps["to"]>().toBeString();
+  });
+
+  test("RouteTo includes https:// and http:// when RouteManifest is augmented", () => {
+    // Simulate what RouteTo looks like when RouteManifest has routes
+    // The actual type must accept external URLs alongside known routes
+    type SimulatedRouteTo = "/" | "/blog" | `https://${string}` | `http://${string}`;
+    expectTypeOf<"https://github.com">().toMatchTypeOf<SimulatedRouteTo>();
+    expectTypeOf<"http://example.com">().toMatchTypeOf<SimulatedRouteTo>();
+    // Internal routes still work
+    expectTypeOf<"/">().toMatchTypeOf<SimulatedRouteTo>();
   });
 
   test("RouterProviderProps.prefetchCacheSize is an optional number", () => {

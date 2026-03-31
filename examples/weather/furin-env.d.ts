@@ -4,6 +4,6 @@ import "@teyik0/furin/link";
 
 declare module "@teyik0/furin/link" {
   interface RouteManifest {
-    "/": { search?: { city?: string } };
+    "/": { search?: { city: string } };
   }
 }

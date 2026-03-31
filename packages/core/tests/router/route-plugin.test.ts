@@ -8,7 +8,7 @@ mock.module("evlog/elysia", () => ({
 }));
 
 import { Elysia } from "elysia";
-import { createRoutePlugin, scanPages } from "../../src/router";
+import { createRoutePlugin, queryDefaultRedirectHook, scanPages } from "../../src/router";
 import { __setDevMode, IS_DEV } from "../../src/runtime-env";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/pages");
@@ -79,5 +79,125 @@ describe("createRoutePlugin", () => {
 
     // The plugin should set up correctly (no throw)
     expect(app).toBeInstanceOf(Elysia);
+  });
+});
+
+describe("query default redirect", () => {
+  test("redirects to canonical URL when query defaults are applied", async () => {
+    const result = await scanPages(FIXTURES_DIR);
+    const route = result.routes.find((r) => r.pattern === "/query-default");
+    if (!route) {
+      throw new Error("No query-default route in fixtures");
+    }
+
+    const app = new Elysia().use(createRoutePlugin(route, result.root));
+
+    const res = await app.handle(new Request("http://localhost/query-default"));
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/query-default?city=Paris");
+  });
+
+  test("does NOT redirect when query param is explicitly provided", async () => {
+    const result = await scanPages(FIXTURES_DIR);
+    const route = result.routes.find((r) => r.pattern === "/query-default");
+    if (!route) {
+      throw new Error("No query-default route in fixtures");
+    }
+
+    const app = new Elysia().use(createRoutePlugin(route, result.root));
+
+    const res = await app.handle(new Request("http://localhost/query-default?city=Paris"));
+
+    expect(res.status).toBe(200);
+  });
+
+  test("does NOT redirect when query param has a non-default value", async () => {
+    const result = await scanPages(FIXTURES_DIR);
+    const route = result.routes.find((r) => r.pattern === "/query-default");
+    if (!route) {
+      throw new Error("No query-default route in fixtures");
+    }
+
+    const app = new Elysia().use(createRoutePlugin(route, result.root));
+
+    const res = await app.handle(new Request("http://localhost/query-default?city=Tokyo"));
+
+    expect(res.status).toBe(200);
+  });
+
+  test("does NOT redirect for route without query schema", async () => {
+    const result = await scanPages(FIXTURES_DIR);
+    const ssgRoute = result.routes.find((r) => r.mode === "ssg");
+    if (!ssgRoute) {
+      return;
+    }
+
+    const app = new Elysia().use(createRoutePlugin(ssgRoute, result.root));
+
+    const res = await app.handle(new Request(`http://localhost${ssgRoute.pattern}`));
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("queryDefaultRedirectHook (unit)", () => {
+  // The hook uses Elysia's ctx.status("Found") to signal 302 and sets
+  // ctx.set.headers.location. We mock status() to return a sentinel value.
+  const mockStatus = (code: string) => `status:${code}`;
+
+  test("returns truthy and sets location when key is absent from URL but present in ctx.query", () => {
+    const mockCtx = {
+      request: new Request("http://localhost/"),
+      query: { city: "Paris" },
+      set: { headers: {} as Record<string, string> },
+      status: mockStatus,
+    };
+
+    const result = queryDefaultRedirectHook(mockCtx as never);
+
+    expect(result).toBeTruthy();
+    expect(mockCtx.set.headers.location).toBe("/?city=Paris");
+  });
+
+  test("returns undefined when all keys are present in URL", () => {
+    const mockCtx = {
+      request: new Request("http://localhost/?city=Tokyo"),
+      query: { city: "Tokyo" },
+      set: { headers: {} as Record<string, string> },
+      status: mockStatus,
+    };
+
+    const result = queryDefaultRedirectHook(mockCtx as never);
+
+    expect(result).toBeUndefined();
+  });
+
+  test("returns undefined when ctx.query is empty", () => {
+    const mockCtx = {
+      request: new Request("http://localhost/"),
+      query: {},
+      set: { headers: {} as Record<string, string> },
+      status: mockStatus,
+    };
+
+    const result = queryDefaultRedirectHook(mockCtx as never);
+
+    expect(result).toBeUndefined();
+  });
+
+  test("redirects only for absent keys when some params are present", () => {
+    const mockCtx = {
+      request: new Request("http://localhost/?tag=react"),
+      query: { tag: "react", city: "Paris" },
+      set: { headers: {} as Record<string, string> },
+      status: mockStatus,
+    };
+
+    const result = queryDefaultRedirectHook(mockCtx as never);
+
+    expect(result).toBeTruthy();
+    expect(mockCtx.set.headers.location).toContain("tag=react");
+    expect(mockCtx.set.headers.location).toContain("city=Paris");
   });
 });

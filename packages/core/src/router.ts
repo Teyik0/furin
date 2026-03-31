@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join, parse } from "node:path";
-import { type AnyElysia, Elysia } from "elysia";
+import { type AnyElysia, type Context, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
@@ -164,70 +164,116 @@ async function buildDevRoute(
   };
 }
 
+// ── Query-default redirect ──────────────────────────────────────────────────
+// Validator-agnostic: after Elysia applies defaults (TypeBox, Zod, Valibot…),
+// compare the raw URL query keys with the resolved ctx.query keys. If ctx.query
+// contains keys absent from the URL, defaults were applied → 302 redirect to
+// the canonical URL so the address bar always reflects the actual app state.
+
+/** @internal Exported for unit testing. */
+export function queryDefaultRedirectHook({ request, query, status, set }: Context) {
+  const resolvedQuery = query as Record<string, unknown>;
+  const queryKeys = Object.keys(resolvedQuery);
+  if (queryKeys.length === 0) {
+    return;
+  }
+
+  const rawParams = new URL(request.url).searchParams;
+
+  let needsRedirect = false;
+  for (const key of queryKeys) {
+    if (!rawParams.has(key) && resolvedQuery[key] != null) {
+      needsRedirect = true;
+      break;
+    }
+  }
+  if (!needsRedirect) {
+    return;
+  }
+
+  const url = new URL(request.url);
+  for (const [k, v] of Object.entries(resolvedQuery)) {
+    if (v != null) {
+      url.searchParams.set(k, String(v));
+    }
+  }
+
+  set.headers.location = url.pathname + url.search;
+  return status("Found");
+}
+
 export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
   const { pattern, routeChain } = route;
-
-  const plugins: AnyElysia[] = [];
 
   // TODO: merge schemas from all routeChain entries (requires TypeBox t.Object/t.Composite)
   // For now, prefer the leaf route's schema (last in chain) over ancestor routes.
   const allParams = [...routeChain].reverse().find((r) => r.params)?.params;
   const allQuery = [...routeChain].reverse().find((r) => r.query)?.query;
+  const hasQuerySchema = !!allQuery;
+
+  // Guard and handler MUST live in the same Elysia scope so that validation
+  // (including default-filling) applies to the route handler's ctx.query.
+  const plugin = new Elysia();
+
   if (allParams || allQuery) {
-    plugins.push(
-      new Elysia().guard({
-        params: allParams as AnySchema,
-        query: allQuery as AnySchema,
-      })
-    );
+    plugin.guard({
+      params: allParams as AnySchema,
+      query: allQuery as AnySchema,
+    });
   }
 
-  plugins.push(
-    new Elysia().get(pattern, async (ctx) => {
-      if (IS_DEV) {
-        // Dev mode: load the page via ?furin-server virtual namespace so it
-        // stays out of --hot's file watcher, then hand off to renderSSR which
-        // runs loaders, renders React to HTML, and injects __FURIN_DATA__.
-        try {
-          const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
-          const page = pageMod.default;
+  plugin.get(pattern, async (ctx) => {
+    // Redirect when Elysia applied query defaults (validator-agnostic)
+    if (hasQuerySchema) {
+      const redirect = queryDefaultRedirectHook(ctx);
+      if (redirect) {
+        return redirect;
+      }
+    }
 
-          if (page && isFurinPage(page)) {
-            const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
-            const devRoute: ResolvedRoute = { ...route, page, routeChain };
-            return renderSSR(devRoute, ctx, root);
-          }
-        } catch (err) {
-          console.error(`[furin] Dev page load error for ${route.path}:`, err);
+    if (IS_DEV) {
+      // Dev mode: load the page via ?furin-server virtual namespace so it
+      // stays out of --hot's file watcher, then hand off to renderSSR which
+      // runs loaders, renders React to HTML, and injects __FURIN_DATA__.
+      try {
+        const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
+        const page = pageMod.default;
+
+        if (page && isFurinPage(page)) {
+          const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+          const devRoute: ResolvedRoute = { ...route, page, routeChain };
+          return renderSSR(devRoute, ctx, root);
         }
-
-        // Fallback: page couldn't load — return a clear error response rather
-        // than delegating to renderSSR with an undefined page, which would
-        // throw an opaque TypeError on route.page.head?.().
-        return new Response(
-          `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
-          { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
-        );
+      } catch (err) {
+        console.error(`[furin] Dev page load error for ${route.path}:`, err);
       }
 
-      switch (route.mode) {
-        case "ssg": {
-          ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-          ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
-          const origin = new URL(ctx.request.url).origin;
-          return await prerenderSSG(route, ctx.params, root, origin);
-        }
+      // Fallback: page couldn't load — return a clear error response rather
+      // than delegating to renderSSR with an undefined page, which would
+      // throw an opaque TypeError on route.page.head?.().
+      return new Response(
+        `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
+        { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    }
 
-        case "isr":
-          return handleISR(route, ctx, root);
-
-        default:
-          return renderSSR(route, ctx, root);
+    switch (route.mode) {
+      case "ssg": {
+        ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+        ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
+        const origin = new URL(ctx.request.url).origin;
+        return await prerenderSSG(route, ctx.params, root, origin);
       }
-    })
-  );
 
-  return plugins.reduce((app, plugin) => app.use(plugin), new Elysia());
+      case "isr":
+        return handleISR(route, ctx, root);
+
+      default:
+        return renderSSR(route, ctx, root);
+    }
+  });
+
+  return plugin;
 }
 
 async function collectPageFilePaths(dir: string): Promise<string[]> {

@@ -34,8 +34,11 @@ export interface RouteManifest {}
 /**
  * The valid `to` pathname union derived from the augmented RouteManifest.
  * Falls back to `string` when furin-env.d.ts has not been generated yet.
+ * When augmented, also includes `https://` and `http://` for external links.
  */
-export type RouteTo = keyof RouteManifest extends never ? string : keyof RouteManifest;
+export type RouteTo = keyof RouteManifest extends never
+  ? string
+  : keyof RouteManifest | `https://${string}` | `http://${string}`;
 
 /**
  * The typed search params for a given `to` pathname.
@@ -52,15 +55,39 @@ export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
 export type PreloadStrategy = false | "intent" | "viewport" | "render";
 
 export interface LinkProps<To extends RouteTo = RouteTo>
-  extends Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href"> {
+  extends Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "children"> {
+  /**
+   * Extra props merged onto the anchor when the link is active.
+   * `isActive` is also passed so one function can handle both states.
+   * Styles and classNames from `activeProps` win over the static props.
+   */
+  activeProps?: (opts: { isActive: boolean }) => React.AnchorHTMLAttributes<HTMLAnchorElement>;
+  /** Static children or a render function receiving active state. */
+  children?: React.ReactNode | ((state: { isActive: boolean }) => React.ReactNode);
+  /** Prevents navigation and prefetch; adds aria-disabled="true". The href stays intact for right-click. */
+  disabled?: boolean;
   /** Optional URL fragment (without the #). */
   hash?: string;
+  /**
+   * Extra props merged onto the anchor when the link is NOT active.
+   * Styles and classNames from `inactiveProps` win over the static props.
+   */
+  inactiveProps?: () => React.AnchorHTMLAttributes<HTMLAnchorElement>;
   /** Preload strategy. Default: "intent" (preload on hover/focus). */
   preload?: PreloadStrategy;
   /** Delay in ms before intent preload triggers. Default: 50. */
   preloadDelay?: number;
   /** How long a preloaded entry stays fresh (ms). Default: 30_000. */
   preloadStaleTime?: number;
+  /** If true, uses history.replaceState instead of pushState (no new history entry). */
+  replace?: boolean;
+  /**
+   * Whether to scroll after SPA navigation. Default: true.
+   * - If the destination href has a `#hash`, scrolls to that element.
+   * - Otherwise scrolls to the top of the page.
+   * Set to `false` to suppress all scroll behaviour (e.g. tab/drawer navigation).
+   */
+  resetScroll?: boolean;
   /** Typed search params for this route. Auto-completed from the route's query schema. */
   search?: RouteSearch<To>;
   to: To;
@@ -99,11 +126,13 @@ export function buildHref(
 // ── Router context ─────────────────────────────────────────────────────────────
 
 export interface RouterContextValue {
+  /** Current pathname + search (no hash). Used by Link for active-state detection. */
+  currentHref: string;
   defaultPreload: PreloadStrategy;
   defaultPreloadDelay: number;
   defaultPreloadStaleTime: number;
   isNavigating: boolean;
-  navigate: (href: string, opts?: { replace?: boolean }) => Promise<void>;
+  navigate: (href: string, opts?: { replace?: boolean; resetScroll?: boolean }) => Promise<void>;
   prefetch: (href: string, opts?: { staleTime?: number }) => void;
 }
 
@@ -116,6 +145,8 @@ export const RouterContext = createContext<RouterContextValue | null>(null);
 export function useRouter(): RouterContextValue {
   return (
     useContext(RouterContext) ?? {
+      currentHref:
+        typeof window === "undefined" ? "/" : window.location.pathname + window.location.search,
       navigate: (href) => {
         window.location.href = href;
         return Promise.resolve();
@@ -167,6 +198,8 @@ export interface RouterProviderProps {
 
 interface RouterState {
   data: Record<string, unknown>;
+  /** The canonical href after server-side redirects (e.g. query-default redirect). */
+  finalHref?: string;
   match: LoadedClientRoute;
   title?: string;
 }
@@ -235,6 +268,9 @@ export function RouterProvider({
     data: initialData,
   });
   const [isNavigating, setIsNavigating] = useState(false);
+  const [currentHref, setCurrentHref] = useState<string>(() =>
+    typeof window === "undefined" ? "/" : window.location.pathname + window.location.search
+  );
   const prefetchCache = useRef(new Map<string, CacheEntry>());
 
   const fetchPageState = useCallback(
@@ -250,6 +286,14 @@ export function RouterProvider({
         // The browser module cache makes match.load() near-instant for already-loaded pages.
         const [res, loadedMod] = await Promise.all([fetch(href), match.load()]);
 
+        // Detect server-side redirects (e.g. query-default redirect /?→/?city=Paris).
+        // fetch() follows 302 automatically; res.url is the final URL, res.redirected is true.
+        let finalHref: string | undefined;
+        if (res.redirected) {
+          const final = new URL(res.url);
+          finalHref = final.pathname + final.search;
+        }
+
         const html = await res.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
 
@@ -262,7 +306,7 @@ export function RouterProvider({
           pageRoute: loadedMod.default._route,
         };
 
-        return { match: loadedMatch, data, title: doc.title };
+        return { match: loadedMatch, data, title: doc.title, finalHref };
       } catch (err: unknown) {
         log.error({ action: "navigate_failed", href, error: String(err) });
         return null;
@@ -292,7 +336,7 @@ export function RouterProvider({
   );
 
   const navigate = useCallback(
-    async (href: string, opts?: { replace?: boolean }) => {
+    async (href: string, opts?: { replace?: boolean; resetScroll?: boolean }) => {
       prefetch(href);
       setIsNavigating(true);
       try {
@@ -306,12 +350,37 @@ export function RouterProvider({
         if (newState.title) {
           document.title = newState.title;
         }
+        // Use the post-redirect href when the server redirected (e.g. query-default redirect)
+        const effectiveHref = newState.finalHref ?? href;
         if (opts?.replace) {
-          window.history.replaceState(null, "", href);
+          window.history.replaceState(null, "", effectiveHref);
         } else {
-          window.history.pushState(null, "", href);
+          window.history.pushState(null, "", effectiveHref);
         }
-        window.scrollTo(0, 0);
+        setCurrentHref(
+          new URL(effectiveHref, window.location.origin).pathname +
+            new URL(effectiveHref, window.location.origin).search
+        );
+        const shouldReset = opts?.resetScroll ?? true;
+        if (shouldReset) {
+          const destUrl = new URL(href, window.location.origin);
+          if (destUrl.hash) {
+            const id = decodeURIComponent(destUrl.hash.slice(1));
+            const el = document.getElementById(id);
+            if (el) {
+              el.scrollIntoView({ behavior: "instant", block: "start" });
+            } else {
+              // Element may not be in DOM yet — retry after React commits
+              window.requestAnimationFrame(() => {
+                document
+                  .getElementById(id)
+                  ?.scrollIntoView({ behavior: "instant", block: "start" });
+              });
+            }
+          } else {
+            window.scrollTo(0, 0);
+          }
+        }
       } finally {
         setIsNavigating(false);
       }
@@ -333,8 +402,16 @@ export function RouterProvider({
       if (newState.title) {
         document.title = newState.title;
       }
+      // Use the post-redirect href when the server redirected (e.g. query-default redirect)
+      const effectiveHref = newState.finalHref ?? href;
+      if (newState.finalHref) {
+        window.history.replaceState(null, "", effectiveHref);
+      }
+      setCurrentHref(
+        new URL(effectiveHref, window.location.origin).pathname +
+          new URL(effectiveHref, window.location.origin).search
+      );
       // No scrollTo(0, 0) — browser handles scroll restoration
-      // No history.pushState/replaceState — URL already updated by browser
     } finally {
       setIsNavigating(false);
     }
@@ -350,6 +427,7 @@ export function RouterProvider({
     RouterContext.Provider,
     {
       value: {
+        currentHref,
         navigate,
         prefetch,
         isNavigating,
@@ -371,6 +449,11 @@ export function Link<To extends RouteTo>({
   preload,
   preloadDelay,
   preloadStaleTime,
+  replace,
+  disabled,
+  resetScroll,
+  activeProps,
+  inactiveProps,
   onClick,
   onMouseEnter,
   onMouseLeave,
@@ -383,6 +466,12 @@ export function Link<To extends RouteTo>({
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const href = buildHref(to as string, search as Record<string, unknown> | null | undefined, hash);
+  const hrefWithoutHash = buildHref(
+    to as string,
+    search as Record<string, unknown> | null | undefined,
+    undefined
+  );
+  const isActive = router.currentHref === hrefWithoutHash;
 
   const effectivePreload = preload ?? router.defaultPreload;
   const effectiveDelay = preloadDelay ?? router.defaultPreloadDelay;
@@ -427,7 +516,7 @@ export function Link<To extends RouteTo>({
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
-    if (e.defaultPrevented) {
+    if (e.defaultPrevented || disabled) {
       return;
     }
     // Let browser handle modifier+click (new tab, etc.)
@@ -443,12 +532,12 @@ export function Link<To extends RouteTo>({
       return;
     }
     e.preventDefault();
-    router.navigate(href);
+    router.navigate(href, { replace, resetScroll: resetScroll ?? true });
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
     onMouseEnter?.(e);
-    if (effectivePreload === "intent" && isInternal(href)) {
+    if (!disabled && effectivePreload === "intent" && isInternal(href)) {
       intentTimerRef.current = setTimeout(triggerPrefetch, effectiveDelay);
     }
   };
@@ -463,9 +552,17 @@ export function Link<To extends RouteTo>({
 
   const handleFocus = (e: React.FocusEvent<HTMLAnchorElement>) => {
     onFocus?.(e);
-    if (effectivePreload === "intent" && isInternal(href)) {
+    if (!disabled && effectivePreload === "intent" && isInternal(href)) {
       triggerPrefetch();
     }
+  };
+
+  const resolvedChildren = typeof children === "function" ? children({ isActive }) : children;
+
+  // activeProps wins over static consumer props; inactiveProps only applied when not active
+  const extraProps: React.AnchorHTMLAttributes<HTMLAnchorElement> = {
+    ...(inactiveProps && !isActive ? inactiveProps() : {}),
+    ...(activeProps ? activeProps({ isActive }) : {}),
   };
 
   return createElement(
@@ -477,8 +574,11 @@ export function Link<To extends RouteTo>({
       onMouseEnter: handleMouseEnter,
       onMouseLeave: handleMouseLeave,
       onFocus: handleFocus,
+      ...(isActive ? { "data-status": "active" } : {}),
       ...anchorProps,
+      ...extraProps,
+      ...(disabled ? { "aria-disabled": true } : {}),
     },
-    children
+    resolvedChildren
   );
 }
