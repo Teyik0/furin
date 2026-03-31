@@ -63,7 +63,7 @@ export default route.page({
   component: ({ codeHtmlMap }) => (
     <div>
       {/* Hero */}
-      <section className="relative flex min-h-[calc(100vh-4rem)] items-center overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.22),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.12),transparent)]">
+      <section className="relative flex min-h-[calc(100vh-3.5rem)] items-center overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.22),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.12),transparent)]">
         {/* Grid overlay — uses currentColor so it flips with the theme */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.03]"

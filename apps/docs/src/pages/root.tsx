@@ -1,6 +1,10 @@
+import "./globals.css";
+
 import { createRoute } from "@teyik0/furin/client";
 import { Link } from "@teyik0/furin/link";
-import { Search } from "lucide-react";
+import { DocsSearchDialog } from "@/components/docs-search-dialog";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -16,10 +20,6 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
-import "../styles/globals.css";
-
 function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
@@ -31,18 +31,8 @@ function RootLayout({ children }: { children: React.ReactNode }) {
             <span className="font-semibold text-sm">Furin</span>
           </Link>
 
-          {/* Center — search */}
           <div className="flex flex-1 justify-center">
-            <button
-              className="flex h-8 w-full max-w-xs items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-muted-foreground transition-colors hover:border-border/80 hover:bg-muted/60"
-              type="button"
-            >
-              <Search className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1 text-left text-xs">Search</span>
-              <kbd className="hidden rounded border border-border bg-background/60 px-1.5 py-0.5 font-mono text-[10px] leading-none sm:inline-flex">
-                ⌘K
-              </kbd>
-            </button>
+            <DocsSearchDialog />
           </div>
 
           {/* Right — links + icons */}
@@ -71,7 +61,7 @@ function RootLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
-      <main className="pt-16">{children}</main>
+      <main className="pt-14">{children}</main>
 
       <footer className="border-border border-t bg-background">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

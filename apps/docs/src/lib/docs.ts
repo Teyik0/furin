@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { RouteManifest } from "@teyik0/furin/link";
+import { DOCS_CONTENT } from "../generated/docs-content";
 
 export type OpenInTarget = "github" | "chatgpt" | "claude" | "cursor" | "copilot";
 
@@ -146,6 +147,12 @@ export function getDocByPath(pathname: string): DocNavItem | undefined {
 }
 
 export function getDocSourceText(sourcePath: string): string {
+  // In compiled binary: DOCS_CONTENT is pre-populated at build time (generate:content)
+  // In dev: DOCS_CONTENT may be empty (stub) → falls back to live filesystem read
+  const pregenerated = DOCS_CONTENT[sourcePath];
+  if (pregenerated) {
+    return pregenerated;
+  }
   return readFileSync(
     new URL(`../${sourcePath.replace(SOURCE_PREFIX_RE, "")}`, import.meta.url),
     "utf8"

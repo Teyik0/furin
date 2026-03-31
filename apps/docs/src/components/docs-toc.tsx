@@ -1,21 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import { getUniqueHeadingId } from "@/lib/docs-heading";
 import { cn } from "@/lib/utils";
 
 interface HeadingItem {
   id: string;
   level: 2 | 3;
   text: string;
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
 }
 
 export function DocsToc() {
@@ -25,6 +17,23 @@ export function DocsToc() {
   useEffect(() => {
     let observer: IntersectionObserver | null = null;
     let cancelled = false;
+
+    function scrollToHashTarget(): void {
+      const hash = window.location.hash.startsWith("#")
+        ? decodeURIComponent(window.location.hash.slice(1))
+        : "";
+      if (hash.length === 0) {
+        return;
+      }
+
+      const target = document.getElementById(hash);
+      if (!target) {
+        return;
+      }
+
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveId(hash);
+    }
 
     function registerHeadings() {
       const article = document.getElementById("doc-content");
@@ -36,10 +45,7 @@ export function DocsToc() {
       const elements = Array.from(article.querySelectorAll<HTMLHeadingElement>("h2, h3"));
       const nextHeadings = elements
         .map((element) => {
-          const baseId = slugify(element.textContent ?? "");
-          const count = seen.get(baseId) ?? 0;
-          seen.set(baseId, count + 1);
-          const id = count === 0 ? baseId : `${baseId}-${count + 1}`;
+          const id = getUniqueHeadingId(element.textContent ?? "", seen);
           element.id = id;
 
           return {
@@ -52,6 +58,9 @@ export function DocsToc() {
 
       setHeadings(nextHeadings);
       setActiveId(nextHeadings[0]?.id ?? "");
+      window.requestAnimationFrame(() => {
+        scrollToHashTarget();
+      });
 
       if (nextHeadings.length === 0) {
         return true;
@@ -80,6 +89,8 @@ export function DocsToc() {
       return true;
     }
 
+    window.addEventListener("hashchange", scrollToHashTarget);
+
     if (!registerHeadings()) {
       const frame = window.requestAnimationFrame(() => {
         if (!cancelled) {
@@ -90,12 +101,14 @@ export function DocsToc() {
       return () => {
         cancelled = true;
         window.cancelAnimationFrame(frame);
+        window.removeEventListener("hashchange", scrollToHashTarget);
         observer?.disconnect();
       };
     }
 
     return () => {
       cancelled = true;
+      window.removeEventListener("hashchange", scrollToHashTarget);
       observer?.disconnect();
     };
   }, []);

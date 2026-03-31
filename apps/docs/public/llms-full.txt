@@ -1,0 +1,1029 @@
+# Furin — Complete Documentation
+
+> Furin (風鈴) is a React meta-framework built on Elysia and Bun. File-based routing, SSR/SSG/ISR, typed loaders, and SPA navigation.
+
+---
+
+# Documentation
+
+Furin is a React meta-framework on top of Elysia and Bun. It gives you file-based routing, nested layouts, SSR, SSG, ISR, typed loaders, and typed navigation without adding a second frontend toolchain.
+
+## What You Get
+
+- File-based routing from `src/pages`
+- Route-level `loader`, `params`, and `query` typing through `createRoute()`
+- `route.page()` for page components, `head()`, and `staticParams()`
+- Bun-native development flow with Fast Refresh and SSR kept in sync
+- A single process for pages and API routes
+
+## Start Here
+
+- [Getting Started](/docs/getting-started) for project setup and your first page
+- [File-Based Routing](/docs/routing) for page/layout conventions
+- [Data Loading](/docs/data-loading) for typed loaders and schemas
+- [Rendering Modes](/docs/rendering) for SSR, SSG, and ISR
+- [Deployment](/docs/deployment) for the current Bun build pipeline
+
+## How The API Is Split
+
+Use `createRoute()` for route-level concerns:
+
+- `mode`
+- `revalidate`
+- `params`
+- `query`
+- `loader`
+- `layout`
+
+Use `route.page()` for page-level concerns:
+
+- `component`
+- `loader`
+- `head`
+- `staticParams`
+
+## Current Status
+
+The core build target implemented in this branch is Bun. Other targets may already exist in config types, but if the docs mention them they should be treated as planned until the corresponding builder lands in the core.
+
+---
+
+# Getting Started
+
+Furin is a React meta-framework built on Elysia and Bun. It gives you file-based routing, SSR, SSG, ISR, nested layouts, and typed route data without a separate frontend toolchain.
+
+## Install A Starter
+
+```bash
+bun create furin@latest my-app
+cd my-app
+```
+
+For the shadcn starter:
+
+```bash
+bun create furin@latest my-app --template shadcn
+cd my-app
+```
+
+## Available Templates
+
+- `minimal` is the default starter with Tailwind, `/api/hello`, and an SSR page loader
+- `shadcn` adds Tailwind plus shadcn-style `button`, `card`, and `input` primitives
+
+## Project Shape
+
+```text
+my-app/
+├── src/
+│   ├── pages/
+│   │   ├── root.tsx
+│   │   └── index.tsx
+│   ├── api/
+│   └── server.ts
+├── furin.config.ts
+├── bunfig.toml
+└── package.json
+```
+
+## First Server
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+
+export type App = typeof app
+```
+
+## Root Layout
+
+Every app needs `src/pages/root.tsx`. It is the top-level layout and should render the document shell.
+
+```tsx
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+      </head>
+      <body>{children}</body>
+    </html>
+  ),
+})
+```
+
+## First Page
+
+```tsx
+// src/pages/index.tsx
+import { route } from "./root"
+
+export default route.page({
+  component: () => <h1>Hello Furin</h1>,
+})
+```
+
+## Development
+
+```bash
+bun run dev
+```
+
+The docs app and starters run Bun directly in development, so backend and frontend stay in the same process.
+
+## What To Learn Next
+
+- [File-Based Routing](/docs/routing) for page and layout conventions
+- [Data Loading](/docs/data-loading) for server loaders and typed schemas
+- [Rendering Modes](/docs/rendering) for SSR, SSG, ISR, and `staticParams`
+- [Deployment](/docs/deployment) for the current Bun-only production build flow
+
+---
+
+# File-Based Routing
+
+Furin scans `src/pages` and turns files into routes. Pages live in `.tsx` files, while `_route.tsx` files define layouts and route-level config for a directory.
+
+## Basic Pages
+
+```text
+src/pages/index.tsx       -> /
+src/pages/about.tsx       -> /about
+src/pages/blog/index.tsx  -> /blog
+```
+
+## Dynamic Segments
+
+Use square brackets for params:
+
+```text
+src/pages/blog/[slug].tsx   -> /blog/:slug
+src/pages/docs/[...path].tsx -> /docs/*
+```
+
+If you want typed params, declare them on `createRoute()`:
+
+```tsx
+// src/pages/blog/[slug].tsx
+import { t } from "elysia"
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  component: ({ post }) => <article>{post.title}</article>,
+})
+```
+
+```tsx
+// src/pages/blog/_route.tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  params: t.Object({
+    slug: t.String(),
+  }),
+})
+```
+
+## Layout Files
+
+Files named `_route.tsx` define route-level config and layouts for their directory:
+
+```text
+src/pages/blog/_route.tsx
+src/pages/blog/index.tsx
+src/pages/blog/[slug].tsx
+```
+
+```tsx
+// src/pages/blog/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  layout: ({ children }) => (
+    <div className="mx-auto flex max-w-5xl gap-8 px-4 py-10">
+      <aside>Sidebar</aside>
+      <main>{children}</main>
+    </div>
+  ),
+})
+```
+
+## Catch-All Routes
+
+Catch-all segments are written with `[...name]`. Furin turns them into `*` in the generated runtime pattern.
+
+```text
+src/pages/docs/[...path].tsx -> /docs/*
+```
+
+If you declare a schema for that route, the runtime param key is `"*"`:
+
+```tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  params: t.Object({
+    "*": t.String(),
+  }),
+})
+```
+
+## Typed Navigation
+
+Furin generates `furin-env.d.ts` so `<Link />` can type the `to` pathname and per-route `search` object.
+
+```tsx
+import { Link } from "@teyik0/furin/link"
+
+<Link to="/docs/rendering">Rendering</Link>
+```
+
+When a route declares a `query` schema, `search` is typed from that schema.
+
+```tsx
+<Link to="/search" search={{ page: 2 }} />
+```
+
+Make sure `furin-env.d.ts` is included in your app `tsconfig.json`:
+
+```json
+{
+  "include": ["src/**/*", "furin-env.d.ts"]
+}
+```
+
+---
+
+# Data Loading
+
+Furin loaders run on the server before rendering. Route loaders live on `createRoute()`, and page loaders live on `route.page()`.
+
+## Route Loader
+
+Use `createRoute()` when the data should feed a layout or be shared with child pages.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+})
+```
+
+## Page Loader
+
+Use `route.page()` when the data is specific to one page.
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ user }) => {
+    const stats = await getDashboardStats(user.id)
+    return { stats }
+  },
+  component: ({ stats, user }) => <Dashboard user={user} stats={stats} />,
+})
+```
+
+## Loader Context
+
+Loaders receive a context object with:
+
+| Property | Description |
+| --- | --- |
+| `request` | the incoming `Request` |
+| `params` | validated params from `createRoute({ params })` |
+| `query` | validated query values from `createRoute({ query })` |
+| parent data | accumulated data returned by ancestor route loaders |
+| `set`, `headers`, `cookie`, `redirect` | server helpers exposed by the route context |
+
+## Typed Query Schemas
+
+`query` belongs to `createRoute()`, not `route.page()`.
+
+```tsx
+// src/pages/search/_route.tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  query: t.Object({
+    page: t.Optional(t.Number({ default: 1 })),
+    tag: t.Optional(t.String()),
+  }),
+})
+```
+
+```tsx
+// src/pages/search/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ query }) => {
+    const posts = await db.getPosts(query)
+    return { posts }
+  },
+  component: ({ posts }) => <PostList posts={posts} />,
+})
+```
+
+## Typed Params
+
+Params are also declared on `createRoute()`.
+
+```tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  params: t.Object({
+    slug: t.String(),
+  }),
+})
+```
+
+## Parallel Loaders With `deps`
+
+The optional second argument lets a loader await a specific ancestor route when it truly depends on that data.
+
+```tsx
+// src/pages/dashboard/posts/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as dashboardRoute } from "../_route"
+
+export const route = createRoute({
+  parent: dashboardRoute,
+  loader: async (_ctx, deps) => {
+    const { user } = await deps(dashboardRoute)
+    return {
+      posts: await getPostsForUser(user.id),
+    }
+  },
+})
+```
+
+## Redirects And Status
+
+You can return a redirect from a loader.
+
+```tsx
+export const route = createRoute({
+  loader: async ({ request, redirect }) => {
+    const user = await getSession(request)
+    if (!user) {
+      return redirect("/login", 302)
+    }
+
+    return { user }
+  },
+})
+```
+
+---
+
+# Rendering Modes
+
+Furin configures rendering mode at the route level with `createRoute()`. The page itself still comes from `route.page()`.
+
+## SSR
+
+SSR is the default mode when you omit `mode`.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+})
+```
+
+Use SSR for session-dependent pages, personalized data, and anything that must render fresh on every request.
+
+## SSG
+
+Set `mode: "ssg"` on `createRoute()` to pre-render the page.
+
+```tsx
+// src/pages/about.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "ssg",
+})
+
+export default route.page({
+  component: () => <div>This page is pre-rendered</div>,
+})
+```
+
+For dynamic SSG routes, declare `staticParams()` on `route.page()`:
+
+```tsx
+// src/pages/blog/[slug].tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "ssg",
+  params: t.Object({
+    slug: t.String(),
+  }),
+})
+
+export default route.page({
+  staticParams: async () => {
+    const slugs = await db.getAllSlugs()
+    return slugs.map((slug) => ({ slug }))
+  },
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  component: ({ post }) => <Post post={post} />,
+})
+```
+
+## ISR
+
+ISR also belongs on `createRoute()`. Pair `mode: "isr"` with `revalidate`.
+
+```tsx
+// src/pages/products/[id].tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "isr",
+  revalidate: 60,
+  params: t.Object({
+    id: t.String(),
+  }),
+})
+
+export default route.page({
+  loader: async ({ params }) => {
+    const product = await db.getProduct(params.id)
+    return { product }
+  },
+  component: ({ product }) => <ProductPage product={product} />,
+})
+```
+
+## Comparison
+
+| Mode | Configured on | Best for |
+| --- | --- | --- |
+| `ssr` | `createRoute()` or default | request-time, personalized data |
+| `ssg` | `createRoute({ mode: "ssg" })` | content that changes rarely |
+| `isr` | `createRoute({ mode: "isr", revalidate })` | pages that can be cached then refreshed periodically |
+
+## Head Metadata
+
+Page-level `head()` still lives on `route.page()`.
+
+```tsx
+export default route.page({
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  head: ({ post }) => ({
+    meta: [
+      { title: post.title },
+      { name: "description", content: post.excerpt },
+    ],
+  }),
+  component: ({ post }) => <Post post={post} />,
+})
+```
+
+---
+
+# Nested Layouts
+
+Furin uses `_route.tsx` files for directory-level layouts and route config. Each `_route.tsx` can point at a parent route, declare loaders, and wrap child pages.
+
+## Basic Layout
+
+```tsx
+// src/pages/blog/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  layout: ({ children }) => (
+    <div className="mx-auto max-w-5xl px-4 py-10">
+      <BlogSidebar />
+      <main>{children}</main>
+    </div>
+  ),
+})
+```
+
+Pages inside that directory use the same route object:
+
+```tsx
+// src/pages/blog/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  component: () => <BlogList />,
+})
+```
+
+## Root Layout
+
+`src/pages/root.tsx` is required. It is the top-level route and should render `<html>`, `<head>`, and `<body>`.
+
+```tsx
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+      </head>
+      <body>{children}</body>
+    </html>
+  ),
+})
+```
+
+## Multi-Level Nesting
+
+```text
+src/pages/
+├── root.tsx
+├── docs/
+│   ├── _route.tsx
+│   └── advanced/
+│       ├── _route.tsx
+│       └── plugins.tsx
+```
+
+```tsx
+// src/pages/docs/advanced/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as docsRoute } from "../_route"
+
+export const route = createRoute({
+  parent: docsRoute,
+  layout: ({ children }) => <section className="advanced-layout">{children}</section>,
+})
+```
+
+## Layout Loaders
+
+Layout data flows into the layout itself and all child pages.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+})
+```
+
+The page below does not need to repeat the auth/session work:
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  component: ({ user }) => <DashboardHome user={user} />,
+})
+```
+
+---
+
+# API Routes
+
+Furin pages and Elysia API routes run in the same server process. There is no separate frontend dev server and no proxy layer required.
+
+## Define An API Plugin
+
+```ts
+// src/api/index.ts
+import { Elysia, t } from "elysia"
+
+export const api = new Elysia({ prefix: "/api" })
+  .get("/posts", async () => {
+    return db.getAllPosts()
+  })
+  .post(
+    "/posts",
+    async ({ body }) => {
+      return db.createPost(body)
+    },
+    {
+      body: t.Object({
+        title: t.String(),
+        content: t.String(),
+      }),
+    }
+  )
+```
+
+## Mount It Before Furin
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+import { api } from "./api/index.ts"
+
+const app = new Elysia()
+  .use(api)
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+
+export type App = typeof app
+```
+
+Elysia instance order matters. Mount API plugins in the order you want them applied.
+
+## Typed Client Access
+
+If you export `typeof app`, you can use Eden Treaty on the client side for end-to-end typing.
+
+```ts
+// src/client.ts
+import { treaty } from "@elysiajs/eden"
+import type { App } from "./server.ts"
+
+export const api = treaty<App>("localhost:3000")
+```
+
+```tsx
+// src/pages/blog/index.tsx
+import { api } from "@/client"
+import { route } from "./_route"
+
+export default route.page({
+  loader: async () => {
+    const { data } = await api.api.posts.get()
+    return { posts: data ?? [] }
+  },
+  component: ({ posts }) => <PostList posts={posts} />,
+})
+```
+
+## Middleware And Guards
+
+Use normal Elysia plugins, guards, and lifecycle hooks for auth, logging, rate limiting, or anything else:
+
+```ts
+import { Elysia } from "elysia"
+import { jwt } from "@elysiajs/jwt"
+
+export const api = new Elysia({ prefix: "/api" })
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
+  .guard(
+    {
+      beforeHandle: async ({ cookie, jwt, set }) => {
+        const user = await jwt.verify(cookie.auth.value)
+        if (!user) {
+          set.status = 401
+          return "Unauthorized"
+        }
+      },
+    },
+    (app) => app.get("/me", ({ cookie, jwt }) => jwt.verify(cookie.auth.value))
+  )
+```
+
+---
+
+# Plugins
+
+Furin passes Bun plugins through its build pipeline. That lets you preprocess assets both in the production build and in development.
+
+## Production Build Plugins
+
+Declare plugins in `furin.config.ts`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config"
+import tailwind from "bun-plugin-tailwind"
+
+export default defineConfig({
+  pagesDir: "./src/pages",
+  plugins: [tailwind],
+})
+```
+
+Those plugins are forwarded into the Bun build calls used for client and server output.
+
+## Development Plugins
+
+For Bun dev mode, register the same plugin stack in `bunfig.toml` and call `Bun.plugin()` for SSR/runtime needs.
+
+```toml
+[serve.static]
+plugins = ["bun-plugin-tailwind", "furin/strip-plugin"]
+env = "FURIN_PUBLIC_*"
+```
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+import mdxPlugin from "./lib/bun-mdx-plugin.ts"
+
+Bun.plugin(mdxPlugin)
+
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+```
+
+## Example: MDX
+
+```ts
+// src/lib/bun-mdx-plugin.ts
+import { compile } from "@mdx-js/mdx"
+
+const MDX_FILTER = /\.mdx$/
+
+const mdxPlugin: Bun.BunPlugin = {
+  name: "furin-mdx",
+  setup(build) {
+    build.onLoad({ filter: MDX_FILTER }, async (args) => {
+      const source = await Bun.file(args.path).text()
+      const compiled = await compile(source, {
+        outputFormat: "program",
+      })
+
+      return {
+        contents: String(compiled),
+        loader: "js",
+      }
+    })
+  },
+}
+
+export default mdxPlugin
+```
+
+If your plugin is needed in both build and dev, wire it in all three places:
+
+- `furin.config.ts`
+- `bunfig.toml`
+- `Bun.plugin()` in `src/server.ts`
+
+## What Is Actually Exported Today
+
+`@teyik0/furin/config` currently exports `defineConfig()` and the config types. The build target support implemented in this branch is Bun; other targets are not yet wired in the core build step even if the config type mentions them.
+
+---
+
+# Deployment
+
+Furin currently ships a Bun production build path. The config type includes other targets, but in this branch only the Bun target is implemented end-to-end.
+
+## Build Command
+
+Use the Furin CLI through your package script or directly:
+
+**package.json:**
+```json
+{
+  "scripts": {
+    "build": "bunx furin build --target bun"
+  }
+}
+```
+**Terminal:**
+```bash
+bunx furin build --target bun
+```
+
+The docs app itself uses a workspace-local script, but the output shape is the same.
+
+## Output Layout
+
+The Bun build writes to `.furin/build/bun`:
+
+```text
+.furin/build/bun/
+├── client/
+│   └── index.html
+├── public/
+├── server.js
+└── manifest.json
+```
+
+## Compiled Binaries
+
+If you pass `--compile server`, Furin writes a server binary and keeps the built client assets on disk.
+
+```bash
+bunx furin build --target bun --compile server
+```
+
+If you pass `--compile embed`, Furin writes a self-contained server binary and removes the built client directory from the target output because the assets are embedded.
+
+```bash
+bunx furin build --target bun --compile embed
+```
+
+## Production Runtime
+
+For disk-based builds:
+
+- `server.js` reads client assets from `client/` next to the server bundle
+- `public/` is copied into `.furin/build/bun/public`
+- `FURIN_CLIENT_DIR` can override the client asset directory at runtime
+
+Example:
+
+```bash
+FURIN_CLIENT_DIR=/absolute/path/to/client bun ./.furin/build/bun/server.js
+```
+
+## Planned Targets
+
+The config surface already names `node`, `vercel`, and `cloudflare`, but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in `packages/core/src/build/index.ts`.
+
+## Public Environment Variables
+
+Prefix client-visible variables with `FURIN_PUBLIC_` and expose them through Bun:
+
+```toml
+[serve.static]
+env = "FURIN_PUBLIC_*"
+```
+
+```bash
+FURIN_PUBLIC_API_URL=https://api.example.com
+```
+
+## Giscus In The Docs App
+
+The docs app can render Giscus comments from GitHub Discussions by setting these public values:
+
+```bash
+FURIN_PUBLIC_GISCUS_REPO=teyik0/furin
+FURIN_PUBLIC_GISCUS_REPO_ID=...
+FURIN_PUBLIC_GISCUS_CATEGORY=General
+FURIN_PUBLIC_GISCUS_CATEGORY_ID=...
+```
+
+That keeps comments out of your application database.
+
+---
+
+# Dev Mode HMR
+
+Furin's development flow splits server rendering from the client bundle so page edits stay fast without forcing a full Bun restart on every change.
+
+## How It Works
+
+```text
+FILE EDIT (pages/index.tsx)
+         │
+         ├──► Bun [serve.static] dev bundler          ──► WebSocket ──► Browser React Fast Refresh (~20ms)
+         │    (watches client bundle files)
+         │
+         └──► bun --hot ?                             NOT triggered — page files never enter
+                                                      the server module graph (virtual namespace)
+```
+
+```text
+SERVER MODULE GRAPH                    CLIENT BUNDLE
+(tracked by --hot)                     (tracked by dev bundler)
+─────────────────────────────          ──────────────────────────────
+server.ts                              .furin/_hydrate.tsx
+  └─ furin.ts                            ├─ pages/index.tsx   ← watched
+       ├─ router.ts                      ├─ pages/root.tsx    ← watched
+       │    └─ pages/root.tsx (layout)   └─ pages/docs/*.tsx  ← watched
+       └─ dev-page-plugin.ts
+
+       pages/index.tsx ← NOT here ✓
+```
+
+The key idea is simple: page modules stay out of Bun's hot server graph. That lets the browser refresh client code immediately while SSR still re-imports the page from disk on each request.
+
+## Request Flow
+
+```text
+GET /
+ │
+ ├─ import(`pages/index.tsx?furin-server&t=<now>`)
+ │         │
+ │         └─► dev-page-plugin onResolve
+ │                 path → "furin-dev-page:/…/index.tsx?t=<now>"  (unique per request)
+ │                        └── bypasses Bun module cache → onLoad always runs
+ │             dev-page-plugin onLoad
+ │                 1. strip ?t=… → read file from disk (always fresh)
+ │                 2. rewrite ./relative imports → /absolute/paths
+ │                 3. return source, loader:"tsx"
+ │
+ ├─ renderSSR(devRoute, ctx, root)
+ │       ├─ run loaders (DB / API / fs, server-side only)
+ │       ├─ renderToReadableStream(element)
+ │       ├─ fetch /_bun_hmr_entry  ← fresh template each request (chunk hashes change on rebundle)
+ │       └─ assemble: <head> + SSR HTML + <script id="__FURIN_DATA__">{loaderData}</script>
+ │
+ └─► Browser: hydrate SSR HTML using __FURIN_DATA__ (no loader re-execution client-side)
+```
+
+## Edit Matrix
+
+| What changed | `--hot` restart | Client HMR | Typical time |
+|---|---|---|---|
+| `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
+| `pages/root.tsx` root layout | Yes, it is in the server graph | Yes | ~600ms |
+| `server.ts` or `api/` | Yes | No | ~600ms |
+| `components/` | Only if imported by the server at startup | Yes | Varies |
+
+## Internal Pieces
+
+| File | Role |
+|---|---|
+| `src/dev-page-plugin.ts` | Virtual namespace plugin, cache busting with `?t=<ms>`, and relative-to-absolute import rewriting |
+| `src/router.ts` | Skips eager page imports during scanning and appends `?furin-server&t=<now>` per request |
+| `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
+| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry with route-level dynamic imports |
+| `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+
+## Why The Timestamp Matters
+
+Bun caches modules by `(namespace, path)`. Without the `?t=<timestamp>` suffix, the first import of a page would stay frozen in the server cache.
+
+After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.
+
+## Why The Template Is Never Cached
+
+`/_bun_hmr_entry` is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes `404` requests and reload loops in the browser.
+
+## Practical Outcome
+
+This setup gives Furin two useful properties in development:
+
+- component edits stay in the fast React Fast Refresh path
+- SSR still reflects the latest page source on the next request
+- template URLs stay aligned with the latest client rebundle

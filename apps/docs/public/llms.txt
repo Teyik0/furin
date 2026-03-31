@@ -1,0 +1,22 @@
+# Furin
+
+> Furin (風鈴) is a React meta-framework built on Elysia and Bun. File-based routing, SSR/SSG/ISR, typed loaders, and SPA navigation.
+
+Furin gives you file-based routing, nested layouts, typed data loading, and multiple rendering modes in a single Bun process.
+
+## Docs
+
+- [Introduction](https://furin.dev/docs): Overview of Furin and where to go next. ([llms.txt](https://furin.dev/docs/llms.txt))
+- [Getting Started](https://furin.dev/docs/getting-started): Install Furin, pick a starter, and boot your first app. ([llms.txt](https://furin.dev/docs/getting-started/llms.txt))
+- [File-Based Routing](https://furin.dev/docs/routing): How pages, params, catch-all routes, and typed links work. ([llms.txt](https://furin.dev/docs/routing/llms.txt))
+- [Data Loading](https://furin.dev/docs/data-loading): Server loaders, typed params/query, and data flow across routes. ([llms.txt](https://furin.dev/docs/data-loading/llms.txt))
+- [Rendering Modes](https://furin.dev/docs/rendering): Use SSR, SSG, and ISR from createRoute(). ([llms.txt](https://furin.dev/docs/rendering/llms.txt))
+- [Nested Layouts](https://furin.dev/docs/layouts): Compose shared UI and loaders with _route.tsx files. ([llms.txt](https://furin.dev/docs/layouts/llms.txt))
+- [API Routes](https://furin.dev/docs/api-routes): Run Elysia API routes alongside your pages in one process. ([llms.txt](https://furin.dev/docs/api-routes/llms.txt))
+- [Plugins](https://furin.dev/docs/plugins): Pass Bun plugins through Furin for assets and transforms. ([llms.txt](https://furin.dev/docs/plugins/llms.txt))
+- [Deployment](https://furin.dev/docs/deployment): Build for Bun today, with planned targets called out clearly. ([llms.txt](https://furin.dev/docs/deployment/llms.txt))
+
+## Optional
+
+- [Dev Mode HMR](https://furin.dev/docs/dev-hmr): How Bun HMR and Furin SSR stay aligned in development. ([llms.txt](https://furin.dev/docs/dev-hmr/llms.txt))
+- [Full documentation](https://furin.dev/llms-full.txt): Complete documentation in a single file.

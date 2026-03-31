@@ -4,16 +4,20 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/server.ts",
+    "test": "bun test",
     "test:types": "tsc --noEmit",
     "start:debug": "bun run --cpu-prof --cpu-prof-md --heap-prof-md --inspect ./.furin/build/bun/server.js",
     "start": "./.furin/build/bun/server",
     "test:e2e": "bun run ./tests/hmr.ts",
-    "build": "bun run ../../packages/core/src/cli/index.ts build --target bun",
-    "build:compiled": "bun run ../../packages/core/src/cli/index.ts build --target bun --compile server",
-    "build:embed": "bun run ../../packages/core/src/cli/index.ts build --target bun --compile embed"
+    "generate:llms": "bun run scripts/generate-llms-txt.ts",
+    "generate:content": "bun run scripts/generate-docs-content.ts",
+    "build": "bun run generate:llms && bun run ../../packages/core/src/cli/index.ts build --target bun",
+    "build:compiled": "bun run generate:content && bun run generate:llms && bun run ../../packages/core/src/cli/index.ts build --target bun --compile server",
+    "build:embed": "bun run generate:content && bun run generate:llms && bun run ../../packages/core/src/cli/index.ts build --target bun --compile embed"
   },
   "dependencies": {
     "@mdx-js/mdx": "^3.1.1",
+    "@orama/orama": "^3.1.18",
     "@tailwindcss/typography": "^0.5.19",
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
@@ -23,7 +27,7 @@
     "hast": "^1.0.0",
     "hast-util-from-html": "^2.0.3",
     "hastscript": "^9.0.1",
-    "lucide-react": "^1.6.0",
+    "lucide-react": "^1.7.0",
     "radix-ui": "^1.4.3",
     "react": "catalog:",
     "react-dom": "catalog:",
