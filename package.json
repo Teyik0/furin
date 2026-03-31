@@ -23,7 +23,7 @@
     "lefthook": "^2.1.4",
     "react-doctor": "^0.0.30",
     "typescript": "^6.0.2",
-    "ultracite": "7.4.0"
+    "ultracite": "7.4.2"
   },
   "catalog": {
     "elysia": "^1.4.28",

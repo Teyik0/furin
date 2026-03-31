@@ -1,23 +1,24 @@
+"use client";
+
 import { createRoute } from "@teyik0/furin/client";
-import { Link } from "@teyik0/furin/link";
+import { Link, useRouter } from "@teyik0/furin/link";
 import { DocsMobileNav } from "@/components/docs-mobile-nav";
 import { DocsToc } from "@/components/docs-toc";
 import { GiscusComments } from "@/components/giscus-comments";
 import { DOCS_NAV } from "@/lib/docs";
-import { cn } from "@/lib/utils";
 import { route as rootRoute } from "../root";
 
 export const route = createRoute({
   parent: rootRoute,
-  loader: ({ request }) => {
-    const pathname = new URL(request.url).pathname;
-    return { pathname };
-  },
-  layout: ({ children, pathname }) => {
+  mode: "ssg",
+  layout: ({ children }) => {
+    const { currentHref } = useRouter();
+    const pathname = new URL(currentHref, "http://x").pathname;
+
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 lg:hidden">
-          <DocsMobileNav pathname={pathname} />
+          <DocsMobileNav />
         </div>
 
         <div className="grid gap-10 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_15rem]">
@@ -32,12 +33,11 @@ export const route = createRoute({
                     {section.items.map((item) => (
                       <li key={item.href}>
                         <Link
-                          className={cn(
-                            "block rounded-lg px-3 py-2 text-sm transition-colors",
-                            pathname === item.href
-                              ? "bg-accent text-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
+                          activeProps={({ isActive }) => ({
+                            className: isActive
+                              ? "block rounded-lg px-3 py-2 text-sm transition-colors bg-accent text-foreground"
+                              : "block rounded-lg px-3 py-2 text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
+                          })}
                           to={item.href}
                         >
                           {item.label}

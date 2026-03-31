@@ -103,5 +103,6 @@ function RootLayout({ children }: { children: React.ReactNode }) {
 }
 
 export const route = createRoute({
+  mode: "ssg",
   layout: ({ children }) => <RootLayout>{children}</RootLayout>,
 });

@@ -15,13 +15,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { DOCS_NAV } from "@/lib/docs";
-import { cn } from "@/lib/utils";
 
-interface DocsMobileNavProps {
-  pathname: string;
-}
-
-export function DocsMobileNav({ pathname }: DocsMobileNavProps) {
+export function DocsMobileNav() {
   const [open, setOpen] = useState(false);
 
   return (
@@ -49,12 +44,11 @@ export function DocsMobileNav({ pathname }: DocsMobileNavProps) {
                     <li key={item.href}>
                       <SheetClose asChild>
                         <Link
-                          className={cn(
-                            "block rounded-lg px-3 py-2 text-sm transition-colors",
-                            pathname === item.href
-                              ? "bg-accent text-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
+                          activeProps={({ isActive }) => ({
+                            className: isActive
+                              ? "block rounded-lg px-3 py-2 text-sm transition-colors bg-accent text-foreground"
+                              : "block rounded-lg px-3 py-2 text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
+                          })}
                           onClick={() => setOpen(false)}
                           to={item.href}
                         >

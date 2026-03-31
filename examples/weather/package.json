@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/server.ts",
-    "build": "bun ./node_modules/@teyik0/furin/src/cli/index.ts build --target bun",
+    "build": "bun ./node_modules/@teyik0/furin/src/cli/index.ts build --target bun --compile embed",
+    "start": "./.furin/build/bun/server",
     "test:types": "tsc --noEmit"
   },
   "dependencies": {
