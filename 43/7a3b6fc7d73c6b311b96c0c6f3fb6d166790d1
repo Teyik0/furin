@@ -1,0 +1,23 @@
+packages/core/src/render/index.ts
+  9e251b167a45e562 38,55,57,79,182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "437a3b6fc7d73c6b311b96c0c6f3fb6d166790d1",
+  "prompts": {
+    "9e251b167a45e562": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80c569b1-b9c3-4c3d-b0b8-8136b041b903",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 3,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}
