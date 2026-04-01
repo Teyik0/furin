@@ -19,9 +19,13 @@ export function DocsToc() {
     let cancelled = false;
 
     function scrollToHashTarget(): void {
-      const hash = window.location.hash.startsWith("#")
-        ? decodeURIComponent(window.location.hash.slice(1))
-        : "";
+      const raw = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+      let hash: string;
+      try {
+        hash = decodeURIComponent(raw);
+      } catch {
+        hash = raw;
+      }
       if (hash.length === 0) {
         return;
       }
