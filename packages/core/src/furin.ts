@@ -194,13 +194,13 @@ export async function furin({
   if (IS_DEV) {
     const furinDir = resolve(cwd, ".furin");
     // Lazy import — build pipeline has native deps not available in compiled binaries
-    const { scanPages } = await import("./router.ts");
-    const { writeDevFiles } = await import("./build/hydrate.ts");
     const { registerDevPagePlugin } = await import("./dev-page-plugin.ts");
-
     registerDevPagePlugin();
 
+    const { scanPages } = await import("./router.ts");
     const { root, routes } = await scanPages(resolvedPagesDir);
+
+    const { writeDevFiles } = await import("./build/hydrate.ts");
     writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path }, cwd);
 
     return new Elysia({ name: instanceName, seed: resolvedPagesDir })

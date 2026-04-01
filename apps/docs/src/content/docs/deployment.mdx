@@ -1,0 +1,97 @@
+# Deployment
+
+Furin currently ships a Bun production build path. The config type includes other targets, but in this branch only the Bun target is implemented end-to-end.
+
+## Build Command
+
+Use the Furin CLI through your package script or directly:
+
+<CodeTabs>
+<CodeTab title="package.json">
+```json
+{
+  "scripts": {
+    "build": "bunx furin build --target bun"
+  }
+}
+```
+</CodeTab>
+<CodeTab title="Terminal">
+```bash
+bunx furin build --target bun
+```
+</CodeTab>
+</CodeTabs>
+
+The docs app itself uses a workspace-local script, but the output shape is the same.
+
+## Output Layout
+
+The Bun build writes to `.furin/build/bun`:
+
+```text
+.furin/build/bun/
+├── client/
+│   └── index.html
+├── public/
+├── server.js
+└── manifest.json
+```
+
+## Compiled Binaries
+
+If you pass `--compile server`, Furin writes a server binary and keeps the built client assets on disk.
+
+```bash
+bunx furin build --target bun --compile server
+```
+
+If you pass `--compile embed`, Furin writes a self-contained server binary and removes the built client directory from the target output because the assets are embedded.
+
+```bash
+bunx furin build --target bun --compile embed
+```
+
+## Production Runtime
+
+For disk-based builds:
+
+- `server.js` reads client assets from `client/` next to the server bundle
+- `public/` is copied into `.furin/build/bun/public`
+- `FURIN_CLIENT_DIR` can override the client asset directory at runtime
+
+Example:
+
+```bash
+FURIN_CLIENT_DIR=/absolute/path/to/client bun ./.furin/build/bun/server.js
+```
+
+## Planned Targets
+
+The config surface already names `node`, `vercel`, and `cloudflare`, but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in `packages/core/src/build/index.ts`.
+
+## Public Environment Variables
+
+Prefix client-visible variables with `FURIN_PUBLIC_` and expose them through Bun:
+
+```toml
+[serve.static]
+env = "FURIN_PUBLIC_*"
+```
+
+```bash
+FURIN_PUBLIC_API_URL=https://api.example.com
+```
+
+## Giscus In The Docs App
+
+The docs app can render Giscus comments from GitHub Discussions by setting these public values:
+
+```bash
+FURIN_PUBLIC_GISCUS_REPO=teyik0/furin
+FURIN_PUBLIC_GISCUS_REPO_ID=...
+FURIN_PUBLIC_GISCUS_CATEGORY=General
+FURIN_PUBLIC_GISCUS_CATEGORY_ID=...
+```
+
+That keeps comments out of your application database.

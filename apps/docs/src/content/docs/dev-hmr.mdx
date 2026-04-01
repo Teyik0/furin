@@ -1,0 +1,91 @@
+# Dev Mode HMR
+
+Furin's development flow splits server rendering from the client bundle so page edits stay fast without forcing a full Bun restart on every change.
+
+## How It Works
+
+```text
+FILE EDIT (pages/index.tsx)
+         │
+         ├──► Bun [serve.static] dev bundler          ──► WebSocket ──► Browser React Fast Refresh (~20ms)
+         │    (watches client bundle files)
+         │
+         └──► bun --hot ?                             NOT triggered — page files never enter
+                                                      the server module graph (virtual namespace)
+```
+
+```text
+SERVER MODULE GRAPH                    CLIENT BUNDLE
+(tracked by --hot)                     (tracked by dev bundler)
+─────────────────────────────          ──────────────────────────────
+server.ts                              .furin/_hydrate.tsx
+  └─ furin.ts                            ├─ pages/index.tsx   ← watched
+       ├─ router.ts                      ├─ pages/root.tsx    ← watched
+       │    └─ pages/root.tsx (layout)   └─ pages/docs/*.tsx  ← watched
+       └─ dev-page-plugin.ts
+
+       pages/index.tsx ← NOT here ✓
+```
+
+The key idea is simple: page modules stay out of Bun's hot server graph. That lets the browser refresh client code immediately while SSR still re-imports the page from disk on each request.
+
+## Request Flow
+
+```text
+GET /
+ │
+ ├─ import(`pages/index.tsx?furin-server&t=<now>`)
+ │         │
+ │         └─► dev-page-plugin onResolve
+ │                 path → "furin-dev-page:/…/index.tsx?t=<now>"  (unique per request)
+ │                        └── bypasses Bun module cache → onLoad always runs
+ │             dev-page-plugin onLoad
+ │                 1. strip ?t=… → read file from disk (always fresh)
+ │                 2. rewrite ./relative imports → /absolute/paths
+ │                 3. return source, loader:"tsx"
+ │
+ ├─ renderSSR(devRoute, ctx, root)
+ │       ├─ run loaders (DB / API / fs, server-side only)
+ │       ├─ renderToReadableStream(element)
+ │       ├─ fetch /_bun_hmr_entry  ← fresh template each request (chunk hashes change on rebundle)
+ │       └─ assemble: <head> + SSR HTML + <script id="__FURIN_DATA__">{loaderData}</script>
+ │
+ └─► Browser: hydrate SSR HTML using __FURIN_DATA__ (no loader re-execution client-side)
+```
+
+## Edit Matrix
+
+| What changed | `--hot` restart | Client HMR | Typical time |
+|---|---|---|---|
+| `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
+| `pages/root.tsx` root layout | Yes, it is in the server graph | Yes | ~600ms |
+| `server.ts` or `api/` | Yes | No | ~600ms |
+| `components/` | Only if imported by the server at startup | Yes | Varies |
+
+## Internal Pieces
+
+| File | Role |
+|---|---|
+| `src/dev-page-plugin.ts` | Virtual namespace plugin, cache busting with `?t=<ms>`, and relative-to-absolute import rewriting |
+| `src/router.ts` | Skips eager page imports during scanning and appends `?furin-server&t=<now>` per request |
+| `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
+| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry with route-level dynamic imports |
+| `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+
+## Why The Timestamp Matters
+
+Bun caches modules by `(namespace, path)`. Without the `?t=<timestamp>` suffix, the first import of a page would stay frozen in the server cache.
+
+After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.
+
+## Why The Template Is Never Cached
+
+`/_bun_hmr_entry` is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes `404` requests and reload loops in the browser.
+
+## Practical Outcome
+
+This setup gives Furin two useful properties in development:
+
+- component edits stay in the fast React Fast Refresh path
+- SSR still reflects the latest page source on the next request
+- template URLs stay aligned with the latest client rebundle

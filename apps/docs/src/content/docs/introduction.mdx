@@ -1,0 +1,41 @@
+# Documentation
+
+Furin is a React meta-framework on top of Elysia and Bun. It gives you file-based routing, nested layouts, SSR, SSG, ISR, typed loaders, and typed navigation without adding a second frontend toolchain.
+
+## What You Get
+
+- File-based routing from `src/pages`
+- Route-level `loader`, `params`, and `query` typing through `createRoute()`
+- `route.page()` for page components, `head()`, and `staticParams()`
+- Bun-native development flow with Fast Refresh and SSR kept in sync
+- A single process for pages and API routes
+
+## Start Here
+
+- [Getting Started](/docs/getting-started) for project setup and your first page
+- [File-Based Routing](/docs/routing) for page/layout conventions
+- [Data Loading](/docs/data-loading) for typed loaders and schemas
+- [Rendering Modes](/docs/rendering) for SSR, SSG, and ISR
+- [Deployment](/docs/deployment) for the current Bun build pipeline
+
+## How The API Is Split
+
+Use `createRoute()` for route-level concerns:
+
+- `mode`
+- `revalidate`
+- `params`
+- `query`
+- `loader`
+- `layout`
+
+Use `route.page()` for page-level concerns:
+
+- `component`
+- `loader`
+- `head`
+- `staticParams`
+
+## Current Status
+
+The core build target implemented in this branch is Bun. Other targets may already exist in config types, but if the docs mention them they should be treated as planned until the corresponding builder lands in the core.

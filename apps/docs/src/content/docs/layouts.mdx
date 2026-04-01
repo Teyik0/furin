@@ -1,0 +1,111 @@
+# Nested Layouts
+
+Furin uses `_route.tsx` files for directory-level layouts and route config. Each `_route.tsx` can point at a parent route, declare loaders, and wrap child pages.
+
+## Basic Layout
+
+```tsx
+// src/pages/blog/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  layout: ({ children }) => (
+    <div className="mx-auto max-w-5xl px-4 py-10">
+      <BlogSidebar />
+      <main>{children}</main>
+    </div>
+  ),
+})
+```
+
+Pages inside that directory use the same route object:
+
+```tsx
+// src/pages/blog/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  component: () => <BlogList />,
+})
+```
+
+## Root Layout
+
+`src/pages/root.tsx` is required. It is the top-level route and should render `<html>`, `<head>`, and `<body>`.
+
+```tsx
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+      </head>
+      <body>{children}</body>
+    </html>
+  ),
+})
+```
+
+## Multi-Level Nesting
+
+```text
+src/pages/
+├── root.tsx
+├── docs/
+│   ├── _route.tsx
+│   └── advanced/
+│       ├── _route.tsx
+│       └── plugins.tsx
+```
+
+```tsx
+// src/pages/docs/advanced/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as docsRoute } from "../_route"
+
+export const route = createRoute({
+  parent: docsRoute,
+  layout: ({ children }) => <section className="advanced-layout">{children}</section>,
+})
+```
+
+## Layout Loaders
+
+Layout data flows into the layout itself and all child pages.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+})
+```
+
+The page below does not need to repeat the auth/session work:
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  component: ({ user }) => <DashboardHome user={user} />,
+})
+```

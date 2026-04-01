@@ -1,0 +1,121 @@
+# Rendering Modes
+
+Furin configures rendering mode at the route level with `createRoute()`. The page itself still comes from `route.page()`.
+
+## SSR
+
+SSR is the default mode when you omit `mode`.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+})
+```
+
+Use SSR for session-dependent pages, personalized data, and anything that must render fresh on every request.
+
+## SSG
+
+Set `mode: "ssg"` on `createRoute()` to pre-render the page.
+
+```tsx
+// src/pages/about.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "ssg",
+})
+
+export default route.page({
+  component: () => <div>This page is pre-rendered</div>,
+})
+```
+
+For dynamic SSG routes, declare `staticParams()` on `route.page()`:
+
+```tsx
+// src/pages/blog/[slug].tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "ssg",
+  params: t.Object({
+    slug: t.String(),
+  }),
+})
+
+export default route.page({
+  staticParams: async () => {
+    const slugs = await db.getAllSlugs()
+    return slugs.map((slug) => ({ slug }))
+  },
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  component: ({ post }) => <Post post={post} />,
+})
+```
+
+## ISR
+
+ISR also belongs on `createRoute()`. Pair `mode: "isr"` with `revalidate`.
+
+```tsx
+// src/pages/products/[id].tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+
+const route = createRoute({
+  mode: "isr",
+  revalidate: 60,
+  params: t.Object({
+    id: t.String(),
+  }),
+})
+
+export default route.page({
+  loader: async ({ params }) => {
+    const product = await db.getProduct(params.id)
+    return { product }
+  },
+  component: ({ product }) => <ProductPage product={product} />,
+})
+```
+
+## Comparison
+
+| Mode | Configured on | Best for |
+| --- | --- | --- |
+| `ssr` | `createRoute()` or default | request-time, personalized data |
+| `ssg` | `createRoute({ mode: "ssg" })` | content that changes rarely |
+| `isr` | `createRoute({ mode: "isr", revalidate })` | pages that can be cached then refreshed periodically |
+
+## Head Metadata
+
+Page-level `head()` still lives on `route.page()`.
+
+```tsx
+export default route.page({
+  loader: async ({ params }) => {
+    const post = await db.getPost(params.slug)
+    return { post }
+  },
+  head: ({ post }) => ({
+    meta: [
+      { title: post.title },
+      { name: "description", content: post.excerpt },
+    ],
+  }),
+  component: ({ post }) => <Post post={post} />,
+})
+```

@@ -1,0 +1,142 @@
+# Data Loading
+
+Furin loaders run on the server before rendering. Route loaders live on `createRoute()`, and page loaders live on `route.page()`.
+
+## Route Loader
+
+Use `createRoute()` when the data should feed a layout or be shared with child pages.
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request)
+    return { user }
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+})
+```
+
+## Page Loader
+
+Use `route.page()` when the data is specific to one page.
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ user }) => {
+    const stats = await getDashboardStats(user.id)
+    return { stats }
+  },
+  component: ({ stats, user }) => <Dashboard user={user} stats={stats} />,
+})
+```
+
+## Loader Context
+
+Loaders receive a context object with:
+
+| Property | Description |
+| --- | --- |
+| `request` | the incoming `Request` |
+| `params` | validated params from `createRoute({ params })` |
+| `query` | validated query values from `createRoute({ query })` |
+| parent data | accumulated data returned by ancestor route loaders |
+| `set`, `headers`, `cookie`, `redirect` | server helpers exposed by the route context |
+
+## Typed Query Schemas
+
+`query` belongs to `createRoute()`, not `route.page()`.
+
+```tsx
+// src/pages/search/_route.tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  query: t.Object({
+    page: t.Optional(t.Number({ default: 1 })),
+    tag: t.Optional(t.String()),
+  }),
+})
+```
+
+```tsx
+// src/pages/search/index.tsx
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ query }) => {
+    const posts = await db.getPosts(query)
+    return { posts }
+  },
+  component: ({ posts }) => <PostList posts={posts} />,
+})
+```
+
+## Typed Params
+
+Params are also declared on `createRoute()`.
+
+```tsx
+import { t } from "elysia"
+import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
+
+export const route = createRoute({
+  parent: rootRoute,
+  params: t.Object({
+    slug: t.String(),
+  }),
+})
+```
+
+## Parallel Loaders With `deps`
+
+The optional second argument lets a loader await a specific ancestor route when it truly depends on that data.
+
+```tsx
+// src/pages/dashboard/posts/_route.tsx
+import { createRoute } from "@teyik0/furin/client"
+import { route as dashboardRoute } from "../_route"
+
+export const route = createRoute({
+  parent: dashboardRoute,
+  loader: async (_ctx, deps) => {
+    const { user } = await deps(dashboardRoute)
+    return {
+      posts: await getPostsForUser(user.id),
+    }
+  },
+})
+```
+
+## Redirects And Status
+
+You can return a redirect from a loader.
+
+```tsx
+export const route = createRoute({
+  loader: async ({ request, redirect }) => {
+    const user = await getSession(request)
+    if (!user) {
+      return redirect("/login", 302)
+    }
+
+    return { user }
+  },
+})
+```

@@ -1,0 +1,98 @@
+# Getting Started
+
+Furin is a React meta-framework built on Elysia and Bun. It gives you file-based routing, SSR, SSG, ISR, nested layouts, and typed route data without a separate frontend toolchain.
+
+## Install A Starter
+
+```bash
+bun create furin@latest my-app
+cd my-app
+```
+
+For the shadcn starter:
+
+```bash
+bun create furin@latest my-app --template shadcn
+cd my-app
+```
+
+## Available Templates
+
+- `minimal` is the default starter with Tailwind, `/api/hello`, and an SSR page loader
+- `shadcn` adds Tailwind plus shadcn-style `button`, `card`, and `input` primitives
+
+## Project Shape
+
+```text
+my-app/
+├── src/
+│   ├── pages/
+│   │   ├── root.tsx
+│   │   └── index.tsx
+│   ├── api/
+│   └── server.ts
+├── furin.config.ts
+├── bunfig.toml
+└── package.json
+```
+
+## First Server
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+
+export type App = typeof app
+```
+
+## Root Layout
+
+Every app needs `src/pages/root.tsx`. It is the top-level layout and should render the document shell.
+
+```tsx
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client"
+
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+      </head>
+      <body>{children}</body>
+    </html>
+  ),
+})
+```
+
+## First Page
+
+```tsx
+// src/pages/index.tsx
+import { route } from "./root"
+
+export default route.page({
+  component: () => <h1>Hello Furin</h1>,
+})
+```
+
+## Development
+
+```bash
+bun run dev
+```
+
+The docs app and starters run Bun directly in development, so backend and frontend stay in the same process.
+
+## What To Learn Next
+
+- [File-Based Routing](/docs/routing) for page and layout conventions
+- [Data Loading](/docs/data-loading) for server loaders and typed schemas
+- [Rendering Modes](/docs/rendering) for SSR, SSG, ISR, and `staticParams`
+- [Deployment](/docs/deployment) for the current Bun-only production build flow

@@ -1,0 +1,81 @@
+# Plugins
+
+Furin passes Bun plugins through its build pipeline. That lets you preprocess assets both in the production build and in development.
+
+## Production Build Plugins
+
+Declare plugins in `furin.config.ts`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config"
+import tailwind from "bun-plugin-tailwind"
+
+export default defineConfig({
+  pagesDir: "./src/pages",
+  plugins: [tailwind],
+})
+```
+
+Those plugins are forwarded into the Bun build calls used for client and server output.
+
+## Development Plugins
+
+For Bun dev mode, register the same plugin stack in `bunfig.toml` and call `Bun.plugin()` for SSR/runtime needs.
+
+```toml
+[serve.static]
+plugins = ["bun-plugin-tailwind", "furin/strip-plugin"]
+env = "FURIN_PUBLIC_*"
+```
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+import mdxPlugin from "./lib/bun-mdx-plugin.ts"
+
+Bun.plugin(mdxPlugin)
+
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+```
+
+## Example: MDX
+
+```ts
+// src/lib/bun-mdx-plugin.ts
+import { compile } from "@mdx-js/mdx"
+
+const MDX_FILTER = /\.mdx$/
+
+const mdxPlugin: Bun.BunPlugin = {
+  name: "furin-mdx",
+  setup(build) {
+    build.onLoad({ filter: MDX_FILTER }, async (args) => {
+      const source = await Bun.file(args.path).text()
+      const compiled = await compile(source, {
+        outputFormat: "program",
+      })
+
+      return {
+        contents: String(compiled),
+        loader: "js",
+      }
+    })
+  },
+}
+
+export default mdxPlugin
+```
+
+If your plugin is needed in both build and dev, wire it in all three places:
+
+- `furin.config.ts`
+- `bunfig.toml`
+- `Bun.plugin()` in `src/server.ts`
+
+## What Is Actually Exported Today
+
+`@teyik0/furin/config` currently exports `defineConfig()` and the config types. The build target support implemented in this branch is Bun; other targets are not yet wired in the core build step even if the config type mentions them.

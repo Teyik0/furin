@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "type": "module",
   "files": [
     "dist",
@@ -60,7 +60,7 @@
   "dependencies": {
     "@elysiajs/static": "^1.4.7",
     "magic-string": "^0.30.21",
-    "oxc-parser": "^0.121.0"
+    "oxc-parser": "^0.123.0"
   },
   "devDependencies": {
     "@types/react": "catalog:",

@@ -1,0 +1,95 @@
+# API Routes
+
+Furin pages and Elysia API routes run in the same server process. There is no separate frontend dev server and no proxy layer required.
+
+## Define An API Plugin
+
+```ts
+// src/api/index.ts
+import { Elysia, t } from "elysia"
+
+export const api = new Elysia({ prefix: "/api" })
+  .get("/posts", async () => {
+    return db.getAllPosts()
+  })
+  .post(
+    "/posts",
+    async ({ body }) => {
+      return db.createPost(body)
+    },
+    {
+      body: t.Object({
+        title: t.String(),
+        content: t.String(),
+      }),
+    }
+  )
+```
+
+## Mount It Before Furin
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia"
+import { furin } from "@teyik0/furin"
+import { api } from "./api/index.ts"
+
+const app = new Elysia()
+  .use(api)
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000)
+
+export type App = typeof app
+```
+
+Elysia instance order matters. Mount API plugins in the order you want them applied.
+
+## Typed Client Access
+
+If you export `typeof app`, you can use Eden Treaty on the client side for end-to-end typing.
+
+```ts
+// src/client.ts
+import { treaty } from "@elysiajs/eden"
+import type { App } from "./server.ts"
+
+export const api = treaty<App>("localhost:3000")
+```
+
+```tsx
+// src/pages/blog/index.tsx
+import { api } from "@/client"
+import { route } from "./_route"
+
+export default route.page({
+  loader: async () => {
+    const { data } = await api.api.posts.get()
+    return { posts: data ?? [] }
+  },
+  component: ({ posts }) => <PostList posts={posts} />,
+})
+```
+
+## Middleware And Guards
+
+Use normal Elysia plugins, guards, and lifecycle hooks for auth, logging, rate limiting, or anything else:
+
+```ts
+import { Elysia } from "elysia"
+import { jwt } from "@elysiajs/jwt"
+
+export const api = new Elysia({ prefix: "/api" })
+  .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
+  .guard(
+    {
+      beforeHandle: async ({ cookie, jwt, set }) => {
+        const user = await jwt.verify(cookie.auth.value)
+        if (!user) {
+          set.status = 401
+          return "Unauthorized"
+        }
+      },
+    },
+    (app) => app.get("/me", ({ cookie, jwt }) => jwt.verify(cookie.auth.value))
+  )
+```

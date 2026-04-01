@@ -1,660 +1,251 @@
 # Furin
 
-Web meta-framework as a plugin powered by Elysia with file-based routing, SSR/SSG/ISR modes, and full TypeScript type inference. No vite, one process, backend and frontend at the same place.
+React meta-framework powered by Elysia and Bun, with file-based routing, nested layouts, SSR, SSG, ISR, and full TypeScript inference.
 
 ## Features
 
-- 🚀 **File-based routing** with dynamic segments and catch-all routes
-- ⚡ **SSR/SSG/ISR** rendering modes with automatic resolution
-- 🔒 **Type-safe** params, query, and loader data (zero codegen)
-- 🎨 **Nested layouts** with automatic data propagation
-- 🔄 **Hot Module Replacement** with Bun HMR
-- 🌐 **API routes** via Elysia
-- 🎯 **Zero-config** TypeScript support
+- file-based routing from `src/pages`
+- nested layouts with `_route.tsx`
+- SSR, SSG, and ISR through `createRoute()`
+- typed `params`, `query`, loader data, and `<Link />` search objects
+- one process for API routes and frontend pages
+- Bun-native development flow with Fast Refresh
 
 ## Quick Start
 
-### Installation
-
 ```bash
-bun create furin my-app
+bun create furin@latest my-app
 cd my-app
 bun install
+bun run dev
 ```
 
-### Create Your First Page
+For the shadcn starter:
+
+```bash
+bun create furin@latest my-app --template shadcn
+```
+
+## First App
 
 ```tsx
-// src/pages/about/index.tsx
-import { createRoute } from '@teyik0/furin/client';
+// src/pages/root.tsx
+import { createRoute } from "@teyik0/furin/client";
 
-const { page } = createRoute({ mode: 'ssg' });
-
-export default page({
-  component: () => (
-    <div>
-      <h1>About Us</h1>
-      <p>A React meta-framework powered by Elysia + Bun</p>
-    </div>
+export const route = createRoute({
+  layout: ({ children }) => (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta content="width=device-width, initial-scale=1" name="viewport" />
+      </head>
+      <body>{children}</body>
+    </html>
   ),
 });
 ```
 
-## Core Concepts
-
-### Routes with Loaders
-
-Fetch data server-side with full type safety:
-
 ```tsx
-// src/pages/dashboard/route.tsx
-import { createRoute } from '@teyik0/furin/client';
-import { t } from "elysia";
-
-export const route = createRoute({
-  query: t.Object({
-    visits: t.Optional(t.Number()),
-  }),
-  loader: async ({ query }) => {
-    // query.visits is typed as number | undefined ✓
-    return {
-      user: { name: "John Doe", email: "john@example.com" },
-      stats: { visits: query.visits || 0, lastLogin: new Date() }
-    };
-  },
-});
-
-// src/pages/dashboard/index.tsx
-import { route } from './route';
+// src/pages/index.tsx
+import { route } from "./root";
 
 export default route.page({
-  component: ({ user, stats }) => {
-    return (
-      <div>
-        <h1>Welcome {user.name}</h1>
-        <p>Visits: {stats.visits}</p>
-        <p>Last login: {stats.lastLogin.toLocaleDateString()}</p>
-      </div>
-    );
-  },
+  component: () => <h1>Hello Furin</h1>,
 });
 ```
 
-### Type Inference Flow
-
-```
-createRoute({ parent, loader, layout })
-  │
-  │  parent data (flat, like Elysia resolve)
-  │         ↓
-  │  loader({ ...parentData, params, query }) → TLoaderData
-  │         ↓
-  │  layout({ ...parentData, ...loaderData, children, params, query })
-  │         ↓
-  └→ route.page({ loader, component, head })
-           │
-           │  all accumulated data, flat
-           │         ↓
-           │  loader({ ...allData, params, query }) → TPageData
-           │         ↓
-           │  component({ ...allData, ...pageData, params, query })
-           │  head({ ...allData, ...pageData, params, query })
-           ↓
-       fully typed, zero codegen, zero explicit generics
-```
-
-### Nested Layouts
-
-Create nested layouts with automatic data propagation:
-
-```tsx
-// src/pages/dashboard/route.tsx
-import { createRoute } from '@teyik0/furin/client';
-
-export const route = createRoute({
-  loader: async () => ({ user: await getCurrentUser() }),
-
-  layout: ({ children, user }) => (
-    <DashboardShell user={user}>
-      {children}
-    </DashboardShell>
-  )
-});
-
-// src/pages/dashboard/users/route.tsx
-import { createRoute } from '@teyik0/furin/client';
-import { route as dashboardRoute } from '../route';
-
-export const route = createRoute({
-  parent: dashboardRoute,
-
-  loader: async ({ user }) => {
-    // user is flat from dashboard route (like Elysia resolve)
-    return {
-      users: await getUsers(user.orgId),
-      currentUser: user
-    };
-  },
-
-  layout: ({ children, users, currentUser }) => (
-    <UsersLayout users={users} currentUser={currentUser}>
-      {children}
-    </UsersLayout>
-  )
-});
-
-// src/pages/dashboard/users/index.tsx
-import { route } from './route';
-
-export default route.page({
-  loader: async ({ user, users }) => {
-    // all data flat: user from dashboard, users from users route
-    return {
-      stats: await getUserStats(user.id)
-    };
-  },
-
-  component: ({
-    user,         // ← From dashboard route
-    users,        // ← From users route
-    currentUser,  // ← From users route
-    stats,        // ← From page loader
-  }) => (
-    <div>
-      <h1>Users ({users.length})</h1>
-      <StatsCard stats={stats} />
-    </div>
-  )
-});
-```
-
-### Full Example with All Features
-
-```tsx
-// src/pages/blog/[slug]/route.tsx
-import { createRoute, type InferProps } from '@teyik0/furin/client';
-import { t } from "elysia";
-
-export const route = createRoute({
-  mode: 'ssr',
-  revalidate: 3600,
-
-  params: t.Object({
-    slug: t.String({ minLength: 3 })
-  }),
-
-  query: t.Object({
-    search: t.Optional(t.String()),
-    page: t.Optional(t.Number({ default: 1 }))
-  }),
-
-  loader: async ({ params, query }) => {
-    return {
-      post: await getPost(params.slug),
-      related: await getRelated(params.slug)
-    };
-  },
-
-  layout: (props) => <BlogLayout {...props} />
-});
-
-// Component with inferred props
-function BlogLayout({ children, post, related, params, query }: InferProps<typeof route>) {
-  return (
-    <div>
-      <BlogHeader post={post} />
-      {children}
-      <RelatedPosts posts={related} />
-    </div>
-  );
-}
-
-// src/pages/blog/[slug]/index.tsx
-import { route } from './route';
-
-export default route.page({
-  head: ({ post }) => ({
-    meta: [
-      { title: post.title },
-      { name: 'description', content: post.excerpt }
-    ]
-  }),
-
-  loader: async ({ params, query, post }) => {
-    // post, related are flat from route loader (like Elysia resolve)
-    return {
-      comments: await getComments(params.slug, query.page),
-      isBookmarked: await checkBookmark(post.id)
-    };
-  },
-
-  component: ({
-    // From route loader
-    post,
-    related,
-    // From page loader
-    comments,
-    isBookmarked,
-    // Validated context
-    params,
-    query
-  }) => (
-    <article>
-      <h1>{post.title}</h1>
-      <PostContent content={post.content} />
-      <CommentsList comments={comments} />
-      <RelatedPosts posts={related} />
-    </article>
-  )
-});
-```
-
-## Rendering Modes
-
-### SSR (Server-Side Rendering)
-
-Default mode when you have a loader. Renders on every request.
-
-```tsx
-// src/pages/dashboard/route.tsx
-export const route = createRoute({
-  mode: "ssr",  // or omit - SSR is default with loader
-  loader: async () => {
-    const data = await fetch("https://api.example.com/data");
-    return { data };
-  },
-});
-
-// src/pages/dashboard/index.tsx
-import { route } from './route';
-
-export default route.page({ component: MyPage });
-```
-
-### SSG (Static Site Generation)
-
-Pre-render at build time. Perfect for content that doesn't change often.
-
-```tsx
-// src/pages/about/route.tsx
-const { page } = createRoute({ mode: "ssg" });
-
-// src/pages/about/index.tsx
-export default page({
-  component: () => <div>This page is static!</div>,
-});
-```
-
-### ISR (Incremental Static Regeneration)
-
-Static generation with periodic revalidation in the background.
-
-```tsx
-// src/pages/blog/route.tsx
-export const route = createRoute({
-  mode: 'ssr',
-  revalidate: 60,  // Revalidate every 60 seconds
-  loader: async () => {
-    const posts = await fetchPosts();
-    return { posts };
-  },
-});
-
-// src/pages/blog/index.tsx
-import { route } from './route';
-
-export default route.page({
-  component: ({ posts }) => <BlogPage posts={posts} />,
-});
-```
-
-### SSG with Dynamic Routes
-
-Use `staticParams` on `route.page()` to enumerate all paths for a dynamic SSG route.
-furin calls this function once on server start (production) and pre-renders every
-returned parameter set before the first request arrives.
-
-```tsx
-// src/pages/blog/[slug].tsx
-import { createRoute } from '@teyik0/furin/client';
-import { t } from "elysia";
-
-export const route = createRoute({
-  mode: "ssg",
-  params: t.Object({ slug: t.String() }),
-});
-
-export default route.page({
-  // Enumerate all paths — called once at startup, not per-request.
-  staticParams: () => getPosts().map((post) => ({ slug: post.slug })),
-
-  loader: ({ params }) => ({ post: getPost(params.slug) }),
-
-  component: ({ post }) => <Article post={post} />,
-});
-```
-
-On production start you will see:
-```
-[furin] Warming SSG cache for 1 route(s)…
-[furin] SSG warm-up complete.
-```
-
-The first request to `/blog/my-post` is served instantly from the in-memory cache.
-In dev mode the cache is bypassed so content is always fresh.
-
-### Parallel Loaders
-
-After the root loader completes, **all ancestor and page loaders start in parallel**.
-Use the optional `deps` second argument when a loader needs data from a specific
-ancestor without creating a waterfall.
-
-```tsx
-// src/pages/dashboard/route.tsx
-export const route = createRoute({
-  loader: async () => {
-    const user = await fetchCurrentUser(); // ~100 ms
-    return { user };
-  },
-});
-
-// src/pages/dashboard/posts/route.tsx
-import { route as dashboardRoute } from "../route";
-
-export const route = createRoute({
-  parent: dashboardRoute,
-  loader: async (ctx, deps) => {
-    // Starts immediately — runs in parallel with dashboard/route.tsx.
-    // deps() suspends only when the value is actually awaited.
-    const { user } = await deps(dashboardRoute); // typed: { user: User }
-
-    return {
-      posts: user.role === "admin" ? getAllPosts() : getPublishedPosts(),
-    };
-  },
-});
-```
-
-Execution timeline:
-```
-root loader          ████  (always runs first)
-dashboard/route           ████████ 100 ms ↘
-posts/route               ████░░░░████        } parallel — total ≈ 100 ms, not 200 ms
-```
-
-`deps(routeRef)` returns a `Promise` typed to the exact data returned by `routeRef`'s loader.
-Omitting `deps` entirely is fine — loaders that don't need sibling data run freely in parallel.
-
-## File-Based Routing
-
-Automatic routing based on file structure:
-
-```
-pages/
-  route.tsx              # Layout and route config
-  index.tsx              # → /
-  about/
-    route.tsx            # Layout for /about
-    index.tsx            # → /about
-  blog/
-    route.tsx            # Layout for /blog
-    index.tsx            # → /blog
-    [slug]/
-      route.tsx          # Layout for /blog/:slug
-      index.tsx          # → /blog/:slug
-  users/
-    route.tsx            # Layout for /users
-    [id]/
-      route.tsx          # Layout for /users/:id
-      settings.tsx       # → /users/:id/settings
-  [...catch]/
-    route.tsx            # Layout for catch-all
-    index.tsx            # → /* (catch-all)
-  _private.tsx           # ignored (underscore prefix)
-```
-
-### Dynamic Routes
-
-#### Single Dynamic Segment
-
-```tsx
-// src/pages/blog/[slug]/route.tsx
-import { createRoute } from '@teyik0/furin/client';
-import { t } from "elysia";
-
-export const route = createRoute({
-  params: t.Object({
-    slug: t.String(),
-  }),
-  loader: async ({ params: { slug } }) => {
-    // slug is typed as string ✓
-    const post = await fetchPost(slug);
-    return { post };
-  },
-});
-
-// src/pages/blog/[slug]/index.tsx
-import { route } from './route';
-
-export default route.page({
-  component: ({ post }) => {
-    return (
-      <article>
-        <h1>{post.title}</h1>
-        <p>{post.content}</p>
-      </article>
-    );
-  },
-});
-```
-
-#### Catch-All Routes
-
-```tsx
-// src/pages/docs/[...path]/route.tsx
-export const route = createRoute({
-  params: t.Object({
-    "*": t.String(),  // Catch-all uses "*"
-  }),
-  loader: async ({ params }) => {
-    const segments = params["*"].split("/");
-    const doc = await fetchDoc(segments);
-    return { doc };
-  },
-});
-```
-
-## Type Safety
-
-### Typed Query Parameters
-
-```tsx
-// src/pages/search/route.tsx
-export const route = createRoute({
-  query: t.Object({
-    page: t.Number(),
-    search: t.Optional(t.String()),
-    filter: t.Array(t.String()),
-  }),
-  loader: ({ query }) => {
-    // query.page: number ✓
-    // query.search: string | undefined ✓
-    // query.filter: string[] ✓
-    return fetchResults({
-      page: query.page,
-      search: query.search,
-      filters: query.filter,
-    });
-  },
-});
-```
-
-### Typed URL Parameters
-
-```tsx
-// src/pages/users/[userId]/posts/[postId]/route.tsx
-export const route = createRoute({
-  params: t.Object({
-    userId: t.String(),
-    postId: t.String(),
-  }),
-  loader: ({ params }) => {
-    // params.userId: string ✓
-    // params.postId: string ✓
-    return fetchUserPost(params.userId, params.postId);
-  },
-});
-```
-
-### InferProps Helper
-
-Extract props type from a route or page for external components:
-
-```tsx
-// Component defined separately with full type safety
-function MyComponent(props: InferProps<typeof route>) {
-  // props is fully typed with all loader data, params, and query
-  return <div>{props.post.title}</div>;
-}
-
-// Usage
-export const route = createRoute({
-  loader: async () => ({ post: { title: "Hello" } }),
-  layout: (props) => <MyComponent {...props} />,
-});
-```
-
-## API Reference
-
-### `createRoute(config)`
-
-Create a route with loader, layout, and options. Import from `"@teyik0/furin/client"`.
-
-**Config:**
-- `parent?: Route` - Parent route for nested layouts
-- `mode?: "ssr" | "ssg" | "isr"` - Rendering mode
-- `revalidate?: number` - ISR revalidation interval (seconds)
-- `params?: TSchema` - Elysia schema for URL parameters
-- `query?: TSchema` - Elysia schema for query parameters
-- `loader?: (ctx, deps?) => data` - Data fetching function (ctx has typed params/query + root context). Use `deps(routeRef)` to read ancestor loader data while preserving parallel execution.
-- `layout?: (props) => JSX` - React layout component (receives children, loader data, params, query)
-
-**Returns:** `Route` - A route object with a `page()` method
-
-### `route.page(config)`
-
-Create a page for this route.
-
-**Config:**
-- `loader?: (ctx, deps?) => data` - Page-specific data fetching (receives all accumulated data from parent routes)
-- `component: (props) => JSX` - React component (receives all accumulated data + page loader data)
-- `head?: (ctx) => HeadOptions` - Head metadata function (SEO)
-- `staticParams?: () => TParams[]` - Enumerate all URL parameter sets for SSG dynamic routes. Called once at server start (production only) to pre-render every path into the in-memory cache.
-
-**Returns:** `Page` - A page module that can be exported as default
-
-### `InferProps<T>`
-
-Extract the props type from a route or page.
-
-**Usage:**
-```tsx
-// For layouts (includes children)
-function Layout(props: InferProps<typeof route>) {
-  return <div>{props.children}</div>;
-}
-
-// For pages (no children)
-function Component(props: InferProps<ReturnType<typeof route.page>>) {
-  return <div>{props.post.title}</div>;
-}
-
-// Or more directly when page is directly available
-function Component(props: InferProps<typeof page>>) {
-  return <div>{props.post.title}</div>;
-}
-```
-
-## Development
-
-### Commands
-
-```bash
-bun run dev           # Development server with HMR
-bun run build         # Build for production
-bun run check         # Lint (ultracite/biome)
-bun run fix           # Auto-fix lint issues
-bun run tsc           # Type-check
-bun test              # Run tests
-```
-
-### Production Runtime
-
-By default, furin resolves client assets from a `client/` folder next to the running server (`server.js` or compiled `server`). If you run the binary from a different working directory, set `FURIN_CLIENT_DIR` to the client bundle path:
-
-```bash
-FURIN_CLIENT_DIR=/absolute/path/to/client ./server
-```
-
-In `--compile embed` mode, furin bundles `public/` into the executable and serves it under `/public/*`.
-For non-embed builds, `public/` is copied to `.furin/build/bun/public` and served from there so the build stays portable.
-Embed includes every file under `public/` (including subfolders), so keep secrets out of that directory.
-
-### Project Structure
-
-```
-my-app/
-├── packages/
-│   └── core/              # Framework source
-│       └── src/
-│           ├── furin.ts       # Main plugin
-│           ├── client.ts      # createRoute, types
-│           ├── router.ts      # File-based routing
-│           ├── render.tsx     # SSR/SSG/ISR logic
-│           ├── shell.tsx      # HTML template
-│           ├── build.ts       # Client bundle
-│           ├── types.ts       # Type guards
-├── examples/
-│   └── simple/            # Example app
-│       ├── src/
-│       │   ├── server.ts      # Elysia server entry
-│       │   └── pages/         # File-based routes
-│       └── public/            # Static assets
-├── package.json
-└── tsconfig.json
-```
-
-## Advanced
-
-### Custom Server
-
-```tsx
+```ts
 // src/server.ts
 import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 
 const app = new Elysia()
-  .get("/api/health", () => ({ status: "ok" }))
-  .post("/api/users", async ({ body }) => {
-    // Your API logic here
-    return { success: true };
-  })
   .use(await furin({ pagesDir: "./src/pages" }))
   .listen(3000);
 
-console.log(`🦊 Server running at http://localhost:${app.server?.port}`);
+export type App = typeof app;
 ```
 
-## Contributing
+## Route API
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+Use `createRoute()` for route-level configuration:
 
-## License
+- `parent`
+- `mode`
+- `revalidate`
+- `params`
+- `query`
+- `loader`
+- `layout`
 
-MIT © Teyik0
+Use `route.page()` for page-level configuration:
 
-## Credits
+- `component`
+- `loader`
+- `head`
+- `staticParams`
 
-Built with:
-- [Elysia](https://elysiajs.com/) - Fast and ergonomic web framework
-- [Bun](https://bun.sh/) - All-in-one JavaScript runtime
+## Example: Nested Layout + Typed Data
+
+```tsx
+// src/pages/dashboard/_route.tsx
+import { createRoute } from "@teyik0/furin/client";
+import { route as rootRoute } from "../root";
+
+export const route = createRoute({
+  parent: rootRoute,
+  loader: async ({ request }) => {
+    const user = await getSession(request);
+    return { user };
+  },
+  layout: ({ children, user }) => (
+    <div>
+      <DashboardNav user={user} />
+      {children}
+    </div>
+  ),
+});
+```
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { route } from "./_route";
+
+export default route.page({
+  loader: async ({ user }) => {
+    const stats = await getDashboardStats(user.id);
+    return { stats };
+  },
+  component: ({ stats, user }) => <Dashboard user={user} stats={stats} />,
+});
+```
+
+## Rendering Modes
+
+Rendering mode belongs to `createRoute()`:
+
+```tsx
+import { createRoute } from "@teyik0/furin/client";
+
+const route = createRoute({
+  mode: "ssg",
+});
+
+export default route.page({
+  component: () => <div>Static page</div>,
+});
+```
+
+ISR uses `revalidate` on the route:
+
+```tsx
+const route = createRoute({
+  mode: "isr",
+  revalidate: 60,
+});
+```
+
+Dynamic SSG pages enumerate paths with `staticParams()` on `route.page()`:
+
+```tsx
+export default route.page({
+  staticParams: async () => {
+    const slugs = await getSlugs();
+    return slugs.map((slug) => ({ slug }));
+  },
+  component: ({ post }) => <Post post={post} />,
+});
+```
+
+## File-Based Routing
+
+```text
+src/pages/
+├── root.tsx
+├── index.tsx
+├── blog/
+│   ├── _route.tsx
+│   ├── index.tsx
+│   └── [slug].tsx
+└── docs/
+    ├── _route.tsx
+    └── [...path].tsx
+```
+
+- pages are regular `.tsx` files
+- `_route.tsx` files define layouts and route-level config
+- dynamic params use `[slug]`
+- catch-all routes use `[...path]`
+
+## Typed Navigation
+
+Furin generates `furin-env.d.ts` so `@teyik0/furin/link` can type valid paths and route search params.
+
+```tsx
+import { Link } from "@teyik0/furin/link";
+
+<Link to="/docs/rendering">Rendering</Link>;
+```
+
+When a route declares a `query` schema, `<Link search={...} />` is typed from that schema.
+
+## API Routes
+
+Elysia routes live alongside Furin pages in the same server:
+
+```ts
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { api } from "./api";
+
+const app = new Elysia()
+  .use(api)
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000);
+```
+
+## Build And Deployment
+
+Today, the implemented production build target is Bun.
+
+```bash
+bunx furin build --target bun
+```
+
+Output is written under:
+
+```text
+.furin/build/bun/
+```
+
+Compile modes:
+
+- `--compile server` keeps built client assets on disk next to the binary
+- `--compile embed` embeds the client assets into the binary and removes the built client directory from the target output
+
+The config type mentions `node`, `vercel`, and `cloudflare`, but those targets are planned and not implemented in the current build path.
+
+## Workspace Commands
+
+From this monorepo root:
+
+```bash
+bun run fix
+bun run test
+bun run test:types
+```
+
+For the docs app:
+
+```bash
+cd apps/docs
+bun run dev
+```
+
+## Reference
+
+- docs site: `apps/docs`
+- example app: `examples/content-studio`
+- core package: `packages/core`
+
+For the full docs experience, read the site in `apps/docs`.

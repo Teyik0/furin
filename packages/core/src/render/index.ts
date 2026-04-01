@@ -96,7 +96,9 @@ export async function renderToHTML(
     : (getProductionTemplate() ?? generateIndexHtml());
 
   return {
-    html: assembleHTML(template, headData, reactHtml, data),
+    // Pass componentProps (= { ...data, params, query, path }) so the client
+    // receives the same props that SSR passed to the component.
+    html: assembleHTML(template, headData, reactHtml, componentProps),
     headers,
   };
 }
@@ -163,7 +165,8 @@ export async function renderSSR(
 
     // Phase 2: split template around placeholders
     const { headPre, bodyPre, bodyPost } = splitTemplate(template);
-    const dataScript = `<script id="__FURIN_DATA__" type="application/json">${safeJson(data)}</script>`;
+    // Include query/params/path so the client component receives the same props as SSR
+    const dataScript = `<script id="__FURIN_DATA__" type="application/json">${safeJson(componentProps)}</script>`;
 
     // Phase 3: start React render without awaiting allReady
     const element = buildElement(route, componentProps, root.route);
