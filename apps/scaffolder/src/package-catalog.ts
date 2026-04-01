@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import catalog from "./generated/package-catalog.json";
 
 export interface PackageCatalog {
@@ -21,18 +19,6 @@ export interface PackageCatalog {
   typescript: string;
 }
 
-function resolveWorkspaceProtocol(value: string): string {
-  if (value === "workspace:*") {
-    const corePackageJsonPath = resolve(import.meta.dir, "../../../packages/core/package.json");
-    const corePackageJson = JSON.parse(readFileSync(corePackageJsonPath, "utf8"));
-    return corePackageJson.version;
-  }
-  return value;
-}
-
 export function getPackageCatalog(): PackageCatalog {
-  return {
-    ...catalog,
-    "@teyik0/furin": resolveWorkspaceProtocol(catalog["@teyik0/furin"]),
-  } as PackageCatalog;
+  return catalog as PackageCatalog;
 }

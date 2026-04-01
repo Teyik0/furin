@@ -26,6 +26,7 @@ export async function run(argv: string[]): Promise<number> {
         : { targetDir: args.targetDir, template: args.template ?? "minimal" };
 
     const result = await createProject({
+      install: args.install,
       targetDir: resolved.targetDir,
       template: resolved.template,
       yes: args.yes,
@@ -64,6 +65,7 @@ Usage:
 Options:
   --template <minimal|shadcn>
   --yes
+  --no-install
   --help
   --version`);
 }

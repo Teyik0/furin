@@ -2,15 +2,26 @@ import { ScaffolderError } from "./errors.ts";
 
 export interface ParsedArgs {
   help: boolean;
+  install: boolean;
   targetDir: string | null;
   template: "minimal" | "shadcn" | null;
   version: boolean;
   yes: boolean;
 }
 
+const flagAliases: Record<string, keyof ParsedArgs> = {
+  "--help": "help",
+  "-h": "help",
+  "--version": "version",
+  "-v": "version",
+  "--yes": "yes",
+  "-y": "yes",
+};
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const result: ParsedArgs = {
     help: false,
+    install: true,
     targetDir: null,
     template: null,
     version: false,
@@ -24,18 +35,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    if (isHelpFlag(arg)) {
-      result.help = true;
+    if (flagAliases[arg]) {
+      result[flagAliases[arg]] = true as never;
       continue;
     }
 
-    if (isVersionFlag(arg)) {
-      result.version = true;
-      continue;
-    }
-
-    if (isYesFlag(arg)) {
-      result.yes = true;
+    if (arg === "--no-install") {
+      result.install = false;
       continue;
     }
 
@@ -66,18 +72,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   return result;
-}
-
-function isHelpFlag(value: string): boolean {
-  return value === "--help" || value === "-h";
-}
-
-function isVersionFlag(value: string): boolean {
-  return value === "--version" || value === "-v";
-}
-
-function isYesFlag(value: string): boolean {
-  return value === "--yes" || value === "-y";
 }
 
 function parseTemplate(value: string | undefined): "minimal" | "shadcn" {

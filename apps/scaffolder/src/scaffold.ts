@@ -6,6 +6,7 @@ import { buildTemplateTokens } from "./template-tokens.ts";
 import { ensureTargetDirIsSafe, resolveTargetDir } from "./validate.ts";
 
 export interface CreateOptions {
+  install: boolean;
   targetDir: string;
   template: "minimal" | "shadcn";
   yes: boolean;
@@ -19,7 +20,10 @@ export async function createProject(options: CreateOptions): Promise<{ targetDir
   ensureTargetDirIsSafe(resolvedTargetDir);
   await mkdir(resolvedTargetDir, { recursive: true });
   await copyTemplateDirectory(template.templateDir, resolvedTargetDir, tokens);
-  runBunInstall(resolvedTargetDir);
+
+  if (options.install) {
+    runBunInstall(resolvedTargetDir);
+  }
 
   return { targetDir: resolvedTargetDir };
 }

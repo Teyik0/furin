@@ -7,7 +7,7 @@ const POPULAR_CITIES = ["Paris", "Tokyo", "New York", "London", "Sydney", "Dubai
 
 export default route.page({
   loader: async ({ query, request }) => {
-    const city = query.city ?? "Paris";
+    const city = query.city;
     const url = new URL(`/api/weather?city=${encodeURIComponent(city)}`, request.url);
     const res = await fetch(url);
     const data = (await res.json()) as WeatherResponse | null;
