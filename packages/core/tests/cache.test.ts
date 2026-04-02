@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 
 mock.module("evlog/elysia", () => ({
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
@@ -20,8 +20,14 @@ import {
 } from "../src/render/cache";
 import { __setDevMode } from "../src/runtime-env";
 
+const _originalDevMode = process.env.NODE_ENV !== "production";
+
 beforeAll(() => {
   __setDevMode(false);
+});
+
+afterAll(() => {
+  __setDevMode(_originalDevMode);
 });
 
 afterEach(() => {

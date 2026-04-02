@@ -9,6 +9,7 @@ export interface PackageCatalog {
   "class-variance-authority": string;
   clsx: string;
   elysia: string;
+  evlog: string;
   "lucide-react": string;
   "radix-ui": string;
   react: string;

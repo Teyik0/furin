@@ -61,24 +61,42 @@ export function getBuildId(): string {
 
 // ── Pending invalidations (server → client bridge) ───────────────────────────
 //
-// Safety note: this Set is module-level and shared across all requests.
-// A theoretical race exists if two requests interleave between `revalidatePath()`
-// and `consumePendingInvalidations()`. In practice the window is zero: Bun is
-// single-threaded and Elysia fires `onAfterHandle` synchronously in the same
-// micro-task queue as the handler return, with no `await` in between.
-const pendingInvalidations = new Set<string>();
+// Per-request scoping via AsyncLocalStorage: furin wraps each request's full
+// lifecycle (handler + all hooks) inside `_requestInvalidationScope.run()` so
+// that `revalidatePath()` and `consumePendingInvalidations()` share an isolated
+// Set per request. The global `_globalPendingInvalidations` is a fallback for
+// calls made outside a request context (e.g. scripts, tests, warmup code).
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const _requestInvalidationScope = new AsyncLocalStorage<Set<string>>();
+const _globalPendingInvalidations = new Set<string>();
+
+function _activeInvalidationSet(): Set<string> {
+  return _requestInvalidationScope.getStore() ?? _globalPendingInvalidations;
+}
 
 /**
- * Consume and clear all pending invalidation paths.
+ * Wraps `fn` in a fresh per-request invalidation scope.
+ * Call this around the entire Elysia request handle so that all lifecycle
+ * hooks share an isolated invalidation Set.
+ * @internal
+ */
+export function _runWithRequestInvalidationScope<T>(fn: () => T): T {
+  return _requestInvalidationScope.run(new Set<string>(), fn);
+}
+
+/**
+ * Consume and clear all pending invalidation paths for the current request.
  * Called by the Elysia `onAfterHandle` hook to populate `X-Furin-Revalidate`.
  * @internal
  */
 export function consumePendingInvalidations(): string[] {
-  if (pendingInvalidations.size === 0) {
+  const set = _activeInvalidationSet();
+  if (set.size === 0) {
     return [];
   }
-  const paths = [...pendingInvalidations];
-  pendingInvalidations.clear();
+  const paths = [...set];
+  set.clear();
   return paths;
 }
 
@@ -149,7 +167,7 @@ export function callCachePurger(paths: string[]): void {
  */
 export function revalidatePath(path: string, type: "page" | "layout" = "page"): boolean {
   // Queue for client-side notification via X-Furin-Revalidate header
-  pendingInvalidations.add(type === "layout" ? `${path}:layout` : path);
+  _activeInvalidationSet().add(type === "layout" ? `${path}:layout` : path);
 
   let deleted = false;
 
@@ -190,6 +208,6 @@ export function __resetCacheState(): void {
   isrCache.clear();
   ssgCache.clear();
   _buildId = "";
-  pendingInvalidations.clear();
+  _globalPendingInvalidations.clear();
   _cachePurger = null;
 }
