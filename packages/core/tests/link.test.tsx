@@ -11,7 +11,13 @@ import type {
   RouterContextValue,
   RouterProviderProps,
 } from "../src/link";
-import { buildHref, buildPageElement, Link, shouldRefetch } from "../src/link";
+import {
+  applyRevalidateHeader,
+  buildHref,
+  buildPageElement,
+  Link,
+  shouldRefetch,
+} from "../src/link";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -425,5 +431,97 @@ describe("prefetch cache LRU eviction", () => {
     expect(cache.has("/a")).toBe(false); // evicted — still oldest despite being re-set
     expect(cache.has("/b")).toBe(true);
     expect(cache.has("/c")).toBe(true);
+  });
+});
+
+// ── applyRevalidateHeader ──────────────────────────────────────────────────────
+
+describe("applyRevalidateHeader", () => {
+  // ── Bullet 13: parses page entries ─────────────────────────────────────────
+
+  test("parses multiple page entries from header", () => {
+    const calls: [string, string?][] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/blog/post,/home" });
+    applyRevalidateHeader(headers, (path, type) => calls.push([path, type]));
+    expect(calls).toEqual([
+      ["/blog/post", "page"],
+      ["/home", "page"],
+    ]);
+  });
+
+  test("parses a single page entry", () => {
+    const calls: [string, string?][] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/blog/post" });
+    applyRevalidateHeader(headers, (path, type) => calls.push([path, type]));
+    expect(calls).toEqual([["/blog/post", "page"]]);
+  });
+
+  test("page entries are called with type 'page'", () => {
+    const types: (string | undefined)[] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/foo,/bar" });
+    applyRevalidateHeader(headers, (_path, type) => types.push(type));
+    expect(types).toEqual(["page", "page"]);
+  });
+
+  // ── Bullet 14: parses layout entries ───────────────────────────────────────
+
+  test("parses layout entries from header", () => {
+    const calls: [string, string?][] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/blog:layout" });
+    applyRevalidateHeader(headers, (path, type) => calls.push([path, type]));
+    expect(calls).toEqual([["/blog", "layout"]]);
+  });
+
+  test("layout entries strip the :layout suffix from the path", () => {
+    const paths: string[] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/blog:layout" });
+    applyRevalidateHeader(headers, (path) => paths.push(path));
+    expect(paths).toEqual(["/blog"]);
+  });
+
+  test("layout entries are called with type 'layout'", () => {
+    const types: (string | undefined)[] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/blog:layout" });
+    applyRevalidateHeader(headers, (_path, type) => types.push(type));
+    expect(types).toEqual(["layout"]);
+  });
+
+  test("mixed page and layout entries are parsed correctly", () => {
+    const calls: [string, string?][] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/home,/blog:layout,/about" });
+    applyRevalidateHeader(headers, (path, type) => calls.push([path, type]));
+    expect(calls).toEqual([
+      ["/home", "page"],
+      ["/blog", "layout"],
+      ["/about", "page"],
+    ]);
+  });
+
+  // ── Bullet 15: no-op when header absent ────────────────────────────────────
+
+  test("is a no-op when header is absent", () => {
+    const headers = new Headers();
+    applyRevalidateHeader(headers, () => {
+      throw new Error("should not call");
+    });
+    // No throw = pass
+  });
+
+  test("is a no-op when header is empty string", () => {
+    const headers = new Headers({ "x-furin-revalidate": "" });
+    const calls: string[] = [];
+    applyRevalidateHeader(headers, (path) => calls.push(path));
+    expect(calls).toEqual([]);
+  });
+
+  test("handles whitespace around commas gracefully", () => {
+    const calls: [string, string?][] = [];
+    const headers = new Headers({ "x-furin-revalidate": "/foo , /bar" });
+    applyRevalidateHeader(headers, (path, type) => calls.push([path, type]));
+    // Trimming is applied per entry
+    expect(calls).toEqual([
+      ["/foo", "page"],
+      ["/bar", "page"],
+    ]);
   });
 });

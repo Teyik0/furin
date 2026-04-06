@@ -109,6 +109,16 @@ export const DOCS_NAV: DocNavSection[] = [
         openIn: DEFAULT_OPEN_IN,
       },
       {
+        label: "Caching",
+        title: "Caching",
+        href: "/docs/caching",
+        description:
+          "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+        sourcePath: "src/content/docs/caching.mdx",
+        githubPath: "apps/docs/src/content/docs/caching.mdx",
+        openIn: DEFAULT_OPEN_IN,
+      },
+      {
         label: "Deployment",
         title: "Deployment",
         href: "/docs/deployment",

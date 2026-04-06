@@ -1,0 +1,191 @@
+{
+  "$schema": "https://furin.dev/scaffolder/template-manifest.v2.json",
+  "version": 2,
+  "templates": [
+    {
+      "id": "simple",
+      "label": "Simple",
+      "description": "Tailwind CSS + une route API",
+      "features": ["tailwind"],
+      "dependencies": {
+        "@teyik0/furin": "{{FURIN_VERSION}}",
+        "bun-plugin-tailwind": "{{BUN_PLUGIN_TAILWIND_VERSION}}",
+        "elysia": "{{ELYSIA_VERSION}}",
+        "evlog": "{{EVLOG_VERSION}}",
+        "react": "{{REACT_VERSION}}",
+        "react-dom": "{{REACT_DOM_VERSION}}"
+      },
+      "devDependencies": {
+        "@types/bun": "{{TYPES_BUN_VERSION}}",
+        "@types/react": "{{TYPES_REACT_VERSION}}",
+        "@types/react-dom": "{{TYPES_REACT_DOM_VERSION}}",
+        "tailwindcss": "{{TAILWIND_VERSION}}",
+        "typescript": "{{TYPESCRIPT_VERSION}}"
+      },
+      "files": [
+        {
+          "src": "simple/package.json.ejs",
+          "dest": "package.json",
+          "kind": "ejs"
+        },
+        {
+          "src": "simple/furin.config.ts",
+          "dest": "furin.config.ts",
+          "kind": "static"
+        },
+        {
+          "src": "simple/tsconfig.json",
+          "dest": "tsconfig.json",
+          "kind": "static"
+        },
+        {
+          "src": "simple/bunfig.toml",
+          "dest": "bunfig.toml",
+          "kind": "static"
+        },
+        { "src": "simple/.gitignore", "dest": ".gitignore", "kind": "static" },
+        {
+          "src": "simple/furin-env.d.ts.ejs",
+          "dest": "furin-env.d.ts",
+          "kind": "ejs"
+        },
+        {
+          "src": "simple/src/server.ts.ejs",
+          "dest": "src/server.ts",
+          "kind": "ejs"
+        },
+        {
+          "src": "simple/src/api/hello.ts",
+          "dest": "src/api/hello.ts",
+          "kind": "static"
+        },
+        {
+          "src": "simple/src/pages/globals.css",
+          "dest": "src/pages/globals.css",
+          "kind": "static"
+        },
+        {
+          "src": "simple/src/pages/root.tsx",
+          "dest": "src/pages/root.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "simple/src/pages/index.tsx",
+          "dest": "src/pages/index.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "simple/public/favicon.ico",
+          "dest": "public/favicon.ico",
+          "kind": "static"
+        }
+      ]
+    },
+    {
+      "id": "full",
+      "label": "Full (shadcn/ui)",
+      "description": "shadcn/ui + Tailwind + routes API",
+      "features": ["tailwind", "shadcn"],
+      "dependencies": {
+        "@teyik0/furin": "{{FURIN_VERSION}}",
+        "bun-plugin-tailwind": "{{BUN_PLUGIN_TAILWIND_VERSION}}",
+        "class-variance-authority": "{{CVA_VERSION}}",
+        "clsx": "{{CLSX_VERSION}}",
+        "elysia": "{{ELYSIA_VERSION}}",
+        "evlog": "{{EVLOG_VERSION}}",
+        "lucide-react": "{{LUCIDE_REACT_VERSION}}",
+        "@radix-ui/react-slot": "{{RADIX_UI_SLOT_VERSION}}",
+        "react": "{{REACT_VERSION}}",
+        "react-dom": "{{REACT_DOM_VERSION}}",
+        "tailwind-merge": "{{TAILWIND_MERGE_VERSION}}",
+        "tw-animate-css": "{{TW_ANIMATE_VERSION}}"
+      },
+      "devDependencies": {
+        "@types/bun": "{{TYPES_BUN_VERSION}}",
+        "@types/react": "{{TYPES_REACT_VERSION}}",
+        "@types/react-dom": "{{TYPES_REACT_DOM_VERSION}}",
+        "tailwindcss": "{{TAILWIND_VERSION}}",
+        "typescript": "{{TYPESCRIPT_VERSION}}"
+      },
+      "files": [
+        {
+          "src": "full/package.json.ejs",
+          "dest": "package.json",
+          "kind": "ejs"
+        },
+        {
+          "src": "full/furin.config.ts",
+          "dest": "furin.config.ts",
+          "kind": "static"
+        },
+        {
+          "src": "full/tsconfig.json",
+          "dest": "tsconfig.json",
+          "kind": "static"
+        },
+        { "src": "full/bunfig.toml", "dest": "bunfig.toml", "kind": "static" },
+        { "src": "full/.gitignore", "dest": ".gitignore", "kind": "static" },
+        {
+          "src": "full/furin-env.d.ts.ejs",
+          "dest": "furin-env.d.ts",
+          "kind": "ejs"
+        },
+        {
+          "src": "full/components.json",
+          "dest": "components.json",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/server.ts.ejs",
+          "dest": "src/server.ts",
+          "kind": "ejs"
+        },
+        {
+          "src": "full/src/api/hello.ts",
+          "dest": "src/api/hello.ts",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/lib/utils.ts",
+          "dest": "src/lib/utils.ts",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/pages/globals.css",
+          "dest": "src/pages/globals.css",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/components/ui/button.tsx",
+          "dest": "src/components/ui/button.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/components/ui/card.tsx",
+          "dest": "src/components/ui/card.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/components/ui/input.tsx",
+          "dest": "src/components/ui/input.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/pages/root.tsx",
+          "dest": "src/pages/root.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "full/src/pages/index.tsx",
+          "dest": "src/pages/index.tsx",
+          "kind": "static"
+        },
+        {
+          "src": "full/public/favicon.ico",
+          "dest": "public/favicon.ico",
+          "kind": "static"
+        }
+      ]
+    }
+  ]
+}

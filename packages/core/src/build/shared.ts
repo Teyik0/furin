@@ -63,6 +63,7 @@ export function buildTargetManifest(
   const targetDir = join(buildRoot, target);
 
   return {
+    buildId: "", // populated by adapter after buildClient() completes
     generatedAt: new Date().toISOString(),
     targetDir: toPosixPath(relative(rootDir, targetDir)),
     clientDir: toPosixPath(relative(rootDir, join(targetDir, "client"))),

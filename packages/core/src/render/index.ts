@@ -2,7 +2,14 @@ import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import type { RootLayout } from "../router.ts";
 import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
-import { isrCache, setISRCache, setSSGCache, ssgCache } from "./cache.ts";
+import {
+  type ISRCacheEntry,
+  isrCache,
+  type SsgCacheEntry,
+  setISRCache,
+  setSSGCache,
+  ssgCache,
+} from "./cache.ts";
 import { buildElement } from "./element.tsx";
 import { runLoaders } from "./loaders.ts";
 import { buildHeadInjection, safeJson } from "./shell.ts";
@@ -35,6 +42,7 @@ interface PreparedRender {
   element: ReactNode;
   headData: string;
   headers: Record<string, string>;
+  loader_ms: number;
   template: string;
 }
 
@@ -51,7 +59,9 @@ async function prepareRender(
   ctx: Context,
   root: RootLayout
 ): Promise<PreparedRender | Response> {
+  const loaderStart = Date.now();
   const loaderResult = await runLoaders(route, ctx, root.route);
+  const loader_ms = Date.now() - loaderStart;
 
   if (loaderResult.type === "redirect") {
     return loaderResult.response;
@@ -73,7 +83,7 @@ async function prepareRender(
 
   const element = buildElement(route, componentProps, root.route);
 
-  return { componentProps, element, headData, headers, template };
+  return { componentProps, element, headData, headers, loader_ms, template };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -146,7 +156,7 @@ export async function prerenderSSG(
   params: Record<string, string>,
   root: RootLayout,
   origin = "http://localhost:3000"
-): Promise<string> {
+): Promise<SsgCacheEntry> {
   const resolvedPath = resolvePath(route.pattern, params);
 
   const cached = ssgCache.get(resolvedPath);
@@ -155,12 +165,13 @@ export async function prerenderSSG(
   }
 
   const result = await renderForPath(route, params, root, origin);
+  const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now() };
 
   if (!IS_DEV) {
-    setSSGCache(resolvedPath, result.html);
+    setSSGCache(resolvedPath, entry);
   }
 
-  return result.html;
+  return entry;
 }
 
 export async function renderSSR(
@@ -168,7 +179,6 @@ export async function renderSSR(
   ctx: Context,
   root: RootLayout
 ): Promise<Response> {
-  const loaderStart = Date.now();
   const prepared = await prepareRender(route, ctx, root);
 
   // Redirect — return directly as a Response
@@ -177,7 +187,7 @@ export async function renderSSR(
   }
 
   useLogger().set({
-    furin: { render: "ssr", route: route.pattern, loader_ms: Date.now() - loaderStart },
+    furin: { render: "ssr", route: route.pattern, loader_ms: prepared.loader_ms },
   });
 
   const { componentProps, element, headData, headers, template } = prepared;
@@ -211,37 +221,82 @@ export async function renderSSR(
   return new Response(readable, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
       ...headers,
     },
   });
 }
 
-export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLayout) {
+// ── ISR helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Builds the Cache-Control header value for an ISR response.
+ * Browser: max-age=0 + must-revalidate forces a conditional request every time.
+ * CDN:     s-maxage=N + stale-while-revalidate=N allow CDN-level serving + BG refresh.
+ */
+function isrCacheControl(isFresh: boolean, revalidate: number): string {
+  const sMaxAge = isFresh ? revalidate : 0;
+  return `public, max-age=0, must-revalidate, s-maxage=${sMaxAge}, stale-while-revalidate=${revalidate}`;
+}
+
+/**
+ * Serves a response from an existing ISR cache entry.
+ * Handles stale-while-revalidate background refresh and ETag conditional requests.
+ * Returns `undefined` when a 304 Not Modified is sent (no body needed).
+ */
+function serveISRCacheHit(
+  cached: ISRCacheEntry,
+  ctx: Context,
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  cacheKey: string,
+  revalidate: number,
+  root: RootLayout,
+  buildId: string
+): string | undefined {
+  const isFresh = Date.now() - cached.generatedAt < revalidate * 1000;
+
+  // Kick off background refresh for stale entries *before* the ETag check
+  // so conditional requests (304) do not permanently suppress cache refreshes.
+  if (!isFresh) {
+    revalidateInBackground(route, params, cacheKey, revalidate, root, ctx);
+  }
+
+  // ETag = "buildId:generatedAt" — encodes both the deploy version and freshness.
+  // Only emit when buildId is non-empty (dev has no buildId).
+  const etag = buildId ? `"${buildId}:${cached.generatedAt}"` : null;
+  if (etag && ctx.request.headers.get("if-none-match") === etag) {
+    // RFC 7232 §4.1: a 304 MUST echo the ETag and SHOULD include Cache-Control
+    // so the browser continues sending If-None-Match on future requests.
+    ctx.set.status = 304;
+    ctx.set.headers.etag = etag;
+    ctx.set.headers["cache-control"] = isrCacheControl(isFresh, revalidate);
+    return;
+  }
+
+  ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+  ctx.set.headers["cache-control"] = isrCacheControl(isFresh, revalidate);
+  if (etag) {
+    ctx.set.headers.etag = etag;
+  }
+
+  useLogger().set({ furin: { render: "isr", route: route.pattern, cache: "hit" } });
+  return cached.html;
+}
+
+export async function handleISR(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId = ""
+) {
   const revalidate = route.page._route.revalidate ?? 60;
   const params = ctx.params ?? {};
   const cacheKey = resolvePath(route.pattern, params);
 
   const cached = isrCache.get(cacheKey);
-
   if (cached && !IS_DEV) {
-    const age = Date.now() - cached.generatedAt;
-    const isFresh = age < revalidate * 1000;
-
-    if (!isFresh) {
-      revalidateInBackground(route, params, cacheKey, revalidate, root, ctx);
-    }
-
-    ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-    ctx.set.headers["cache-control"] = isFresh
-      ? `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`
-      : "public, s-maxage=0, must-revalidate";
-
-    useLogger().set({
-      furin: { render: "isr", route: route.pattern, cache: "hit" },
-    });
-
-    return cached.html;
+    return serveISRCacheHit(cached, ctx, route, params, cacheKey, revalidate, root, buildId);
   }
 
   const renderStart = Date.now();
@@ -258,23 +313,27 @@ export async function handleISR(route: ResolvedRoute, ctx: Context, root: RootLa
   await stream.allReady;
   const reactHtml = await streamToString(stream);
   const html = assembleHTML(template, headData, reactHtml, componentProps);
+  const generatedAt = Date.now();
 
   useLogger().set({
     furin: {
       render: "isr",
       route: route.pattern,
       cache: "miss",
-      render_ms: Date.now() - renderStart,
+      render_ms: generatedAt - renderStart,
     },
   });
 
   if (!IS_DEV) {
-    setISRCache(cacheKey, { html, generatedAt: Date.now(), revalidate });
+    setISRCache(cacheKey, { html, generatedAt, revalidate });
   }
 
+  const etag = buildId ? `"${buildId}:${generatedAt}"` : null;
   ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-  ctx.set.headers["cache-control"] =
-    `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+  ctx.set.headers["cache-control"] = isrCacheControl(true, revalidate);
+  if (etag) {
+    ctx.set.headers.etag = etag;
+  }
   return html;
 }
 

@@ -394,8 +394,8 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html = await prerenderSSG(indexRoute, {}, root);
-      expect(html).toContain("<html");
+      const entry = await prerenderSSG(indexRoute, {}, root);
+      expect(entry.html).toContain("<html");
     });
 
     test("returns cached HTML on second call", async () => {
@@ -430,7 +430,7 @@ describe("render.tsx", () => {
       const response = await renderSSR(ssrRoute, ctx, root);
 
       expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
-      expect(response.headers.get("Cache-Control")).toBe("no-cache, no-store, must-revalidate");
+      expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
     });
 
     test("propagates headers set by loader", async () => {
@@ -625,7 +625,7 @@ describe("render.tsx", () => {
       } as ResolvedRoute;
       await warmSSGCache([routeWithParams], root, "http://localhost:3000");
       expect(ssgCache.has("/")).toBe(true);
-      expect(ssgCache.get("/")).toContain("<html");
+      expect(ssgCache.get("/")?.html).toContain("<html");
     });
 
     test("calls staticParams() exactly once and pre-renders every returned param set", async () => {
@@ -679,8 +679,8 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html = await prerenderSSG(indexRoute, {}, root);
-      expect(html).toContain("<html");
+      const entry = await prerenderSSG(indexRoute, {}, root);
+      expect(entry.html).toContain("<html");
     });
   });
 

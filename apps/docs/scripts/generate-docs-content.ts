@@ -21,6 +21,7 @@ const SOURCE_PATHS = [
   "src/content/docs/layouts.mdx",
   "src/content/docs/api-routes.mdx",
   "src/content/docs/plugins.mdx",
+  "src/content/docs/caching.mdx",
   "src/content/docs/deployment.mdx",
   "src/content/docs/dev-hmr.mdx",
 ];

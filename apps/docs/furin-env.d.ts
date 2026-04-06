@@ -7,6 +7,7 @@ declare module "@teyik0/furin/link" {
     "/": { search?: never };
     "/docs": { search?: never };
     "/docs/api-routes": { search?: never };
+    "/docs/caching": { search?: never };
     "/docs/data-loading": { search?: never };
     "/docs/deployment": { search?: never };
     "/docs/dev-hmr": { search?: never };

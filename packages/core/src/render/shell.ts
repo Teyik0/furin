@@ -135,13 +135,23 @@ export function generateIndexHtml(): string {
  * Generates the production SSR template (index.html) with hashed asset paths.
  * Called after Bun.build() completes so we can inject the correct entry chunk
  * and CSS paths derived from result.outputs.
+ *
+ * @param buildId - Short hash identifying this specific build. Injected as a
+ *   `<meta name="furin-build-id">` tag so the client can detect stale deploys.
  */
-export function generateProdIndexHtml(entryChunk: string | undefined, cssChunks: string[]): string {
+export function generateProdIndexHtml(
+  entryChunk: string | undefined,
+  cssChunks: string[],
+  buildId?: string
+): string {
   const cssLinks = cssChunks
     .map((c) => `    <link rel="stylesheet" crossorigin href="${c}">`)
     .join("\n");
   const scriptTag = entryChunk
     ? `<script type="module" crossorigin src="${entryChunk}"></script>`
+    : "";
+  const buildIdMeta = buildId
+    ? `    <meta name="furin-build-id" content="${escapeHtml(buildId)}">\n`
     : "";
 
   return `<!DOCTYPE html>
@@ -149,7 +159,7 @@ export function generateProdIndexHtml(entryChunk: string | undefined, cssChunks:
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-${cssLinks ? `${cssLinks}\n` : ""}    <!--ssr-head-->
+${buildIdMeta}${cssLinks ? `${cssLinks}\n` : ""}    <!--ssr-head-->
   </head>
   <body>
     <div id="root"><!--ssr-outlet--></div>

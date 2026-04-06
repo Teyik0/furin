@@ -13,7 +13,7 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
-    "evlog": "^2.10.0",
+    "evlog": "^2.11.0",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

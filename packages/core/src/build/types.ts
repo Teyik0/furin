@@ -18,6 +18,7 @@ export interface BuildRouteManifestEntry {
 }
 
 export interface TargetBuildManifest {
+  buildId: string;
   clientDir: string | null;
   generatedAt: string;
   serverEntry: string | null;

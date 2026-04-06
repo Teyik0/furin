@@ -1,0 +1,38 @@
+{
+  "name": "@teyik0/furin-example-task-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/server.ts",
+    "build": "bun ./node_modules/@teyik0/furin/src/cli/index.ts build --target bun --compile embed",
+    "start": "./.furin/build/bun/server",
+    "test:types": "tsc --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@elysiajs/eden": "^1.4.0",
+    "@teyik0/furin": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "bun-plugin-tailwind": "^0.1.2",
+    "clsx": "^2.1.1",
+    "elysia": "catalog:",
+    "evlog": "^2.11.0",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.7.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-icons": "^5.6.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.0",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2"
+  }
+}

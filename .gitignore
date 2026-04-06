@@ -6,6 +6,7 @@ out
 dist
 .build
 .furin
+.temp*
 *.tgz
 
 # code coverage
@@ -38,3 +39,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .claude
 PLAN*.md
 generated**
+
+**/*.db*

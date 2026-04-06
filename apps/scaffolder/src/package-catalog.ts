@@ -1,6 +1,7 @@
 import catalog from "./generated/package-catalog.json";
 
 export interface PackageCatalog {
+  "@radix-ui/react-slot": string;
   "@teyik0/furin": string;
   "@types/bun": string;
   "@types/react": string;
@@ -9,8 +10,8 @@ export interface PackageCatalog {
   "class-variance-authority": string;
   clsx: string;
   elysia: string;
+  evlog: string;
   "lucide-react": string;
-  "radix-ui": string;
   react: string;
   "react-dom": string;
   "tailwind-merge": string;

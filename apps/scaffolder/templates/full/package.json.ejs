@@ -1,0 +1,33 @@
+{
+  "name": "<%= projectNameKebab %>",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/server.ts",
+    "build": "bun ./node_modules/@teyik0/furin/src/cli/index.ts build --target bun --compile embed",
+    "start": "./.furin/build/bun/server",
+    "test:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@teyik0/furin": "<%= versions['@teyik0/furin'] %>",
+    "bun-plugin-tailwind": "<%= versions['bun-plugin-tailwind'] %>",
+    "class-variance-authority": "<%= versions['class-variance-authority'] %>",
+    "clsx": "<%= versions['clsx'] %>",
+    "elysia": "<%= versions['elysia'] %>",
+    "evlog": "<%= versions['evlog'] %>",
+    "lucide-react": "<%= versions['lucide-react'] %>",
+    "@radix-ui/react-slot": "<%= versions['@radix-ui/react-slot'] %>",
+    "react": "<%= versions['react'] %>",
+    "react-dom": "<%= versions['react-dom'] %>",
+    "tailwind-merge": "<%= versions['tailwind-merge'] %>",
+    "tw-animate-css": "<%= versions['tw-animate-css'] %>"
+  },
+  "devDependencies": {
+    "@types/bun": "<%= versions['@types/bun'] %>",
+    "@types/react": "<%= versions['@types/react'] %>",
+    "@types/react-dom": "<%= versions['@types/react-dom'] %>",
+    "tailwindcss": "<%= versions['tailwindcss'] %>",
+    "typescript": "<%= versions['typescript'] %>"
+  }
+}

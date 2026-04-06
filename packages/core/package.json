@@ -69,7 +69,7 @@
   },
   "peerDependencies": {
     "elysia": "catalog:",
-    "evlog": "^2.10.0",
+    "evlog": "^2.11.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": ">=6.0.2",

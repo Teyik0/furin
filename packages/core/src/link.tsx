@@ -123,6 +123,45 @@ export function buildHref(
   return url;
 }
 
+// ── Revalidation helpers ────────────────────────────────────────────────────────
+
+/**
+ * Parses the `X-Furin-Revalidate` response header and calls `invalidate` for
+ * each path entry. Header format: `"/path1,/path2:layout,/path3"`
+ *
+ * Intended to be called from a `window.fetch` interceptor or SPA navigation
+ * handler so that client-side prefetch caches are busted automatically whenever
+ * a server-side `revalidatePath()` call is made within the same request.
+ *
+ * @example
+ * ```ts
+ * const res = await fetch("/api/publish");
+ * applyRevalidateHeader(res.headers, (path, type) => {
+ *   console.log("invalidate", path, type);
+ * });
+ * ```
+ */
+export function applyRevalidateHeader(
+  headers: Headers,
+  invalidate: (path: string, type?: "page" | "layout") => void
+): void {
+  const headerValue = headers.get("x-furin-revalidate");
+  if (!headerValue) {
+    return;
+  }
+  for (const entry of headerValue.split(",")) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (trimmed.endsWith(":layout")) {
+      invalidate(trimmed.slice(0, -":layout".length), "layout");
+    } else {
+      invalidate(trimmed, "page");
+    }
+  }
+}
+
 // ── Router context ─────────────────────────────────────────────────────────────
 
 export interface RouterContextValue {
@@ -131,6 +170,15 @@ export interface RouterContextValue {
   defaultPreload: PreloadStrategy;
   defaultPreloadDelay: number;
   defaultPreloadStaleTime: number;
+  /**
+   * Evicts one or more prefetch cache entries, mirroring a `revalidatePath()` call
+   * made on the server. Called automatically by the `window.fetch` interceptor when
+   * the server emits `X-Furin-Revalidate` headers.
+   *
+   * - `type: 'page'` (default) — exact URL match
+   * - `type: 'layout'` — prefix match (path + all nested children)
+   */
+  invalidatePrefetch: (path: string, type?: "page" | "layout") => void;
   isNavigating: boolean;
   navigate: (href: string, opts?: { replace?: boolean; resetScroll?: boolean }) => Promise<void>;
   prefetch: (href: string, opts?: { staleTime?: number }) => void;
@@ -152,6 +200,9 @@ export function useRouter(): RouterContextValue {
         return Promise.resolve();
       },
       prefetch: () => {
+        /* noop fallback */
+      },
+      invalidatePrefetch: () => {
         /* noop fallback */
       },
       isNavigating: false,
@@ -307,6 +358,22 @@ export function RouterProvider({
         // The browser module cache makes match.load() near-instant for already-loaded pages.
         const [res, loadedMod] = await Promise.all([fetch(href), match.load()]);
 
+        // Stale-deploy detection: if the server reports a different buildId, the client
+        // bundle is outdated and SPA navigation would mount wrong components / stale code.
+        // Force a full page reload to pick up the new bundle.
+        const serverBuildId = res.headers.get("x-furin-build-id");
+        if (serverBuildId) {
+          const metaEl =
+            typeof document === "undefined"
+              ? null
+              : document.querySelector<HTMLMetaElement>('meta[name="furin-build-id"]');
+          const clientBuildId = metaEl?.content;
+          if (clientBuildId && serverBuildId !== clientBuildId) {
+            window.location.href = href;
+            return null;
+          }
+        }
+
         // Detect server-side redirects (e.g. query-default redirect /?→/?city=Paris).
         // fetch() follows 302 automatically; res.url is the final URL, res.redirected is true.
         let finalHref: string | undefined;
@@ -335,6 +402,20 @@ export function RouterProvider({
     },
     [routes]
   );
+
+  const invalidatePrefetch = useCallback((path: string, type: "page" | "layout" = "page") => {
+    if (type === "page") {
+      prefetchCache.current.delete(path);
+      return;
+    }
+    // layout: prefix match — evict the path itself and all nested children
+    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
+    for (const key of [...prefetchCache.current.keys()]) {
+      if (key === path || key.startsWith(prefix)) {
+        prefetchCache.current.delete(key);
+      }
+    }
+  }, []);
 
   const prefetch = useCallback(
     (href: string, opts?: { staleTime?: number }) => {
@@ -445,6 +526,28 @@ export function RouterProvider({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [handlePopState]);
 
+  // Intercept all window.fetch calls to auto-process X-Furin-Revalidate headers.
+  // This ensures that API routes calling revalidatePath() automatically bust the
+  // client prefetch cache, even for non-navigation fetches (e.g. form submissions).
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const originalFetch = window.fetch;
+    const wrapped = async (...args: Parameters<typeof fetch>): Promise<Response> => {
+      const response = await originalFetch.apply(window, args);
+      applyRevalidateHeader(response.headers, invalidatePrefetch);
+      return response;
+    };
+    // Copy static fetch methods (e.g. preconnect) so the patched value satisfies typeof fetch.
+    Object.assign(wrapped, originalFetch);
+    // biome-ignore lint/suspicious/noExplicitAny: Object.assign copies all static props but TS can't infer it
+    window.fetch = wrapped as any;
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [invalidatePrefetch]);
+
   return createElement(
     RouterContext.Provider,
     {
@@ -452,6 +555,7 @@ export function RouterProvider({
         currentHref,
         navigate,
         prefetch,
+        invalidatePrefetch,
         isNavigating,
         defaultPreload,
         defaultPreloadDelay,

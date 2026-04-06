@@ -2,11 +2,17 @@ import { existsSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysiajs/static";
-import { Elysia, file } from "elysia";
+import { type AnyElysia, Elysia, file } from "elysia";
 import { type DrainContext, initLogger } from "evlog";
 import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import type { EmbeddedAppData } from "./internal.ts";
 import { getCompileContext } from "./internal.ts";
+import {
+  _runWithRequestInvalidationScope,
+  consumePendingInvalidations,
+  getBuildId,
+  setBuildId,
+} from "./render/cache.ts";
 import { warmSSGCache } from "./render/index.ts";
 import { setProductionTemplateContent, setProductionTemplatePath } from "./render/template.ts";
 import { createRoutePlugin, loadProdRoutes } from "./router.ts";
@@ -142,6 +148,19 @@ async function setupProdTemplate(
  *   .listen(3000)
  * ```
  */
+
+/**
+ * Wraps an Elysia app's `handle` method so that every request runs inside a
+ * fresh `AsyncLocalStorage` scope. This isolates `pendingInvalidations` per
+ * request, preventing concurrent requests from stealing each other's
+ * `revalidatePath()` calls.
+ */
+function wrapWithRequestScope(app: AnyElysia): Elysia {
+  const original = app.handle.bind(app);
+  app.handle = (request: Request) => _runWithRequestInvalidationScope(() => original(request));
+  return app;
+}
+
 export async function furin({
   pagesDir,
   logger,
@@ -219,17 +238,35 @@ export async function furin({
     const { writeDevFiles } = await import("./build/hydrate.ts");
     writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path }, cwd);
 
-    return new Elysia({ name: instanceName, seed: resolvedPagesDir })
+    const publicDir = resolve(cwd, "public");
+    const publicExists = existsSync(publicDir);
+
+    const devApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
       .use(loggerPlugin)
-      .get("/favicon.ico", file(join(resolve(cwd, "public"), "favicon.ico")))
+      .onAfterHandle({ as: "global" }, ({ set }) => {
+        // Forward pending revalidation paths so the client can bust its prefetch cache
+        const pending = consumePendingInvalidations();
+        if (pending.length > 0) {
+          set.headers["x-furin-revalidate"] = pending.join(",");
+        }
+      })
       .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry" }))
-      .use(await staticPlugin())
+      .use(
+        publicExists ? await staticPlugin({ assets: publicDir, prefix: "/public" }) : new Elysia()
+      )
+      .get(
+        "/favicon.ico",
+        publicExists
+          ? file(join(publicDir, "favicon.ico"))
+          : () => new Response(null, { status: 404 })
+      )
       .use((app) => {
         for (const route of routes) {
           app.use(createRoutePlugin(route, root));
         }
         return app;
       });
+    return wrapWithRequestScope(devApp);
   }
 
   // ── Production ──────────────────────────────────────────────────────────
@@ -237,13 +274,32 @@ export async function furin({
     throw new Error("[furin] No pre-built assets found. Run `bunx furin build` first.");
   }
   const { root, routes } = loadProdRoutes(ctx);
+  const prodBuildId = ctx.buildId ?? "";
+  setBuildId(prodBuildId);
 
   const embedded = ctx?.embedded;
   const clientDir = embedded ? "" : resolveClientDirFromArgv();
   await setupProdTemplate(embedded, clientDir);
 
-  return new Elysia({ name: instanceName, seed: resolvedPagesDir })
+  const prodApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
     .use(loggerPlugin)
+    .onAfterHandle({ as: "global" }, ({ path, set }) => {
+      // Content-hashed client assets are permanently cacheable — browsers never need to
+      // revalidate them because any change produces a new filename.
+      if (path.startsWith("/_client/")) {
+        set.headers["cache-control"] = "public, max-age=31536000, immutable";
+      }
+      // Forward pending revalidation paths so the client can bust its prefetch cache
+      const pending = consumePendingInvalidations();
+      if (pending.length > 0) {
+        set.headers["x-furin-revalidate"] = pending.join(",");
+      }
+      // Tell the client the current build ID so it can detect stale deploys
+      const buildId = getBuildId();
+      if (buildId) {
+        set.headers["x-furin-build-id"] = buildId;
+      }
+    })
     .onStart(async ({ server }) => {
       const origin = server?.url?.origin ?? "http://localhost:3000";
       await warmSSGCache(routes, root, origin);
@@ -287,8 +343,13 @@ export async function furin({
     )
     .use((app) => {
       for (const route of routes) {
-        app.use(createRoutePlugin(route, root));
+        app.use(createRoutePlugin(route, root, prodBuildId));
       }
       return app;
     });
+  return wrapWithRequestScope(prodApp);
 }
+
+// ── Public API re-export ──────────────────────────────────────────────────────
+// biome-ignore lint/performance/noBarrelFile: intentional — furin.ts is the public package entry
+export { revalidatePath, setCachePurger } from "./render/cache.ts";

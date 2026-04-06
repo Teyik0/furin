@@ -5,6 +5,7 @@ import { type AnyElysia, type Context, Elysia } from "elysia";
 import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
+import { resolvePath } from "./render/assemble.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
 import { IS_DEV } from "./runtime-env.ts";
 import {
@@ -210,7 +211,63 @@ export function queryDefaultRedirectHook({ request, query, status, set }: Contex
   return status("Found");
 }
 
-export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyElysia {
+/** @internal Handles a request in dev mode — re-imports the page fresh on every request. */
+async function handleDevRequest(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout
+): Promise<unknown> {
+  // Load the page via ?furin-server virtual namespace so it stays out of
+  // --hot's file watcher, then hand off to renderSSR which runs loaders,
+  // renders React to HTML, and injects __FURIN_DATA__.
+  try {
+    const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
+    const page = pageMod.default;
+    if (page && isFurinPage(page)) {
+      const chain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+      return renderSSR({ ...route, page, routeChain: chain }, ctx, root);
+    }
+  } catch (err) {
+    console.error(`[furin] Dev page load error for ${route.path}:`, err);
+  }
+  // Fallback: page couldn't load — return a clear error response rather than
+  // delegating to renderSSR with an undefined page.
+  return new Response(
+    `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
+    { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
+}
+
+/** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
+async function handleSSGRequest(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId: string
+): Promise<unknown> {
+  const origin = new URL(ctx.request.url).origin;
+  const entry = await prerenderSSG(route, ctx.params, root, origin);
+  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+
+  // ETag: "buildId:cachedAt" — unique per render cycle, changes after revalidatePath
+  const etag = buildId ? `"${buildId}:${entry.cachedAt}"` : null;
+  if (etag && ctx.request.headers.get("if-none-match") === etag) {
+    ctx.set.status = 304;
+    return;
+  }
+
+  ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+  // Browser: max-age=0 + must-revalidate → always validates via ETag (304 = free)
+  // CDN:     s-maxage=31536000 → cache for 1 year, purge via revalidatePath + purger
+  ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate, s-maxage=31536000";
+  if (etag) {
+    ctx.set.headers.etag = etag;
+  }
+  ctx.set.headers["cache-tag"] = resolvedPath;
+  return entry.html;
+}
+
+export function createRoutePlugin(route: ResolvedRoute, root: RootLayout, buildId = ""): AnyElysia {
   const { pattern, routeChain } = route;
 
   // TODO: merge schemas from all routeChain entries (requires TypeBox t.Object/t.Composite)
@@ -230,7 +287,7 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyEl
     });
   }
 
-  plugin.get(pattern, async (ctx) => {
+  plugin.get(pattern, (ctx) => {
     // Redirect when Elysia applied query defaults (validator-agnostic)
     if (hasQuerySchema) {
       const redirect = queryDefaultRedirectHook(ctx);
@@ -240,45 +297,19 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout): AnyEl
     }
 
     if (IS_DEV) {
-      // Dev mode: load the page via ?furin-server virtual namespace so it
-      // stays out of --hot's file watcher, then hand off to renderSSR which
-      // runs loaders, renders React to HTML, and injects __FURIN_DATA__.
-      try {
-        const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
-        const page = pageMod.default;
-
-        if (page && isFurinPage(page)) {
-          const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
-          const devRoute: ResolvedRoute = { ...route, page, routeChain };
-          return renderSSR(devRoute, ctx, root);
-        }
-      } catch (err) {
-        console.error(`[furin] Dev page load error for ${route.path}:`, err);
-      }
-
-      // Fallback: page couldn't load — return a clear error response rather
-      // than delegating to renderSSR with an undefined page, which would
-      // throw an opaque TypeError on route.page.head?.().
-      return new Response(
-        `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
-        { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
-      );
+      return handleDevRequest(route, ctx, root);
     }
 
-    switch (route.mode) {
-      case "ssg": {
-        ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-        ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate";
-        const origin = new URL(ctx.request.url).origin;
-        return await prerenderSSG(route, ctx.params, root, origin);
-      }
-
-      case "isr":
-        return handleISR(route, ctx, root);
-
-      default:
-        return renderSSR(route, ctx, root);
+    if (route.mode === "ssg") {
+      return handleSSGRequest(route, ctx, root, buildId);
     }
+
+    if (route.mode === "isr") {
+      ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
+      return handleISR(route, ctx, root, buildId);
+    }
+
+    return renderSSR(route, ctx, root);
   });
 
   return plugin;

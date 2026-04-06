@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
-import { generateProdIndexHtml } from "../render/shell";
 import type { ResolvedRoute } from "../router";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "./shared";
@@ -10,16 +9,24 @@ import type { BunBuildAliasConfig, BuildClientOptions } from "./types";
 const TS_FILE_FILTER = /\.(tsx|ts)$/;
 const REACT_IMPORT_RE = /import\s+React\b/;
 
+export interface BuildClientResult {
+  /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
+  entryChunk: string | undefined;
+  /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
+  cssChunks: string[];
+}
+
 /**
  * Builds the production client bundle via Bun.build() using _hydrate.tsx as
  * the JS entrypoint (NOT an HTML entrypoint). Bun produces:
  *   <outDir>/client/chunk-*.js  — code-split bundles
  *   <outDir>/client/chunk-*.css — extracted CSS (if imported)
  *
- * After the build, index.html is written manually using the entry chunk path
- * from result.outputs. Using an HTML entrypoint with code-splitting causes a
- * Bun bug where the output index.html references a leaf chunk instead of the
- * actual entry chunk, preventing React from mounting in production.
+ * Returns the chunk paths so the caller can compute a `buildId` and write
+ * `index.html` with the correct meta tag. Using an HTML entrypoint with
+ * code-splitting causes a Bun bug where the output index.html references a
+ * leaf chunk instead of the actual entry chunk, preventing React from mounting
+ * in production.
  *
  * The output index.html is NOT served to browsers directly. The server reads
  * it as an SSR template, injects the pre-rendered React HTML into
@@ -28,7 +35,7 @@ const REACT_IMPORT_RE = /import\s+React\b/;
 export async function buildClient(
   routes: ResolvedRoute[],
   { outDir, rootLayout, plugins }: BuildClientOptions
-): Promise<void> {
+): Promise<BuildClientResult> {
   const clientDir = join(outDir, "client");
 
   if (!existsSync(outDir)) {
@@ -120,7 +127,6 @@ export async function buildClient(
   const entryChunk = entryOutput ? `/_client/${basename(entryOutput.path)}` : undefined;
   const cssChunks = cssOutputs.map((o) => `/_client/${basename(o.path)}`);
 
-  writeFileSync(join(clientDir, "index.html"), generateProdIndexHtml(entryChunk, cssChunks));
-
   console.log("[furin] Production client build complete");
+  return { entryChunk, cssChunks };
 }

@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
@@ -6,6 +6,7 @@ import { generateServerRoutesEntry } from "../build/server-routes-entry.ts";
 import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import type { BuildTarget } from "../config.ts";
+import { generateProdIndexHtml } from "../render/shell.ts";
 import type { ResolvedRoute } from "../router.ts";
 
 export async function buildBunTarget(
@@ -30,11 +31,25 @@ export async function buildBunTarget(
   rmSync(targetDir, { force: true, recursive: true });
   ensureDir(targetDir);
 
-  await buildClient(routes, {
+  const { entryChunk, cssChunks } = await buildClient(routes, {
     outDir: targetDir,
     rootLayout: rootPath,
     plugins: options.plugins,
   });
+
+  // Derive a short, deterministic buildId from chunk filenames — Bun already
+  // content-addresses them so the same code always produces the same names.
+  const chunkFingerprint = [entryChunk ?? "", ...cssChunks].sort().join(",");
+  const buildId = Bun.hash(chunkFingerprint).toString(16).slice(0, 12);
+  targetManifest.buildId = buildId;
+
+  // Write index.html with the buildId meta tag injected so the client can
+  // detect stale deploys via X-Furin-Build-ID header comparison.
+  const clientDir = join(targetDir, "client");
+  writeFileSync(
+    join(clientDir, "index.html"),
+    generateProdIndexHtml(entryChunk, cssChunks, buildId)
+  );
 
   const routeManifest = routes.map((r) => ({ pattern: r.pattern, path: r.path, mode: r.mode }));
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
@@ -49,6 +64,7 @@ export async function buildBunTarget(
     const outfile = join(targetDir, "server");
 
     const entryPath = generateCompileEntry({
+      buildId,
       rootPath,
       routes: routeManifest,
       serverEntry,
@@ -77,6 +93,7 @@ export async function buildBunTarget(
   } else if (serverEntry) {
     // Disk mode: generate server.ts then bundle it into self-contained server.js
     const entryPath = generateServerRoutesEntry({
+      buildId,
       rootPath,
       routes: routeManifest,
       serverEntry,
