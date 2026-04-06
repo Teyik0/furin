@@ -134,7 +134,7 @@ const Column = ({
         copy.push(cardToTransfer);
       } else {
         const insertAtIndex = copy.findIndex((el) => el.id === before);
-        if (insertAtIndex === undefined) {
+        if (insertAtIndex === -1) {
           return;
         }
         copy.splice(insertAtIndex, 0, cardToTransfer);
@@ -373,11 +373,11 @@ const AddCard = ({ column, setCards, boardId }: AddCardProps) => {
       title: text.trim(),
       column,
     });
-    if (newCard && !error) {
-      setCards((pv) => [...pv, { id: newCard.id, title: newCard.title, column }]);
-    } else {
-      setCards((pv) => [...pv, { column, title: text.trim(), id: Math.random().toString() }]);
+    if (!newCard || error) {
+      return;
     }
+
+    setCards((pv) => [...pv, { id: newCard.id, title: newCard.title, column }]);
 
     setText("");
     setAdding(false);

@@ -134,6 +134,14 @@ describe("static files — no EJS-like tokens", () => {
   });
 });
 
+describe("full template UI files", () => {
+  it("sets a safe default button type", async () => {
+    const src = resolve(TEMPLATES_DIR, "full/src/components/ui/button.tsx");
+    const raw = await Bun.file(src).text();
+    expect(raw).toContain('type: type ?? "button"');
+  });
+});
+
 describe("package.json.ejs files — valid JSON after stripping EJS tags", () => {
   it("simple/package.json.ejs is JSON-parseable after stripping EJS", async () => {
     const src = resolve(TEMPLATES_DIR, "simple/package.json.ejs");

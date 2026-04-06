@@ -51,7 +51,7 @@ export function generateFileTree(rootName: string, filePaths: string[]): string[
 
 function renderNode(node: TreeNode, prefix: string, isRoot: boolean, lines: string[]): void {
   if (isRoot) {
-    lines.push(`${node.name}/`);
+    lines.push(node.name.endsWith("/") ? node.name : `${node.name}/`);
   }
 
   const children = [...node.children.values()];

@@ -19,7 +19,7 @@ bun create furin my-app
 ### Via `bunx`
 
 ```bash
-bunx create-furin my-app
+bunx @teyik0/create-furin my-app
 ```
 
 ### En local (développement dans le monorepo)

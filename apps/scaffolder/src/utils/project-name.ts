@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { ScaffolderError } from "../errors.ts";
 
@@ -28,6 +28,12 @@ export function ensureTargetDirIsSafe(targetDir: string): void {
   }
 
   if (existsSync(resolved)) {
+    if (!statSync(resolved).isDirectory()) {
+      throw new ScaffolderError(
+        `Target path "${basename(resolved)}" already exists and is not a directory`
+      );
+    }
+
     const entries = getVisibleEntries(resolved);
     if (entries.length > 0) {
       throw new ScaffolderError(

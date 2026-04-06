@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cards } from "@/db/schema";
 
@@ -31,20 +31,25 @@ export function getCardsForBoard(boardId: string): Card[] {
     .all();
 }
 
-export function createCard(boardId: string, title: string, column: ColumnType): Card {
-  const row = db
-    .select({ n: count() })
+function getNextCardPosition(boardId: string, column: ColumnType): number {
+  const lastCard = db
+    .select({ position: cards.position })
     .from(cards)
     .where(and(eq(cards.boardId, boardId), eq(cards.column, column)))
+    .orderBy(desc(cards.position))
     .get();
-  const position = row?.n ?? 0;
+
+  return (lastCard?.position ?? -1) + 1;
+}
+
+export function createCard(boardId: string, title: string, column: ColumnType): Card {
   const card: Card = {
     id: uid(),
     boardId,
     column,
     title,
     description: "",
-    position,
+    position: getNextCardPosition(boardId, column),
     createdAt: new Date().toISOString(),
   };
   db.insert(cards).values(card).run();

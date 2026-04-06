@@ -1,4 +1,5 @@
 import { ScaffolderError } from "../../errors.ts";
+import { getProjectRelativePath } from "../../utils/path.ts";
 import type { PipelineContext } from "../context.ts";
 
 export async function stage6Validation(ctx: PipelineContext): Promise<void> {
@@ -17,7 +18,9 @@ export async function stage6Validation(ctx: PipelineContext): Promise<void> {
   }
 
   // ── Validate package.json is parseable JSON ────────────────────────────
-  const pkgPath = ctx.writtenFiles.find((f) => f.endsWith("/package.json"));
+  const pkgPath = ctx.writtenFiles.find(
+    (filePath) => getProjectRelativePath(ctx.targetDir, filePath) === "package.json"
+  );
   if (pkgPath) {
     try {
       const raw = await Bun.file(pkgPath).text();
@@ -30,7 +33,9 @@ export async function stage6Validation(ctx: PipelineContext): Promise<void> {
   // ── Verify essential Furin files exist ────────────────────────────────
   const essentials = ["src/server.ts", "src/pages/root.tsx"];
   for (const rel of essentials) {
-    const exists = ctx.writtenFiles.some((f) => f.endsWith(`/${rel}`));
+    const exists = ctx.writtenFiles.some(
+      (filePath) => getProjectRelativePath(ctx.targetDir, filePath) === rel
+    );
     if (!exists) {
       throw new ScaffolderError(
         `Expected file "${rel}" was not generated. Template may be misconfigured.`

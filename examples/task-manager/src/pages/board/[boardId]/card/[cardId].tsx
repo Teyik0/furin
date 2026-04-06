@@ -16,6 +16,9 @@ export default route.page({
     if (!card) {
       throw new Response("Card not found", { status: 404 });
     }
+    if (card.boardId !== params.boardId) {
+      throw new Response("Card not found", { status: 404 });
+    }
 
     const renderedAt = new Date().toLocaleTimeString("en-US", {
       hour: "2-digit",

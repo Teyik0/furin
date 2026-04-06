@@ -1,10 +1,14 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { boards, cards } from "@/db/schema";
+import {
+  createCard as createCardFromCardsService,
+  getCardsForBoard as getCardsForBoardFromCardsService,
+} from "../cards/service";
 
 export type { Board, BoardData, Card, ColumnType } from "@/db/schema";
 
-import type { Board, BoardData, Card, ColumnType } from "@/db/schema";
+import type { Board, BoardData } from "@/db/schema";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -209,35 +213,5 @@ export function getBoardData(boardId: string): BoardData | undefined {
   return { board, cards: boardCards };
 }
 
-// ---------------------------------------------------------------------------
-// Cards queries (re-exported for convenience — full impl in cards/service)
-// ---------------------------------------------------------------------------
-
-export function getCardsForBoard(boardId: string): Card[] {
-  return db
-    .select()
-    .from(cards)
-    .where(eq(cards.boardId, boardId))
-    .orderBy(asc(cards.position))
-    .all();
-}
-
-export function createCard(boardId: string, title: string, column: ColumnType): Card {
-  const row = db
-    .select({ n: count() })
-    .from(cards)
-    .where(and(eq(cards.boardId, boardId), eq(cards.column, column)))
-    .get();
-  const position = row?.n ?? 0;
-  const card: Card = {
-    id: uid(),
-    boardId,
-    column,
-    title,
-    description: "",
-    position,
-    createdAt: new Date().toISOString(),
-  };
-  db.insert(cards).values(card).run();
-  return card;
-}
+export const createCard = createCardFromCardsService;
+export const getCardsForBoard = getCardsForBoardFromCardsService;
