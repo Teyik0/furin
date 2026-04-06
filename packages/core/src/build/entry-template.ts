@@ -14,15 +14,14 @@ export interface EntryTemplateOptions {
 }
 
 export function buildEntrySource(options: EntryTemplateOptions): string {
-  const {
-    buildId,
-    headerComment,
-    rootPath,
-    routes,
-    serverEntry,
-    extraImports = [],
-    extraContext = [],
-  } = options;
+  const { buildId, headerComment, rootPath, routes, serverEntry } = options;
+  let { extraImports, extraContext } = options;
+  if (extraImports === undefined) {
+    extraImports = [];
+  }
+  if (extraContext === undefined) {
+    extraContext = [];
+  }
 
   const allModulePaths = [rootPath, ...routes.map((r) => r.path)];
   const moduleImports: string[] = [];

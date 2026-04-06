@@ -9,6 +9,46 @@ import type { BuildTarget } from "../config.ts";
 import { generateProdIndexHtml } from "../render/shell.ts";
 import type { ResolvedRoute } from "../router.ts";
 
+const BUILD_ID_INPUT_PATHS = [
+  resolve(import.meta.dir, "../build/compile-entry.ts"),
+  resolve(import.meta.dir, "../build/entry-template.ts"),
+  resolve(import.meta.dir, "../build/server-routes-entry.ts"),
+  resolve(import.meta.dir, "../render/index.ts"),
+  resolve(import.meta.dir, "../render/shell.ts"),
+  resolve(import.meta.dir, "../router.ts"),
+];
+
+async function createBuildFingerprint(
+  entryChunk: string,
+  cssChunks: string[],
+  routes: ResolvedRoute[],
+  rootPath: string,
+  serverEntry: string | null
+): Promise<string> {
+  const fingerprintPaths = new Set<string>([rootPath, ...routes.map((route) => route.path)]);
+  if (serverEntry) {
+    fingerprintPaths.add(serverEntry);
+  }
+  for (const path of BUILD_ID_INPUT_PATHS) {
+    fingerprintPaths.add(path);
+  }
+
+  const fileParts = await Promise.all(
+    [...fingerprintPaths].sort().map(async (path) => {
+      const content = existsSync(path) ? await Bun.file(path).text() : "";
+      return `${toPosixPath(path)}:${content}`;
+    })
+  );
+
+  const routeParts = routes
+    .map((route) =>
+      JSON.stringify({ mode: route.mode, path: toPosixPath(route.path), pattern: route.pattern })
+    )
+    .sort();
+
+  return [entryChunk, ...cssChunks.sort(), ...routeParts, ...fileParts].join("\n");
+}
+
 export async function buildBunTarget(
   routes: ResolvedRoute[],
   rootDir: string,
@@ -37,10 +77,14 @@ export async function buildBunTarget(
     plugins: options.plugins,
   });
 
-  // Derive a short, deterministic buildId from chunk filenames — Bun already
-  // content-addresses them so the same code always produces the same names.
-  const chunkFingerprint = [entryChunk ?? "", ...cssChunks].sort().join(",");
-  const buildId = Bun.hash(chunkFingerprint).toString(16).slice(0, 12);
+  const buildFingerprint = await createBuildFingerprint(
+    entryChunk,
+    cssChunks,
+    routes,
+    rootPath,
+    serverEntry
+  );
+  const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
   targetManifest.buildId = buildId;
 
   // Write index.html with the buildId meta tag injected so the client can

@@ -140,16 +140,14 @@ export function generateIndexHtml(): string {
  *   `<meta name="furin-build-id">` tag so the client can detect stale deploys.
  */
 export function generateProdIndexHtml(
-  entryChunk: string | undefined,
+  entryChunk: string,
   cssChunks: string[],
   buildId?: string
 ): string {
   const cssLinks = cssChunks
     .map((c) => `    <link rel="stylesheet" crossorigin href="${c}">`)
     .join("\n");
-  const scriptTag = entryChunk
-    ? `<script type="module" crossorigin src="${entryChunk}"></script>`
-    : "";
+  const scriptTag = `<script type="module" crossorigin src="${entryChunk}"></script>`;
   const buildIdMeta = buildId
     ? `    <meta name="furin-build-id" content="${escapeHtml(buildId)}">\n`
     : "";

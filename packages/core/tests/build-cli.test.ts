@@ -19,12 +19,32 @@ function readJsonFile<T>(path: string): T {
 }
 
 async function withBuildStub<T>(run: () => Promise<T>): Promise<T> {
-  Bun.build = (() =>
-    Promise.resolve({
+  let buildCallCount = 0;
+
+  Bun.build = ((config) => {
+    const outdir = (config as Bun.BuildConfig).outdir;
+    const outputs =
+      buildCallCount++ === 0 && typeof outdir === "string"
+        ? ([
+            {
+              kind: "entry-point",
+              path: join(outdir, "_hydrate.js"),
+              size: 128,
+            },
+            {
+              kind: "asset",
+              path: join(outdir, "_hydrate.css"),
+              size: 64,
+            },
+          ] satisfies Array<{ kind: string; path: string; size: number }>)
+        : [];
+
+    return Promise.resolve({
       success: true,
-      outputs: [],
+      outputs,
       logs: [],
-    } as Bun.BuildOutput)) as typeof Bun.build;
+    } as unknown as Bun.BuildOutput);
+  }) as typeof Bun.build;
   try {
     return await run();
   } finally {
@@ -182,5 +202,49 @@ describe.serial("CLI/build Bun feature", () => {
     }
 
     expect(setupWasCalled).toBe(true);
+  });
+
+  test("buildId changes when only server-side inputs change", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+
+    await withBuildStub(() =>
+      buildApp({
+        rootDir: app.path,
+        target: "bun",
+      })
+    );
+    const firstManifest = readJsonFile<{ targets: { bun?: { buildId?: string } } }>(
+      join(app.path, ".furin/build/manifest.json")
+    );
+
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      [
+        'import { furin } from "@teyik0/furin";',
+        'import Elysia from "elysia";',
+        "",
+        "const app = new Elysia()",
+        '  .use(await furin({ pagesDir: "./src/pages" }))',
+        '  .get("/health", () => "ok")',
+        "  .listen(3000);",
+        "",
+        'console.log("server on", app.server?.port);',
+      ].join("\n")
+    );
+
+    await withBuildStub(() =>
+      buildApp({
+        rootDir: app.path,
+        target: "bun",
+      })
+    );
+    const secondManifest = readJsonFile<{ targets: { bun?: { buildId?: string } } }>(
+      join(app.path, ".furin/build/manifest.json")
+    );
+
+    expect(firstManifest.targets.bun?.buildId).toBeDefined();
+    expect(secondManifest.targets.bun?.buildId).toBeDefined();
+    expect(secondManifest.targets.bun?.buildId).not.toBe(firstManifest.targets.bun?.buildId);
   });
 });

@@ -39,31 +39,36 @@ function makeMatch(
   };
 }
 
-function makeCacheEntry(msSinceCreated: number): CacheEntry {
-  return { createdAt: Date.now() - msSinceCreated, promise: Promise.resolve(null) };
+function makeCacheEntry(msSinceCreated: number, staleTime: number): CacheEntry {
+  return { createdAt: Date.now() - msSinceCreated, promise: Promise.resolve(null), staleTime };
 }
 
 // ── shouldRefetch ──────────────────────────────────────────────────────────────
 
 describe("shouldRefetch", () => {
   test("returns false when entry is fresh", () => {
-    expect(shouldRefetch(makeCacheEntry(100), 1000)).toBe(false);
+    expect(shouldRefetch(makeCacheEntry(100, 1000))).toBe(false);
   });
 
   test("returns true when entry has expired", () => {
-    expect(shouldRefetch(makeCacheEntry(2000), 1000)).toBe(true);
+    expect(shouldRefetch(makeCacheEntry(2000, 1000))).toBe(true);
   });
 
   test("returns true at the exact staleTime boundary (strictly greater-than)", () => {
-    expect(shouldRefetch(makeCacheEntry(1001), 1000)).toBe(true);
+    expect(shouldRefetch(makeCacheEntry(1001, 1000))).toBe(true);
   });
 
   test("staleTime=0 — fresh entry does not force refetch (elapsed ≈ 0, not > 0)", () => {
-    expect(shouldRefetch(makeCacheEntry(0), 0)).toBe(false);
+    expect(shouldRefetch(makeCacheEntry(0, 0))).toBe(false);
   });
 
   test("very large staleTime — never refetches", () => {
-    expect(shouldRefetch(makeCacheEntry(999), Number.MAX_SAFE_INTEGER)).toBe(false);
+    expect(shouldRefetch(makeCacheEntry(999, Number.MAX_SAFE_INTEGER))).toBe(false);
+  });
+
+  test("uses the staleTime stored on the cache entry", () => {
+    expect(shouldRefetch(makeCacheEntry(200, 100))).toBe(true);
+    expect(shouldRefetch(makeCacheEntry(200, 1000))).toBe(false);
   });
 });
 

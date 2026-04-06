@@ -22,12 +22,32 @@ afterEach(() => {
 });
 
 async function withCompileStub<T>(run: () => Promise<T>): Promise<T> {
-  Bun.build = (() =>
-    Promise.resolve({
+  let buildCallCount = 0;
+
+  Bun.build = ((config) => {
+    const outdir = (config as Bun.BuildConfig).outdir;
+    const outputs =
+      buildCallCount++ === 0 && typeof outdir === "string"
+        ? ([
+            {
+              kind: "entry-point",
+              path: join(outdir, "_hydrate.js"),
+              size: 128,
+            },
+            {
+              kind: "asset",
+              path: join(outdir, "_hydrate.css"),
+              size: 64,
+            },
+          ] satisfies Array<{ kind: string; path: string; size: number }>)
+        : [];
+
+    return Promise.resolve({
       success: true,
-      outputs: [],
+      outputs,
       logs: [],
-    } as Bun.BuildOutput)) as typeof Bun.build;
+    } as unknown as Bun.BuildOutput);
+  }) as typeof Bun.build;
 
   try {
     return await run();

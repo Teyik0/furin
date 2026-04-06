@@ -255,7 +255,7 @@ describe("setCachePurger", () => {
     revalidatePath("/blog/post");
 
     // Wait a tick for the fire-and-forget async purger
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
 
     expect(purgedPaths.length).toBeGreaterThan(0);
     expect(purgedPaths[0]).toContain("/blog/post");
@@ -270,7 +270,7 @@ describe("setCachePurger", () => {
 
     revalidatePath("/nonexistent");
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
 
     expect(purgedPaths.length).toBeGreaterThan(0);
     expect(purgedPaths[0]).toContain("/nonexistent");
@@ -295,7 +295,7 @@ describe("setCachePurger", () => {
     });
     revalidatePath("/blog", "layout");
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await Bun.sleep(10);
 
     expect(purgedPaths.length).toBeGreaterThan(0);
     const allPurged = purgedPaths.flat();

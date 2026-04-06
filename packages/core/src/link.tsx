@@ -259,11 +259,18 @@ interface RouterState {
 export interface CacheEntry {
   createdAt: number;
   promise: Promise<RouterState | null>;
+  staleTime: number;
 }
 
 /** @internal Exported for unit testing only. */
-export function shouldRefetch(entry: CacheEntry, staleTime: number): boolean {
-  return Date.now() - entry.createdAt > staleTime;
+export function shouldRefetch(entry: CacheEntry): boolean {
+  return Date.now() - entry.createdAt > entry.staleTime;
+}
+
+const HASH_FRAGMENT_RE = /#.*$/;
+
+function stripHashFromHref(href: string): string {
+  return href.replace(HASH_FRAGMENT_RE, "");
 }
 
 /** @internal Exported for unit testing only. */
@@ -305,19 +312,35 @@ export function buildPageElement(
 }
 
 /** Scrolls to a hash target or the top of the page after SPA navigation. */
-function handleScrollRestoration(href: string): void {
+function handleScrollRestoration(
+  href: string,
+  navigationToken: number,
+  navVersion: { current: number }
+): void {
   const destUrl = new URL(href, window.location.origin);
   if (destUrl.hash) {
     const id = decodeURIComponent(destUrl.hash.slice(1));
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "instant", block: "start" });
-    } else {
-      // Element may not be in DOM yet — retry after React commits
+    const scrollToHashTarget = () => {
+      if (navVersion.current !== navigationToken) {
+        return;
+      }
+
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: "instant", block: "start" });
+      }
+    };
+
+    window.requestAnimationFrame(() => {
+      scrollToHashTarget();
+      if (document.getElementById(id)) {
+        return;
+      }
+
       window.requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: "instant", block: "start" });
+        scrollToHashTarget();
       });
-    }
+    });
   } else {
     window.scrollTo(0, 0);
   }
@@ -404,14 +427,25 @@ export function RouterProvider({
   );
 
   const invalidatePrefetch = useCallback((path: string, type: "page" | "layout" = "page") => {
+    const normalizedPath = stripHashFromHref(path);
+
     if (type === "page") {
-      prefetchCache.current.delete(path);
+      for (const key of [...prefetchCache.current.keys()]) {
+        if (stripHashFromHref(key) === normalizedPath) {
+          prefetchCache.current.delete(key);
+        }
+      }
       return;
     }
+
     // layout: prefix match — evict the path itself and all nested children
-    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
+    const prefix =
+      normalizedPath === "/" || normalizedPath.endsWith("/")
+        ? normalizedPath
+        : `${normalizedPath}/`;
     for (const key of [...prefetchCache.current.keys()]) {
-      if (key === path || key.startsWith(prefix)) {
+      const normalizedKey = stripHashFromHref(key);
+      if (normalizedKey === normalizedPath || normalizedKey.startsWith(prefix)) {
         prefetchCache.current.delete(key);
       }
     }
@@ -421,12 +455,13 @@ export function RouterProvider({
     (href: string, opts?: { staleTime?: number }) => {
       const staleTime = opts?.staleTime ?? defaultPreloadStaleTime;
       const existing = prefetchCache.current.get(href);
-      if (existing && !shouldRefetch(existing, staleTime)) {
+      if (existing && !shouldRefetch(existing)) {
         return;
       }
       prefetchCache.current.set(href, {
         promise: fetchPageState(href),
         createdAt: Date.now(),
+        staleTime,
       });
       // Evict the oldest entry when the cap is exceeded
       if (prefetchCache.current.size > prefetchCacheSize) {
@@ -467,7 +502,7 @@ export function RouterProvider({
         const effectiveUrl = new URL(effectiveHref, window.location.origin);
         setCurrentHref(effectiveUrl.pathname + effectiveUrl.search);
         if (opts?.resetScroll ?? true) {
-          handleScrollRestoration(href);
+          handleScrollRestoration(effectiveHref, myVersion, navVersion);
         }
       } finally {
         // Only clear navigating flag if this is still the latest navigation
@@ -487,7 +522,7 @@ export function RouterProvider({
       // Check prefetch cache before fetching fresh
       const cached = prefetchCache.current.get(href);
       let newState: RouterState | null;
-      if (cached && !shouldRefetch(cached, defaultPreloadStaleTime)) {
+      if (cached && !shouldRefetch(cached)) {
         newState = await cached.promise;
       } else {
         newState = await fetchPageState(href);

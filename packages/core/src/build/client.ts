@@ -11,7 +11,7 @@ const REACT_IMPORT_RE = /import\s+React\b/;
 
 export interface BuildClientResult {
   /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
-  entryChunk: string | undefined;
+  entryChunk: string;
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
   cssChunks: string[];
 }
@@ -124,7 +124,11 @@ export async function buildClient(
   const cssOutputs = result.outputs.filter(
     (o) => o.path.endsWith(".css") && !o.path.endsWith(".css.map")
   );
-  const entryChunk = entryOutput ? `/_client/${basename(entryOutput.path)}` : undefined;
+  if (!entryOutput) {
+    throw new Error("[furin] client build did not emit entry chunk");
+  }
+
+  const entryChunk = `/_client/${basename(entryOutput.path)}`;
   const cssChunks = cssOutputs.map((o) => `/_client/${basename(o.path)}`);
 
   console.log("[furin] Production client build complete");
