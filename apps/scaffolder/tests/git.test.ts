@@ -47,7 +47,7 @@ describe("initGitRepo", () => {
     expect(result.initialized).toBe(true);
     expect(result.committed).toBe(false);
 
-    // The commit stderr must be surfaced verbatim in the message field
-    expect(result.message).toContain("Author identity unknown");
+    // The identity-unknown stderr must be translated into the friendly message
+    expect(result.message).toContain("Initial commit skipped");
   });
 });
