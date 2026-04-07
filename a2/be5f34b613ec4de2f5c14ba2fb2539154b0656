@@ -1,0 +1,23 @@
+apps/scaffolder/tests/git.test.ts
+  40dcd84bcb2a74ff 50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "a2be5f34b613ec4de2f5c14ba2fb2539154b0656",
+  "prompts": {
+    "40dcd84bcb2a74ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11ff61b5-1bf1-4557-b75d-f3652573fd9d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
