@@ -395,7 +395,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const entry = await prerenderSSG(indexRoute, {}, root);
-      expect(entry.html).toContain("<html");
+      expect(entry instanceof Response ? null : entry.html).toContain("<html");
     });
 
     test("returns cached HTML on second call", async () => {
@@ -680,7 +680,7 @@ describe("render.tsx", () => {
       const root = await getRoot();
 
       const entry = await prerenderSSG(indexRoute, {}, root);
-      expect(entry.html).toContain("<html");
+      expect(entry instanceof Response ? null : entry.html).toContain("<html");
     });
   });
 

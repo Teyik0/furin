@@ -30,6 +30,14 @@ async function createBuildFingerprint(
     fingerprintPaths.add(serverEntry);
   }
   for (const path of BUILD_ID_INPUT_PATHS) {
+    if (!existsSync(path)) {
+      // A missing framework source file would silently produce an empty-string
+      // contribution to the fingerprint, making the build ID unreliable.
+      console.warn(
+        `[furin] Warning: build fingerprint input "${toPosixPath(path)}" is missing — ` +
+          "the generated build ID may not reflect all framework changes."
+      );
+    }
     fingerprintPaths.add(path);
   }
 
@@ -46,7 +54,7 @@ async function createBuildFingerprint(
     )
     .sort();
 
-  return [entryChunk, ...cssChunks.sort(), ...routeParts, ...fileParts].join("\n");
+  return [entryChunk, ...[...cssChunks].sort(), ...routeParts, ...fileParts].join("\n");
 }
 
 export async function buildBunTarget(
@@ -160,12 +168,14 @@ export async function buildBunTarget(
   }
 
   // Clean up build intermediates — no longer needed once the bundle/binary is built.
+  // NOTE: "index.html" is intentionally absent — generateProdIndexHtml writes
+  // the final artifact to client/index.html (inside targetDir/client/), not to
+  // targetDir directly, so there is nothing to remove here.
   for (const file of [
     "_compile-entry.ts",
     "_compile-entry.js.map",
     "server.ts", // disk mode intermediate
     "_hydrate.tsx",
-    "index.html",
   ]) {
     rmSync(join(targetDir, file), { force: true });
   }

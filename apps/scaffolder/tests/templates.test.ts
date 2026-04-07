@@ -1,9 +1,39 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { resolve } from "node:path";
+import { extname, relative, resolve } from "node:path";
+import { renderEjsFile } from "../src/engine/renderer";
+import type { EjsTemplateVars } from "../src/pipeline/context";
 
 const SCAFFOLDER_ROOT = resolve(import.meta.dir, "..");
 const TEMPLATES_DIR = resolve(SCAFFOLDER_ROOT, "templates");
 const TOKEN_RE = /\{\{[A-Z_]+\}\}/;
+/** Matches strings that are absolute paths (start with / or \). */
+const ABSOLUTE_PATH_RE = /^[/\\]/;
+
+// Known binary file extensions — these must not be decoded as text and scanned.
+const BINARY_EXTENSIONS = new Set([
+  ".ico",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
+]);
+
+/** Minimal EJS vars sufficient to render any scaffolder template without errors. */
+const MOCK_EJS_VARS: EjsTemplateVars = {
+  projectName: "test-app",
+  projectNameKebab: "test-app",
+  projectNamePascal: "TestApp",
+  furinVersion: "0.0.0",
+  features: ["tailwind", "shadcn"],
+  versions: new Proxy({} as Record<string, string>, {
+    get: () => "0.0.0",
+  }),
+};
 
 interface ManifestFile {
   dest: string;
@@ -50,8 +80,8 @@ describe("manifest.json integrity", () => {
   });
 });
 
-describe("template files — all src paths exist on disk", () => {
-  it("all simple template files exist", async () => {
+describe("template files — all src paths exist on disk and stay within roots", () => {
+  it("all simple template files exist and are in-bounds", async () => {
     const simpleTemplate = registry.templates.find((t) => t.id === "simple");
     expect(simpleTemplate).toBeDefined();
     if (!simpleTemplate) {
@@ -59,13 +89,23 @@ describe("template files — all src paths exist on disk", () => {
     }
 
     for (const file of simpleTemplate.files) {
-      const absolutePath = resolve(TEMPLATES_DIR, file.src);
-      const exists = await Bun.file(absolutePath).exists();
+      // src must resolve inside TEMPLATES_DIR
+      const absoluteSrc = resolve(TEMPLATES_DIR, file.src);
+      const relSrc = relative(TEMPLATES_DIR, absoluteSrc);
+      expect(relSrc.startsWith(".."), `src escapes templates/: ${file.src}`).toBe(false);
+      expect(relSrc, `src must not be absolute: ${file.src}`).not.toMatch(ABSOLUTE_PATH_RE);
+
+      // dest must not escape the project root (no leading .. or absolute path)
+      const relDest = relative("/", resolve("/", file.dest));
+      expect(relDest.startsWith(".."), `dest escapes project root: ${file.dest}`).toBe(false);
+      expect(relDest, `dest must not be absolute: ${file.dest}`).not.toMatch(ABSOLUTE_PATH_RE);
+
+      const exists = await Bun.file(absoluteSrc).exists();
       expect(exists, `Missing: templates/${file.src}`).toBe(true);
     }
   });
 
-  it("all full template files exist", async () => {
+  it("all full template files exist and are in-bounds", async () => {
     const fullTemplate = registry.templates.find((t) => t.id === "full");
     expect(fullTemplate).toBeDefined();
     if (!fullTemplate) {
@@ -73,28 +113,36 @@ describe("template files — all src paths exist on disk", () => {
     }
 
     for (const file of fullTemplate.files) {
-      const absolutePath = resolve(TEMPLATES_DIR, file.src);
-      const exists = await Bun.file(absolutePath).exists();
+      const absoluteSrc = resolve(TEMPLATES_DIR, file.src);
+      const relSrc = relative(TEMPLATES_DIR, absoluteSrc);
+      expect(relSrc.startsWith(".."), `src escapes templates/: ${file.src}`).toBe(false);
+      expect(relSrc, `src must not be absolute: ${file.src}`).not.toMatch(ABSOLUTE_PATH_RE);
+
+      const relDest = relative("/", resolve("/", file.dest));
+      expect(relDest.startsWith(".."), `dest escapes project root: ${file.dest}`).toBe(false);
+      expect(relDest, `dest must not be absolute: ${file.dest}`).not.toMatch(ABSOLUTE_PATH_RE);
+
+      const exists = await Bun.file(absoluteSrc).exists();
       expect(exists, `Missing: templates/${file.src}`).toBe(true);
     }
   });
 });
 
-describe("EJS files have valid EJS syntax", () => {
-  it("no .ejs file contains unclosed tags", async () => {
+describe("EJS files render without errors and leave no raw tags", () => {
+  it("every .ejs file renders cleanly with mock vars", async () => {
     for (const template of registry.templates) {
       for (const file of template.files) {
         if (file.kind !== "ejs") {
           continue;
         }
         const absolutePath = resolve(TEMPLATES_DIR, file.src);
-        const fileContent = await Bun.file(absolutePath).text();
-        const openTags = (fileContent.match(/<%/g) ?? []).length;
-        const closeTags = (fileContent.match(/%>/g) ?? []).length;
-        expect(
-          openTags,
-          `Mismatched EJS tags in ${file.src}: ${openTags} open, ${closeTags} close`
-        ).toBe(closeTags);
+        const rendered = await renderEjsFile(absolutePath, MOCK_EJS_VARS);
+        expect(rendered, `Leftover EJS open-tag in ${file.src} after rendering`).not.toContain(
+          "<%"
+        );
+        expect(rendered, `Leftover EJS close-tag in ${file.src} after rendering`).not.toContain(
+          "%>"
+        );
       }
     }
   });
@@ -105,6 +153,11 @@ describe("static files — no EJS-like tokens", () => {
     for (const template of registry.templates) {
       for (const file of template.files) {
         if (file.kind !== "static") {
+          continue;
+        }
+        // Skip binary files — decoding them as UTF-8 text is incorrect and
+        // the TOKEN_RE pattern cannot meaningfully appear in binary data.
+        if (BINARY_EXTENSIONS.has(extname(file.src).toLowerCase())) {
           continue;
         }
         const absolutePath = resolve(TEMPLATES_DIR, file.src);
@@ -124,23 +177,20 @@ describe("full template UI files", () => {
   });
 });
 
-describe("package.json.ejs files — valid JSON after stripping EJS tags", () => {
-  it("simple/package.json.ejs is JSON-parseable after stripping EJS", async () => {
+describe("package.json.ejs files — valid JSON after actual EJS rendering", () => {
+  it("simple/package.json.ejs renders to valid JSON", async () => {
     const src = resolve(TEMPLATES_DIR, "simple/package.json.ejs");
-    let raw = await Bun.file(src).text();
-    // EJS output tags appear inside JSON string values, e.g. "<%= expr %>"
-    // Replace the tag content but keep the surrounding JSON quotes intact
-    raw = raw.replace(/<%=\s*[^%]+\s*%>/g, "0.0.0");
-    // Remove EJS control tags
-    raw = raw.replace(/<%[^=][^%]*%>/g, "");
-    expect(() => JSON.parse(raw)).not.toThrow();
+    const rendered = await renderEjsFile(src, MOCK_EJS_VARS);
+    expect(() => JSON.parse(rendered)).not.toThrow();
+    const parsed = JSON.parse(rendered);
+    expect(typeof parsed.name).toBe("string");
   });
 
-  it("full/package.json.ejs is JSON-parseable after stripping EJS", async () => {
+  it("full/package.json.ejs renders to valid JSON", async () => {
     const src = resolve(TEMPLATES_DIR, "full/package.json.ejs");
-    let raw = await Bun.file(src).text();
-    raw = raw.replace(/<%=\s*[^%]+\s*%>/g, "0.0.0");
-    raw = raw.replace(/<%[^=][^%]*%>/g, "");
-    expect(() => JSON.parse(raw)).not.toThrow();
+    const rendered = await renderEjsFile(src, MOCK_EJS_VARS);
+    expect(() => JSON.parse(rendered)).not.toThrow();
+    const parsed = JSON.parse(rendered);
+    expect(typeof parsed.name).toBe("string");
   });
 });

@@ -22,19 +22,32 @@ afterEach(() => {
 
 describe("initGitRepo", () => {
   it("keeps a successful git init when the initial commit fails", () => {
-    Bun.spawnSync = ((args) => {
-      const gitArgs = getCommand(args).slice(1);
+    const encoder = new TextEncoder();
+    const callOrder: string[] = [];
 
+    Bun.spawnSync = ((args) => {
+      const gitArgs = getCommand(args).slice(1); // drop "git"
+      callOrder.push(gitArgs[0] ?? "");
+
+      const isCommit = gitArgs[0] === "commit";
       return {
-        exitCode: gitArgs[0] === "commit" ? 1 : 0,
-        stderr: new Uint8Array(),
+        exitCode: isCommit ? 1 : 0,
+        success: !isCommit,
+        stderr: isCommit ? encoder.encode("Author identity unknown") : new Uint8Array(),
         stdout: new Uint8Array(),
       } as ReturnType<typeof Bun.spawnSync>;
     }) as typeof Bun.spawnSync;
 
-    expect(initGitRepo("/tmp/project")).toEqual({
-      committed: false,
-      initialized: true,
-    });
+    const result = initGitRepo("/tmp/project");
+
+    // Commands must fire in the right sequence
+    expect(callOrder).toEqual(["init", "add", "commit"]);
+
+    // Repo is initialised but commit was skipped
+    expect(result.initialized).toBe(true);
+    expect(result.committed).toBe(false);
+
+    // The commit stderr must be surfaced in the message field
+    expect(result.message).toBeTruthy();
   });
 });

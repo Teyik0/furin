@@ -30,6 +30,7 @@ describe("checkDiskSpace", () => {
       command = getCommand(args);
       return {
         exitCode: 0,
+        success: true,
         stderr: new Uint8Array(),
         stdout: encoder.encode(
           "Filesystem 1K-blocks Used Available Capacity Mounted\n/dev/disk 100 0 100 0% /\n"
@@ -39,5 +40,41 @@ describe("checkDiskSpace", () => {
 
     expect(checkDiskSpace("new-project/nested", 1024)).toBe(true);
     expect(command).toEqual(["df", "-k", resolve(process.cwd())]);
+  });
+
+  it("returns false when available space is below the required minimum", () => {
+    // 50 KB available, 100 KB required
+    Bun.spawnSync = ((_args) => ({
+      exitCode: 0,
+      success: true,
+      stderr: new Uint8Array(),
+      stdout: encoder.encode(
+        "Filesystem 1K-blocks Used Available Capacity Mounted\n/dev/disk 200 150 50 75% /\n"
+      ),
+    })) as typeof Bun.spawnSync;
+
+    expect(checkDiskSpace("/tmp", 100 * 1024)).toBe(false);
+  });
+
+  it("returns true (fail-open) when df exits with a non-zero code", () => {
+    Bun.spawnSync = ((_args) => ({
+      exitCode: 1,
+      success: false,
+      stderr: encoder.encode("df: /no/such: No such file or directory"),
+      stdout: new Uint8Array(),
+    })) as typeof Bun.spawnSync;
+
+    expect(checkDiskSpace("/tmp", 1024)).toBe(true);
+  });
+
+  it("returns true (fail-open) when df output is malformed", () => {
+    Bun.spawnSync = ((_args) => ({
+      exitCode: 0,
+      success: true,
+      stderr: new Uint8Array(),
+      stdout: encoder.encode("unexpected garbage output\n"),
+    })) as typeof Bun.spawnSync;
+
+    expect(checkDiskSpace("/tmp", 1024)).toBe(true);
   });
 });

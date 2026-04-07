@@ -162,6 +162,32 @@ export function applyRevalidateHeader(
   }
 }
 
+// ── Auto-refresh helpers ───────────────────────────────────────────────────────
+
+/**
+ * Returns `true` when `currentPath` is targeted by at least one invalidation entry,
+ * using the same matching rules as `invalidatePrefetch`:
+ * - `type: 'page'` — exact pathname match (query string stripped)
+ * - `type: 'layout'` — prefix match: the path itself OR any descendant
+ *
+ * @internal Exported for unit testing only.
+ */
+export function shouldAutoRefreshPath(
+  currentPath: string,
+  invalidations: ReadonlyArray<{ path: string; type: "page" | "layout" }>
+): boolean {
+  // Strip query string for comparison — revalidatePath works on pathnames
+  const normalizedCurrent = currentPath.split("?")[0] ?? currentPath;
+  return invalidations.some(({ path, type }) => {
+    if (type === "page") {
+      return path === normalizedCurrent;
+    }
+    // layout: match the path itself and all descendants
+    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
+    return normalizedCurrent === path || normalizedCurrent.startsWith(prefix);
+  });
+}
+
 // ── Router context ─────────────────────────────────────────────────────────────
 
 export interface RouterContextValue {
@@ -182,6 +208,21 @@ export interface RouterContextValue {
   isNavigating: boolean;
   navigate: (href: string, opts?: { replace?: boolean; resetScroll?: boolean }) => Promise<void>;
   prefetch: (href: string, opts?: { staleTime?: number }) => void;
+  /**
+   * Re-fetches the current page in-place: busts the prefetch cache entry, re-runs
+   * loaders, and updates the rendered tree — without adding a history entry or
+   * resetting scroll (unless `resetScroll: true` is passed).
+   *
+   * Prefer this over `navigate(window.location.pathname)` after a mutation.
+   *
+   * @example
+   * ```tsx
+   * const { refresh } = useRouter();
+   * await apiClient.api.boards.post({ name });
+   * await refresh();
+   * ```
+   */
+  refresh: (opts?: { resetScroll?: boolean }) => Promise<void>;
 }
 
 export const RouterContext = createContext<RouterContextValue | null>(null);
@@ -204,6 +245,10 @@ export function useRouter(): RouterContextValue {
       },
       invalidatePrefetch: () => {
         /* noop fallback */
+      },
+      refresh: () => {
+        window.location.reload();
+        return Promise.resolve();
       },
       isNavigating: false,
       defaultPreload: "intent",
@@ -236,6 +281,14 @@ export type LoadedClientRoute = ClientRoute & {
 };
 
 export interface RouterProviderProps {
+  /**
+   * When `true` (default), the router automatically re-fetches the current page
+   * whenever a server `revalidatePath()` call targets it. The signal is the
+   * `X-Furin-Revalidate` header detected on any `window.fetch` response.
+   *
+   * Set to `false` to opt out and call `router.refresh()` manually instead.
+   */
+  autoRefresh?: boolean;
   defaultPreload?: PreloadStrategy;
   defaultPreloadDelay?: number;
   defaultPreloadStaleTime?: number;
@@ -351,6 +404,7 @@ export function RouterProvider({
   root,
   initialMatch,
   initialData,
+  autoRefresh = true,
   defaultPreload = "intent",
   defaultPreloadDelay = 50,
   defaultPreloadStaleTime = 30_000,
@@ -395,6 +449,13 @@ export function RouterProvider({
             window.location.href = href;
             return null;
           }
+        }
+
+        // Server error — bail out so we don't render with incomplete/missing data.
+        // The `navigate` fallback will do a full-page load to show the proper error page.
+        if (!res.ok) {
+          log.warn({ action: "navigate_server_error", href, status: res.status });
+          return null;
         }
 
         // Detect server-side redirects (e.g. query-default redirect /?→/?city=Paris).
@@ -514,6 +575,16 @@ export function RouterProvider({
     [prefetch]
   );
 
+  const refresh = useCallback(
+    async (opts?: { resetScroll?: boolean }) => {
+      const href = window.location.pathname + window.location.search;
+      // Bust the cache for this exact page so navigate always re-fetches
+      invalidatePrefetch(href, "page");
+      await navigate(href, { replace: true, resetScroll: opts?.resetScroll ?? false });
+    },
+    [navigate, invalidatePrefetch]
+  );
+
   const handlePopState = useCallback(async () => {
     const href = window.location.pathname + window.location.search;
     const myVersion = ++navVersion.current;
@@ -564,6 +635,7 @@ export function RouterProvider({
   // Intercept all window.fetch calls to auto-process X-Furin-Revalidate headers.
   // This ensures that API routes calling revalidatePath() automatically bust the
   // client prefetch cache, even for non-navigation fetches (e.g. form submissions).
+  // When autoRefresh=true (default), also re-fetches the current page if it was invalidated.
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -571,7 +643,18 @@ export function RouterProvider({
     const originalFetch = window.fetch;
     const wrapped = async (...args: Parameters<typeof fetch>): Promise<Response> => {
       const response = await originalFetch.apply(window, args);
-      applyRevalidateHeader(response.headers, invalidatePrefetch);
+      const invalidated: Array<{ path: string; type: "page" | "layout" }> = [];
+      applyRevalidateHeader(response.headers, (path, type = "page") => {
+        invalidatePrefetch(path, type);
+        invalidated.push({ path, type });
+      });
+      if (autoRefresh && invalidated.length > 0) {
+        const currentPath = window.location.pathname + window.location.search;
+        if (shouldAutoRefreshPath(currentPath, invalidated)) {
+          // fire-and-forget: don't block the original fetch caller
+          refresh();
+        }
+      }
       return response;
     };
     // Copy static fetch methods (e.g. preconnect) so the patched value satisfies typeof fetch.
@@ -581,7 +664,7 @@ export function RouterProvider({
     return () => {
       window.fetch = originalFetch;
     };
-  }, [invalidatePrefetch]);
+  }, [invalidatePrefetch, refresh, autoRefresh]);
 
   return createElement(
     RouterContext.Provider,
@@ -590,6 +673,7 @@ export function RouterProvider({
         currentHref,
         navigate,
         prefetch,
+        refresh,
         invalidatePrefetch,
         isNavigating,
         defaultPreload,

@@ -5,6 +5,7 @@ import { buildBunTarget } from "../src/adapter/bun.ts";
 import type { BuildAppOptions } from "../src/build/types.ts";
 import { scanPages } from "../src/router.ts";
 import { createTmpApp } from "./helpers/tmp-app.ts";
+import { withBuildStub } from "./helpers/with-build-stub.ts";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
 const originalBunBuild = Bun.build;
@@ -20,41 +21,6 @@ afterEach(() => {
     tmpApps.pop()?.cleanup();
   }
 });
-
-async function withCompileStub<T>(run: () => Promise<T>): Promise<T> {
-  let buildCallCount = 0;
-
-  Bun.build = ((config) => {
-    const outdir = (config as Bun.BuildConfig).outdir;
-    const outputs =
-      buildCallCount++ === 0 && typeof outdir === "string"
-        ? ([
-            {
-              kind: "entry-point",
-              path: join(outdir, "_hydrate.js"),
-              size: 128,
-            },
-            {
-              kind: "asset",
-              path: join(outdir, "_hydrate.css"),
-              size: 64,
-            },
-          ] satisfies Array<{ kind: string; path: string; size: number }>)
-        : [];
-
-    return Promise.resolve({
-      success: true,
-      outputs,
-      logs: [],
-    } as unknown as Bun.BuildOutput);
-  }) as typeof Bun.build;
-
-  try {
-    return await run();
-  } finally {
-    Bun.build = originalBunBuild;
-  }
-}
 
 describe.serial("buildBunTarget compile branches", () => {
   test("throws when compile is enabled without a server entry", async () => {
@@ -77,7 +43,7 @@ describe.serial("buildBunTarget compile branches", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
 
-    await withCompileStub(async () => {
+    await withBuildStub(async () => {
       await buildBunTarget(
         routes,
         app.path,
@@ -97,7 +63,7 @@ describe.serial("buildBunTarget compile branches", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
 
-    await withCompileStub(async () => {
+    await withBuildStub(async () => {
       await buildBunTarget(
         routes,
         app.path,

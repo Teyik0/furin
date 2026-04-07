@@ -30,6 +30,34 @@ function evictOldest<V>(map: Map<string, V>, maxSize: number): void {
   }
 }
 
+/**
+ * Gets an ISR cache entry and refreshes its recency so it is treated as
+ * recently used by the LRU eviction policy.  Without this, a hot entry that
+ * was written early would be evicted before a cold entry written later.
+ */
+export function getISRCache(key: string): ISRCacheEntry | undefined {
+  const entry = isrCache.get(key);
+  if (entry !== undefined) {
+    // Re-insert at the end to mark as most-recently used
+    isrCache.delete(key);
+    isrCache.set(key, entry);
+  }
+  return entry;
+}
+
+/**
+ * Gets an SSG cache entry and refreshes its recency so it is treated as
+ * recently used by the LRU eviction policy.
+ */
+export function getSSGCache(key: string): SsgCacheEntry | undefined {
+  const entry = ssgCache.get(key);
+  if (entry !== undefined) {
+    ssgCache.delete(key);
+    ssgCache.set(key, entry);
+  }
+  return entry;
+}
+
 /** Sets an ISR cache entry with LRU eviction. */
 export function setISRCache(key: string, entry: ISRCacheEntry): void {
   // Delete first to re-insert at the end (refresh insertion order for LRU)

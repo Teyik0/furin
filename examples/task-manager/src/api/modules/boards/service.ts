@@ -215,3 +215,37 @@ export function getBoardData(boardId: string): BoardData | undefined {
 
 export const createCard = createCardFromCardsService;
 export const getCardsForBoard = getCardsForBoardFromCardsService;
+
+// ---------------------------------------------------------------------------
+// Board stats
+// ---------------------------------------------------------------------------
+
+export interface BoardStats {
+  byColumn: { backlog: number; todo: number; doing: number; done: number };
+  completionRate: number;
+  total: number;
+}
+
+export function getBoardStats(boardId: string): BoardStats | undefined {
+  const board = db.select().from(boards).where(eq(boards.id, boardId)).get();
+  if (!board) {
+    return undefined;
+  }
+
+  const boardCards = db
+    .select()
+    .from(cards)
+    .where(eq(cards.boardId, boardId))
+    .orderBy(asc(cards.position))
+    .all();
+
+  const byColumn = { backlog: 0, todo: 0, doing: 0, done: 0 };
+  for (const card of boardCards) {
+    byColumn[card.column as keyof typeof byColumn]++;
+  }
+
+  const total = boardCards.length;
+  const completionRate = total > 0 ? Math.round((byColumn.done / total) * 100) : 0;
+
+  return { total, byColumn, completionRate };
+}

@@ -1,5 +1,5 @@
 import { ScaffolderError } from "./errors.ts";
-import type { TemplateId } from "./pipeline/context.ts";
+import { TEMPLATE_IDS, type TemplateId } from "./pipeline/context.ts";
 
 export interface ParsedArgs {
   help: boolean;
@@ -80,14 +80,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
 }
 
 function parseTemplate(value: string | undefined): TemplateId {
-  if (value === "simple" || value === "full") {
-    return value;
+  if (TEMPLATE_IDS.includes(value as TemplateId)) {
+    return value as TemplateId;
   }
-  throw new ScaffolderError(`Invalid template "${value ?? ""}". Valid options: simple, full`);
+  throw new ScaffolderError(
+    `Invalid template "${value ?? ""}". Valid options: ${TEMPLATE_IDS.join(", ")}`
+  );
 }
 
 function parseTemplateFlagValue(flag: "--template" | "-t", value: string | undefined): TemplateId {
-  if (value === undefined) {
+  // Treat a missing token *or* a token that looks like a flag as a missing value
+  // so that e.g. `--template --yes` reports "Missing value" rather than
+  // "Invalid template '--yes'", and --yes is not silently consumed.
+  if (value === undefined || value.startsWith("-")) {
     throw new ScaffolderError(`Missing value for ${flag}`);
   }
 

@@ -16,6 +16,7 @@ import {
   buildHref,
   buildPageElement,
   Link,
+  shouldAutoRefreshPath,
   shouldRefetch,
 } from "../src/link";
 
@@ -331,11 +332,23 @@ describe("types", () => {
   test("RouterContextValue has the expected fields", () => {
     expectTypeOf<RouterContextValue["navigate"]>().toBeFunction();
     expectTypeOf<RouterContextValue["prefetch"]>().toBeFunction();
+    expectTypeOf<RouterContextValue["refresh"]>().toBeFunction();
     expectTypeOf<RouterContextValue["isNavigating"]>().toEqualTypeOf<boolean>();
     expectTypeOf<RouterContextValue["defaultPreload"]>().toEqualTypeOf<PreloadStrategy>();
     expectTypeOf<RouterContextValue["defaultPreloadDelay"]>().toEqualTypeOf<number>();
     expectTypeOf<RouterContextValue["defaultPreloadStaleTime"]>().toEqualTypeOf<number>();
     expectTypeOf<RouterContextValue["currentHref"]>().toEqualTypeOf<string>();
+  });
+
+  test("RouterContextValue.refresh returns Promise<void> and accepts optional resetScroll", () => {
+    expectTypeOf<RouterContextValue["refresh"]>().toBeCallableWith();
+    expectTypeOf<RouterContextValue["refresh"]>().toBeCallableWith({ resetScroll: true });
+    expectTypeOf<RouterContextValue["refresh"]>().toBeCallableWith({ resetScroll: false });
+    expectTypeOf<ReturnType<RouterContextValue["refresh"]>>().toEqualTypeOf<Promise<void>>();
+  });
+
+  test("RouterProviderProps.autoRefresh is an optional boolean", () => {
+    expectTypeOf<RouterProviderProps["autoRefresh"]>().toEqualTypeOf<boolean | undefined>();
   });
 
   test("LinkProps.preload is an optional PreloadStrategy", () => {
@@ -528,5 +541,118 @@ describe("applyRevalidateHeader", () => {
       ["/foo", "page"],
       ["/bar", "page"],
     ]);
+  });
+});
+
+// ── shouldAutoRefreshPath ──────────────────────────────────────────────────────
+
+describe("shouldAutoRefreshPath", () => {
+  // ── page exact match ────────────────────────────────────────────────────────
+
+  test("page: exact match on pathname → true", () => {
+    expect(shouldAutoRefreshPath("/", [{ path: "/", type: "page" }])).toBe(true);
+  });
+
+  test("page: exact match on deep route → true", () => {
+    expect(shouldAutoRefreshPath("/blog/my-post", [{ path: "/blog/my-post", type: "page" }])).toBe(
+      true
+    );
+  });
+
+  test("page: different path → false", () => {
+    expect(shouldAutoRefreshPath("/about", [{ path: "/blog", type: "page" }])).toBe(false);
+  });
+
+  test("page: prefix is NOT a match (page is strict equality)", () => {
+    // /blog should not match /blog/my-post for page invalidation
+    expect(shouldAutoRefreshPath("/blog/my-post", [{ path: "/blog", type: "page" }])).toBe(false);
+  });
+
+  test("page: strips query string before comparing", () => {
+    expect(shouldAutoRefreshPath("/blog?page=2", [{ path: "/blog", type: "page" }])).toBe(true);
+  });
+
+  test("page: empty invalidations → false", () => {
+    expect(shouldAutoRefreshPath("/", [])).toBe(false);
+  });
+
+  test("page: one of multiple entries matches → true", () => {
+    expect(
+      shouldAutoRefreshPath("/about", [
+        { path: "/home", type: "page" },
+        { path: "/about", type: "page" },
+      ])
+    ).toBe(true);
+  });
+
+  // ── layout prefix match ─────────────────────────────────────────────────────
+
+  test("layout: exact path match → true", () => {
+    expect(shouldAutoRefreshPath("/board/abc", [{ path: "/board/abc", type: "layout" }])).toBe(
+      true
+    );
+  });
+
+  test("layout: direct child matches → true", () => {
+    expect(
+      shouldAutoRefreshPath("/board/abc/card/xyz", [{ path: "/board/abc", type: "layout" }])
+    ).toBe(true);
+  });
+
+  test("layout: deeply nested child matches → true", () => {
+    expect(
+      shouldAutoRefreshPath("/board/abc/card/xyz/edit", [{ path: "/board/abc", type: "layout" }])
+    ).toBe(true);
+  });
+
+  test("layout: sibling path does NOT match", () => {
+    // /board/other is NOT under /board/abc
+    expect(shouldAutoRefreshPath("/board/other", [{ path: "/board/abc", type: "layout" }])).toBe(
+      false
+    );
+  });
+
+  test("layout: partial segment prefix does NOT match", () => {
+    // /board/abcdef should not be matched by /board/abc layout
+    expect(shouldAutoRefreshPath("/board/abcdef", [{ path: "/board/abc", type: "layout" }])).toBe(
+      false
+    );
+  });
+
+  test("layout: root '/' invalidation matches every path", () => {
+    expect(shouldAutoRefreshPath("/blog/post", [{ path: "/", type: "layout" }])).toBe(true);
+    expect(shouldAutoRefreshPath("/", [{ path: "/", type: "layout" }])).toBe(true);
+  });
+
+  test("layout: trailing-slash path treated as prefix correctly", () => {
+    expect(
+      shouldAutoRefreshPath("/board/abc/card", [{ path: "/board/abc/", type: "layout" }])
+    ).toBe(true);
+  });
+
+  test("layout: strips query string before prefix comparison", () => {
+    expect(
+      shouldAutoRefreshPath("/board/abc?view=kanban", [{ path: "/board/abc", type: "layout" }])
+    ).toBe(true);
+  });
+
+  // ── mixed page + layout entries ─────────────────────────────────────────────
+
+  test("mixed: layout match wins even when page does not match", () => {
+    expect(
+      shouldAutoRefreshPath("/board/abc/card/xyz", [
+        { path: "/home", type: "page" },
+        { path: "/board/abc", type: "layout" },
+      ])
+    ).toBe(true);
+  });
+
+  test("mixed: no entry matches → false", () => {
+    expect(
+      shouldAutoRefreshPath("/settings", [
+        { path: "/home", type: "page" },
+        { path: "/board/abc", type: "layout" },
+      ])
+    ).toBe(false);
   });
 });

@@ -68,24 +68,7 @@ export default route.page({
         </header>
 
         {/* Create board form */}
-        <form action="/api/boards" className="mb-10 flex gap-3" method="post">
-          <div className="relative flex-1">
-            <input
-              className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-violet-500/40 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
-              name="name"
-              placeholder="Name your new board..."
-              required
-              type="text"
-            />
-          </div>
-          <button
-            className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold text-sm text-white transition-all hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/20 active:scale-[0.98]"
-            type="submit"
-          >
-            <span>+</span>
-            <span>Create Board</span>
-          </button>
-        </form>
+        <CreateBoardForm />
 
         {/* Boards grid */}
         {boards.length === 0 ? (
@@ -127,6 +110,67 @@ export default route.page({
   },
 });
 
+function CreateBoardForm() {
+  const [name, setName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  return (
+    <form
+      className="mb-10 flex flex-col gap-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const trimmed = name.trim();
+        if (!trimmed) {
+          return;
+        }
+        setIsSubmitting(true);
+        setErrorMessage(null);
+        try {
+          const { error } = await apiClient.api.boards.post({ name: trimmed });
+          if (error) {
+            throw new Error("Could not create the board. Please try again.");
+          }
+          setName("");
+        } catch (err: unknown) {
+          const message =
+            err instanceof Error ? err.message : "Could not create the board. Please try again.";
+          setErrorMessage(message);
+        } finally {
+          setIsSubmitting(false);
+        }
+      }}
+    >
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <input
+            className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-violet-500/40 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-50"
+            disabled={isSubmitting}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name your new board..."
+            required
+            type="text"
+            value={name}
+          />
+        </div>
+        <button
+          className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold text-sm text-white transition-all hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
+          type="submit"
+        >
+          <span>+</span>
+          <span>{isSubmitting ? "Creating…" : "Create Board"}</span>
+        </button>
+      </div>
+      {errorMessage ? (
+        <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-red-300 text-sm">
+          {errorMessage}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 function BoardCard({ board }: { board: Board }) {
   const gradient = avatarColor(board.id);
   const initial = board.name.charAt(0).toUpperCase();
@@ -148,7 +192,6 @@ function BoardCard({ board }: { board: Board }) {
             }
 
             setErrorMessage(null);
-            window.location.reload();
           } catch (err: unknown) {
             const error =
               err instanceof Error ? err.message : "Could not delete the board. Please try again.";

@@ -23,6 +23,7 @@ export interface KanbanCard {
 interface KanbanProps {
   boardId: string;
   initialCards: KanbanCard[];
+  onMutation?: () => void;
 }
 
 function moveCard(
@@ -30,10 +31,15 @@ function moveCard(
   cardId: string,
   nextColumn: ColumnType,
   before: string
-): { nextCards: KanbanCard[]; previousColumn: ColumnType } | null {
+): {
+  nextCards: KanbanCard[];
+  previousColumn: ColumnType;
+  previousIndex: number;
+} | null {
   let nextCards = [...cards];
   let cardToTransfer = nextCards.find((card) => card.id === cardId);
-  if (!cardToTransfer) {
+  const previousIndex = nextCards.findIndex((card) => card.id === cardId);
+  if (!(cardToTransfer && previousIndex !== -1)) {
     return null;
   }
 
@@ -43,7 +49,7 @@ function moveCard(
 
   if (before === "-1") {
     nextCards.push(cardToTransfer);
-    return { nextCards, previousColumn };
+    return { nextCards, previousColumn, previousIndex };
   }
 
   const insertAtIndex = nextCards.findIndex((card) => card.id === before);
@@ -52,10 +58,50 @@ function moveCard(
   }
 
   nextCards.splice(insertAtIndex, 0, cardToTransfer);
-  return { nextCards, previousColumn };
+  return { nextCards, previousColumn, previousIndex };
 }
 
-export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
+function rollbackMovedCard(
+  cards: KanbanCard[],
+  cardId: string,
+  failedColumn: ColumnType,
+  previousColumn: ColumnType,
+  previousIndex: number
+): KanbanCard[] {
+  const currentIndex = cards.findIndex((card) => card.id === cardId);
+  if (currentIndex === -1) {
+    return cards;
+  }
+
+  const currentCard = cards[currentIndex];
+  if (!(currentCard && currentCard.column === failedColumn)) {
+    return cards;
+  }
+
+  const nextCards = [...cards];
+  nextCards.splice(currentIndex, 1);
+
+  const restoreIndex = Math.min(previousIndex, nextCards.length);
+  nextCards.splice(restoreIndex, 0, { ...currentCard, column: previousColumn });
+  return nextCards;
+}
+
+function restoreDeletedCard(
+  cards: KanbanCard[],
+  deletedCard: KanbanCard,
+  deletedIndex: number
+): KanbanCard[] {
+  if (cards.some((card) => card.id === deletedCard.id)) {
+    return cards;
+  }
+
+  const nextCards = [...cards];
+  const restoreIndex = Math.min(deletedIndex, nextCards.length);
+  nextCards.splice(restoreIndex, 0, deletedCard);
+  return nextCards;
+}
+
+export const Kanban = ({ initialCards, boardId, onMutation }: KanbanProps) => {
   const [cards, setCards] = useState<KanbanCard[]>(initialCards);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,6 +120,7 @@ export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
           cards={cards}
           column="backlog"
           headingColor="text-neutral-400"
+          onMutation={onMutation}
           setCards={setCards}
           setErrorMessage={setErrorMessage}
           setIsDragging={setIsDragging}
@@ -84,6 +131,7 @@ export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
           cards={cards}
           column="todo"
           headingColor="text-yellow-300"
+          onMutation={onMutation}
           setCards={setCards}
           setErrorMessage={setErrorMessage}
           setIsDragging={setIsDragging}
@@ -94,6 +142,7 @@ export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
           cards={cards}
           column="doing"
           headingColor="text-blue-300"
+          onMutation={onMutation}
           setCards={setCards}
           setErrorMessage={setErrorMessage}
           setIsDragging={setIsDragging}
@@ -104,6 +153,7 @@ export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
           cards={cards}
           column="done"
           headingColor="text-emerald-300"
+          onMutation={onMutation}
           setCards={setCards}
           setErrorMessage={setErrorMessage}
           setIsDragging={setIsDragging}
@@ -115,6 +165,7 @@ export const Kanban = ({ initialCards, boardId }: KanbanProps) => {
       <BurnBarrel
         cards={cards}
         isDragging={isDragging}
+        onMutation={onMutation}
         setCards={setCards}
         setErrorMessage={setErrorMessage}
         setIsDragging={setIsDragging}
@@ -132,6 +183,7 @@ interface ColumnProps {
   cards: KanbanCard[];
   column: ColumnType;
   headingColor: string;
+  onMutation?: () => void;
   setCards: Dispatch<SetStateAction<KanbanCard[]>>;
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
@@ -147,6 +199,7 @@ const Column = ({
   setCards,
   boardId,
   setIsDragging,
+  onMutation,
 }: ColumnProps) => {
   const [active, setActive] = useState(false);
 
@@ -173,20 +226,53 @@ const Column = ({
       return;
     }
 
-    const movedCard = moveCard(cards, cardId, column, before);
-    if (!movedCard) {
+    // Compute the move synchronously so we can read previousColumn/Index for
+    // rollback.  The optimistic state update itself uses a functional form so
+    // it is applied on top of the freshest state rather than overwriting any
+    // concurrent card additions or moves made since the last render.
+    const moveResult = moveCard(cards, cardId, column, before);
+    if (!moveResult) {
       return;
     }
 
-    const previousCards = cards;
-    setCards(movedCard.nextCards);
+    const { previousColumn, previousIndex } = moveResult;
+
+    // New position = 0-based index within the destination column after the move
+    const destColumnCards = moveResult.nextCards.filter((c) => c.column === column);
+    const newPosition = destColumnCards.findIndex((c) => c.id === cardId);
+
+    setCards((prevCards) => moveCard(prevCards, cardId, column, before)?.nextCards ?? prevCards);
     setErrorMessage(null);
 
-    if (movedCard.previousColumn !== column) {
-      const { error } = await apiClient.api.cards({ id: cardId }).patch({ column });
-      if (error) {
-        setCards(previousCards);
-        setErrorMessage("Could not move the card. The board has been restored.");
+    // Always PATCH — cross-column moves update column+position, same-column
+    // reorders update position only so the order is preserved across refreshes.
+    const { error } = await apiClient.api.cards({ id: cardId }).patch({
+      column,
+      position: newPosition,
+    });
+
+    if (error) {
+      setCards((currentCards) =>
+        rollbackMovedCard(currentCards, cardId, column, previousColumn, previousIndex)
+      );
+      setErrorMessage("Could not move the card. The board has been restored.");
+      return;
+    }
+
+    onMutation?.();
+
+    // Recompute sequential positions for every card in the affected column(s)
+    // so DB positions stay contiguous and reflect the visual order.
+    // These are fire-and-forget — the UI is already correct.
+    for (const [idx, c] of destColumnCards.entries()) {
+      if (c.id !== cardId) {
+        apiClient.api.cards({ id: c.id }).patch({ position: idx });
+      }
+    }
+    if (previousColumn !== column) {
+      const srcColumnCards = moveResult.nextCards.filter((c) => c.column === previousColumn);
+      for (const [idx, c] of srcColumnCards.entries()) {
+        apiClient.api.cards({ id: c.id }).patch({ position: idx });
       }
     }
   };
@@ -278,7 +364,7 @@ const Column = ({
           <Card key={c.id} {...c} boardId={boardId} handleDragStart={handleDragStart} />
         ))}
         <DropIndicator beforeId={null} column={column} />
-        <AddCard boardId={boardId} column={column} setCards={setCards} />
+        <AddCard boardId={boardId} column={column} onMutation={onMutation} setCards={setCards} />
       </ul>
     </div>
   );
@@ -355,17 +441,18 @@ const DropIndicator = ({ beforeId, column }: DropIndicatorProps) => {
 interface BurnBarrelProps {
   cards: KanbanCard[];
   isDragging: boolean;
+  onMutation?: () => void;
   setCards: Dispatch<SetStateAction<KanbanCard[]>>;
   setErrorMessage: Dispatch<SetStateAction<string | null>>;
   setIsDragging: Dispatch<SetStateAction<boolean>>;
 }
 
 const BurnBarrel = ({
-  cards,
   setCards,
   isDragging,
   setErrorMessage,
   setIsDragging,
+  onMutation,
 }: BurnBarrelProps) => {
   const [active, setActive] = useState(false);
 
@@ -383,18 +470,45 @@ const BurnBarrel = ({
     setActive(false);
     setIsDragging(false);
 
-    if (!(cardId && cards.some((card) => card.id === cardId))) {
+    if (!cardId) {
       return;
     }
 
-    const previousCards = cards;
-    setCards((pv) => pv.filter((c) => c.id !== cardId));
+    // Capture the card snapshot and its index from inside the functional
+    // update so we always read the freshest state — not a potentially stale
+    // closure value captured at render time.  This prevents the rollback from
+    // restoring an outdated card or inserting it at an index that no longer
+    // matches the current list after concurrent operations.
+    let deletedCard: KanbanCard | undefined;
+    let deletedIndex = -1;
+
+    setCards((prevCards) => {
+      const idx = prevCards.findIndex((c) => c.id === cardId);
+      if (idx !== -1) {
+        deletedCard = prevCards[idx];
+        deletedIndex = idx;
+      }
+      return prevCards.filter((c) => c.id !== cardId);
+    });
+
+    if (!deletedCard || deletedIndex === -1) {
+      return;
+    }
+
+    // Freeze into new bindings so TypeScript knows they are non-undefined
+    // inside the async continuation below.
+    const capturedCard = deletedCard;
+    const capturedIndex = deletedIndex;
+
     setErrorMessage(null);
     const { error } = await apiClient.api.cards({ id: cardId }).delete();
     if (error) {
-      setCards(previousCards);
+      setCards((currentCards) => restoreDeletedCard(currentCards, capturedCard, capturedIndex));
       setErrorMessage("Could not delete the card. It has been restored.");
+      return;
     }
+
+    onMutation?.();
   };
 
   return (
@@ -428,12 +542,14 @@ const BurnBarrel = ({
 interface AddCardProps {
   boardId: string;
   column: ColumnType;
+  onMutation?: () => void;
   setCards: Dispatch<SetStateAction<KanbanCard[]>>;
 }
 
-const AddCard = ({ column, setCards, boardId }: AddCardProps) => {
+const AddCard = ({ column, setCards, boardId, onMutation }: AddCardProps) => {
   const [text, setText] = useState("");
   const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -441,15 +557,22 @@ const AddCard = ({ column, setCards, boardId }: AddCardProps) => {
       return;
     }
 
+    setAddError(null);
     const { data: newCard, error } = await apiClient.api.boards({ boardId }).cards.post({
       title: text.trim(),
       column,
     });
     if (!newCard || error) {
-      return;
+      const message =
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "Could not create the card. Please try again.";
+      setAddError(message);
+      return; // keep the form open so the user can retry
     }
 
     setCards((pv) => [...pv, { id: newCard.id, title: newCard.title, column }]);
+    onMutation?.();
 
     setText("");
     setAdding(false);
@@ -459,6 +582,11 @@ const AddCard = ({ column, setCards, boardId }: AddCardProps) => {
     <>
       {adding ? (
         <motion.form className="mt-1.5" layout onSubmit={handleSubmit}>
+          {addError ? (
+            <p className="mb-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 text-xs">
+              {addError}
+            </p>
+          ) : null}
           <textarea
             autoFocus
             className={cn(
@@ -473,7 +601,10 @@ const AddCard = ({ column, setCards, boardId }: AddCardProps) => {
           <div className="mt-1.5 flex items-center justify-end gap-1.5">
             <button
               className="px-3 py-1.5 text-neutral-600 text-xs transition-colors hover:text-neutral-400"
-              onClick={() => setAdding(false)}
+              onClick={() => {
+                setAdding(false);
+                setAddError(null);
+              }}
               type="button"
             >
               Cancel

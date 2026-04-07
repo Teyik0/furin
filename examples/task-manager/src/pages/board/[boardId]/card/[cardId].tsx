@@ -106,7 +106,7 @@ export default route.page({
                   const error =
                     err instanceof Error
                       ? err.message
-                      : "Could not delete the card. Please try again.";
+                      : "Could not save the card. Please try again.";
                   setErrorMessage(error);
                 }
               }}

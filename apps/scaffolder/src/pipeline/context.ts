@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 // ── Template manifest types ────────────────────────────────────────────────
 
 export type TemplateId = "simple" | "full";
+
+/** All valid template identifiers — single source of truth used by arg parsing and the pipeline. */
+export const TEMPLATE_IDS = ["simple", "full"] as const satisfies readonly TemplateId[];
 export type FileKind = "ejs" | "static";
 
 export interface ManifestFile {

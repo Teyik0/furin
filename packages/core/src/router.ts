@@ -247,6 +247,12 @@ async function handleSSGRequest(
 ): Promise<unknown> {
   const origin = new URL(ctx.request.url).origin;
   const entry = await prerenderSSG(route, ctx.params, root, origin);
+
+  // Loader issued a redirect — forward it directly to the client.
+  if (entry instanceof Response) {
+    return entry;
+  }
+
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
 
   // ETag: "buildId:cachedAt" — unique per render cycle, changes after revalidatePath

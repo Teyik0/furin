@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { buildApp } from "../src/build/index.ts";
 import { runCli } from "./helpers/run-cli.ts";
 import { createTmpApp, removeAppPath, writeAppFile } from "./helpers/tmp-app.ts";
+import { withBuildStub } from "./helpers/with-build-stub.ts";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
 const SERVER_JS_RE = /server\.js$/;
@@ -16,40 +17,6 @@ function rememberTmpApp<T extends { cleanup: () => void }>(app: T): T {
 
 function readJsonFile<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
-}
-
-async function withBuildStub<T>(run: () => Promise<T>): Promise<T> {
-  let buildCallCount = 0;
-
-  Bun.build = ((config) => {
-    const outdir = (config as Bun.BuildConfig).outdir;
-    const outputs =
-      buildCallCount++ === 0 && typeof outdir === "string"
-        ? ([
-            {
-              kind: "entry-point",
-              path: join(outdir, "_hydrate.js"),
-              size: 128,
-            },
-            {
-              kind: "asset",
-              path: join(outdir, "_hydrate.css"),
-              size: 64,
-            },
-          ] satisfies Array<{ kind: string; path: string; size: number }>)
-        : [];
-
-    return Promise.resolve({
-      success: true,
-      outputs,
-      logs: [],
-    } as unknown as Bun.BuildOutput);
-  }) as typeof Bun.build;
-  try {
-    return await run();
-  } finally {
-    Bun.build = originalBunBuild;
-  }
 }
 
 afterEach(() => {

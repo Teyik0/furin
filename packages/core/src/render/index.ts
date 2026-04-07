@@ -3,12 +3,12 @@ import { renderToReadableStream } from "react-dom/server";
 import type { RootLayout } from "../router.ts";
 import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
 import {
+  getISRCache,
+  getSSGCache,
   type ISRCacheEntry,
-  isrCache,
   type SsgCacheEntry,
   setISRCache,
   setSSGCache,
-  ssgCache,
 } from "./cache.ts";
 import { buildElement } from "./element.tsx";
 import { runLoaders } from "./loaders.ts";
@@ -156,15 +156,26 @@ export async function prerenderSSG(
   params: Record<string, string>,
   root: RootLayout,
   origin = "http://localhost:3000"
-): Promise<SsgCacheEntry> {
+): Promise<SsgCacheEntry | Response> {
   const resolvedPath = resolvePath(route.pattern, params);
 
-  const cached = ssgCache.get(resolvedPath);
+  const cached = getSSGCache(resolvedPath);
   if (cached && !IS_DEV) {
     return cached;
   }
 
-  const result = await renderForPath(route, params, root, origin);
+  let result: RenderResult;
+  try {
+    result = await renderForPath(route, params, root, origin);
+  } catch (err) {
+    // A loader called ctx.redirect() — surface it so the SSG handler (and
+    // warm-up caller) can return the redirect response rather than crashing.
+    if (err instanceof Response) {
+      return err;
+    }
+    throw err;
+  }
+
   const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now() };
 
   if (!IS_DEV) {
@@ -294,7 +305,7 @@ export async function handleISR(
   const params = ctx.params ?? {};
   const cacheKey = resolvePath(route.pattern, params);
 
-  const cached = isrCache.get(cacheKey);
+  const cached = getISRCache(cacheKey);
   if (cached && !IS_DEV) {
     return serveISRCacheHit(cached, ctx, route, params, cacheKey, revalidate, root, buildId);
   }
