@@ -134,8 +134,26 @@ export async function buildBunTarget(
       compile: { outfile },
       minify: true,
       sourcemap: "linked",
+      define: { "process.env.NODE_ENV": JSON.stringify("production") },
       plugins: options.plugins,
     });
+
+    // macOS: Gatekeeper kills Bun-compiled binaries because Bun appends JS code to its own
+    // signed runtime, corrupting the original Oven signature. We must remove the corrupt
+    // signature first, then re-sign ad-hoc (-s -) so macOS accepts the binary.
+    if (process.platform === "darwin") {
+      Bun.spawnSync(["codesign", "--remove-signature", outfile]);
+      const sign = Bun.spawnSync(["codesign", "-f", "-s", "-", outfile]);
+      if (sign.exitCode !== 0) {
+        console.warn(
+          `[furin] Warning: codesign failed (exit ${sign.exitCode}). ` +
+            "The binary may be killed by Gatekeeper on macOS. Run manually:\n" +
+            `  codesign --remove-signature ${outfile}\n` +
+            `  codesign -f -s - ${outfile}`
+        );
+      }
+    }
+
     console.log(`[furin] Server binary: ${outfile}`);
 
     targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server"));
