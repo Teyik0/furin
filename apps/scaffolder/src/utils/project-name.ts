@@ -30,13 +30,6 @@ export function validateProjectName(value: string): string {
   return value.trim();
 }
 
-export function resolveTargetDir(input: string): string {
-  if (!input.trim()) {
-    throw new ScaffolderError("Target directory is required");
-  }
-  return resolve(process.cwd(), input);
-}
-
 /**
  * Ensures the target directory is safe to scaffold into.
  * Throws if it's a non-empty existing directory.

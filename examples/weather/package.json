@@ -13,15 +13,13 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
-    "evlog": "^2.11.0",
+    "evlog": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^6.0.2"
+    "tailwindcss": "^4.2.2"
   }
 }

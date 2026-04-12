@@ -10,7 +10,7 @@
   "module": "./dist/furin.js",
   "types": "./src/furin.ts",
   "bin": {
-    "furin": "./dist/cli/index.js"
+    "furin": "./src/cli/index.ts"
   },
   "exports": {
     ".": {
@@ -69,10 +69,8 @@
   },
   "peerDependencies": {
     "elysia": "catalog:",
-    "evlog": "^2.11.0",
+    "evlog": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "typescript": ">=6.0.2",
-    "@types/bun": ">=1.3.11"
+    "react-dom": "catalog:"
   }
 }

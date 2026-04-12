@@ -9,6 +9,9 @@ pre-commit:
       run: bun run test:types
       stage_fixed: true
 
+    - name: knip
+      run: bun run knip
+
 pre-push:
   jobs:
     - name: Build

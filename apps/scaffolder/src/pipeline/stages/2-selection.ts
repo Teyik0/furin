@@ -4,10 +4,6 @@ import { TEMPLATES_DIR } from "../context.ts";
 
 let cachedManifest: ManifestRegistry | null = null;
 
-export function clearManifestCache(): void {
-  cachedManifest = null;
-}
-
 async function loadManifest(): Promise<ManifestRegistry> {
   if (cachedManifest) {
     return cachedManifest;

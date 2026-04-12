@@ -2,7 +2,7 @@ name: Workflow - CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-            bun-version: latest
+          bun-version: latest
 
       - name: Install packages
         run: bun install --frozen-lockfile
@@ -39,6 +39,9 @@ jobs:
 
       - name: Test
         run: bun run test
+
+      - name: Knip
+        run: bun run knip
 
       - name: Publish Preview
         working-directory: packages/core

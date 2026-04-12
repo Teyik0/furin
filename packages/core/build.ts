@@ -31,8 +31,12 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/link.tsx`] }),
 ]);
 
-// Prepend shebang to CLI bin so the OS runs it with Bun (not as a shell script).
+// Prepend shebang to CLI dist file so the OS runs it with Bun (not as a shell script).
+// Guard against duplication: if the shebang is already present (e.g. build run twice),
+// skip the write so we don't corrupt the file with a double shebang.
 const cliPath = `${import.meta.dir}/dist/cli/index.js`;
 const content = readFileSync(cliPath, "utf8");
-writeFileSync(cliPath, `#!/usr/bin/env bun\n${content}`);
+if (!content.startsWith("#!")) {
+  writeFileSync(cliPath, `#!/usr/bin/env bun\n${content}`);
+}
 chmodSync(cliPath, 0o755);

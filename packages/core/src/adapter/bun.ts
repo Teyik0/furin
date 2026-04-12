@@ -1,5 +1,6 @@
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
 import { generateServerRoutesEntry } from "../build/server-routes-entry.ts";
@@ -11,7 +12,7 @@ import type { ResolvedRoute } from "../router.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
 // through package exports, and is the Web-standard API.
-const _pkgSrcDir = dirname(new URL(import.meta.resolve("@teyik0/furin")).pathname);
+const _pkgSrcDir = dirname(fileURLToPath(import.meta.resolve("@teyik0/furin")));
 const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry.ts`,
   `${_pkgSrcDir}/build/entry-template.ts`,
