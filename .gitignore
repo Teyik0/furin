@@ -42,3 +42,4 @@ generated**
 
 **/*.db*
 **/.tmp/**
+.tmp-tests

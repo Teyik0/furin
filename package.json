@@ -10,7 +10,7 @@
     "fix": "ultracite fix",
     "test": "bun run --parallel --filter '*' test",
     "test:types": "bun run --parallel --filter '*' test:types",
-    "build": "bun run --parallel --filter '*' build",
+    "build": "bun run --filter '@teyik0/furin' build && bun run --parallel --filter '!@teyik0/furin' build",
     "cache:clean": "rm -rf node_modules examples/*/node_modules packages/*/node_modules && bun pm cache rm",
     "iup": "bun update --interactive --recursive"
   },
