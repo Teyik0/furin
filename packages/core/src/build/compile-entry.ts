@@ -5,12 +5,12 @@ import { collectFilesRecursive, ensureDir, toPosixPath } from "./shared";
 
 export interface CompileEntryOptions {
   buildId?: string;
+  embed?: { clientDir: string };
   outDir: string;
+  publicDir?: string;
   rootPath: string;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
-  embed?: { clientDir: string };
-  publicDir?: string;
 }
 
 /**
@@ -29,7 +29,9 @@ export function generateCompileEntry(options: CompileEntryOptions): string {
   let embeddedBlock: string[] = [];
   if (embed) {
     if (!existsSync(embed.clientDir)) {
-      throw new Error(`[furin] Client directory not found: ${embed.clientDir}. Run the client build first.`);
+      throw new Error(
+        `[furin] Client directory not found: ${embed.clientDir}. Run the client build first.`
+      );
     }
     const clientFiles = collectFilesRecursive(embed.clientDir);
     const assetEntries: string[] = [];

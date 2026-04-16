@@ -1,14 +1,19 @@
 # Dev Mode HMR
 
-Furin's development flow splits server rendering from the client bundle so page edits stay fast without forcing a full Bun restart on every change.
+Furin's development flow separates server-side rendering from the browser bundle so edits stay fast while SSR still reflects fresh code on the next request.
+
+The implementation has two goals:
+
+1. Keep ordinary page edits on the fast React Fast Refresh path.
+2. Keep SSR and the browser bundle on a single React and router runtime, even after Bun hot reloads part of the server graph.
 
 ## How It Works
 
 ```text
 FILE EDIT (pages/index.tsx)
          │
-         ├──► Bun [serve.static] dev bundler          ──► WebSocket ──► Browser React Fast Refresh (~20ms)
-         │    (watches client bundle files)
+         ├──► Bun dev bundler for /_bun_hmr_entry     ──► WebSocket ──► Browser React Fast Refresh (~20ms)
+         │    (watches the client entry and its imports)
          │
          └──► bun --hot ?                             NOT triggered — page files never enter
                                                       the server module graph (virtual namespace)
@@ -21,13 +26,13 @@ SERVER MODULE GRAPH                    CLIENT BUNDLE
 server.ts                              .furin/_hydrate.tsx
   └─ furin.ts                            ├─ pages/index.tsx   ← watched
        ├─ router.ts                      ├─ pages/root.tsx    ← watched
-       │    └─ pages/root.tsx (layout)   └─ pages/docs/*.tsx  ← watched
+       │    └─ dynamic SSR imports        └─ pages/docs/*.tsx  ← watched
        └─ dev-page-plugin.ts
 
        pages/index.tsx ← NOT here ✓
 ```
 
-The key idea is simple: page modules stay out of Bun's hot server graph. That lets the browser refresh client code immediately while SSR still re-imports the page from disk on each request.
+The key idea is simple: page modules are loaded through a virtual namespace for SSR, not through Bun's normal hot server graph. That keeps page edits on the browser HMR path while the server still imports fresh source from disk on demand.
 
 ## Request Flow
 
@@ -42,7 +47,13 @@ GET /
  │             dev-page-plugin onLoad
  │                 1. strip ?t=… → read file from disk (always fresh)
  │                 2. rewrite ./relative imports → /absolute/paths
- │                 3. return source, loader:"tsx"
+ │                 3. rewrite bare imports from the page directory
+ │                 4. rewrite React / react-dom imports to singleton absolute paths
+ │                 5. inject JSX helper imports
+ │                 6. return transpiled JS
+ │
+ ├─ import(`pages/root.tsx?furin-server&t=<now>`)
+ │         └─► same singleton-safe dev pipeline, so the root layout is also reloaded fresh
  │
  ├─ renderSSR(devRoute, ctx, root)
  │       ├─ run loaders (DB / API / fs, server-side only)
@@ -58,19 +69,55 @@ GET /
 | What changed | `--hot` restart | Client HMR | Typical time |
 |---|---|---|---|
 | `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
-| `pages/root.tsx` root layout | Yes, it is in the server graph | Yes | ~600ms |
+| `pages/root.tsx` root layout | No full server restart, but SSR re-imports it fresh on the next request | Yes | ~20-600ms depending on rebundle |
 | `server.ts` or `api/` | Yes | No | ~600ms |
-| `components/` | Only if imported by the server at startup | Yes | Varies |
+| local components used only by page SSR | No full server restart | Yes | Varies |
+| core runtime files (`src/link.tsx`, router internals, etc.) | Yes, they are in the server graph | Usually yes | ~600ms |
 
 ## Internal Pieces
 
 | File | Role |
-|---|---|
-| `src/dev-page-plugin.ts` | Virtual namespace plugin, cache busting with `?t=<ms>`, and relative-to-absolute import rewriting |
-| `src/router.ts` | Skips eager page imports during scanning and appends `?furin-server&t=<now>` per request |
+| --- | --- |
+| `src/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
+| `src/router.ts` | Avoids eager page imports during scanning, imports pages with `?furin-server&t=<now>`, and reloads `root.tsx` fresh in dev SSR |
 | `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
-| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry with route-level dynamic imports |
+| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry and imports `RouterProvider` through `@teyik0/furin/link` so the client bundle keeps one router context |
 | `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+
+## Why React Must Stay Singleton
+
+The most fragile part of Bun dev mode is not route matching. It is module identity.
+
+React hooks only work when every module in the render graph shares the same React dispatcher object. If `react-dom/server` uses one React instance and a hot-reloaded page or layout imports a different one, hook calls fail with errors such as:
+
+- `Invalid hook call`
+- `resolveDispatcher().useState === null`
+
+That can happen in development when Bun re-evaluates part of the module graph and the same package is reached through different logical import paths.
+
+Furin avoids that by rewriting:
+
+- `react`
+- `react/jsx-runtime`
+- `react/jsx-dev-runtime`
+- `react-dom`
+- `react-dom/server`
+- `react-dom/client`
+
+to the same resolved on-disk paths during dev SSR loading.
+
+## Why The Client Router Must Also Stay Singleton
+
+There is a second singleton requirement on the browser side: `RouterProvider` and `Link` must come from the same `@teyik0/furin/link` module instance.
+
+If the client entry imports `RouterProvider` through one path and application code imports `Link` through another, Bun can bundle two copies of `link.tsx`. That creates two different `RouterContext` objects:
+
+- the provider writes to one context
+- the link reads from the other
+
+When that happens, SPA navigation silently falls back to full page reloads because `Link` behaves as if there were no router provider.
+
+That is why the hydrate entry imports `RouterProvider` from `@teyik0/furin/link` instead of an absolute file path.
 
 ## Why The Timestamp Matters
 
@@ -86,6 +133,8 @@ After a file edit, the browser would receive fresh HMR code while SSR would stil
 
 This setup gives Furin two useful properties in development:
 
-- component edits stay in the fast React Fast Refresh path
-- SSR still reflects the latest page source on the next request
+- ordinary page edits stay on the fast React Fast Refresh path
+- SSR re-imports pages and the root layout from fresh disk source
+- React hooks remain stable across hot reload boundaries
+- client-side navigation stays on SPA transitions instead of degrading into full reloads
 - template URLs stay aligned with the latest client rebundle

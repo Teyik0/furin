@@ -202,7 +202,7 @@ export function deleteBoard(id: string): boolean {
 export function getBoardData(boardId: string): BoardData | undefined {
   const board = db.select().from(boards).where(eq(boards.id, boardId)).get();
   if (!board) {
-    return undefined;
+    return;
   }
   const boardCards = db
     .select()
@@ -229,7 +229,7 @@ export interface BoardStats {
 export function getBoardStats(boardId: string): BoardStats | undefined {
   const board = db.select().from(boards).where(eq(boards.id, boardId)).get();
   if (!board) {
-    return undefined;
+    return;
   }
 
   const boardCards = db

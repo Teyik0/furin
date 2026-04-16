@@ -1,62 +1,84 @@
 import type { Context } from "elysia";
-import type { LoaderDeps, RuntimeRoute } from "../client";
+import type { RuntimeRoute } from "../client";
 import type { ResolvedRoute } from "../router";
 
 export type LoaderResult =
   | { type: "data"; data: Record<string, unknown>; headers: Record<string, string> }
   | { type: "redirect"; response: Response };
 
+/**
+ * Wraps the Elysia context so that any property NOT present on `ctx` is
+ * returned as an individual `Promise<value>` resolved from the accumulated
+ * parent data. Properties that ARE present on `ctx` (request, params, set, …)
+ * are returned as-is.
+ *
+ * A per-prop cache ensures the same Promise instance is returned on repeated
+ * access of the same field (stable reference for Promise.all etc.).
+ */
+function createLoaderCtx(
+  ctx: Record<string, unknown>,
+  accumulatedParentPromise: Promise<Record<string, unknown>>
+): Record<string, unknown> {
+  const cache = new Map<string, Promise<unknown>>();
+  return new Proxy(ctx, {
+    get(target, prop: string | symbol) {
+      if (typeof prop !== "string") {
+        return Reflect.get(target, prop);
+      }
+      // RouteContext fields (request, params, query, set, headers, cookie,
+      // path, redirect) are present on target — return directly.
+      if (prop in target) {
+        return target[prop];
+      }
+      // Everything else is a parent-data field → individual lazy Promise.
+      let entry = cache.get(prop);
+      if (!entry) {
+        entry = accumulatedParentPromise.then((data) => data[prop]);
+        cache.set(prop, entry);
+      }
+      return entry;
+    },
+  });
+}
+
 export async function runLoaders(
   route: ResolvedRoute,
   ctx: Context,
-  rootLayout: RuntimeRoute
+  // kept for API compat; routeChain[0] is the root layout
+  _rootLayout: RuntimeRoute
 ): Promise<LoaderResult> {
   try {
-    // Step 1: root loader runs first — provides global context (user, auth, etc.)
-    // Root data is merged into ctxWithRoot so all subsequent loaders receive it
-    // automatically (backward-compatible with the previous waterfall behaviour).
-    //
-    // deps is defined here so it can be passed to the root loader too.
-    // The root has no ancestors, so deps always returns an empty resolved promise.
     const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
 
-    const deps: LoaderDeps = (routeRef) =>
-      loaderMap.get(routeRef as RuntimeRoute) ?? Promise.resolve({});
+    // All loaders in the chain start immediately. Each receives a Proxy where
+    // parent-data fields are individually-awaitable Promises. The loader opts
+    // in to waiting by doing `await user` (or `Promise.all([user, org])`);
+    // if it never awaits a parent field it runs in full parallel.
+    let accumulatedParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
 
-    // Run root loader and store its result in loaderMap so that
-    // deps(rootRoute) returns the actual root data (not empty {}).
-    const rootPromise: Promise<Record<string, unknown>> = rootLayout.loader
-      ? Promise.resolve(rootLayout.loader({ ...ctx }, deps)).then((r) => r ?? {})
-      : Promise.resolve({});
-    loaderMap.set(rootLayout, rootPromise);
-    const rootData = await rootPromise;
-    const ctxWithRoot = { ...ctx, ...rootData };
+    for (const r of route.routeChain) {
+      const parentAccum = accumulatedParentPromise; // capture for closure
 
-    // Step 2: launch all ancestor + page loaders immediately in parallel.
-    // Each is stored in loaderMap keyed by object identity so that deps()
-    // can resolve a Promise for any route in the chain.
-    //
-    // Loaders are inserted in chain order (index 1, 2, 3 …) so when loader N
-    // calls `await deps(routeAtIndexM)` where M < N, the Promise is already
-    // present in the map — no deadlock is possible for backward dependencies.
+      if (r.loader) {
+        const loaderCtx = createLoaderCtx(ctx as Record<string, unknown>, parentAccum);
+        const loaderPromise = Promise.resolve(r.loader(loaderCtx)).then((res) => res ?? {});
+        loaderMap.set(r, loaderPromise);
 
-    for (let i = 1; i < route.routeChain.length; i++) {
-      const ancestor = route.routeChain[i];
-      if (ancestor?.loader) {
-        loaderMap.set(
-          ancestor,
-          Promise.resolve(ancestor.loader(ctxWithRoot, deps)).then((r) => r ?? {})
-        );
+        // Accumulate: previous ancestors + this loader's result.
+        accumulatedParentPromise = Promise.all([parentAccum, loaderPromise]).then(([acc, own]) => ({
+          ...acc,
+          ...own,
+        }));
       }
     }
 
-    // Page loader — all ancestors are already in the map at this point.
+    // Page loader receives all route-chain fields as individual Promises.
+    const pageCtx = createLoaderCtx(ctx as Record<string, unknown>, accumulatedParentPromise);
     const pagePromise: Promise<Record<string, unknown>> = route.page?.loader
-      ? Promise.resolve(route.page.loader(ctxWithRoot, deps)).then((r) => r ?? {})
+      ? Promise.resolve(route.page.loader(pageCtx)).then((r) => r ?? {})
       : Promise.resolve({});
 
-    // Step 3: await all in parallel, then flat-merge results.
-    // loaderMap already contains the root promise, so we don't merge rootData separately.
+    // Await everything in parallel, then flat-merge (same contract as before).
     const results = await Promise.all([...loaderMap.values(), pagePromise]);
     const data = Object.assign({}, ...results);
     const headers: Record<string, string> = {};

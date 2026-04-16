@@ -45,3 +45,12 @@ const outPath = resolve(DOCS_DIR, "src/generated/docs-content.ts");
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, output, "utf8");
 console.log(`✓ src/generated/docs-content.ts  (${SOURCE_PATHS.length} docs)`);
+
+// Generate public/search-entries.json so the static build can serve client-side search.
+// Importing docs-search triggers the module-level buildSearchIndexEntries() call using
+// the freshly-written docs-content.ts file.
+const { buildSearchIndexEntries } = await import("../src/lib/docs-search.ts");
+const searchEntries = buildSearchIndexEntries();
+const searchEntriesPath = resolve(DOCS_DIR, "public/search-entries.json");
+writeFileSync(searchEntriesPath, JSON.stringify(searchEntries), "utf8");
+console.log(`✓ public/search-entries.json     (${searchEntries.length} entries)`);

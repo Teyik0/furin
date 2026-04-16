@@ -1,8 +1,120 @@
 # Deployment
 
-Furin currently ships a Bun production build path. The config type includes other targets, but in this branch only the Bun target is implemented end-to-end.
+Furin supports two deployment strategies: a **Bun build** (live server with SSR/ISR support) and a **static export** (pre-rendered HTML files, no server required).
 
-## Build Command
+## Static Export — GitHub Pages
+
+The static export pre-renders all SSG routes to `dist/path/index.html` files and generates a `404.html` SPA shell so that client-side navigation keeps working on GitHub Pages.
+
+### Configuration
+
+Add a `static` block to `furin.config.ts`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+
+export default defineConfig({
+  plugins: [...],
+  static: {
+    basePath: "/my-repo",  // GitHub repository name, no trailing slash
+    outDir: "dist",         // output directory (default: "dist")
+    onSSR: "error",         // "error" (default) | "skip"
+  },
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `basePath` | `string` | `""` | Path prefix for GitHub Pages (e.g. `"/furin"` when the site lives at `user.github.io/furin/`) |
+| `outDir` | `string` | `"dist"` | Output directory |
+| `onSSR` | `"error" \| "skip"` | `"error"` | Behavior when an SSR route is encountered: hard error or warn + silent skip |
+
+### Build Command
+
+<CodeTabs>
+<CodeTab title="package.json">
+```json
+{
+  "scripts": {
+    "build:static": "furin build --target static"
+  }
+}
+```
+</CodeTab>
+<CodeTab title="Terminal">
+```bash
+bunx furin build --target static
+```
+</CodeTab>
+</CodeTabs>
+
+### Output Layout
+
+```text
+dist/
+├── index.html              ← route "/"
+├── blog/
+│   └── hello-world/
+│       └── index.html      ← route "/blog/hello-world"
+├── 404.html                ← SPA shell (GitHub Pages fallback)
+└── _client/
+    ├── _hydrate.js
+    └── _hydrate.css
+```
+
+### SSR / ISR Routes
+
+The static export does not support SSR or ISR routes — they require a live server.
+
+- **`onSSR: "error"` (default)** — the build fails and lists all non-exportable routes. Recommended to prevent silent production gaps.
+- **`onSSR: "skip"`** — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism.
+
+```bash
+# Example error output with onSSR: "error"
+✗ Static export failed: the following routes cannot be statically exported:
+  - /dashboard (mode=ssr)
+  - /feed      (mode=isr)
+Set onSSR: "skip" in furin.config.ts to skip them instead.
+```
+
+### Deploying to GitHub Pages
+
+Add a workflow file at `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run build:static
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
+> **Tip:** the generated `404.html` is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client-side router take over.
+
+---
+
+## Bun Build (Live Server)
 
 Use the Furin CLI through your package script or directly:
 
@@ -23,9 +135,7 @@ bunx furin build --target bun
 </CodeTab>
 </CodeTabs>
 
-The docs app itself uses a workspace-local script, but the output shape is the same.
-
-## Output Layout
+### Output Layout
 
 The Bun build writes to `.furin/build/bun`:
 
@@ -38,7 +148,7 @@ The Bun build writes to `.furin/build/bun`:
 └── manifest.json
 ```
 
-## Compiled Binaries
+### Compiled Binaries
 
 If you pass `--compile server`, Furin writes a server binary and keeps the built client assets on disk.
 
@@ -52,7 +162,7 @@ If you pass `--compile embed`, Furin writes a self-contained server binary and r
 bunx furin build --target bun --compile embed
 ```
 
-## Production Runtime
+### Production Runtime
 
 For disk-based builds:
 
@@ -60,11 +170,11 @@ For disk-based builds:
 - `public/` is copied into `.furin/build/bun/public`
 - `FURIN_CLIENT_DIR` can override the client asset directory at runtime
 
-Example:
-
 ```bash
 FURIN_CLIENT_DIR=/absolute/path/to/client bun ./.furin/build/bun/server.js
 ```
+
+---
 
 ## Planned Targets
 

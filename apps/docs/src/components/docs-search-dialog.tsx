@@ -1,5 +1,6 @@
 "use client";
 
+import { type AnyOrama, create, insertMultiple, search as oramaSearch } from "@orama/orama";
 import { useRouter } from "@teyik0/furin/link";
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +12,53 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import type { SearchIndexEntry } from "@/lib/docs-search";
 import { cn } from "@/lib/utils";
+
+type OramaIndex = AnyOrama;
+
+const ORAMA_SCHEMA = {
+  title: "string",
+  section: "string",
+  description: "string",
+  content: "string",
+  href: "string",
+  kind: "string",
+  order: "number",
+} satisfies Record<string, "string" | "number" | "boolean">;
+
+const EXCERPT_RADIUS = 72;
+const WHITESPACE_RE = /\s+/;
+
+function createExcerpt(content: string, description: string, query: string): string {
+  const source = content.length > 0 ? content : description;
+  if (source.length === 0) {
+    return "";
+  }
+
+  const normalizedSource = source.toLowerCase();
+  const queryTerms = query
+    .toLowerCase()
+    .split(WHITESPACE_RE)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  const matchIndex = queryTerms.reduce((best, term) => {
+    const idx = normalizedSource.indexOf(term);
+    if (idx === -1) {
+      return best;
+    }
+    return best === -1 || idx < best ? idx : best;
+  }, -1);
+
+  if (matchIndex === -1) {
+    return source.length > 160 ? `${source.slice(0, 157).trimEnd()}...` : source;
+  }
+
+  const start = Math.max(0, matchIndex - EXCERPT_RADIUS);
+  const end = Math.min(source.length, matchIndex + query.length + EXCERPT_RADIUS);
+  return `${start > 0 ? "..." : ""}${source.slice(start, end).trim()}${end < source.length ? "..." : ""}`;
+}
 
 interface SearchResult {
   excerpt: string;
@@ -19,11 +66,6 @@ interface SearchResult {
   kind: "page" | "section";
   section: string;
   title: string;
-}
-
-interface SearchResponse {
-  query: string;
-  results: SearchResult[];
 }
 
 const MAC_PLATFORM_RE = /Mac|iPhone|iPad|iPod/;
@@ -47,7 +89,10 @@ export function DocsSearchDialog() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [indexReady, setIndexReady] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const oramaIndexRef = useRef<OramaIndex | null>(null);
+  const indexLoadingRef = useRef(false);
 
   const navigateToResult = useCallback(
     (href: string): void => {
@@ -100,6 +145,34 @@ export function DocsSearchDialog() {
     };
   }, [open]);
 
+  // Load the search index JSON once when the dialog first opens.
+  // The file is served at `${basePath}/search-entries.json` in both dev
+  // (via the /search-entries.json Elysia route) and static deployments
+  // (copied from public/ to dist/ at build time).
+  useEffect(() => {
+    if (!open || oramaIndexRef.current || indexLoadingRef.current) {
+      return;
+    }
+
+    indexLoadingRef.current = true;
+    const url = `${router.basePath}/search-entries.json`;
+
+    fetch(url)
+      .then((r) => r.json())
+      .then(async (entries: SearchIndexEntry[]) => {
+        const index = create({ schema: ORAMA_SCHEMA });
+        await insertMultiple(index, entries);
+        oramaIndexRef.current = index;
+        setIndexReady(true);
+      })
+      .catch((err) => {
+        console.error("[search] Failed to load search index:", err);
+        indexLoadingRef.current = false;
+      });
+  }, [open, router.basePath]);
+
+  // Run a local Orama search whenever the query or index changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: oramaIndexRef is a ref — intentionally excluded
   useEffect(() => {
     if (!open) {
       return;
@@ -113,41 +186,61 @@ export function DocsSearchDialog() {
       return;
     }
 
-    const controller = new AbortController();
-    const timeout = window.setTimeout(async () => {
+    const index = oramaIndexRef.current;
+    if (!index) {
+      // Index still loading — show spinner and wait for indexReady to re-fire
       setLoading(true);
+      return;
+    }
 
+    setLoading(true);
+    const timeout = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
-          signal: controller.signal,
+        const response = await oramaSearch(index, {
+          boost: { title: 5, section: 3, description: 2, content: 1 },
+          limit: 16,
+          properties: ["title", "section", "description", "content"],
+          term: trimmedQuery,
         });
-        if (!response.ok) {
-          throw new Error(`Search request failed with ${response.status}`);
+
+        // Deduplicate by href, keep highest-score hit per page/section
+        const deduped = new Map<string, SearchResult & { order: number; score: number }>();
+        for (const hit of response.hits) {
+          const doc = hit.document;
+          const existing = deduped.get(doc.href);
+          const next = {
+            excerpt: createExcerpt(doc.content, doc.description, trimmedQuery),
+            href: doc.href,
+            kind: doc.kind,
+            order: doc.order,
+            score: hit.score,
+            section: doc.section,
+            title: doc.title,
+          };
+          if (!existing || hit.score > existing.score) {
+            deduped.set(doc.href, next);
+          }
         }
 
-        const body = (await response.json()) as SearchResponse;
-        setResults(body.results);
+        const sorted = [...deduped.values()]
+          .sort((a, b) => (b.score === a.score ? a.order - b.order : b.score - a.score))
+          .slice(0, 8)
+          .map(({ order: _o, score: _s, ...result }) => result);
+
+        setResults(sorted);
         setActiveIndex(0);
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        console.error(error);
+      } catch (err) {
+        console.error("[search] Search failed:", err);
         setResults([]);
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     }, 180);
 
     return () => {
-      controller.abort();
       window.clearTimeout(timeout);
-      setLoading(false);
     };
-  }, [open, query]);
+  }, [open, query, indexReady]);
 
   const shortcutLabel = getShortcutLabel();
 

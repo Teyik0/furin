@@ -250,7 +250,7 @@ export async function furin({
           set.headers["x-furin-revalidate"] = pending.join(",");
         }
       })
-      .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry" }))
+      .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry", bunFullstack: true }))
       .use(
         publicExists ? await staticPlugin({ assets: publicDir, prefix: "/public" }) : new Elysia()
       )

@@ -9,12 +9,12 @@ const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/runtime-env.ts`;
 
 export interface EntryTemplateOptions {
   buildId?: string;
+  extraContext?: string[];
+  extraImports?: string[];
   headerComment: string;
   rootPath: string;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
-  extraImports?: string[];
-  extraContext?: string[];
 }
 
 export function buildEntrySource(options: EntryTemplateOptions): string {

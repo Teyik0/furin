@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "type": "module",
   "files": [
     "dist",
@@ -55,12 +55,13 @@
   "scripts": {
     "test": "bun test",
     "test:types": "tsc --noEmit",
-    "build": "bun run build.ts"
+    "build": "bun run build.ts",
+    "fix": "ultracite fix"
   },
   "dependencies": {
-    "@elysiajs/static": "^1.4.7",
+    "@elysiajs/static": "^1.4.9",
     "magic-string": "^0.30.21",
-    "oxc-parser": "^0.124.0"
+    "oxc-parser": "^0.126.0"
   },
   "devDependencies": {
     "@types/react": "catalog:",

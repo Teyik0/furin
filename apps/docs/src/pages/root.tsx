@@ -1,7 +1,8 @@
 import "./globals.css";
 
 import { createRoute } from "@teyik0/furin/client";
-import { Link } from "@teyik0/furin/link";
+import { Link, RouterContext } from "@teyik0/furin/link";
+import { useContext } from "react";
 import { DocsSearchDialog } from "@/components/docs-search-dialog";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,13 +22,18 @@ function GithubIcon({ className }: { className?: string }) {
 }
 
 function RootLayout({ children }: { children: React.ReactNode }) {
+  // basePath is available during static pre-render (RouterContext injected) and on the client.
+  // Falls back to "/public" in dev (Elysia static plugin serves public/ at /public/).
+  const router = useContext(RouterContext);
+  const imgPrefix = router?.basePath ?? "/public";
+
   return (
     <ThemeProvider>
       <header className="fixed top-0 z-50 w-full border-white/5 border-b bg-background/80 backdrop-blur-md">
         <nav className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
           {/* Left — logo */}
           <Link className="flex shrink-0 items-center gap-2" to="/">
-            <img alt="Furin logo" height={26} src="/public/furin-logo.webp" width={26} />
+            <img alt="Furin logo" height={26} src={`${imgPrefix}/furin-logo.webp`} width={26} />
             <span className="font-semibold text-sm">Furin</span>
           </Link>
 

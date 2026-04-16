@@ -228,13 +228,15 @@ describe("render.tsx", () => {
       }
     });
 
-    describe("parallel execution", () => {
-      test("deps() returns {} for a route not in the loader map", async () => {
-        const unknown = makeRuntimeRoute();
-        let captured: Record<string, unknown> | undefined;
-        const ancestor = makeRuntimeRoute({
-          loader: async (_ctx, deps) => {
-            captured = (await deps?.(unknown)) ?? {};
+    describe("parent data as individual Promises", () => {
+      test("child loader receives parent field as awaitable Promise", async () => {
+        let capturedToken: unknown;
+        const producer = makeRuntimeRoute({
+          loader: async () => ({ token: "secret" }),
+        });
+        const consumer = makeRuntimeRoute({
+          loader: async (ctx) => {
+            capturedToken = await (ctx.token as Promise<string>);
             return {};
           },
         });
@@ -242,21 +244,26 @@ describe("render.tsx", () => {
         const rootLayout = (await getRoot()).route;
         const mockRoute = {
           ...withLoaderRoute,
-          routeChain: [withLoaderRoute.routeChain[0], ancestor],
+          routeChain: [withLoaderRoute.routeChain[0], producer, consumer],
           page: { ...withLoaderRoute.page, loader: undefined },
         } as unknown as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
-        expect(captured).toEqual({});
+        expect(capturedToken).toBe("secret");
       });
 
-      test("deps() resolves the data returned by an earlier ancestor loader", async () => {
-        let capturedFromDeps: Record<string, unknown> | undefined;
-        const ancestor1 = makeRuntimeRoute({
-          loader: async () => ({ token: "abc" }),
+      test("grandchild loader receives fields from all ancestors as Promises", async () => {
+        let capturedOrg: unknown;
+        let capturedTeam: unknown;
+        const grandparent = makeRuntimeRoute({
+          loader: async () => ({ org: "acme" }),
         });
-        const ancestor2 = makeRuntimeRoute({
-          loader: async (_ctx, deps) => {
-            capturedFromDeps = (await deps?.(ancestor1)) ?? {};
+        const parent = makeRuntimeRoute({
+          loader: async () => ({ team: "engineering" }),
+        });
+        const child = makeRuntimeRoute({
+          loader: async (ctx) => {
+            capturedOrg = await (ctx.org as Promise<string>);
+            capturedTeam = await (ctx.team as Promise<string>);
             return {};
           },
         });
@@ -264,11 +271,86 @@ describe("render.tsx", () => {
         const rootLayout = (await getRoot()).route;
         const mockRoute = {
           ...withLoaderRoute,
-          routeChain: [withLoaderRoute.routeChain[0], ancestor1, ancestor2],
+          routeChain: [withLoaderRoute.routeChain[0], grandparent, parent, child],
           page: { ...withLoaderRoute.page, loader: undefined },
         } as unknown as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
-        expect(capturedFromDeps?.token).toBe("abc");
+        expect(capturedOrg).toBe("acme");
+        expect(capturedTeam).toBe("engineering");
+      });
+
+      test("RouteContext fields (request, params, path) are direct values, not Promises", async () => {
+        let capturedRequest: unknown;
+        let capturedPath: unknown;
+        const r = makeRuntimeRoute({
+          loader: (ctx) => {
+            capturedRequest = ctx.request;
+            capturedPath = ctx.path;
+            return {};
+          },
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = (await getRoot()).route;
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], r],
+          page: { ...withLoaderRoute.page, loader: undefined },
+        } as unknown as ResolvedRoute;
+        await runLoaders(mockRoute, createMockLoaderContext({ path: "/test" }), rootLayout);
+        // Must be direct values, not Promises
+        expect(capturedRequest instanceof Request).toBe(true);
+        expect(capturedPath).toBe("/test");
+      });
+
+      test("page loader receives route-chain fields as individual Promises", async () => {
+        let capturedFromPage: unknown;
+        const routeLoader = makeRuntimeRoute({
+          loader: async () => ({ sessionUser: "alice" }),
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = (await getRoot()).route;
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], routeLoader],
+          page: {
+            ...withLoaderRoute.page,
+            loader: async (ctx: Record<string, unknown>) => {
+              capturedFromPage = await (ctx.sessionUser as Promise<string>);
+              return { result: capturedFromPage };
+            },
+          },
+        } as unknown as ResolvedRoute;
+        const res = await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        expect(capturedFromPage).toBe("alice");
+        if (res.type === "data") {
+          expect(res.data.result).toBe("alice");
+        }
+      });
+
+      test("Promise.all on multiple parent fields resolves both correctly", async () => {
+        let capturedA: unknown;
+        let capturedB: unknown;
+        const p1 = makeRuntimeRoute({ loader: async () => ({ alpha: 1 }) });
+        const p2 = makeRuntimeRoute({ loader: async () => ({ beta: 2 }) });
+        const consumer = makeRuntimeRoute({
+          loader: async (ctx) => {
+            [capturedA, capturedB] = await Promise.all([
+              ctx.alpha as Promise<number>,
+              ctx.beta as Promise<number>,
+            ]);
+            return {};
+          },
+        });
+        const withLoaderRoute = await getRoute("/with-loader");
+        const rootLayout = (await getRoot()).route;
+        const mockRoute = {
+          ...withLoaderRoute,
+          routeChain: [withLoaderRoute.routeChain[0], p1, p2, consumer],
+          page: { ...withLoaderRoute.page, loader: undefined },
+        } as unknown as ResolvedRoute;
+        await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
+        expect(capturedA).toBe(1);
+        expect(capturedB).toBe(2);
       });
 
       test("all ancestor loaders start before any completes (parallel, not waterfall)", async () => {

@@ -326,11 +326,8 @@ const Column = ({
     );
   };
 
-  const getIndicators = () => {
-    return Array.from(
-      document.querySelectorAll(`[data-column="${column}"]`) as unknown as HTMLElement[]
-    );
-  };
+  const getIndicators = () =>
+    Array.from(document.querySelectorAll(`[data-column="${column}"]`) as unknown as HTMLElement[]);
 
   const handleDragLeave = () => {
     clearHighlights();
@@ -424,15 +421,13 @@ interface DropIndicatorProps {
   column: string;
 }
 
-const DropIndicator = ({ beforeId, column }: DropIndicatorProps) => {
-  return (
-    <div
-      className="my-0.5 h-0.5 w-full rounded-full bg-violet-500 opacity-0 transition-opacity"
-      data-before={beforeId ?? "-1"}
-      data-column={column}
-    />
-  );
-};
+const DropIndicator = ({ beforeId, column }: DropIndicatorProps) => (
+  <div
+    className="my-0.5 h-0.5 w-full rounded-full bg-violet-500 opacity-0 transition-opacity"
+    data-before={beforeId ?? "-1"}
+    data-column={column}
+  />
+);
 
 // ---------------------------------------------------------------------------
 // BurnBarrel — floating, fixed position, visible only while dragging

@@ -27,7 +27,9 @@ export function scanFurinInstances(serverEntryPath: string): string[] {
 }
 
 function walkNode(node: AstNode, out: string[]): void {
-  if (!node || typeof node !== "object") return;
+  if (!node || typeof node !== "object") {
+    return;
+  }
 
   if (node.type === "CallExpression") {
     const callee = node.callee as AstNode | undefined;
@@ -49,7 +51,9 @@ function walkNode(node: AstNode, out: string[]): void {
 
   // Recurse into all child node values
   for (const key of Object.keys(node)) {
-    if (key === "type" || key === "start" || key === "end") continue;
+    if (key === "type" || key === "start" || key === "end") {
+      continue;
+    }
     const child = node[key];
     if (Array.isArray(child)) {
       for (const item of child) {
@@ -65,10 +69,14 @@ function walkNode(node: AstNode, out: string[]): void {
 
 function extractStringProperty(obj: AstNode, propName: string): string | null {
   const properties = obj.properties as AstNode[] | undefined;
-  if (!Array.isArray(properties)) return null;
+  if (!Array.isArray(properties)) {
+    return null;
+  }
 
   for (const prop of properties) {
-    if (prop.type !== "Property") continue;
+    if (prop.type !== "Property") {
+      continue;
+    }
     const key = prop.key as AstNode & { name?: string; value?: unknown };
     const value = prop.value as AstNode & { value?: unknown };
 
@@ -76,7 +84,9 @@ function extractStringProperty(obj: AstNode, propName: string): string | null {
       (key.type === "Identifier" && key.name === propName) ||
       (key.type === "Literal" && key.value === propName);
 
-    if (!keyMatches) continue;
+    if (!keyMatches) {
+      continue;
+    }
 
     // Only accept string literals — ignore template literals, identifiers, etc.
     if (value?.type === "Literal" && typeof value.value === "string") {

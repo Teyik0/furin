@@ -60,7 +60,7 @@ export function updateCard(
 ): Card | undefined {
   const existing = db.select().from(cards).where(eq(cards.id, id)).get();
   if (!existing) {
-    return undefined;
+    return;
   }
 
   const nextValues: Partial<Pick<Card, "title" | "description" | "column" | "position">> = {};

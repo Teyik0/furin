@@ -70,11 +70,18 @@ if (command === "build") {
 
   const config = await loadCliConfig(process.cwd(), values.config);
 
-  const resolvedServerEntry = resolve(config.rootDir, config.serverEntry ?? "src/server.ts");
-  if (!existsSync(resolvedServerEntry)) {
-    const expected = config.serverEntry ?? "src/server.ts";
-    throw new Error(`[furin] Entrypoint ${expected} not found`);
-  }
+  const isStaticTarget = target === "static";
+
+  const resolvedServerEntry = isStaticTarget
+    ? undefined
+    : (() => {
+        const entry = resolve(config.rootDir, config.serverEntry ?? "src/server.ts");
+        if (!existsSync(entry)) {
+          const expected = config.serverEntry ?? "src/server.ts";
+          throw new Error(`[furin] Entrypoint ${expected} not found`);
+        }
+        return entry;
+      })();
 
   log(`Building Furin for ${target}…`);
 
@@ -85,6 +92,7 @@ if (command === "build") {
     pagesDir: values.pagesDir ?? config.pagesDir,
     serverEntry: resolvedServerEntry,
     plugins: config.plugins,
+    staticConfig: config.static,
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";
