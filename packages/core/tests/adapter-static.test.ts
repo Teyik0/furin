@@ -93,7 +93,7 @@ describe.serial("buildStaticTarget", () => {
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const distDir = join(app.path, "dist");
 
-    await expect(
+    expect(
       withBuildStub(() =>
         buildStaticTarget(routes, app.path, join(app.path, ".furin/build"), root, {
           target: "static",

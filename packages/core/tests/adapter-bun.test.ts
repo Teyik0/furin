@@ -23,11 +23,11 @@ afterEach(() => {
 });
 
 describe.serial("buildBunTarget compile branches", () => {
-  test("throws when compile is enabled without a server entry", async () => {
+  test("throws when compile is enabled without a server entry", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     const options: BuildAppOptions = { target: "bun", compile: "server" };
 
-    await expect(
+    expect(
       buildBunTarget(
         [],
         app.path,

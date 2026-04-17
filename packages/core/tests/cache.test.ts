@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, mock, spyOn, test } from "bun:test";
 
 mock.module("evlog/elysia", () => ({
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
@@ -309,13 +309,22 @@ describe("setCachePurger", () => {
   });
 
   test("purger errors are swallowed (fire-and-forget)", async () => {
-    setCachePurger(() => Promise.reject(new Error("CDN unavailable")));
+    const logged: unknown[] = [];
+    const spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      logged.push(args);
+    });
 
+    setCachePurger(() => Promise.reject(new Error("CDN unavailable")));
     revalidatePath("/blog/post");
 
-    // If the error propagates it will cause an unhandled rejection and fail the test
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    // No assertion needed — the test passing without unhandled rejection is the assertion
+    // Two microtask ticks: one for the rejection to settle, one for .catch() to fire.
+    // Avoids yielding to a macrotask timer (setTimeout) which lets other tests interleave
+    // while _cachePurger is still the rejecting function.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    spy.mockRestore();
+    expect(logged.length).toBeGreaterThan(0);
   });
 });
 
