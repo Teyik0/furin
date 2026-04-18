@@ -271,7 +271,11 @@ export async function buildStaticTarget(
   });
 
   // ── 4. Generate HTML shell template ──────────────────────────────────────
-  const shellHtml = generateProdIndexHtml(entryChunk, cssChunks);
+  // Emit a <link rel="icon"> only when a favicon.ico exists in the public dir.
+  // This ensures the browser finds it even when the site is served from a sub-path.
+  const publicFavicon = join(rootDir, "public", "favicon.ico");
+  const faviconHref = existsSync(publicFavicon) ? `${basePath}/favicon.ico` : undefined;
+  const shellHtml = generateProdIndexHtml(entryChunk, cssChunks, undefined, faviconHref);
 
   // ── 5. Prime the renderer with the production shell ──────────────────────
   // Must be called before any prerenderSSG invocation.

@@ -149,11 +149,15 @@ export function generateIndexHtml(): string {
  *
  * @param buildId - Short hash identifying this specific build. Injected as a
  *   `<meta name="furin-build-id">` tag so the client can detect stale deploys.
+ * @param faviconHref - Absolute href for the favicon (e.g. "/furin/favicon.ico").
+ *   When provided, a `<link rel="icon">` tag is injected so browsers can locate
+ *   the favicon even when the site is served from a sub-path.
  */
 export function generateProdIndexHtml(
   entryChunk: string,
   cssChunks: string[],
-  buildId?: string
+  buildId?: string,
+  faviconHref?: string
 ): string {
   const cssLinks = cssChunks
     .map((c) => `    <link rel="stylesheet" crossorigin href="${c}">`)
@@ -162,6 +166,9 @@ export function generateProdIndexHtml(
   const buildIdMeta = buildId
     ? `    <meta name="furin-build-id" content="${escapeHtml(buildId)}">\n`
     : "";
+  const faviconLink = faviconHref
+    ? `    <link rel="icon" href="${escapeHtml(faviconHref)}">\n`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -169,7 +176,7 @@ export function generateProdIndexHtml(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     ${THEME_INIT_SCRIPT}
-${buildIdMeta}${cssLinks ? `${cssLinks}\n` : ""}    <!--ssr-head-->
+${buildIdMeta}${faviconLink}${cssLinks ? `${cssLinks}\n` : ""}    <!--ssr-head-->
   </head>
   <body>
     <div id="root"><!--ssr-outlet--></div>
