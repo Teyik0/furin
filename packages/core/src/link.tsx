@@ -762,6 +762,7 @@ export function RouterProvider({
 
   // Disable native scroll restoration and assign a key to the initial history entry
   useEffect(() => {
+    const prevScrollRestoration = history.scrollRestoration;
     history.scrollRestoration = "manual";
     if (!getHistoryKey(history.state)) {
       history.replaceState(
@@ -770,7 +771,7 @@ export function RouterProvider({
       );
     }
     return () => {
-      history.scrollRestoration = "auto";
+      history.scrollRestoration = prevScrollRestoration;
     };
   }, []);
 

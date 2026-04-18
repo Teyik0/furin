@@ -56,7 +56,7 @@ export function useLogger(): RequestLogger {
  */
 export async function runInSyntheticRenderScope<T>(
   fn: () => Promise<T> | T,
-  initialContext: Record<string, unknown> = {}
+  initialContext: Record<string, unknown>
 ): Promise<T> {
   const logger = createLogger(initialContext);
   try {

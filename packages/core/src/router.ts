@@ -283,9 +283,15 @@ async function handleSSGRequest(
   return entry.html;
 }
 
+// Standard structural keys on a TObject — everything else is a user-supplied option
+// (e.g. additionalProperties, $id, description, title) and must be preserved.
+const TOBJECT_STRUCTURAL_KEYS = new Set(["type", "properties", "required"]);
+
 /**
  * Merges TObject schemas from all routeChain entries for a given key.
- * Each entry's `.properties` are spread left-to-right (leaf wins on key conflict).
+ * Properties are spread left-to-right (leaf wins on key conflict).
+ * Object-level options (additionalProperties, $id, description, …) are also
+ * merged with the same leaf-wins semantics so they are not silently dropped.
  * Returns undefined when no entry in the chain defines the key.
  *
  * @internal Exported for unit testing.
@@ -294,9 +300,7 @@ export function mergeRouteSchemas(
   routeChain: RuntimeRoute[],
   key: "params" | "query"
 ): AnySchema | undefined {
-  const schemas = routeChain.map((r) => r[key]).filter(Boolean) as Array<{
-    properties?: Record<string, unknown>;
-  }>;
+  const schemas = routeChain.map((r) => r[key]).filter(Boolean) as Record<string, unknown>[];
 
   if (schemas.length === 0) {
     return;
@@ -305,8 +309,19 @@ export function mergeRouteSchemas(
     return schemas[0] as AnySchema;
   }
 
-  const merged = Object.assign({}, ...schemas.map((s) => s.properties ?? {}));
-  return t.Object(merged) as AnySchema;
+  const mergedProperties = Object.assign(
+    {},
+    ...schemas.map((s) => (s.properties as Record<string, unknown>) ?? {})
+  );
+
+  const mergedOptions = Object.assign(
+    {},
+    ...schemas.map((s) =>
+      Object.fromEntries(Object.entries(s).filter(([k]) => !TOBJECT_STRUCTURAL_KEYS.has(k)))
+    )
+  );
+
+  return t.Object(mergedProperties, mergedOptions) as AnySchema;
 }
 
 export function createRoutePlugin(route: ResolvedRoute, root: RootLayout, buildId = ""): AnyElysia {

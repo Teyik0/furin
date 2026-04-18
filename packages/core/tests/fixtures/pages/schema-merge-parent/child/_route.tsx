@@ -3,8 +3,8 @@ import { createRoute } from "../../../../../src/client";
 import { route as parentRoute } from "../_route";
 
 // Child _route: declares childFilter query with a default.
-// createRoutePlugin uses findLast() so THIS schema wins, and the parent's
-// parentFilter schema is dropped from the Elysia guard entirely.
+// mergeRouteSchemas in router.ts merges both schemas so parentFilter and childFilter
+// are both present in the Elysia guard — neither is dropped.
 export const route = createRoute({
   parent: parentRoute,
   query: t.Object({

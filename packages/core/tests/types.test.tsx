@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import type { Cookie, StatusMap } from "elysia";
 import { t } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
+import type { RequestLogger } from "evlog";
 import { expectTypeOf } from "expect-type";
 import {
   type ComponentProps,
@@ -32,6 +33,18 @@ describe("RouteContext types (for loaders)", () => {
     expectTypeOf<Ctx["path"]>().toEqualTypeOf<string>();
   });
 
+  test("exposes log as RequestLogger (required)", () => {
+    type Ctx = RouteContext<{ id: string }, { page: number }>;
+    expectTypeOf<Ctx["log"]>().toEqualTypeOf<RequestLogger>();
+  });
+
+  test("log is not optional — RouteContext without log would fail", () => {
+    // Compile-time proof that `log` exists and is typed as RequestLogger
+    type Ctx = RouteContext;
+    type LogField = Ctx["log"];
+    expectTypeOf<LogField>().toEqualTypeOf<RequestLogger>();
+  });
+
   test("params and query default to {} when Unset", () => {
     type Ctx = RouteContext;
     expectTypeOf<Ctx["params"]>().toEqualTypeOf<{}>();
@@ -57,6 +70,33 @@ describe("RouteContext types (for loaders)", () => {
     });
 
     expect(route).toBeDefined();
+  });
+
+  test("loader receives log as RequestLogger (direct value, not a Promise)", () => {
+    const route = createRoute({
+      loader: ({ log }) => {
+        // log is a RouteContext field — it must be a direct RequestLogger, never a Promise
+        expectTypeOf(log).toEqualTypeOf<RequestLogger>();
+        return {};
+      },
+    });
+
+    expect(route).toBeDefined();
+  });
+
+  test("log is not available in components (only in loaders)", () => {
+    const route = createRoute({
+      loader: async () => ({ title: "hello" }),
+    });
+
+    route.page({
+      component: (props) => {
+        expectTypeOf(props.title).toBeString();
+        // @ts-expect-error — log is NOT available in component props
+        props.log;
+        return null;
+      },
+    });
   });
 
   test("child loader receives parent data fields as Promise<T>, not T", () => {

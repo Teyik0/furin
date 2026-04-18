@@ -68,7 +68,7 @@ import type { RequestLogger } from "evlog"
 export async function getPost(slug: string, log: RequestLogger) {
   log.set({ action: "db.query", table: "posts" })
   const post = await db.query("SELECT * FROM posts WHERE slug = ?", [slug])
-  log.set({ found: post !== null })
+  log.set({ found: post.length > 0 })
   return post[0] ?? null
 }
 ```
@@ -180,7 +180,7 @@ function trackSearch(query: string) {
 }
 ```
 
-Events are batched and flushed to `/_furin/ingest` automatically. On page hide/unload, `sendBeacon` is used so no events are dropped.
+Events are batched and flushed to `/_furin/ingest` automatically. On page hide/unload, `sendBeacon` is used to reduce the chance of dropped events.
 
 The server tags re-emitted browser events with `service: "furin:browser"`, so you can filter server-side logs vs. client-side logs in your drain platform using that field.
 

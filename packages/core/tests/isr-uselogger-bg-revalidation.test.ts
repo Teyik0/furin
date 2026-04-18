@@ -8,10 +8,27 @@
  * Fix: context-logger.ts wraps useLogger with a fallback to a detached createLogger()
  * instance scoped to the render (via runInSyntheticRenderScope), whose wide event is
  * emitted to the configured drain at the end of the render.
+ *
+ * NOTE: render.test.ts mocks evlog/elysia with a no-op stub. Bun reuses workers across
+ * test files, so that mock can leak here. We override it at the top of this file to
+ * restore the throw-outside-context behaviour these tests depend on.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+
+// Must appear before any import that pulls in evlog/elysia (Bun hoists mock.module).
+// Reproduces the real evlog behaviour: useLogger() throws when called outside a
+// request context (no evlog ALS entry). This ensures the tests are not affected by
+// the no-op stub that render.test.ts installs for its own purposes.
+mock.module("evlog/elysia", () => ({
+  useLogger() {
+    throw new Error(
+      "[evlog] useLogger() was called outside of an evlog plugin context. Make sure app.use(evlog()) is registered before your routes."
+    );
+  },
+  evlog: () => (app: unknown) => app,
+}));
+
 import { useLogger as evlogUseLogger } from "evlog/elysia";
 import { useLogger as furinUseLogger } from "../src/context-logger.ts";
 import { prerenderSSG } from "../src/render";
@@ -20,7 +37,7 @@ import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 import { __setDevMode } from "../src/runtime-env";
 
-const FIXTURES_DIR = join(import.meta.dirname, "fixtures/pages");
+const FIXTURES_DIR = `${import.meta.dirname}/fixtures/pages`;
 
 async function getRoute(pattern: string): Promise<ResolvedRoute> {
   const result = await scanPages(FIXTURES_DIR);
@@ -66,7 +83,7 @@ describe("useLogger() in synthetic render contexts (no evlog ALS)", () => {
       },
     };
 
-    expect(prerenderSSG(route, {}, root, "http://localhost")).rejects.toThrow(
+    await expect(prerenderSSG(route, {}, root, "http://localhost")).rejects.toThrow(
       "[evlog] useLogger() was called outside of an evlog plugin context"
     );
   });
@@ -104,7 +121,7 @@ describe("useLogger() in synthetic render contexts (no evlog ALS)", () => {
       },
     };
 
-    expect(prerenderSSG(route, {}, root, "http://localhost")).resolves.toMatchObject({
+    await expect(prerenderSSG(route, {}, root, "http://localhost")).resolves.toMatchObject({
       html: expect.stringContaining("<html"),
     });
   });
