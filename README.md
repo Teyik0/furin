@@ -20,10 +20,10 @@ bun install
 bun run dev
 ```
 
-For the shadcn starter:
+For the shadcn/ui starter:
 
 ```bash
-bun create furin@latest my-app --template shadcn
+bun create furin@latest my-app --template full
 ```
 
 ## First App
@@ -245,7 +245,7 @@ bun run dev
 ## Reference
 
 - docs site: `apps/docs`
-- example app: `examples/content-studio`
+- example apps: `examples/task-manager`, `examples/weather`
 - core package: `packages/core`
 
 For the full docs experience, read the site in `apps/docs`.
