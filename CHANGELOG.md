@@ -6,9 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.0-alpha.9] — 2026-04-18
+
+### Added
+- **Structured logging** — `evlog` is now wired in on both sides of the stack with no setup required. `log` is injected directly into the loader context (`({ params, log }) => ...`) and resolves the correct logger for every rendering mode: request-scoped wide event for SSR, detached `createLogger()` for ISR background revalidation and SSG pre-renders, no-op outside any context.
+- `log: RequestLogger` added to `RouteContext` — fully typed, available via destructuring in all loaders.
+- Drain adapters documented: Datadog, Axiom, OTLP, Sentry, HyperDX, Better Stack, PostHog, filesystem.
+
 ### Fixed
-- Favicon not served correctly on static builds
-- Scaffolder templates updated
+- `useLogger()` from `evlog/elysia` throws during ISR background revalidation and SSG pre-renders (evlog ALS is empty outside a live request). Furin now provides a `context-logger` fallback chain: live request → synthetic render scope → no-op. The error no longer crashes background renders.
+- `mergeRouteSchemas` now preserves Object-level TypeBox options (`additionalProperties`, `$id`, `description`, etc.) when merging parent and child query/params schemas — previously only `properties` were kept.
+- `scrollRestoration` is now restored to its prior value on `RouterProvider` unmount instead of unconditionally resetting to `"auto"`.
 
 ## [0.1.0-alpha.8] — 2026-04-18
 
