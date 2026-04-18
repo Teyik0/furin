@@ -1,0 +1,57 @@
+.github/pull_request_template.md
+  9a3d38190b836fd8 1-19
+CONTRIBUTING.md
+  9a3d38190b836fd8 1-6,8-56,58-65
+LICENSE
+  9a3d38190b836fd8 1-21
+CHANGELOG.md
+  9a3d38190b836fd8 1-94
+.github/FUNDING.yml
+  9a3d38190b836fd8 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "50981bfcb175e17fe46882d0d83521d1d12f1517",
+  "prompts": {
+    "9a3d38190b836fd8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3e5b513-05ef-4109-b501-655bcfad8b59",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 200,
+      "total_deletions": 0,
+      "accepted_lines": 198,
+      "overriden_lines": 2
+    },
+    "c7b440576cc96b36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cbd55511-8551-4725-959d-3fe9737dbd51",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "c9b3dac7b4a7b0c1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e96b9353-a5db-4bb5-8de1-9f2f27df0523",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
