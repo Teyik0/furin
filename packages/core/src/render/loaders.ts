@@ -1,5 +1,6 @@
 import type { Context } from "elysia";
 import type { RuntimeRoute } from "../client";
+import { useLogger } from "../context-logger.ts";
 import type { ResolvedRoute } from "../router";
 
 export type LoaderResult =
@@ -56,8 +57,11 @@ export async function runLoaders(
   _rootLayout: RuntimeRoute
 ): Promise<LoaderResult> {
   try {
-    // Hoist the cast once so it doesn't repeat at every createLoaderCtx call site.
-    const ctxRecord = ctx as Record<string, unknown>;
+    // Inject `log` so loaders can destructure it directly as `({ log })`.
+    // useLogger() resolves the correct logger for every rendering context:
+    // live request → evlog request-scoped logger, synthetic render → detached
+    // createLogger() from runInSyntheticRenderScope, outside any context → no-op.
+    const ctxRecord = { ...(ctx as Record<string, unknown>), log: useLogger() };
     const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
 
     // All loaders in the chain start immediately. Each receives a Proxy where

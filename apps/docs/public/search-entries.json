@@ -710,12 +710,132 @@
     "title": "Caching"
   },
   {
+    "content": "Furin ships with evlog wired in on both sides of the stack — no setup required for the basics. When you call furin() , two things happen automatically: Server side — the evlog/elysia middleware runs on every request and emits a structured wide event with method, path, status, duration, and any fields you add during the request. Client side — the generated hydration entry calls initLogger with an HTTP drain pointed at / furin/ingest . Navigation events ( hydrate complete , navigate server error , navigate failed , etc.) are logged from RouterProvider automatically. Those events are batched, sent to the server, and re emitted there as service: \"furin:browser\" so everything lands in one stream. Internal paths are excluded from request logging by default: Pass a logger option to furin() . It accepts the full EvlogElysiaOptions shape — drain adapters, enrichers, redaction, tail sampling, and extra path exclusions. log is available directly in the loader context — no import needed: Pass log explicitly to service functions that need it: log resolves the correct logger for every rendering context: | Context | Behaviour | | | | | SSR (live request) | Request scoped evlog logger — all set() calls accumulate on the HTTP wide event | | ISR background revalidation | Detached logger scoped to the render — emitted to your drain at the end | | SSG pre render | Same as ISR background | To forward logs to an external platform, pass a drain function to the logger option. evlog ships built in adapters for the most common providers. Other built in adapters: evlog/adapters/sentry , evlog/adapters/hyperdx , evlog/adapters/better stack , evlog/adapters/posthog , evlog/adapters/fs . Use enrich to add context that is the same for every request — deployment metadata, region, release version: Pass redact: true to enable all built in PII patterns (emails, IPs, bearer tokens, credit card numbers, etc.), or supply a fine grained config: The hydration entry already calls initLogger for you. To emit your own events from a component or browser utility, import log directly: Events are batched and flushed to / furin/ingest automatically. On page hide/unload, sendBeacon is used so no events are dropped. The server tags re emitted browser events with service: \"furin:browser\" , so you can filter server side logs vs. client side logs in your drain platform using that field. For local development without a SaaS account, write logs to disk: Each line is a JSON encoded wide event. Pair with tail f .logs/app.ndjson | bunx pino pretty or any NDJSON viewer.",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging",
+    "id": "/docs/logging::page",
+    "kind": "page",
+    "order": 82,
+    "section": "",
+    "title": "Logging"
+  },
+  {
+    "content": "When you call furin() , two things happen automatically: Server side — the evlog/elysia middleware runs on every request and emits a structured wide event with method, path, status, duration, and any fields you add during the request. Client side — the generated hydration entry calls initLogger with an HTTP drain pointed at / furin/ingest . Navigation events ( hydrate complete , navigate server error , navigate failed , etc.) are logged from RouterProvider automatically. Those events are batched, sent to the server, and re emitted there as service: \"furin:browser\" so everything lands in one stream. Internal paths are excluded from request logging by default:",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#what-ships-by-default",
+    "id": "/docs/logging#what-ships-by-default",
+    "kind": "section",
+    "order": 71,
+    "section": "What Ships by Default",
+    "title": "Logging"
+  },
+  {
+    "content": "Pass a logger option to furin() . It accepts the full EvlogElysiaOptions shape — drain adapters, enrichers, redaction, tail sampling, and extra path exclusions.",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#customising-the-logger",
+    "id": "/docs/logging#customising-the-logger",
+    "kind": "section",
+    "order": 72,
+    "section": "Customising the Logger",
+    "title": "Logging"
+  },
+  {
+    "content": "log is available directly in the loader context — no import needed: Pass log explicitly to service functions that need it: log resolves the correct logger for every rendering context: | Context | Behaviour | | | | | SSR (live request) | Request scoped evlog logger — all set() calls accumulate on the HTTP wide event | | ISR background revalidation | Detached logger scoped to the render — emitted to your drain at the end | | SSG pre render | Same as ISR background |",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#adding-fields-during-a-request",
+    "id": "/docs/logging#adding-fields-during-a-request",
+    "kind": "section",
+    "order": 73,
+    "section": "Adding Fields During a Request",
+    "title": "Logging"
+  },
+  {
+    "content": "To forward logs to an external platform, pass a drain function to the logger option. evlog ships built in adapters for the most common providers. Other built in adapters: evlog/adapters/sentry , evlog/adapters/hyperdx , evlog/adapters/better stack , evlog/adapters/posthog , evlog/adapters/fs .",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#drain-adapters",
+    "id": "/docs/logging#drain-adapters",
+    "kind": "section",
+    "order": 74,
+    "section": "Drain Adapters",
+    "title": "Logging"
+  },
+  {
+    "content": "",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#datadog",
+    "id": "/docs/logging#datadog",
+    "kind": "section",
+    "order": 75,
+    "section": "Datadog",
+    "title": "Logging"
+  },
+  {
+    "content": "",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#axiom",
+    "id": "/docs/logging#axiom",
+    "kind": "section",
+    "order": 76,
+    "section": "Axiom",
+    "title": "Logging"
+  },
+  {
+    "content": "Other built in adapters: evlog/adapters/sentry , evlog/adapters/hyperdx , evlog/adapters/better stack , evlog/adapters/posthog , evlog/adapters/fs .",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#otlp-opentelemetry",
+    "id": "/docs/logging#otlp-opentelemetry",
+    "kind": "section",
+    "order": 77,
+    "section": "OTLP (OpenTelemetry)",
+    "title": "Logging"
+  },
+  {
+    "content": "Use enrich to add context that is the same for every request — deployment metadata, region, release version:",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#enriching-events",
+    "id": "/docs/logging#enriching-events",
+    "kind": "section",
+    "order": 78,
+    "section": "Enriching Events",
+    "title": "Logging"
+  },
+  {
+    "content": "Pass redact: true to enable all built in PII patterns (emails, IPs, bearer tokens, credit card numbers, etc.), or supply a fine grained config:",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#pii-redaction",
+    "id": "/docs/logging#pii-redaction",
+    "kind": "section",
+    "order": 79,
+    "section": "PII Redaction",
+    "title": "Logging"
+  },
+  {
+    "content": "The hydration entry already calls initLogger for you. To emit your own events from a component or browser utility, import log directly: Events are batched and flushed to / furin/ingest automatically. On page hide/unload, sendBeacon is used so no events are dropped. The server tags re emitted browser events with service: \"furin:browser\" , so you can filter server side logs vs. client side logs in your drain platform using that field.",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#client-side-logging",
+    "id": "/docs/logging#client-side-logging",
+    "kind": "section",
+    "order": 80,
+    "section": "Client Side Logging",
+    "title": "Logging"
+  },
+  {
+    "content": "For local development without a SaaS account, write logs to disk: Each line is a JSON encoded wide event. Pair with tail f .logs/app.ndjson | bunx pino pretty or any NDJSON viewer.",
+    "description": "Built-in evlog integration: request logs, client-side drain, and adapters.",
+    "href": "/docs/logging#filesystem-drain-development",
+    "id": "/docs/logging#filesystem-drain-development",
+    "kind": "section",
+    "order": 81,
+    "section": "Filesystem Drain (Development)",
+    "title": "Logging"
+  },
+  {
     "content": "Furin supports two deployment strategies: a Bun build (live server with SSR/ISR support) and a static export (pre rendered HTML files, no server required). The static export pre renders all SSG routes to dist/path/index.html files and generates a 404.html SPA shell so that client side navigation keeps working on GitHub Pages. Add a static block to furin.config.ts : | Option | Type | Default | Description | | | | | | | basePath | string | \"\" | Path prefix for GitHub Pages (e.g. \"/furin\" when the site lives at user.github.io/furin/ ) | | outDir | string | \"dist\" | Output directory | | onSSR | \"error\" \\| \"skip\" | \"error\" | Behavior when an SSR route is encountered: hard error or warn + silent skip | The static export does not support SSR or ISR routes — they require a live server. onSSR: \"error\" (default) — the build fails and lists all non exportable routes. Recommended to prevent silent production gaps. onSSR: \"skip\" — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism. Add a workflow file at .github/workflows/deploy.yml : Tip: the generated 404.html is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client side router take over. Use the Furin CLI through your package script or directly: The Bun build writes to .furin/build/bun : If you pass compile server , Furin writes a server binary and keeps the built client assets on disk. If you pass compile embed , Furin writes a self contained server binary and removes the built client directory from the target output because the assets are embedded. For disk based builds: server.js reads client assets from client/ next to the server bundle public/ is copied into .furin/build/bun/public FURIN CLIENT DIR can override the client asset directory at runtime The config surface already names node , vercel , and cloudflare , but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in packages/core/src/build/index.ts . Prefix client visible variables with FURIN PUBLIC and expose them through Bun: The docs app can render Giscus comments from GitHub Discussions by setting these public values: That keeps comments out of your application database.",
     "description": "Build for Bun today, with planned targets called out clearly.",
     "href": "/docs/deployment",
     "id": "/docs/deployment::page",
     "kind": "page",
-    "order": 84,
+    "order": 96,
     "section": "",
     "title": "Deployment"
   },
@@ -725,7 +845,7 @@
     "href": "/docs/deployment#static-export-github-pages",
     "id": "/docs/deployment#static-export-github-pages",
     "kind": "section",
-    "order": 71,
+    "order": 83,
     "section": "Static Export — GitHub Pages",
     "title": "Deployment"
   },
@@ -735,7 +855,7 @@
     "href": "/docs/deployment#configuration",
     "id": "/docs/deployment#configuration",
     "kind": "section",
-    "order": 72,
+    "order": 84,
     "section": "Configuration",
     "title": "Deployment"
   },
@@ -745,7 +865,7 @@
     "href": "/docs/deployment#build-command",
     "id": "/docs/deployment#build-command",
     "kind": "section",
-    "order": 73,
+    "order": 85,
     "section": "Build Command",
     "title": "Deployment"
   },
@@ -755,7 +875,7 @@
     "href": "/docs/deployment#output-layout",
     "id": "/docs/deployment#output-layout",
     "kind": "section",
-    "order": 74,
+    "order": 86,
     "section": "Output Layout",
     "title": "Deployment"
   },
@@ -765,7 +885,7 @@
     "href": "/docs/deployment#ssr-isr-routes",
     "id": "/docs/deployment#ssr-isr-routes",
     "kind": "section",
-    "order": 75,
+    "order": 87,
     "section": "SSR / ISR Routes",
     "title": "Deployment"
   },
@@ -775,7 +895,7 @@
     "href": "/docs/deployment#deploying-to-github-pages",
     "id": "/docs/deployment#deploying-to-github-pages",
     "kind": "section",
-    "order": 76,
+    "order": 88,
     "section": "Deploying to GitHub Pages",
     "title": "Deployment"
   },
@@ -785,7 +905,7 @@
     "href": "/docs/deployment#bun-build-live-server",
     "id": "/docs/deployment#bun-build-live-server",
     "kind": "section",
-    "order": 77,
+    "order": 89,
     "section": "Bun Build (Live Server)",
     "title": "Deployment"
   },
@@ -795,7 +915,7 @@
     "href": "/docs/deployment#output-layout-2",
     "id": "/docs/deployment#output-layout-2",
     "kind": "section",
-    "order": 78,
+    "order": 90,
     "section": "Output Layout",
     "title": "Deployment"
   },
@@ -805,7 +925,7 @@
     "href": "/docs/deployment#compiled-binaries",
     "id": "/docs/deployment#compiled-binaries",
     "kind": "section",
-    "order": 79,
+    "order": 91,
     "section": "Compiled Binaries",
     "title": "Deployment"
   },
@@ -815,7 +935,7 @@
     "href": "/docs/deployment#production-runtime",
     "id": "/docs/deployment#production-runtime",
     "kind": "section",
-    "order": 80,
+    "order": 92,
     "section": "Production Runtime",
     "title": "Deployment"
   },
@@ -825,7 +945,7 @@
     "href": "/docs/deployment#planned-targets",
     "id": "/docs/deployment#planned-targets",
     "kind": "section",
-    "order": 81,
+    "order": 93,
     "section": "Planned Targets",
     "title": "Deployment"
   },
@@ -835,7 +955,7 @@
     "href": "/docs/deployment#public-environment-variables",
     "id": "/docs/deployment#public-environment-variables",
     "kind": "section",
-    "order": 82,
+    "order": 94,
     "section": "Public Environment Variables",
     "title": "Deployment"
   },
@@ -845,7 +965,7 @@
     "href": "/docs/deployment#giscus-in-the-docs-app",
     "id": "/docs/deployment#giscus-in-the-docs-app",
     "kind": "section",
-    "order": 83,
+    "order": 95,
     "section": "Giscus In The Docs App",
     "title": "Deployment"
   },
@@ -855,7 +975,7 @@
     "href": "/docs/dev-hmr",
     "id": "/docs/dev-hmr::page",
     "kind": "page",
-    "order": 94,
+    "order": 106,
     "section": "",
     "title": "Dev Mode HMR"
   },
@@ -865,7 +985,7 @@
     "href": "/docs/dev-hmr#how-it-works",
     "id": "/docs/dev-hmr#how-it-works",
     "kind": "section",
-    "order": 85,
+    "order": 97,
     "section": "How It Works",
     "title": "Dev Mode HMR"
   },
@@ -875,7 +995,7 @@
     "href": "/docs/dev-hmr#request-flow",
     "id": "/docs/dev-hmr#request-flow",
     "kind": "section",
-    "order": 86,
+    "order": 98,
     "section": "Request Flow",
     "title": "Dev Mode HMR"
   },
@@ -885,7 +1005,7 @@
     "href": "/docs/dev-hmr#edit-matrix",
     "id": "/docs/dev-hmr#edit-matrix",
     "kind": "section",
-    "order": 87,
+    "order": 99,
     "section": "Edit Matrix",
     "title": "Dev Mode HMR"
   },
@@ -895,7 +1015,7 @@
     "href": "/docs/dev-hmr#internal-pieces",
     "id": "/docs/dev-hmr#internal-pieces",
     "kind": "section",
-    "order": 88,
+    "order": 100,
     "section": "Internal Pieces",
     "title": "Dev Mode HMR"
   },
@@ -905,7 +1025,7 @@
     "href": "/docs/dev-hmr#why-react-must-stay-singleton",
     "id": "/docs/dev-hmr#why-react-must-stay-singleton",
     "kind": "section",
-    "order": 89,
+    "order": 101,
     "section": "Why React Must Stay Singleton",
     "title": "Dev Mode HMR"
   },
@@ -915,7 +1035,7 @@
     "href": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
     "id": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
     "kind": "section",
-    "order": 90,
+    "order": 102,
     "section": "Why The Client Router Must Also Stay Singleton",
     "title": "Dev Mode HMR"
   },
@@ -925,7 +1045,7 @@
     "href": "/docs/dev-hmr#why-the-timestamp-matters",
     "id": "/docs/dev-hmr#why-the-timestamp-matters",
     "kind": "section",
-    "order": 91,
+    "order": 103,
     "section": "Why The Timestamp Matters",
     "title": "Dev Mode HMR"
   },
@@ -935,7 +1055,7 @@
     "href": "/docs/dev-hmr#why-the-template-is-never-cached",
     "id": "/docs/dev-hmr#why-the-template-is-never-cached",
     "kind": "section",
-    "order": 92,
+    "order": 104,
     "section": "Why The Template Is Never Cached",
     "title": "Dev Mode HMR"
   },
@@ -945,7 +1065,7 @@
     "href": "/docs/dev-hmr#practical-outcome",
     "id": "/docs/dev-hmr#practical-outcome",
     "kind": "section",
-    "order": 93,
+    "order": 105,
     "section": "Practical Outcome",
     "title": "Dev Mode HMR"
   }

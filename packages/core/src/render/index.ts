@@ -26,6 +26,7 @@ export { type LoaderResult, runLoaders } from "./loaders.ts";
 
 import type { Context } from "elysia";
 import { useLogger } from "evlog/elysia";
+import { runInSyntheticRenderScope } from "../context-logger.ts";
 import type { ResolvedRoute } from "../router.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { LoaderContext } from "./assemble.ts";
@@ -136,7 +137,10 @@ async function renderForPath(
     path: resolvedPath,
   } as Context;
 
-  const prepared = await prepareRender(route, ctx, root, basePath);
+  const prepared = await runInSyntheticRenderScope(
+    () => prepareRender(route, ctx, root, basePath),
+    { route: route.pattern }
+  );
   if (prepared instanceof Response) {
     throw prepared;
   }

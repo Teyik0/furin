@@ -43,14 +43,29 @@ const app = new Elysia()
 
 ## Adding Fields During a Request
 
-Import `useLogger` from `@teyik0/furin` — not from `evlog/elysia` directly. The Furin wrapper falls back to a no-op logger during background renders (ISR revalidation, SSG pre-render) instead of throwing:
+`log` is available directly in the loader context — no import needed:
+
+```ts
+// src/pages/blog/[slug].tsx
+import { route } from "./_route"
+
+export default route.page({
+  loader: async ({ params, log }) => {
+    log.set({ slug: params.slug })
+    const post = await getPost(params.slug, log)
+    return { post }
+  },
+  component: ({ post }) => <BlogPost post={post} />,
+})
+```
+
+Pass `log` explicitly to service functions that need it:
 
 ```ts
 // src/lib/posts.ts
-import { useLogger } from "@teyik0/furin"
+import type { RequestLogger } from "evlog"
 
-export async function getPost(slug: string) {
-  const log = useLogger()
+export async function getPost(slug: string, log: RequestLogger) {
   log.set({ action: "db.query", table: "posts" })
   const post = await db.query("SELECT * FROM posts WHERE slug = ?", [slug])
   log.set({ found: post !== null })
@@ -58,25 +73,13 @@ export async function getPost(slug: string) {
 }
 ```
 
-You can call it directly in a loader too:
+`log` resolves the correct logger for every rendering context:
 
-```ts
-// src/pages/blog/[slug].tsx
-import { useLogger } from "@teyik0/furin"
-import { route } from "./_route"
-
-export default route.page({
-  loader: async ({ params }) => {
-    const log = useLogger()
-    log.set({ slug: params.slug })
-    const post = await getPost(params.slug)
-    return { post }
-  },
-  component: ({ post }) => <BlogPost post={post} />,
-})
-```
-
-During ISR background revalidation, the loader **is** re-executed with a synthetic context (no cookies, no headers, empty query). `useLogger()` from `@teyik0/furin` returns a no-op in that case — fields are silently dropped rather than crashing the revalidation.
+| Context | Behaviour |
+|---|---|
+| SSR (live request) | Request-scoped evlog logger — all `set()` calls accumulate on the HTTP wide event |
+| ISR background revalidation | Detached logger scoped to the render — emitted to your drain at the end |
+| SSG pre-render | Same as ISR background |
 
 ## Drain Adapters
 

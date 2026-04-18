@@ -9,6 +9,7 @@
 
 import type { Cookie, StatusMap } from "elysia";
 import type { AnySchema, HTTPHeaders, UnwrapSchema } from "elysia/types";
+import type { RequestLogger } from "evlog";
 
 declare const UNSET: unique symbol;
 type Unset = typeof UNSET;
@@ -43,6 +44,8 @@ type PromisifyData<T extends Record<string, unknown>> = {
 export interface RouteContext<TParams = {}, TQuery = {}> {
   cookie: Record<string, Cookie<unknown>>;
   headers: Record<string, string | undefined>;
+  /** Request-scoped logger. Call `log.set({})` to attach fields to the wide event for this render. */
+  log: RequestLogger;
   params: NormalizeUnset<TParams>;
   path: string;
   query: NormalizeUnset<TQuery>;

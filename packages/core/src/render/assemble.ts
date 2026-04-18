@@ -1,8 +1,10 @@
-import type { RouteContext } from "../client";
 import type { buildHeadInjection } from "./shell";
 import { safeJson } from "./shell";
 
-export type LoaderContext = RouteContext<Record<string, string>, Record<string, string>>;
+/** Minimal context passed to background / synthetic render helpers — only `request` is needed. */
+export interface LoaderContext {
+  request: Request;
+}
 
 export function resolvePath(pattern: string, params: Record<string, string>): string {
   let path = pattern;
