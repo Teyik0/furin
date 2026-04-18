@@ -55,7 +55,7 @@ const plugin: Bun.BunPlugin = {
     // ── page file stripping ─────────────────────────────────────────────────
     build.onLoad({ filter: TS_FILE_FILTER }, async (args) => {
       if (args.path.includes("node_modules")) {
-        return undefined;
+        return;
       }
 
       const source = await Bun.file(args.path).text();
@@ -71,7 +71,7 @@ const plugin: Bun.BunPlugin = {
         return { contents: code, loader: "js" };
       } catch (err) {
         console.error(`[furin] strip-plugin transform error for ${args.path}:`, err);
-        return undefined;
+        return;
       }
     });
   },

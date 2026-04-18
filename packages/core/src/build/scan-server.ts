@@ -26,30 +26,36 @@ export function scanFurinInstances(serverEntryPath: string): string[] {
   return results;
 }
 
-function walkNode(node: AstNode, out: string[]): void {
-  if (!node || typeof node !== "object") return;
+const SKIP_KEYS = new Set(["type", "start", "end"]);
 
-  if (node.type === "CallExpression") {
-    const callee = node.callee as AstNode | undefined;
-    const args = node.arguments as AstNode[] | undefined;
+/** Checks whether `node` is a `furin({ pagesDir: "..." })` call and, if so, pushes the value. */
+function checkFurinCall(node: AstNode, out: string[]): void {
+  const callee = node.callee as AstNode | undefined;
+  const args = node.arguments as AstNode[] | undefined;
+  const isFurinCall =
+    callee?.type === "Identifier" && (callee as { name?: string }).name === "furin";
 
-    const isFurinCall =
-      callee?.type === "Identifier" && (callee as { name?: string }).name === "furin";
-
-    if (isFurinCall && Array.isArray(args) && args.length > 0) {
-      const firstArg = args[0] as AstNode;
-      if (firstArg?.type === "ObjectExpression") {
-        const pagesDir = extractStringProperty(firstArg, "pagesDir");
-        if (pagesDir !== null) {
-          out.push(pagesDir);
-        }
-      }
-    }
+  if (!(isFurinCall && Array.isArray(args)) || args.length === 0) {
+    return;
   }
 
-  // Recurse into all child node values
+  const firstArg = args[0] as AstNode;
+  if (firstArg?.type !== "ObjectExpression") {
+    return;
+  }
+
+  const pagesDir = extractStringProperty(firstArg, "pagesDir");
+  if (pagesDir !== null) {
+    out.push(pagesDir);
+  }
+}
+
+/** Recurses into all child AST node values (arrays and plain objects). */
+function walkChildren(node: AstNode, out: string[]): void {
   for (const key of Object.keys(node)) {
-    if (key === "type" || key === "start" || key === "end") continue;
+    if (SKIP_KEYS.has(key)) {
+      continue;
+    }
     const child = node[key];
     if (Array.isArray(child)) {
       for (const item of child) {
@@ -63,12 +69,26 @@ function walkNode(node: AstNode, out: string[]): void {
   }
 }
 
+function walkNode(node: AstNode, out: string[]): void {
+  if (!node || typeof node !== "object") {
+    return;
+  }
+  if (node.type === "CallExpression") {
+    checkFurinCall(node, out);
+  }
+  walkChildren(node, out);
+}
+
 function extractStringProperty(obj: AstNode, propName: string): string | null {
   const properties = obj.properties as AstNode[] | undefined;
-  if (!Array.isArray(properties)) return null;
+  if (!Array.isArray(properties)) {
+    return null;
+  }
 
   for (const prop of properties) {
-    if (prop.type !== "Property") continue;
+    if (prop.type !== "Property") {
+      continue;
+    }
     const key = prop.key as AstNode & { name?: string; value?: unknown };
     const value = prop.value as AstNode & { value?: unknown };
 
@@ -76,7 +96,9 @@ function extractStringProperty(obj: AstNode, propName: string): string | null {
       (key.type === "Identifier" && key.name === propName) ||
       (key.type === "Literal" && key.value === propName);
 
-    if (!keyMatches) continue;
+    if (!keyMatches) {
+      continue;
+    }
 
     // Only accept string literals — ignore template literals, identifiers, etc.
     if (value?.type === "Literal" && typeof value.value === "string") {

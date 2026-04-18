@@ -29,6 +29,63 @@ describe.serial("dev HMR", () => {
   let port: number;
   let server: ReturnType<typeof startProcess>;
 
+  writeAppFile(
+    app.path,
+    "src/components/mobile-nav.tsx",
+    [
+      'import { useState } from "react";',
+      "",
+      "export function MobileNav() {",
+      "  const [open] = useState(true);",
+      "  return <button data-open={String(open)}>Mobile nav</button>;",
+      "}",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/root.tsx",
+    [
+      'import { createRoute } from "@teyik0/furin/client";',
+      "",
+      "export const route = createRoute({",
+      '  layout: ({ children }) => <div data-root-version="root-v1">{children}</div>,',
+      "});",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/docs/_route.tsx",
+    [
+      'import { createRoute } from "@teyik0/furin/client";',
+      'import { MobileNav } from "../../components/mobile-nav";',
+      'import { route as rootRoute } from "../root";',
+      "",
+      "export const route = createRoute({",
+      "  parent: rootRoute,",
+      "  layout: ({ children }) => (",
+      "    <section>",
+      "      <MobileNav />",
+      "      {children}",
+      "    </section>",
+      "  ),",
+      "});",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/docs/index.tsx",
+    [
+      'import { route } from "./_route";',
+      "",
+      "export default route.page({",
+      "  component: () => <main>Docs page</main>,",
+      "});",
+    ].join("\n")
+  );
+
   beforeAll(async () => {
     port = await getFreePort();
   });
@@ -133,4 +190,58 @@ describe.serial("dev HMR", () => {
     const listenCount = (logs.match(/listening on/g) ?? []).length;
     expect(listenCount).toBe(1);
   }, 15_000);
+
+  test("editing root.tsx keeps nested hook layouts rendering without invalid hook crashes", async () => {
+    let response: Response | null = null;
+    let html = "";
+
+    for (let i = 0; i < 40; i++) {
+      response = await fetch(`http://localhost:${port}/docs`);
+      html = await response.text();
+      if (response.ok && html.includes("root-v1") && html.includes("Mobile nav")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(response?.status).toBe(200);
+    expect(html).toContain("root-v1");
+    expect(html).toContain("Mobile nav");
+    expect(html).toContain("Docs page");
+
+    writeAppFile(
+      app.path,
+      "src/pages/root.tsx",
+      [
+        'import { createRoute } from "@teyik0/furin/client";',
+        "",
+        "export const route = createRoute({",
+        '  layout: ({ children }) => <div data-root-version="root-v2">{children}</div>,',
+        "});",
+      ].join("\n")
+    );
+
+    let updatedResponse: Response | null = null;
+    let updatedHtml = "";
+    for (let i = 0; i < 40; i++) {
+      updatedResponse = await fetch(`http://localhost:${port}/docs`);
+      updatedHtml = await updatedResponse.text();
+      if (updatedResponse.ok && updatedHtml.includes("root-v2")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(updatedResponse?.status).toBe(200);
+    expect(updatedHtml).toContain("root-v2");
+    expect(updatedHtml).toContain("Mobile nav");
+    expect(updatedHtml).toContain("Docs page");
+    expect(updatedHtml).not.toContain("root-v1");
+
+    const logs = server.getStdout() + server.getStderr();
+    expect(logs).not.toContain("Invalid hook call");
+    expect(logs).not.toContain("dispatcher is null");
+    expect(logs).not.toContain("resolveDispatcher().useState");
+    expect(logs).not.toContain(" GET /docs 500 ");
+  }, 20_000);
 });

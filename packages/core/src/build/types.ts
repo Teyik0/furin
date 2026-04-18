@@ -1,10 +1,22 @@
-import type { BuildTarget } from "../config";
+import type { BuildTarget, StaticExportConfig } from "../config";
 import type { ResolvedRoute } from "../router";
 
 export interface BuildClientOptions {
+  /**
+   * Sub-path prefix for the deployment (e.g. "/furin" for GitHub Pages).
+   * Passed through to the generated hydrate entry so SPA navigation uses
+   * correct physical URLs. Pass "" for root deployments.
+   */
+  basePath: string;
   outDir: string;
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];
+  /**
+   * Public path prefix for all emitted JS/CSS chunks.
+   * Pass "/_client/" for root deployments; override for basePath deployments,
+   * e.g. "/furin/_client/".
+   */
+  publicPath: string;
   rootLayout: string;
 }
 
@@ -27,6 +39,8 @@ export interface TargetBuildManifest {
   templatePath: string | null;
 }
 
+export type AnyTargetManifest = TargetBuildManifest | StaticTargetBuildManifest;
+
 export interface BuildManifest {
   generatedAt: string;
   pagesDir: string;
@@ -34,7 +48,7 @@ export interface BuildManifest {
   rootPath: string;
   routes: BuildRouteManifestEntry[];
   serverEntry: string | null;
-  targets: Partial<Record<BuildTarget, TargetBuildManifest>>;
+  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
   version: 1;
 }
 
@@ -44,12 +58,23 @@ export interface BuildAppOptions {
   plugins?: Bun.BunPlugin[];
   rootDir?: string;
   serverEntry?: string;
+  /** Configuration for the `static` build target. */
+  staticConfig?: StaticExportConfig;
   target: BuildTarget | "all";
+}
+
+/** Build manifest entry produced by the `static` adapter. */
+export interface StaticTargetBuildManifest {
+  basePath: string;
+  generatedAt: string;
+  outDir: string;
+  renderedRoutes: string[];
+  skippedRoutes: string[];
 }
 
 export interface BuildAppResult {
   manifest: BuildManifest;
-  targets: Partial<Record<BuildTarget, TargetBuildManifest>>;
+  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
 }
 
 export type BunBuildAliasConfig = Bun.BuildConfig & {

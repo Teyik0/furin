@@ -2,14 +2,14 @@ import type { HeadOptions, MetaDescriptor } from "../client.ts";
 
 export function extractTitle(meta?: MetaDescriptor[]): string | undefined {
   if (!meta) {
-    return undefined;
+    return;
   }
   for (const entry of meta) {
     if ("title" in entry) {
       return (entry as { title: string }).title;
     }
   }
-  return undefined;
+  return;
 }
 
 export function isMetaTag(entry: MetaDescriptor): boolean {

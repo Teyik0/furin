@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { RouterContext, type RouterContextValue } from "../link.tsx";
 import type { RootLayout } from "../router.ts";
 import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
 import {
@@ -57,7 +58,8 @@ interface PreparedRender {
 async function prepareRender(
   route: ResolvedRoute,
   ctx: Context,
-  root: RootLayout
+  root: RootLayout,
+  basePath?: string
 ): Promise<PreparedRender | Response> {
   const loaderStart = Date.now();
   const loaderResult = await runLoaders(route, ctx, root.route);
@@ -77,11 +79,38 @@ async function prepareRender(
 
   const headData = buildHeadInjection(route.page?.head?.(componentProps));
 
-  const template = IS_DEV
-    ? await getDevTemplate(new URL(ctx.request.url).origin)
-    : (getProductionTemplate() ?? generateIndexHtml());
+  // An explicitly-set production template (static pre-render, compiled Bun server)
+  // always wins over the IS_DEV flag.  This decouples template resolution from the
+  // IS_DEV singleton so callers never need to flip IS_DEV just to get the right shell.
+  const prodTemplate = getProductionTemplate();
+  const template =
+    prodTemplate ??
+    (IS_DEV ? await getDevTemplate(new URL(ctx.request.url).origin) : generateIndexHtml());
 
-  const element = buildElement(route, componentProps, root.route);
+  let element = buildElement(route, componentProps, root.route);
+
+  // During static pre-render, inject a RouterContext so Link components render
+  // hrefs with the correct basePath prefix and active-state detection works.
+  // Only injected when basePath is explicitly provided (opt-in, static adapter only).
+  if (basePath !== undefined) {
+    const ssrContext: RouterContextValue = {
+      basePath,
+      currentHref: ctx.path,
+      navigate: () => Promise.resolve(),
+      prefetch: () => {
+        /* noop */
+      },
+      invalidatePrefetch: () => {
+        /* noop */
+      },
+      refresh: () => Promise.resolve(),
+      isNavigating: false,
+      defaultPreload: "intent",
+      defaultPreloadDelay: 50,
+      defaultPreloadStaleTime: 30_000,
+    };
+    element = createElement(RouterContext.Provider, { value: ssrContext }, element);
+  }
 
   return { componentProps, element, headData, headers, loader_ms, template };
 }
@@ -92,23 +121,33 @@ async function renderForPath(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout,
-  origin: string
+  origin: string,
+  basePath?: string
 ): Promise<RenderResult> {
   const resolvedPath = resolvePath(route.pattern, params);
-  return await renderToHTML(
-    route,
-    {
-      params,
-      query: {},
-      request: new Request(`${origin}${resolvedPath}`),
-      headers: {},
-      cookie: {},
-      redirect: (url, status = 302) => new Response(null, { status, headers: { Location: url } }),
-      set: { headers: {} },
-      path: resolvedPath,
-    } as Context,
-    root
-  );
+  const ctx: Context = {
+    params,
+    query: {},
+    request: new Request(`${origin}${resolvedPath}`),
+    headers: {},
+    cookie: {},
+    redirect: (url, status = 302) => new Response(null, { status, headers: { Location: url } }),
+    set: { headers: {} },
+    path: resolvedPath,
+  } as Context;
+
+  const prepared = await prepareRender(route, ctx, root, basePath);
+  if (prepared instanceof Response) {
+    throw prepared;
+  }
+  const { componentProps, element, headData, headers, template } = prepared;
+  const stream = await renderToReadableStream(element);
+  await stream.allReady;
+  const reactHtml = await streamToString(stream);
+  return {
+    html: assembleHTML(template, headData, reactHtml, componentProps),
+    headers,
+  };
 }
 
 // ── Core pipeline ────────────────────────────────────────────────────────────
@@ -155,7 +194,8 @@ export async function prerenderSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout,
-  origin = "http://localhost:3000"
+  origin = "http://localhost:3000",
+  basePath?: string
 ): Promise<SsgCacheEntry | Response> {
   const resolvedPath = resolvePath(route.pattern, params);
 
@@ -166,7 +206,7 @@ export async function prerenderSSG(
 
   let result: RenderResult;
   try {
-    result = await renderForPath(route, params, root, origin);
+    result = await renderForPath(route, params, root, origin, basePath);
   } catch (err) {
     // A loader called ctx.redirect() — surface it so the SSG handler (and
     // warm-up caller) can return the redirect response rather than crashing.

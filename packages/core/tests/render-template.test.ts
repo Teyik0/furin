@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,10 @@ import {
   setProductionTemplateContent,
   setProductionTemplatePath,
 } from "../src/render/template";
+
+beforeEach(() => {
+  __resetTemplateState();
+});
 
 afterEach(() => {
   __resetTemplateState();

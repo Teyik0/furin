@@ -1,0 +1,942 @@
+[
+  {
+    "content": "Furin is a React meta framework on top of Elysia and Bun. It gives you file based routing, nested layouts, SSR, SSG, ISR, typed loaders, and typed navigation without adding a second frontend toolchain. File based routing from src/pages Route level loader , params , and query typing through createRoute() route.page() for page components, head() , and staticParams() Bun native development flow with Fast Refresh and SSR kept in sync A single process for pages and API routes Getting Started for project setup and your first page File Based Routing for page/layout conventions Data Loading for typed loaders and schemas Rendering Modes for SSR, SSG, and ISR Deployment for the current Bun build pipeline Use createRoute() for route level concerns: mode revalidate params query loader layout Use route.page() for page level concerns: component loader head staticParams The core build target implemented in this branch is Bun. Other targets may already exist in config types, but if the docs mention them they should be treated as planned until the corresponding builder lands in the core.",
+    "description": "Overview of Furin and where to go next.",
+    "href": "/docs",
+    "id": "/docs::page",
+    "kind": "page",
+    "order": 4,
+    "section": "",
+    "title": "Documentation"
+  },
+  {
+    "content": "File based routing from src/pages Route level loader , params , and query typing through createRoute() route.page() for page components, head() , and staticParams() Bun native development flow with Fast Refresh and SSR kept in sync A single process for pages and API routes",
+    "description": "Overview of Furin and where to go next.",
+    "href": "/docs#what-you-get",
+    "id": "/docs#what-you-get",
+    "kind": "section",
+    "order": 0,
+    "section": "What You Get",
+    "title": "Documentation"
+  },
+  {
+    "content": "Getting Started for project setup and your first page File Based Routing for page/layout conventions Data Loading for typed loaders and schemas Rendering Modes for SSR, SSG, and ISR Deployment for the current Bun build pipeline",
+    "description": "Overview of Furin and where to go next.",
+    "href": "/docs#start-here",
+    "id": "/docs#start-here",
+    "kind": "section",
+    "order": 1,
+    "section": "Start Here",
+    "title": "Documentation"
+  },
+  {
+    "content": "Use createRoute() for route level concerns: mode revalidate params query loader layout Use route.page() for page level concerns: component loader head staticParams",
+    "description": "Overview of Furin and where to go next.",
+    "href": "/docs#how-the-api-is-split",
+    "id": "/docs#how-the-api-is-split",
+    "kind": "section",
+    "order": 2,
+    "section": "How The API Is Split",
+    "title": "Documentation"
+  },
+  {
+    "content": "The core build target implemented in this branch is Bun. Other targets may already exist in config types, but if the docs mention them they should be treated as planned until the corresponding builder lands in the core.",
+    "description": "Overview of Furin and where to go next.",
+    "href": "/docs#current-status",
+    "id": "/docs#current-status",
+    "kind": "section",
+    "order": 3,
+    "section": "Current Status",
+    "title": "Documentation"
+  },
+  {
+    "content": "Furin is a React meta framework built on Elysia and Bun. It gives you file based routing, SSR, SSG, ISR, nested layouts, and typed route data without a separate frontend toolchain. For the shadcn starter: minimal is the default starter with Tailwind, /api/hello , and an SSR page loader shadcn adds Tailwind plus shadcn style button , card , and input primitives Every app needs src/pages/root.tsx . It is the top level layout and should render the document shell. The docs app and starters run Bun directly in development, so backend and frontend stay in the same process. File Based Routing for page and layout conventions Data Loading for server loaders and typed schemas Rendering Modes for SSR, SSG, ISR, and staticParams Deployment for the current Bun only production build flow",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started",
+    "id": "/docs/getting-started::page",
+    "kind": "page",
+    "order": 13,
+    "section": "",
+    "title": "Getting Started"
+  },
+  {
+    "content": "For the shadcn starter:",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#install-a-starter",
+    "id": "/docs/getting-started#install-a-starter",
+    "kind": "section",
+    "order": 5,
+    "section": "Install A Starter",
+    "title": "Getting Started"
+  },
+  {
+    "content": "minimal is the default starter with Tailwind, /api/hello , and an SSR page loader shadcn adds Tailwind plus shadcn style button , card , and input primitives",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#available-templates",
+    "id": "/docs/getting-started#available-templates",
+    "kind": "section",
+    "order": 6,
+    "section": "Available Templates",
+    "title": "Getting Started"
+  },
+  {
+    "content": "",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#project-shape",
+    "id": "/docs/getting-started#project-shape",
+    "kind": "section",
+    "order": 7,
+    "section": "Project Shape",
+    "title": "Getting Started"
+  },
+  {
+    "content": "",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#first-server",
+    "id": "/docs/getting-started#first-server",
+    "kind": "section",
+    "order": 8,
+    "section": "First Server",
+    "title": "Getting Started"
+  },
+  {
+    "content": "Every app needs src/pages/root.tsx . It is the top level layout and should render the document shell.",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#root-layout",
+    "id": "/docs/getting-started#root-layout",
+    "kind": "section",
+    "order": 9,
+    "section": "Root Layout",
+    "title": "Getting Started"
+  },
+  {
+    "content": "",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#first-page",
+    "id": "/docs/getting-started#first-page",
+    "kind": "section",
+    "order": 10,
+    "section": "First Page",
+    "title": "Getting Started"
+  },
+  {
+    "content": "The docs app and starters run Bun directly in development, so backend and frontend stay in the same process.",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#development",
+    "id": "/docs/getting-started#development",
+    "kind": "section",
+    "order": 11,
+    "section": "Development",
+    "title": "Getting Started"
+  },
+  {
+    "content": "File Based Routing for page and layout conventions Data Loading for server loaders and typed schemas Rendering Modes for SSR, SSG, ISR, and staticParams Deployment for the current Bun only production build flow",
+    "description": "Install Furin, pick a starter, and boot your first app.",
+    "href": "/docs/getting-started#what-to-learn-next",
+    "id": "/docs/getting-started#what-to-learn-next",
+    "kind": "section",
+    "order": 12,
+    "section": "What To Learn Next",
+    "title": "Getting Started"
+  },
+  {
+    "content": "Furin scans src/pages and turns files into routes. Pages live in .tsx files, while route.tsx files define layouts and route level config for a directory. Use square brackets for params: If you want typed params, declare them on createRoute() : Files named route.tsx define route level config and layouts for their directory: Catch all segments are written with [...name] . Furin turns them into in the generated runtime pattern. If you declare a schema for that route, the runtime param key is \" \" : Furin generates furin env.d.ts so ` can type the to pathname and per route search` object. When a route declares a query schema, search is typed from that schema. Make sure furin env.d.ts is included in your app tsconfig.json :",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing",
+    "id": "/docs/routing::page",
+    "kind": "page",
+    "order": 19,
+    "section": "",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing#basic-pages",
+    "id": "/docs/routing#basic-pages",
+    "kind": "section",
+    "order": 14,
+    "section": "Basic Pages",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "Use square brackets for params: If you want typed params, declare them on createRoute() :",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing#dynamic-segments",
+    "id": "/docs/routing#dynamic-segments",
+    "kind": "section",
+    "order": 15,
+    "section": "Dynamic Segments",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "Files named route.tsx define route level config and layouts for their directory:",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing#layout-files",
+    "id": "/docs/routing#layout-files",
+    "kind": "section",
+    "order": 16,
+    "section": "Layout Files",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "Catch all segments are written with [...name] . Furin turns them into in the generated runtime pattern. If you declare a schema for that route, the runtime param key is \" \" :",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing#catch-all-routes",
+    "id": "/docs/routing#catch-all-routes",
+    "kind": "section",
+    "order": 17,
+    "section": "Catch All Routes",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "Furin generates furin env.d.ts so ` can type the to pathname and per route search` object. When a route declares a query schema, search is typed from that schema. Make sure furin env.d.ts is included in your app tsconfig.json :",
+    "description": "How pages, params, catch-all routes, and typed links work.",
+    "href": "/docs/routing#typed-navigation",
+    "id": "/docs/routing#typed-navigation",
+    "kind": "section",
+    "order": 18,
+    "section": "Typed Navigation",
+    "title": "File-Based Routing"
+  },
+  {
+    "content": "Furin loaders run on the server before rendering. Route loaders live on createRoute() , and page loaders live on route.page() . Use createRoute() when the data should feed a layout or be shared with child pages. Use route.page() when the data is specific to one page. Loaders receive a context object with: | Property | Type | Description | | | | | | request | Request | the incoming Request — direct value | | params | TParams | validated params from createRoute({ params }) — direct value | | query | TQuery | validated query values from createRoute({ query }) — direct value | | set , headers , cookie , redirect | — | server helpers — direct values | | parent data fields | Promise | each field returned by an ancestor loader is an individually awaitable Promise | All loaders in the chain start immediately in parallel . A child loader receives parent data as a Promise so it can: Opt in to waiting — const u = await user — only blocking when it truly needs the value Parallelize multiple parent fields — const [u, o] = await Promise.all([user, org]) Stay fully parallel — if it never awaits a parent field it runs concurrently with all others The flat merge of results into component props is unchanged — components always receive all data as plain values. query belongs to createRoute() , not route.page() . Params are also declared on createRoute() . When a child loader depends on data returned by an ancestor, it awaits the relevant field(s). When a loader needs multiple parent fields, await them in parallel: A loader that doesn't need parent data at all starts immediately with zero waiting: You can return a redirect from a loader.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading",
+    "id": "/docs/data-loading::page",
+    "kind": "page",
+    "order": 31,
+    "section": "",
+    "title": "Data Loading"
+  },
+  {
+    "content": "Use createRoute() when the data should feed a layout or be shared with child pages.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#route-loader",
+    "id": "/docs/data-loading#route-loader",
+    "kind": "section",
+    "order": 20,
+    "section": "Route Loader",
+    "title": "Data Loading"
+  },
+  {
+    "content": "Use route.page() when the data is specific to one page.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#page-loader",
+    "id": "/docs/data-loading#page-loader",
+    "kind": "section",
+    "order": 21,
+    "section": "Page Loader",
+    "title": "Data Loading"
+  },
+  {
+    "content": "Loaders receive a context object with: | Property | Type | Description | | | | | | request | Request | the incoming Request — direct value | | params | TParams | validated params from createRoute({ params }) — direct value | | query | TQuery | validated query values from createRoute({ query }) — direct value | | set , headers , cookie , redirect | — | server helpers — direct values | | parent data fields | Promise | each field returned by an ancestor loader is an individually awaitable Promise | All loaders in the chain start immediately in parallel . A child loader receives parent data as a Promise so it can: Opt in to waiting — const u = await user — only blocking when it truly needs the value Parallelize multiple parent fields — const [u, o] = await Promise.all([user, org]) Stay fully parallel — if it never awaits a parent field it runs concurrently with all others The flat merge of results into component props is unchanged — components always receive all data as plain values.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#loader-context",
+    "id": "/docs/data-loading#loader-context",
+    "kind": "section",
+    "order": 22,
+    "section": "Loader Context",
+    "title": "Data Loading"
+  },
+  {
+    "content": "All loaders in the chain start immediately in parallel . A child loader receives parent data as a Promise so it can: Opt in to waiting — const u = await user — only blocking when it truly needs the value Parallelize multiple parent fields — const [u, o] = await Promise.all([user, org]) Stay fully parallel — if it never awaits a parent field it runs concurrently with all others The flat merge of results into component props is unchanged — components always receive all data as plain values.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#why-parent-fields-are-promises",
+    "id": "/docs/data-loading#why-parent-fields-are-promises",
+    "kind": "section",
+    "order": 23,
+    "section": "Why parent fields are Promises",
+    "title": "Data Loading"
+  },
+  {
+    "content": "query belongs to createRoute() , not route.page() .",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#typed-query-schemas",
+    "id": "/docs/data-loading#typed-query-schemas",
+    "kind": "section",
+    "order": 24,
+    "section": "Typed Query Schemas",
+    "title": "Data Loading"
+  },
+  {
+    "content": "Params are also declared on createRoute() .",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#typed-params",
+    "id": "/docs/data-loading#typed-params",
+    "kind": "section",
+    "order": 25,
+    "section": "Typed Params",
+    "title": "Data Loading"
+  },
+  {
+    "content": "When a child loader depends on data returned by an ancestor, it awaits the relevant field(s). When a loader needs multiple parent fields, await them in parallel: A loader that doesn't need parent data at all starts immediately with zero waiting:",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#awaiting-parent-data",
+    "id": "/docs/data-loading#awaiting-parent-data",
+    "kind": "section",
+    "order": 26,
+    "section": "Awaiting Parent Data",
+    "title": "Data Loading"
+  },
+  {
+    "content": "",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#simple-await",
+    "id": "/docs/data-loading#simple-await",
+    "kind": "section",
+    "order": 27,
+    "section": "Simple await",
+    "title": "Data Loading"
+  },
+  {
+    "content": "When a loader needs multiple parent fields, await them in parallel:",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#parallel-await-with-promiseall",
+    "id": "/docs/data-loading#parallel-await-with-promiseall",
+    "kind": "section",
+    "order": 28,
+    "section": "Parallel await with Promise.all",
+    "title": "Data Loading"
+  },
+  {
+    "content": "A loader that doesn't need parent data at all starts immediately with zero waiting:",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#no-await-fully-parallel",
+    "id": "/docs/data-loading#no-await-fully-parallel",
+    "kind": "section",
+    "order": 29,
+    "section": "No await — fully parallel",
+    "title": "Data Loading"
+  },
+  {
+    "content": "You can return a redirect from a loader.",
+    "description": "Server loaders, typed params/query, and data flow across routes.",
+    "href": "/docs/data-loading#redirects-and-status",
+    "id": "/docs/data-loading#redirects-and-status",
+    "kind": "section",
+    "order": 30,
+    "section": "Redirects And Status",
+    "title": "Data Loading"
+  },
+  {
+    "content": "Furin configures rendering mode at the route level with createRoute() . The page itself still comes from route.page() . SSR is the default mode when you omit mode . Use SSR for session dependent pages, personalized data, and anything that must render fresh on every request. Set mode: \"ssg\" on createRoute() to pre render the page. For dynamic SSG routes, declare staticParams() on route.page() : ISR also belongs on createRoute() . Pair mode: \"isr\" with revalidate . | Mode | Configured on | Best for | | | | | | ssr | createRoute() or default | request time, personalized data | | ssg | createRoute({ mode: \"ssg\" }) | content that changes rarely | | isr | createRoute({ mode: \"isr\", revalidate }) | pages that can be cached then refreshed periodically | Page level head() still lives on route.page() .",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering",
+    "id": "/docs/rendering::page",
+    "kind": "page",
+    "order": 37,
+    "section": "",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "SSR is the default mode when you omit mode . Use SSR for session dependent pages, personalized data, and anything that must render fresh on every request.",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering#ssr",
+    "id": "/docs/rendering#ssr",
+    "kind": "section",
+    "order": 32,
+    "section": "SSR",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "Set mode: \"ssg\" on createRoute() to pre render the page. For dynamic SSG routes, declare staticParams() on route.page() :",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering#ssg",
+    "id": "/docs/rendering#ssg",
+    "kind": "section",
+    "order": 33,
+    "section": "SSG",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "ISR also belongs on createRoute() . Pair mode: \"isr\" with revalidate .",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering#isr",
+    "id": "/docs/rendering#isr",
+    "kind": "section",
+    "order": 34,
+    "section": "ISR",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "| Mode | Configured on | Best for | | | | | | ssr | createRoute() or default | request time, personalized data | | ssg | createRoute({ mode: \"ssg\" }) | content that changes rarely | | isr | createRoute({ mode: \"isr\", revalidate }) | pages that can be cached then refreshed periodically |",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering#comparison",
+    "id": "/docs/rendering#comparison",
+    "kind": "section",
+    "order": 35,
+    "section": "Comparison",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "Page level head() still lives on route.page() .",
+    "description": "Use SSR, SSG, and ISR from createRoute().",
+    "href": "/docs/rendering#head-metadata",
+    "id": "/docs/rendering#head-metadata",
+    "kind": "section",
+    "order": 36,
+    "section": "Head Metadata",
+    "title": "Rendering Modes"
+  },
+  {
+    "content": "Furin uses route.tsx files for directory level layouts and route config. Each route.tsx can point at a parent route, declare loaders, and wrap child pages. Pages inside that directory use the same route object: src/pages/root.tsx is required. It is the top level route and should render ` , , and `. Layout data flows into the layout itself and all child pages. The page below does not need to repeat the auth/session work:",
+    "description": "Compose shared UI and loaders with _route.tsx files.",
+    "href": "/docs/layouts",
+    "id": "/docs/layouts::page",
+    "kind": "page",
+    "order": 42,
+    "section": "",
+    "title": "Nested Layouts"
+  },
+  {
+    "content": "Pages inside that directory use the same route object:",
+    "description": "Compose shared UI and loaders with _route.tsx files.",
+    "href": "/docs/layouts#basic-layout",
+    "id": "/docs/layouts#basic-layout",
+    "kind": "section",
+    "order": 38,
+    "section": "Basic Layout",
+    "title": "Nested Layouts"
+  },
+  {
+    "content": "src/pages/root.tsx is required. It is the top level route and should render ` , , and `.",
+    "description": "Compose shared UI and loaders with _route.tsx files.",
+    "href": "/docs/layouts#root-layout",
+    "id": "/docs/layouts#root-layout",
+    "kind": "section",
+    "order": 39,
+    "section": "Root Layout",
+    "title": "Nested Layouts"
+  },
+  {
+    "content": "",
+    "description": "Compose shared UI and loaders with _route.tsx files.",
+    "href": "/docs/layouts#multi-level-nesting",
+    "id": "/docs/layouts#multi-level-nesting",
+    "kind": "section",
+    "order": 40,
+    "section": "Multi Level Nesting",
+    "title": "Nested Layouts"
+  },
+  {
+    "content": "Layout data flows into the layout itself and all child pages. The page below does not need to repeat the auth/session work:",
+    "description": "Compose shared UI and loaders with _route.tsx files.",
+    "href": "/docs/layouts#layout-loaders",
+    "id": "/docs/layouts#layout-loaders",
+    "kind": "section",
+    "order": 41,
+    "section": "Layout Loaders",
+    "title": "Nested Layouts"
+  },
+  {
+    "content": "Furin pages and Elysia API routes run in the same server process. There is no separate frontend dev server and no proxy layer required. Elysia instance order matters. Mount API plugins in the order you want them applied. If you export typeof app , you can use Eden Treaty on the client side for end to end typing. Use normal Elysia plugins, guards, and lifecycle hooks for auth, logging, rate limiting, or anything else:",
+    "description": "Run Elysia API routes alongside your pages in one process.",
+    "href": "/docs/api-routes",
+    "id": "/docs/api-routes::page",
+    "kind": "page",
+    "order": 47,
+    "section": "",
+    "title": "API Routes"
+  },
+  {
+    "content": "",
+    "description": "Run Elysia API routes alongside your pages in one process.",
+    "href": "/docs/api-routes#define-an-api-plugin",
+    "id": "/docs/api-routes#define-an-api-plugin",
+    "kind": "section",
+    "order": 43,
+    "section": "Define An API Plugin",
+    "title": "API Routes"
+  },
+  {
+    "content": "Elysia instance order matters. Mount API plugins in the order you want them applied.",
+    "description": "Run Elysia API routes alongside your pages in one process.",
+    "href": "/docs/api-routes#mount-it-before-furin",
+    "id": "/docs/api-routes#mount-it-before-furin",
+    "kind": "section",
+    "order": 44,
+    "section": "Mount It Before Furin",
+    "title": "API Routes"
+  },
+  {
+    "content": "If you export typeof app , you can use Eden Treaty on the client side for end to end typing.",
+    "description": "Run Elysia API routes alongside your pages in one process.",
+    "href": "/docs/api-routes#typed-client-access",
+    "id": "/docs/api-routes#typed-client-access",
+    "kind": "section",
+    "order": 45,
+    "section": "Typed Client Access",
+    "title": "API Routes"
+  },
+  {
+    "content": "Use normal Elysia plugins, guards, and lifecycle hooks for auth, logging, rate limiting, or anything else:",
+    "description": "Run Elysia API routes alongside your pages in one process.",
+    "href": "/docs/api-routes#middleware-and-guards",
+    "id": "/docs/api-routes#middleware-and-guards",
+    "kind": "section",
+    "order": 46,
+    "section": "Middleware And Guards",
+    "title": "API Routes"
+  },
+  {
+    "content": "Furin passes Bun plugins through its build pipeline. That lets you preprocess assets both in the production build and in development. Declare plugins in furin.config.ts : Those plugins are forwarded into the Bun build calls used for client and server output. For Bun dev mode, register the same plugin stack in bunfig.toml and call Bun.plugin() for SSR/runtime needs. If your plugin is needed in both build and dev, wire it in all three places: furin.config.ts bunfig.toml Bun.plugin() in src/server.ts @teyik0/furin/config currently exports defineConfig() and the config types. The build target support implemented in this branch is Bun; other targets are not yet wired in the core build step even if the config type mentions them.",
+    "description": "Pass Bun plugins through Furin for assets and transforms.",
+    "href": "/docs/plugins",
+    "id": "/docs/plugins::page",
+    "kind": "page",
+    "order": 52,
+    "section": "",
+    "title": "Plugins"
+  },
+  {
+    "content": "Declare plugins in furin.config.ts : Those plugins are forwarded into the Bun build calls used for client and server output.",
+    "description": "Pass Bun plugins through Furin for assets and transforms.",
+    "href": "/docs/plugins#production-build-plugins",
+    "id": "/docs/plugins#production-build-plugins",
+    "kind": "section",
+    "order": 48,
+    "section": "Production Build Plugins",
+    "title": "Plugins"
+  },
+  {
+    "content": "For Bun dev mode, register the same plugin stack in bunfig.toml and call Bun.plugin() for SSR/runtime needs.",
+    "description": "Pass Bun plugins through Furin for assets and transforms.",
+    "href": "/docs/plugins#development-plugins",
+    "id": "/docs/plugins#development-plugins",
+    "kind": "section",
+    "order": 49,
+    "section": "Development Plugins",
+    "title": "Plugins"
+  },
+  {
+    "content": "If your plugin is needed in both build and dev, wire it in all three places: furin.config.ts bunfig.toml Bun.plugin() in src/server.ts",
+    "description": "Pass Bun plugins through Furin for assets and transforms.",
+    "href": "/docs/plugins#example-mdx",
+    "id": "/docs/plugins#example-mdx",
+    "kind": "section",
+    "order": 50,
+    "section": "Example: MDX",
+    "title": "Plugins"
+  },
+  {
+    "content": "@teyik0/furin/config currently exports defineConfig() and the config types. The build target support implemented in this branch is Bun; other targets are not yet wired in the core build step even if the config type mentions them.",
+    "description": "Pass Bun plugins through Furin for assets and transforms.",
+    "href": "/docs/plugins#what-is-actually-exported-today",
+    "id": "/docs/plugins#what-is-actually-exported-today",
+    "kind": "section",
+    "order": 51,
+    "section": "What Is Actually Exported Today",
+    "title": "Plugins"
+  },
+  {
+    "content": "Furin exposes three render modes — SSG , ISR , and SSR — each with a distinct caching strategy that works correctly in every deployment scenario: embedded binary, self hosted (with or without a CDN), Vercel, and Cloudflare Workers. | Mode | When used | Cached? | Cache location | | | | | | | SSG | No loader, or explicit mode: \"ssg\" | ✅ forever | Server in memory + CDN | | ISR | Loader + revalidate 0 | ✅ for N seconds | Server in memory + CDN | | SSR | Loader, no revalidate | ❌ never | — | Furin's caching model is designed so that browsers always validate , while CDNs can cache and serve stale . This is achieved with a combination of directives: Without must revalidate , modern browsers implement RFC 5861 stale while revalidate . This means: A browser that received an ISR page with stale while revalidate=60 will happily serve the cached page for 60 extra seconds after it expires — silently, with no server request. This is fine behind a CDN (that's the point), but undesirable when self hosting: users would see stale pages for up to 60 s beyond the revalidate window. The fix: must revalidate is an override for stale while revalidate on browsers ( RFC 7234 §5.2.2.7 ): must revalidate + max age=0 → browser sends a conditional request every time s maxage → CDN uses this value (browsers ignore it per RFC 7234) The result: browsers always go to the network, CDNs serve stale and refresh in the background. | Mode | Cache Control | ETag | Behaviour | | | | | | | SSG | public, max age=0, must revalidate, s maxage=31536000 | \"buildId:cachedAt\" | Browser: conditional GET. CDN: 1 year. | | ISR (fresh) | public, max age=0, must revalidate, s maxage=N, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: SWR. | | ISR (stale) | public, max age=0, must revalidate, s maxage=0, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: BG refresh. | | SSR | no store, no cache, must revalidate | — | Never cached anywhere. | | / client/ | public, max age=31536000, immutable | — | Content hashed — permanent cache. | Every ISR and SSG response includes an ETag header. When the browser sends the same ETag back in If None Match , Furin returns 304 Not Modified with no body — this is near instant ( 0 ms) and transfers zero data. ETag format: ISR: \"buildId:generatedAt\" — changes when the ISR entry is refreshed SSG: \"buildId:cachedAt\" — changes after revalidatePath() forces a re render Force invalidation of one or more server side cache entries on demand. Typical use cases: publishing a CMS entry, processing a webhook, or handling a form submission. Parameters: | Parameter | Type | Default | Description | | | | | | | path | string | — | The URL path to invalidate | | type | \"page\" \\| \"layout\" | \"page\" | \"page\" = exact match; \"layout\" = prefix match | Returns: boolean — true if at least one cache entry was removed. Example — webhook handler: After revalidatePath() is called: 1. The in memory cache entry is deleted immediately 2. The path is queued in pendingInvalidations 3. On the next response sent by the server (any route), the X Furin Revalidate header is emitted 4. The browser's prefetch cache is busted automatically 5. If a CDN purger is registered, it is called asynchronously When revalidatePath() is called in a handler, Furin automatically appends a response header to tell the client which prefetch cache entries are stale: The client side router ( RouterProvider ) intercepts all window.fetch calls. When it sees this header it busts the corresponding prefetch cache entries, ensuring the next SPA navigation fetches fresh HTML from the server instead of using a stale prefetch. Each production build has a build ID — a 12 hex char hash derived from the client assets plus server rendered build inputs. It is: Injected into index.html as `` Emitted on every production response as X Furin Build ID: abc123ef0011 When the user navigates with the SPA router: 1. The client fetches the new page HTML 2. It compares X Furin Build ID from the response with the meta tag value loaded at startup 3. If they differ → the app bundle has changed → the router triggers a full page reload instead of an SPA transition This prevents users who load the old JS bundle from trying to mount components from a newer server rendered page. For self hosted deployments behind a CDN, register a purge callback at server startup. Furin calls it fire and forget whenever revalidatePath() is invoked. The purger is never called in development mode. Errors are caught and logged to console.error without blocking the HTTP response. The setCachePurger extension point is the foundation for upcoming platform adapters: Every ISR and SSG response includes a Cache Tag header set to the resolved path: This is the foundation for tag based CDN purging — when revalidatePath(\"/blog/my post\") is called, the CDN purger can use the tag to purge only that URL's cached responses, without knowing the exact URL variants (query strings, etc.). Browsers send a conditional GET with If None Match on every navigation. If the content hasn't changed, Furin responds with 304 instantly. must revalidate ensures no stale content is ever served silently. CDN uses s maxage for its own TTL. When the TTL expires, it fetches fresh HTML from Furin. You can also force purge by calling revalidatePath() + setCachePurger() . All client assets are bundled into the binary. The / client/ routes are served from memory with immutable caching. The in memory ISR/SSG cache is populated at startup via warmSSGCache . For custom integrations where you make fetch calls manually and want to propagate revalidations: This is the same function used internally by RouterProvider 's window.fetch interceptor.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching",
+    "id": "/docs/caching::page",
+    "kind": "page",
+    "order": 69,
+    "section": "",
+    "title": "Caching"
+  },
+  {
+    "content": "| Mode | When used | Cached? | Cache location | | | | | | | SSG | No loader, or explicit mode: \"ssg\" | ✅ forever | Server in memory + CDN | | ISR | Loader + revalidate 0 | ✅ for N seconds | Server in memory + CDN | | SSR | Loader, no revalidate | ❌ never | — |",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#render-modes-at-a-glance",
+    "id": "/docs/caching#render-modes-at-a-glance",
+    "kind": "section",
+    "order": 53,
+    "section": "Render modes at a glance",
+    "title": "Caching"
+  },
+  {
+    "content": "Furin's caching model is designed so that browsers always validate , while CDNs can cache and serve stale . This is achieved with a combination of directives: Without must revalidate , modern browsers implement RFC 5861 stale while revalidate . This means: A browser that received an ISR page with stale while revalidate=60 will happily serve the cached page for 60 extra seconds after it expires — silently, with no server request. This is fine behind a CDN (that's the point), but undesirable when self hosting: users would see stale pages for up to 60 s beyond the revalidate window. The fix: must revalidate is an override for stale while revalidate on browsers ( RFC 7234 §5.2.2.7 ): must revalidate + max age=0 → browser sends a conditional request every time s maxage → CDN uses this value (browsers ignore it per RFC 7234) The result: browsers always go to the network, CDNs serve stale and refresh in the background. | Mode | Cache Control | ETag | Behaviour | | | | | | | SSG | public, max age=0, must revalidate, s maxage=31536000 | \"buildId:cachedAt\" | Browser: conditional GET. CDN: 1 year. | | ISR (fresh) | public, max age=0, must revalidate, s maxage=N, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: SWR. | | ISR (stale) | public, max age=0, must revalidate, s maxage=0, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: BG refresh. | | SSR | no store, no cache, must revalidate | — | Never cached anywhere. | | / client/ | public, max age=31536000, immutable | — | Content hashed — permanent cache. | Every ISR and SSG response includes an ETag header. When the browser sends the same ETag back in If None Match , Furin returns 304 Not Modified with no body — this is near instant ( 0 ms) and transfers zero data. ETag format: ISR: \"buildId:generatedAt\" — changes when the ISR entry is refreshed SSG: \"buildId:cachedAt\" — changes after revalidatePath() forces a re render",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#cache-control-headers",
+    "id": "/docs/caching#cache-control-headers",
+    "kind": "section",
+    "order": 54,
+    "section": "Cache Control headers",
+    "title": "Caching"
+  },
+  {
+    "content": "Without must revalidate , modern browsers implement RFC 5861 stale while revalidate . This means: A browser that received an ISR page with stale while revalidate=60 will happily serve the cached page for 60 extra seconds after it expires — silently, with no server request. This is fine behind a CDN (that's the point), but undesirable when self hosting: users would see stale pages for up to 60 s beyond the revalidate window. The fix: must revalidate is an override for stale while revalidate on browsers ( RFC 7234 §5.2.2.7 ): must revalidate + max age=0 → browser sends a conditional request every time s maxage → CDN uses this value (browsers ignore it per RFC 7234) The result: browsers always go to the network, CDNs serve stale and refresh in the background.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#why-must-revalidate-max-age0-",
+    "id": "/docs/caching#why-must-revalidate-max-age0-",
+    "kind": "section",
+    "order": 55,
+    "section": "Why must revalidate + max age=0 ?",
+    "title": "Caching"
+  },
+  {
+    "content": "| Mode | Cache Control | ETag | Behaviour | | | | | | | SSG | public, max age=0, must revalidate, s maxage=31536000 | \"buildId:cachedAt\" | Browser: conditional GET. CDN: 1 year. | | ISR (fresh) | public, max age=0, must revalidate, s maxage=N, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: SWR. | | ISR (stale) | public, max age=0, must revalidate, s maxage=0, stale while revalidate=N | \"buildId:generatedAt\" | Browser: conditional GET. CDN: BG refresh. | | SSR | no store, no cache, must revalidate | — | Never cached anywhere. | | / client/ | public, max age=31536000, immutable | — | Content hashed — permanent cache. |",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#headers-by-mode",
+    "id": "/docs/caching#headers-by-mode",
+    "kind": "section",
+    "order": 56,
+    "section": "Headers by mode",
+    "title": "Caching"
+  },
+  {
+    "content": "Every ISR and SSG response includes an ETag header. When the browser sends the same ETag back in If None Match , Furin returns 304 Not Modified with no body — this is near instant ( 0 ms) and transfers zero data. ETag format: ISR: \"buildId:generatedAt\" — changes when the ISR entry is refreshed SSG: \"buildId:cachedAt\" — changes after revalidatePath() forces a re render",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#etags-and-conditional-requests",
+    "id": "/docs/caching#etags-and-conditional-requests",
+    "kind": "section",
+    "order": 57,
+    "section": "ETags and conditional requests",
+    "title": "Caching"
+  },
+  {
+    "content": "Force invalidation of one or more server side cache entries on demand. Typical use cases: publishing a CMS entry, processing a webhook, or handling a form submission. Parameters: | Parameter | Type | Default | Description | | | | | | | path | string | — | The URL path to invalidate | | type | \"page\" \\| \"layout\" | \"page\" | \"page\" = exact match; \"layout\" = prefix match | Returns: boolean — true if at least one cache entry was removed. Example — webhook handler: After revalidatePath() is called: 1. The in memory cache entry is deleted immediately 2. The path is queued in pendingInvalidations 3. On the next response sent by the server (any route), the X Furin Revalidate header is emitted 4. The browser's prefetch cache is busted automatically 5. If a CDN purger is registered, it is called asynchronously",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#revalidatepathpath-type",
+    "id": "/docs/caching#revalidatepathpath-type",
+    "kind": "section",
+    "order": 58,
+    "section": "revalidatePath(path, type?)",
+    "title": "Caching"
+  },
+  {
+    "content": "When revalidatePath() is called in a handler, Furin automatically appends a response header to tell the client which prefetch cache entries are stale: The client side router ( RouterProvider ) intercepts all window.fetch calls. When it sees this header it busts the corresponding prefetch cache entries, ensuring the next SPA navigation fetches fresh HTML from the server instead of using a stale prefetch.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#x-furin-revalidate-header",
+    "id": "/docs/caching#x-furin-revalidate-header",
+    "kind": "section",
+    "order": 59,
+    "section": "X Furin Revalidate header",
+    "title": "Caching"
+  },
+  {
+    "content": "Each production build has a build ID — a 12 hex char hash derived from the client assets plus server rendered build inputs. It is: Injected into index.html as `` Emitted on every production response as X Furin Build ID: abc123ef0011 When the user navigates with the SPA router: 1. The client fetches the new page HTML 2. It compares X Furin Build ID from the response with the meta tag value loaded at startup 3. If they differ → the app bundle has changed → the router triggers a full page reload instead of an SPA transition This prevents users who load the old JS bundle from trying to mount components from a newer server rendered page.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#stale-deploy-detection",
+    "id": "/docs/caching#stale-deploy-detection",
+    "kind": "section",
+    "order": 60,
+    "section": "Stale deploy detection",
+    "title": "Caching"
+  },
+  {
+    "content": "For self hosted deployments behind a CDN, register a purge callback at server startup. Furin calls it fire and forget whenever revalidatePath() is invoked. The purger is never called in development mode. Errors are caught and logged to console.error without blocking the HTTP response. The setCachePurger extension point is the foundation for upcoming platform adapters:",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#cdn-purging-with-setcachepurger",
+    "id": "/docs/caching#cdn-purging-with-setcachepurger",
+    "kind": "section",
+    "order": 61,
+    "section": "CDN purging with setCachePurger",
+    "title": "Caching"
+  },
+  {
+    "content": "The setCachePurger extension point is the foundation for upcoming platform adapters:",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#future-edge-adapters",
+    "id": "/docs/caching#future-edge-adapters",
+    "kind": "section",
+    "order": 62,
+    "section": "Future edge adapters",
+    "title": "Caching"
+  },
+  {
+    "content": "Every ISR and SSG response includes a Cache Tag header set to the resolved path: This is the foundation for tag based CDN purging — when revalidatePath(\"/blog/my post\") is called, the CDN purger can use the tag to purge only that URL's cached responses, without knowing the exact URL variants (query strings, etc.).",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#cache-tag-header",
+    "id": "/docs/caching#cache-tag-header",
+    "kind": "section",
+    "order": 63,
+    "section": "Cache Tag header",
+    "title": "Caching"
+  },
+  {
+    "content": "Browsers send a conditional GET with If None Match on every navigation. If the content hasn't changed, Furin responds with 304 instantly. must revalidate ensures no stale content is ever served silently. CDN uses s maxage for its own TTL. When the TTL expires, it fetches fresh HTML from Furin. You can also force purge by calling revalidatePath() + setCachePurger() . All client assets are bundled into the binary. The / client/ routes are served from memory with immutable caching. The in memory ISR/SSG cache is populated at startup via warmSSGCache .",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#deployment-scenarios",
+    "id": "/docs/caching#deployment-scenarios",
+    "kind": "section",
+    "order": 64,
+    "section": "Deployment scenarios",
+    "title": "Caching"
+  },
+  {
+    "content": "Browsers send a conditional GET with If None Match on every navigation. If the content hasn't changed, Furin responds with 304 instantly. must revalidate ensures no stale content is ever served silently.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#self-hosted-no-cdn",
+    "id": "/docs/caching#self-hosted-no-cdn",
+    "kind": "section",
+    "order": 65,
+    "section": "Self hosted (no CDN)",
+    "title": "Caching"
+  },
+  {
+    "content": "CDN uses s maxage for its own TTL. When the TTL expires, it fetches fresh HTML from Furin. You can also force purge by calling revalidatePath() + setCachePurger() .",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#behind-a-cdn",
+    "id": "/docs/caching#behind-a-cdn",
+    "kind": "section",
+    "order": 66,
+    "section": "Behind a CDN",
+    "title": "Caching"
+  },
+  {
+    "content": "All client assets are bundled into the binary. The / client/ routes are served from memory with immutable caching. The in memory ISR/SSG cache is populated at startup via warmSSGCache .",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#embedded-binary-compile-embed-",
+    "id": "/docs/caching#embedded-binary-compile-embed-",
+    "kind": "section",
+    "order": 67,
+    "section": "Embedded binary ( compile: \"embed\" )",
+    "title": "Caching"
+  },
+  {
+    "content": "For custom integrations where you make fetch calls manually and want to propagate revalidations: This is the same function used internally by RouterProvider 's window.fetch interceptor.",
+    "description": "Cache-Control strategies, revalidatePath, ETags, and CDN purging for every deployment target.",
+    "href": "/docs/caching#applyrevalidateheader-client-utility",
+    "id": "/docs/caching#applyrevalidateheader-client-utility",
+    "kind": "section",
+    "order": 68,
+    "section": "applyRevalidateHeader (client utility)",
+    "title": "Caching"
+  },
+  {
+    "content": "Furin supports two deployment strategies: a Bun build (live server with SSR/ISR support) and a static export (pre rendered HTML files, no server required). The static export pre renders all SSG routes to dist/path/index.html files and generates a 404.html SPA shell so that client side navigation keeps working on GitHub Pages. Add a static block to furin.config.ts : | Option | Type | Default | Description | | | | | | | basePath | string | \"\" | Path prefix for GitHub Pages (e.g. \"/furin\" when the site lives at user.github.io/furin/ ) | | outDir | string | \"dist\" | Output directory | | onSSR | \"error\" \\| \"skip\" | \"error\" | Behavior when an SSR route is encountered: hard error or warn + silent skip | The static export does not support SSR or ISR routes — they require a live server. onSSR: \"error\" (default) — the build fails and lists all non exportable routes. Recommended to prevent silent production gaps. onSSR: \"skip\" — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism. Add a workflow file at .github/workflows/deploy.yml : Tip: the generated 404.html is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client side router take over. Use the Furin CLI through your package script or directly: The Bun build writes to .furin/build/bun : If you pass compile server , Furin writes a server binary and keeps the built client assets on disk. If you pass compile embed , Furin writes a self contained server binary and removes the built client directory from the target output because the assets are embedded. For disk based builds: server.js reads client assets from client/ next to the server bundle public/ is copied into .furin/build/bun/public FURIN CLIENT DIR can override the client asset directory at runtime The config surface already names node , vercel , and cloudflare , but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in packages/core/src/build/index.ts . Prefix client visible variables with FURIN PUBLIC and expose them through Bun: The docs app can render Giscus comments from GitHub Discussions by setting these public values: That keeps comments out of your application database.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment",
+    "id": "/docs/deployment::page",
+    "kind": "page",
+    "order": 83,
+    "section": "",
+    "title": "Deployment"
+  },
+  {
+    "content": "The static export pre renders all SSG routes to dist/path/index.html files and generates a 404.html SPA shell so that client side navigation keeps working on GitHub Pages. Add a static block to furin.config.ts : | Option | Type | Default | Description | | | | | | | basePath | string | \"\" | Path prefix for GitHub Pages (e.g. \"/furin\" when the site lives at user.github.io/furin/ ) | | outDir | string | \"dist\" | Output directory | | onSSR | \"error\" \\| \"skip\" | \"error\" | Behavior when an SSR route is encountered: hard error or warn + silent skip | The static export does not support SSR or ISR routes — they require a live server. onSSR: \"error\" (default) — the build fails and lists all non exportable routes. Recommended to prevent silent production gaps. onSSR: \"skip\" — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism. Add a workflow file at .github/workflows/deploy.yml : Tip: the generated 404.html is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client side router take over.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#static-export-github-pages",
+    "id": "/docs/deployment#static-export-github-pages",
+    "kind": "section",
+    "order": 70,
+    "section": "Static Export — GitHub Pages",
+    "title": "Deployment"
+  },
+  {
+    "content": "Add a static block to furin.config.ts : | Option | Type | Default | Description | | | | | | | basePath | string | \"\" | Path prefix for GitHub Pages (e.g. \"/furin\" when the site lives at user.github.io/furin/ ) | | outDir | string | \"dist\" | Output directory | | onSSR | \"error\" \\| \"skip\" | \"error\" | Behavior when an SSR route is encountered: hard error or warn + silent skip |",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#configuration",
+    "id": "/docs/deployment#configuration",
+    "kind": "section",
+    "order": 71,
+    "section": "Configuration",
+    "title": "Deployment"
+  },
+  {
+    "content": "",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#build-command",
+    "id": "/docs/deployment#build-command",
+    "kind": "section",
+    "order": 72,
+    "section": "Build Command",
+    "title": "Deployment"
+  },
+  {
+    "content": "",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#output-layout",
+    "id": "/docs/deployment#output-layout",
+    "kind": "section",
+    "order": 73,
+    "section": "Output Layout",
+    "title": "Deployment"
+  },
+  {
+    "content": "The static export does not support SSR or ISR routes — they require a live server. onSSR: \"error\" (default) — the build fails and lists all non exportable routes. Recommended to prevent silent production gaps. onSSR: \"skip\" — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#ssr-isr-routes",
+    "id": "/docs/deployment#ssr-isr-routes",
+    "kind": "section",
+    "order": 74,
+    "section": "SSR / ISR Routes",
+    "title": "Deployment"
+  },
+  {
+    "content": "Add a workflow file at .github/workflows/deploy.yml : Tip: the generated 404.html is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client side router take over.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#deploying-to-github-pages",
+    "id": "/docs/deployment#deploying-to-github-pages",
+    "kind": "section",
+    "order": 75,
+    "section": "Deploying to GitHub Pages",
+    "title": "Deployment"
+  },
+  {
+    "content": "Use the Furin CLI through your package script or directly: The Bun build writes to .furin/build/bun : If you pass compile server , Furin writes a server binary and keeps the built client assets on disk. If you pass compile embed , Furin writes a self contained server binary and removes the built client directory from the target output because the assets are embedded. For disk based builds: server.js reads client assets from client/ next to the server bundle public/ is copied into .furin/build/bun/public FURIN CLIENT DIR can override the client asset directory at runtime",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#bun-build-live-server",
+    "id": "/docs/deployment#bun-build-live-server",
+    "kind": "section",
+    "order": 76,
+    "section": "Bun Build (Live Server)",
+    "title": "Deployment"
+  },
+  {
+    "content": "The Bun build writes to .furin/build/bun :",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#output-layout-2",
+    "id": "/docs/deployment#output-layout-2",
+    "kind": "section",
+    "order": 77,
+    "section": "Output Layout",
+    "title": "Deployment"
+  },
+  {
+    "content": "If you pass compile server , Furin writes a server binary and keeps the built client assets on disk. If you pass compile embed , Furin writes a self contained server binary and removes the built client directory from the target output because the assets are embedded.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#compiled-binaries",
+    "id": "/docs/deployment#compiled-binaries",
+    "kind": "section",
+    "order": 78,
+    "section": "Compiled Binaries",
+    "title": "Deployment"
+  },
+  {
+    "content": "For disk based builds: server.js reads client assets from client/ next to the server bundle public/ is copied into .furin/build/bun/public FURIN CLIENT DIR can override the client asset directory at runtime",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#production-runtime",
+    "id": "/docs/deployment#production-runtime",
+    "kind": "section",
+    "order": 79,
+    "section": "Production Runtime",
+    "title": "Deployment"
+  },
+  {
+    "content": "The config surface already names node , vercel , and cloudflare , but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in packages/core/src/build/index.ts .",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#planned-targets",
+    "id": "/docs/deployment#planned-targets",
+    "kind": "section",
+    "order": 80,
+    "section": "Planned Targets",
+    "title": "Deployment"
+  },
+  {
+    "content": "Prefix client visible variables with FURIN PUBLIC and expose them through Bun:",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#public-environment-variables",
+    "id": "/docs/deployment#public-environment-variables",
+    "kind": "section",
+    "order": 81,
+    "section": "Public Environment Variables",
+    "title": "Deployment"
+  },
+  {
+    "content": "The docs app can render Giscus comments from GitHub Discussions by setting these public values: That keeps comments out of your application database.",
+    "description": "Build for Bun today, with planned targets called out clearly.",
+    "href": "/docs/deployment#giscus-in-the-docs-app",
+    "id": "/docs/deployment#giscus-in-the-docs-app",
+    "kind": "section",
+    "order": 82,
+    "section": "Giscus In The Docs App",
+    "title": "Deployment"
+  },
+  {
+    "content": "Furin's development flow separates server side rendering from the browser bundle so edits stay fast while SSR still reflects fresh code on the next request. The implementation has two goals: 1. Keep ordinary page edits on the fast React Fast Refresh path. 2. Keep SSR and the browser bundle on a single React and router runtime, even after Bun hot reloads part of the server graph. The key idea is simple: page modules are loaded through a virtual namespace for SSR, not through Bun's normal hot server graph. That keeps page edits on the browser HMR path while the server still imports fresh source from disk on demand. | What changed | hot restart | Client HMR | Typical time | | | | | | | pages/ .tsx component | No | Yes, React Fast Refresh | 20ms | | pages/root.tsx root layout | No full server restart, but SSR re imports it fresh on the next request | Yes | 20 600ms depending on rebundle | | server.ts or api/ | Yes | No | 600ms | | local components used only by page SSR | No full server restart | Yes | Varies | | core runtime files ( src/link.tsx , router internals, etc.) | Yes, they are in the server graph | Usually yes | 600ms | | File | Role | | | | | src/dev page plugin.ts | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev | | src/router.ts | Avoids eager page imports during scanning, imports pages with ?furin server&t= , and reloads root.tsx fresh in dev SSR | | src/render/template.ts | getDevTemplate() fetches / bun hmr entry without caching | | src/build/hydrate.ts | Generates the hydrate.tsx client entry and imports RouterProvider through @teyik0/furin/link so the client bundle keeps one router context | | src/plugin/index.ts | Removes loader , params , and query from client bundles | The most fragile part of Bun dev mode is not route matching. It is module identity. React hooks only work when every module in the render graph shares the same React dispatcher object. If react dom/server uses one React instance and a hot reloaded page or layout imports a different one, hook calls fail with errors such as: Invalid hook call resolveDispatcher().useState === null That can happen in development when Bun re evaluates part of the module graph and the same package is reached through different logical import paths. Furin avoids that by rewriting: react react/jsx runtime react/jsx dev runtime react dom react dom/server react dom/client to the same resolved on disk paths during dev SSR loading. There is a second singleton requirement on the browser side: RouterProvider and Link must come from the same @teyik0/furin/link module instance. If the client entry imports RouterProvider through one path and application code imports Link through another, Bun can bundle two copies of link.tsx . That creates two different RouterContext objects: the provider writes to one context the link reads from the other When that happens, SPA navigation silently falls back to full page reloads because Link behaves as if there were no router provider. That is why the hydrate entry imports RouterProvider from @teyik0/furin/link instead of an absolute file path. Bun caches modules by (namespace, path) . Without the ?t= suffix, the first import of a page would stay frozen in the server cache. After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk. / bun hmr entry is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes 404 requests and reload loops in the browser. This setup gives Furin two useful properties in development: ordinary page edits stay on the fast React Fast Refresh path SSR re imports pages and the root layout from fresh disk source React hooks remain stable across hot reload boundaries client side navigation stays on SPA transitions instead of degrading into full reloads template URLs stay aligned with the latest client rebundle",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr",
+    "id": "/docs/dev-hmr::page",
+    "kind": "page",
+    "order": 93,
+    "section": "",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "The key idea is simple: page modules are loaded through a virtual namespace for SSR, not through Bun's normal hot server graph. That keeps page edits on the browser HMR path while the server still imports fresh source from disk on demand.",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#how-it-works",
+    "id": "/docs/dev-hmr#how-it-works",
+    "kind": "section",
+    "order": 84,
+    "section": "How It Works",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#request-flow",
+    "id": "/docs/dev-hmr#request-flow",
+    "kind": "section",
+    "order": 85,
+    "section": "Request Flow",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "| What changed | hot restart | Client HMR | Typical time | | | | | | | pages/ .tsx component | No | Yes, React Fast Refresh | 20ms | | pages/root.tsx root layout | No full server restart, but SSR re imports it fresh on the next request | Yes | 20 600ms depending on rebundle | | server.ts or api/ | Yes | No | 600ms | | local components used only by page SSR | No full server restart | Yes | Varies | | core runtime files ( src/link.tsx , router internals, etc.) | Yes, they are in the server graph | Usually yes | 600ms |",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#edit-matrix",
+    "id": "/docs/dev-hmr#edit-matrix",
+    "kind": "section",
+    "order": 86,
+    "section": "Edit Matrix",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "| File | Role | | | | | src/dev page plugin.ts | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev | | src/router.ts | Avoids eager page imports during scanning, imports pages with ?furin server&t= , and reloads root.tsx fresh in dev SSR | | src/render/template.ts | getDevTemplate() fetches / bun hmr entry without caching | | src/build/hydrate.ts | Generates the hydrate.tsx client entry and imports RouterProvider through @teyik0/furin/link so the client bundle keeps one router context | | src/plugin/index.ts | Removes loader , params , and query from client bundles |",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#internal-pieces",
+    "id": "/docs/dev-hmr#internal-pieces",
+    "kind": "section",
+    "order": 87,
+    "section": "Internal Pieces",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "The most fragile part of Bun dev mode is not route matching. It is module identity. React hooks only work when every module in the render graph shares the same React dispatcher object. If react dom/server uses one React instance and a hot reloaded page or layout imports a different one, hook calls fail with errors such as: Invalid hook call resolveDispatcher().useState === null That can happen in development when Bun re evaluates part of the module graph and the same package is reached through different logical import paths. Furin avoids that by rewriting: react react/jsx runtime react/jsx dev runtime react dom react dom/server react dom/client to the same resolved on disk paths during dev SSR loading.",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#why-react-must-stay-singleton",
+    "id": "/docs/dev-hmr#why-react-must-stay-singleton",
+    "kind": "section",
+    "order": 88,
+    "section": "Why React Must Stay Singleton",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "There is a second singleton requirement on the browser side: RouterProvider and Link must come from the same @teyik0/furin/link module instance. If the client entry imports RouterProvider through one path and application code imports Link through another, Bun can bundle two copies of link.tsx . That creates two different RouterContext objects: the provider writes to one context the link reads from the other When that happens, SPA navigation silently falls back to full page reloads because Link behaves as if there were no router provider. That is why the hydrate entry imports RouterProvider from @teyik0/furin/link instead of an absolute file path.",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
+    "id": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
+    "kind": "section",
+    "order": 89,
+    "section": "Why The Client Router Must Also Stay Singleton",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "Bun caches modules by (namespace, path) . Without the ?t= suffix, the first import of a page would stay frozen in the server cache. After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#why-the-timestamp-matters",
+    "id": "/docs/dev-hmr#why-the-timestamp-matters",
+    "kind": "section",
+    "order": 90,
+    "section": "Why The Timestamp Matters",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "/ bun hmr entry is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes 404 requests and reload loops in the browser.",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#why-the-template-is-never-cached",
+    "id": "/docs/dev-hmr#why-the-template-is-never-cached",
+    "kind": "section",
+    "order": 91,
+    "section": "Why The Template Is Never Cached",
+    "title": "Dev Mode HMR"
+  },
+  {
+    "content": "This setup gives Furin two useful properties in development: ordinary page edits stay on the fast React Fast Refresh path SSR re imports pages and the root layout from fresh disk source React hooks remain stable across hot reload boundaries client side navigation stays on SPA transitions instead of degrading into full reloads template URLs stay aligned with the latest client rebundle",
+    "description": "How Bun HMR and Furin SSR stay aligned in development.",
+    "href": "/docs/dev-hmr#practical-outcome",
+    "id": "/docs/dev-hmr#practical-outcome",
+    "kind": "section",
+    "order": 92,
+    "section": "Practical Outcome",
+    "title": "Dev Mode HMR"
+  }
+]

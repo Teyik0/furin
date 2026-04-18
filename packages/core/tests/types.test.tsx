@@ -1,4 +1,5 @@
 // biome-ignore-all lint/complexity/noBannedTypes: for testing purpose
+// biome-ignore-all lint/suspicious/noUnusedExpressions: for testing purpose
 
 import { describe, expect, test } from "bun:test";
 import type { Cookie, StatusMap } from "elysia";
@@ -56,6 +57,45 @@ describe("RouteContext types (for loaders)", () => {
     });
 
     expect(route).toBeDefined();
+  });
+
+  test("child loader receives parent data fields as Promise<T>, not T", () => {
+    const parentRoute = createRoute({
+      loader: async () => ({ user: { id: 1, name: "Alice" } }),
+    });
+
+    createRoute({
+      parent: parentRoute,
+      loader: async ({ user, request }) => {
+        // user comes from parent → must be a Promise
+        expectTypeOf(user).toEqualTypeOf<Promise<{ id: number; name: string }>>();
+        // request comes from RouteContext → still a direct value
+        expectTypeOf(request).toEqualTypeOf<Request>();
+        const resolved = await user;
+        return { greeting: `Hello ${resolved.name}` };
+      },
+    });
+  });
+
+  test("grandchild loader receives all ancestor fields as Promises", () => {
+    const grandparent = createRoute({
+      loader: async () => ({ org: { id: "org-1" } }),
+    });
+
+    const parent = createRoute({
+      parent: grandparent,
+      loader: async () => ({ team: { id: "team-1" } }),
+    });
+
+    createRoute({
+      parent,
+      loader: ({ org, team }) => {
+        // org and team are Promises — type-check only (no await needed here)
+        expectTypeOf(org).toEqualTypeOf<Promise<{ id: string }>>();
+        expectTypeOf(team).toEqualTypeOf<Promise<{ id: string }>>();
+        return {};
+      },
+    });
   });
 });
 
@@ -204,9 +244,7 @@ describe("createRoute types", () => {
     }
 
     createRoute({
-      loader: () => {
-        return getHelloPayload();
-      },
+      loader: () => getHelloPayload(),
       layout: ({ message, source }) => {
         expectTypeOf(message).toEqualTypeOf<string>();
         expectTypeOf(source).toEqualTypeOf<string>();
@@ -229,9 +267,7 @@ describe("createRoute types", () => {
     }
 
     const route = createRoute({
-      loader: () => {
-        return getHelloPayload();
-      },
+      loader: () => getHelloPayload(),
     });
 
     route.page({
@@ -271,8 +307,11 @@ describe("nested layouts", () => {
 
     const childRoute = createRoute({
       parent: parentRoute,
-      loader: ({ user }) => {
-        expectTypeOf(user.orgId).toBeString();
+      loader: async ({ user }) => {
+        // user is a Promise in the loader context
+        expectTypeOf(user).toEqualTypeOf<Promise<{ id: number; name: string; orgId: string }>>();
+        const u = await user;
+        expectTypeOf(u.orgId).toBeString();
         return {
           users: [{ id: 1 }] as Array<{ id: number }>,
         };
@@ -281,6 +320,7 @@ describe("nested layouts", () => {
 
     childRoute.page({
       component: ({ user, users }) => {
+        // components still receive flat merged data (not Promises)
         expectTypeOf(user.name).toBeString();
         expectTypeOf(users).toEqualTypeOf<Array<{ id: number }>>();
         return null;
@@ -295,23 +335,28 @@ describe("nested layouts", () => {
 
     const parentRoute = createRoute({
       parent: grandparentRoute,
-      loader: ({ org }) => {
-        expectTypeOf(org.name).toBeString();
-        return { team: { id: "team-1", orgId: org.id } };
+      loader: async ({ org }) => {
+        // org is a Promise in the loader — await to access properties
+        const o = await org;
+        expectTypeOf(o.name).toBeString();
+        return { team: { id: "team-1", orgId: o.id } };
       },
     });
 
     const childRoute = createRoute({
       parent: parentRoute,
-      loader: ({ org, team }) => {
-        expectTypeOf(org.id).toBeString();
-        expectTypeOf(team.orgId).toBeString();
+      loader: async ({ org, team }) => {
+        // both ancestor fields are individual Promises
+        const [o, t] = await Promise.all([org, team]);
+        expectTypeOf(o.id).toBeString();
+        expectTypeOf(t.orgId).toBeString();
         return { members: [{ name: "Bob" }] as Array<{ name: string }> };
       },
     });
 
     childRoute.page({
       component: ({ org, team, members }) => {
+        // components still receive flat merged data (not Promises)
         expectTypeOf(org.name).toBeString();
         expectTypeOf(team.id).toBeString();
         expectTypeOf(members).toEqualTypeOf<Array<{ name: string }>>();
@@ -428,17 +473,21 @@ describe("page-level loader", () => {
     });
   });
 
-  test("page loader context receives route loader data", () => {
+  test("page loader context receives route loader data as Promise", () => {
     const route = createRoute({
       loader: async () => ({ org: { id: "org-1" } }),
     });
 
     route.page({
-      loader: ({ org }) => {
-        expectTypeOf(org.id).toBeString();
+      loader: async ({ org }) => {
+        // org comes from route loader → Promise in page loader context
+        expectTypeOf(org).toEqualTypeOf<Promise<{ id: string }>>();
+        const o = await org;
+        expectTypeOf(o.id).toBeString();
         return { members: 5 };
       },
       component: ({ org, members }) => {
+        // components still receive flat merged data (not Promises)
         expectTypeOf(org.id).toBeString();
         expectTypeOf(members).toBeNumber();
         return null;

@@ -221,11 +221,21 @@ async function handleDevRequest(
   // --hot's file watcher, then hand off to renderSSR which runs loaders,
   // renders React to HTML, and injects __FURIN_DATA__.
   try {
+    let currentRoot = root;
+    const rootMod = (await import(`${root.path}?furin-server&t=${Date.now()}`)) as Record<
+      string,
+      unknown
+    >;
+    const rootExport = rootMod.route ?? rootMod.default;
+    if (rootExport && isFurinRoute(rootExport) && rootExport.layout) {
+      currentRoot = { path: root.path, route: rootExport };
+    }
+
     const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
     const page = pageMod.default;
     if (page && isFurinPage(page)) {
       const chain = collectRouteChainFromRoute(page._route as RuntimeRoute);
-      return renderSSR({ ...route, page, routeChain: chain }, ctx, root);
+      return renderSSR({ ...route, page, routeChain: chain }, ctx, currentRoot);
     }
   } catch (err) {
     console.error(`[furin] Dev page load error for ${route.path}:`, err);

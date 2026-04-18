@@ -4,16 +4,16 @@ import { transformForClient } from "../plugin/transform-client";
 import type { ResolvedRoute } from "../router";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "./shared";
-import type { BunBuildAliasConfig, BuildClientOptions } from "./types";
+import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 
 const TS_FILE_FILTER = /\.(tsx|ts)$/;
 const REACT_IMPORT_RE = /import\s+React\b/;
 
 export interface BuildClientResult {
-  /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
-  entryChunk: string;
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
   cssChunks: string[];
+  /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
+  entryChunk: string;
 }
 
 /**
@@ -34,7 +34,7 @@ export interface BuildClientResult {
  */
 export async function buildClient(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, plugins }: BuildClientOptions
+  { outDir, rootLayout, plugins, publicPath, basePath }: BuildClientOptions
 ): Promise<BuildClientResult> {
   const clientDir = join(outDir, "client");
 
@@ -45,7 +45,7 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootLayout);
+  const hydrateCode = generateHydrateEntry(routes, rootLayout, basePath);
   const hydratePath = join(outDir, "_hydrate.tsx");
   writeFileSync(hydratePath, hydrateCode);
 
@@ -57,7 +57,7 @@ export async function buildClient(
       build.onLoad({ filter: TS_FILE_FILTER }, async (args) => {
         const { path } = args;
         if (path.includes("node_modules")) {
-          return undefined;
+          return;
         }
 
         const code = await Bun.file(path).text();
@@ -81,7 +81,7 @@ export async function buildClient(
           };
         } catch (error) {
           console.error(`[furin] Transform error for ${path}:`, error);
-          return undefined;
+          return;
         }
       });
     },
@@ -106,8 +106,9 @@ export async function buildClient(
       entry: "[dir]/[name]-[hash].[ext]",
       chunk: "[name]-[hash].[ext]",
     },
-    // Absolute public path so SSR template asset URLs resolve on any route
-    publicPath: "/_client/",
+    // Absolute public path so SSR template asset URLs resolve on any route.
+    // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
+    publicPath,
     // User plugins run before the internal transform so they pre-process files first
     plugins: plugins ? [...plugins, transformPlugin] : [transformPlugin],
     alias: {
@@ -135,8 +136,17 @@ export async function buildClient(
     throw new Error("[furin] client build did not emit entry chunk");
   }
 
-  const entryChunk = `/_client/${basename(entryOutput.path)}`;
-  const cssChunks = cssOutputs.map((o) => `/_client/${basename(o.path)}`);
+  // Normalise: ensure publicPath ends with exactly one "/".
+  // Preserve an empty publicPath ("") as-is so callers that want
+  // relative chunk URLs don't get an unintended root-absolute "/".
+  let publicPrefix: string;
+  if (publicPath === "") {
+    publicPrefix = "";
+  } else {
+    publicPrefix = publicPath.endsWith("/") ? publicPath : `${publicPath}/`;
+  }
+  const entryChunk = `${publicPrefix}${basename(entryOutput.path)}`;
+  const cssChunks = cssOutputs.map((o) => `${publicPrefix}${basename(o.path)}`);
 
   console.log("[furin] Production client build complete");
   return { entryChunk, cssChunks };

@@ -236,7 +236,11 @@ export async function furin({
     const { root, routes } = await scanPages(resolvedPagesDir);
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
-    writeDevFiles(routes, { outDir: furinDir, rootLayout: root.path }, cwd);
+    writeDevFiles(
+      routes,
+      { outDir: furinDir, rootLayout: root.path, basePath: "", publicPath: "/_client/" },
+      cwd
+    );
 
     const publicDir = resolve(cwd, "public");
     const publicExists = existsSync(publicDir);
@@ -250,7 +254,7 @@ export async function furin({
           set.headers["x-furin-revalidate"] = pending.join(",");
         }
       })
-      .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry" }))
+      .use(await staticPlugin({ assets: furinDir, prefix: "/_bun_hmr_entry", bunFullstack: true }))
       .use(
         publicExists ? await staticPlugin({ assets: publicDir, prefix: "/public" }) : new Elysia()
       )

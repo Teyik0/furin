@@ -10,15 +10,43 @@ import type {
   PreloadStrategy,
   RouterContextValue,
   RouterProviderProps,
+  RouteTo,
 } from "../src/link";
 import {
   applyRevalidateHeader,
   buildHref,
   buildPageElement,
   Link,
+  RouterContext,
   shouldAutoRefreshPath,
   shouldRefetch,
 } from "../src/link";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function makeRouterContext(overrides: Partial<RouterContextValue> = {}): RouterContextValue {
+  return {
+    basePath: "",
+    currentHref: "/",
+    navigate: () => Promise.resolve(),
+    prefetch: () => {
+      /* noop */
+    },
+    invalidatePrefetch: () => {
+      /* noop */
+    },
+    refresh: () => Promise.resolve(),
+    isNavigating: false,
+    defaultPreload: "intent",
+    defaultPreloadDelay: 50,
+    defaultPreloadStaleTime: 30_000,
+    ...overrides,
+  };
+}
+
+function renderWithRouter(element: React.ReactElement, ctx: RouterContextValue): string {
+  return renderToStaticMarkup(createElement(RouterContext.Provider, { value: ctx }, element));
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -319,6 +347,33 @@ describe("Link", () => {
     );
     expect(html).toContain('aria-disabled="true"');
     expect(html).toContain('href="/about"');
+  });
+
+  // ── B10: basePath — href uses physical path ───────────────────────────────────
+
+  test("B10: renders href with basePath prefix when router has basePath", () => {
+    const ctx = makeRouterContext({ basePath: "/furin", currentHref: "/" });
+    const html = renderWithRouter(createElement(Link, { to: "/docs" as RouteTo }, "Docs"), ctx);
+    // physical href = basePath + logical path
+    expect(html).toContain('href="/furin/docs"');
+  });
+
+  // ── B11: basePath — active state uses logical path ────────────────────────────
+
+  test("B11: link is active when currentHref matches logical path (basePath stripped)", () => {
+    // currentHref="/docs" is the logical path — Link to="/docs" should be active
+    const ctx = makeRouterContext({ basePath: "/furin", currentHref: "/docs" });
+    const html = renderWithRouter(createElement(Link, { to: "/docs" as RouteTo }, "Docs"), ctx);
+    expect(html).toContain('data-status="active"');
+    // Href is still physical
+    expect(html).toContain('href="/furin/docs"');
+  });
+
+  test("B11b: link is NOT active when currentHref is a different logical path", () => {
+    const ctx = makeRouterContext({ basePath: "/furin", currentHref: "/other" });
+    const html = renderWithRouter(createElement(Link, { to: "/docs" as RouteTo }, "Docs"), ctx);
+    expect(html).not.toContain("data-status");
+    expect(html).toContain('href="/furin/docs"');
   });
 });
 

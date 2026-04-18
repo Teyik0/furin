@@ -12,6 +12,8 @@
     "generate:llms": "bun run scripts/generate-llms-txt.ts",
     "generate:content": "bun run scripts/generate-docs-content.ts",
     "build": "bun run generate:content && bun run generate:llms && furin build --target bun",
+    "build:static": "bun run generate:content && bun run generate:llms && furin build --target static",
+    "preview:static": "bun run scripts/preview-static.ts",
     "build:compiled": "bun run generate:content && bun run generate:llms && furin build --target bun --compile server",
     "build:embed": "bun run generate:content && bun run generate:llms && furin build --target bun --compile embed"
   },

@@ -313,7 +313,9 @@ import { route } from "./_route"
 
 export default route.page({
   loader: async ({ user }) => {
-    const stats = await getDashboardStats(user.id)
+    // user comes from the parent route loader — await it to access its value
+    const { id } = await user
+    const stats = await getDashboardStats(id)
     return { stats }
   },
   component: ({ stats, user }) => <Dashboard user={user} stats={stats} />,
@@ -324,13 +326,23 @@ export default route.page({
 
 Loaders receive a context object with:
 
-| Property | Description |
-| --- | --- |
-| `request` | the incoming `Request` |
-| `params` | validated params from `createRoute({ params })` |
-| `query` | validated query values from `createRoute({ query })` |
-| parent data | accumulated data returned by ancestor route loaders |
-| `set`, `headers`, `cookie`, `redirect` | server helpers exposed by the route context |
+| Property | Type | Description |
+| --- | --- | --- |
+| `request` | `Request` | the incoming `Request` — direct value |
+| `params` | `TParams` | validated params from `createRoute({ params })` — direct value |
+| `query` | `TQuery` | validated query values from `createRoute({ query })` — direct value |
+| `set`, `headers`, `cookie`, `redirect` | — | server helpers — direct values |
+| _parent data fields_ | `Promise<T>` | each field returned by an ancestor loader is an **individually-awaitable `Promise<T>`** |
+
+### Why parent fields are Promises
+
+All loaders in the chain start **immediately in parallel**. A child loader receives parent data as a `Promise<T>` so it can:
+
+- **Opt in** to waiting — `const u = await user` — only blocking when it truly needs the value
+- **Parallelize** multiple parent fields — `const [u, o] = await Promise.all([user, org])`
+- **Stay fully parallel** — if it never awaits a parent field it runs concurrently with all others
+
+The flat-merge of results into component props is unchanged — components always receive all data as plain values.
 
 ## Typed Query Schemas
 
@@ -381,9 +393,11 @@ export const route = createRoute({
 })
 ```
 
-## Parallel Loaders With `deps`
+## Awaiting Parent Data
 
-The optional second argument lets a loader await a specific ancestor route when it truly depends on that data.
+When a child loader depends on data returned by an ancestor, it awaits the relevant field(s).
+
+### Simple await
 
 ```tsx
 // src/pages/dashboard/posts/_route.tsx
@@ -392,12 +406,40 @@ import { route as dashboardRoute } from "../_route"
 
 export const route = createRoute({
   parent: dashboardRoute,
-  loader: async (_ctx, deps) => {
-    const { user } = await deps(dashboardRoute)
+  loader: async ({ user }) => {
+    // user is Promise<{ id: string; name: string }>
+    const { id } = await user
     return {
-      posts: await getPostsForUser(user.id),
+      posts: await getPostsForUser(id),
     }
   },
+})
+```
+
+### Parallel await with `Promise.all`
+
+When a loader needs multiple parent fields, await them in parallel:
+
+```tsx
+export const route = createRoute({
+  parent: teamRoute,
+  loader: async ({ user, org }) => {
+    // Start both Promises simultaneously
+    const [{ id }, { plan }] = await Promise.all([user, org])
+    return { canEdit: plan === "pro" || id === "admin" }
+  },
+})
+```
+
+### No await — fully parallel
+
+A loader that doesn't need parent data at all starts immediately with zero waiting:
+
+```tsx
+export default route.page({
+  loader: async ({ params }) => ({
+    analytics: await getAnalytics(params.id), // runs fully in parallel
+  }),
 })
 ```
 
@@ -842,9 +884,117 @@ If your plugin is needed in both build and dev, wire it in all three places:
 
 # Deployment
 
-Furin currently ships a Bun production build path. The config type includes other targets, but in this branch only the Bun target is implemented end-to-end.
+Furin supports two deployment strategies: a **Bun build** (live server with SSR/ISR support) and a **static export** (pre-rendered HTML files, no server required).
 
-## Build Command
+## Static Export — GitHub Pages
+
+The static export pre-renders all SSG routes to `dist/path/index.html` files and generates a `404.html` SPA shell so that client-side navigation keeps working on GitHub Pages.
+
+### Configuration
+
+Add a `static` block to `furin.config.ts`:
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+
+export default defineConfig({
+  plugins: [...],
+  static: {
+    basePath: "/my-repo",  // GitHub repository name, no trailing slash
+    outDir: "dist",         // output directory (default: "dist")
+    onSSR: "error",         // "error" (default) | "skip"
+  },
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `basePath` | `string` | `""` | Path prefix for GitHub Pages (e.g. `"/furin"` when the site lives at `user.github.io/furin/`) |
+| `outDir` | `string` | `"dist"` | Output directory |
+| `onSSR` | `"error" \| "skip"` | `"error"` | Behavior when an SSR route is encountered: hard error or warn + silent skip |
+
+### Build Command
+
+**package.json:**
+```json
+{
+  "scripts": {
+    "build:static": "furin build --target static"
+  }
+}
+```
+**Terminal:**
+```bash
+bunx furin build --target static
+```
+
+### Output Layout
+
+```text
+dist/
+├── index.html              ← route "/"
+├── blog/
+│   └── hello-world/
+│       └── index.html      ← route "/blog/hello-world"
+├── 404.html                ← SPA shell (GitHub Pages fallback)
+└── _client/
+    ├── _hydrate.js
+    └── _hydrate.css
+```
+
+### SSR / ISR Routes
+
+The static export does not support SSR or ISR routes — they require a live server.
+
+- **`onSSR: "error"` (default)** — the build fails and lists all non-exportable routes. Recommended to prevent silent production gaps.
+- **`onSSR: "skip"`** — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism.
+
+```bash
+# Example error output with onSSR: "error"
+✗ Static export failed: the following routes cannot be statically exported:
+  - /dashboard (mode=ssr)
+  - /feed      (mode=isr)
+Set onSSR: "skip" in furin.config.ts to skip them instead.
+```
+
+### Deploying to GitHub Pages
+
+Add a workflow file at `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run build:static
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
+> **Tip:** the generated `404.html` is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client-side router take over.
+
+---
+
+## Bun Build (Live Server)
 
 Use the Furin CLI through your package script or directly:
 
@@ -861,9 +1011,7 @@ Use the Furin CLI through your package script or directly:
 bunx furin build --target bun
 ```
 
-The docs app itself uses a workspace-local script, but the output shape is the same.
-
-## Output Layout
+### Output Layout
 
 The Bun build writes to `.furin/build/bun`:
 
@@ -876,7 +1024,7 @@ The Bun build writes to `.furin/build/bun`:
 └── manifest.json
 ```
 
-## Compiled Binaries
+### Compiled Binaries
 
 If you pass `--compile server`, Furin writes a server binary and keeps the built client assets on disk.
 
@@ -890,7 +1038,7 @@ If you pass `--compile embed`, Furin writes a self-contained server binary and r
 bunx furin build --target bun --compile embed
 ```
 
-## Production Runtime
+### Production Runtime
 
 For disk-based builds:
 
@@ -898,11 +1046,11 @@ For disk-based builds:
 - `public/` is copied into `.furin/build/bun/public`
 - `FURIN_CLIENT_DIR` can override the client asset directory at runtime
 
-Example:
-
 ```bash
 FURIN_CLIENT_DIR=/absolute/path/to/client bun ./.furin/build/bun/server.js
 ```
+
+---
 
 ## Planned Targets
 
@@ -938,15 +1086,20 @@ That keeps comments out of your application database.
 
 # Dev Mode HMR
 
-Furin's development flow splits server rendering from the client bundle so page edits stay fast without forcing a full Bun restart on every change.
+Furin's development flow separates server-side rendering from the browser bundle so edits stay fast while SSR still reflects fresh code on the next request.
+
+The implementation has two goals:
+
+1. Keep ordinary page edits on the fast React Fast Refresh path.
+2. Keep SSR and the browser bundle on a single React and router runtime, even after Bun hot reloads part of the server graph.
 
 ## How It Works
 
 ```text
 FILE EDIT (pages/index.tsx)
          │
-         ├──► Bun [serve.static] dev bundler          ──► WebSocket ──► Browser React Fast Refresh (~20ms)
-         │    (watches client bundle files)
+         ├──► Bun dev bundler for /_bun_hmr_entry     ──► WebSocket ──► Browser React Fast Refresh (~20ms)
+         │    (watches the client entry and its imports)
          │
          └──► bun --hot ?                             NOT triggered — page files never enter
                                                       the server module graph (virtual namespace)
@@ -959,13 +1112,13 @@ SERVER MODULE GRAPH                    CLIENT BUNDLE
 server.ts                              .furin/_hydrate.tsx
   └─ furin.ts                            ├─ pages/index.tsx   ← watched
        ├─ router.ts                      ├─ pages/root.tsx    ← watched
-       │    └─ pages/root.tsx (layout)   └─ pages/docs/*.tsx  ← watched
+       │    └─ dynamic SSR imports        └─ pages/docs/*.tsx  ← watched
        └─ dev-page-plugin.ts
 
        pages/index.tsx ← NOT here ✓
 ```
 
-The key idea is simple: page modules stay out of Bun's hot server graph. That lets the browser refresh client code immediately while SSR still re-imports the page from disk on each request.
+The key idea is simple: page modules are loaded through a virtual namespace for SSR, not through Bun's normal hot server graph. That keeps page edits on the browser HMR path while the server still imports fresh source from disk on demand.
 
 ## Request Flow
 
@@ -980,7 +1133,13 @@ GET /
  │             dev-page-plugin onLoad
  │                 1. strip ?t=… → read file from disk (always fresh)
  │                 2. rewrite ./relative imports → /absolute/paths
- │                 3. return source, loader:"tsx"
+ │                 3. rewrite bare imports from the page directory
+ │                 4. rewrite React / react-dom imports to singleton absolute paths
+ │                 5. inject JSX helper imports
+ │                 6. return transpiled JS
+ │
+ ├─ import(`pages/root.tsx?furin-server&t=<now>`)
+ │         └─► same singleton-safe dev pipeline, so the root layout is also reloaded fresh
  │
  ├─ renderSSR(devRoute, ctx, root)
  │       ├─ run loaders (DB / API / fs, server-side only)
@@ -996,19 +1155,55 @@ GET /
 | What changed | `--hot` restart | Client HMR | Typical time |
 |---|---|---|---|
 | `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
-| `pages/root.tsx` root layout | Yes, it is in the server graph | Yes | ~600ms |
+| `pages/root.tsx` root layout | No full server restart, but SSR re-imports it fresh on the next request | Yes | ~20-600ms depending on rebundle |
 | `server.ts` or `api/` | Yes | No | ~600ms |
-| `components/` | Only if imported by the server at startup | Yes | Varies |
+| local components used only by page SSR | No full server restart | Yes | Varies |
+| core runtime files (`src/link.tsx`, router internals, etc.) | Yes, they are in the server graph | Usually yes | ~600ms |
 
 ## Internal Pieces
 
 | File | Role |
-|---|---|
-| `src/dev-page-plugin.ts` | Virtual namespace plugin, cache busting with `?t=<ms>`, and relative-to-absolute import rewriting |
-| `src/router.ts` | Skips eager page imports during scanning and appends `?furin-server&t=<now>` per request |
+| --- | --- |
+| `src/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
+| `src/router.ts` | Avoids eager page imports during scanning, imports pages with `?furin-server&t=<now>`, and reloads `root.tsx` fresh in dev SSR |
 | `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
-| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry with route-level dynamic imports |
+| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry and imports `RouterProvider` through `@teyik0/furin/link` so the client bundle keeps one router context |
 | `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+
+## Why React Must Stay Singleton
+
+The most fragile part of Bun dev mode is not route matching. It is module identity.
+
+React hooks only work when every module in the render graph shares the same React dispatcher object. If `react-dom/server` uses one React instance and a hot-reloaded page or layout imports a different one, hook calls fail with errors such as:
+
+- `Invalid hook call`
+- `resolveDispatcher().useState === null`
+
+That can happen in development when Bun re-evaluates part of the module graph and the same package is reached through different logical import paths.
+
+Furin avoids that by rewriting:
+
+- `react`
+- `react/jsx-runtime`
+- `react/jsx-dev-runtime`
+- `react-dom`
+- `react-dom/server`
+- `react-dom/client`
+
+to the same resolved on-disk paths during dev SSR loading.
+
+## Why The Client Router Must Also Stay Singleton
+
+There is a second singleton requirement on the browser side: `RouterProvider` and `Link` must come from the same `@teyik0/furin/link` module instance.
+
+If the client entry imports `RouterProvider` through one path and application code imports `Link` through another, Bun can bundle two copies of `link.tsx`. That creates two different `RouterContext` objects:
+
+- the provider writes to one context
+- the link reads from the other
+
+When that happens, SPA navigation silently falls back to full page reloads because `Link` behaves as if there were no router provider.
+
+That is why the hydrate entry imports `RouterProvider` from `@teyik0/furin/link` instead of an absolute file path.
 
 ## Why The Timestamp Matters
 
@@ -1024,6 +1219,8 @@ After a file edit, the browser would receive fresh HMR code while SSR would stil
 
 This setup gives Furin two useful properties in development:
 
-- component edits stay in the fast React Fast Refresh path
-- SSR still reflects the latest page source on the next request
+- ordinary page edits stay on the fast React Fast Refresh path
+- SSR re-imports pages and the root layout from fresh disk source
+- React hooks remain stable across hot reload boundaries
+- client-side navigation stays on SPA transitions instead of degrading into full reloads
 - template URLs stay aligned with the latest client rebundle

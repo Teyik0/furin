@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildApp } from "../src/build/index.ts";
+import { __resetCacheState } from "../src/render/cache.ts";
+import { __resetTemplateState } from "../src/render/template.ts";
 import { runCli } from "./helpers/run-cli.ts";
 import { createTmpApp, removeAppPath, writeAppFile } from "./helpers/tmp-app.ts";
 import { withBuildStub } from "./helpers/with-build-stub.ts";
@@ -21,6 +23,8 @@ function readJsonFile<T>(path: string): T {
 
 afterEach(() => {
   Bun.build = originalBunBuild;
+  __resetTemplateState();
+  __resetCacheState();
   while (tmpApps.length > 0) {
     tmpApps.pop()?.cleanup();
   }
@@ -147,6 +151,44 @@ describe.serial("CLI/build Bun feature", () => {
     // Bundle must contain baked route patterns
     expect(serverJs).toContain('"/"');
     expect(serverJs).toContain('"/blog/:slug"');
+  });
+
+  test("buildApp({ target: 'static' }) pre-renders SSG routes via buildApp", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const distDir = join(app.path, "dist");
+
+    const result = await withBuildStub(() =>
+      buildApp({
+        rootDir: app.path,
+        target: "static",
+        staticConfig: { outDir: distDir },
+      })
+    );
+
+    expect(result.targets.static).toBeDefined();
+    expect(existsSync(join(distDir, "index.html"))).toBe(true);
+  });
+
+  test("buildApp({ target: 'bun', serverEntry }) uses the explicit entry path", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+
+    const result = await withBuildStub(() =>
+      buildApp({
+        rootDir: app.path,
+        target: "bun",
+        serverEntry: "src/server.ts",
+      })
+    );
+
+    expect(result.targets.bun).toBeDefined();
+  });
+
+  test("buildApp({ target: 'vercel' }) throws planned-but-not-implemented", () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+
+    expect(buildApp({ rootDir: app.path, target: "vercel" as any })).rejects.toThrow(
+      "planned but not implemented"
+    );
   });
 
   test("buildApp passes user plugins to Bun.build() calls", async () => {
