@@ -373,7 +373,16 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout, buildI
 async function collectPageFilePaths(dir: string): Promise<string[]> {
   const files: string[] = [];
 
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
+  // Sort by name so route order is reproducible across platforms / restarts.
+  // readdir is hash-based on Linux ext4, alphabetical on macOS APFS — without
+  // this sort, two pages that compile to the same URL pattern would resolve
+  // non-deterministically depending on host. Sorting also makes the eventual
+  // "duplicate route pattern" error reproducible (always the same winner).
+  const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  for (const entry of entries) {
     const absolutePath = join(dir, entry.name);
 
     if (entry.isDirectory()) {

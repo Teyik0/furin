@@ -475,6 +475,13 @@ function revalidateInBackground(
       });
     })
     .catch((err: unknown) => {
+      // renderForPath throws a Response when a loader called ctx.redirect().
+      // That's an intentional control-flow signal, not an error — silently
+      // drop it so we don't pollute logs with false positives. The next real
+      // request will hit the loader again and return the redirect normally.
+      if (err instanceof Response) {
+        return;
+      }
       console.error("[furin] ISR background revalidation failed:", err);
     })
     .finally(() => {
