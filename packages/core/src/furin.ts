@@ -13,7 +13,7 @@ import {
   getBuildId,
   setBuildId,
 } from "./render/cache.ts";
-import { warmSSGCache } from "./render/index.ts";
+import { renderRootNotFound, warmSSGCache } from "./render/index.ts";
 import { setProductionTemplateContent, setProductionTemplatePath } from "./render/template.ts";
 import { createRoutePlugin, loadProdRoutes } from "./router.ts";
 import { IS_DEV } from "./runtime-env.ts";
@@ -135,6 +135,18 @@ async function setupProdTemplate(
 }
 
 /**
+ * Wraps an Elysia app's `handle` method so that every request runs inside a
+ * fresh `AsyncLocalStorage` scope. This isolates `pendingInvalidations` per
+ * request, preventing concurrent requests from stealing each other's
+ * `revalidatePath()` calls.
+ */
+function wrapWithRequestScope(app: AnyElysia): Elysia {
+  const original = app.handle.bind(app);
+  app.handle = (request: Request) => _runWithRequestInvalidationScope(() => original(request));
+  return app;
+}
+
+/**
  * Main Furin plugin.
  *
  * Returns a standalone Elysia instance (async function) so that routes are
@@ -148,19 +160,6 @@ async function setupProdTemplate(
  *   .listen(3000)
  * ```
  */
-
-/**
- * Wraps an Elysia app's `handle` method so that every request runs inside a
- * fresh `AsyncLocalStorage` scope. This isolates `pendingInvalidations` per
- * request, preventing concurrent requests from stealing each other's
- * `revalidatePath()` calls.
- */
-function wrapWithRequestScope(app: AnyElysia): Elysia {
-  const original = app.handle.bind(app);
-  app.handle = (request: Request) => _runWithRequestInvalidationScope(() => original(request));
-  return app;
-}
-
 export async function furin({
   pagesDir,
   logger,
@@ -247,6 +246,11 @@ export async function furin({
 
     const devApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
       .use(loggerPlugin)
+      .onError(async ({ code }) => {
+        if (code === "NOT_FOUND") {
+          return await renderRootNotFound(root);
+        }
+      })
       .onAfterHandle({ as: "global" }, ({ set }) => {
         // Forward pending revalidation paths so the client can bust its prefetch cache
         const pending = consumePendingInvalidations();
@@ -287,6 +291,11 @@ export async function furin({
 
   const prodApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
     .use(loggerPlugin)
+    .onError(async ({ code }) => {
+      if (code === "NOT_FOUND") {
+        return await renderRootNotFound(root);
+      }
+    })
     .onAfterHandle({ as: "global" }, ({ path, set }) => {
       // Content-hashed client assets are permanently cacheable — browsers never need to
       // revalidate them because any change produces a new filename.
@@ -355,5 +364,14 @@ export async function furin({
 }
 
 // ── Public API re-export ──────────────────────────────────────────────────────
-// biome-ignore lint/performance/noBarrelFile: intentional — furin.ts is the public package entry
+// biome-ignore-start lint/performance/noBarrelFile: intentional — furin.ts is the public package entry
+export type { ErrorComponent, ErrorProps } from "./error.ts";
+export type {
+  NotFoundComponent,
+  NotFoundOptions,
+  NotFoundProps,
+} from "./not-found.ts";
+export { isNotFoundError, notFound } from "./not-found.ts";
 export { revalidatePath, setCachePurger } from "./render/cache.ts";
+export { renderRootNotFound } from "./render/index.ts";
+// biome-ignore-end lint/performance/noBarrelFile: intentional — furin.ts is the public package entry

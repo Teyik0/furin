@@ -1,11 +1,14 @@
 import type { Context } from "elysia";
 import type { RuntimeRoute } from "../client";
 import { useLogger } from "../context-logger.ts";
+import { type FurinNotFoundError, isNotFoundError } from "../not-found.ts";
 import type { ResolvedRoute } from "../router";
 
 export type LoaderResult =
   | { type: "data"; data: Record<string, unknown>; headers: Record<string, string> }
-  | { type: "redirect"; response: Response };
+  | { type: "redirect"; response: Response }
+  | { type: "not-found"; error: FurinNotFoundError; headers: Record<string, string> }
+  | { type: "error"; error: unknown; headers: Record<string, string> };
 
 /**
  * Wraps the Elysia context so that any property NOT present on `ctx` is
@@ -109,9 +112,16 @@ export async function runLoaders(
 
     return { type: "data", data, headers };
   } catch (err) {
+    if (isNotFoundError(err)) {
+      const headers: Record<string, string> = {};
+      Object.assign(headers, ctx.set.headers);
+      return { type: "not-found", error: err, headers };
+    }
     if (err instanceof Response) {
       return { type: "redirect", response: err };
     }
-    throw err;
+    const headers: Record<string, string> = {};
+    Object.assign(headers, ctx.set.headers);
+    return { type: "error", error: err, headers };
   }
 }

@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { RouterContext, type RouterContextValue } from "../link.tsx";
+import { FurinNotFoundError } from "../not-found.ts";
 import type { RootLayout } from "../router.ts";
 import { assembleHTML, resolvePath, splitTemplate, streamToString } from "./assemble.ts";
 import {
@@ -11,7 +12,7 @@ import {
   setISRCache,
   setSSGCache,
 } from "./cache.ts";
-import { buildElement } from "./element.tsx";
+import { buildElement, buildErrorElement, buildNotFoundElement } from "./element.tsx";
 import { runLoaders } from "./loaders.ts";
 import { buildHeadInjection, safeJson } from "./shell.ts";
 import { getDevTemplate, getProductionTemplate } from "./template.ts";
@@ -45,6 +46,7 @@ interface PreparedRender {
   headData: string;
   headers: Record<string, string>;
   loader_ms: number;
+  status: number;
   template: string;
 }
 
@@ -60,7 +62,8 @@ async function prepareRender(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
-  basePath?: string
+  basePath?: string,
+  throwOnFailure = false
 ): Promise<PreparedRender | Response> {
   const loaderStart = Date.now();
   const loaderResult = await runLoaders(route, ctx, root.route);
@@ -70,7 +73,17 @@ async function prepareRender(
     return loaderResult.response;
   }
 
-  const { data, headers } = loaderResult;
+  // Build-time paths (SSG) opt into re-throwing so CI fails loudly instead of
+  // silently generating a 404/500 page for buggy loaders.
+  if (throwOnFailure && (loaderResult.type === "not-found" || loaderResult.type === "error")) {
+    throw loaderResult.error;
+  }
+
+  const isNotFound = loaderResult.type === "not-found";
+  const isError = loaderResult.type === "error";
+  const isFallback = isNotFound || isError;
+  const data = isFallback ? {} : loaderResult.data;
+  const headers = loaderResult.headers;
   const componentProps = {
     ...data,
     params: ctx.params,
@@ -78,7 +91,7 @@ async function prepareRender(
     path: ctx.path,
   };
 
-  const headData = buildHeadInjection(route.page?.head?.(componentProps));
+  const headData = isFallback ? "" : buildHeadInjection(route.page?.head?.(componentProps));
 
   // An explicitly-set production template (static pre-render, compiled Bun server)
   // always wins over the IS_DEV flag.  This decouples template resolution from the
@@ -88,7 +101,17 @@ async function prepareRender(
     prodTemplate ??
     (IS_DEV ? await getDevTemplate(new URL(ctx.request.url).origin) : generateIndexHtml());
 
-  let element = buildElement(route, componentProps, root.route);
+  let element: ReactNode;
+  let status = 200;
+  if (loaderResult.type === "not-found") {
+    element = buildNotFoundElement(route.notFound ?? root.notFound, loaderResult.error);
+    status = 404;
+  } else if (loaderResult.type === "error") {
+    element = buildErrorElement(route.error ?? root.error, loaderResult.error);
+    status = 500;
+  } else {
+    element = buildElement(route, componentProps, root.route);
+  }
 
   // During static pre-render, inject a RouterContext so Link components render
   // hrefs with the correct basePath prefix and active-state detection works.
@@ -113,7 +136,7 @@ async function prepareRender(
     element = createElement(RouterContext.Provider, { value: ssrContext }, element);
   }
 
-  return { componentProps, element, headData, headers, loader_ms, template };
+  return { componentProps, element, headData, headers, loader_ms, status, template };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -138,7 +161,7 @@ async function renderForPath(
   } as Context;
 
   const prepared = await runInSyntheticRenderScope(
-    () => prepareRender(route, ctx, root, basePath),
+    () => prepareRender(route, ctx, root, basePath, true),
     { route: route.pattern }
   );
   if (prepared instanceof Response) {
@@ -249,10 +272,35 @@ export async function renderSSR(
 
   // Split template around placeholders
   const { headPre, bodyPre, bodyPost } = splitTemplate(template);
-  const dataScript = `<script id="__FURIN_DATA__" type="application/json">${safeJson(componentProps)}</script>`;
 
-  // Start React render without awaiting allReady (streaming)
-  const reactStream = await renderToReadableStream(element);
+  // Shell-render gate: if the React shell (pre-Suspense render) throws, recover
+  // by rendering the nearest error.tsx. If THAT also throws, fall back to the
+  // built-in DefaultErrorComponent to break recursion.
+  let reactStream: ReadableStream<Uint8Array>;
+  let status = prepared.status;
+  let shellErrored = false;
+  try {
+    reactStream = await renderToReadableStream(element);
+  } catch (shellError) {
+    shellErrored = true;
+    status = 500;
+    try {
+      reactStream = await renderToReadableStream(
+        buildErrorElement(route.error ?? root.error, shellError)
+      );
+    } catch {
+      // User's error.tsx also threw — render the built-in default which is
+      // pure markup and cannot crash.
+      reactStream = await renderToReadableStream(buildErrorElement(undefined, shellError));
+    }
+  }
+
+  // In error-recovery mode, don't inject loader data (it may contain the
+  // failing state that caused the crash). Use an empty payload so rehydration
+  // is a no-op rather than repeating the error.
+  const dataScript = `<script id="__FURIN_DATA__" type="application/json">${safeJson(
+    shellErrored ? {} : componentProps
+  )}</script>`;
 
   // Pipe head + React stream + tail into a single ReadableStream
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -274,11 +322,43 @@ export async function renderSSR(
   })().catch((err) => writer.abort(err));
 
   return new Response(readable, {
+    status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
       ...headers,
     },
+  });
+}
+
+// ── Catch-all 404 ────────────────────────────────────────────────────────────
+
+/**
+ * Renders the root-level not-found component into a complete 404 HTML Response.
+ * Used by the Elysia `.onError` catch-all when no route matches the request URL.
+ *
+ * Skips the dev loopback template fetch (would require a listening server) and
+ * always uses the production shell. If the user's not-found.tsx itself throws,
+ * falls back to the built-in DefaultNotFoundComponent to break recursion.
+ */
+export async function renderRootNotFound(root: RootLayout): Promise<Response> {
+  const template = getProductionTemplate() ?? generateIndexHtml();
+  const notFoundError = new FurinNotFoundError();
+
+  let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
+  try {
+    reactStream = await renderToReadableStream(buildNotFoundElement(root.notFound, notFoundError));
+  } catch {
+    // User's not-found.tsx crashed — fall back to the built-in default.
+    reactStream = await renderToReadableStream(buildNotFoundElement(undefined, notFoundError));
+  }
+  await reactStream.allReady;
+  const reactHtml = await streamToString(reactStream);
+  const html = assembleHTML(template, "", reactHtml, {});
+
+  return new Response(html, {
+    status: 404,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
 

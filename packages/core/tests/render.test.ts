@@ -228,6 +228,57 @@ describe("render.tsx", () => {
       }
     });
 
+    test("handles arbitrary throw as error result", async () => {
+      const withLoaderRoute = await getRoute("/with-loader");
+      const root = await getRoot();
+
+      const ctx = createMockLoaderContext({ path: "/with-loader" });
+      ctx.set.headers["x-loader-ran"] = "true";
+
+      const boom = new Error("kaboom");
+      const customRoute = {
+        ...withLoaderRoute,
+        page: {
+          ...withLoaderRoute.page,
+          loader: () => {
+            throw boom;
+          },
+        },
+      } as ResolvedRoute;
+
+      const result = await runLoaders(customRoute, ctx, root.route);
+
+      expect(result.type).toBe("error");
+      if (result.type === "error") {
+        expect(result.error).toBe(boom);
+        expect(result.headers["x-loader-ran"]).toBe("true");
+      }
+    });
+
+    test("handles throw notFound() as not-found result", async () => {
+      const { notFound } = await import("../src/not-found");
+      const withLoaderRoute = await getRoute("/with-loader");
+      const root = await getRoot();
+
+      const ctx = createMockLoaderContext({ path: "/with-loader" });
+
+      const customRoute = {
+        ...withLoaderRoute,
+        page: {
+          ...withLoaderRoute.page,
+          loader: () => notFound({ message: "Post gone", data: { slug: "missing" } }),
+        },
+      } as ResolvedRoute;
+
+      const result = await runLoaders(customRoute, ctx, root.route);
+
+      expect(result.type).toBe("not-found");
+      if (result.type === "not-found") {
+        expect(result.error.message).toBe("Post gone");
+        expect(result.error.data).toEqual({ slug: "missing" });
+      }
+    });
+
     describe("parent data as individual Promises", () => {
       test("child loader receives parent field as awaitable Promise", async () => {
         let capturedToken: unknown;
@@ -657,7 +708,7 @@ describe("render.tsx", () => {
   });
 
   describe("error handling", () => {
-    test("runLoaders throws non-Response errors", async () => {
+    test("runLoaders classifies non-Response errors as error result", async () => {
       const withLoaderRoute = await getRoute("/with-loader");
       const root = await getRoot();
 
@@ -673,7 +724,12 @@ describe("render.tsx", () => {
         },
       } as ResolvedRoute;
 
-      expect(runLoaders(customRoute, ctx, root.route)).rejects.toThrow("Loader error");
+      const result = await runLoaders(customRoute, ctx, root.route);
+
+      expect(result.type).toBe("error");
+      if (result.type === "error") {
+        expect((result.error as Error).message).toBe("Loader error");
+      }
     });
 
     test("runLoaders runs rootLayout loader and merges headers", async () => {

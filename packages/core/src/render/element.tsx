@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { RuntimeRoute } from "../client";
+import type { ErrorComponent } from "../error";
+import type { FurinNotFoundError, NotFoundComponent } from "../not-found";
 import type { ResolvedRoute } from "../router";
 
 export function buildElement(
@@ -25,4 +27,43 @@ export function buildElement(
   }
 
   return element;
+}
+
+const DefaultNotFoundComponent: NotFoundComponent = () => (
+  <div>
+    <h1>404 — Not Found</h1>
+  </div>
+);
+
+export function buildNotFoundElement(
+  component: NotFoundComponent | undefined,
+  error: FurinNotFoundError
+): ReactNode {
+  const NotFound = component ?? DefaultNotFoundComponent;
+  return <NotFound error={{ message: error.message, data: error.data }} />;
+}
+
+const DefaultErrorComponent: ErrorComponent = ({ error }) => (
+  <div>
+    <h1>500 — Something went wrong</h1>
+    {error.message ? <p>{error.message}</p> : null}
+  </div>
+);
+
+function errorMessageOf(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  return "";
+}
+
+export function buildErrorElement(
+  component: ErrorComponent | undefined,
+  error: unknown
+): ReactNode {
+  const ErrorView = component ?? DefaultErrorComponent;
+  return <ErrorView error={{ message: errorMessageOf(error) }} />;
 }

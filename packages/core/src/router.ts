@@ -4,7 +4,9 @@ import { join, parse } from "node:path";
 import { type AnyElysia, type Context, Elysia, t } from "elysia";
 import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
+import type { ErrorComponent } from "./error.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
+import type { NotFoundComponent } from "./not-found.ts";
 import { resolvePath } from "./render/assemble.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
 import { IS_DEV } from "./runtime-env.ts";
@@ -16,8 +18,10 @@ import {
 } from "./utils.ts";
 
 export interface ResolvedRoute {
+  error?: ErrorComponent;
   isrCache?: { html: string; generatedAt: number; revalidate: number };
   mode: "ssr" | "ssg" | "isr";
+  notFound?: NotFoundComponent;
   page: RuntimePage;
   path: string;
   pattern: string;
@@ -26,6 +30,8 @@ export interface ResolvedRoute {
 }
 
 export interface RootLayout {
+  error?: ErrorComponent;
+  notFound?: NotFoundComponent;
   path: string;
   route: RuntimeRoute;
 }
@@ -81,11 +87,38 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   if (!rootExport.layout) {
     throw new Error("[furin] root.tsx: createRoute() has no layout.");
   }
-  return { path: rootPath, route: rootExport };
+
+  const notFound = await loadConventionComponent<NotFoundComponent>(pagesDir, "not-found");
+  const errorComponent = await loadConventionComponent<ErrorComponent>(pagesDir, "error");
+  return { path: rootPath, route: rootExport, notFound, error: errorComponent };
+}
+
+const CONVENTION_FILE_NAMES = ["not-found", "error"] as const;
+
+function isConventionFileName(name: string): boolean {
+  return (CONVENTION_FILE_NAMES as readonly string[]).includes(name);
+}
+
+async function loadConventionComponent<T>(dir: string, name: string): Promise<T | undefined> {
+  const ctx = getCompileContext();
+  for (const ext of [".tsx", ".ts", ".jsx", ".js"]) {
+    const filePath = `${dir}/${name}${ext}`;
+    if (existsSync(filePath) || ctx?.modules[filePath]) {
+      const mod = (ctx?.modules[filePath] ?? (await import(filePath))) as {
+        default?: T;
+      };
+      if (mod.default) {
+        return mod.default;
+      }
+    }
+  }
+  return;
 }
 
 async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<ResolvedRoute[]> {
   const routes: ResolvedRoute[] = [];
+  const notFoundCache = new Map<string, NotFoundComponent | undefined>();
+  const errorCache = new Map<string, ErrorComponent | undefined>();
 
   for (const absolutePath of await collectPageFilePaths(pagesDir)) {
     if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))) {
@@ -95,13 +128,32 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     const relativePath = absolutePath.replace(`${pagesDir}/`, "");
     const fileName = parse(relativePath).name;
 
-    // Skip root.tsx, and files starting with _
-    if (fileName.startsWith("_") || fileName === "root") {
+    // Skip root.tsx, convention files (not-found, error), and files starting with _
+    if (fileName.startsWith("_") || fileName === "root" || isConventionFileName(fileName)) {
       continue;
     }
 
+    const notFound = await resolveNearestConvention<NotFoundComponent>(
+      absolutePath,
+      pagesDir,
+      "not-found",
+      notFoundCache,
+      root.notFound
+    );
+
+    const errorComponent = await resolveNearestConvention<ErrorComponent>(
+      absolutePath,
+      pagesDir,
+      "error",
+      errorCache,
+      root.error
+    );
+
     if (IS_DEV) {
-      routes.push(await buildDevRoute(absolutePath, relativePath, root));
+      const devRoute = await buildDevRoute(absolutePath, relativePath, root);
+      devRoute.notFound = notFound;
+      devRoute.error = errorComponent;
+      routes.push(devRoute);
       continue;
     }
 
@@ -124,10 +176,38 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       path: absolutePath,
       routeChain,
       mode: resolveMode(page, routeChain),
+      notFound,
+      error: errorComponent,
     });
   }
 
   return routes;
+}
+
+async function resolveNearestConvention<T>(
+  pageAbsolutePath: string,
+  pagesDir: string,
+  conventionName: string,
+  cache: Map<string, T | undefined>,
+  rootFallback: T | undefined
+): Promise<T | undefined> {
+  // Walk from the page's directory up to pagesDir looking for the convention file.
+  // Cached per directory so repeated scans for sibling pages don't re-import.
+  let dir = pageAbsolutePath.slice(0, pageAbsolutePath.lastIndexOf("/"));
+  while (dir.length >= pagesDir.length) {
+    if (!cache.has(dir)) {
+      cache.set(dir, await loadConventionComponent<T>(dir, conventionName));
+    }
+    const found = cache.get(dir);
+    if (found) {
+      return found;
+    }
+    if (dir === pagesDir) {
+      break;
+    }
+    dir = dir.slice(0, dir.lastIndexOf("/"));
+  }
+  return rootFallback;
 }
 
 async function buildDevRoute(
