@@ -1,0 +1,85 @@
+apps/scaffolder/templates/full/furin.config.ts
+  3a56d6b1369bead7 5
+packages/core/src/render/digest.ts
+  ccbcf4a7a6c779cf 10-14,41-43,46-55,57-61,63-70
+packages/core/src/build/server-routes-entry.ts
+  3a56d6b1369bead7 47-48
+  ccbcf4a7a6c779cf 9,11-21,38-39
+packages/core/src/adapter/bun.ts
+  ccbcf4a7a6c779cf 11,29,32,64-85,90,110,120,142-143,150,156-157,183,187-188
+packages/core/src/build/compile-entry.ts
+  ccbcf4a7a6c779cf 11,13-23
+  3a56d6b1369bead7 110-111
+packages/core/src/build/entry-template.ts
+  ccbcf4a7a6c779cf 15,17-27,59-60,89-95,110,117
+  3a56d6b1369bead7 32-57,69-73
+packages/core/src/internal.ts
+  ccbcf4a7a6c779cf 22,25-35
+packages/core/tests/adapter-bun.test.ts
+  ccbcf4a7a6c779cf 35,51,71
+packages/core/src/config.ts
+  3a56d6b1369bead7 1,57-58,60
+apps/docs/furin.config.ts
+  3a56d6b1369bead7 14
+packages/core/src/router.ts
+  ccbcf4a7a6c779cf 68,70,84-98,109-118,125-127,166,168
+  3a56d6b1369bead7 642-643,645-646,655
+examples/weather/furin.config.ts
+  3a56d6b1369bead7 5
+examples/task-manager/furin.config.ts
+  3a56d6b1369bead7 5
+packages/core/src/build/index.ts
+  3a56d6b1369bead7 71-73,77
+  ccbcf4a7a6c779cf 119
+packages/core/src/render/index.ts
+  3a56d6b1369bead7 30,168,173,175-214,272-274,276,301,329,680,682-686
+  ccbcf4a7a6c779cf 574
+apps/scaffolder/templates/simple/furin.config.ts
+  3a56d6b1369bead7 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "3e71dd9924f1af4715d9b7966d44c159c36042f6",
+  "prompts": {
+    "085375d1be15a84f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d39da1c1-5b9b-435d-ad73-2b1d8391555b",
+        "model": "<synthetic>"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "3a56d6b1369bead7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2538f68ccffeqtuHOyP239vrOq",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 5013,
+      "total_deletions": 2590,
+      "accepted_lines": 1315,
+      "overriden_lines": 0
+    },
+    "ccbcf4a7a6c779cf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_25351d3f6ffesUMYWcKrw67ZUB",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1448,
+      "total_deletions": 1304,
+      "accepted_lines": 169,
+      "overriden_lines": 1
+    }
+  }
+}
