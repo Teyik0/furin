@@ -27,8 +27,7 @@ export { type LoaderResult, runLoaders } from "./loaders.ts";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 import type { Context } from "elysia";
-import { useLogger } from "evlog/elysia";
-import { runInSyntheticRenderScope } from "../context-logger.ts";
+import { runInSyntheticRenderScope, useLogger } from "../context-logger.ts";
 import type { ResolvedRoute } from "../router.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { LoaderContext } from "./assemble.ts";
@@ -166,40 +165,54 @@ async function prepareRender(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function renderForPath(
+function renderForPath(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout,
   origin: string,
+  mode: "ssg" | "isr",
   basePath?: string
-): Promise<RenderResult> {
-  const resolvedPath = resolvePath(route.pattern, params);
-  const ctx: Context = {
-    params,
-    query: {},
-    request: new Request(`${origin}${resolvedPath}`),
-    headers: {},
-    cookie: {},
-    redirect: (url, status = 302) => new Response(null, { status, headers: { Location: url } }),
-    set: { headers: {} },
-    path: resolvedPath,
-  } as Context;
+): Promise<RenderResult | Response> {
+  return runInSyntheticRenderScope(
+    async () => {
+      const resolvedPath = resolvePath(route.pattern, params);
+      const ctx: Context = {
+        params,
+        query: {},
+        request: new Request(`${origin}${resolvedPath}`),
+        headers: {},
+        cookie: {},
+        redirect: (url: string, status: number | undefined) =>
+          new Response(null, { status: status ?? 302, headers: { Location: url } }),
+        set: { headers: {} },
+        path: resolvedPath,
+      } as Context;
 
-  const prepared = await runInSyntheticRenderScope(
-    () => prepareRender(route, ctx, root, basePath, true),
-    { route: route.pattern }
+      const prepared = await prepareRender(route, ctx, root, basePath, true);
+      if (prepared instanceof Response) {
+        return prepared;
+      }
+
+      useLogger().set({
+        furin: {
+          render: mode,
+          route: route.pattern,
+          loader_ms: prepared.loader_ms,
+          ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
+        },
+      });
+
+      const { componentProps, element, headData, headers, template } = prepared;
+      const stream = await renderToReadableStream(element);
+      await stream.allReady;
+      const reactHtml = await streamToString(stream);
+      return {
+        html: assembleHTML(template, headData, reactHtml, componentProps),
+        headers,
+      };
+    },
+    { route: route.pattern, render: mode }
   );
-  if (prepared instanceof Response) {
-    throw prepared;
-  }
-  const { componentProps, element, headData, headers, template } = prepared;
-  const stream = await renderToReadableStream(element);
-  await stream.allReady;
-  const reactHtml = await streamToString(stream);
-  return {
-    html: assembleHTML(template, headData, reactHtml, componentProps),
-    headers,
-  };
 }
 
 // ── Core pipeline ────────────────────────────────────────────────────────────
@@ -256,17 +269,11 @@ export async function prerenderSSG(
     return cached;
   }
 
-  let result: RenderResult;
-  try {
-    result = await renderForPath(route, params, root, origin, basePath);
-  } catch (err) {
-    // A loader called ctx.redirect() — surface it so the SSG handler (and
-    // warm-up caller) can return the redirect response rather than crashing.
-    if (err instanceof Response) {
-      return err;
-    }
-    throw err;
+  const renderResult = await renderForPath(route, params, root, origin, "ssg", basePath);
+  if (renderResult instanceof Response) {
+    return renderResult;
   }
+  const result = renderResult;
 
   const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now() };
 
@@ -291,7 +298,7 @@ export async function renderSSR(
 
   useLogger().set({
     furin: {
-      render: "ssr",
+      render: route.mode,
       route: route.pattern,
       loader_ms: prepared.loader_ms,
       ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
@@ -319,7 +326,7 @@ export async function renderSSR(
     // Log the shell-render error — prepared.errorDigest (if any) was for the
     // loader-level error that never made it to the stream; this is a new one.
     useLogger().set({
-      furin: { render: "ssr", route: route.pattern, digest: finalDigest, phase: "shell" },
+      furin: { render: route.mode, route: route.pattern, digest: finalDigest, phase: "shell" },
     });
     try {
       reactStream = await renderToReadableStream(
@@ -564,6 +571,7 @@ export async function handleISR(
     if (etag) {
       ctx.set.headers.etag = etag;
     }
+    ctx.set.status = status;
     return html;
   }
 
@@ -669,8 +677,13 @@ function revalidateInBackground(
   }
   pendingRevalidations.add(cacheKey);
 
-  renderForPath(route, params, root, new URL(originalCtx.request.url).origin)
+  renderForPath(route, params, root, new URL(originalCtx.request.url).origin, "isr")
     .then((result) => {
+      if (result instanceof Response) {
+        // A loader called ctx.redirect() during ISR revalidation.
+        // Silently drop it — the next real request will hit the loader again.
+        return;
+      }
       setISRCache(cacheKey, {
         html: result.html,
         generatedAt: Date.now(),
@@ -678,13 +691,6 @@ function revalidateInBackground(
       });
     })
     .catch((err: unknown) => {
-      // renderForPath throws a Response when a loader called ctx.redirect().
-      // That's an intentional control-flow signal, not an error — silently
-      // drop it so we don't pollute logs with false positives. The next real
-      // request will hit the loader again and return the redirect normally.
-      if (err instanceof Response) {
-        return;
-      }
       console.error("[furin] ISR background revalidation failed:", err);
     })
     .finally(() => {

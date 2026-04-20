@@ -8,7 +8,7 @@ import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from ".
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import type { BuildTarget } from "../config.ts";
 import { generateProdIndexHtml } from "../render/shell.ts";
-import type { ResolvedRoute } from "../router.ts";
+import type { ResolvedRoute, RootLayout } from "../router.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
 // through package exports, and is the Web-standard API.
@@ -26,10 +26,10 @@ async function createBuildFingerprint(
   entryChunk: string,
   cssChunks: string[],
   routes: ResolvedRoute[],
-  rootPath: string,
+  root: RootLayout,
   serverEntry: string | null
 ): Promise<string> {
-  const fingerprintPaths = new Set<string>([rootPath, ...routes.map((route) => route.path)]);
+  const fingerprintPaths = new Set<string>([root.path, ...routes.map((route) => route.path)]);
   if (serverEntry) {
     fingerprintPaths.add(serverEntry);
   }
@@ -61,11 +61,33 @@ async function createBuildFingerprint(
   return [entryChunk, ...[...cssChunks].sort(), ...routeParts, ...fileParts].join("\n");
 }
 
+function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
+  const rootConventions = {
+    errorPath: root.errorPath ? toPosixPath(root.errorPath) : undefined,
+    notFoundPath: root.notFoundPath ? toPosixPath(root.notFoundPath) : undefined,
+  };
+
+  const routeMetadata: NonNullable<Parameters<typeof generateCompileEntry>[0]["routeMetadata"]> =
+    {};
+  for (const route of routes) {
+    routeMetadata[toPosixPath(route.path)] = {
+      segmentBoundaries: route.segmentBoundaries.map((b) => ({
+        depth: b.depth,
+        path: toPosixPath(b.path),
+        errorPath: b.errorPath ? toPosixPath(b.errorPath) : undefined,
+        notFoundPath: b.notFoundPath ? toPosixPath(b.notFoundPath) : undefined,
+      })),
+    };
+  }
+
+  return { rootConventions, routeMetadata };
+}
+
 export async function buildBunTarget(
   routes: ResolvedRoute[],
   rootDir: string,
   buildRoot: string,
-  rootPath: string,
+  root: RootLayout,
   serverEntry: string | null,
   options: BuildAppOptions
 ): Promise<TargetBuildManifest> {
@@ -85,7 +107,7 @@ export async function buildBunTarget(
 
   const { entryChunk, cssChunks } = await buildClient(routes, {
     outDir: targetDir,
-    rootLayout: rootPath,
+    rootLayout: root.path,
     plugins: options.plugins,
     publicPath: "/_client/",
     basePath: "",
@@ -95,7 +117,7 @@ export async function buildBunTarget(
     entryChunk,
     cssChunks,
     routes,
-    rootPath,
+    root,
     serverEntry
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
@@ -117,18 +139,22 @@ export async function buildBunTarget(
     copyDirRecursive(publicDir, targetPublicDir);
   }
 
+  const { rootConventions, routeMetadata } = buildCompileMetadata(root, routes);
+
   if (options.compile && serverEntry) {
     const clientDir = join(targetDir, "client");
     const outfile = join(targetDir, "server");
 
     const entryPath = generateCompileEntry({
       buildId,
-      rootPath,
+      rootPath: root.path,
       routes: routeManifest,
       serverEntry,
       outDir: targetDir,
       embed: options.compile === "embed" ? { clientDir } : undefined,
       publicDir,
+      rootConventions,
+      routeMetadata,
     });
 
     await Bun.build({
@@ -139,22 +165,6 @@ export async function buildBunTarget(
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
       plugins: options.plugins,
     });
-
-    // macOS: Gatekeeper kills Bun-compiled binaries because Bun appends JS code to its own
-    // signed runtime, corrupting the original Oven signature. We must remove the corrupt
-    // signature first, then re-sign ad-hoc (-s -) so macOS accepts the binary.
-    if (process.platform === "darwin") {
-      Bun.spawnSync(["codesign", "--remove-signature", outfile]);
-      const sign = Bun.spawnSync(["codesign", "-f", "-s", "-", outfile]);
-      if (sign.exitCode !== 0) {
-        console.warn(
-          `[furin] Warning: codesign failed (exit ${sign.exitCode}). ` +
-            "The binary may be killed by Gatekeeper on macOS. Run manually:\n" +
-            `  codesign --remove-signature ${outfile}\n` +
-            `  codesign -f -s - ${outfile}`
-        );
-      }
-    }
 
     console.log(`[furin] Server binary: ${outfile}`);
 
@@ -170,10 +180,12 @@ export async function buildBunTarget(
     // Disk mode: generate server.ts then bundle it into self-contained server.js
     const entryPath = generateServerRoutesEntry({
       buildId,
-      rootPath,
+      rootPath: root.path,
       routes: routeManifest,
       serverEntry,
       outDir: targetDir,
+      rootConventions,
+      routeMetadata,
     });
 
     await Bun.build({

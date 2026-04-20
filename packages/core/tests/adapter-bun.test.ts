@@ -32,7 +32,7 @@ describe.serial("buildBunTarget compile branches", () => {
         [],
         app.path,
         join(app.path, ".furin/build"),
-        join(app.path, "src/pages/root.tsx"),
+        { path: join(app.path, "src/pages/root.tsx"), route: {} as never },
         null,
         options
       )
@@ -48,7 +48,7 @@ describe.serial("buildBunTarget compile branches", () => {
         routes,
         app.path,
         join(app.path, ".furin/build"),
-        root.path,
+        root,
         join(app.path, "src/server.ts"),
         { target: "bun", compile: "server" }
       );
@@ -68,7 +68,7 @@ describe.serial("buildBunTarget compile branches", () => {
         routes,
         app.path,
         join(app.path, ".furin/build"),
-        root.path,
+        root,
         join(app.path, "src/server.ts"),
         { target: "bun", compile: "embed" }
       );

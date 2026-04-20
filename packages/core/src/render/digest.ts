@@ -7,7 +7,11 @@
  * traces or sensitive message content to the browser.
  *
  * Deterministic: identical error message + stack ⇒ identical digest across
- * restarts and processes. Uses `Bun.hash` (Wyhash64) as the backing hash.
+ * restarts, processes, and environments (server + client).
+ *
+ * Uses a pure-JS 53-bit hash so the function works identically in Bun and in
+ * the browser — `computeErrorDigest` is called from `FurinErrorBoundary`, which
+ * runs on both sides.
  */
 export function computeErrorDigest(err: unknown): string {
   let message = "";
@@ -34,17 +38,34 @@ export function computeErrorDigest(err: unknown): string {
   }
 
   const input = `${message}\n${stack}`;
-  const hex = fnv1a(input).toString(16);
-  return hex.padStart(10, "0").slice(0, 10);
+  const hash = cyrb53(input);
+  const hex = hash.toString(16).padStart(14, "0");
+  return hex.slice(0, 10);
 }
 
-function fnv1a(input: string): number {
-  let hash = 0x81_1c_9d_c5;
+/**
+ * cyrb53 (c) 2018 bryc (github.com/bryc)
+ * A fast, deterministic 53-bit string hash that works in any JS environment.
+ * Produces a Number safe for JS integer arithmetic (max 2^53 - 1).
+ * Licensed under Public Domain.
+ */
+function cyrb53(input: string): number {
+  let h1 = 0xde_ad_be_ef;
+  let h2 = 0x41_c6_ce_57;
+
   for (let i = 0; i < input.length; i++) {
-    // biome-ignore lint/suspicious/noBitwiseOperators: FNV-1a requires XOR for the hash algorithm
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01_00_01_93);
+    const ch = input.charCodeAt(i);
+    // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 hash requires XOR
+    h1 = Math.imul(h1 ^ ch, 2_654_435_761);
+    // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 hash requires XOR
+    h2 = Math.imul(h2 ^ ch, 1_597_334_677);
   }
-  // biome-ignore lint/suspicious/noBitwiseOperators: unsigned right-shift required to coerce to 32-bit unsigned integer
-  return hash >>> 0;
+
+  // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 finalization requires XOR and unsigned shift
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2_246_822_507) ^ Math.imul(h2 ^ (h2 >>> 13), 3_266_489_909);
+  // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 finalization requires XOR and unsigned shift
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2_246_822_507) ^ Math.imul(h1 ^ (h1 >>> 13), 3_266_489_909);
+
+  // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 combines 32-bit halves with bitwise AND
+  return 4_294_967_296 * (2_097_151 & h2) + (2_097_151 & h1);
 }

@@ -19,10 +19,20 @@ export interface CompileContext {
   embedded?: EmbeddedAppData;
   modules: Record<string, unknown>;
   /** Root-level conventions discovered at compile time. */
-  rootConventions?: { error?: string; notFound?: string };
+  rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
   /** Per-route metadata including pre-computed segment boundaries. */
-  routeMetadata?: Record<string, { segmentBoundaries: unknown[] }>;
+  routeMetadata?: Record<
+    string,
+    {
+      segmentBoundaries: Array<{
+        depth: number;
+        path: string;
+        errorPath?: string;
+        notFoundPath?: string;
+      }>;
+    }
+  >;
   routes: CompileContextRoute[];
 }
 

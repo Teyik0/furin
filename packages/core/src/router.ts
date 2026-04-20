@@ -65,7 +65,9 @@ export interface ResolvedRoute {
 
 export interface RootLayout {
   error?: ErrorComponent;
+  errorPath?: string;
   notFound?: NotFoundComponent;
+  notFoundPath?: string;
   path: string;
   route: RuntimeRoute;
 }
@@ -74,18 +76,26 @@ export function loadProdRoutes(ctx: CompileContext): {
   root: RootLayout;
   routes: ResolvedRoute[];
 } {
-  if (!(ctx.rootConventions && ctx.routeMetadata)) {
-    throw new Error(
-      "[furin] Production routes require compiled boundary metadata. The CompileContext is missing rootConventions or routeMetadata. Ensure the build step generates these fields."
-    );
-  }
-
   const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
   const rootExport = rootMod.route ?? rootMod.default;
   if (!(rootExport && isFurinRoute(rootExport) && rootExport.layout)) {
     throw new Error("[furin] root.tsx: createRoute() with layout not found in CompileContext.");
   }
-  const root: RootLayout = { path: ctx.rootPath, route: rootExport };
+
+  function resolveModuleComponent<T>(modPath: string | undefined): T | undefined {
+    if (!modPath) {
+      return;
+    }
+    const mod = ctx.modules[modPath] as { default?: T } | undefined;
+    return mod?.default;
+  }
+
+  const root: RootLayout = {
+    path: ctx.rootPath,
+    route: rootExport,
+    error: resolveModuleComponent(ctx.rootConventions?.errorPath),
+    notFound: resolveModuleComponent(ctx.rootConventions?.notFoundPath),
+  };
 
   const routes: ResolvedRoute[] = [];
   for (const { pattern, path, mode } of ctx.routes) {
@@ -96,14 +106,25 @@ export function loadProdRoutes(ctx: CompileContext): {
     }
     const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
     validateRouteChain(routeChain, root.route, path);
-    const meta = ctx.routeMetadata[path];
+    const meta = ctx.routeMetadata?.[path];
+    const boundaries = (meta?.segmentBoundaries ?? []).map((b) => ({
+      ...b,
+      error: resolveModuleComponent(b.errorPath),
+      notFound: resolveModuleComponent(b.notFoundPath),
+    })) as SegmentBoundary[];
+
+    const error = [...boundaries].reverse().find((b) => b.error)?.error;
+    const notFound = [...boundaries].reverse().find((b) => b.notFound)?.notFound;
+
     routes.push({
       pattern,
       page,
       path,
       routeChain,
       mode,
-      segmentBoundaries: (meta?.segmentBoundaries ?? []) as unknown as SegmentBoundary[],
+      segmentBoundaries: boundaries,
+      error,
+      notFound,
     });
   }
 
@@ -142,7 +163,9 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
     path: rootPath,
     route: rootExport,
     notFound: notFoundEntry?.component,
+    notFoundPath: notFoundEntry?.path,
     error: errorEntry?.component,
+    errorPath: errorEntry?.path,
   };
 }
 
@@ -616,9 +639,11 @@ async function collectPageFilePaths(dir: string): Promise<string[]> {
 
 export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr" | "ssg" | "isr" {
   const routeConfig = page._route;
+  const mode = routeConfig.mode ?? (page as { mode?: string }).mode;
+  const revalidate = routeConfig.revalidate ?? (page as { revalidate?: number }).revalidate;
 
-  if (routeConfig.mode) {
-    return routeConfig.mode;
+  if (mode) {
+    return mode as "ssr" | "ssg" | "isr";
   }
 
   const hasLoader = routeChain.some((r) => r.loader) || !!page.loader;
@@ -627,7 +652,7 @@ export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr
     return "ssg";
   }
 
-  if (routeConfig.revalidate && routeConfig.revalidate > 0) {
+  if (revalidate && revalidate > 0) {
     return "isr";
   }
 

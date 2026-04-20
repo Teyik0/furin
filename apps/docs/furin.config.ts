@@ -11,7 +11,7 @@ import mdxPlugin from "./src/lib/bun-mdx-plugin";
  *                user.github.io/elysion/) and outDir to "dist".
  */
 export default defineConfig({
-  plugins: [tailwind, mdxPlugin],
+  plugins: [{ ...tailwind, buildOnly: true }, mdxPlugin],
   static: {
     basePath: "/furin",
     outDir: "dist",

@@ -6,7 +6,19 @@ import { ensureDir } from "./shared";
 export interface ServerRoutesEntryOptions {
   buildId?: string;
   outDir: string;
+  rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
+  routeMetadata?: Record<
+    string,
+    {
+      segmentBoundaries: Array<{
+        depth: number;
+        path: string;
+        errorPath?: string;
+        notFoundPath?: string;
+      }>;
+    }
+  >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
 }
@@ -23,7 +35,8 @@ export interface ServerRoutesEntryOptions {
  * the self-contained `server.js` bundle, then deletes this file.
  */
 export function generateServerRoutesEntry(options: ServerRoutesEntryOptions): string {
-  const { buildId, outDir, rootPath, routes, serverEntry } = options;
+  const { buildId, outDir, rootPath, routes, serverEntry, rootConventions, routeMetadata } =
+    options;
   ensureDir(outDir);
   const source = buildEntrySource({
     buildId,
@@ -31,6 +44,8 @@ export function generateServerRoutesEntry(options: ServerRoutesEntryOptions): st
     rootPath,
     routes,
     serverEntry,
+    rootConventions,
+    routeMetadata,
   });
 
   // Named "server.ts" so Bun.build() outputs "server.js"
