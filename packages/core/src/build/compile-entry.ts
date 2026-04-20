@@ -8,7 +8,19 @@ export interface CompileEntryOptions {
   embed?: { clientDir: string };
   outDir: string;
   publicDir?: string;
+  rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
+  routeMetadata?: Record<
+    string,
+    {
+      segmentBoundaries: Array<{
+        depth: number;
+        path: string;
+        errorPath?: string;
+        notFoundPath?: string;
+      }>;
+    }
+  >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
 }
@@ -95,6 +107,8 @@ export function generateCompileEntry(options: CompileEntryOptions): string {
     serverEntry,
     extraImports: assetImports,
     extraContext: embeddedBlock,
+    rootConventions: options.rootConventions,
+    routeMetadata: options.routeMetadata,
   });
 
   const entryPath = join(outDir, "_compile-entry.ts");

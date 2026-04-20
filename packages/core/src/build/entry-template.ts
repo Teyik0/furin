@@ -12,13 +12,52 @@ export interface EntryTemplateOptions {
   extraContext?: string[];
   extraImports?: string[];
   headerComment: string;
+  rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
+  routeMetadata?: Record<
+    string,
+    {
+      segmentBoundaries: Array<{
+        depth: number;
+        path: string;
+        errorPath?: string;
+        notFoundPath?: string;
+      }>;
+    }
+  >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
 }
 
+function collectConventionPaths(
+  rootConventions: EntryTemplateOptions["rootConventions"],
+  routeMetadata: EntryTemplateOptions["routeMetadata"]
+): string[] {
+  const paths: string[] = [];
+  if (rootConventions?.errorPath) {
+    paths.push(rootConventions.errorPath);
+  }
+  if (rootConventions?.notFoundPath) {
+    paths.push(rootConventions.notFoundPath);
+  }
+  if (routeMetadata) {
+    for (const meta of Object.values(routeMetadata)) {
+      for (const seg of meta.segmentBoundaries) {
+        if (seg.errorPath) {
+          paths.push(seg.errorPath);
+        }
+        if (seg.notFoundPath) {
+          paths.push(seg.notFoundPath);
+        }
+      }
+    }
+  }
+  return [...new Set(paths)];
+}
+
 export function buildEntrySource(options: EntryTemplateOptions): string {
-  const { buildId, headerComment, rootPath, routes, serverEntry } = options;
+  const { buildId, headerComment, rootPath, routes, serverEntry, rootConventions, routeMetadata } =
+    options;
   let { extraImports, extraContext } = options;
   if (extraImports === undefined) {
     extraImports = [];
@@ -27,7 +66,11 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     extraContext = [];
   }
 
-  const allModulePaths = [rootPath, ...routes.map((r) => r.path)];
+  const allModulePaths = [
+    rootPath,
+    ...routes.map((r) => r.path),
+    ...collectConventionPaths(rootConventions, routeMetadata),
+  ];
   const moduleImports: string[] = [];
   const moduleEntries: string[] = [];
 
@@ -43,6 +86,13 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
       `    { pattern: ${JSON.stringify(r.pattern)}, path: ${JSON.stringify(r.path.replace(/\\/g, "/"))}, mode: ${JSON.stringify(r.mode)} },`
   );
 
+  const rootConventionsLine = rootConventions
+    ? `  rootConventions: ${JSON.stringify(rootConventions)},`
+    : "";
+  const routeMetadataLine = routeMetadata
+    ? `  routeMetadata: ${JSON.stringify(routeMetadata)},`
+    : "";
+
   const lines = [
     headerComment,
     `import { __setCompileContext } from ${JSON.stringify(INTERNAL_MODULE_PATH)};`,
@@ -57,12 +107,14 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     "__setCompileContext({",
     `  buildId: ${JSON.stringify(buildId ?? "")},`,
     `  rootPath: ${JSON.stringify(rootPath.replace(/\\/g, "/"))},`,
+    rootConventionsLine,
     "  modules: {",
     ...moduleEntries,
     "  },",
     "  routes: [",
     ...routeEntries,
     "  ],",
+    routeMetadataLine,
     ...extraContext,
     "});",
     "",

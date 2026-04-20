@@ -68,14 +68,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
   // doesn't exist in the runtime context) are skipped silently — they only
   // affect the Bun.build() client bundle, not server-side rendering.
   for (const plugin of options.plugins ?? []) {
+    if ((plugin as import("../config").FurinPlugin).buildOnly) {
+      continue;
+    }
     try {
       Bun.plugin(plugin);
     } catch (err) {
-      // Build-only plugins (e.g. bun-plugin-tailwind uses onBeforeParse which
-      // does not exist in the runtime context) are expected to throw here —
-      // they only affect the Bun.build() client bundle, not server-side rendering.
-      // Log at debug level so genuine plugin registration errors remain visible.
-      console.debug("[furin] Skipped build-only plugin at runtime:", err);
+      console.debug("[furin] Skipped plugin at runtime:", err);
     }
   }
 
@@ -117,7 +116,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
           routes,
           rootDir,
           buildRoot,
-          root.path,
+          root,
           serverEntry,
           options
         );
