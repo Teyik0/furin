@@ -18,6 +18,19 @@ export function computeErrorDigest(err: unknown): string {
     stack = err.stack ?? "";
   } else if (typeof err === "string") {
     message = err;
+  } else {
+    // Non-Error, non-string throws (e.g. `throw { code: 401 }`, `throw 42`,
+    // `throw null`). Without this branch every such value would collapse to
+    // the same empty `message`/`stack` and therefore the same digest, defeating
+    // the whole point of correlating distinct failures with distinct IDs.
+    // Prefer JSON.stringify for stable shape-aware hashing of plain objects;
+    // fall back to String(err) when the value isn't JSON-serialisable
+    // (circular refs, BigInt, symbols, …).
+    try {
+      message = JSON.stringify(err) ?? String(err);
+    } catch {
+      message = String(err);
+    }
   }
 
   const input = `${message}\n${stack}`;

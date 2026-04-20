@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -13,6 +14,7 @@ import type { RuntimeRoute } from "./client";
 import type { ErrorComponent } from "./error";
 import type { NotFoundComponent } from "./not-found";
 import { FurinErrorBoundary, FurinNotFoundBoundary } from "./render/boundaries.tsx";
+import { DefaultNotFoundScreen } from "./render/default-screens.tsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -348,7 +350,25 @@ export interface RouterProviderProps {
    * error digest to correlate).
    */
   initialDigest: string | undefined;
-  initialMatch: LoadedClientRoute;
+  /**
+   * The route matched at hydration time. `null` is a valid value ONLY when
+   * `initialNotFound` is also provided — it signals the initial URL didn't
+   * match any registered route (direct load to an unknown URL). The provider
+   * then mounts in a "not-found" state so the root `not-found.tsx` hydrates
+   * inside a live RouterContext — critical for Links in the not-found UI to
+   * participate in SPA navigation instead of triggering a full-page reload.
+   */
+  initialMatch: LoadedClientRoute | null;
+  /**
+   * When set, the provider boots into the inline not-found state as if a
+   * prior SPA navigation hit a 404. Callers set this when the server-rendered
+   * HTML carries `__FURIN_DATA__.__furinStatus === 404` — either because the
+   * loader threw `notFound()` (rare at hydration time) or, more commonly,
+   * because the URL didn't match any client route and `initialMatch` is
+   * `null`. In the unmatched-URL case the depth-0 `rootBoundaries` are used
+   * as the boundary chain, matching the server's `renderRootNotFound` choice.
+   */
+  initialNotFound: { data?: unknown; message?: string } | undefined;
   /** Maximum number of prefetch cache entries. Oldest entry is evicted when exceeded. Default: 50. */
   prefetchCacheSize?: number;
   root: RuntimeRoute | null;
@@ -359,7 +379,17 @@ interface RouterState {
   data: Record<string, unknown>;
   /** The canonical href after server-side redirects (e.g. query-default redirect). */
   finalHref?: string;
-  match: LoadedClientRoute;
+  /**
+   * The currently rendered route.
+   *
+   * `null` is a valid value ONLY when `notFound` is also set — it signals the
+   * initial URL didn't match any registered route (direct load to an unknown
+   * URL). In that case the provider renders the root `not-found.tsx` directly
+   * and waits for the next `navigate()` call to populate `match`. Every other
+   * state (including loader-triggered `notFound()` on a matched route) keeps a
+   * non-null `match`. Render code MUST guard on `notFound` before dereferencing.
+   */
+  match: LoadedClientRoute | null;
   /**
    * Slice 8 — set when the matched route's loader threw `notFound()` on the
    * server (signalled via `__FURIN_DATA__.__furinStatus === 404`). Triggers
@@ -367,6 +397,16 @@ interface RouterState {
    * the normal layout+page tree, mirroring the server's `buildNotFoundElement`.
    */
   notFound?: { data?: unknown; message?: string };
+  /**
+   * Explicit boundary chain to use for the not-found render.
+   *
+   * - **Set** (typically to depth-0 only) when no client-side route matched the
+   *   navigation URL — the root `not-found.tsx` is the correct fallback and no
+   *   page-specific segment context exists.
+   * - **Absent** when a matched route's loader called `notFound()`, in which
+   *   case `match.segmentBoundaries` is used (preserves per-route not-found).
+   */
+  notFoundBoundaries?: ClientSegmentBoundary[] | undefined;
   title?: string;
 }
 
@@ -459,12 +499,7 @@ export function pickDeepestNotFound(
 }
 
 const DefaultClientNotFoundFallback: NotFoundComponent = ({ error }) =>
-  createElement(
-    "div",
-    null,
-    createElement("h1", null, "404 — Not Found"),
-    error.message ? createElement("p", null, error.message) : null
-  );
+  createElement(DefaultNotFoundScreen, { message: error.message });
 
 /**
  * Builds the bare not-found element rendered inline by RouterProvider on SPA
@@ -475,13 +510,17 @@ const DefaultClientNotFoundFallback: NotFoundComponent = ({ error }) =>
  * from the server's current behaviour and require coordinated changes on both
  * sides.
  *
+ * Accepts the boundary chain directly (rather than a full `LoadedClientRoute`)
+ * so callers can pass a subset (e.g. depth-0 only for unmatched URLs) without
+ * fabricating a synthetic route object.
+ *
  * @internal Exported for unit testing only.
  */
 export function buildNotFoundPageElement(
-  match: LoadedClientRoute,
+  boundaries: ClientSegmentBoundary[] | undefined,
   error: { data?: unknown; message?: string }
 ): React.ReactNode {
-  const Fallback = pickDeepestNotFound(match.segmentBoundaries) ?? DefaultClientNotFoundFallback;
+  const Fallback = pickDeepestNotFound(boundaries) ?? DefaultClientNotFoundFallback;
   return createElement(Fallback, { error });
 }
 
@@ -790,6 +829,7 @@ export function RouterProvider({
   initialMatch,
   initialData,
   initialDigest,
+  initialNotFound,
   autoRefresh = true,
   basePath = "",
   defaultPreload = "intent",
@@ -797,10 +837,15 @@ export function RouterProvider({
   defaultPreloadStaleTime = 30_000,
   prefetchCacheSize = 50,
 }: RouterProviderProps): React.ReactElement {
-  const [state, setState] = useState<RouterState>({
+  // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
+  // the provider boots into the inline not-found UI (see `initialNotFound` JSDoc).
+  // `notFoundBoundaries` is left undefined so the render path can fall through to
+  // the memoised `rootBoundaries` below (which isn't available yet at useState init).
+  const [state, setState] = useState<RouterState>(() => ({
     match: initialMatch,
     data: initialData,
-  });
+    notFound: initialNotFound,
+  }));
   const [isNavigating, setIsNavigating] = useState(false);
   // currentHref stores the LOGICAL path (basePath stripped) so Link active-state
   // detection works with route patterns that never include the basePath prefix.
@@ -813,6 +858,30 @@ export function RouterProvider({
   const prefetchCache = useRef(new Map<string, CacheEntry>());
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
+  /**
+   * Tracks the last successfully rendered match for use in the no-route 404 path.
+   * `null` on the initial render when the URL didn't match any route and the
+   * provider booted directly into the not-found state; flips to a real match as
+   * soon as the user navigates away via `navigate()` or the back button.
+   */
+  const currentMatchRef = useRef<LoadedClientRoute | null>(initialMatch);
+
+  /**
+   * Depth-0 boundary (pagesDir root level) for the "no client route matched" 404
+   * path. When an unknown URL is navigated to, the server's `renderRootNotFound`
+   * handles it — the root `not-found.tsx` (depth 0) is the correct component to
+   * render inline instead of doing a full-page reload.
+   * Computed once per `routes` change; stable across navigations.
+   */
+  const rootBoundaries = useMemo<ClientSegmentBoundary[] | undefined>(() => {
+    for (const route of routes) {
+      const depth0 = route.segmentBoundaries?.find((b) => b.depth === 0);
+      if (depth0) {
+        return [depth0];
+      }
+    }
+    return;
+  }, [routes]);
 
   const fetchPageState = useCallback(
     async (logicalHref: string): Promise<RouterState | null> => {
@@ -825,7 +894,35 @@ export function RouterProvider({
         const logicalPathname = toLogical(url.pathname, basePath);
         const match = routes.find((r) => r.regex.test(logicalPathname));
         if (!match) {
-          return null;
+          // No client-side route matched — the server will call renderRootNotFound.
+          // Fetch the URL so we can detect the __furinStatus: 404 signal embedded
+          // by renderRootNotFound and render the 404 UI inline (SPA) instead of
+          // forcing a jarring full-page reload.
+          const res = await fetch(physicalHref);
+          if (isStaleDeployResponse(res)) {
+            window.location.href = physicalHref;
+            return null;
+          }
+          const { data, finalHref, title } = await parsePageResponse(res, basePath);
+          const kind = classifySpaResponse(res.status, data);
+          if (kind.kind !== "not-found") {
+            // Non-404 server response for an unmatched URL (e.g. 5xx) — bail to
+            // full-page navigation so the browser shows whatever the server sent.
+            return null;
+          }
+          // Strip internal signals before surfacing loader data.
+          const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = data ?? {};
+          return {
+            match: currentMatchRef.current,
+            data: cleanData,
+            title,
+            finalHref,
+            notFound: kind.error,
+            // Pass only depth-0 boundaries: for an unmatched URL the root
+            // not-found.tsx is always the right component — no page-specific
+            // segment context exists.
+            notFoundBoundaries: rootBoundaries,
+          };
         }
 
         // Parallelize HTML data fetch + JS chunk load for this route.
@@ -881,7 +978,7 @@ export function RouterProvider({
         return null;
       }
     },
-    [routes, basePath]
+    [routes, basePath, rootBoundaries]
   );
 
   const invalidatePrefetch = useCallback((path: string, type: "page" | "layout" = "page") => {
@@ -953,6 +1050,7 @@ export function RouterProvider({
           window.location.href = basePath + logicalHref;
           return;
         }
+        currentMatchRef.current = newState.match;
         setState(newState);
         if (newState.title) {
           document.title = newState.title;
@@ -1039,6 +1137,7 @@ export function RouterProvider({
         window.location.reload();
         return;
       }
+      currentMatchRef.current = newState.match;
       setState(newState);
       if (newState.title) {
         document.title = newState.title;
@@ -1120,21 +1219,38 @@ export function RouterProvider({
     };
   }, [invalidatePrefetch, refresh, autoRefresh]);
 
-  // Slice 8 — when a prior SPA navigation hit a loader-thrown 404, render
-  // the bare not-found element (mirrors server's `buildNotFoundElement`).
-  // Otherwise render the normal layout+page+boundaries tree.
-  const pageElement = state.notFound
-    ? buildNotFoundPageElement(state.match, state.notFound)
-    : buildPageElement(state.match, root, state.data, {
-        // User's `reset()` prop → clear local boundary state (handled by the
-        // boundary itself) → re-run loaders for the current route so transient
-        // errors (bad state, expired data) can recover without a full reload.
-        onReset: refresh,
-        // Auto-clear latched errors when navigating between routes that share
-        // a boundary instance — otherwise the new route would render INSIDE
-        // the previous route's error fallback.
-        resetKey: currentHref,
-      });
+  // Slice 8 — when a prior SPA navigation hit a loader-thrown or catch-all 404,
+  // render the bare not-found element (mirrors server's `buildNotFoundElement`).
+  // - `notFoundBoundaries`: set when no route matched (always depth-0 / root
+  //   not-found.tsx, since no page-specific context applies to unknown URLs).
+  // - Fallback to `match.segmentBoundaries`: set when a matched loader called
+  //   `notFound()` (preserves the deepest route-level not-found.tsx).
+  // - Fallback to `rootBoundaries`: the initial-hydration "direct load to an
+  //   unknown URL" case, where `state.match` is null because no client route
+  //   matched the boot URL. The provider booted into not-found mode to give
+  //   Links in the not-found UI a live RouterContext (so "Go Home" does SPA
+  //   navigation, not a full reload).
+  // The render path is split explicitly rather than collapsed into a ternary
+  // so TypeScript can narrow `state.match` to non-null for `buildPageElement`
+  // — the invariant is "`state.match` is null only when `state.notFound` is set".
+  let pageElement: React.ReactNode;
+  if (state.notFound || !state.match) {
+    pageElement = buildNotFoundPageElement(
+      state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries,
+      state.notFound ?? {}
+    );
+  } else {
+    pageElement = buildPageElement(state.match, root, state.data, {
+      // User's `reset()` prop → clear local boundary state (handled by the
+      // boundary itself) → re-run loaders for the current route so transient
+      // errors (bad state, expired data) can recover without a full reload.
+      onReset: refresh,
+      // Auto-clear latched errors when navigating between routes that share
+      // a boundary instance — otherwise the new route would render INSIDE
+      // the previous route's error fallback.
+      resetKey: currentHref,
+    });
+  }
 
   // Slice 9 + 10 — wrap the entire tree in a root FurinErrorBoundary that
   // catches anything per-segment boundaries missed (root layout crash,

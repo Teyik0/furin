@@ -394,12 +394,47 @@ export async function renderSSR(
  * Renders the root-level not-found component into a complete 404 HTML Response.
  * Used by the Elysia `.onError` catch-all when no route matches the request URL.
  *
- * Skips the dev loopback template fetch (would require a listening server) and
- * always uses the production shell. If the user's not-found.tsx itself throws,
- * falls back to the built-in DefaultNotFoundComponent to break recursion.
+ * Template resolution mirrors the main render path:
+ *   prod template (if pre-rendered / compiled server)
+ *   → dev template from Bun's HTML bundler (in dev, for the rewritten script tag)
+ *   → static `generateIndexHtml()` (last-resort fallback; test harness, SSR with no request).
+ *
+ * The dev-template branch is critical: Bun's HTML bundler rewrites
+ * `./_hydrate.tsx` to the hashed client chunk URL (e.g. `/_bun/client/index-*.js`).
+ * If we served the raw `generateIndexHtml()` output, the browser would try to
+ * load `./_hydrate.tsx` relative to the current URL (e.g. `/foo/_hydrate.tsx`),
+ * 404, and the page would be left static — so clicking any in-page link would
+ * trigger a full document load instead of SPA navigation.
+ *
+ * If the user's not-found.tsx itself throws, falls back to the built-in
+ * DefaultNotFoundComponent to break recursion.
+ *
+ * @param root    - Resolved root layout (carries the user's `not-found.tsx` ref).
+ * @param request - The incoming request. Required in dev to resolve the HMR
+ *   entry origin. Pass `undefined` in contexts where no request is available
+ *   (tests, SSG warmup) — the function will fall through to the static shell.
  */
-export async function renderRootNotFound(root: RootLayout): Promise<Response> {
-  const template = getProductionTemplate() ?? generateIndexHtml();
+export async function renderRootNotFound(
+  root: RootLayout,
+  request: Request | undefined
+): Promise<Response> {
+  const prodTemplate = getProductionTemplate();
+  let template: string;
+  if (prodTemplate !== null) {
+    template = prodTemplate;
+  } else if (IS_DEV && request !== undefined) {
+    try {
+      template = await getDevTemplate(new URL(request.url).origin);
+    } catch {
+      // Loopback failed (server not listening yet, URL unreachable, etc.) —
+      // still return SOMETHING so the user doesn't see a raw error. The
+      // generated HTML will be non-interactive (see JSDoc), but that's
+      // strictly better than a 500.
+      template = generateIndexHtml();
+    }
+  } else {
+    template = generateIndexHtml();
+  }
   const notFoundError = new FurinNotFoundError();
 
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
@@ -411,7 +446,10 @@ export async function renderRootNotFound(root: RootLayout): Promise<Response> {
   }
   await reactStream.allReady;
   const reactHtml = await streamToString(reactStream);
-  const html = assembleHTML(template, "", reactHtml, {});
+  // Embed the SPA 404 signal so client-side `fetchPageState` can detect the
+  // catch-all 404 via `classifySpaResponse` and render inline instead of doing
+  // a jarring full-page reload when navigating to an unmatched URL.
+  const html = assembleHTML(template, "", reactHtml, { __furinStatus: 404 });
 
   return new Response(html, {
     status: 404,

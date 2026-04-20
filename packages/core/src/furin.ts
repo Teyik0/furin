@@ -246,9 +246,17 @@ export async function furin({
 
     const devApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
       .use(loggerPlugin)
-      .onError(async ({ code }) => {
+      // `as: "global"` so the pretty HTML 404 fires even when furin is mounted
+      // as a sub-plugin under a parent Elysia instance — that is the common
+      // case (`new Elysia().get("/api/...").use(await furin(...))`) and
+      // matches the meta-framework expectation set by Next.js / Tanstack Start
+      // (the framework owns the 404 page by default). Users who want a
+      // JSON 404 for a specific sub-tree (e.g. `/api/*`) override this by
+      // registering their own `.onError` BEFORE `.use(await furin(...))`;
+      // Elysia's first-match-wins ordering lets that handler return early.
+      .onError({ as: "global" }, async ({ code, request }) => {
         if (code === "NOT_FOUND") {
-          return await renderRootNotFound(root);
+          return await renderRootNotFound(root, request);
         }
       })
       .onAfterHandle({ as: "global" }, ({ set }) => {
@@ -291,9 +299,12 @@ export async function furin({
 
   const prodApp = new Elysia({ name: instanceName, seed: resolvedPagesDir })
     .use(loggerPlugin)
-    .onError(async ({ code }) => {
+    // See dev-mode comment above — global scope so the pretty 404 fires when
+    // furin is mounted as a sub-plugin too. Override by registering your own
+    // .onError BEFORE `.use(await furin(...))`.
+    .onError({ as: "global" }, async ({ code, request }) => {
       if (code === "NOT_FOUND") {
-        return await renderRootNotFound(root);
+        return await renderRootNotFound(root, request);
       }
     })
     .onAfterHandle({ as: "global" }, ({ path, set }) => {

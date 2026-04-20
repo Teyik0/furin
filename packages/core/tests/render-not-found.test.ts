@@ -148,6 +148,6 @@ describe("renderToHTML — not-found handling", () => {
       result.root
     );
 
-    expect(rendered.html).toContain("404 — Not Found");
+    expect(rendered.html).toContain("404 — NOT FOUND");
   });
 });

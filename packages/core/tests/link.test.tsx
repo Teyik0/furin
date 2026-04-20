@@ -749,7 +749,9 @@ describe("classifySpaResponse", () => {
     });
   });
 
-  test("404 WITHOUT __furinStatus → bail (legacy payload / renderRootNotFound pre-signal)", () => {
+  test("404 WITHOUT __furinStatus → bail (unknown 404 payload without SPA signal)", () => {
+    // renderRootNotFound now always embeds __furinStatus: 404 in __FURIN_DATA__,
+    // but a 404 without the signal still bails (e.g. proxy-rewritten responses).
     expect(classifySpaResponse(404, {})).toEqual({ kind: "bail" });
   });
 
@@ -826,31 +828,23 @@ describe("pickDeepestNotFound", () => {
 // just the deepest user-declared not-found (or built-in default).
 
 describe("buildNotFoundPageElement", () => {
-  const Page: React.FC<Record<string, unknown>> = () => createElement("p", null, "page");
-
   test("renders the deepest user-declared not-found bare (no layouts)", () => {
     const NF: NotFoundComponent = ({ error }) =>
       createElement("h1", null, `custom 404: ${error.message ?? ""}`);
-    const rootRoute = makeRoute({
-      layout: ({ children }) => createElement("main", null, children),
-    });
-    const pageRoute = makeRoute({
-      layout: ({ children }) => createElement("section", null, children),
-      parent: rootRoute,
-    });
-    const match = makeMatch(Page, pageRoute);
-    match.segmentBoundaries = [{ depth: 0, notFound: NF }];
+    const boundaries = [{ depth: 0, notFound: NF }];
 
-    const html = renderToStaticMarkup(buildNotFoundPageElement(match, { message: "boom" }));
+    const html = renderToStaticMarkup(buildNotFoundPageElement(boundaries, { message: "boom" }));
     // No <main> (root layout) or <section> (nested layout) should appear.
     expect(html).toBe("<h1>custom 404: boom</h1>");
   });
 
-  test("falls back to built-in 404 when no segmentBoundaries declare notFound", () => {
-    const match = makeMatch(Page, makeRoute());
-    match.segmentBoundaries = [];
+  test("falls back to built-in 404 when boundaries is empty", () => {
+    const html = renderToStaticMarkup(buildNotFoundPageElement([], {}));
+    expect(html).toContain("404");
+  });
 
-    const html = renderToStaticMarkup(buildNotFoundPageElement(match, {}));
+  test("falls back to built-in 404 when boundaries is undefined", () => {
+    const html = renderToStaticMarkup(buildNotFoundPageElement(undefined, {}));
     expect(html).toContain("404");
   });
 
@@ -860,10 +854,9 @@ describe("buildNotFoundPageElement", () => {
       seen.push({ message: error.message, data: error.data });
       return createElement("div", null, "ok");
     };
-    const match = makeMatch(Page, makeRoute());
-    match.segmentBoundaries = [{ depth: 0, notFound: NF }];
+    const boundaries = [{ depth: 0, notFound: NF }];
 
-    renderToStaticMarkup(buildNotFoundPageElement(match, { message: "m", data: { id: 42 } }));
+    renderToStaticMarkup(buildNotFoundPageElement(boundaries, { message: "m", data: { id: 42 } }));
     expect(seen).toEqual([{ message: "m", data: { id: 42 } }]);
   });
 });

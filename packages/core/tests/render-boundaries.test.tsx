@@ -24,8 +24,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ErrorProps } from "../src/error.ts";
 import { FurinNotFoundError, type NotFoundProps } from "../src/not-found.ts";
 import { FurinErrorBoundary, FurinNotFoundBoundary } from "../src/render/boundaries.tsx";
+import { computeErrorDigest } from "../src/render/digest.ts";
 
 const DIGEST_RE = /[0-9a-f]{10}/;
+const CUSTOM_FALLBACK_DIGEST_RE = /digest=[0-9a-f]{10}/;
 
 // ── FurinErrorBoundary ────────────────────────────────────────────────────────
 
@@ -39,10 +41,10 @@ describe("FurinErrorBoundary", () => {
     expect(html).toContain("healthy");
   });
 
-  test("getDerivedStateFromError latches onto generic Error", () => {
+  test("getDerivedStateFromError latches onto generic Error and pre-computes digest", () => {
     const err = new Error("boom");
     const next = FurinErrorBoundary.getDerivedStateFromError(err);
-    expect(next).toEqual({ error: err });
+    expect(next).toEqual({ digest: computeErrorDigest(err), error: err });
   });
 
   test("getDerivedStateFromError latches onto FurinNotFoundError too (re-thrown in render)", () => {
@@ -50,18 +52,27 @@ describe("FurinErrorBoundary", () => {
     // The boundary captures it in state, but render() re-throws it so an
     // outer FurinNotFoundBoundary can catch — verified separately below.
     const next = FurinErrorBoundary.getDerivedStateFromError(err);
-    expect(next).toEqual({ error: err });
+    expect(next).toEqual({ digest: computeErrorDigest(err), error: err });
   });
 
-  test("renders default fallback with provided digest when caught", () => {
-    const boundary = makeErrorBoundaryInState(new Error("boom"), { digest: "abcdef1234" });
+  test("renders default fallback with a digest computed from the caught error", () => {
+    // Even when a server-provided digest is passed, the boundary now derives
+    // the displayed ID from the actual caught error so client-side errors
+    // never inherit a stale server ID.
+    const err = new Error("boom");
+    err.stack = "Error: boom\n  at frozen (/frozen:1:1)";
+    // Recompute the same way the boundary does so the assertion stays in sync
+    // with `digest.ts` without hardcoding a magic hex string.
+    const expected = computeErrorDigest(err);
+    const boundary = makeErrorBoundaryInState(err, { digest: "abcdef1234" });
     const html = renderToStaticMarkup(boundary.render() as ReactNode);
-    expect(html).toContain("abcdef1234");
+    expect(html).toContain(expected);
+    expect(html).not.toContain("abcdef1234");
     expect(html).toContain("boom");
     expect(html).toContain("500");
   });
 
-  test("renders a user-supplied fallback with message + digest + reset function", () => {
+  test("renders a user-supplied fallback with message + computed digest + reset function", () => {
     const Fallback = ({ error, reset }: ErrorProps) => (
       <div>
         <span>msg={error.message}</span>
@@ -77,7 +88,9 @@ describe("FurinErrorBoundary", () => {
     });
     const html = renderToStaticMarkup(boundary.render() as ReactNode);
     expect(html).toContain("msg=custom");
-    expect(html).toContain("digest=deadbeef12");
+    // Server-provided digest is intentionally NOT used for the caught error.
+    expect(html).not.toContain("digest=deadbeef12");
+    expect(html).toMatch(CUSTOM_FALLBACK_DIGEST_RE);
     // Reset must be a function even on the server (noop) so the type is stable.
     expect(html).not.toContain("disabled");
   });
@@ -260,13 +273,16 @@ function makeErrorBoundaryInState(
   const boundary = new FurinErrorBoundary(fullProps);
   // Bypass React's mounted-instance check: tests exercise lifecycle logic in
   // isolation, so we stub setState to directly mutate state the way React
-  // would after a commit.
-  boundary.setState = ((updater: unknown) => {
+  // would after a commit. The optional callback (used by reset() to defer
+  // onReset until after the commit) is invoked synchronously here — the
+  // observable contract is "after state is updated", which holds.
+  boundary.setState = ((updater: unknown, callback?: () => void) => {
     const next =
       typeof updater === "function"
         ? (updater as (s: typeof boundary.state) => Partial<typeof boundary.state>)(boundary.state)
         : (updater as Partial<typeof boundary.state>);
     boundary.state = { ...boundary.state, ...next };
+    callback?.();
   }) as typeof boundary.setState;
   const derived = FurinErrorBoundary.getDerivedStateFromError(error);
   boundary.state = { ...boundary.state, ...derived } as typeof boundary.state;

@@ -4,6 +4,7 @@ import type { ErrorComponent } from "../error";
 import type { FurinNotFoundError, NotFoundComponent } from "../not-found";
 import type { ResolvedRoute, SegmentBoundary } from "../router";
 import { FurinErrorBoundary, FurinNotFoundBoundary } from "./boundaries.tsx";
+import { DefaultErrorScreen, DefaultNotFoundScreen } from "./default-screens.tsx";
 
 /**
  * Wraps `inner` with the boundary components declared at a single segment
@@ -77,10 +78,8 @@ export function buildElement(
   return element;
 }
 
-const DefaultNotFoundComponent: NotFoundComponent = () => (
-  <div>
-    <h1>404 — Not Found</h1>
-  </div>
+const DefaultNotFoundComponent: NotFoundComponent = ({ error }) => (
+  <DefaultNotFoundScreen message={error.message} />
 );
 
 export function buildNotFoundElement(
@@ -91,12 +90,8 @@ export function buildNotFoundElement(
   return <NotFound error={{ message: error.message, data: error.data }} />;
 }
 
-const DefaultErrorComponent: ErrorComponent = ({ error }) => (
-  <div>
-    <h1>500 — Something went wrong</h1>
-    {error.message ? <p>{error.message}</p> : null}
-    <p style={{ opacity: 0.6, fontSize: "0.875rem" }}>Error ID: {error.digest}</p>
-  </div>
+const DefaultErrorComponent: ErrorComponent = ({ error, reset }) => (
+  <DefaultErrorScreen digest={error.digest} message={error.message} reset={reset} />
 );
 
 function errorMessageOf(err: unknown): string {

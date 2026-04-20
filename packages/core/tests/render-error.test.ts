@@ -120,7 +120,7 @@ describe("renderToHTML — error handling", () => {
       result.root
     );
 
-    expect(rendered.html).toContain("500 — Something went wrong");
+    expect(rendered.html).toContain("500 — ERROR");
     expect(rendered.html).toContain("kaboom");
   });
 
@@ -149,7 +149,7 @@ describe("renderToHTML — error handling", () => {
       result.root
     );
 
-    expect(rendered.html).toContain("500 — Something went wrong");
+    expect(rendered.html).toContain("500 — ERROR");
     expect(rendered.html).toContain("plain string boom");
   });
 
@@ -207,7 +207,7 @@ describe("renderToHTML — error handling", () => {
 
     expect(response.status).toBe(500);
     const body = await response.text();
-    expect(body).toContain("500 — Something went wrong");
+    expect(body).toContain("500 — ERROR");
     expect(body).toContain("shell-boom");
   });
 
@@ -239,7 +239,7 @@ describe("renderToHTML — error handling", () => {
 
     expect(response.status).toBe(500);
     const body = await response.text();
-    expect(body).toContain("500 — Something went wrong");
+    expect(body).toContain("500 — ERROR");
     // Default error component rendered the original shell-render error message.
     expect(body).toContain("primary-boom");
   });
@@ -258,7 +258,7 @@ describe("renderToHTML — error handling", () => {
         ...loaderRoute.page,
         loader: () => {
           // biome-ignore lint/style/useThrowOnlyError: intentional non-Error throw for coverage
-          throw { notAnError: true };
+          throw { secret: "leaked-payload" };
         },
       },
     } as ResolvedRoute;
@@ -269,9 +269,13 @@ describe("renderToHTML — error handling", () => {
       result.root
     );
 
-    expect(rendered.html).toContain("500 — Something went wrong");
-    // No <p> is rendered because errorMessageOf() returned empty string.
-    expect(rendered.html).not.toContain("<p>");
+    expect(rendered.html).toContain("500 — ERROR");
+    // The thrown object's contents must NOT be surfaced to the client.
+    // errorMessageOf() returns "" for non-Error/non-string throws, so the
+    // built-in fallback shows its generic copy instead of the payload.
+    expect(rendered.html).not.toContain("leaked-payload");
+    expect(rendered.html).not.toContain("[object Object]");
+    expect(rendered.html).toContain("We encountered an unexpected error");
   });
 });
 

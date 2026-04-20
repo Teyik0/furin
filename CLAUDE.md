@@ -1,4 +1,4 @@
-As an agent, you should help the user develop senor-grade features, as such you need to follow some guidance:
+As an agent, you should help the user develop senior-grade features, as such you need to follow some guidance:
 
 - Always load TDD skill from Matt Pocock
 - Always show architecture decision with alternative
@@ -7,7 +7,7 @@ As an agent, you should help the user develop senor-grade features, as such you 
 - Always rethink architecture and pattern to make the best maintainable choice
 - Always check how are the competitors doing (NextJS, Tanstack Start), compare and give the best answer
 - Avoid default values for function parameter
-- Avoid null | undefined for function parameter, they should exist (i.e string | undefined)
+- Function parameters must always be passed explicitly by callers — never rely on implicit `undefined` from omitting an argument. Optional parameters must be typed with an explicit union (e.g. `string | undefined`) and the call site must pass the value (or pass `undefined` deliberately) so the intent is visible at every call site.
 - Always run git hook when commiting or pushing to github
 
 ## Project Overview

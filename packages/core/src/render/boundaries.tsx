@@ -1,21 +1,15 @@
 import { Component, Fragment, type ReactNode } from "react";
 import type { ErrorComponent } from "../error.ts";
 import { type FurinNotFoundError, isNotFoundError, type NotFoundComponent } from "../not-found.ts";
+import { DefaultErrorScreen, DefaultNotFoundScreen } from "./default-screens.tsx";
 import { computeErrorDigest } from "./digest.ts";
 
-const DefaultErrorFallback: ErrorComponent = ({ error }) => (
-  <div>
-    <h1>500 — Something went wrong</h1>
-    {error.message ? <p>{error.message}</p> : null}
-    <p style={{ opacity: 0.6, fontSize: "0.875rem" }}>Error ID: {error.digest}</p>
-  </div>
+const DefaultErrorFallback: ErrorComponent = ({ error, reset }) => (
+  <DefaultErrorScreen digest={error.digest} message={error.message} reset={reset} />
 );
 
 const DefaultNotFoundFallback: NotFoundComponent = ({ error }) => (
-  <div>
-    <h1>404 — Not Found</h1>
-    {error.message ? <p>{error.message}</p> : null}
-  </div>
+  <DefaultNotFoundScreen message={error.message} />
 );
 
 const SERVER_RESET_NOOP = () => {
@@ -25,9 +19,12 @@ const SERVER_RESET_NOOP = () => {
 interface ErrorBoundaryProps {
   children: ReactNode;
   /**
-   * Server-provided digest. When the boundary catches a NEW error on the
-   * client (i.e. not a rehydration of a server-rendered error state), a
-   * fresh digest is computed locally.
+   * Server-provided digest for an error rendered server-side. Honoured only
+   * for the FIRST error this boundary surfaces post-hydration — i.e. when the
+   * latched error is plausibly the same one the server already logged. After
+   * any reset, or when subsequent client-side errors are caught, the boundary
+   * computes a fresh digest from the actual caught error so distinct failures
+   * keep distinct IDs.
    */
   digest?: string;
   /** Component rendered when an error is caught. Omit to use the built-in default. */
@@ -47,6 +44,12 @@ interface ErrorBoundaryProps {
 }
 
 interface ErrorBoundaryState {
+  /**
+   * Digest computed at the moment the error was latched. Stored in state so
+   * each distinct caught error gets its own ID, instead of all of them
+   * inheriting the server-provided `digest` prop.
+   */
+  digest: string | null;
   /** Unmount/remount counter — bumped on reset to force React to discard
    *  the previous subtree (including any broken state). */
   epoch: number;
@@ -63,10 +66,17 @@ interface ErrorBoundaryState {
  */
 // biome-ignore lint/style/useReactFunctionComponents: React error boundaries require a class component.
 export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  override state: ErrorBoundaryState = { epoch: 0, error: null };
+  override state: ErrorBoundaryState = {
+    digest: null,
+    epoch: 0,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    return { error };
+    // Compute the digest right at catch-time so the value is anchored to THIS
+    // specific error instance. Doing it here (vs. lazily in render) also means
+    // a re-render with the same latched error keeps the same ID.
+    return { digest: computeErrorDigest(error), error };
   }
 
   override componentDidUpdate(prevProps: ErrorBoundaryProps) {
@@ -76,12 +86,20 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
   }
 
   reset = () => {
-    this.setState((s) => ({ error: null, epoch: s.epoch + 1 }));
-    this.props.onReset?.();
+    // setState is async; running onReset BEFORE the state has actually flipped
+    // would expose stale `state.error` to anything the callback transitively
+    // reads (e.g. router.refresh re-rendering this very subtree). The second
+    // argument to setState fires after the commit, which is what we want.
+    this.setState(
+      (s) => ({ digest: null, epoch: s.epoch + 1, error: null }),
+      () => {
+        this.props.onReset?.();
+      }
+    );
   };
 
   override render(): ReactNode {
-    const { error, epoch } = this.state;
+    const { error, epoch, digest } = this.state;
     if (error) {
       // notFound() is a control-flow signal — bubble it up to the nearest
       // FurinNotFoundBoundary rather than displaying an error UI for it.
@@ -89,10 +107,18 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
         throw error;
       }
       const Fallback = this.props.fallback ?? DefaultErrorFallback;
-      const digest = this.props.digest ?? computeErrorDigest(error);
+      // Digest precedence:
+      //   1. state.digest — computed at catch time, always correct for the
+      //      ACTUAL caught error.
+      //   2. props.digest — the server-rendered digest, only meaningful for
+      //      the very first error post-hydration; we still honour it as a
+      //      last-resort fallback in case state.digest is somehow missing
+      //      (e.g. tests that inject state by hand).
+      //   3. recompute on the spot — defensive, should never be reached.
+      const finalDigest = digest ?? this.props.digest ?? computeErrorDigest(error);
       return (
         <Fallback
-          error={{ message: error.message, digest }}
+          error={{ message: error.message, digest: finalDigest }}
           reset={typeof window === "undefined" ? SERVER_RESET_NOOP : this.reset}
         />
       );

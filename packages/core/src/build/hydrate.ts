@@ -116,48 +116,79 @@ ${routeEntries.join(",\n")}
 const pathname = ${pathnameExpr};
 const _match = routes.find((r) => r.regex.test(pathname));
 
+// Parse the server-embedded loader payload up front. It carries:
+//   - normal loader props under arbitrary keys,
+//   - __furinError.digest when SSR caught an error,
+//   - __furinStatus: 404 when the server rendered the catch-all not-found
+//     (direct load to an unknown URL, emitted by renderRootNotFound) OR when
+//     a matched loader threw notFound(). The latter still has a _match; the
+//     former does not — so the two cases fork on _match below.
+const dataEl = document.getElementById("__FURIN_DATA__");
+const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
+const rootEl = document.getElementById("root") as HTMLElement;
+
 // Eagerly load only the current page module for initial hydration.
 // All other pages are loaded on demand when the user navigates to them.
 // Wrapped in an async IIFE to avoid top-level await, which causes Bun's HTML
 // bundler to misidentify which chunk to reference as the entry in index.html.
 (async () => {
+  let app;
   if (_match) {
     const _mod = await _match.load();
     const match = { ..._match, component: _mod.default.component, pageRoute: _mod.default._route };
 
-    const dataEl = document.getElementById("__FURIN_DATA__");
-    const loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
-    const rootEl = document.getElementById("root") as HTMLElement;
-
-    const app = createElement(RouterProvider, {
+    app = createElement(RouterProvider, {
       routes,
       root,
       initialMatch: match,
       initialData: loaderData,
-      initialDigest: loaderData.__furinError?.digest,${basePathProp}
+      initialDigest: loaderData.__furinError?.digest,
+      initialNotFound: undefined,${basePathProp}
     } as any);
-
-    if (import.meta.hot) {
-      if (import.meta.hot.data.root) {
-        // HMR re-render — update in place without remounting
-        import.meta.hot.data.root.render(app);
-      } else if (rootEl.innerHTML.trim()) {
-        // First load with SSR content — hydrateRoot renders on construction
-        import.meta.hot.data.root = hydrateRoot(rootEl, app);
-      } else {
-        // First load without SSR content — createRoot requires explicit .render()
-        const freshRoot = createRoot(rootEl);
-        freshRoot.render(app);
-        import.meta.hot.data.root = freshRoot;
-      }
-    } else if (rootEl.innerHTML.trim()) {
-      hydrateRoot(rootEl, app);
-    } else {
-      createRoot(rootEl).render(app);
-    }
     log.info({ action: "hydrate_complete", pathname });
+  } else if (loaderData.__furinStatus === 404) {
+    // Direct load to an unknown URL. The server sent the root not-found UI
+    // already rendered into the DOM. Mount RouterProvider with a null match
+    // so the provider boots into its not-found branch, hydrating that exact
+    // tree INSIDE a live RouterContext. Without this, Links in the 404 UI
+    // (e.g. the default screen's "Go Home" button) hit the useRouter()
+    // fallback that does a full window.location assignment — a jarring reload.
+    // Strip the server-only signal keys before handing data to components.
+    const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = loaderData;
+    app = createElement(RouterProvider, {
+      routes,
+      root,
+      initialMatch: null,
+      initialData: cleanData,
+      initialDigest: loaderData.__furinError?.digest,
+      initialNotFound: loaderData.__furinNotFound ?? {},${basePathProp}
+    } as any);
+    log.info({ action: "hydrate_not_found", pathname });
   } else {
+    // No match and no 404 signal — either the client bundle is out of sync
+    // with the server (stale deploy) or the server returned something we
+    // don't know how to hydrate. Bail loudly; the page stays static.
     log.error({ action: "hydrate_no_match", pathname });
+    return;
+  }
+
+  if (import.meta.hot) {
+    if (import.meta.hot.data.root) {
+      // HMR re-render — update in place without remounting
+      import.meta.hot.data.root.render(app);
+    } else if (rootEl.innerHTML.trim()) {
+      // First load with SSR content — hydrateRoot renders on construction
+      import.meta.hot.data.root = hydrateRoot(rootEl, app);
+    } else {
+      // First load without SSR content — createRoot requires explicit .render()
+      const freshRoot = createRoot(rootEl);
+      freshRoot.render(app);
+      import.meta.hot.data.root = freshRoot;
+    }
+  } else if (rootEl.innerHTML.trim()) {
+    hydrateRoot(rootEl, app);
+  } else {
+    createRoot(rootEl).render(app);
   }
 })().catch((err: unknown) => {
   log.error({ action: "hydrate_failed", pathname, error: String(err) });
