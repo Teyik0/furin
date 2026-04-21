@@ -57,8 +57,13 @@ interface PreparedRender {
    * back to a full-page reload.
    */
   notFoundError?: { data?: unknown; message?: string };
+  ssrContext: RouterContextValue;
   status: number;
   template: string;
+}
+
+function withSSRRouterContext(element: ReactNode, contextValue: RouterContextValue): ReactNode {
+  return createElement(RouterContext.Provider, { value: contextValue }, element);
 }
 
 /**
@@ -149,7 +154,7 @@ async function prepareRender(
     defaultPreloadDelay: 50,
     defaultPreloadStaleTime: 30_000,
   };
-  element = createElement(RouterContext.Provider, { value: ssrContext }, element);
+  element = withSSRRouterContext(element, ssrContext);
 
   return {
     componentProps,
@@ -159,6 +164,7 @@ async function prepareRender(
     headers,
     loader_ms,
     notFoundError,
+    ssrContext,
     status,
     template,
   };
@@ -334,13 +340,19 @@ export async function renderSSR(
     });
     try {
       reactStream = await renderToReadableStream(
-        buildErrorElement(route.error ?? root.error, shellError, finalDigest)
+        withSSRRouterContext(
+          buildErrorElement(route.error ?? root.error, shellError, finalDigest),
+          prepared.ssrContext
+        )
       );
     } catch {
       // User's error.tsx also threw — render the built-in default which is
       // pure markup and cannot crash.
       reactStream = await renderToReadableStream(
-        buildErrorElement(undefined, shellError, finalDigest)
+        withSSRRouterContext(
+          buildErrorElement(undefined, shellError, finalDigest),
+          prepared.ssrContext
+        )
       );
     }
   }
@@ -448,12 +460,33 @@ export async function renderRootNotFound(
   }
   const notFoundError = new FurinNotFoundError(undefined);
 
+  const notFoundContext: RouterContextValue = {
+    basePath: "",
+    currentHref: request ? new URL(request.url).pathname : "/",
+    navigate: () => Promise.resolve(),
+    prefetch: () => {
+      /* noop */
+    },
+    invalidatePrefetch: () => {
+      /* noop */
+    },
+    refresh: () => Promise.resolve(),
+    isNavigating: false,
+    defaultPreload: "intent",
+    defaultPreloadDelay: 50,
+    defaultPreloadStaleTime: 30_000,
+  };
+
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
-    reactStream = await renderToReadableStream(buildNotFoundElement(root.notFound, notFoundError));
+    reactStream = await renderToReadableStream(
+      withSSRRouterContext(buildNotFoundElement(root.notFound, notFoundError), notFoundContext)
+    );
   } catch {
     // User's not-found.tsx crashed — fall back to the built-in default.
-    reactStream = await renderToReadableStream(buildNotFoundElement(undefined, notFoundError));
+    reactStream = await renderToReadableStream(
+      withSSRRouterContext(buildNotFoundElement(undefined, notFoundError), notFoundContext)
+    );
   }
   await reactStream.allReady;
   const reactHtml = await streamToString(reactStream);

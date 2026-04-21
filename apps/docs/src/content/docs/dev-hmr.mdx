@@ -119,7 +119,7 @@ if (hmrRefresh) {
 navigate(currentLogicalPath, { replace: true });
 ```
 
-This does **not** trigger a full page reload. Instead:
+This does **not** trigger a full-page reload. Instead:
 
 1. The client router fetches `/_furin/data?path=/board/6ahsjwio`
 2. The server receives the data request (not an HTML request), runs the loaders, and returns a **JSON payload**

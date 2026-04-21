@@ -1103,82 +1103,182 @@ The implementation has two goals:
 1. Keep ordinary page edits on the fast React Fast Refresh path.
 2. Keep SSR and the browser bundle on a single React and router runtime, even after Bun hot reloads part of the server graph.
 
-## How It Works
+## Two Different Paths
 
-```text
-FILE EDIT (pages/index.tsx)
-         │
-         ├──► Bun dev bundler for /_bun_hmr_entry     ──► WebSocket ──► Browser React Fast Refresh (~20ms)
-         │    (watches the client entry and its imports)
-         │
-         └──► bun --hot ?                             NOT triggered — page files never enter
-                                                      the server module graph (virtual namespace)
-```
+Furin handles HMR differently depending on whether the user is **loading the page for the first time** or **already viewing it**.
 
-```text
-SERVER MODULE GRAPH                    CLIENT BUNDLE
-(tracked by --hot)                     (tracked by dev bundler)
-─────────────────────────────          ──────────────────────────────
-server.ts                              .furin/_hydrate.tsx
-  └─ furin.ts                            ├─ pages/index.tsx   ← watched
-       ├─ router.ts                      ├─ pages/root.tsx    ← watched
-       │    └─ dynamic SSR imports        └─ pages/docs/*.tsx  ← watched
-       └─ dev-page-plugin.ts
-
-       pages/index.tsx ← NOT here ✓
-```
-
-The key idea is simple: page modules are loaded through a virtual namespace for SSR, not through Bun's normal hot server graph. That keeps page edits on the browser HMR path while the server still imports fresh source from disk on demand.
-
-## Request Flow
-
-```text
-GET /
- │
- ├─ import(`pages/index.tsx?furin-server&t=<now>`)
- │         │
- │         └─► dev-page-plugin onResolve
- │                 path → "furin-dev-page:/…/index.tsx?t=<now>"  (unique per request)
- │                        └── bypasses Bun module cache → onLoad always runs
- │             dev-page-plugin onLoad
- │                 1. strip ?t=… → read file from disk (always fresh)
- │                 2. rewrite ./relative imports → /absolute/paths
- │                 3. rewrite bare imports from the page directory
- │                 4. rewrite React / react-dom imports to singleton absolute paths
- │                 5. inject JSX helper imports
- │                 6. return transpiled JS
- │
- ├─ import(`pages/root.tsx?furin-server&t=<now>`)
- │         └─► same singleton-safe dev pipeline, so the root layout is also reloaded fresh
- │
- ├─ renderSSR(devRoute, ctx, root)
- │       ├─ run loaders (DB / API / fs, server-side only)
- │       ├─ renderToReadableStream(element)
- │       ├─ fetch /_bun_hmr_entry  ← fresh template each request (chunk hashes change on rebundle)
- │       └─ assemble: <head> + SSR HTML + <script id="__FURIN_DATA__">{loaderData}</script>
- │
- └─► Browser: hydrate SSR HTML using __FURIN_DATA__ (no loader re-execution client-side)
-```
-
-## Edit Matrix
-
-| What changed | `--hot` restart | Client HMR | Typical time |
+| Scenario | What happens | Server work | Client work |
 |---|---|---|---|
-| `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
-| `pages/root.tsx` root layout | No full server restart, but SSR re-imports it fresh on the next request | Yes | ~20-600ms depending on rebundle |
-| `server.ts` or `api/` | Yes | No | ~600ms |
-| local components used only by page SSR | No full server restart | Yes | Varies |
-| core runtime files (`src/link.tsx`, router internals, etc.) | Yes, they are in the server graph | Usually yes | ~600ms |
+| **Path 1: First Load** | User navigates to `/board/6ahsjwio` (or hard refreshes) | Full SSR: import page, re-import layouts, run loaders, render HTML | `hydrateRoot()` using `__FURIN_DATA__` |
+| **Path 2: Live HMR Update** | User is already on `/board/6ahsjwio`, edits `_route.tsx` | None initially; later: re-run loaders for JSON data fetch | React Fast Refresh patches component, then re-fetch loader data via `/_furin/data` |
+
+---
+
+## Path 1: First Load — Full SSR + Hydration
+
+When the browser requests a page for the first time (or after a hard refresh), the server performs a complete render:
+
+### 1. Server imports the page module fresh
+
+```ts
+const pageMod = await import(
+  `/pages/board/[boardId]/index.tsx?furin-server&t=${Date.now()}`
+);
+```
+
+The `?t=<timestamp>` suffix ensures Bun creates a new module identity and reads the file from disk instead of using a cached version.
+
+### 2. Virtual namespace pipeline (dev-page-plugin)
+
+Bun's plugin system intercepts the `?furin-server` suffix:
+
+- **onResolve**: strips `?furin-server` and routes the module through the `furin-dev-page` virtual namespace, preserving the `?t=` cache-buster
+- **onLoad**: reads the file from disk, transpiles it, rewrites relative imports to absolute paths, resolves bare imports from the page directory, rewrites React singletons to canonical paths, and injects JSX helper imports
+
+This pipeline runs for the page module **and** for `root.tsx`.
+
+### 3. Layout re-import (refreshLayoutChain)
+
+The page module statically imports its parent `_route.tsx`:
+
+```tsx
+import { route } from "../_route";
+```
+
+Bun resolves this through its normal ESM cache — **it does not get cache-busted by the page module's `?t=` suffix**. To pick up layout edits, `handleDevRequest` calls `refreshLayoutChain()`:
+
+1. Derive intermediate `_route.tsx` paths from the page file path
+2. Re-import each one with `?furin-server&t=<timestamp>` cache-busting
+3. Patch `layout` and `loader` on the existing `RuntimeRoute` objects in the chain
+
+### 4. Run loaders and render
+
+```ts
+renderSSR({ ...route, page, routeChain: refreshedChain }, ctx, currentRoot)
+```
+
+- Execute loaders (DB queries, API calls, file system reads — server-side only)
+- Build the React element tree with the fresh layout components
+- Stream-render to HTML via `renderToReadableStream`
+- Fetch `/_bun_hmr_entry` for the dev template (fresh on each request — chunk hashes change when the client bundle rebuilds)
+- Assemble: `<head>` + SSR HTML + `<script id="__FURIN_DATA__">{loaderData}</script>`
+
+### 5. Browser hydrates
+
+```ts
+hydrateRoot(rootEl, <RouterProvider routes={routes} initialMatch={match} initialData={loaderData} />);
+```
+
+React attaches event listeners and state management to the existing server-rendered DOM. The client does **not** re-run loaders during hydration — it uses the data embedded in `__FURIN_DATA__`.
+
+---
+
+## Path 2: Live HMR Update
+
+When you edit a file while the browser is already showing that route, the flow is entirely client-driven after the initial HMR push:
+
+### 1. Bun HMR pushes the new client chunk
+
+Bun's dev bundler (tracking `/_bun_hmr_entry` and its imports) detects the file change, rebuilds the client bundle, and sends the updated chunk to the browser via WebSocket — typically within ~20ms.
+
+### 2. React Fast Refresh patches the component
+
+React's Fast Refresh runtime swaps the old component definition for the new one **in-place**, preserving as much local state as possible.
+
+### 3. `_hydrate.tsx` re-renders (does not re-hydrate)
+
+The `_hydrate.tsx` entry checks whether a React root already exists:
+
+```ts
+if (window.__FURIN_ROOT__) {
+  // Already mounted — reconciliation, NOT hydration
+  window.__FURIN_ROOT__.render(<RouterProvider ... />);
+}
+```
+
+Because the DOM is already managed by React, calling `root.render()` triggers a **reconciliation** — React compares the new virtual tree against the existing DOM and applies minimal updates.
+
+### 4. `hmrRefresh()` re-fetches loader data
+
+The initial render after Fast Refresh still uses `initialData` from the original SSR payload. To get fresh server state, `_hydrate.tsx` triggers `window.__FURIN_HMR_REFRESH__()`:
+
+```ts
+const hmrRefresh = window.__FURIN_HMR_REFRESH__;
+if (hmrRefresh) {
+  requestAnimationFrame(() => hmrRefresh());
+}
+```
+
+`hmrRefresh()` performs a **client-side navigation** with `replace: true`:
+
+```ts
+navigate(currentLogicalPath, { replace: true });
+```
+
+This does **not** trigger a full page reload. Instead:
+
+1. The client router fetches `/_furin/data?path=/board/6ahsjwio`
+2. The server receives the data request (not an HTML request), runs the loaders, and returns a **JSON payload**
+3. The client router updates its internal state with the new data
+4. React re-renders the component tree with the fresh loader output
+
+### 5. Result
+
+The page is updated **twice** in quick succession:
+
+1. **First update** (~20ms): React Fast Refresh patches the component code; the layout may look different but still uses old data
+2. **Second update** (~50-200ms): `hmrRefresh()` completes; the component now renders with both **new code** and **fresh data**
+
+There is no hydration mismatch because the client never attempts to `hydrateRoot` against stale DOM — it reconciles the existing DOM with the new code, then refreshes the data.
+
+---
+
+## Why Intermediate Layouts Need Re-Importing
+
+Page modules statically import their parent `_route.tsx` files:
+
+```tsx
+import { route } from "../_route";
+```
+
+Bun resolves this import through its ESM cache. When the page module is re-imported with `?furin-server&t=<now>`, the page itself is fresh, but **its static imports are not** — they resolve to the cached startup version.
+
+This means after editing `board/_route.tsx`:
+
+- The **client bundle** contains the new layout (Bun HMR rebuilt it)
+- The **server** would render with the old layout (cached `_route.tsx`) without additional work
+
+`refreshLayoutChain()` fixes this by explicitly re-importing every intermediate `_route.tsx` with `?furin-server&t=<timestamp>` cache-busting and patching `layout` / `loader` on the existing `RuntimeRoute` objects.
+
+---
+
+## Why The Timestamp Matters
+
+Bun caches modules by `(namespace, path)`. Without the `?t=<timestamp>` suffix, the first import of a page would stay frozen in the server cache.
+
+After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.
+
+The timestamp cache-busts the **page module**, but static imports inside that module (like `import { route } from "../_route"`) still resolve through Bun's normal ESM cache. That is why `refreshLayoutChain` applies an additional cache-busting layer for intermediate layout files.
+
+---
+
+## Why The Template Is Never Cached
+
+`/_bun_hmr_entry` is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes `404` requests and reload loops in the browser.
+
+---
 
 ## Internal Pieces
 
 | File | Role |
 | --- | --- |
 | `src/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
-| `src/router.ts` | Avoids eager page imports during scanning, imports pages with `?furin-server&t=<now>`, and reloads `root.tsx` fresh in dev SSR |
+| `src/router.ts` | Avoids eager page imports during scanning, imports pages with `?furin-server&t=<now>`, reloads `root.tsx` fresh, and re-imports intermediate layouts via `refreshLayoutChain` |
 | `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
-| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry and imports `RouterProvider` through `@teyik0/furin/link` so the client bundle keeps one router context |
+| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry, handles `hydrateRoot` vs `root.render` for HMR, and exposes `__FURIN_HMR_REFRESH__` |
 | `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+
+---
 
 ## Why React Must Stay Singleton
 
@@ -1202,6 +1302,8 @@ Furin avoids that by rewriting:
 
 to the same resolved on-disk paths during dev SSR loading.
 
+---
+
 ## Why The Client Router Must Also Stay Singleton
 
 There is a second singleton requirement on the browser side: `RouterProvider` and `Link` must come from the same `@teyik0/furin/link` module instance.
@@ -1215,22 +1317,27 @@ When that happens, SPA navigation silently falls back to full page reloads becau
 
 That is why the hydrate entry imports `RouterProvider` from `@teyik0/furin/link` instead of an absolute file path.
 
-## Why The Timestamp Matters
+---
 
-Bun caches modules by `(namespace, path)`. Without the `?t=<timestamp>` suffix, the first import of a page would stay frozen in the server cache.
+## Edit Matrix
 
-After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.
+| What changed | `--hot` restart | Client HMR | Typical time |
+|---|---|---|---|
+| `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
+| `pages/root.tsx` root layout | No full server restart, but SSR re-imports it fresh on the next request | Yes | ~20-600ms depending on rebundle |
+| `server.ts` or `api/` | Yes | No | ~600ms |
+| local components used only by page SSR | No full server restart | Yes | Varies |
+| core runtime files (`src/link.tsx`, router internals, etc.) | Yes, they are in the server graph | Usually yes | ~600ms |
 
-## Why The Template Is Never Cached
-
-`/_bun_hmr_entry` is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes `404` requests and reload loops in the browser.
+---
 
 ## Practical Outcome
 
 This setup gives Furin two useful properties in development:
 
 - ordinary page edits stay on the fast React Fast Refresh path
-- SSR re-imports pages and the root layout from fresh disk source
+- SSR re-imports pages, layouts, and root from fresh disk source on every request
 - React hooks remain stable across hot reload boundaries
 - client-side navigation stays on SPA transitions instead of degrading into full reloads
 - template URLs stay aligned with the latest client rebundle
+- live HMR updates seamlessly pick up layout changes and fresh loader data without hydration mismatches

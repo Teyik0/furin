@@ -17,6 +17,22 @@ import {
   validateRouteChain,
 } from "./utils.ts";
 
+function isModuleNotFoundError(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const msg = err.message.toLowerCase();
+  const code = (err as { code?: string }).code;
+  return (
+    code === "ENOENT" ||
+    code === "ERR_MODULE_NOT_FOUND" ||
+    code === "MODULE_NOT_FOUND" ||
+    msg.includes("cannot find module") ||
+    msg.includes("module not found") ||
+    msg.includes("no such file or directory")
+  );
+}
+
 /**
  * A single directory-scoped boundary declaration.
  *
@@ -463,9 +479,10 @@ export async function refreshLayoutChain(
   chain: RuntimeRoute[],
   pagePath: string,
   rootPath: string,
-  importFn: (specifier: string) => Promise<Record<string, unknown>> = (s) =>
-    import(s) as Promise<Record<string, unknown>>
+  importFn: ((specifier: string) => Promise<Record<string, unknown>>) | undefined
 ): Promise<void> {
+  const resolveImport = importFn ?? ((s: string) => import(s) as Promise<Record<string, unknown>>);
+
   const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
   const pagesDir = rootPath.slice(0, rootPath.lastIndexOf("/"));
   const layoutPaths: string[] = [];
@@ -482,18 +499,24 @@ export async function refreshLayoutChain(
       continue;
     }
     try {
-      const freshMod = await importFn(`${layoutPath}?furin-server&t=${Date.now()}`);
+      const freshMod = await resolveImport(`${layoutPath}?furin-server&t=${Date.now()}`);
       const freshRoute = freshMod.route ?? freshMod.default;
       if (freshRoute && isFurinRoute(freshRoute)) {
-        if (freshRoute.layout) {
+        if (freshRoute.layout === undefined) {
+          chain[chainIdx].layout = undefined;
+        } else {
           chain[chainIdx].layout = freshRoute.layout;
         }
-        if (freshRoute.loader) {
+        if (freshRoute.loader === undefined) {
+          chain[chainIdx].loader = undefined;
+        } else {
           chain[chainIdx].loader = freshRoute.loader;
         }
       }
-    } catch {
-      // Layout file might not exist at this level
+    } catch (err) {
+      if (!isModuleNotFoundError(err)) {
+        throw err;
+      }
     }
   }
 }
@@ -522,7 +545,7 @@ async function handleDevRequest(
     const page = pageMod.default;
     if (page && isFurinPage(page)) {
       const chain = collectRouteChainFromRoute(page._route as RuntimeRoute);
-      await refreshLayoutChain(chain, route.path, root.path);
+      await refreshLayoutChain(chain, route.path, root.path, undefined);
       return renderSSR({ ...route, page, routeChain: chain }, ctx, currentRoot);
     }
   } catch (err) {
