@@ -206,6 +206,7 @@ export async function furin({
             __proto__,
             constructor: _ctor,
             prototype,
+            environment: _browserEnv,
             ...safeEvent
           } = event as Record<string, unknown>;
           log.set({ ...safeEvent, service: "furin:browser" });

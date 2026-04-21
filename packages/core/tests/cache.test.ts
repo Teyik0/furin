@@ -1,4 +1,26 @@
-import { afterAll, afterEach, beforeAll, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+
+const emittedLogs: Record<string, unknown>[] = [];
+
+mock.module("evlog", () => ({
+  createLogger: (ctx: Record<string, unknown>) => ({
+    set: (data: Record<string, unknown>) => {
+      Object.assign(ctx, data);
+    },
+    error: (err: Error) => {
+      ctx.error = err;
+    },
+    emit: () => {
+      emittedLogs.push({ ...ctx });
+    },
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
+    info: () => {},
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
+    warn: () => {},
+    getContext: () => ctx,
+    fork: (_label: string, fn: () => unknown) => fn(),
+  }),
+}));
 
 mock.module("evlog/elysia", () => ({
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op stub
@@ -309,10 +331,7 @@ describe("setCachePurger", () => {
   });
 
   test("purger errors are swallowed (fire-and-forget)", async () => {
-    const logged: unknown[] = [];
-    const spy = spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      logged.push(args);
-    });
+    emittedLogs.length = 0;
 
     setCachePurger(() => Promise.reject(new Error("CDN unavailable")));
     revalidatePath("/blog/post");
@@ -323,8 +342,11 @@ describe("setCachePurger", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    spy.mockRestore();
-    expect(logged.length).toBeGreaterThan(0);
+    expect(emittedLogs.length).toBeGreaterThan(0);
+    expect(emittedLogs[0]).toMatchObject({
+      furin: { action: "cdn_purge_failed", paths: ["/blog/post"] },
+    });
+    expect((emittedLogs[0] as { error?: Error }).error).toBeInstanceOf(Error);
   });
 });
 

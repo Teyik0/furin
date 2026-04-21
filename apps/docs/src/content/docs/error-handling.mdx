@@ -66,7 +66,7 @@ export default function BlogNotFound({ error }: NotFoundProps) {
 
 ### `notFound()` in loaders
 
-Throw `notFound()` from a loader to render the nearest `not-found.tsx` instead of the normal page:
+Call `notFound()` from a loader to render the nearest `not-found.tsx` instead of the normal page:
 
 ```tsx
 // src/pages/blog/[slug].tsx

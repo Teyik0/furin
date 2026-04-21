@@ -87,6 +87,7 @@ export function getBuildId(): string {
   return _buildId;
 }
 
+import { AsyncLocalStorage } from "node:async_hooks";
 // ── Pending invalidations (server → client bridge) ───────────────────────────
 //
 // Per-request scoping via AsyncLocalStorage: furin wraps each request's full
@@ -94,7 +95,7 @@ export function getBuildId(): string {
 // that `revalidatePath()` and `consumePendingInvalidations()` share an isolated
 // Set per request. The global `_globalPendingInvalidations` is a fallback for
 // calls made outside a request context (e.g. scripts, tests, warmup code).
-import { AsyncLocalStorage } from "node:async_hooks";
+import { createLogger } from "../context-logger.ts";
 
 const _requestInvalidationScope = new AsyncLocalStorage<Set<string>>();
 const _globalPendingInvalidations = new Set<string>();
@@ -163,7 +164,15 @@ export function callCachePurger(paths: string[]): void {
     return;
   }
   _cachePurger(paths).catch((err: unknown) => {
-    console.error("[furin] CDN cache purge failed:", err);
+    const logger = createLogger({});
+    logger.set({
+      furin: {
+        action: "cdn_purge_failed",
+        paths,
+      },
+    });
+    logger.error(err instanceof Error ? err : new Error(String(err)));
+    logger.emit();
   });
 }
 

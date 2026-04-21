@@ -276,7 +276,7 @@ function makeErrorBoundaryInState(
   // would after a commit. The optional callback (used by reset() to defer
   // onReset until after the commit) is invoked synchronously here — the
   // observable contract is "after state is updated", which holds.
-  boundary.setState = ((updater: unknown, callback?: () => void) => {
+  boundary.setState = ((updater: unknown, callback: (() => void) | undefined) => {
     const next =
       typeof updater === "function"
         ? (updater as (s: typeof boundary.state) => Partial<typeof boundary.state>)(boundary.state)

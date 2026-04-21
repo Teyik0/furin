@@ -1,7 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { RequestLogger } from "evlog";
+// biome-ignore lint/style/noExportedImports: used locally and re-exported for consumers
 import { createLogger } from "evlog";
 import { useLogger as _evlogUseLogger } from "evlog/elysia";
+
+export { createLogger };
 
 /**
  * Fallback used when useLogger() is called completely outside any context

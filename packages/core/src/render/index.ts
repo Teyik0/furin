@@ -27,7 +27,7 @@ export { type LoaderResult, runLoaders } from "./loaders.ts";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 import type { Context } from "elysia";
-import { runInSyntheticRenderScope, useLogger } from "../context-logger.ts";
+import { createLogger, runInSyntheticRenderScope, useLogger } from "../context-logger.ts";
 import type { ResolvedRoute } from "../router.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { LoaderContext } from "./assemble.ts";
@@ -197,6 +197,7 @@ function renderForPath(
         furin: {
           render: mode,
           route: route.pattern,
+          cache: mode === "isr" ? "revalidated" : "miss",
           loader_ms: prepared.loader_ms,
           ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
         },
@@ -517,7 +518,9 @@ function serveISRCacheHit(
     ctx.set.headers.etag = etag;
   }
 
-  useLogger().set({ furin: { render: "isr", route: route.pattern, cache: "hit" } });
+  useLogger().set({
+    furin: { render: "isr", route: route.pattern, cache: isFresh ? "hit" : "stale" },
+  });
   return cached.html;
 }
 
@@ -567,7 +570,7 @@ export async function handleISR(
 
     const etag = buildId ? `"${buildId}:${generatedAt}"` : null;
     ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-    ctx.set.headers["cache-control"] = isrCacheControl(false, revalidate);
+    ctx.set.headers["cache-control"] = "no-store";
     if (etag) {
       ctx.set.headers.etag = etag;
     }
@@ -624,7 +627,15 @@ export async function warmSSGCache(
   origin: string
 ): Promise<void> {
   const targets = routes.filter((r) => r.mode === "ssg" && r.page.staticParams);
-  console.log(`[furin] Warming SSG cache for ${targets.length} route(s)…`);
+  const warmupLogger = createLogger({});
+  warmupLogger.set({
+    furin: {
+      render: "ssg",
+      action: "warmup",
+      routes: targets.length,
+    },
+  });
+  warmupLogger.emit();
 
   // Collect all (route, params) render tasks, handling per-route errors early.
   const tasks: Array<() => Promise<void>> = [];
@@ -633,7 +644,16 @@ export async function warmSSGCache(
     try {
       paramSets = (await route.page.staticParams?.()) ?? [];
     } catch (err) {
-      console.error(`[furin] SSG warm-up failed for ${route.pattern}:`, err);
+      const errorLogger = createLogger({});
+      errorLogger.set({
+        furin: {
+          render: "ssg",
+          action: "warmup_failed",
+          route: route.pattern,
+        },
+      });
+      errorLogger.error(err instanceof Error ? err : new Error(String(err)));
+      errorLogger.emit();
       continue;
     }
     for (const params of paramSets) {
@@ -641,7 +661,16 @@ export async function warmSSGCache(
         try {
           await prerenderSSG(route, params, root, origin);
         } catch (err) {
-          console.error(`[furin] SSG prerender failed for ${route.pattern}:`, err);
+          const errorLogger = createLogger({});
+          errorLogger.set({
+            furin: {
+              render: "ssg",
+              action: "prerender_failed",
+              route: route.pattern,
+            },
+          });
+          errorLogger.error(err instanceof Error ? err : new Error(String(err)));
+          errorLogger.emit();
         }
       });
     }
@@ -673,7 +702,17 @@ function revalidateInBackground(
   originalCtx: LoaderContext
 ) {
   if (pendingRevalidations.has(cacheKey)) {
-    return; // Already revalidating — skip duplicate work
+    const logger = createLogger({});
+    logger.set({
+      furin: {
+        render: "isr",
+        route: route.pattern,
+        cache: "revalidation_skipped",
+        reason: "already_in_flight",
+      },
+    });
+    logger.emit();
+    return;
   }
   pendingRevalidations.add(cacheKey);
 
@@ -691,7 +730,16 @@ function revalidateInBackground(
       });
     })
     .catch((err: unknown) => {
-      console.error("[furin] ISR background revalidation failed:", err);
+      const logger = createLogger({});
+      logger.set({
+        furin: {
+          render: "isr",
+          route: route.pattern,
+          cache: "revalidation_failed",
+        },
+      });
+      logger.error(err instanceof Error ? err : new Error(String(err)));
+      logger.emit();
     })
     .finally(() => {
       pendingRevalidations.delete(cacheKey);
