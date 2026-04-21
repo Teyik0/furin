@@ -26,7 +26,7 @@ import {
   streamToString,
   warmSSGCache,
 } from "../src/render";
-import { isrCache, ssgCache } from "../src/render/cache";
+import { __resetCacheState, isrCache, ssgCache } from "../src/render/cache";
 import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 import { __setDevMode, IS_DEV } from "../src/runtime-env";
@@ -723,6 +723,42 @@ describe("render.tsx", () => {
       // s-maxage should be 0 for a stale entry
       expect(ctx2.set.headers["cache-control"]).toContain("s-maxage=0");
       expect(ctx2.set.headers.etag).toBeTruthy();
+    });
+
+    test("ISR non-200 path recovers from shell error by falling back to built-in error component", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      // The shell-recovery path triggers when renderToReadableStream(element) throws.
+      // A loader error sets status=500, but the built error element may also throw
+      // during render if the user's error component is broken.
+      const throwingComponentRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          // Loader throws → status 500, element built as error UI
+          loader: () => {
+            throw new Error("ISR-loader-boom");
+          },
+          // Page component would not be reached, but provide one just in case
+          component: () => {
+            throw new Error("should-not-reach-this");
+          },
+        },
+        // Custom error component that also throws during render, to exercise the
+        // double-fallback path (user error component → built-in DefaultErrorComponent).
+        error: () => {
+          throw new Error("error-tsx-also-broke");
+        },
+      } as unknown as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const html = await handleISR(throwingComponentRoute, ctx, root);
+
+      // Should not crash; fallback component renders a generic 500 page.
+      expect(html).toContain("500");
+      expect(ctx.set.status).toBe(500);
     });
   });
 

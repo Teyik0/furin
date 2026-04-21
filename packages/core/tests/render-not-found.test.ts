@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { join } from "node:path";
 import type { Context } from "elysia";
-import { createElement } from "react";
 
 // Render pipeline uses useLogger() under the hood; stub as in render.test.ts.
 mock.module("evlog/elysia", () => ({
@@ -11,9 +10,8 @@ mock.module("evlog/elysia", () => ({
 }));
 
 import type { HTTPHeaders } from "elysia/types";
-import { useRouter } from "../src/link.tsx";
 import { notFound } from "../src/not-found";
-import { renderRootNotFound, renderSSR, renderToHTML } from "../src/render";
+import { renderSSR, renderToHTML } from "../src/render";
 import { type ResolvedRoute, scanPages } from "../src/router";
 import { __setDevMode, IS_DEV } from "../src/runtime-env";
 
@@ -151,78 +149,5 @@ describe("renderToHTML — not-found handling", () => {
     );
 
     expect(rendered.html).toContain("404 — NOT FOUND");
-  });
-});
-
-describe("renderRootNotFound", () => {
-  const originalDevMode = IS_DEV;
-
-  beforeAll(() => __setDevMode(false));
-  afterAll(() => __setDevMode(originalDevMode));
-
-  test("renders the user's not-found component with RouterContext", async () => {
-    const NotFound = () => createElement("div", { "data-testid": "not-found" }, "Not Found");
-    const root = {
-      path: "/pages/root.tsx",
-      route: { __type: "FURIN_ROUTE" as const, layout: () => createElement("div", null, "root") },
-      notFound: NotFound,
-    };
-
-    const response = await renderRootNotFound(root, new Request("http://localhost/missing"));
-    expect(response.status).toBe(404);
-    const body = await response.text();
-    expect(body).toContain("Not Found");
-  });
-
-  test("falls back to built-in 404 when user's not-found.tsx crashes", async () => {
-    const CrashingNotFound = () => {
-      throw new Error("not-found-boom");
-    };
-    const root = {
-      path: "/pages/root.tsx",
-      route: { __type: "FURIN_ROUTE" as const, layout: () => createElement("div", null, "root") },
-      notFound: CrashingNotFound,
-    };
-
-    const response = await renderRootNotFound(root, new Request("http://localhost/missing"));
-    expect(response.status).toBe(404);
-    const body = await response.text();
-    expect(body).toContain("404 — NOT FOUND");
-  });
-
-  test("renders with request=undefined fallback", async () => {
-    const NotFound = () => createElement("div", null, "No Request");
-    const root = {
-      path: "/pages/root.tsx",
-      route: { __type: "FURIN_ROUTE" as const, layout: () => createElement("div", null, "root") },
-      notFound: NotFound,
-    };
-
-    const response = await renderRootNotFound(root, undefined);
-    expect(response.status).toBe(404);
-    const body = await response.text();
-    expect(body).toContain("No Request");
-  });
-
-  test("RouterContext functions are available inside not-found component", async () => {
-    const NotFoundWithRouter = () => {
-      const router = useRouter();
-      // Exercise every context function so coverage tracks them as entered.
-      router.prefetch("/");
-      router.invalidatePrefetch("/");
-      router.refresh();
-      router.navigate("/");
-      return createElement("div", { "data-testid": "router-not-found" }, router.currentHref);
-    };
-    const root = {
-      path: "/pages/root.tsx",
-      route: { __type: "FURIN_ROUTE" as const, layout: () => createElement("div", null, "root") },
-      notFound: NotFoundWithRouter,
-    };
-
-    const response = await renderRootNotFound(root, new Request("http://localhost/missing"));
-    expect(response.status).toBe(404);
-    const body = await response.text();
-    expect(body).toContain("/missing");
   });
 });

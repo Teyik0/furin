@@ -23,12 +23,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Scroll restoration** — manual scroll restoration with `history.state` keys. Scroll positions are saved to `sessionStorage` on navigation and restored on back/forward. Hash fragments scroll to the target element after React paint.
 - **`applyRevalidateHeader` and `shouldAutoRefreshPath`** — client utilities that process the `X-Furin-Revalidate` header to invalidate prefetch caches and optionally auto-refresh the current page.
 - **Error Handling documentation** — new `/docs/error-handling` page covering `error.tsx`, `not-found.tsx`, `notFound()`, digests, root fallbacks, SPA 404 handling, and ISR error behavior.
+- **Observability for catch-all 404s** — `renderRootNotFound` now emits a structured `useLogger().set()` entry with `furin: { render: "not-found", action: "catch_all", path }` before rendering the SPA 404 shell. When the dev-mode loopback template request fails, the swallowed error is logged as `furin: { render: "not-found", action: "dev_template_fallback", error }` so template outages are visible.
+- **ISR non-200 branch shell recovery** — the non-200 ISR path in `handleISR` now mirrors the SSR shell-recovery behaviour: if `renderToReadableStream(element)` throws (e.g. a broken user `error.tsx` component), it falls back to `buildErrorElement(undefined, ...)` (the built-in `DefaultErrorComponent`) so the ISR response cannot crash entirely.
+- **Structured logging for non-200 ISR responses** — after a non-200 ISR render (404 or 500), `handleISR` logs `furin: { render: "isr", route, cache: "miss", render_ms, digest?, status }` so ISR misses are observable even when they do not hit the 200 path.
 
 ### Changed
 - `computeErrorDigest` now uses a platform-neutral FNV-1a implementation instead of `Bun.hash`, so error digests work correctly in both server and client environments.
 - `prepareRender` now requires both `basePath` and `throwOnFailure` arguments explicitly — no optional or defaulted parameters.
 - `notFound(options)` and `FurinNotFoundError.constructor(options)` now accept `NotFoundOptions | undefined` explicitly. Callers must pass the value or `undefined` deliberately.
 - `loadProdRoutes` now requires `CompileContext` to include `rootConventions` and `routeMetadata`. Production builds fail fast with a clear error if boundary metadata is missing, preventing silent drops of error/not-found conventions.
+- `handleISR` non-200 render logic extracted to a dedicated `renderISRNon200` helper to keep the public function under the cyclomatic-complexity threshold.
 
 ### Fixed
 - **Public error message sanitization** — the built-in default error screen shows a generic message (`"Something went wrong"`) for untrusted errors. Custom `error.tsx` components still receive the raw `error.message`. `error.digest` is always exposed for support correlation.
@@ -36,6 +40,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **`classifySpaResponse` misclassification** — server errors that happened to carry `__furinStatus` in the body are no longer incorrectly treated as not-found. The 404 branch is now guarded by the HTTP status being `2xx` or `404`.
 - **Hydration not-found mismatch** — when a matched route's loader throws `notFound()`, the hydration entry now passes the not-found payload into `initialNotFound` instead of `undefined`, so the client hydrates into the correct 404 state.
 - **`buildErrorElement` leak** — the default error component no longer receives raw error messages. Custom error components continue to receive raw messages via `errorMessageOf`.
+- **`refreshLayoutChain` index drift with gap directories** — directories without a `_route.tsx` file were previously skipped with `isModuleNotFoundError`, but the old code used positional parity (`chainIdx = i + 1`) between `layoutPaths` and `chain`, causing layout/loader updates to be applied to the wrong chain entries. The loop now tracks `chainIdx` independently and only advances it when a `_route.tsx` import succeeds, preventing HMR layout corruption in nested routes with intermediate directories that do not declare a `_route.tsx`.
+- **`resolveMode` treated `revalidate: 0` as SSR** — an explicit `revalidate: 0` on a route config or page object now correctly resolves to `"isr"` instead of falling through to `"ssr"`. `revalidate: 0` is valid ISR (no CDN caching, always re-render).
 
 ## [0.1.0-alpha.9] — 2026-04-18
 
