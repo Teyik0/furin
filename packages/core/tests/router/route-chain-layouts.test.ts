@@ -159,6 +159,29 @@ describe("resolveMode", () => {
 
     expect(resolveMode(page, chain)).toBe("ssr");
   });
+
+  test("returns isr when revalidate is 0 (explicit ISR with no caching)", () => {
+    const page = {
+      __type: "FURIN_PAGE",
+      _route: { __type: "FURIN_ROUTE", revalidate: 0 },
+    } as RuntimePage;
+    const chain = [{ __type: "FURIN_ROUTE", loader: async () => ({}) }] as RuntimeRoute[];
+
+    expect(resolveMode(page, chain)).toBe("isr");
+  });
+
+  test("returns isr when page-level revalidate is 0 (explicit ISR with no caching)", () => {
+    const page = {
+      __type: "FURIN_PAGE" as const,
+      _route: { __type: "FURIN_ROUTE" as const },
+      loader: async () => ({ data: "test" }),
+      revalidate: 0,
+      component: () => null,
+    } as RuntimePage;
+    const chain = [] as RuntimeRoute[];
+
+    expect(resolveMode(page, chain)).toBe("isr");
+  });
 });
 
 describe("scanPageFiles throw", () => {

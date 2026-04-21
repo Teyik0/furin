@@ -132,6 +132,16 @@ export function loadProdRoutes(ctx: CompileContext): {
     const error = boundaries.findLast((b) => b.error)?.error;
     const notFound = boundaries.findLast((b) => b.notFound)?.notFound;
 
+    // Note: In production we store only the nearest segment-level convention
+    // (error / notFound) and do NOT fall back to root.error / root.notFound here.
+    // The dev-mode resolveNearestConvention() does include the root fallback,
+    // and the render layer applies the runtime fallback (route.error ?? root.error)
+    // when building the React element tree. This asymmetry is intentional:
+    // loadProdRoutes records the static wiring so buildElement can place React
+    // boundaries at the correct nesting depth, while the runtime fallback ensures
+    // every route always has a safety-net component even if no boundary was
+    // declared at any segment level.
+
     routes.push({
       pattern,
       page,
@@ -492,31 +502,39 @@ export async function refreshLayoutChain(
     dir = dir.slice(0, dir.lastIndexOf("/"));
   }
 
-  for (let i = 0; i < layoutPaths.length; i++) {
-    const layoutPath = layoutPaths[i];
-    const chainIdx = i + 1; // +1 because chain[0] is root
-    if (!chain[chainIdx]) {
-      continue;
+  // Track chainIdx independently rather than deriving it from layoutPaths
+  // index. Directories without a _route.tsx produce import errors that are
+  // silently skipped, but those directories have no corresponding chain entry —
+  // so we must only advance chainIdx for directories whose _route.tsx actually
+  // exists. A positional assumption (i = chainIdx - 1) drifts whenever
+  // isModuleNotFoundError is swallowed for a gap directory.
+  let chainIdx = 1; // chain[0] is the root
+  for (const layoutPath of layoutPaths) {
+    if (chainIdx >= chain.length) {
+      break;
     }
     try {
       const freshMod = await resolveImport(`${layoutPath}?furin-server&t=${Date.now()}`);
       const freshRoute = freshMod.route ?? freshMod.default;
       if (freshRoute && isFurinRoute(freshRoute)) {
-        if (freshRoute.layout === undefined) {
-          chain[chainIdx].layout = undefined;
-        } else {
-          chain[chainIdx].layout = freshRoute.layout;
-        }
-        if (freshRoute.loader === undefined) {
-          chain[chainIdx].loader = undefined;
-        } else {
-          chain[chainIdx].loader = freshRoute.loader;
+        const entry = chain[chainIdx];
+        if (entry) {
+          entry.layout = freshRoute.layout;
+          entry.loader = freshRoute.loader;
         }
       }
+      // _route.tsx exists at this depth — advance chainIdx regardless of
+      // whether the export is currently a valid route (the chain entry was
+      // populated by the initial import and should be revisited on the next
+      // successful HMR cycle).
+      chainIdx++;
     } catch (err) {
       if (!isModuleNotFoundError(err)) {
         throw err;
       }
+      // No _route.tsx in this directory — no chain entry to match, so
+      // do NOT advance chainIdx. The next deeper layoutPath may correspond
+      // to the current chainIdx.
     }
   }
 }
@@ -724,7 +742,7 @@ export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr
     return "ssg";
   }
 
-  if (revalidate && revalidate > 0) {
+  if (typeof revalidate === "number" && revalidate >= 0) {
     return "isr";
   }
 

@@ -448,11 +448,18 @@ export async function renderRootNotFound(
   } else if (IS_DEV && request !== undefined) {
     try {
       template = await getDevTemplate(new URL(request.url).origin);
-    } catch {
+    } catch (devTemplateErr) {
       // Loopback failed (server not listening yet, URL unreachable, etc.) —
       // still return SOMETHING so the user doesn't see a raw error. The
       // generated HTML will be non-interactive (see JSDoc), but that's
       // strictly better than a 500.
+      useLogger().set({
+        furin: {
+          render: "not-found",
+          action: "dev_template_fallback",
+          error: devTemplateErr instanceof Error ? devTemplateErr.message : String(devTemplateErr),
+        },
+      });
       template = generateIndexHtml();
     }
   } else {
@@ -476,6 +483,14 @@ export async function renderRootNotFound(
     defaultPreloadDelay: 50,
     defaultPreloadStaleTime: 30_000,
   };
+
+  useLogger().set({
+    furin: {
+      render: "not-found",
+      action: "catch_all",
+      path: request ? new URL(request.url).pathname : "/",
+    },
+  });
 
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
@@ -560,6 +575,100 @@ function serveISRCacheHit(
   return cached.html;
 }
 
+/**
+ * Handles the ISR non-200 render path: shell-recovery with fallback error
+ * component, structured logging, and cache-control headers. Extracted from
+ * handleISR to keep cyclomatic complexity under the lint threshold.
+ */
+async function renderISRNon200(
+  prepared: PreparedRender,
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  errorDigest: string | undefined,
+  renderStart: number,
+  buildId: string
+): Promise<string> {
+  const { componentProps, element, headData, template, status, notFoundError } = prepared;
+  const fallbackProps: Record<string, unknown> = { ...componentProps };
+  if (status === 404) {
+    fallbackProps.__furinStatus = 404;
+    if (notFoundError) {
+      fallbackProps.__furinNotFound = notFoundError;
+    }
+  }
+
+  // Shell-render gate: if the React render throws for the non-200 ISR branch,
+  // recover by rendering the fallback error component so that a broken
+  // user error/not-found UI cannot crash the ISR path entirely.
+  let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
+  let finalStatus = status;
+  let finalDigest = errorDigest;
+  try {
+    reactStream = await renderToReadableStream(element);
+  } catch (shellError) {
+    finalStatus = 500;
+    finalDigest = computeErrorDigest(shellError);
+    useLogger().set({
+      furin: {
+        render: "isr",
+        route: route.pattern,
+        cache: "miss",
+        digest: finalDigest,
+        phase: "shell",
+      },
+    });
+    fallbackProps.__furinError = { digest: finalDigest };
+    fallbackProps.__furinStatus = 500;
+    try {
+      reactStream = await renderToReadableStream(
+        withSSRRouterContext(
+          buildErrorElement(route.error ?? root.error, shellError, finalDigest),
+          prepared.ssrContext
+        )
+      );
+    } catch {
+      // User's error.tsx also threw — render the built-in default (pure markup,
+      // cannot crash).
+      reactStream = await renderToReadableStream(
+        withSSRRouterContext(
+          buildErrorElement(undefined, shellError, finalDigest),
+          prepared.ssrContext
+        )
+      );
+    }
+  }
+  if (!fallbackProps.__furinError && errorDigest) {
+    fallbackProps.__furinError = { digest: errorDigest };
+  }
+
+  await reactStream.allReady;
+  const reactHtml = await streamToString(reactStream);
+  const html = assembleHTML(template, headData, reactHtml, fallbackProps);
+  const generatedAt = Date.now();
+
+  const renderMs = generatedAt - renderStart;
+  useLogger().set({
+    furin: {
+      render: "isr",
+      route: route.pattern,
+      cache: "miss",
+      render_ms: renderMs,
+      ...(finalDigest ? { digest: finalDigest } : {}),
+      status: finalStatus,
+    },
+  });
+
+  const etag = buildId ? `"${buildId}:${generatedAt}"` : null;
+  ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+  ctx.set.headers["cache-control"] = "no-store";
+  if (etag) {
+    ctx.set.headers.etag = etag;
+  }
+  ctx.set.status = finalStatus;
+  return html;
+}
+
 export async function handleISR(
   route: ResolvedRoute,
   ctx: Context,
@@ -583,35 +692,10 @@ export async function handleISR(
     return prepared;
   }
 
-  const { componentProps, element, headData, template, status, errorDigest, notFoundError } =
-    prepared;
+  const { componentProps, element, headData, template, status, errorDigest } = prepared;
 
   if (status !== 200) {
-    const fallbackProps: Record<string, unknown> = { ...componentProps };
-    if (status === 404) {
-      fallbackProps.__furinStatus = 404;
-      if (notFoundError) {
-        fallbackProps.__furinNotFound = notFoundError;
-      }
-    }
-    if (errorDigest) {
-      fallbackProps.__furinError = { digest: errorDigest };
-    }
-
-    const stream = await renderToReadableStream(element);
-    await stream.allReady;
-    const reactHtml = await streamToString(stream);
-    const html = assembleHTML(template, headData, reactHtml, fallbackProps);
-    const generatedAt = Date.now();
-
-    const etag = buildId ? `"${buildId}:${generatedAt}"` : null;
-    ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-    ctx.set.headers["cache-control"] = "no-store";
-    if (etag) {
-      ctx.set.headers.etag = etag;
-    }
-    ctx.set.status = status;
-    return html;
+    return renderISRNon200(prepared, route, ctx, root, errorDigest, renderStart, buildId);
   }
 
   const stream = await renderToReadableStream(element);

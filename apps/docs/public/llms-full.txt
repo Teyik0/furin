@@ -1313,7 +1313,7 @@ If the client entry imports `RouterProvider` through one path and application co
 - the provider writes to one context
 - the link reads from the other
 
-When that happens, SPA navigation silently falls back to full page reloads because `Link` behaves as if there were no router provider.
+When that happens, SPA navigation silently falls back to full-page reloads because `Link` behaves as if there were no router provider.
 
 That is why the hydrate entry imports `RouterProvider` from `@teyik0/furin/link` instead of an absolute file path.
 
