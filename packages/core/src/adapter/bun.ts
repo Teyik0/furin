@@ -33,6 +33,22 @@ async function createBuildFingerprint(
   if (serverEntry) {
     fingerprintPaths.add(serverEntry);
   }
+  if (root.errorPath) {
+    fingerprintPaths.add(root.errorPath);
+  }
+  if (root.notFoundPath) {
+    fingerprintPaths.add(root.notFoundPath);
+  }
+  for (const route of routes) {
+    for (const segment of route.segmentBoundaries) {
+      if (segment.errorPath) {
+        fingerprintPaths.add(segment.errorPath);
+      }
+      if (segment.notFoundPath) {
+        fingerprintPaths.add(segment.notFoundPath);
+      }
+    }
+  }
   for (const path of BUILD_ID_INPUT_PATHS) {
     if (!existsSync(path)) {
       // A missing framework source file would silently produce an empty-string
@@ -62,10 +78,13 @@ async function createBuildFingerprint(
 }
 
 function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
-  const rootConventions = {
-    errorPath: root.errorPath ? toPosixPath(root.errorPath) : undefined,
-    notFoundPath: root.notFoundPath ? toPosixPath(root.notFoundPath) : undefined,
-  };
+  const rootConventions =
+    root.errorPath || root.notFoundPath
+      ? {
+          errorPath: root.errorPath ? toPosixPath(root.errorPath) : undefined,
+          notFoundPath: root.notFoundPath ? toPosixPath(root.notFoundPath) : undefined,
+        }
+      : undefined;
 
   const routeMetadata: NonNullable<Parameters<typeof generateCompileEntry>[0]["routeMetadata"]> =
     {};

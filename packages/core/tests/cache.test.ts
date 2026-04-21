@@ -91,7 +91,7 @@ describe("revalidatePath page eviction", () => {
   });
 
   test("removes an exact SSG cache entry", () => {
-    setSSGCache("/about", { html: "<html>about</html>", cachedAt: Date.now() });
+    setSSGCache("/about", { html: "<html>about</html>", cachedAt: Date.now(), status: 200 });
     expect(ssgCache.has("/about")).toBe(true);
 
     revalidatePath("/about");
@@ -146,9 +146,9 @@ describe("revalidatePath layout prefix eviction", () => {
   });
 
   test("evicts SSG cache entries under the given prefix", () => {
-    setSSGCache("/blog/post-1", { html: "<html>1</html>", cachedAt: Date.now() });
-    setSSGCache("/blog/post-2", { html: "<html>2</html>", cachedAt: Date.now() });
-    setSSGCache("/contact", { html: "<html>contact</html>", cachedAt: Date.now() });
+    setSSGCache("/blog/post-1", { html: "<html>1</html>", cachedAt: Date.now(), status: 200 });
+    setSSGCache("/blog/post-2", { html: "<html>2</html>", cachedAt: Date.now(), status: 200 });
+    setSSGCache("/contact", { html: "<html>contact</html>", cachedAt: Date.now(), status: 200 });
 
     revalidatePath("/blog", "layout");
 

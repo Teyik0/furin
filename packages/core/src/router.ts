@@ -113,8 +113,8 @@ export function loadProdRoutes(ctx: CompileContext): {
       notFound: resolveModuleComponent(b.notFoundPath),
     })) as SegmentBoundary[];
 
-    const error = [...boundaries].reverse().find((b) => b.error)?.error;
-    const notFound = [...boundaries].reverse().find((b) => b.notFound)?.notFound;
+    const error = boundaries.findLast((b) => b.error)?.error;
+    const notFound = boundaries.findLast((b) => b.notFound)?.notFound;
 
     routes.push({
       pattern,
@@ -495,7 +495,7 @@ async function handleSSGRequest(
   buildId: string
 ): Promise<unknown> {
   const origin = new URL(ctx.request.url).origin;
-  const entry = await prerenderSSG(route, ctx.params, root, origin);
+  const entry = await prerenderSSG(route, ctx.params, root, origin, undefined);
 
   // Loader issued a redirect — forward it directly to the client.
   if (entry instanceof Response) {

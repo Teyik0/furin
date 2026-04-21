@@ -192,10 +192,16 @@ describe("FurinNotFoundBoundary", () => {
     expect(next).toEqual({ error: err });
   });
 
-  test("getDerivedStateFromError returns null for generic Error (bubbles past)", () => {
+  test("getDerivedStateFromError latches generic Error (re-thrown in render)", () => {
     const err = new Error("plain boom");
     const next = FurinNotFoundBoundary.getDerivedStateFromError(err);
-    expect(next).toBeNull();
+    expect(next).toEqual({ error: err });
+  });
+
+  test("render re-throws non-FurinNotFoundError to parent FurinErrorBoundary", () => {
+    const err = new Error("plain boom");
+    const boundary = makeNotFoundBoundaryInState(err, {});
+    expect(() => boundary.render()).toThrow(err);
   });
 
   test("renders default 404 fallback when caught", () => {
@@ -290,7 +296,7 @@ function makeErrorBoundaryInState(
 }
 
 function makeNotFoundBoundaryInState(
-  error: FurinNotFoundError,
+  error: Error,
   props: Partial<ConstructorParameters<typeof FurinNotFoundBoundary>[0]>
 ): FurinNotFoundBoundary {
   const fullProps = { children: null, ...props };

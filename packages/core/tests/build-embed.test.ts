@@ -68,12 +68,15 @@ describe.serial("compile: embed", () => {
     writeFileSync(join(app.path, "public", "sub", "logo.png"), "fake");
 
     const entryPath = generateCompileEntry({
+      buildId: undefined,
       rootPath: join(app.path, "src/pages/root.tsx"),
       routes: [{ pattern: "/", path: join(app.path, "src/pages/index.tsx"), mode: "ssg" }],
       serverEntry: join(app.path, "src/server.ts"),
       outDir: app.path,
       embed: { clientDir },
       publicDir: join(app.path, "public"),
+      rootConventions: undefined,
+      routeMetadata: undefined,
     });
 
     expect(existsSync(entryPath)).toBe(true);
@@ -92,10 +95,15 @@ describe.serial("compile: embed", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
     const entryPath = generateCompileEntry({
+      buildId: undefined,
       rootPath: join(app.path, "src/pages/root.tsx"),
       routes: [{ pattern: "/", path: join(app.path, "src/pages/index.tsx"), mode: "ssg" }],
       serverEntry: join(app.path, "src/server.ts"),
       outDir: app.path,
+      embed: undefined,
+      publicDir: undefined,
+      rootConventions: undefined,
+      routeMetadata: undefined,
     });
 
     const content = readFileSync(entryPath, "utf8");
@@ -111,11 +119,15 @@ describe.serial("compile: embed", () => {
 
     expect(() =>
       generateCompileEntry({
+        buildId: undefined,
         rootPath: join(app.path, "src/pages/root.tsx"),
         routes: [],
         serverEntry: join(app.path, "src/server.ts"),
         outDir: app.path,
         embed: { clientDir: join(app.path, "nonexistent") },
+        publicDir: undefined,
+        rootConventions: undefined,
+        routeMetadata: undefined,
       })
     ).toThrow("Client directory not found");
   });
@@ -129,11 +141,15 @@ describe.serial("compile: embed", () => {
 
     expect(() =>
       generateCompileEntry({
+        buildId: undefined,
         rootPath: join(app.path, "src/pages/root.tsx"),
         routes: [],
         serverEntry: join(app.path, "src/server.ts"),
         outDir: app.path,
         embed: { clientDir },
+        publicDir: undefined,
+        rootConventions: undefined,
+        routeMetadata: undefined,
       })
     ).toThrow("index.html");
   });

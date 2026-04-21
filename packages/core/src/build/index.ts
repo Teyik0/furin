@@ -2,7 +2,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { buildBunTarget } from "../adapter/bun";
 import { buildStaticTarget } from "../adapter/static";
-import { BUILD_TARGETS, type BuildTarget } from "../config";
+import { BUILD_TARGETS, type BuildTarget, type FurinPlugin } from "../config";
 import { scanPages } from "../router";
 import { scanFurinInstances } from "./scan-server";
 import { ensureDir, toBuildRouteManifestEntry, toPosixPath } from "./shared";
@@ -68,11 +68,12 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
   // doesn't exist in the runtime context) are skipped silently — they only
   // affect the Bun.build() client bundle, not server-side rendering.
   for (const plugin of options.plugins ?? []) {
-    if ((plugin as import("../config").FurinPlugin).buildOnly) {
+    const { buildOnly, ...runtimePlugin } = plugin as FurinPlugin;
+    if (buildOnly) {
       continue;
     }
     try {
-      Bun.plugin(plugin);
+      Bun.plugin(runtimePlugin);
     } catch (err) {
       console.debug("[furin] Skipped plugin at runtime:", err);
     }

@@ -139,6 +139,10 @@ async function setupProdTemplate(
  * fresh `AsyncLocalStorage` scope. This isolates `pendingInvalidations` per
  * request, preventing concurrent requests from stealing each other's
  * `revalidatePath()` calls.
+ *
+ * Note: this mutates `app.handle` directly. When the Furin plugin is
+ * `.use()`-d by a parent Elysia instance, the parent should apply the same
+ * wrapping or use Furin as the outermost app.
  */
 function wrapWithRequestScope(app: AnyElysia): Elysia {
   const original = app.handle.bind(app);

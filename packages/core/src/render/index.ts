@@ -36,6 +36,7 @@ import { generateIndexHtml } from "./shell.ts";
 interface RenderResult {
   headers: Record<string, string>;
   html: string;
+  status: number;
 }
 
 // ── Shared render preparation ────────────────────────────────────────────────
@@ -171,7 +172,7 @@ function renderForPath(
   root: RootLayout,
   origin: string,
   mode: "ssg" | "isr",
-  basePath?: string
+  basePath: string | undefined
 ): Promise<RenderResult | Response> {
   return runInSyntheticRenderScope(
     async () => {
@@ -203,13 +204,14 @@ function renderForPath(
         },
       });
 
-      const { componentProps, element, headData, headers, template } = prepared;
+      const { componentProps, element, headData, headers, status, template } = prepared;
       const stream = await renderToReadableStream(element);
       await stream.allReady;
       const reactHtml = await streamToString(stream);
       return {
         html: assembleHTML(template, headData, reactHtml, componentProps),
         headers,
+        status,
       };
     },
     { route: route.pattern, render: mode }
@@ -230,7 +232,7 @@ export async function renderToHTML(
     throw prepared;
   }
 
-  const { componentProps, element, headData, headers, template } = prepared;
+  const { componentProps, element, headData, headers, status, template } = prepared;
 
   const stream = await renderToReadableStream(element);
   await stream.allReady;
@@ -239,6 +241,7 @@ export async function renderToHTML(
   return {
     html: assembleHTML(template, headData, reactHtml, componentProps),
     headers,
+    status,
   };
 }
 
@@ -260,8 +263,8 @@ export async function prerenderSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout,
-  origin = "http://localhost:3000",
-  basePath?: string
+  origin: string,
+  basePath: string | undefined
 ): Promise<SsgCacheEntry | Response> {
   const resolvedPath = resolvePath(route.pattern, params);
 
@@ -276,7 +279,7 @@ export async function prerenderSSG(
   }
   const result = renderResult;
 
-  const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now() };
+  const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now(), status: result.status };
 
   if (!IS_DEV) {
     setSSGCache(resolvedPath, entry);
@@ -659,7 +662,7 @@ export async function warmSSGCache(
     for (const params of paramSets) {
       tasks.push(async () => {
         try {
-          await prerenderSSG(route, params, root, origin);
+          await prerenderSSG(route, params, root, origin, undefined);
         } catch (err) {
           const errorLogger = createLogger({});
           errorLogger.set({
@@ -716,7 +719,7 @@ function revalidateInBackground(
   }
   pendingRevalidations.add(cacheKey);
 
-  renderForPath(route, params, root, new URL(originalCtx.request.url).origin, "isr")
+  renderForPath(route, params, root, new URL(originalCtx.request.url).origin, "isr", undefined)
     .then((result) => {
       if (result instanceof Response) {
         // A loader called ctx.redirect() during ISR revalidation.

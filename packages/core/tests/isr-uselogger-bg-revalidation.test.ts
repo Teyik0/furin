@@ -83,7 +83,7 @@ describe("useLogger() in synthetic render contexts (no evlog ALS)", () => {
       },
     };
 
-    await expect(prerenderSSG(route, {}, root, "http://localhost")).rejects.toThrow(
+    await expect(prerenderSSG(route, {}, root, "http://localhost", undefined)).rejects.toThrow(
       "[evlog] useLogger() was called outside of an evlog plugin context"
     );
   });
@@ -121,7 +121,9 @@ describe("useLogger() in synthetic render contexts (no evlog ALS)", () => {
       },
     };
 
-    await expect(prerenderSSG(route, {}, root, "http://localhost")).resolves.toMatchObject({
+    await expect(
+      prerenderSSG(route, {}, root, "http://localhost", undefined)
+    ).resolves.toMatchObject({
       html: expect.stringContaining("<html"),
     });
   });

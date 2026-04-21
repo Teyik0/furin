@@ -7,6 +7,7 @@ export interface ISRCacheEntry {
 export interface SsgCacheEntry {
   cachedAt: number;
   html: string;
+  status: number;
 }
 
 /** Maximum number of ISR cache entries before LRU eviction kicks in. */

@@ -1,6 +1,6 @@
 import { Component, Fragment, type ReactNode } from "react";
 import { type ErrorComponent, getPublicErrorMessage } from "../error.ts";
-import { type FurinNotFoundError, isNotFoundError, type NotFoundComponent } from "../not-found.ts";
+import { isNotFoundError, type NotFoundComponent } from "../not-found.ts";
 import { DefaultErrorScreen, DefaultNotFoundScreen } from "./default-screens.tsx";
 import { computeErrorDigest } from "./digest.ts";
 
@@ -138,13 +138,13 @@ interface NotFoundBoundaryProps {
 
 interface NotFoundBoundaryState {
   epoch: number;
-  error: FurinNotFoundError | null;
+  error: Error | null;
 }
 
 /**
  * Catches `FurinNotFoundError` (thrown by `notFound()`) and renders the
- * nearest not-found UI. Generic errors bubble past so a sibling
- * `<FurinErrorBoundary>` can handle them.
+ * nearest not-found UI. Generic errors are re-thrown from render() so a
+ * parent `<FurinErrorBoundary>` can handle them.
  *
  * Must be a class: React error catching has no function-component equivalent.
  */
@@ -152,12 +152,8 @@ interface NotFoundBoundaryState {
 export class FurinNotFoundBoundary extends Component<NotFoundBoundaryProps, NotFoundBoundaryState> {
   override state: NotFoundBoundaryState = { epoch: 0, error: null };
 
-  static getDerivedStateFromError(error: Error): Partial<NotFoundBoundaryState> | null {
-    // Only latch onto notFound() throws; everything else is "not ours".
-    if (isNotFoundError(error)) {
-      return { error };
-    }
-    return null;
+  static getDerivedStateFromError(error: Error): Partial<NotFoundBoundaryState> {
+    return { error };
   }
 
   override componentDidUpdate(prevProps: NotFoundBoundaryProps) {
@@ -169,6 +165,9 @@ export class FurinNotFoundBoundary extends Component<NotFoundBoundaryProps, NotF
   override render(): ReactNode {
     const { error, epoch } = this.state;
     if (error) {
+      if (!isNotFoundError(error)) {
+        throw error;
+      }
       const Fallback = this.props.fallback ?? DefaultNotFoundFallback;
       return <Fallback error={{ message: error.message, data: error.data }} />;
     }

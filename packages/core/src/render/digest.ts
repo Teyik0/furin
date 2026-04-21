@@ -67,5 +67,5 @@ function cyrb53(input: string): number {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2_246_822_507) ^ Math.imul(h1 ^ (h1 >>> 13), 3_266_489_909);
 
   // biome-ignore lint/suspicious/noBitwiseOperators: cyrb53 combines 32-bit halves with bitwise AND
-  return 4_294_967_296 * (2_097_151 & h2) + (2_097_151 & h1);
+  return 4_294_967_296 * (2_097_151 & h2) + (4_294_967_295 & h1);
 }

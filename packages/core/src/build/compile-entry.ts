@@ -4,23 +4,25 @@ import { buildEntrySource } from "./entry-template";
 import { collectFilesRecursive, ensureDir, toPosixPath } from "./shared";
 
 export interface CompileEntryOptions {
-  buildId?: string;
-  embed?: { clientDir: string };
+  buildId: string | undefined;
+  embed: { clientDir: string } | undefined;
   outDir: string;
-  publicDir?: string;
-  rootConventions?: { errorPath?: string; notFoundPath?: string };
+  publicDir: string | undefined;
+  rootConventions: { errorPath: string | undefined; notFoundPath: string | undefined } | undefined;
   rootPath: string;
-  routeMetadata?: Record<
-    string,
-    {
-      segmentBoundaries: Array<{
-        depth: number;
-        path: string;
-        errorPath?: string;
-        notFoundPath?: string;
-      }>;
-    }
-  >;
+  routeMetadata:
+    | Record<
+        string,
+        {
+          segmentBoundaries: Array<{
+            depth: number;
+            path: string;
+            errorPath: string | undefined;
+            notFoundPath: string | undefined;
+          }>;
+        }
+      >
+    | undefined;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
   serverEntry: string;
 }
@@ -33,7 +35,17 @@ export interface CompileEntryOptions {
  * 4. Dynamically imports server.ts to boot the app
  */
 export function generateCompileEntry(options: CompileEntryOptions): string {
-  const { buildId, outDir, rootPath, routes, serverEntry, embed, publicDir } = options;
+  const {
+    buildId,
+    outDir,
+    rootPath,
+    routes,
+    serverEntry,
+    embed,
+    publicDir,
+    rootConventions,
+    routeMetadata,
+  } = options;
   ensureDir(outDir);
 
   // Build embedded asset imports if embed mode
@@ -107,8 +119,8 @@ export function generateCompileEntry(options: CompileEntryOptions): string {
     serverEntry,
     extraImports: assetImports,
     extraContext: embeddedBlock,
-    rootConventions: options.rootConventions,
-    routeMetadata: options.routeMetadata,
+    rootConventions,
+    routeMetadata,
   });
 
   const entryPath = join(outDir, "_compile-entry.ts");

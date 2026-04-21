@@ -518,26 +518,9 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const html1 = await prerenderSSG(indexRoute, {}, root);
-      const html2 = await prerenderSSG(indexRoute, {}, root);
+      const html1 = await prerenderSSG(indexRoute, {}, root, "http://localhost", undefined);
 
-      expect(html1).toBe(html2);
-    });
-
-    test("renders HTML with template structure", async () => {
-      const indexRoute = await getRoute("/");
-      const root = await getRoot();
-
-      const entry = await prerenderSSG(indexRoute, {}, root);
-      expect(entry instanceof Response ? null : entry.html).toContain("<html");
-    });
-
-    test("returns cached HTML on second call", async () => {
-      const indexRoute = await getRoute("/");
-      const root = await getRoot();
-
-      const html1 = await prerenderSSG(indexRoute, {}, root);
-      const html2 = await prerenderSSG(indexRoute, {}, root);
+      const html2 = await prerenderSSG(indexRoute, {}, root, "http://localhost", undefined);
 
       expect(html1).toBe(html2);
     });
@@ -843,7 +826,7 @@ describe("render.tsx", () => {
       const indexRoute = await getRoute("/");
       const root = await getRoot();
 
-      const entry = await prerenderSSG(indexRoute, {}, root);
+      const entry = await prerenderSSG(indexRoute, {}, root, "http://localhost", undefined);
       expect(entry instanceof Response ? null : entry.html).toContain("<html");
     });
   });
