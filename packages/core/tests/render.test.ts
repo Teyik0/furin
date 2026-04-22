@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 import { join } from "node:path";
 import type { Context, Cookie } from "elysia";
 
@@ -15,10 +15,12 @@ import type { HTTPHeaders } from "elysia/types";
 import { createElement } from "react";
 import type { RuntimeRoute } from "../src/client";
 import { Link } from "../src/link.tsx";
+import { notFound } from "../src/not-found";
 import {
   buildElement,
   handleISR,
   prerenderSSG,
+  renderRootNotFound,
   renderSSR,
   renderToHTML,
   renderToStream,
@@ -27,6 +29,7 @@ import {
   warmSSGCache,
 } from "../src/render";
 import { __resetCacheState, isrCache, ssgCache } from "../src/render/cache";
+import { __resetTemplateState, setProductionTemplateContent } from "../src/render/template.ts";
 import type { ResolvedRoute } from "../src/router";
 import { scanPages } from "../src/router";
 import { __setDevMode, IS_DEV } from "../src/runtime-env";
@@ -942,6 +945,93 @@ describe("render.tsx", () => {
         expect(result.status).toBe(307);
         expect(result.headers.get("Location")).toBe("/moved");
       }
+    });
+  });
+
+  describe("renderRootNotFound", () => {
+    afterEach(() => {
+      __resetTemplateState();
+    });
+
+    test("uses production template when setProductionTemplateContent is called", async () => {
+      setProductionTemplateContent("<!DOCTYPE html><html><body>PROD</body></html>");
+
+      const result = await scanPages(FIXTURES_DIR);
+      const response = await renderRootNotFound(result.root, undefined);
+
+      expect(response.status).toBe(404);
+      const body = await response.text();
+      expect(body).toContain("PROD");
+    });
+
+    test("falls back to generateIndexHtml when not in dev and no request", async () => {
+      const result = await scanPages(FIXTURES_DIR);
+      const response = await renderRootNotFound(result.root, undefined);
+
+      expect(response.status).toBe(404);
+      const body = await response.text();
+      expect(body).toContain("__FURIN_DATA__");
+    });
+
+    test("recovers when user's not-found.tsx throws during render", async () => {
+      const result = await scanPages(FIXTURES_DIR);
+      const rootWithBrokenNotFound = {
+        ...result.root,
+        notFound: () => {
+          throw new Error("not-found-boom");
+        },
+      };
+
+      const response = await renderRootNotFound(rootWithBrokenNotFound, undefined);
+
+      expect(response.status).toBe(404);
+      const body = await response.text();
+      expect(body).toContain("404");
+    });
+  });
+
+  describe("handleISR — non-200 coverage", () => {
+    test("non-200 ISR with notFoundError populates fallback props", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      const notFoundRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          loader: () => notFound({ message: "ISR not found" }),
+        },
+      } as unknown as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const html = await handleISR(notFoundRoute, ctx, root);
+
+      expect(html).toContain("404");
+      expect(ctx.set.status).toBe(404);
+    });
+
+    test("non-200 ISR with errorDigest sets fallbackProps.__furinError", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      const errorRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          loader: () => {
+            throw new Error("ISR-loader-boom");
+          },
+        },
+      } as unknown as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const html = await handleISR(errorRoute, ctx, root, "build1");
+
+      expect(html).toContain("500");
+      expect(ctx.set.status).toBe(500);
+      expect(ctx.set.headers.etag).toBeTruthy();
     });
   });
 });
