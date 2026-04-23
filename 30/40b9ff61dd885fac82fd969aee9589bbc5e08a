@@ -1,0 +1,25 @@
+apps/docs/src/content/docs/comparison.mdx
+  a121dff74360ebd8 8,19,21,38,40-43,203,205,207-208,242,261
+apps/docs/public/llms-full.txt
+  a121dff74360ebd8 66,77,79,96,98-101,261,263,265-266,300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "3040b9ff61dd885fac82fd969aee9589bbc5e08a",
+  "prompts": {
+    "a121dff74360ebd8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c2e824c-9db5-4091-976f-b19a35907a1f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 27,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}
