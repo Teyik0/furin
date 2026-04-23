@@ -33,6 +33,15 @@ export const DOCS_NAV: DocNavSection[] = [
         openIn: DEFAULT_OPEN_IN,
       },
       {
+        label: "Comparison",
+        title: "Next.js vs TanStack Start vs Furin",
+        href: "/docs/comparison",
+        description: "Compare Furin with Next.js and TanStack Start across every dimension.",
+        sourcePath: "src/content/docs/comparison.mdx",
+        githubPath: "apps/docs/src/content/docs/comparison.mdx",
+        openIn: DEFAULT_OPEN_IN,
+      },
+      {
         label: "Getting Started",
         title: "Getting Started",
         href: "/docs/getting-started",

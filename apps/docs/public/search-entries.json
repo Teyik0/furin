@@ -60,12 +60,172 @@
     "title": "Documentation"
   },
   {
+    "content": "Choosing a React meta framework is not about picking the \"best\" one — it is about picking the one whose trade offs match your constraints. This page compares Next.js (App Router), TanStack Start, and Furin across every dimension that matters for production decisions. Disclaimers Next.js = App Router (stable), not Pages Router. TanStack Start = v1 stable (server functions and PPR are experimental and excluded). Furin = latest stable. Where a feature is planned but not shipped, we say so explicitly. This comparison is maintained by the Furin team. We flag our own limitations with ⚠️ and our advantages with 💡 so you can verify independently. | | Next.js | TanStack Start | Furin | | | | | | | Runtime | Node.js | Node.js | Bun | | HTTP server | Custom (Node) | Vite (dev) / Nitro (prod) | Elysia | | Bundler | Turbopack / webpack | Vite | Bun.build | | Process model | Separate dev server + client bundler | Single Vite process (dev) / Nitro (prod) | Single process | | SSG | ✅ | ✅ | ✅ | | ISR | ✅ | ❌ | ✅ | | SSR | ✅ | ✅ | ✅ | | Streaming | ✅ | ✅ | ✅ | | RSC | ✅ | ⚠️ Experimental | ❌ | | PPR | ⚠️ Experimental | ❌ | ❌ | | Binary compile | ❌ | ❌ | ✅ | | ISR in dev | ❌ | ❌ | ❌ | | Dimension | Next.js | TanStack Start | Furin | | | | | | | Runtime target | Node.js 18+ | Node.js 18+ | Bun only | | HTTP framework | Custom server (minimal abstraction over Node http ) | Vite (dev) / Nitro (prod) | Elysia (typed, chainable, WinterCG) | | Process model (dev) | 2 processes: Next.js dev server + Turbopack client bundler | 1 process: Vite dev server with SSR middleware | 1 process : Bun serves HTTP + bundles client via Bun.build + plugin pipeline | | Process model (prod) | 1 process (custom server) or serverless | 1 process (Nitro) or edge | 1 process (Elysia plugin) or compiled binary | | WinterCG compliance | Partial (uses Node APIs) | Partial (Nitro adapts) | Native (Elysia is WinterCG native) | | API routes colocation | ✅ Route handlers in app/api | ✅ API routes via Vinicius | ✅ Elysia plugins colocated with pages | | WebSocket / SSE | Custom implementation | Via Vinicius plugins | Native Elysia ( .ws() , SSE via ReadableStream ) | 💡 Furin advantage — Single process dev eliminates the \"two servers out of sync\" class of bugs. HMR, SSR, and API routes share the same Bun runtime and module graph. ⚠️ Furin limitation — Bun only means you cannot deploy to standard Node.js containers without switching runtimes. Docker with oven/bun is the recommended path. | Dimension | Next.js | TanStack Start | Furin | | | | | | | Build tool | Turbopack (dev) / webpack (prod) | Vite | Bun.build | | Compilation to binary | ❌ | ❌ | ✅ ( compile: \"embed\" ) | | Output directory | .next/ | .output/ or .tanstack start/ | dist/bun/ | | Client assets | Hashed chunks in .next/static | Hashed chunks in dist/client | Hashed chunks in dist/bun/client | | Plugin API | Turbopack plugins (unstable) / webpack | Vite plugins (Rollup compatible) | Bun plugins (native + JS API) | | Tree shaking | ✅ (webpack) / ⚠️ Turbopack WIP | ✅ (Rollup) | ✅ (Bun bundler) | | Minification | SWC | Esbuild / Rollup terser | Bun built in | | Source maps | ✅ | ✅ | ✅ (linked) | | CSS handling | PostCSS / Tailwind via postcss.config.js | PostCSS / Tailwind via Vite | Tailwind v4 via bun plugin tailwind | | Build time (cold) | Medium | Fast | Fast | | Static export | ✅ output: \"export\" | ✅ | ✅ | | Multi target builds | ❌ (Vercel centric) | ⚠️ Adapter based | ✅ ( bun , static , planned: vercel , cloudflare ) | 💡 Furin advantage — compile: \"embed\" produces a single self contained binary with all assets baked in. This is unique among React meta frameworks and ideal for CLI tools, desktop apps, or air gapped deployments. ⚠️ Furin limitation — The Bun bundler ecosystem is younger than Vite/Rollup. Some advanced transforms may require writing a custom BunPlugin . | Dimension | Next.js | TanStack Start | Furin | | | | | | | SSR | ✅ | ✅ | ✅ | | SSG | ✅ | ✅ | ✅ | | ISR | ✅ ( revalidate , revalidatePath ) | ❌ (caching via staleTime + TanStack Query only) | ✅ ( revalidate on route, revalidatePath() ) | | Streaming SSR | ✅ (React 18 renderToReadableStream ) | ✅ | ✅ (React 18 renderToReadableStream ) | | RSC (React Server Components) | ✅ | ⚠️ Experimental | ❌ | | PPR (Partial Prerendering) | ⚠️ Experimental | ❌ | ❌ | | Server Actions | ✅ | ✅ ( createServerFn() ) | ❌ | | Suspense boundaries | ✅ | ✅ | ✅ | | Error boundaries | ✅ ( error.js ) | ✅ (React ErrorBoundary) | ✅ ( error.tsx per segment) | | Not found handling | ✅ ( not found.js ) | ✅ (route fallback) | ✅ ( not found.tsx per segment) | 💡 Furin advantage — ISR is implemented with stale while revalidate semantics, ETags, and Cache Tag headers out of the box. No platform specific adapter required. ⚠️ Furin limitation — No RSC means every component in the tree is shipped to the client. For apps with heavy server only logic (data transforms, heavy libraries), this increases bundle size compared to Next.js App Router. | Dimension | Next.js | TanStack Start | Furin | | | | | | | HMR speed | Fast (Turbopack) | Fast (Vite) | Fast (Bun HMR + plugin pipeline) | | SSR during HMR | ✅ | ✅ | ✅ | | ISR in dev | ❌ (dev = SSR always) | ❌ | ❌ (planned) | | Cache hit/miss visibility | NEXT PRIVATE DEBUG CACHE=1 | Console logs | Built in logs ( [furin] ISR miss / hit / stale ) | | Startup time ( bun dev / next dev ) | Medium | Fast | Fast (single process, no Vite server to boot) | | Type safe links | ❌ (string based href ) | ✅ (` ) | ✅ ( ` with autocomplete) | | Typed params / query | ⚠️ Zod manual | ✅ ( validateSearch , params ) | ✅ ( createRoute({ params: t.Object(...) }) ) | | Error overlay | ✅ (Turbopack) | ✅ (Vite) | ✅ (Bun runtime errors) | | Source maps in dev | ✅ | ✅ | ✅ | | Log streaming | next log or custom | Custom | evlog structured logging (built in) | 💡 Furin advantage — Built in structured logs for every cache hit/miss/stale make debugging caching behavior straightforward in both dev and production. ⚠️ Furin limitation — The dev error overlay is less polished than Turbopack or Vite. Stack traces are accurate but formatting is basic. | Dimension | Next.js | TanStack Start | Furin | | | | | | | Page cache (SSG) | Filesystem ( .next/cache ) | In memory or custom | In memory LRU ( ssgCache ) | | Page cache (ISR) | Filesystem ( .next/cache ) | In memory or custom | In memory LRU ( isrCache ) | | Data cache (loaders) | ✅ ( fetch cache, unstable cache ) | ⚠️ Manual (TanStack Query) | ❌ (loaders re run on every background revalidation) | | Cache persistence | ✅ Filesystem | ❌ (in memory only) | ❌ (in memory only) | | Cache invalidation by path | ✅ ( revalidatePath ) | Manual | ✅ ( revalidatePath(path, \"page\") ) | | Cache invalidation by layout | ✅ ( revalidatePath(path, \"layout\") ) | Manual | ✅ ( revalidatePath(path, \"layout\") ) | | Cache invalidation by tag | ✅ ( revalidateTag ) | ❌ | ❌ (planned) | | ETags | ❌ | ❌ | ✅ ( \"buildId:timestamp\" ) | | Conditional requests (304) | ❌ | ❌ | ✅ | | CDN headers | s maxage , stale while revalidate | Manual | Cache Tag , s maxage , stale while revalidate | | CDN purger hook | Vercel only | ❌ | ✅ ( setCachePurger() ) | | Client prefetch cache | Next.js router cache | TanStack Router cache | RouterProvider prefetch cache with auto invalidation | | Stale deploy detection | ❌ | ❌ | ✅ ( X Furin Build ID header) | 💡 Furin advantage — Built in CDN semantics ( Cache Tag , s maxage , stale while revalidate , must revalidate ) without platform lock in. The setCachePurger() hook works with any CDN (Cloudflare, Fastly, custom). ⚠️ Furin limitation — No data cache means ISR background revalidations re run all loaders from scratch, even if the underlying data has not changed. Next.js unstable cache can avoid this. A data cache layer is planned. ⚠️ Furin limitation — In memory cache is lost on process restart. For Docker deployments, this means every deploy or crash wipes the ISR cache. A filesystem backed cache adapter is planned. | Dimension | Next.js | TanStack Start | Furin | | | | | | | File based routing | ✅ ( app/ ) | ✅ ( src/routes/ ) | ✅ ( src/pages/ ) | | Nested layouts | ✅ ( layout.js ) | ✅ ( layout.tsx ) | ✅ ( route.tsx ) | | Dynamic segments | ✅ ( [id] , [...slug] ) | ✅ ( $id , $slug? ) | ✅ ( [id] , [...slug] ) | | Catch all routes | ✅ ( [...slug] ) | ✅ ( $.tsx ) | ✅ ( [...slug] ) | | Route groups | ✅ ( (group) ) | ❌ | ❌ | | Parallel routes | ✅ ( @team ) | ❌ | ❌ | | Intercepting routes | ✅ ( (.) , (..) ) | ❌ | ❌ | | API routes colocation | ✅ ( route.js ) | ✅ ( api/ ) | ✅ (Elysia plugins) | | Loading UI | ✅ ( loading.js ) | ❌ (manual Suspense) | ❌ (manual Suspense) | 💡 Furin advantage — Layouts are Elysia routes with loaders, so you get typed params/query and middleware at every nesting level. The route.tsx file is both a layout and a route boundary (error + not found). ⚠️ Furin limitation — No route groups, parallel routes, or intercepting routes. These are App Router specific advanced patterns. If you need them, Next.js is the better choice. | Dimension | Next.js | TanStack Start | Furin | | | | | | | Route loaders | ✅ ( async function Page() ) | ✅ ( Route.loader ) | ✅ ( createRoute().loader() ) | | Layout loaders | ✅ ( async function Layout() ) | ✅ ( Route.loader ) | ✅ ( route.tsx loader) | | Typed loader output | ⚠️ (TypeScript inference, no runtime validation) | ✅ (Zod/Valibot via validateSearch ) | ✅ (TypeBox via params / query on createRoute() ) | | Data cache intermédiaire | ✅ ( fetch cache, unstable cache ) | ⚠️ (TanStack Query) | ❌ (planned) | | Mutations (server actions) | ✅ ( \"use server\" ) | ✅ ( createServerFn() ) | ❌ (use API routes) | | Redirect from loader | ✅ ( redirect() ) | ✅ ( throw redirect() ) | ✅ ( throw redirect() or ctx.redirect() ) | | Not found from loader | ✅ ( notFound() ) | ✅ ( throw notFound() ) | ✅ ( notFound() ) | | Error handling | error.js boundaries | ErrorBoundary | error.tsx per segment | | Streaming loader data | ✅ (RSC streaming) | ✅ ( Await + defer ) | ✅ ( renderToReadableStream + Suspense) | 💡 Furin advantage — Loaders are standard async functions with TypeBox schemas for params/query. No magic conventions: what you see in createRoute() is what gets validated at runtime. ⚠️ Furin limitation — No server actions. Mutations must go through Elysia API routes ( /api/ ) or external endpoints. This is explicit but more verbose than Next.js \"use server\" . | Dimension | Next.js | TanStack Start | Furin | | | | | | | Typed links ( href ) | ❌ (strings) | ✅ ( to={\"/about\"} ) | ✅ ( to={\"/about\"} with autocomplete) | | Typed search params | ❌ (manual) | ✅ ( validateSearch ) | ✅ ( query: t.Object(...) ) | | Typed route params | ❌ (manual params: Promise ) | ✅ ( params ) | ✅ ( params: t.Object(...) ) | | Typed API routes | ❌ (manual) | ⚠️ (TanStack Router types, no native E2E API inference) | ✅ (Elysia tRPC like inference) | | End to end type inference | ❌ | ✅ (TanStack Query + Router) | ⚠️ (Router + client types, no Query equivalent) | | Generated manifest | ❌ | ✅ ( routeTree.gen.ts ) | ✅ ( furin env.d.ts ) | 💡 Furin advantage — createRoute() is the single source of truth for params, query, and loader types. The generated furin env.d.ts gives autocomplete on `` without any runtime overhead. ⚠️ Furin limitation — No equivalent to TanStack Query for client side data fetching. If you need complex client caching, deduplication, and background refetch, you must bring your own data library. | Dimension | Next.js | TanStack Start | Furin | | | | | | | Self hosted (Docker) | ✅ ( next start ) | ✅ (Nitro preset) | ✅ ( bun run server.ts or compiled binary) | | Static export | ✅ ( output: \"export\" ) | ✅ | ✅ ( static target) | | Vercel (serverless) | ✅ (native) | ✅ (via Nitro) | ❌ (planned) | | Cloudflare Workers | ⚠️ (edge runtime) | ✅ (official partner, native guide) | ❌ (planned) | | AWS Lambda | ⚠️ (adapter) | ✅ (via Nitro) | ❌ (planned) | | Edge runtime | ✅ (Edge API Routes) | ⚠️ (Nitro) | ⚠️ (Elysia is WinterCG, but no edge adapter yet) | | Embedded binary | ❌ | ❌ | ✅ ( compile: \"embed\" ) | | Single file deploy | ❌ | ❌ | ✅ (compiled binary 20 50 MB) | 💡 Furin advantage — The compiled binary ( compile: \"embed\" ) is a unique deployment artifact. One file, no node modules , no Docker image. Copy it to a server and run it. This is ideal for internal tools, offline environments, or simple VPS setups. ⚠️ Furin limitation — Platform adapters (Vercel, Cloudflare) are not yet implemented. If you need serverless/edge deployment today, Next.js or TanStack Start are better choices. You are already using Bun and want to stay in a single runtime. You want one process for dev and prod (no separate bundler + server). You need an embeddable binary (CLI tools, desktop apps, air gapped deployments). You prefer Elysia as your HTTP framework (typed, chainable, fast). You want CDN ready cache headers without platform lock in. You deploy to Vercel (native integration, edge functions, analytics). You need React Server Components (zero client JS for server only UI). You need Server Actions for mutations without API routes. You use advanced routing (parallel routes, intercepting routes, route groups). You need the largest ecosystem (plugins, examples, hiring pool). You want a library first approach (bring your own UI, styling, state). You prefer Vite and the Rollup ecosystem. You need TanStack Router features (nested routing, search param validation, breadcrumbs). You want TanStack Query integration out of the box. You prefer Nitro for server primitives. | You need... | Choose | | | | | RSC / Server Actions | Next.js | | Vercel edge / serverless | Next.js | | Embeddable binary | Furin | | Bun native single process | Furin | | Vite + library first | TanStack Start | | TanStack Query + Router | TanStack Start | | Maximum ecosystem maturity | Next.js | | Maximum transparency / no magic | Furin | Last verified: April 22, 2026. Sources: Next.js 15 docs, TanStack Start RC docs, Furin source code.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison",
+    "id": "/docs/comparison::page",
+    "kind": "page",
+    "order": 21,
+    "section": "",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| | Next.js | TanStack Start | Furin | | | | | | | Runtime | Node.js | Node.js | Bun | | HTTP server | Custom (Node) | Vite (dev) / Nitro (prod) | Elysia | | Bundler | Turbopack / webpack | Vite | Bun.build | | Process model | Separate dev server + client bundler | Single Vite process (dev) / Nitro (prod) | Single process | | SSG | ✅ | ✅ | ✅ | | ISR | ✅ | ❌ | ✅ | | SSR | ✅ | ✅ | ✅ | | Streaming | ✅ | ✅ | ✅ | | RSC | ✅ | ⚠️ Experimental | ❌ | | PPR | ⚠️ Experimental | ❌ | ❌ | | Binary compile | ❌ | ❌ | ✅ | | ISR in dev | ❌ | ❌ | ❌ |",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#at-a-glance",
+    "id": "/docs/comparison#at-a-glance",
+    "kind": "section",
+    "order": 6,
+    "section": "At a glance",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Runtime target | Node.js 18+ | Node.js 18+ | Bun only | | HTTP framework | Custom server (minimal abstraction over Node http ) | Vite (dev) / Nitro (prod) | Elysia (typed, chainable, WinterCG) | | Process model (dev) | 2 processes: Next.js dev server + Turbopack client bundler | 1 process: Vite dev server with SSR middleware | 1 process : Bun serves HTTP + bundles client via Bun.build + plugin pipeline | | Process model (prod) | 1 process (custom server) or serverless | 1 process (Nitro) or edge | 1 process (Elysia plugin) or compiled binary | | WinterCG compliance | Partial (uses Node APIs) | Partial (Nitro adapts) | Native (Elysia is WinterCG native) | | API routes colocation | ✅ Route handlers in app/api | ✅ API routes via Vinicius | ✅ Elysia plugins colocated with pages | | WebSocket / SSE | Custom implementation | Via Vinicius plugins | Native Elysia ( .ws() , SSE via ReadableStream ) | 💡 Furin advantage — Single process dev eliminates the \"two servers out of sync\" class of bugs. HMR, SSR, and API routes share the same Bun runtime and module graph. ⚠️ Furin limitation — Bun only means you cannot deploy to standard Node.js containers without switching runtimes. Docker with oven/bun is the recommended path.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#architecture-runtime",
+    "id": "/docs/comparison#architecture-runtime",
+    "kind": "section",
+    "order": 7,
+    "section": "Architecture & Runtime",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Build tool | Turbopack (dev) / webpack (prod) | Vite | Bun.build | | Compilation to binary | ❌ | ❌ | ✅ ( compile: \"embed\" ) | | Output directory | .next/ | .output/ or .tanstack start/ | dist/bun/ | | Client assets | Hashed chunks in .next/static | Hashed chunks in dist/client | Hashed chunks in dist/bun/client | | Plugin API | Turbopack plugins (unstable) / webpack | Vite plugins (Rollup compatible) | Bun plugins (native + JS API) | | Tree shaking | ✅ (webpack) / ⚠️ Turbopack WIP | ✅ (Rollup) | ✅ (Bun bundler) | | Minification | SWC | Esbuild / Rollup terser | Bun built in | | Source maps | ✅ | ✅ | ✅ (linked) | | CSS handling | PostCSS / Tailwind via postcss.config.js | PostCSS / Tailwind via Vite | Tailwind v4 via bun plugin tailwind | | Build time (cold) | Medium | Fast | Fast | | Static export | ✅ output: \"export\" | ✅ | ✅ | | Multi target builds | ❌ (Vercel centric) | ⚠️ Adapter based | ✅ ( bun , static , planned: vercel , cloudflare ) | 💡 Furin advantage — compile: \"embed\" produces a single self contained binary with all assets baked in. This is unique among React meta frameworks and ideal for CLI tools, desktop apps, or air gapped deployments. ⚠️ Furin limitation — The Bun bundler ecosystem is younger than Vite/Rollup. Some advanced transforms may require writing a custom BunPlugin .",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#build-system",
+    "id": "/docs/comparison#build-system",
+    "kind": "section",
+    "order": 8,
+    "section": "Build System",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | SSR | ✅ | ✅ | ✅ | | SSG | ✅ | ✅ | ✅ | | ISR | ✅ ( revalidate , revalidatePath ) | ❌ (caching via staleTime + TanStack Query only) | ✅ ( revalidate on route, revalidatePath() ) | | Streaming SSR | ✅ (React 18 renderToReadableStream ) | ✅ | ✅ (React 18 renderToReadableStream ) | | RSC (React Server Components) | ✅ | ⚠️ Experimental | ❌ | | PPR (Partial Prerendering) | ⚠️ Experimental | ❌ | ❌ | | Server Actions | ✅ | ✅ ( createServerFn() ) | ❌ | | Suspense boundaries | ✅ | ✅ | ✅ | | Error boundaries | ✅ ( error.js ) | ✅ (React ErrorBoundary) | ✅ ( error.tsx per segment) | | Not found handling | ✅ ( not found.js ) | ✅ (route fallback) | ✅ ( not found.tsx per segment) | 💡 Furin advantage — ISR is implemented with stale while revalidate semantics, ETags, and Cache Tag headers out of the box. No platform specific adapter required. ⚠️ Furin limitation — No RSC means every component in the tree is shipped to the client. For apps with heavy server only logic (data transforms, heavy libraries), this increases bundle size compared to Next.js App Router.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#render-modes",
+    "id": "/docs/comparison#render-modes",
+    "kind": "section",
+    "order": 9,
+    "section": "Render Modes",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | HMR speed | Fast (Turbopack) | Fast (Vite) | Fast (Bun HMR + plugin pipeline) | | SSR during HMR | ✅ | ✅ | ✅ | | ISR in dev | ❌ (dev = SSR always) | ❌ | ❌ (planned) | | Cache hit/miss visibility | NEXT PRIVATE DEBUG CACHE=1 | Console logs | Built in logs ( [furin] ISR miss / hit / stale ) | | Startup time ( bun dev / next dev ) | Medium | Fast | Fast (single process, no Vite server to boot) | | Type safe links | ❌ (string based href ) | ✅ (` ) | ✅ ( ` with autocomplete) | | Typed params / query | ⚠️ Zod manual | ✅ ( validateSearch , params ) | ✅ ( createRoute({ params: t.Object(...) }) ) | | Error overlay | ✅ (Turbopack) | ✅ (Vite) | ✅ (Bun runtime errors) | | Source maps in dev | ✅ | ✅ | ✅ | | Log streaming | next log or custom | Custom | evlog structured logging (built in) | 💡 Furin advantage — Built in structured logs for every cache hit/miss/stale make debugging caching behavior straightforward in both dev and production. ⚠️ Furin limitation — The dev error overlay is less polished than Turbopack or Vite. Stack traces are accurate but formatting is basic.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#dev-dx-developer-experience",
+    "id": "/docs/comparison#dev-dx-developer-experience",
+    "kind": "section",
+    "order": 10,
+    "section": "Dev DX (Developer Experience)",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Page cache (SSG) | Filesystem ( .next/cache ) | In memory or custom | In memory LRU ( ssgCache ) | | Page cache (ISR) | Filesystem ( .next/cache ) | In memory or custom | In memory LRU ( isrCache ) | | Data cache (loaders) | ✅ ( fetch cache, unstable cache ) | ⚠️ Manual (TanStack Query) | ❌ (loaders re run on every background revalidation) | | Cache persistence | ✅ Filesystem | ❌ (in memory only) | ❌ (in memory only) | | Cache invalidation by path | ✅ ( revalidatePath ) | Manual | ✅ ( revalidatePath(path, \"page\") ) | | Cache invalidation by layout | ✅ ( revalidatePath(path, \"layout\") ) | Manual | ✅ ( revalidatePath(path, \"layout\") ) | | Cache invalidation by tag | ✅ ( revalidateTag ) | ❌ | ❌ (planned) | | ETags | ❌ | ❌ | ✅ ( \"buildId:timestamp\" ) | | Conditional requests (304) | ❌ | ❌ | ✅ | | CDN headers | s maxage , stale while revalidate | Manual | Cache Tag , s maxage , stale while revalidate | | CDN purger hook | Vercel only | ❌ | ✅ ( setCachePurger() ) | | Client prefetch cache | Next.js router cache | TanStack Router cache | RouterProvider prefetch cache with auto invalidation | | Stale deploy detection | ❌ | ❌ | ✅ ( X Furin Build ID header) | 💡 Furin advantage — Built in CDN semantics ( Cache Tag , s maxage , stale while revalidate , must revalidate ) without platform lock in. The setCachePurger() hook works with any CDN (Cloudflare, Fastly, custom). ⚠️ Furin limitation — No data cache means ISR background revalidations re run all loaders from scratch, even if the underlying data has not changed. Next.js unstable cache can avoid this. A data cache layer is planned. ⚠️ Furin limitation — In memory cache is lost on process restart. For Docker deployments, this means every deploy or crash wipes the ISR cache. A filesystem backed cache adapter is planned.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#caching",
+    "id": "/docs/comparison#caching",
+    "kind": "section",
+    "order": 11,
+    "section": "Caching",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | File based routing | ✅ ( app/ ) | ✅ ( src/routes/ ) | ✅ ( src/pages/ ) | | Nested layouts | ✅ ( layout.js ) | ✅ ( layout.tsx ) | ✅ ( route.tsx ) | | Dynamic segments | ✅ ( [id] , [...slug] ) | ✅ ( $id , $slug? ) | ✅ ( [id] , [...slug] ) | | Catch all routes | ✅ ( [...slug] ) | ✅ ( $.tsx ) | ✅ ( [...slug] ) | | Route groups | ✅ ( (group) ) | ❌ | ❌ | | Parallel routes | ✅ ( @team ) | ❌ | ❌ | | Intercepting routes | ✅ ( (.) , (..) ) | ❌ | ❌ | | API routes colocation | ✅ ( route.js ) | ✅ ( api/ ) | ✅ (Elysia plugins) | | Loading UI | ✅ ( loading.js ) | ❌ (manual Suspense) | ❌ (manual Suspense) | 💡 Furin advantage — Layouts are Elysia routes with loaders, so you get typed params/query and middleware at every nesting level. The route.tsx file is both a layout and a route boundary (error + not found). ⚠️ Furin limitation — No route groups, parallel routes, or intercepting routes. These are App Router specific advanced patterns. If you need them, Next.js is the better choice.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#routing-layouts",
+    "id": "/docs/comparison#routing-layouts",
+    "kind": "section",
+    "order": 12,
+    "section": "Routing & Layouts",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Route loaders | ✅ ( async function Page() ) | ✅ ( Route.loader ) | ✅ ( createRoute().loader() ) | | Layout loaders | ✅ ( async function Layout() ) | ✅ ( Route.loader ) | ✅ ( route.tsx loader) | | Typed loader output | ⚠️ (TypeScript inference, no runtime validation) | ✅ (Zod/Valibot via validateSearch ) | ✅ (TypeBox via params / query on createRoute() ) | | Data cache intermédiaire | ✅ ( fetch cache, unstable cache ) | ⚠️ (TanStack Query) | ❌ (planned) | | Mutations (server actions) | ✅ ( \"use server\" ) | ✅ ( createServerFn() ) | ❌ (use API routes) | | Redirect from loader | ✅ ( redirect() ) | ✅ ( throw redirect() ) | ✅ ( throw redirect() or ctx.redirect() ) | | Not found from loader | ✅ ( notFound() ) | ✅ ( throw notFound() ) | ✅ ( notFound() ) | | Error handling | error.js boundaries | ErrorBoundary | error.tsx per segment | | Streaming loader data | ✅ (RSC streaming) | ✅ ( Await + defer ) | ✅ ( renderToReadableStream + Suspense) | 💡 Furin advantage — Loaders are standard async functions with TypeBox schemas for params/query. No magic conventions: what you see in createRoute() is what gets validated at runtime. ⚠️ Furin limitation — No server actions. Mutations must go through Elysia API routes ( /api/ ) or external endpoints. This is explicit but more verbose than Next.js \"use server\" .",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#data-loading",
+    "id": "/docs/comparison#data-loading",
+    "kind": "section",
+    "order": 13,
+    "section": "Data Loading",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Typed links ( href ) | ❌ (strings) | ✅ ( to={\"/about\"} ) | ✅ ( to={\"/about\"} with autocomplete) | | Typed search params | ❌ (manual) | ✅ ( validateSearch ) | ✅ ( query: t.Object(...) ) | | Typed route params | ❌ (manual params: Promise ) | ✅ ( params ) | ✅ ( params: t.Object(...) ) | | Typed API routes | ❌ (manual) | ⚠️ (TanStack Router types, no native E2E API inference) | ✅ (Elysia tRPC like inference) | | End to end type inference | ❌ | ✅ (TanStack Query + Router) | ⚠️ (Router + client types, no Query equivalent) | | Generated manifest | ❌ | ✅ ( routeTree.gen.ts ) | ✅ ( furin env.d.ts ) | 💡 Furin advantage — createRoute() is the single source of truth for params, query, and loader types. The generated furin env.d.ts gives autocomplete on `` without any runtime overhead. ⚠️ Furin limitation — No equivalent to TanStack Query for client side data fetching. If you need complex client caching, deduplication, and background refetch, you must bring your own data library.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#type-safety",
+    "id": "/docs/comparison#type-safety",
+    "kind": "section",
+    "order": 14,
+    "section": "Type Safety",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| Dimension | Next.js | TanStack Start | Furin | | | | | | | Self hosted (Docker) | ✅ ( next start ) | ✅ (Nitro preset) | ✅ ( bun run server.ts or compiled binary) | | Static export | ✅ ( output: \"export\" ) | ✅ | ✅ ( static target) | | Vercel (serverless) | ✅ (native) | ✅ (via Nitro) | ❌ (planned) | | Cloudflare Workers | ⚠️ (edge runtime) | ✅ (official partner, native guide) | ❌ (planned) | | AWS Lambda | ⚠️ (adapter) | ✅ (via Nitro) | ❌ (planned) | | Edge runtime | ✅ (Edge API Routes) | ⚠️ (Nitro) | ⚠️ (Elysia is WinterCG, but no edge adapter yet) | | Embedded binary | ❌ | ❌ | ✅ ( compile: \"embed\" ) | | Single file deploy | ❌ | ❌ | ✅ (compiled binary 20 50 MB) | 💡 Furin advantage — The compiled binary ( compile: \"embed\" ) is a unique deployment artifact. One file, no node modules , no Docker image. Copy it to a server and run it. This is ideal for internal tools, offline environments, or simple VPS setups. ⚠️ Furin limitation — Platform adapters (Vercel, Cloudflare) are not yet implemented. If you need serverless/edge deployment today, Next.js or TanStack Start are better choices.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#deployment",
+    "id": "/docs/comparison#deployment",
+    "kind": "section",
+    "order": 15,
+    "section": "Deployment",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "You are already using Bun and want to stay in a single runtime. You want one process for dev and prod (no separate bundler + server). You need an embeddable binary (CLI tools, desktop apps, air gapped deployments). You prefer Elysia as your HTTP framework (typed, chainable, fast). You want CDN ready cache headers without platform lock in. You deploy to Vercel (native integration, edge functions, analytics). You need React Server Components (zero client JS for server only UI). You need Server Actions for mutations without API routes. You use advanced routing (parallel routes, intercepting routes, route groups). You need the largest ecosystem (plugins, examples, hiring pool). You want a library first approach (bring your own UI, styling, state). You prefer Vite and the Rollup ecosystem. You need TanStack Router features (nested routing, search param validation, breadcrumbs). You want TanStack Query integration out of the box. You prefer Nitro for server primitives.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#when-to-choose-which",
+    "id": "/docs/comparison#when-to-choose-which",
+    "kind": "section",
+    "order": 16,
+    "section": "When to choose which",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "You are already using Bun and want to stay in a single runtime. You want one process for dev and prod (no separate bundler + server). You need an embeddable binary (CLI tools, desktop apps, air gapped deployments). You prefer Elysia as your HTTP framework (typed, chainable, fast). You want CDN ready cache headers without platform lock in.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#choose-furin-if",
+    "id": "/docs/comparison#choose-furin-if",
+    "kind": "section",
+    "order": 17,
+    "section": "Choose Furin if...",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "You deploy to Vercel (native integration, edge functions, analytics). You need React Server Components (zero client JS for server only UI). You need Server Actions for mutations without API routes. You use advanced routing (parallel routes, intercepting routes, route groups). You need the largest ecosystem (plugins, examples, hiring pool).",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#choose-nextjs-if",
+    "id": "/docs/comparison#choose-nextjs-if",
+    "kind": "section",
+    "order": 18,
+    "section": "Choose Next.js if...",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "You want a library first approach (bring your own UI, styling, state). You prefer Vite and the Rollup ecosystem. You need TanStack Router features (nested routing, search param validation, breadcrumbs). You want TanStack Query integration out of the box. You prefer Nitro for server primitives.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#choose-tanstack-start-if",
+    "id": "/docs/comparison#choose-tanstack-start-if",
+    "kind": "section",
+    "order": 19,
+    "section": "Choose TanStack Start if...",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
+    "content": "| You need... | Choose | | | | | RSC / Server Actions | Next.js | | Vercel edge / serverless | Next.js | | Embeddable binary | Furin | | Bun native single process | Furin | | Vite + library first | TanStack Start | | TanStack Query + Router | TanStack Start | | Maximum ecosystem maturity | Next.js | | Maximum transparency / no magic | Furin | Last verified: April 22, 2026. Sources: Next.js 15 docs, TanStack Start RC docs, Furin source code.",
+    "description": "Compare Furin with Next.js and TanStack Start across every dimension.",
+    "href": "/docs/comparison#summary-table",
+    "id": "/docs/comparison#summary-table",
+    "kind": "section",
+    "order": 20,
+    "section": "Summary table",
+    "title": "Next.js vs TanStack Start vs Furin"
+  },
+  {
     "content": "Furin is a React meta framework built on Elysia and Bun. It gives you file based routing, SSR, SSG, ISR, nested layouts, and typed route data without a separate frontend toolchain. For the shadcn/ui starter: simple — Tailwind CSS + /api/hello route + SSR page loader (default) full — everything in simple plus shadcn/ui components ( button , card , input ) Every app needs src/pages/root.tsx . It is the top level layout and should render the document shell. The docs app and starters run Bun directly in development, so backend and frontend stay in the same process. File Based Routing for page and layout conventions Data Loading for server loaders and typed schemas Rendering Modes for SSR, SSG, ISR, and staticParams Deployment for the current Bun only production build flow",
     "description": "Install Furin, pick a starter, and boot your first app.",
     "href": "/docs/getting-started",
     "id": "/docs/getting-started::page",
     "kind": "page",
-    "order": 14,
+    "order": 30,
     "section": "",
     "title": "Getting Started"
   },
@@ -75,7 +235,7 @@
     "href": "/docs/getting-started#create-a-project",
     "id": "/docs/getting-started#create-a-project",
     "kind": "section",
-    "order": 6,
+    "order": 22,
     "section": "Create A Project",
     "title": "Getting Started"
   },
@@ -85,7 +245,7 @@
     "href": "/docs/getting-started#available-templates",
     "id": "/docs/getting-started#available-templates",
     "kind": "section",
-    "order": 7,
+    "order": 23,
     "section": "Available Templates",
     "title": "Getting Started"
   },
@@ -95,7 +255,7 @@
     "href": "/docs/getting-started#project-shape",
     "id": "/docs/getting-started#project-shape",
     "kind": "section",
-    "order": 8,
+    "order": 24,
     "section": "Project Shape",
     "title": "Getting Started"
   },
@@ -105,7 +265,7 @@
     "href": "/docs/getting-started#first-server",
     "id": "/docs/getting-started#first-server",
     "kind": "section",
-    "order": 9,
+    "order": 25,
     "section": "First Server",
     "title": "Getting Started"
   },
@@ -115,7 +275,7 @@
     "href": "/docs/getting-started#root-layout",
     "id": "/docs/getting-started#root-layout",
     "kind": "section",
-    "order": 10,
+    "order": 26,
     "section": "Root Layout",
     "title": "Getting Started"
   },
@@ -125,7 +285,7 @@
     "href": "/docs/getting-started#first-page",
     "id": "/docs/getting-started#first-page",
     "kind": "section",
-    "order": 11,
+    "order": 27,
     "section": "First Page",
     "title": "Getting Started"
   },
@@ -135,7 +295,7 @@
     "href": "/docs/getting-started#development",
     "id": "/docs/getting-started#development",
     "kind": "section",
-    "order": 12,
+    "order": 28,
     "section": "Development",
     "title": "Getting Started"
   },
@@ -145,7 +305,7 @@
     "href": "/docs/getting-started#what-to-learn-next",
     "id": "/docs/getting-started#what-to-learn-next",
     "kind": "section",
-    "order": 13,
+    "order": 29,
     "section": "What To Learn Next",
     "title": "Getting Started"
   },
@@ -155,7 +315,7 @@
     "href": "/docs/routing",
     "id": "/docs/routing::page",
     "kind": "page",
-    "order": 20,
+    "order": 36,
     "section": "",
     "title": "File-Based Routing"
   },
@@ -165,7 +325,7 @@
     "href": "/docs/routing#basic-pages",
     "id": "/docs/routing#basic-pages",
     "kind": "section",
-    "order": 15,
+    "order": 31,
     "section": "Basic Pages",
     "title": "File-Based Routing"
   },
@@ -175,7 +335,7 @@
     "href": "/docs/routing#dynamic-segments",
     "id": "/docs/routing#dynamic-segments",
     "kind": "section",
-    "order": 16,
+    "order": 32,
     "section": "Dynamic Segments",
     "title": "File-Based Routing"
   },
@@ -185,7 +345,7 @@
     "href": "/docs/routing#layout-files",
     "id": "/docs/routing#layout-files",
     "kind": "section",
-    "order": 17,
+    "order": 33,
     "section": "Layout Files",
     "title": "File-Based Routing"
   },
@@ -195,7 +355,7 @@
     "href": "/docs/routing#catch-all-routes",
     "id": "/docs/routing#catch-all-routes",
     "kind": "section",
-    "order": 18,
+    "order": 34,
     "section": "Catch All Routes",
     "title": "File-Based Routing"
   },
@@ -205,7 +365,7 @@
     "href": "/docs/routing#typed-navigation",
     "id": "/docs/routing#typed-navigation",
     "kind": "section",
-    "order": 19,
+    "order": 35,
     "section": "Typed Navigation",
     "title": "File-Based Routing"
   },
@@ -215,7 +375,7 @@
     "href": "/docs/data-loading",
     "id": "/docs/data-loading::page",
     "kind": "page",
-    "order": 32,
+    "order": 48,
     "section": "",
     "title": "Data Loading"
   },
@@ -225,7 +385,7 @@
     "href": "/docs/data-loading#route-loader",
     "id": "/docs/data-loading#route-loader",
     "kind": "section",
-    "order": 21,
+    "order": 37,
     "section": "Route Loader",
     "title": "Data Loading"
   },
@@ -235,7 +395,7 @@
     "href": "/docs/data-loading#page-loader",
     "id": "/docs/data-loading#page-loader",
     "kind": "section",
-    "order": 22,
+    "order": 38,
     "section": "Page Loader",
     "title": "Data Loading"
   },
@@ -245,7 +405,7 @@
     "href": "/docs/data-loading#loader-context",
     "id": "/docs/data-loading#loader-context",
     "kind": "section",
-    "order": 23,
+    "order": 39,
     "section": "Loader Context",
     "title": "Data Loading"
   },
@@ -255,7 +415,7 @@
     "href": "/docs/data-loading#why-parent-fields-are-promises",
     "id": "/docs/data-loading#why-parent-fields-are-promises",
     "kind": "section",
-    "order": 24,
+    "order": 40,
     "section": "Why parent fields are Promises",
     "title": "Data Loading"
   },
@@ -265,7 +425,7 @@
     "href": "/docs/data-loading#typed-query-schemas",
     "id": "/docs/data-loading#typed-query-schemas",
     "kind": "section",
-    "order": 25,
+    "order": 41,
     "section": "Typed Query Schemas",
     "title": "Data Loading"
   },
@@ -275,7 +435,7 @@
     "href": "/docs/data-loading#typed-params",
     "id": "/docs/data-loading#typed-params",
     "kind": "section",
-    "order": 26,
+    "order": 42,
     "section": "Typed Params",
     "title": "Data Loading"
   },
@@ -285,7 +445,7 @@
     "href": "/docs/data-loading#awaiting-parent-data",
     "id": "/docs/data-loading#awaiting-parent-data",
     "kind": "section",
-    "order": 27,
+    "order": 43,
     "section": "Awaiting Parent Data",
     "title": "Data Loading"
   },
@@ -295,7 +455,7 @@
     "href": "/docs/data-loading#simple-await",
     "id": "/docs/data-loading#simple-await",
     "kind": "section",
-    "order": 28,
+    "order": 44,
     "section": "Simple await",
     "title": "Data Loading"
   },
@@ -305,7 +465,7 @@
     "href": "/docs/data-loading#parallel-await-with-promiseall",
     "id": "/docs/data-loading#parallel-await-with-promiseall",
     "kind": "section",
-    "order": 29,
+    "order": 45,
     "section": "Parallel await with Promise.all",
     "title": "Data Loading"
   },
@@ -315,7 +475,7 @@
     "href": "/docs/data-loading#no-await-fully-parallel",
     "id": "/docs/data-loading#no-await-fully-parallel",
     "kind": "section",
-    "order": 30,
+    "order": 46,
     "section": "No await — fully parallel",
     "title": "Data Loading"
   },
@@ -325,7 +485,7 @@
     "href": "/docs/data-loading#redirects-and-status",
     "id": "/docs/data-loading#redirects-and-status",
     "kind": "section",
-    "order": 31,
+    "order": 47,
     "section": "Redirects And Status",
     "title": "Data Loading"
   },
@@ -335,7 +495,7 @@
     "href": "/docs/rendering",
     "id": "/docs/rendering::page",
     "kind": "page",
-    "order": 38,
+    "order": 54,
     "section": "",
     "title": "Rendering Modes"
   },
@@ -345,7 +505,7 @@
     "href": "/docs/rendering#ssr",
     "id": "/docs/rendering#ssr",
     "kind": "section",
-    "order": 33,
+    "order": 49,
     "section": "SSR",
     "title": "Rendering Modes"
   },
@@ -355,7 +515,7 @@
     "href": "/docs/rendering#ssg",
     "id": "/docs/rendering#ssg",
     "kind": "section",
-    "order": 34,
+    "order": 50,
     "section": "SSG",
     "title": "Rendering Modes"
   },
@@ -365,7 +525,7 @@
     "href": "/docs/rendering#isr",
     "id": "/docs/rendering#isr",
     "kind": "section",
-    "order": 35,
+    "order": 51,
     "section": "ISR",
     "title": "Rendering Modes"
   },
@@ -375,7 +535,7 @@
     "href": "/docs/rendering#comparison",
     "id": "/docs/rendering#comparison",
     "kind": "section",
-    "order": 36,
+    "order": 52,
     "section": "Comparison",
     "title": "Rendering Modes"
   },
@@ -385,7 +545,7 @@
     "href": "/docs/rendering#head-metadata",
     "id": "/docs/rendering#head-metadata",
     "kind": "section",
-    "order": 37,
+    "order": 53,
     "section": "Head Metadata",
     "title": "Rendering Modes"
   },
@@ -395,7 +555,7 @@
     "href": "/docs/error-handling",
     "id": "/docs/error-handling::page",
     "kind": "page",
-    "order": 51,
+    "order": 67,
     "section": "",
     "title": "Error Handling"
   },
@@ -405,7 +565,7 @@
     "href": "/docs/error-handling#errortsx-segment-error-boundaries",
     "id": "/docs/error-handling#errortsx-segment-error-boundaries",
     "kind": "section",
-    "order": 39,
+    "order": 55,
     "section": "error.tsx — Segment Error Boundaries",
     "title": "Error Handling"
   },
@@ -415,7 +575,7 @@
     "href": "/docs/error-handling#error-props",
     "id": "/docs/error-handling#error-props",
     "kind": "section",
-    "order": 40,
+    "order": 56,
     "section": "Error props",
     "title": "Error Handling"
   },
@@ -425,7 +585,7 @@
     "href": "/docs/error-handling#default-error-ui",
     "id": "/docs/error-handling#default-error-ui",
     "kind": "section",
-    "order": 41,
+    "order": 57,
     "section": "Default error UI",
     "title": "Error Handling"
   },
@@ -435,7 +595,7 @@
     "href": "/docs/error-handling#not-foundtsx-segment-not-found-boundaries",
     "id": "/docs/error-handling#not-foundtsx-segment-not-found-boundaries",
     "kind": "section",
-    "order": 42,
+    "order": 58,
     "section": "not found.tsx — Segment Not Found Boundaries",
     "title": "Error Handling"
   },
@@ -445,7 +605,7 @@
     "href": "/docs/error-handling#notfound-in-loaders",
     "id": "/docs/error-handling#notfound-in-loaders",
     "kind": "section",
-    "order": 43,
+    "order": 59,
     "section": "notFound() in loaders",
     "title": "Error Handling"
   },
@@ -455,7 +615,7 @@
     "href": "/docs/error-handling#default-not-found-ui",
     "id": "/docs/error-handling#default-not-found-ui",
     "kind": "section",
-    "order": 44,
+    "order": 60,
     "section": "Default not found UI",
     "title": "Error Handling"
   },
@@ -465,7 +625,7 @@
     "href": "/docs/error-handling#root-level-fallbacks",
     "id": "/docs/error-handling#root-level-fallbacks",
     "kind": "section",
-    "order": 45,
+    "order": 61,
     "section": "Root Level Fallbacks",
     "title": "Error Handling"
   },
@@ -475,7 +635,7 @@
     "href": "/docs/error-handling#error-digests",
     "id": "/docs/error-handling#error-digests",
     "kind": "section",
-    "order": 46,
+    "order": 62,
     "section": "Error Digests",
     "title": "Error Handling"
   },
@@ -485,7 +645,7 @@
     "href": "/docs/error-handling#spa-navigation-and-404",
     "id": "/docs/error-handling#spa-navigation-and-404",
     "kind": "section",
-    "order": 47,
+    "order": 63,
     "section": "SPA Navigation and 404",
     "title": "Error Handling"
   },
@@ -495,7 +655,7 @@
     "href": "/docs/error-handling#isr-error-fallback",
     "id": "/docs/error-handling#isr-error-fallback",
     "kind": "section",
-    "order": 48,
+    "order": 64,
     "section": "ISR Error Fallback",
     "title": "Error Handling"
   },
@@ -505,7 +665,7 @@
     "href": "/docs/error-handling#security-public-messages",
     "id": "/docs/error-handling#security-public-messages",
     "kind": "section",
-    "order": 49,
+    "order": 65,
     "section": "Security: Public Messages",
     "title": "Error Handling"
   },
@@ -515,7 +675,7 @@
     "href": "/docs/error-handling#comparison",
     "id": "/docs/error-handling#comparison",
     "kind": "section",
-    "order": 50,
+    "order": 66,
     "section": "Comparison",
     "title": "Error Handling"
   },
@@ -525,7 +685,7 @@
     "href": "/docs/layouts",
     "id": "/docs/layouts::page",
     "kind": "page",
-    "order": 56,
+    "order": 72,
     "section": "",
     "title": "Nested Layouts"
   },
@@ -535,7 +695,7 @@
     "href": "/docs/layouts#basic-layout",
     "id": "/docs/layouts#basic-layout",
     "kind": "section",
-    "order": 52,
+    "order": 68,
     "section": "Basic Layout",
     "title": "Nested Layouts"
   },
@@ -545,7 +705,7 @@
     "href": "/docs/layouts#root-layout",
     "id": "/docs/layouts#root-layout",
     "kind": "section",
-    "order": 53,
+    "order": 69,
     "section": "Root Layout",
     "title": "Nested Layouts"
   },
@@ -555,7 +715,7 @@
     "href": "/docs/layouts#multi-level-nesting",
     "id": "/docs/layouts#multi-level-nesting",
     "kind": "section",
-    "order": 54,
+    "order": 70,
     "section": "Multi Level Nesting",
     "title": "Nested Layouts"
   },
@@ -565,7 +725,7 @@
     "href": "/docs/layouts#layout-loaders",
     "id": "/docs/layouts#layout-loaders",
     "kind": "section",
-    "order": 55,
+    "order": 71,
     "section": "Layout Loaders",
     "title": "Nested Layouts"
   },
@@ -575,7 +735,7 @@
     "href": "/docs/api-routes",
     "id": "/docs/api-routes::page",
     "kind": "page",
-    "order": 61,
+    "order": 77,
     "section": "",
     "title": "API Routes"
   },
@@ -585,7 +745,7 @@
     "href": "/docs/api-routes#define-an-api-plugin",
     "id": "/docs/api-routes#define-an-api-plugin",
     "kind": "section",
-    "order": 57,
+    "order": 73,
     "section": "Define An API Plugin",
     "title": "API Routes"
   },
@@ -595,7 +755,7 @@
     "href": "/docs/api-routes#mount-it-before-furin",
     "id": "/docs/api-routes#mount-it-before-furin",
     "kind": "section",
-    "order": 58,
+    "order": 74,
     "section": "Mount It Before Furin",
     "title": "API Routes"
   },
@@ -605,7 +765,7 @@
     "href": "/docs/api-routes#typed-client-access",
     "id": "/docs/api-routes#typed-client-access",
     "kind": "section",
-    "order": 59,
+    "order": 75,
     "section": "Typed Client Access",
     "title": "API Routes"
   },
@@ -615,7 +775,7 @@
     "href": "/docs/api-routes#middleware-and-guards",
     "id": "/docs/api-routes#middleware-and-guards",
     "kind": "section",
-    "order": 60,
+    "order": 76,
     "section": "Middleware And Guards",
     "title": "API Routes"
   },
@@ -625,7 +785,7 @@
     "href": "/docs/plugins",
     "id": "/docs/plugins::page",
     "kind": "page",
-    "order": 66,
+    "order": 82,
     "section": "",
     "title": "Plugins"
   },
@@ -635,7 +795,7 @@
     "href": "/docs/plugins#production-build-plugins",
     "id": "/docs/plugins#production-build-plugins",
     "kind": "section",
-    "order": 62,
+    "order": 78,
     "section": "Production Build Plugins",
     "title": "Plugins"
   },
@@ -645,7 +805,7 @@
     "href": "/docs/plugins#development-plugins",
     "id": "/docs/plugins#development-plugins",
     "kind": "section",
-    "order": 63,
+    "order": 79,
     "section": "Development Plugins",
     "title": "Plugins"
   },
@@ -655,7 +815,7 @@
     "href": "/docs/plugins#example-mdx",
     "id": "/docs/plugins#example-mdx",
     "kind": "section",
-    "order": 64,
+    "order": 80,
     "section": "Example: MDX",
     "title": "Plugins"
   },
@@ -665,7 +825,7 @@
     "href": "/docs/plugins#what-is-actually-exported-today",
     "id": "/docs/plugins#what-is-actually-exported-today",
     "kind": "section",
-    "order": 65,
+    "order": 81,
     "section": "What Is Actually Exported Today",
     "title": "Plugins"
   },
@@ -675,7 +835,7 @@
     "href": "/docs/caching",
     "id": "/docs/caching::page",
     "kind": "page",
-    "order": 83,
+    "order": 99,
     "section": "",
     "title": "Caching"
   },
@@ -685,7 +845,7 @@
     "href": "/docs/caching#render-modes-at-a-glance",
     "id": "/docs/caching#render-modes-at-a-glance",
     "kind": "section",
-    "order": 67,
+    "order": 83,
     "section": "Render modes at a glance",
     "title": "Caching"
   },
@@ -695,7 +855,7 @@
     "href": "/docs/caching#cache-control-headers",
     "id": "/docs/caching#cache-control-headers",
     "kind": "section",
-    "order": 68,
+    "order": 84,
     "section": "Cache Control headers",
     "title": "Caching"
   },
@@ -705,7 +865,7 @@
     "href": "/docs/caching#why-must-revalidate-max-age0-",
     "id": "/docs/caching#why-must-revalidate-max-age0-",
     "kind": "section",
-    "order": 69,
+    "order": 85,
     "section": "Why must revalidate + max age=0 ?",
     "title": "Caching"
   },
@@ -715,7 +875,7 @@
     "href": "/docs/caching#headers-by-mode",
     "id": "/docs/caching#headers-by-mode",
     "kind": "section",
-    "order": 70,
+    "order": 86,
     "section": "Headers by mode",
     "title": "Caching"
   },
@@ -725,7 +885,7 @@
     "href": "/docs/caching#etags-and-conditional-requests",
     "id": "/docs/caching#etags-and-conditional-requests",
     "kind": "section",
-    "order": 71,
+    "order": 87,
     "section": "ETags and conditional requests",
     "title": "Caching"
   },
@@ -735,7 +895,7 @@
     "href": "/docs/caching#revalidatepathpath-type",
     "id": "/docs/caching#revalidatepathpath-type",
     "kind": "section",
-    "order": 72,
+    "order": 88,
     "section": "revalidatePath(path, type?)",
     "title": "Caching"
   },
@@ -745,7 +905,7 @@
     "href": "/docs/caching#x-furin-revalidate-header",
     "id": "/docs/caching#x-furin-revalidate-header",
     "kind": "section",
-    "order": 73,
+    "order": 89,
     "section": "X Furin Revalidate header",
     "title": "Caching"
   },
@@ -755,7 +915,7 @@
     "href": "/docs/caching#stale-deploy-detection",
     "id": "/docs/caching#stale-deploy-detection",
     "kind": "section",
-    "order": 74,
+    "order": 90,
     "section": "Stale deploy detection",
     "title": "Caching"
   },
@@ -765,7 +925,7 @@
     "href": "/docs/caching#cdn-purging-with-setcachepurger",
     "id": "/docs/caching#cdn-purging-with-setcachepurger",
     "kind": "section",
-    "order": 75,
+    "order": 91,
     "section": "CDN purging with setCachePurger",
     "title": "Caching"
   },
@@ -775,7 +935,7 @@
     "href": "/docs/caching#future-edge-adapters",
     "id": "/docs/caching#future-edge-adapters",
     "kind": "section",
-    "order": 76,
+    "order": 92,
     "section": "Future edge adapters",
     "title": "Caching"
   },
@@ -785,7 +945,7 @@
     "href": "/docs/caching#cache-tag-header",
     "id": "/docs/caching#cache-tag-header",
     "kind": "section",
-    "order": 77,
+    "order": 93,
     "section": "Cache Tag header",
     "title": "Caching"
   },
@@ -795,7 +955,7 @@
     "href": "/docs/caching#deployment-scenarios",
     "id": "/docs/caching#deployment-scenarios",
     "kind": "section",
-    "order": 78,
+    "order": 94,
     "section": "Deployment scenarios",
     "title": "Caching"
   },
@@ -805,7 +965,7 @@
     "href": "/docs/caching#self-hosted-no-cdn",
     "id": "/docs/caching#self-hosted-no-cdn",
     "kind": "section",
-    "order": 79,
+    "order": 95,
     "section": "Self hosted (no CDN)",
     "title": "Caching"
   },
@@ -815,7 +975,7 @@
     "href": "/docs/caching#behind-a-cdn",
     "id": "/docs/caching#behind-a-cdn",
     "kind": "section",
-    "order": 80,
+    "order": 96,
     "section": "Behind a CDN",
     "title": "Caching"
   },
@@ -825,7 +985,7 @@
     "href": "/docs/caching#embedded-binary-compile-embed-",
     "id": "/docs/caching#embedded-binary-compile-embed-",
     "kind": "section",
-    "order": 81,
+    "order": 97,
     "section": "Embedded binary ( compile: \"embed\" )",
     "title": "Caching"
   },
@@ -835,7 +995,7 @@
     "href": "/docs/caching#applyrevalidateheader-client-utility",
     "id": "/docs/caching#applyrevalidateheader-client-utility",
     "kind": "section",
-    "order": 82,
+    "order": 98,
     "section": "applyRevalidateHeader (client utility)",
     "title": "Caching"
   },
@@ -845,7 +1005,7 @@
     "href": "/docs/logging",
     "id": "/docs/logging::page",
     "kind": "page",
-    "order": 95,
+    "order": 111,
     "section": "",
     "title": "Logging"
   },
@@ -855,7 +1015,7 @@
     "href": "/docs/logging#what-ships-by-default",
     "id": "/docs/logging#what-ships-by-default",
     "kind": "section",
-    "order": 84,
+    "order": 100,
     "section": "What Ships by Default",
     "title": "Logging"
   },
@@ -865,7 +1025,7 @@
     "href": "/docs/logging#customising-the-logger",
     "id": "/docs/logging#customising-the-logger",
     "kind": "section",
-    "order": 85,
+    "order": 101,
     "section": "Customising the Logger",
     "title": "Logging"
   },
@@ -875,7 +1035,7 @@
     "href": "/docs/logging#adding-fields-during-a-request",
     "id": "/docs/logging#adding-fields-during-a-request",
     "kind": "section",
-    "order": 86,
+    "order": 102,
     "section": "Adding Fields During a Request",
     "title": "Logging"
   },
@@ -885,7 +1045,7 @@
     "href": "/docs/logging#drain-adapters",
     "id": "/docs/logging#drain-adapters",
     "kind": "section",
-    "order": 87,
+    "order": 103,
     "section": "Drain Adapters",
     "title": "Logging"
   },
@@ -895,7 +1055,7 @@
     "href": "/docs/logging#datadog",
     "id": "/docs/logging#datadog",
     "kind": "section",
-    "order": 88,
+    "order": 104,
     "section": "Datadog",
     "title": "Logging"
   },
@@ -905,7 +1065,7 @@
     "href": "/docs/logging#axiom",
     "id": "/docs/logging#axiom",
     "kind": "section",
-    "order": 89,
+    "order": 105,
     "section": "Axiom",
     "title": "Logging"
   },
@@ -915,7 +1075,7 @@
     "href": "/docs/logging#otlp-opentelemetry",
     "id": "/docs/logging#otlp-opentelemetry",
     "kind": "section",
-    "order": 90,
+    "order": 106,
     "section": "OTLP (OpenTelemetry)",
     "title": "Logging"
   },
@@ -925,7 +1085,7 @@
     "href": "/docs/logging#enriching-events",
     "id": "/docs/logging#enriching-events",
     "kind": "section",
-    "order": 91,
+    "order": 107,
     "section": "Enriching Events",
     "title": "Logging"
   },
@@ -935,7 +1095,7 @@
     "href": "/docs/logging#pii-redaction",
     "id": "/docs/logging#pii-redaction",
     "kind": "section",
-    "order": 92,
+    "order": 108,
     "section": "PII Redaction",
     "title": "Logging"
   },
@@ -945,7 +1105,7 @@
     "href": "/docs/logging#client-side-logging",
     "id": "/docs/logging#client-side-logging",
     "kind": "section",
-    "order": 93,
+    "order": 109,
     "section": "Client Side Logging",
     "title": "Logging"
   },
@@ -955,7 +1115,7 @@
     "href": "/docs/logging#filesystem-drain-development",
     "id": "/docs/logging#filesystem-drain-development",
     "kind": "section",
-    "order": 94,
+    "order": 110,
     "section": "Filesystem Drain (Development)",
     "title": "Logging"
   },
@@ -965,7 +1125,7 @@
     "href": "/docs/deployment",
     "id": "/docs/deployment::page",
     "kind": "page",
-    "order": 109,
+    "order": 125,
     "section": "",
     "title": "Deployment"
   },
@@ -975,7 +1135,7 @@
     "href": "/docs/deployment#static-export-github-pages",
     "id": "/docs/deployment#static-export-github-pages",
     "kind": "section",
-    "order": 96,
+    "order": 112,
     "section": "Static Export — GitHub Pages",
     "title": "Deployment"
   },
@@ -985,7 +1145,7 @@
     "href": "/docs/deployment#configuration",
     "id": "/docs/deployment#configuration",
     "kind": "section",
-    "order": 97,
+    "order": 113,
     "section": "Configuration",
     "title": "Deployment"
   },
@@ -995,7 +1155,7 @@
     "href": "/docs/deployment#build-command",
     "id": "/docs/deployment#build-command",
     "kind": "section",
-    "order": 98,
+    "order": 114,
     "section": "Build Command",
     "title": "Deployment"
   },
@@ -1005,7 +1165,7 @@
     "href": "/docs/deployment#output-layout",
     "id": "/docs/deployment#output-layout",
     "kind": "section",
-    "order": 99,
+    "order": 115,
     "section": "Output Layout",
     "title": "Deployment"
   },
@@ -1015,7 +1175,7 @@
     "href": "/docs/deployment#ssr-isr-routes",
     "id": "/docs/deployment#ssr-isr-routes",
     "kind": "section",
-    "order": 100,
+    "order": 116,
     "section": "SSR / ISR Routes",
     "title": "Deployment"
   },
@@ -1025,7 +1185,7 @@
     "href": "/docs/deployment#deploying-to-github-pages",
     "id": "/docs/deployment#deploying-to-github-pages",
     "kind": "section",
-    "order": 101,
+    "order": 117,
     "section": "Deploying to GitHub Pages",
     "title": "Deployment"
   },
@@ -1035,7 +1195,7 @@
     "href": "/docs/deployment#bun-build-live-server",
     "id": "/docs/deployment#bun-build-live-server",
     "kind": "section",
-    "order": 102,
+    "order": 118,
     "section": "Bun Build (Live Server)",
     "title": "Deployment"
   },
@@ -1045,7 +1205,7 @@
     "href": "/docs/deployment#output-layout-2",
     "id": "/docs/deployment#output-layout-2",
     "kind": "section",
-    "order": 103,
+    "order": 119,
     "section": "Output Layout",
     "title": "Deployment"
   },
@@ -1055,7 +1215,7 @@
     "href": "/docs/deployment#compiled-binaries",
     "id": "/docs/deployment#compiled-binaries",
     "kind": "section",
-    "order": 104,
+    "order": 120,
     "section": "Compiled Binaries",
     "title": "Deployment"
   },
@@ -1065,7 +1225,7 @@
     "href": "/docs/deployment#production-runtime",
     "id": "/docs/deployment#production-runtime",
     "kind": "section",
-    "order": 105,
+    "order": 121,
     "section": "Production Runtime",
     "title": "Deployment"
   },
@@ -1075,7 +1235,7 @@
     "href": "/docs/deployment#planned-targets",
     "id": "/docs/deployment#planned-targets",
     "kind": "section",
-    "order": 106,
+    "order": 122,
     "section": "Planned Targets",
     "title": "Deployment"
   },
@@ -1085,7 +1245,7 @@
     "href": "/docs/deployment#public-environment-variables",
     "id": "/docs/deployment#public-environment-variables",
     "kind": "section",
-    "order": 107,
+    "order": 123,
     "section": "Public Environment Variables",
     "title": "Deployment"
   },
@@ -1095,7 +1255,7 @@
     "href": "/docs/deployment#giscus-in-the-docs-app",
     "id": "/docs/deployment#giscus-in-the-docs-app",
     "kind": "section",
-    "order": 108,
+    "order": 124,
     "section": "Giscus In The Docs App",
     "title": "Deployment"
   },
@@ -1105,7 +1265,7 @@
     "href": "/docs/dev-hmr",
     "id": "/docs/dev-hmr::page",
     "kind": "page",
-    "order": 131,
+    "order": 147,
     "section": "",
     "title": "Dev Mode HMR"
   },
@@ -1115,7 +1275,7 @@
     "href": "/docs/dev-hmr#two-different-paths",
     "id": "/docs/dev-hmr#two-different-paths",
     "kind": "section",
-    "order": 110,
+    "order": 126,
     "section": "Two Different Paths",
     "title": "Dev Mode HMR"
   },
@@ -1125,7 +1285,7 @@
     "href": "/docs/dev-hmr#path-1-first-load-full-ssr-hydration",
     "id": "/docs/dev-hmr#path-1-first-load-full-ssr-hydration",
     "kind": "section",
-    "order": 111,
+    "order": 127,
     "section": "Path 1: First Load — Full SSR + Hydration",
     "title": "Dev Mode HMR"
   },
@@ -1135,7 +1295,7 @@
     "href": "/docs/dev-hmr#1-server-imports-the-page-module-fresh",
     "id": "/docs/dev-hmr#1-server-imports-the-page-module-fresh",
     "kind": "section",
-    "order": 112,
+    "order": 128,
     "section": "1. Server imports the page module fresh",
     "title": "Dev Mode HMR"
   },
@@ -1145,7 +1305,7 @@
     "href": "/docs/dev-hmr#2-virtual-namespace-pipeline-dev-page-plugin",
     "id": "/docs/dev-hmr#2-virtual-namespace-pipeline-dev-page-plugin",
     "kind": "section",
-    "order": 113,
+    "order": 129,
     "section": "2. Virtual namespace pipeline (dev page plugin)",
     "title": "Dev Mode HMR"
   },
@@ -1155,7 +1315,7 @@
     "href": "/docs/dev-hmr#3-layout-re-import-refreshlayoutchain",
     "id": "/docs/dev-hmr#3-layout-re-import-refreshlayoutchain",
     "kind": "section",
-    "order": 114,
+    "order": 130,
     "section": "3. Layout re import (refreshLayoutChain)",
     "title": "Dev Mode HMR"
   },
@@ -1165,7 +1325,7 @@
     "href": "/docs/dev-hmr#4-run-loaders-and-render",
     "id": "/docs/dev-hmr#4-run-loaders-and-render",
     "kind": "section",
-    "order": 115,
+    "order": 131,
     "section": "4. Run loaders and render",
     "title": "Dev Mode HMR"
   },
@@ -1175,7 +1335,7 @@
     "href": "/docs/dev-hmr#5-browser-hydrates",
     "id": "/docs/dev-hmr#5-browser-hydrates",
     "kind": "section",
-    "order": 116,
+    "order": 132,
     "section": "5. Browser hydrates",
     "title": "Dev Mode HMR"
   },
@@ -1185,7 +1345,7 @@
     "href": "/docs/dev-hmr#path-2-live-hmr-update",
     "id": "/docs/dev-hmr#path-2-live-hmr-update",
     "kind": "section",
-    "order": 117,
+    "order": 133,
     "section": "Path 2: Live HMR Update",
     "title": "Dev Mode HMR"
   },
@@ -1195,7 +1355,7 @@
     "href": "/docs/dev-hmr#1-bun-hmr-pushes-the-new-client-chunk",
     "id": "/docs/dev-hmr#1-bun-hmr-pushes-the-new-client-chunk",
     "kind": "section",
-    "order": 118,
+    "order": 134,
     "section": "1. Bun HMR pushes the new client chunk",
     "title": "Dev Mode HMR"
   },
@@ -1205,7 +1365,7 @@
     "href": "/docs/dev-hmr#2-react-fast-refresh-patches-the-component",
     "id": "/docs/dev-hmr#2-react-fast-refresh-patches-the-component",
     "kind": "section",
-    "order": 119,
+    "order": 135,
     "section": "2. React Fast Refresh patches the component",
     "title": "Dev Mode HMR"
   },
@@ -1215,7 +1375,7 @@
     "href": "/docs/dev-hmr#3-hydratetsx-re-renders-does-not-re-hydrate",
     "id": "/docs/dev-hmr#3-hydratetsx-re-renders-does-not-re-hydrate",
     "kind": "section",
-    "order": 120,
+    "order": 136,
     "section": "3. hydrate.tsx re renders (does not re hydrate)",
     "title": "Dev Mode HMR"
   },
@@ -1225,7 +1385,7 @@
     "href": "/docs/dev-hmr#4-hmrrefresh-re-fetches-loader-data",
     "id": "/docs/dev-hmr#4-hmrrefresh-re-fetches-loader-data",
     "kind": "section",
-    "order": 121,
+    "order": 137,
     "section": "4. hmrRefresh() re fetches loader data",
     "title": "Dev Mode HMR"
   },
@@ -1235,7 +1395,7 @@
     "href": "/docs/dev-hmr#5-result",
     "id": "/docs/dev-hmr#5-result",
     "kind": "section",
-    "order": 122,
+    "order": 138,
     "section": "5. Result",
     "title": "Dev Mode HMR"
   },
@@ -1245,7 +1405,7 @@
     "href": "/docs/dev-hmr#why-intermediate-layouts-need-re-importing",
     "id": "/docs/dev-hmr#why-intermediate-layouts-need-re-importing",
     "kind": "section",
-    "order": 123,
+    "order": 139,
     "section": "Why Intermediate Layouts Need Re Importing",
     "title": "Dev Mode HMR"
   },
@@ -1255,7 +1415,7 @@
     "href": "/docs/dev-hmr#why-the-timestamp-matters",
     "id": "/docs/dev-hmr#why-the-timestamp-matters",
     "kind": "section",
-    "order": 124,
+    "order": 140,
     "section": "Why The Timestamp Matters",
     "title": "Dev Mode HMR"
   },
@@ -1265,7 +1425,7 @@
     "href": "/docs/dev-hmr#why-the-template-is-never-cached",
     "id": "/docs/dev-hmr#why-the-template-is-never-cached",
     "kind": "section",
-    "order": 125,
+    "order": 141,
     "section": "Why The Template Is Never Cached",
     "title": "Dev Mode HMR"
   },
@@ -1275,7 +1435,7 @@
     "href": "/docs/dev-hmr#internal-pieces",
     "id": "/docs/dev-hmr#internal-pieces",
     "kind": "section",
-    "order": 126,
+    "order": 142,
     "section": "Internal Pieces",
     "title": "Dev Mode HMR"
   },
@@ -1285,7 +1445,7 @@
     "href": "/docs/dev-hmr#why-react-must-stay-singleton",
     "id": "/docs/dev-hmr#why-react-must-stay-singleton",
     "kind": "section",
-    "order": 127,
+    "order": 143,
     "section": "Why React Must Stay Singleton",
     "title": "Dev Mode HMR"
   },
@@ -1295,7 +1455,7 @@
     "href": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
     "id": "/docs/dev-hmr#why-the-client-router-must-also-stay-singleton",
     "kind": "section",
-    "order": 128,
+    "order": 144,
     "section": "Why The Client Router Must Also Stay Singleton",
     "title": "Dev Mode HMR"
   },
@@ -1305,7 +1465,7 @@
     "href": "/docs/dev-hmr#edit-matrix",
     "id": "/docs/dev-hmr#edit-matrix",
     "kind": "section",
-    "order": 129,
+    "order": 145,
     "section": "Edit Matrix",
     "title": "Dev Mode HMR"
   },
@@ -1315,7 +1475,7 @@
     "href": "/docs/dev-hmr#practical-outcome",
     "id": "/docs/dev-hmr#practical-outcome",
     "kind": "section",
-    "order": 130,
+    "order": 146,
     "section": "Practical Outcome",
     "title": "Dev Mode HMR"
   }

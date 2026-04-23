@@ -516,6 +516,34 @@ describe("render.tsx", () => {
       expect(result.html).not.toContain("<!--ssr-outlet-->");
       expect(result.html).toContain("nested-page");
     });
+
+    test("re-throws redirect Response when loader throws redirect", async () => {
+      const withLoaderRoute = await getRoute("/with-loader");
+      const root = await getRoot();
+
+      const redirectRoute = {
+        ...withLoaderRoute,
+        page: {
+          ...withLoaderRoute.page,
+          loader: (loaderCtx: Record<string, unknown>) => {
+            const redirect = loaderCtx.redirect as (url: string) => Response;
+            throw redirect("/elsewhere");
+          },
+        },
+      } as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/with-loader" });
+
+      await expect(renderToHTML(redirectRoute, ctx, root)).rejects.toBeInstanceOf(Response);
+      try {
+        await renderToHTML(redirectRoute, ctx, root);
+      } catch (err) {
+        expect(err).toBeInstanceOf(Response);
+        const response = err as Response;
+        expect(response.status).toBe(302);
+        expect(response.headers.get("Location")).toBe("/elsewhere");
+      }
+    });
   });
 
   describe("prerenderSSG", () => {
@@ -528,6 +556,30 @@ describe("render.tsx", () => {
       const html2 = await prerenderSSG(indexRoute, {}, root, "http://localhost", undefined);
 
       expect(html1).toBe(html2);
+    });
+
+    test("returns redirect Response when loader throws redirect", async () => {
+      const withLoaderRoute = await getRoute("/with-loader");
+      const root = await getRoot();
+
+      const redirectRoute = {
+        ...withLoaderRoute,
+        page: {
+          ...withLoaderRoute.page,
+          loader: (loaderCtx: Record<string, unknown>) => {
+            const redirect = loaderCtx.redirect as (url: string) => Response;
+            throw redirect("/moved");
+          },
+        },
+      } as ResolvedRoute;
+
+      const result = await prerenderSSG(redirectRoute, {}, root, "http://localhost", undefined);
+
+      expect(result).toBeInstanceOf(Response);
+      if (result instanceof Response) {
+        expect(result.status).toBe(302);
+        expect(result.headers.get("Location")).toBe("/moved");
+      }
     });
   });
 
@@ -678,6 +730,32 @@ describe("render.tsx", () => {
 
       expect(html).toContain("<html");
       expect(html).toContain("isr-page");
+    });
+
+    test("returns redirect Response directly when loader throws redirect", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      const redirectRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          loader: (loaderCtx: Record<string, unknown>) => {
+            const redirect = loaderCtx.redirect as (url: string) => Response;
+            throw redirect("/other");
+          },
+        },
+      } as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const result = await handleISR(redirectRoute, ctx, root);
+
+      expect(result).toBeInstanceOf(Response);
+      if (result instanceof Response) {
+        expect(result.status).toBe(302);
+        expect(result.headers.get("Location")).toBe("/other");
+      }
     });
 
     test("sets correct Cache-Control headers", async () => {
@@ -891,6 +969,48 @@ describe("render.tsx", () => {
       await warmSSGCache(routes, root, "http://localhost:3000");
       expect(ssgCache.has("/")).toBe(true);
       expect(ssgCache.has("/ssg-page")).toBe(true);
+    });
+
+    test("continues when staticParams() throws", async () => {
+      const root = await getRoot();
+      const indexRoute = await getRoute("/");
+      const badRoute = {
+        ...indexRoute,
+        mode: "ssg" as const,
+        page: {
+          ...indexRoute.page,
+          staticParams: () => {
+            throw new Error("staticParams boom");
+          },
+        },
+      } as ResolvedRoute;
+
+      // Should not throw — error is isolated per route
+      await expect(
+        warmSSGCache([badRoute], root, "http://localhost:3000")
+      ).resolves.toBeUndefined();
+    });
+
+    test("continues when individual prerenderSSG throws", async () => {
+      const root = await getRoot();
+      const indexRoute = await getRoute("/");
+      const badRoute = {
+        ...indexRoute,
+        mode: "ssg" as const,
+        page: {
+          ...indexRoute.page,
+          staticParams: async () => [{ slug: "a" }],
+          // component will be called with { slug: "a" } but the real route
+          // has no slug param — this causes an error during render
+          component: () => {
+            throw new Error("render boom");
+          },
+        },
+      } as ResolvedRoute;
+
+      await expect(
+        warmSSGCache([badRoute], root, "http://localhost:3000")
+      ).resolves.toBeUndefined();
     });
   });
 

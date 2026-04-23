@@ -14,6 +14,7 @@ const DOCS_DIR = resolve(import.meta.dir, "..");
 
 const SOURCE_PATHS = [
   "src/content/docs/introduction.mdx",
+  "src/content/docs/comparison.mdx",
   "src/content/docs/getting-started.mdx",
   "src/content/docs/routing.mdx",
   "src/content/docs/data-loading.mdx",

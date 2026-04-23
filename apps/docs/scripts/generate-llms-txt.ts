@@ -53,6 +53,12 @@ const DOCS_NAV: NavSection[] = [
         sourcePath: "src/content/docs/introduction.mdx",
       },
       {
+        label: "Comparison",
+        href: "/docs/comparison",
+        description: "Compare Furin with Next.js and TanStack Start across every dimension.",
+        sourcePath: "src/content/docs/comparison.mdx",
+      },
+      {
         label: "Getting Started",
         href: "/docs/getting-started",
         description: "Install Furin, pick a starter, and boot your first app.",
