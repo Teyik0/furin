@@ -303,7 +303,7 @@ describe("render.tsx", () => {
           ...withLoaderRoute,
           routeChain: [withLoaderRoute.routeChain[0], producer, consumer],
           page: { ...withLoaderRoute.page, loader: undefined },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
         expect(capturedToken).toBe("secret");
       });
@@ -330,7 +330,7 @@ describe("render.tsx", () => {
           ...withLoaderRoute,
           routeChain: [withLoaderRoute.routeChain[0], grandparent, parent, child],
           page: { ...withLoaderRoute.page, loader: undefined },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
         expect(capturedOrg).toBe("acme");
         expect(capturedTeam).toBe("engineering");
@@ -352,7 +352,7 @@ describe("render.tsx", () => {
           ...withLoaderRoute,
           routeChain: [withLoaderRoute.routeChain[0], r],
           page: { ...withLoaderRoute.page, loader: undefined },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext({ path: "/test" }), rootLayout);
         // Must be direct values, not Promises
         expect(capturedRequest instanceof Request).toBe(true);
@@ -376,7 +376,7 @@ describe("render.tsx", () => {
               return { result: capturedFromPage };
             },
           },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
         const res = await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
         expect(capturedFromPage).toBe("alice");
         if (res.type === "data") {
@@ -404,7 +404,7 @@ describe("render.tsx", () => {
           ...withLoaderRoute,
           routeChain: [withLoaderRoute.routeChain[0], p1, p2, consumer],
           page: { ...withLoaderRoute.page, loader: undefined },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
         expect(capturedA).toBe(1);
         expect(capturedB).toBe(2);
@@ -439,7 +439,7 @@ describe("render.tsx", () => {
           ...withLoaderRoute,
           routeChain: [withLoaderRoute.routeChain[0], a1, a2],
           page: { ...withLoaderRoute.page, loader: undefined },
-        } as unknown as ResolvedRoute;
+        } as ResolvedRoute;
 
         await runLoaders(mockRoute, createMockLoaderContext(), rootLayout);
 
@@ -1133,6 +1133,75 @@ describe("render.tsx", () => {
     });
   });
 
+  describe("revalidateInBackground", () => {
+    test("silently drops redirect result during background revalidation", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      // Seed a stale entry so serveISRCacheHit triggers revalidateInBackground.
+      // generatedAt=0 is always older than revalidate*1000ms.
+      const staleHtml = "<html>stale-redirect</html>";
+      isrCache.set("/isr-page", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+
+      // A loader that throws a Response triggers the redirect branch in runLoaders,
+      // which makes renderForPath resolve with a Response — not a RenderResult.
+      const redirectRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          loader: () => {
+            throw new Response(null, { status: 302, headers: { Location: "/foo" } });
+          },
+        },
+      } as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const html = await handleISR(redirectRoute, ctx, root, "");
+
+      // handleISR returns the stale cached HTML immediately
+      expect(html).toBe(staleHtml);
+
+      // Drain background promise — redirect branch (line 844) returns without
+      // calling setISRCache, so the cache entry must remain unchanged.
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+
+      expect(isrCache.get("/isr-page")?.html).toBe(staleHtml);
+    });
+
+    test("logs error and does not propagate when background revalidation fails", async () => {
+      __resetCacheState();
+      const isrRoute = await getRoute("/isr-page");
+      const root = await getRoot();
+
+      const staleHtml = "<html>stale-error</html>";
+      isrCache.set("/isr-page", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+
+      // A loader that throws an Error causes renderForPath (throwOnFailure=true)
+      // to reject, exercising the .catch() block at lines 852-861.
+      const crashingRoute = {
+        ...isrRoute,
+        page: {
+          ...isrRoute.page,
+          loader: () => {
+            throw new Error("bg-revalidation-boom");
+          },
+        },
+      } as ResolvedRoute;
+
+      const ctx = createMockLoaderContext({ path: "/isr-page" });
+      const html = await handleISR(crashingRoute, ctx, root, "");
+
+      expect(html).toBe(staleHtml);
+
+      // Drain background promise — .catch() handler must log and swallow the
+      // error without updating the cache or crashing.
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+
+      expect(isrCache.get("/isr-page")?.html).toBe(staleHtml);
+    });
+  });
+
   describe("handleISR — non-200 coverage", () => {
     test("non-200 ISR with notFoundError populates fallback props", async () => {
       __resetCacheState();
@@ -1145,7 +1214,7 @@ describe("render.tsx", () => {
           ...isrRoute.page,
           loader: () => notFound({ message: "ISR not found" }),
         },
-      } as unknown as ResolvedRoute;
+      } as ResolvedRoute;
 
       const ctx = createMockLoaderContext({ path: "/isr-page" });
       const html = await handleISR(notFoundRoute, ctx, root);
@@ -1167,7 +1236,7 @@ describe("render.tsx", () => {
             throw new Error("ISR-loader-boom");
           },
         },
-      } as unknown as ResolvedRoute;
+      } as ResolvedRoute;
 
       const ctx = createMockLoaderContext({ path: "/isr-page" });
       const html = await handleISR(errorRoute, ctx, root, "build1");
