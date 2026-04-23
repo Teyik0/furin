@@ -534,7 +534,7 @@ describe("render.tsx", () => {
 
       const ctx = createMockLoaderContext({ path: "/with-loader" });
 
-      await expect(renderToHTML(redirectRoute, ctx, root)).rejects.toBeInstanceOf(Response);
+      expect(renderToHTML(redirectRoute, ctx, root)).rejects.toBeInstanceOf(Response);
       try {
         await renderToHTML(redirectRoute, ctx, root);
       } catch (err) {
