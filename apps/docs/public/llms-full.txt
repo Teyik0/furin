@@ -63,7 +63,7 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 > **Disclaimers**
 >
 > - **Next.js** = App Router (stable), not Pages Router.
-> - **TanStack Start** = v1 stable (server functions and PPR are experimental and excluded).
+> - **TanStack Start** = RC (1.x, pre-GA). The official TanStack site labels it "RC / preparing for 1.0". Server functions are stable; RSC is experimental and excluded.
 > - **Furin** = latest stable. Where a feature is planned but not shipped, we say so explicitly.
 > - This comparison is maintained by the Furin team. We flag our own limitations with ⚠️ and our advantages with 💡 so you can verify independently.
 
@@ -74,9 +74,9 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 | | **Next.js** | **TanStack Start** | **Furin** |
 |---|---|---|---|
 | **Runtime** | Node.js | Node.js | **Bun** |
-| **HTTP server** | Custom (Node) | Vite (dev) / Nitro (prod) | **Elysia** |
+| **HTTP server** | Custom (Node) | Vite (dev) / H3 + srvx (prod) | **Elysia** |
 | **Bundler** | Turbopack / webpack | Vite | **Bun.build** |
-| **Process model** | Separate dev server + client bundler | Single Vite process (dev) / Nitro (prod) | **Single process** |
+| **Process model** | Separate dev server + client bundler | Vite (dev) / H3 via srvx (prod) | **Single process** |
 | **SSG** | ✅ | ✅ | ✅ |
 | **ISR** | ✅ | ❌ | ✅ |
 | **SSR** | ✅ | ✅ | ✅ |
@@ -93,12 +93,12 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
 | **Runtime target** | Node.js 18+ | Node.js 18+ | **Bun only** |
-| **HTTP framework** | Custom server (minimal abstraction over Node `http`) | Vite (dev) / Nitro (prod) | **Elysia** (typed, chainable, WinterCG) |
+| **HTTP framework** | Custom server (minimal abstraction over Node `http`) | Vite (dev) / H3 (prod, via UnJS) | **Elysia** (typed, chainable, WinterCG) |
 | **Process model (dev)** | 2 processes: Next.js dev server + Turbopack client bundler | 1 process: Vite dev server with SSR middleware | **1 process**: Bun serves HTTP + bundles client via `Bun.build` + plugin pipeline |
-| **Process model (prod)** | 1 process (custom server) or serverless | 1 process (Nitro) or edge | **1 process** (Elysia plugin) or compiled binary |
-| **WinterCG compliance** | Partial (uses Node APIs) | Partial (Nitro adapts) | **Native** (Elysia is WinterCG-native) |
-| **API routes colocation** | ✅ Route handlers in `app/api` | ✅ API routes via Vinicius | ✅ Elysia plugins colocated with pages |
-| **WebSocket / SSE** | Custom implementation | Via Vinicius plugins | **Native Elysia** (`.ws()`, SSE via `ReadableStream`) |
+| **Process model (prod)** | 1 process (custom server) or serverless | 1 process (H3/srvx) or serverless | **1 process** (Elysia plugin) or compiled binary |
+| **WinterCG compliance** | Partial (uses Node APIs) | Partial (H3 adapts via srvx) | **Native** (Elysia is WinterCG-native) |
+| **API routes colocation** | ✅ Route handlers in `app/api` | ✅ File-based API routes (H3 server functions) | ✅ Elysia plugins colocated with pages |
+| **WebSocket / SSE** | Custom implementation | Via H3 event handlers (crossws) | **Native Elysia** (`.ws()`, SSE via `ReadableStream`) |
 
 > 💡 **Furin advantage** — Single-process dev eliminates the "two servers out of sync" class of bugs. HMR, SSR, and API routes share the same Bun runtime and module graph.
 >
@@ -258,12 +258,12 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **Self-hosted (Docker)** | ✅ (`next start`) | ✅ (Nitro preset) | ✅ (`bun run server.ts` or compiled binary) |
+| **Self-hosted (Docker)** | ✅ (`next start`) | ✅ (srvx/H3 server) | ✅ (`bun run server.ts` or compiled binary) |
 | **Static export** | ✅ (`output: "export"`) | ✅ | ✅ (`static` target) |
-| **Vercel (serverless)** | ✅ (native) | ✅ (via Nitro) | ❌ (planned) |
+| **Vercel (serverless)** | ✅ (native) | ✅ (via srvx adapters) | ❌ (planned) |
 | **Cloudflare Workers** | ⚠️ (edge runtime) | ✅ (official partner, native guide) | ❌ (planned) |
-| **AWS Lambda** | ⚠️ (adapter) | ✅ (via Nitro) | ❌ (planned) |
-| **Edge runtime** | ✅ (Edge API Routes) | ⚠️ (Nitro) | ⚠️ (Elysia is WinterCG, but no edge adapter yet) |
+| **AWS Lambda** | ⚠️ (adapter) | ✅ (via srvx/H3 adapters) | ❌ (planned) |
+| **Edge runtime** | ✅ (Edge API Routes) | ⚠️ (H3/srvx, adapter-based) | ⚠️ (Elysia is WinterCG, but no edge adapter yet) |
 | **Embedded binary** | ❌ | ❌ | ✅ (`compile: "embed"`) |
 | **Single-file deploy** | ❌ | ❌ | ✅ (compiled binary ~20-50 MB) |
 
@@ -297,7 +297,7 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 - You prefer **Vite** and the Rollup ecosystem.
 - You need **TanStack Router** features (nested routing, search param validation, breadcrumbs).
 - You want **TanStack Query** integration out of the box.
-- You prefer **Nitro** for server primitives.
+- You prefer **H3/UnJS** for server primitives.
 
 ---
 
