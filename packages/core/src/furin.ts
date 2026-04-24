@@ -237,6 +237,9 @@ export async function furin({
     const { registerDevPagePlugin } = await import("./dev-page-plugin.ts");
     registerDevPagePlugin();
 
+    const { watchPagesForInvalidation } = await import("./dev-cache-invalidator.ts");
+    watchPagesForInvalidation(resolvedPagesDir);
+
     const { scanPages } = await import("./router.ts");
     const { root, routes } = await scanPages(resolvedPagesDir);
 

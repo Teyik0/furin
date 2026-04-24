@@ -316,7 +316,7 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 
 ---
 
-*Last verified: April 22, 2026. Sources: Next.js 15 docs, TanStack Start RC docs, Furin source code.*
+*Last verified: April 23, 2026. Sources: Next.js 15 docs, TanStack Start RC docs (v1.x, pre-GA), Furin source code, @tanstack/react-start GitHub (packages/react-start, start-server-core, start-plugin-core).*
 
 ---
 

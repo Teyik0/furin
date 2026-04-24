@@ -225,4 +225,30 @@ describe("refreshLayoutChain", () => {
     expect((chain[1] as Required<RuntimeRoute>).layout).toBe(newALayout);
     expect((chain[2] as Required<RuntimeRoute>).layout).toBe(newBLayout);
   });
+
+  test("refreshes intermediate layouts declared in _route.ts", async () => {
+    const originalLayout = () => "old";
+    const newLayout = () => "new";
+
+    const chain: RuntimeRoute[] = [
+      { __type: "FURIN_ROUTE", layout: () => "root" },
+      { __type: "FURIN_ROUTE", layout: originalLayout },
+    ];
+
+    const importFn = (specifier: string) => {
+      if (specifier.includes("board/_route.ts?")) {
+        return Promise.resolve({
+          route: { __type: "FURIN_ROUTE", layout: newLayout },
+        });
+      }
+
+      const err = new Error(`Cannot find module ${specifier}`);
+      (err as { code?: string }).code = "ERR_MODULE_NOT_FOUND";
+      return Promise.reject(err);
+    };
+
+    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
+
+    expect((chain[1] as Required<RuntimeRoute>).layout).toBe(newLayout);
+  });
 });
