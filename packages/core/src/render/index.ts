@@ -275,7 +275,7 @@ export async function prerenderSSG(
   const resolvedPath = resolvePath(route.pattern, params);
 
   const cached = getSSGCache(resolvedPath);
-  if (cached && !IS_DEV) {
+  if (cached) {
     return cached;
   }
 
@@ -286,10 +286,7 @@ export async function prerenderSSG(
   const result = renderResult;
 
   const entry: SsgCacheEntry = { html: result.html, cachedAt: Date.now(), status: result.status };
-
-  if (!IS_DEV) {
-    setSSGCache(resolvedPath, entry);
-  }
+  setSSGCache(resolvedPath, entry);
 
   return entry;
 }
@@ -680,7 +677,7 @@ export async function handleISR(
   const cacheKey = resolvePath(route.pattern, params);
 
   const cached = getISRCache(cacheKey);
-  if (cached && !IS_DEV) {
+  if (cached) {
     return serveISRCacheHit(cached, ctx, route, params, cacheKey, revalidate, root, buildId);
   }
 
@@ -713,9 +710,7 @@ export async function handleISR(
     },
   });
 
-  if (!IS_DEV) {
-    setISRCache(cacheKey, { html, generatedAt, revalidate });
-  }
+  setISRCache(cacheKey, { html, generatedAt, revalidate });
 
   const etag = buildId ? `"${buildId}:${generatedAt}"` : null;
   ctx.set.headers["content-type"] = "text/html; charset=utf-8";

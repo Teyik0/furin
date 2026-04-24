@@ -4,10 +4,12 @@ import { join, parse } from "node:path";
 import { type AnyElysia, type Context, Elysia, t } from "elysia";
 import type { AnySchema } from "elysia/types";
 import type { RuntimePage, RuntimeRoute } from "./client.ts";
+import { registerRouteDependencies } from "./dev-cache-invalidator.ts";
 import type { ErrorComponent } from "./error.ts";
 import { type CompileContext, getCompileContext } from "./internal.ts";
 import type { NotFoundComponent } from "./not-found.ts";
 import { resolvePath } from "./render/assemble.ts";
+import { getISRCache, getSSGCache } from "./render/cache.ts";
 import { handleISR, prerenderSSG, renderSSR } from "./render/index.ts";
 import { IS_DEV } from "./runtime-env.ts";
 import {
@@ -18,11 +20,14 @@ import {
 } from "./utils.ts";
 
 function isModuleNotFoundError(err: unknown): boolean {
-  if (!(err instanceof Error)) {
+  if (!err || (typeof err !== "object" && typeof err !== "string")) {
     return false;
   }
-  const msg = err.message.toLowerCase();
-  const code = (err as { code?: string }).code;
+  const msg =
+    typeof err === "string"
+      ? err.toLowerCase()
+      : String((err as { message?: unknown }).message ?? "").toLowerCase();
+  const code = typeof err === "string" ? undefined : (err as { code?: string }).code;
   return (
     code === "ENOENT" ||
     code === "ERR_MODULE_NOT_FOUND" ||
@@ -196,9 +201,14 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
 }
 
 const CONVENTION_FILE_NAMES = ["not-found", "error"] as const;
+const SOURCE_MODULE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"] as const;
 
 function isConventionFileName(name: string): boolean {
   return (CONVENTION_FILE_NAMES as readonly string[]).includes(name);
+}
+
+function getSourceModuleCandidates(dir: string, name: string): string[] {
+  return SOURCE_MODULE_EXTENSIONS.map((ext) => `${dir}/${name}${ext}`);
 }
 
 /**
@@ -216,8 +226,7 @@ async function loadConventionComponent<T>(
   name: string
 ): Promise<ConventionLookup<T> | undefined> {
   const ctx = getCompileContext();
-  for (const ext of [".tsx", ".ts", ".jsx", ".js"]) {
-    const filePath = `${dir}/${name}${ext}`;
+  for (const filePath of getSourceModuleCandidates(dir, name)) {
     if (existsSync(filePath) || ctx?.modules[filePath]) {
       const mod = (ctx?.modules[filePath] ?? (await import(filePath))) as {
         default?: T;
@@ -236,7 +245,9 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
   const errorCache = new Map<string, ConventionLookup<ErrorComponent> | undefined>();
 
   for (const absolutePath of await collectPageFilePaths(pagesDir)) {
-    if (![".tsx", ".ts", ".jsx", ".js"].some((ext) => absolutePath.endsWith(ext))) {
+    if (
+      !(SOURCE_MODULE_EXTENSIONS as readonly string[]).some((ext) => absolutePath.endsWith(ext))
+    ) {
       continue;
     }
 
@@ -476,6 +487,89 @@ export function queryDefaultRedirectHook({ request, query, status, set }: Contex
   return status("Found");
 }
 
+type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>;
+
+function collectIntermediateLayoutDirs(pagePath: string, rootPath: string): string[] {
+  const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
+  const pagesDir = rootPath.slice(0, rootPath.lastIndexOf("/"));
+  const layoutDirs: string[] = [];
+  let dir = pageDir;
+
+  while (dir.length > pagesDir.length) {
+    layoutDirs.unshift(dir);
+    dir = dir.slice(0, dir.lastIndexOf("/"));
+  }
+
+  return layoutDirs;
+}
+
+function isResolvedRouteModuleCandidate(
+  layoutPath: string,
+  imported: Record<string, unknown>,
+  ctx: CompileContext | null
+): boolean {
+  if (existsSync(layoutPath) || Boolean(ctx?.modules[layoutPath])) {
+    return true;
+  }
+
+  return Object.keys(imported).length > 0;
+}
+
+async function importFreshRouteModuleCandidate(
+  layoutPath: string,
+  timestamp: number,
+  resolveImport: RouteModuleImport,
+  ctx: CompileContext | null
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const imported = await resolveImport(`${layoutPath}?furin-server&t=${timestamp}`);
+    if (!isResolvedRouteModuleCandidate(layoutPath, imported, ctx)) {
+      return;
+    }
+
+    return imported;
+  } catch (err) {
+    if (isModuleNotFoundError(err)) {
+      return;
+    }
+    throw err;
+  }
+}
+
+async function importFreshLayoutRouteModule(
+  layoutDir: string,
+  timestamp: number,
+  resolveImport: RouteModuleImport,
+  ctx: CompileContext | null
+): Promise<Record<string, unknown> | undefined> {
+  for (const layoutPath of getSourceModuleCandidates(layoutDir, "_route")) {
+    const freshMod = await importFreshRouteModuleCandidate(
+      layoutPath,
+      timestamp,
+      resolveImport,
+      ctx
+    );
+    if (freshMod) {
+      return freshMod;
+    }
+  }
+
+  return;
+}
+
+function patchRouteEntryFromFreshModule(
+  entry: RuntimeRoute | undefined,
+  freshMod: Record<string, unknown>
+): void {
+  const freshRoute = freshMod.route ?? freshMod.default;
+  if (!(entry && freshRoute && isFurinRoute(freshRoute))) {
+    return;
+  }
+
+  entry.layout = freshRoute.layout;
+  entry.loader = freshRoute.loader;
+}
+
 /**
  * Re-imports intermediate layout _route.tsx files with cache-busting so that
  * server-side renders reflect the latest code after an HMR edit.  Bun's ESM
@@ -491,51 +585,37 @@ export async function refreshLayoutChain(
   rootPath: string,
   importFn: ((specifier: string) => Promise<Record<string, unknown>>) | undefined
 ): Promise<void> {
-  const resolveImport = importFn ?? ((s: string) => import(s) as Promise<Record<string, unknown>>);
-
-  const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
-  const pagesDir = rootPath.slice(0, rootPath.lastIndexOf("/"));
-  const layoutPaths: string[] = [];
-  let dir = pageDir;
-  while (dir.length > pagesDir.length) {
-    layoutPaths.unshift(`${dir}/_route.tsx`);
-    dir = dir.slice(0, dir.lastIndexOf("/"));
-  }
+  const resolveImport: RouteModuleImport =
+    importFn ?? ((s: string) => import(s) as Promise<Record<string, unknown>>);
+  const ctx = getCompileContext();
+  const timestamp = Date.now();
+  const layoutDirs = collectIntermediateLayoutDirs(pagePath, rootPath);
 
   // Track chainIdx independently rather than deriving it from layoutPaths
-  // index. Directories without a _route.tsx produce import errors that are
+  // index. Directories without a _route module produce import errors that are
   // silently skipped, but those directories have no corresponding chain entry —
-  // so we must only advance chainIdx for directories whose _route.tsx actually
+  // so we must only advance chainIdx for directories whose _route module actually
   // exists. A positional assumption (i = chainIdx - 1) drifts whenever
   // isModuleNotFoundError is swallowed for a gap directory.
   let chainIdx = 1; // chain[0] is the root
-  for (const layoutPath of layoutPaths) {
+  for (const layoutDir of layoutDirs) {
     if (chainIdx >= chain.length) {
       break;
     }
-    try {
-      const freshMod = await resolveImport(`${layoutPath}?furin-server&t=${Date.now()}`);
-      const freshRoute = freshMod.route ?? freshMod.default;
-      if (freshRoute && isFurinRoute(freshRoute)) {
-        const entry = chain[chainIdx];
-        if (entry) {
-          entry.layout = freshRoute.layout;
-          entry.loader = freshRoute.loader;
-        }
-      }
-      // _route.tsx exists at this depth — advance chainIdx regardless of
-      // whether the export is currently a valid route (the chain entry was
-      // populated by the initial import and should be revisited on the next
-      // successful HMR cycle).
-      chainIdx++;
-    } catch (err) {
-      if (!isModuleNotFoundError(err)) {
-        throw err;
-      }
-      // No _route.tsx in this directory — no chain entry to match, so
-      // do NOT advance chainIdx. The next deeper layoutPath may correspond
+    const freshMod = await importFreshLayoutRouteModule(layoutDir, timestamp, resolveImport, ctx);
+    if (!freshMod) {
+      // No _route module in this directory — no chain entry to match, so
+      // do NOT advance chainIdx. The next deeper layoutDir may correspond
       // to the current chainIdx.
+      continue;
     }
+
+    patchRouteEntryFromFreshModule(chain[chainIdx], freshMod);
+    // An _route module exists at this depth — advance chainIdx regardless of
+    // whether the export is currently a valid route (the chain entry was
+    // populated by the initial import and should be revisited on the next
+    // successful HMR cycle).
+    chainIdx++;
   }
 }
 
@@ -575,6 +655,114 @@ async function handleDevRequest(
     `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
     { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
   );
+}
+
+/**
+ * @internal Dev-mode SSG handler.
+ *
+ * On cache miss, re-imports the page + intermediate layouts with cache-busting
+ * so that edits made since server start are reflected.  On cache hit, serves
+ * the stored HTML directly (no re-import).  Entries are cleared by
+ * `invalidateDevCache` whenever the source file underlying the page or any
+ * parent layout is re-evaluated by Bun's workspace loader.
+ */
+async function handleDevSSGRequest(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout
+): Promise<unknown> {
+  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const cached = getSSGCache(resolvedPath);
+  if (cached) {
+    ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+    ctx.set.headers["cache-tag"] = resolvedPath;
+    return cached.html;
+  }
+
+  const fresh = await importFreshRoute(route, root);
+  const response = await handleSSGRequest(fresh.route, ctx, fresh.root, "");
+  registerRouteDependencies(resolvedPath, computeRouteDependencies(route.path, root.path));
+  return response;
+}
+
+/**
+ * @internal Dev-mode ISR handler.  Same pattern as {@link handleDevSSGRequest}
+ * but hands off to {@link handleISR} so that stale-while-revalidate and
+ * background refresh keep working.
+ */
+async function handleDevISRRequest(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout
+): Promise<unknown> {
+  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const cached = getISRCache(resolvedPath);
+  if (cached) {
+    return handleISR(route, ctx, root, "");
+  }
+
+  const fresh = await importFreshRoute(route, root);
+  const response = await handleISR(fresh.route, ctx, fresh.root, "");
+  registerRouteDependencies(resolvedPath, computeRouteDependencies(route.path, root.path));
+  return response;
+}
+
+/**
+ * @internal Lists every source file whose contents can affect the render
+ * output for a given page: the page itself, every intermediate `_route.*`
+ * between the page and the pages root, and `root.tsx`.  Non-existent gap
+ * directories are harmless — the registry simply stores unused keys.
+ */
+function computeRouteDependencies(pagePath: string, rootPath: string): string[] {
+  const deps = [pagePath, rootPath];
+  const pagesDir = rootPath.slice(0, rootPath.lastIndexOf("/"));
+  let dir = pagePath.slice(0, pagePath.lastIndexOf("/"));
+  while (dir.length > pagesDir.length) {
+    deps.push(...getSourceModuleCandidates(dir, "_route"));
+    dir = dir.slice(0, dir.lastIndexOf("/"));
+  }
+  return deps;
+}
+
+/**
+ * @internal Re-imports page + intermediate layout + root modules with
+ * cache-busting query params and returns a fresh route object suitable for
+ * passing to any production render handler.  Mirrors the logic previously
+ * inlined in `handleDevRequest`.
+ */
+async function importFreshRoute(
+  route: ResolvedRoute,
+  root: RootLayout
+): Promise<{ root: RootLayout; route: ResolvedRoute }> {
+  let currentRoot = root;
+  try {
+    const rootMod = (await import(`${root.path}?furin-server&t=${Date.now()}`)) as Record<
+      string,
+      unknown
+    >;
+    const rootExport = rootMod.route ?? rootMod.default;
+    if (rootExport && isFurinRoute(rootExport) && rootExport.layout) {
+      currentRoot = { ...root, path: root.path, route: rootExport };
+    }
+  } catch {
+    // Fall back to the cached root.
+  }
+
+  try {
+    const pageMod = await import(`${route.path}?furin-server&t=${Date.now()}`);
+    const page = pageMod.default;
+    if (page && isFurinPage(page)) {
+      const chain = collectRouteChainFromRoute(page._route as RuntimeRoute);
+      await refreshLayoutChain(chain, route.path, root.path, undefined);
+      return {
+        root: currentRoot,
+        route: { ...route, page, routeChain: chain },
+      };
+    }
+  } catch (err) {
+    console.error(`[furin] Dev page load error for ${route.path}:`, err);
+  }
+  return { root: currentRoot, route };
 }
 
 /** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
@@ -680,17 +868,19 @@ export function createRoutePlugin(route: ResolvedRoute, root: RootLayout, buildI
       }
     }
 
-    if (IS_DEV) {
-      return handleDevRequest(route, ctx, root);
-    }
-
     if (route.mode === "ssg") {
-      return handleSSGRequest(route, ctx, root, buildId);
+      return IS_DEV
+        ? handleDevSSGRequest(route, ctx, root)
+        : handleSSGRequest(route, ctx, root, buildId);
     }
 
     if (route.mode === "isr") {
       ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
-      return handleISR(route, ctx, root, buildId);
+      return IS_DEV ? handleDevISRRequest(route, ctx, root) : handleISR(route, ctx, root, buildId);
+    }
+
+    if (IS_DEV) {
+      return handleDevRequest(route, ctx, root);
     }
 
     return renderSSR(route, ctx, root);
