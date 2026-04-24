@@ -1,4 +1,4 @@
-import { watch } from "node:fs";
+import { readdirSync, watch } from "node:fs";
 import { join } from "node:path";
 import { isrCache, ssgCache } from "./render/cache.ts";
 
@@ -97,27 +97,73 @@ export function invalidateDevCache(filePath: string): InvalidateOutcome {
  * are imported via a virtual namespace and therefore never fire the workspace
  * `onLoad` HMR hook.  Idempotent — repeat calls for the same pagesDir no-op.
  */
-const pagesWatchers = new Map<string, ReturnType<typeof watch>>();
+interface PagesWatchGroup {
+  close(): void;
+  watchedDirs: Set<string>;
+  watchers: Map<string, ReturnType<typeof watch>>;
+}
+
+const pagesWatchers = new Map<string, PagesWatchGroup>();
+
+function isExistingDirectory(path: string): boolean {
+  try {
+    return readdirSync(path, { withFileTypes: false }) !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+function watchNestedPagesDir(group: PagesWatchGroup, dir: string): void {
+  if (group.watchedDirs.has(dir) || !isExistingDirectory(dir)) {
+    return;
+  }
+
+  group.watchedDirs.add(dir);
+  const watcher = watch(dir, (_event, filename) => {
+    if (!filename) {
+      return;
+    }
+
+    const changedPath = join(dir, filename.toString());
+    invalidateDevCache(changedPath);
+    watchNestedPagesDir(group, changedPath);
+  });
+  group.watchers.set(dir, watcher);
+
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      watchNestedPagesDir(group, join(dir, entry.name));
+    }
+  }
+}
 
 export function watchPagesForInvalidation(pagesDir: string): void {
   if (pagesWatchers.has(pagesDir)) {
     return;
   }
-  const watcher = watch(pagesDir, { recursive: true }, (_event, filename) => {
-    if (!filename) {
-      return;
-    }
-    invalidateDevCache(join(pagesDir, filename.toString()));
-  });
-  pagesWatchers.set(pagesDir, watcher);
+
+  const group: PagesWatchGroup = {
+    close() {
+      for (const watcher of this.watchers.values()) {
+        watcher.close();
+      }
+      this.watchers.clear();
+      this.watchedDirs.clear();
+    },
+    watchedDirs: new Set<string>(),
+    watchers: new Map<string, ReturnType<typeof watch>>(),
+  };
+
+  watchNestedPagesDir(group, pagesDir);
+  pagesWatchers.set(pagesDir, group);
 }
 
 /** @internal test-only — resets dependency registry + stops every active watcher */
 export function __resetDevCacheInvalidator(): void {
   fileToCacheKeys.clear();
   cacheKeyToFiles.clear();
-  for (const w of pagesWatchers.values()) {
-    w.close();
+  for (const group of pagesWatchers.values()) {
+    group.close();
   }
   pagesWatchers.clear();
 }
