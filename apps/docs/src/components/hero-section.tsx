@@ -50,7 +50,7 @@ export function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-8 transition-all hover:border-foreground/20 hover:shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-8 transition-[border-color,box-shadow] hover:border-foreground/20 hover:shadow-sm">
       <div className="mb-5 flex size-12 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
         {icon}
       </div>

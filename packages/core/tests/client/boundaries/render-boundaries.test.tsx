@@ -22,6 +22,7 @@ import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FurinErrorBoundary, FurinNotFoundBoundary } from "../../../src/client/boundaries.tsx";
+import { DocumentProvider } from "../../../src/client/document.tsx";
 import { computeErrorDigest } from "../../../src/shared/digest.ts";
 import type { ErrorProps } from "../../../src/shared/error.ts";
 import { FurinNotFoundError, type NotFoundProps } from "../../../src/shared/not-found.ts";
@@ -117,6 +118,33 @@ describe("FurinErrorBoundary", () => {
     expect(html).not.toContain("abcdef1234");
     expect(html).toContain("Something went wrong");
     expect(html).toContain("500");
+  });
+
+  test("keeps a complete document when the root client boundary catches", () => {
+    const boundary = makeErrorBoundaryInState(new Error("boom"), { document: true });
+    const html = renderToStaticMarkup(
+      <DocumentProvider
+        value={{
+          assets: {
+            buildId: undefined,
+            entryModule: "/_client/hydrate.js",
+            faviconHref: undefined,
+            staticMode: false,
+            stylesheets: [],
+          },
+          dataJson: "{}",
+          head: undefined,
+          syncJson: undefined,
+        }}
+      >
+        {boundary.render()}
+      </DocumentProvider>
+    );
+
+    expect(html).toStartWith("<html");
+    expect(html).toContain("<body>");
+    expect(html).toContain("Something went wrong");
+    expect(html).toContain('data-furin-entry=""');
   });
 
   test("renders a user-supplied fallback with message + computed digest + reset function", () => {
@@ -356,8 +384,6 @@ function makeNotFoundBoundaryInState(
     boundary.state = { ...boundary.state, ...next };
   }) as typeof boundary.setState;
   const derived = FurinNotFoundBoundary.getDerivedStateFromError(error);
-  if (derived) {
-    boundary.state = { ...boundary.state, ...derived } as typeof boundary.state;
-  }
+  boundary.state = { ...boundary.state, ...derived } as typeof boundary.state;
   return boundary;
 }

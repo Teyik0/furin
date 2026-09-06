@@ -19,13 +19,13 @@ function durableAdapter(
   currentCursor: () => Promise<string>
 ): SyncAdapter {
   return {
-    scope,
     abortMutation: async () => undefined,
     beginMutation: async () => ({ kind: "conflict", reason: "in-progress" }),
     completeMutation: async () => ({ kind: "lost" }),
     currentCursor,
     readChanges: async () => ({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: async () => "lost",
+    scope,
   };
 }
 

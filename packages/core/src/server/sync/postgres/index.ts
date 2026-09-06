@@ -261,17 +261,19 @@ export class PostgresSyncAdapter implements SyncAdapter {
     if (BigInt(input.after) < oldest - 1n) {
       return { changes: [], cursor: currentCursor, hasMore: false, reset: true };
     }
-    const rows = await this.sql<ChangeRow[]>`
-      SELECT cursor, invalidations
-      FROM furin_sync.changes
-      WHERE namespace = ${this.namespace} AND cursor > ${input.after}::bigint
-      ORDER BY cursor ASC
-      LIMIT ${input.limit + 1}
-    `;
-    const latestCursorRows = await this.sql<CursorRow[]>`
-      SELECT current_cursor, oldest_cursor
-      FROM furin_sync.streams WHERE namespace = ${this.namespace}
-    `;
+    const [rows, latestCursorRows] = await Promise.all([
+      this.sql<ChangeRow[]>`
+        SELECT cursor, invalidations
+        FROM furin_sync.changes
+        WHERE namespace = ${this.namespace} AND cursor > ${input.after}::bigint
+        ORDER BY cursor ASC
+        LIMIT ${input.limit + 1}
+      `,
+      this.sql<CursorRow[]>`
+        SELECT current_cursor, oldest_cursor
+        FROM furin_sync.streams WHERE namespace = ${this.namespace}
+      `,
+    ]);
     const latestCurrentCursor = String(latestCursorRows[0]?.current_cursor ?? 0);
     const latestOldest = BigInt(latestCursorRows[0]?.oldest_cursor ?? 0);
     if (BigInt(input.after) < latestOldest - 1n) {

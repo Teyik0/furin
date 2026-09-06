@@ -15,7 +15,7 @@ import {
   urlPathFromCacheKey,
 } from "../cache/dev-loader.ts";
 import { currentInstance } from "../instance.ts";
-import type { ResolvedRoute } from "../router/types.ts";
+import type { ResolvedRoute, ResolvedRoutesSource } from "../router/types.ts";
 import { devtoolsEventsSnapshot, devtoolsInstanceId, subscribeDevtoolsEventsAfter } from "./hub.ts";
 
 let clientSource: string | undefined;
@@ -128,7 +128,7 @@ function serializeEvent(event: DevtoolsSnapshot["events"][number]): string {
 }
 
 export function createDevtoolsPlugin(
-  routes: ResolvedRoute[],
+  routesSource: ResolvedRoutesSource,
   syncStreamPath: string | undefined
 ): AnyElysia {
   let activeEventStreams = 0;
@@ -255,7 +255,9 @@ export function createDevtoolsPlugin(
           prefix: instance.prefix,
         },
         lastEventId: eventSnapshot.lastEventId,
-        routes: routes.map(routeSnapshot),
+        routes: (typeof routesSource === "function" ? routesSource() : routesSource).map(
+          routeSnapshot
+        ),
         sync: {
           enabled: syncStreamPath !== undefined,
           streamPath: syncStreamPath ?? null,

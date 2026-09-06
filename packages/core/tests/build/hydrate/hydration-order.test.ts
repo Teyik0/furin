@@ -36,16 +36,18 @@ describe("hydration: SSR and client apply layouts in same order", () => {
 
     const chain = collectRouteChainFromRoute(nestedRoute.page._route);
 
-    expect(chain).toHaveLength(2);
+    expect(chain).toHaveLength(3);
 
     const ssrProcessedIndices: number[] = [];
     for (let i = chain.length - 1; i >= 1; i -= 1) {
-      ssrProcessedIndices.push(i);
+      if (chain[i]?.layout) {
+        ssrProcessedIndices.push(i);
+      }
     }
 
     expect(ssrProcessedIndices).toEqual([1]);
 
-    const clientLayouts = chain.slice(1);
+    const clientLayouts = chain.slice(1).filter((entry) => entry.layout);
     const clientProcessedCount = clientLayouts.length;
 
     expect(ssrProcessedIndices.length).toBe(clientProcessedCount);
@@ -59,15 +61,17 @@ describe("hydration: SSR and client apply layouts in same order", () => {
 
     const chain = collectRouteChainFromRoute(deepRoute.page._route);
 
-    expect(chain).toHaveLength(3);
+    expect(chain).toHaveLength(4);
 
     const ssrOrder: number[] = [];
     for (let i = chain.length - 1; i >= 1; i -= 1) {
-      ssrOrder.push(i);
+      if (chain[i]?.layout) {
+        ssrOrder.push(i);
+      }
     }
     expect(ssrOrder).toEqual([2, 1]);
 
-    const clientLayouts = chain.slice(1);
+    const clientLayouts = chain.slice(1).filter((entry) => entry.layout);
     const clientOrder: number[] = [];
     for (let i = clientLayouts.length - 1; i >= 0; i -= 1) {
       clientOrder.push(i + 1);

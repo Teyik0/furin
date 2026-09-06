@@ -1,6 +1,8 @@
 import { AsyncResource } from "node:async_hooks";
 import type { Context } from "elysia";
+import { createElement } from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { FurinDocumentFallback } from "../../client/document.tsx";
 import { isNotFoundError } from "../../shared/not-found.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry.ts";
@@ -16,14 +18,14 @@ import type { ISRCacheEntry } from "../cache/isr-ssg.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
 import { createLogger, useLogger } from "../context-logger.ts";
 import { currentInstance, withInstance } from "../instance.ts";
-import type { ResolvedRoute, RootLayout } from "../router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import {
-  assembleHTML,
   injectSyncRuntimeScript,
   type LoaderContext,
   resolvePath,
   streamToString,
 } from "./assemble.ts";
+import { withDocumentState } from "./document.tsx";
 import { runPublicLoaders } from "./loaders.ts";
 import {
   type PreparedRender,
@@ -102,7 +104,7 @@ async function renderISRNon200(
   renderStart: number,
   buildId: string | undefined
 ): Promise<string> {
-  const { componentProps, element, headData, headers, template, status, notFoundError } = prepared;
+  const { assets, componentProps, element, headData, headers, status, notFoundError } = prepared;
   const fallbackProps: Record<string, unknown> = { ...componentProps };
   if (status === 404) {
     fallbackProps.__furinStatus = 404;
@@ -112,9 +114,15 @@ async function renderISRNon200(
   }
 
   const { stream: reactStream, shellError } = await renderElementWithShellFallback(
-    element,
+    withDocumentState(element, assets, headData, fallbackProps),
     route.error ?? root.error,
-    prepared.ssrContext
+    prepared.ssrContext,
+    (fallback, digest) =>
+      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
+        ...fallbackProps,
+        __furinError: { digest, status: 500 },
+        __furinStatus: 500,
+      })
   );
   let finalStatus = status;
   let finalDigest = errorDigest;
@@ -139,7 +147,7 @@ async function renderISRNon200(
 
   await reactStream.allReady;
   const reactHtml = await streamToString(reactStream);
-  const html = assembleHTML(template, headData, reactHtml, fallbackProps);
+  const html = reactHtml;
   const generatedAt = Date.now();
 
   const renderMs = generatedAt - renderStart;
@@ -214,16 +222,18 @@ export async function handleISR(
       return prepared;
     }
 
-    const { element, headData, headers, syncData, template, status, errorDigest } = prepared;
+    const { assets, element, headData, headers, syncData, status, errorDigest } = prepared;
 
     if (status !== 200) {
       return renderISRNon200(prepared, route, ctx, root, errorDigest, renderStart, buildId);
     }
 
-    const stream = await renderToReadableStream(element);
+    const stream = await renderToReadableStream(
+      withDocumentState(element, assets, headData, syncData)
+    );
     await stream.allReady;
     const reactHtml = await streamToString(stream);
-    const html = assembleHTML(template, headData, reactHtml, syncData);
+    const html = reactHtml;
     const generatedAt = Date.now();
 
     useLogger().set({

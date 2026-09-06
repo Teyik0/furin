@@ -1,5 +1,5 @@
 import { type AnyElysia, Elysia } from "elysia";
-import type { ResolvedRoute } from "../router/types.ts";
+import type { ResolvedRoutesSource } from "../router/types.ts";
 
 interface CacheAccessInput {
   cache: "isr-loader" | "ssg-loader";
@@ -69,7 +69,7 @@ export function instrumentationLoggerExclusions(_prefix: string): string[] {
 }
 
 export function createInstrumentationPlugin(
-  _routes: ResolvedRoute[],
+  _routes: ResolvedRoutesSource,
   _syncStreamPath: string | undefined
 ): AnyElysia {
   return new Elysia({ name: "furin-production-instrumentation" });

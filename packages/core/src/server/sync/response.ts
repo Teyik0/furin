@@ -132,11 +132,13 @@ export function mergeStoredResponseHeaders(
   storedResponse: StoredResponse,
   headers: Context["set"]["headers"]
 ): StoredResponse {
-  const merged = new Headers(
-    storedResponse.headers
-      .filter(([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase()))
-      .map(([name, value]) => [name, value] as [string, string])
-  );
+  const headerEntries: [string, string][] = [];
+  for (const [name, value] of storedResponse.headers) {
+    if (!NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
+      headerEntries.push([name, value]);
+    }
+  }
+  const merged = new Headers(headerEntries);
   for (const [name, value] of Object.entries(headers)) {
     if (value !== undefined && !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
       merged.delete(name);
@@ -191,12 +193,14 @@ export function replayResponse(stored: StoredResponse): Response {
     stored.status === 204 || stored.status === 205 || stored.status === 304
       ? null
       : stored.body.slice();
+  const headerEntries: [string, string][] = [];
+  for (const [name, value] of stored.headers) {
+    if (!NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
+      headerEntries.push([name, value]);
+    }
+  }
   return new Response(body, {
-    headers: new Headers(
-      stored.headers
-        .filter(([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase()))
-        .map(([name, value]) => [name, value] as [string, string])
-    ),
+    headers: new Headers(headerEntries),
     status: stored.status,
   });
 }

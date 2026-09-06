@@ -1,17 +1,45 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
-import { Elysia } from "elysia";
-import { createRoute } from "../../../src/client";
-import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { Elysia, t } from "elysia";
+import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
 import { renderForPath } from "../../../src/server/render/ssr.ts";
+import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
   true;
 
 const originalDevMode = IS_DEV;
+const rootTerminal = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  ));
+const root = {
+  path: "/root.tsx",
+  route: adaptDefinedLayout(rootTerminal, undefined),
+} satisfies RootLayout;
+
+function resolveRoute(
+  route: Parameters<typeof adaptDefinedPage>[0],
+  path: string,
+  pattern: string
+): ResolvedRoute {
+  const page = adaptDefinedPage(route, root.route);
+  return {
+    mode: page.mode ?? "ssr",
+    page,
+    path,
+    pattern,
+    routeChain: collectRouteChainFromRoute(page._route),
+    segmentBoundaries: [],
+  };
+}
 
 beforeAll((done) => {
   __setDevMode(false);
@@ -31,36 +59,19 @@ afterAll((done) => {
 
 test("ISR cache keys include the query string and path invalidation clears every variant", async () => {
   let loaderCalls = 0;
-  const route = createRoute({
-    loader: ({ query }) => {
+  const route = defineRoute()
+    .config({
+      layout: rootTerminal,
+      mode: "isr",
+      query: t.Object({ tenant: t.Optional(t.String()) }),
+      revalidate: 60,
+    })
+    .loader(({ query }) => {
       loaderCalls += 1;
-      return { tenant: String((query as { tenant?: unknown }).tenant ?? "") };
-    },
-    mode: "isr",
-    revalidate: 60,
-  });
-  const page = route.page({
-    component: ({ tenant }) => <main data-tenant={tenant}>{tenant}</main>,
-  });
-  const resolved = {
-    mode: "isr",
-    page: page as unknown as RuntimePage,
-    path: "/search.tsx",
-    pattern: "/search",
-    routeChain: [route as unknown as RuntimeRoute],
-    segmentBoundaries: [],
-  } satisfies ResolvedRoute;
-  const root = {
-    path: "/root.tsx",
-    route: {
-      __type: "FURIN_ROUTE",
-      layout: ({ children }) => (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      ),
-    },
-  } satisfies RootLayout;
+      return { tenant: query.tenant ?? "" };
+    })
+    .page(({ data }) => <main data-tenant={data.tenant}>{data.tenant}</main>);
+  const resolved = resolveRoute(route, "/search.tsx", "/search");
   const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
   const alpha = await app
@@ -82,34 +93,19 @@ test("ISR cache keys include the query string and path invalidation clears every
 });
 
 test("ISR cached loaders reject request-specific context", async () => {
-  const route = createRoute({
-    loader: ({ cookie, query }) => ({
+  const route = defineRoute()
+    .config({
+      layout: rootTerminal,
+      mode: "isr",
+      query: t.Object({ tenant: t.Optional(t.String()) }),
+      revalidate: 60,
+    })
+    .loader(({ cookie, query }) => ({
       session: cookie.session,
-      tenant: String((query as { tenant?: unknown }).tenant ?? ""),
-    }),
-    mode: "isr",
-    revalidate: 60,
-  });
-  const page = route.page({ component: ({ tenant }) => <main>{tenant}</main> });
-  const resolved = {
-    mode: "isr",
-    page: page as unknown as RuntimePage,
-    path: "/private.tsx",
-    pattern: "/private",
-    routeChain: [route as unknown as RuntimeRoute],
-    segmentBoundaries: [],
-  } satisfies ResolvedRoute;
-  const root = {
-    path: "/root.tsx",
-    route: {
-      __type: "FURIN_ROUTE",
-      layout: ({ children }) => (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      ),
-    },
-  } satisfies RootLayout;
+      tenant: query.tenant ?? "",
+    }))
+    .page(({ data }) => <main>{data.tenant}</main>);
+  const resolved = resolveRoute(route, "/private.tsx", "/private");
   const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
   const alice = await app.handle(
@@ -127,33 +123,14 @@ test("ISR cached loaders reject request-specific context", async () => {
 
 test("synthetic ISR renders preserve repeated query values for loaders", async () => {
   let observedQuery: unknown;
-  const route = createRoute({
-    loader: ({ query }) => {
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    .loader(({ query }) => {
       observedQuery = query;
       return {};
-    },
-    mode: "isr",
-  });
-  const page = route.page({ component: () => <main>search</main> });
-  const resolved = {
-    mode: "isr",
-    page: page as unknown as RuntimePage,
-    path: "/search.tsx",
-    pattern: "/search",
-    routeChain: [route as unknown as RuntimeRoute],
-    segmentBoundaries: [],
-  } satisfies ResolvedRoute;
-  const root = {
-    path: "/root.tsx",
-    route: {
-      __type: "FURIN_ROUTE",
-      layout: ({ children }) => (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      ),
-    },
-  } satisfies RootLayout;
+    })
+    .page(() => <main>search</main>);
+  const resolved = resolveRoute(route, "/search.tsx", "/search");
 
   await renderForPath(
     resolved,
@@ -171,33 +148,14 @@ test("synthetic ISR renders preserve repeated query values for loaders", async (
 
 test("synthetic ISR renders preserve __proto__ query values for loaders", async () => {
   let observedQuery: unknown;
-  const route = createRoute({
-    loader: ({ query }) => {
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    .loader(({ query }) => {
       observedQuery = query;
       return {};
-    },
-    mode: "isr",
-  });
-  const page = route.page({ component: () => <main>search</main> });
-  const resolved = {
-    mode: "isr",
-    page: page as unknown as RuntimePage,
-    path: "/search.tsx",
-    pattern: "/search",
-    routeChain: [route as unknown as RuntimeRoute],
-    segmentBoundaries: [],
-  } satisfies ResolvedRoute;
-  const root = {
-    path: "/root.tsx",
-    route: {
-      __type: "FURIN_ROUTE",
-      layout: ({ children }) => (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      ),
-    },
-  } satisfies RootLayout;
+    })
+    .page(() => <main>search</main>);
+  const resolved = resolveRoute(route, "/search.tsx", "/search");
 
   await renderForPath(
     resolved,

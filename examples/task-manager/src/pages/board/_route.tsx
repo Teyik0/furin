@@ -1,5 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: board nav active props depend on router active state
-import { createRoute } from "@teyik0/furin/client";
+import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { t } from "elysia";
 import type { Board } from "@/api/modules/boards/service";
@@ -20,8 +20,18 @@ function boardHue(id: string): string {
   return PALETTE[id.charCodeAt(0) % PALETTE.length] ?? (PALETTE[0] as string);
 }
 
-export const route = createRoute({
-  layout: ({ children, sidebarBoards }) => (
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    params: t.Object({ boardId: t.String() }),
+    tags: ["boards"],
+  })
+  .loader(() => {
+    const sidebarBoards = getBoards();
+    return { sidebarBoards };
+  })
+  .layout(({ data: { sidebarBoards }, children }) => (
     <div className="flex min-h-screen">
       {/* ─── Sidebar ──────────────────────────────────────────── */}
       <aside className="flex w-55 shrink-0 flex-col border-white/5 border-r bg-[#0a0a0c]">
@@ -51,7 +61,7 @@ export const route = createRoute({
               <Link
                 activeProps={({ isActive }) => ({
                   className: cn(
-                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-all hover:bg-white/5 hover:text-white/75",
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors hover:bg-white/5 hover:text-white/75",
                     isActive ? "bg-white/[0.07] text-white" : "text-white/[0.42]"
                   ),
                 })}
@@ -78,7 +88,7 @@ export const route = createRoute({
         {/* Footer */}
         <div className="border-white/5 border-t p-3">
           <Link
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 font-medium text-white/[0.38] text-xs no-underline transition-all duration-150"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 font-medium text-white/[0.38] text-xs no-underline transition-colors duration-150"
             to="/"
           >
             <span>＋</span>
@@ -97,12 +107,4 @@ export const route = createRoute({
       {/* Main */}
       <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
     </div>
-  ),
-  loader: () => {
-    const sidebarBoards = getBoards();
-    return { sidebarBoards };
-  },
-  params: t.Object({ boardId: t.String() }),
-  parent: rootRoute,
-  tags: ["boards"],
-});
+  ));

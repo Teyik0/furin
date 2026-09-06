@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   __resetTemplateState,
+  documentAssetsFromTemplate,
   getDevTemplate,
   getProductionTemplate,
   setProductionTemplateContent,
@@ -19,6 +20,15 @@ afterEach(() => {
 });
 
 describe.serial("render/template", () => {
+  test("derives the application entry after development-only module scripts", () => {
+    const assets = documentAssetsFromTemplate(
+      '<script type="module" src="/_furin/devtools/client.js"></script>' +
+        '<script type="module" src="/_bun/app.js"></script>'
+    );
+
+    expect(assets.entryModule).toBe("/_bun/app.js");
+  });
+
   test("getProductionTemplate returns null until a template path is set", () => {
     expect(getProductionTemplate()).toBeNull();
   });

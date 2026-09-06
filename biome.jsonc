@@ -25,19 +25,43 @@
     "enabled": true,
     "lineWidth": 100
   },
-  "assist": {
-    "actions": {
-      "source": {
-        "useSortedKeys": "off",
-        "useSortedProperties": "off"
-      }
-    }
-  },
   "linter": {
     "rules": {
       "suspicious": {
         "noAssignInExpressions": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/core/src/**/*.{ts,tsx}"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "elysia/parse-query": "Import through shared/elysia-contract.ts.",
+                  "elysia/schema": "Import through shared/elysia-contract.ts.",
+                  "elysia/type-system": "Import through shared/elysia-contract.ts.",
+                  "elysia/types": "Import through shared/elysia-contract.ts."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/core/src/shared/elysia-contract.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

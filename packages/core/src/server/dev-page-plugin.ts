@@ -16,10 +16,10 @@
  * stale module while the client received fresh HMR code, causing a React
  * hydration mismatch.
  *
- * Solution: the caller appends `?furin-server&t=<timestamp>` to the import
- * specifier (a new timestamp on every request).  `onResolve` preserves the
- * `?t=...` fragment in the resolved path so each request gets a unique
- * `(namespace, path)` key and Bun always calls `onLoad` fresh.
+ * Solution: the caller appends `?furin-server&t=<source-version>` to the import
+ * specifier. `onResolve` preserves the `?t=...` fragment in the resolved path,
+ * so Bun calls `onLoad` again after an edit without allocating a new permanent
+ * ESM registry entry for every request.
  *
  * ## Relative import rewriting
  *
@@ -351,8 +351,8 @@ export function registerDevPagePlugin(): void {
     name: "furin-dev-page-loader",
     setup(build) {
       /**
-       * Strip `?furin-server` but keep `?t=<ms>` in the resolved path so
-       * each request gets a unique module identity, bypassing Bun's cache.
+       * Strip `?furin-server` but keep `?t=<source-version>` in the resolved
+       * path so each edited version gets a new module identity.
        */
       build.onResolve({ filter: FURIN_SERVER_FILTER }, (args) => {
         const tMatch = T_PARAM_RE.exec(args.path);
@@ -405,8 +405,9 @@ export function registerDevPagePlugin(): void {
       });
 
       /**
-       * Read the page file fresh from disk.  The `?t=...` suffix guarantees
-       * this handler is called on every request; strip it before file I/O.
+       * Read the page file fresh from disk. The `?t=...` suffix guarantees
+       * this handler is called for each edited source version; strip it before
+       * file I/O.
        *
        * ## Why we pre-transpile with Bun.Transpiler
        *

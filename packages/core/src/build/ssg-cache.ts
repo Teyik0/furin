@@ -2,11 +2,8 @@
 import type { SsgCacheEntry } from "../server/cache/index.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderSSG } from "../server/render/index.ts";
-import {
-  createSearchRouteMetadata,
-  type ResolvedRoute,
-  type RootLayout,
-} from "../server/router/index.ts";
+import { createSearchRouteMetadata } from "../server/router/schemas.ts";
+import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 
 export type SSGCacheSnapshot = Record<string, SsgCacheEntry>;
 

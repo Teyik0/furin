@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
 
-const { createDataEndpoint, scanPages } = await import("../../../src/server/router/index");
+const { scanPages } = await import("../../../src/server/router/discovery.ts");
+const { createDataEndpoint } = await import("../../../src/server/router/plugin.ts");
 const { __setDevMode } = await import("../../../src/server/runtime-env");
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");

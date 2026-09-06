@@ -5,8 +5,8 @@ Furin is a React meta-framework on top of Elysia and Bun. It gives you file-base
 ## What You Get
 
 - File-based routing from `src/pages`
-- Route-level `loader`, `params`, and `query` typing through `createRoute()`
-- `route.page()` for page components, `head()`, and `staticParams()`
+- Route-level `loader`, `params`, and `query` typing through `defineRoute()`
+- One typestate chain ending in `page()` or `layout()`
 - Bun-native development flow with Fast Refresh and SSR kept in sync
 - A single process for pages and API routes
 - Built-in API mutation sync with SSE, cache invalidation, and idempotency
@@ -29,21 +29,15 @@ bun dev
 
 ## How The API Is Split
 
-Use `createRoute()` for route-level concerns:
+Use one `defineRoute()` chain for the complete route contract:
 
-- `mode`
-- `revalidate`
-- `params`
-- `query`
-- `loader`
-- `layout`
+- mandatory `config({ layout, mode, revalidate, params, query, staticParams })`
+- optional `requestLoader()` for request-private data
+- optional `loader()` for public route data
+- optional `head()` after `loader()`
+- terminal `page()` or `layout()`
 
-Use `route.page()` for page-level concerns:
-
-- `component`
-- `loader`
-- `head`
-- `staticParams`
+The `pages/root.tsx` chain uses `defineRootRoute()` and omits `layout` because it has no parent.
 
 ## Current Status
 

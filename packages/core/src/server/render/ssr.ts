@@ -4,6 +4,7 @@ import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { toCrossJSON, toCrossJSONAsync } from "seroval";
+import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
 import { RouterContext } from "../../client/router/context.ts";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import {
@@ -12,16 +13,16 @@ import {
   searchSnapshotFromRouterContext,
 } from "../../client/router/search-store.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
+import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { runInSyntheticRenderScope, useLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 // FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
-import type { ResolvedRoute, RootLayout } from "../router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import {
-  assembleHTML,
   buildDeferredResolution,
   buildDeferredScript,
   buildRouteFrameCloseScript,
@@ -30,10 +31,15 @@ import {
   buildRouteFrameTemplate,
   buildSyncRuntimeScript,
   resolvePath,
-  splitTemplate,
   streamToString,
 } from "./assemble.ts";
-import { buildElement, buildErrorElement, buildNotFoundElement } from "./element.tsx";
+import { withDocumentState } from "./document.tsx";
+import {
+  buildElement,
+  buildErrorElement,
+  buildNotFoundElement,
+  wrapRootLayout,
+} from "./element.tsx";
 import {
   type LoaderResult,
   runLoaders,
@@ -41,8 +47,12 @@ import {
   serializeDeferredRejection,
 } from "./loaders.ts";
 import { serializeDeferredRouteFrame } from "./route-frame-transport.ts";
-import { buildHeadInjection, generateIndexHtml, safeJson } from "./shell.ts";
-import { getDevTemplate, getProductionTemplate } from "./template.ts";
+import { generateIndexHtml, safeJson } from "./shell.ts";
+import {
+  documentAssetsFromTemplate,
+  getDevDocumentAssets,
+  getProductionDocumentAssets,
+} from "./template.ts";
 
 // Re-export types consumed by sibling render modules (not a public barrel).
 export type { LoaderContext } from "./assemble.ts";
@@ -64,6 +74,7 @@ export interface RenderResult {
 }
 
 export interface PreparedRender {
+  assets: DocumentAssets;
   /**
    * All props passed to the React component tree. For deferred renders this
    * includes the Promise objects (for `<Await resolve={promise}>`) alongside
@@ -79,7 +90,7 @@ export interface PreparedRender {
   element: ReactNode;
   /** Set when the prepared element is an error UI. */
   errorDigest?: string;
-  headData: string;
+  headData: HeadOptions | undefined;
   headers: Record<string, string>;
   loader_ms: number;
   /**
@@ -95,7 +106,6 @@ export interface PreparedRender {
    * excludes the Promise fields (those are streamed separately).
    */
   syncData: Record<string, unknown>;
-  template: string;
 }
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
@@ -121,6 +131,39 @@ interface ShellFallbackResult {
   stream: Awaited<ReturnType<typeof renderToReadableStream>>;
 }
 
+async function requireDocumentStream(
+  stream: Awaited<ReturnType<typeof renderToReadableStream>>
+): Promise<Awaited<ReturnType<typeof renderToReadableStream>>> {
+  const reader = stream.getReader();
+  const first = await reader.read();
+  const prefix = first.value === undefined ? "" : new TextDecoder().decode(first.value);
+  if (first.done || !prefix.startsWith("<!DOCTYPE html><html")) {
+    await reader.cancel();
+    throw new Error(
+      "[furin] The root layout must render an <html> document containing <HeadContent /> and <Scripts />."
+    );
+  }
+
+  const validated = new ReadableStream<Uint8Array>({
+    async cancel(reason) {
+      await reader.cancel(reason);
+    },
+    async pull(controller) {
+      const next = await reader.read();
+      if (next.done) {
+        controller.close();
+      } else {
+        controller.enqueue(next.value);
+      }
+    },
+    start(controller) {
+      controller.enqueue(first.value);
+    },
+  }) as Awaited<ReturnType<typeof renderToReadableStream>>;
+  Object.defineProperty(validated, "allReady", { value: stream.allReady });
+  return validated;
+}
+
 /**
  * Renders `element` to a React stream, recovering from a synchronous shell
  * throw with a 500 error UI. The supplied error component (route-level, else
@@ -134,28 +177,36 @@ interface ShellFallbackResult {
 export async function renderElementWithShellFallback(
   element: ReactNode,
   errorComponent: Parameters<typeof buildErrorElement>[0],
-  ssrContext: RouterContextValue
+  ssrContext: RouterContextValue,
+  wrapFallbackDocument: (element: ReactNode, digest: string) => ReactNode
 ): Promise<ShellFallbackResult> {
   try {
-    return { stream: await renderToReadableStream(element), shellError: undefined };
+    const stream = await renderToReadableStream(element);
+    return { shellError: undefined, stream: await requireDocumentStream(stream) };
   } catch (error) {
     const digest = computeErrorDigest(error);
     try {
       const stream = await renderToReadableStream(
-        withSSRRouterContext(
-          buildErrorElement(errorComponent, error, digest, undefined, 500),
-          ssrContext
+        wrapFallbackDocument(
+          withSSRRouterContext(
+            buildErrorElement(errorComponent, error, digest, undefined, 500),
+            ssrContext
+          ),
+          digest
         )
       );
-      return { stream, shellError: { digest } };
+      return { shellError: { digest }, stream: await requireDocumentStream(stream) };
     } catch {
       const stream = await renderToReadableStream(
-        withSSRRouterContext(
-          buildErrorElement(undefined, error, digest, undefined, 500),
-          ssrContext
+        wrapFallbackDocument(
+          withSSRRouterContext(
+            buildErrorElement(undefined, error, digest, undefined, 500),
+            ssrContext
+          ),
+          digest
         )
       );
-      return { stream, shellError: { digest } };
+      return { shellError: { digest }, stream: await requireDocumentStream(stream) };
     }
   }
 }
@@ -205,11 +256,16 @@ function buildSuccessRender(
   root: RootLayout,
   componentProps: Record<string, unknown>,
   throwOnFailure: boolean
-): { element: ReactNode; headData: string; errorDigest: string | undefined; status: number } {
+): {
+  element: ReactNode;
+  errorDigest: string | undefined;
+  headData: HeadOptions | undefined;
+  status: number;
+} {
   try {
-    const headData = buildHeadInjection(route.page.head?.(componentProps));
+    const headData = route.page.head?.(componentProps);
     const element = buildElement(route, componentProps, root.route);
-    return { element, headData, errorDigest: undefined, status: 200 };
+    return { element, errorDigest: undefined, headData, status: 200 };
   } catch (headError) {
     if (throwOnFailure) {
       throw headError;
@@ -222,25 +278,24 @@ function buildSuccessRender(
       undefined,
       500
     );
-    return { element, headData: "", errorDigest, status: 500 };
+    return { element, errorDigest, headData: undefined, status: 500 };
   }
 }
 
-async function resolveRenderTemplate(ctx: Context): Promise<string> {
-  const productionTemplate = getProductionTemplate();
-  if (productionTemplate !== null) {
-    return productionTemplate;
+function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentAssets> {
+  const productionAssets = getProductionDocumentAssets();
+  if (productionAssets !== null) {
+    return productionAssets;
   }
   if (IS_DEV && ctx.server) {
-    const template = await getDevTemplate(ctx.server.url.origin);
-    return template;
+    return getDevDocumentAssets(ctx.server.url.origin);
   }
-  return generateIndexHtml();
+  return documentAssetsFromTemplate(generateIndexHtml());
 }
 
 /**
  * Shared pipeline steps used by both `renderToHTML` (buffered) and `renderSSR`
- * (streaming). Runs loaders, builds props, head injection, resolves template,
+ * (streaming). Runs loaders, builds props, head data, resolves assets,
  * and creates the React element.
  *
  * Returns the redirect Response directly when a loader redirects, so callers
@@ -282,21 +337,21 @@ export async function prepareRender(
     ...syncData,
     ...(deferredPromises ?? {}),
     params: ctx.params,
-    query: ctx.query,
     path: ctx.path,
+    query: ctx.query,
   };
 
-  const template = await resolveRenderTemplate(ctx);
+  const assets = await resolveDocumentAssets(ctx);
 
   let element: ReactNode;
-  let headData = "";
+  let headData: HeadOptions | undefined;
   let status = 200;
   let errorDigest: string | undefined;
   let notFoundError: { data?: unknown; message?: string } | undefined;
   if (loaderResult.type === "not-found") {
     element = buildNotFoundElement(route.notFound ?? root.notFound, loaderResult.error);
     status = 404;
-    notFoundError = { message: loaderResult.error.message, data: loaderResult.error.data };
+    notFoundError = { data: loaderResult.error.data, message: loaderResult.error.message };
   } else if (loaderResult.type === "error") {
     const { status: errorStatus } = loaderResult;
     errorDigest = computeErrorDigest(loaderResult.error);
@@ -316,6 +371,9 @@ export async function prepareRender(
       throwOnFailure
     ));
   }
+  if (isFallback) {
+    element = wrapRootLayout(element, componentProps, root.route);
+  }
 
   // Explicit basePath (static export) wins; otherwise resolve the mount
   // prefix of the instance serving this render so SSR'd <Link> hrefs match
@@ -324,24 +382,25 @@ export async function prepareRender(
   const ssrContext: RouterContextValue = {
     basePath: resolvedBasePath,
     currentHref: currentHrefFromContext(ctx, resolvedBasePath),
-    search: (ctx.query as SearchParamsInput | undefined) ?? {},
-    searchRoutes: searchRoutes ?? [],
+    defaultPreload: "intent",
+    defaultPreloadDelay: 50,
+    defaultPreloadStaleTime: 30_000,
+    invalidatePrefetch: (_path, _type) => {
+      /* noop */
+    },
+    isNavigating: false,
     navigate: (_href, _opts) => Promise.resolve(),
     prefetch: (_href, _opts) => {
       /* noop */
     },
-    invalidatePrefetch: (_path, _type) => {
-      /* noop */
-    },
     refresh: (_opts) => Promise.resolve(),
-    isNavigating: false,
-    defaultPreload: "intent",
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 30_000,
+    search: (ctx.query as SearchParamsInput | undefined) ?? {},
+    searchRoutes: searchRoutes ?? [],
   };
   element = withSSRRouterContext(element, ssrContext);
 
   return {
+    assets,
     componentProps,
     deferredPromises,
     element,
@@ -350,10 +409,9 @@ export async function prepareRender(
     headers,
     loader_ms,
     notFoundError,
-    syncData,
     ssrContext,
     status,
-    template,
+    syncData,
   };
 }
 
@@ -385,15 +443,15 @@ export function renderForPath(
         }
       }
       const ctx: Context = {
-        params,
-        query,
-        request: new Request(requestUrl),
-        headers: {},
         cookie: {},
-        redirect: (url: string, redirectStatus: number | undefined) =>
-          new Response(null, { status: redirectStatus ?? 302, headers: { Location: url } }),
-        set: { headers: {} },
+        headers: {},
+        params,
         path: resolvedPath,
+        query,
+        redirect: (url: string, redirectStatus: number | undefined) =>
+          new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
+        request: new Request(requestUrl),
+        set: { headers: {} },
       } as Context;
 
       const loaderResult = await runPublicLoaders(route, ctx);
@@ -412,26 +470,28 @@ export function renderForPath(
 
       useLogger().set({
         furin: {
-          render: mode,
-          route: route.pattern,
           cache: mode === "isr" ? "revalidated" : "miss",
           loader_ms: prepared.loader_ms,
+          render: mode,
+          route: route.pattern,
           ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
         },
       });
 
-      const { deferredPromises, element, headData, headers, status, syncData, template } = prepared;
-      const stream = await renderToReadableStream(element);
+      const { assets, deferredPromises, element, headData, headers, status, syncData } = prepared;
+      const stream = await renderToReadableStream(
+        withDocumentState(element, assets, headData, syncData)
+      );
       await stream.allReady;
       const reactHtml = await streamToString(stream);
       return {
-        html: assembleHTML(template, headData, reactHtml, syncData),
         headers,
+        html: reactHtml,
         ndjson: await serializeLoaderDataNdjson(syncData, deferredPromises),
         status,
       };
     },
-    { route: route.pattern, render: mode }
+    { render: mode, route: route.pattern }
   );
 }
 
@@ -439,6 +499,55 @@ interface SsrTransportScripts {
   deferredSetupScript: string;
   runtimeScripts: string;
   usesRouteFrames: boolean;
+}
+
+async function pipeDocumentStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  enc: TextEncoder,
+  beforeEntry: string,
+  beforeBodyClose: () => Promise<string>
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let pending = "";
+  for (;;) {
+    // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    pending += decoder.decode(value, { stream: true });
+    if (pending.length > 1024) {
+      await writer.write(enc.encode(pending.slice(0, -1024)));
+      pending = pending.slice(-1024);
+    }
+  }
+  pending += decoder.decode();
+
+  const entryIndex = pending.lastIndexOf("<script");
+  const entryIsInTail =
+    entryIndex !== -1 && pending.slice(entryIndex).includes('data-furin-entry=""');
+  const bodyCloseIndex = pending.toLowerCase().lastIndexOf("</body>");
+  if (bodyCloseIndex === -1) {
+    await writer.write(enc.encode(pending + beforeEntry + (await beforeBodyClose())));
+    return;
+  }
+
+  let documentTail = pending;
+  if (beforeEntry && entryIsInTail) {
+    documentTail = pending.slice(0, entryIndex) + beforeEntry + pending.slice(entryIndex);
+  } else if (beforeEntry) {
+    documentTail = pending.slice(0, bodyCloseIndex) + beforeEntry + pending.slice(bodyCloseIndex);
+  }
+  const adjustedBodyCloseIndex = documentTail.toLowerCase().lastIndexOf("</body>");
+  const lateScripts = await beforeBodyClose();
+  await writer.write(
+    enc.encode(
+      documentTail.slice(0, adjustedBodyCloseIndex) +
+        lateScripts +
+        documentTail.slice(adjustedBodyCloseIndex)
+    )
+  );
 }
 
 function buildSsrTransportScripts(
@@ -549,15 +658,17 @@ export async function renderToHTML(
     throw prepared;
   }
 
-  const { deferredPromises, element, headData, headers, status, syncData, template } = prepared;
+  const { assets, deferredPromises, element, headData, headers, status, syncData } = prepared;
 
-  const stream = await renderToReadableStream(element);
+  const stream = await renderToReadableStream(
+    withDocumentState(element, assets, headData, syncData)
+  );
   await stream.allReady;
   const reactHtml = await streamToString(stream);
 
   return {
-    html: assembleHTML(template, headData, reactHtml, syncData),
     headers,
+    html: reactHtml,
     ndjson: await serializeLoaderDataNdjson(syncData, deferredPromises),
     status,
   };
@@ -586,21 +697,42 @@ export async function renderSSR(
 
   useLogger().set({
     furin: {
+      loader_ms: prepared.loader_ms,
       render: route.mode,
       route: route.pattern,
-      loader_ms: prepared.loader_ms,
       ...(prepared.errorDigest ? { digest: prepared.errorDigest } : {}),
     },
   });
 
-  const { deferredPromises, element, headData, headers, syncData, template } = prepared;
+  const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
 
-  const { headPre, bodyPre, bodyPost } = splitTemplate(template);
+  const initialDataPayload: Record<string, unknown> = { ...syncData };
+  if (prepared.errorDigest) {
+    initialDataPayload.__furinError = {
+      digest: prepared.errorDigest,
+      status: prepared.status,
+    };
+  }
+  if (prepared.status === 404 && prepared.notFoundError) {
+    initialDataPayload.__furinNotFound = prepared.notFoundError;
+    initialDataPayload.__furinStatus = 404;
+  }
+  const requiresTransport = deferredPromises !== undefined || containsRscSource(initialDataPayload);
 
   const { stream: reactStream, shellError } = await renderElementWithShellFallback(
-    element,
+    withDocumentState(
+      element,
+      assets,
+      headData,
+      requiresTransport ? undefined : initialDataPayload
+    ),
     route.error ?? root.error,
-    prepared.ssrContext
+    prepared.ssrContext,
+    (fallback, digest) =>
+      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
+        __furinError: { digest, status: 500 },
+        __furinStatus: 500,
+      })
   );
   const shellErrored = shellError !== undefined;
   let { errorDigest: finalDigest, status } = prepared;
@@ -608,7 +740,7 @@ export async function renderSSR(
     status = 500;
     finalDigest = shellError.digest;
     useLogger().set({
-      furin: { render: route.mode, route: route.pattern, digest: finalDigest, phase: "shell" },
+      furin: { digest: finalDigest, phase: "shell", render: route.mode, route: route.pattern },
     });
   }
 
@@ -647,45 +779,36 @@ export async function renderSSR(
   const enc = new TextEncoder();
 
   (async () => {
-    await writer.write(enc.encode(headPre + headData + deferredSetupScript + bodyPre));
-
     const reader = reactStream.getReader();
-    for (;;) {
-      // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    await pipeDocumentStream(
+      reader,
+      writer,
+      enc,
+      hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
+      async () => {
+        if (!hasDeferred) {
+          return "";
+        }
+        const { readable: chunkReadable, writable: chunkWritable } = new TransformStream<
+          Uint8Array,
+          Uint8Array
+        >();
+        const chunkWriter = chunkWritable.getWriter();
+        const chunkText = streamToString(chunkReadable);
+        await writeDeferredSsrChunks(chunkWriter, enc, deferredPromises, usesRouteFrames);
+        await chunkWriter.close();
+        return chunkText;
       }
-      await writer.write(value);
-    }
-
-    const [earlyBodyPost, finalBodyPost] = hasDeferred
-      ? splitBeforeBodyClose(bodyPost)
-      : ["", bodyPost];
-    await writer.write(enc.encode(runtimeScripts + earlyBodyPost));
-
-    if (hasDeferred) {
-      await writeDeferredSsrChunks(writer, enc, deferredPromises, usesRouteFrames);
-    }
-
-    await writer.write(enc.encode(finalBodyPost));
+    );
     await writer.close();
   })().catch((err) => writer.abort(err));
 
   return new Response(readable, {
-    status,
     headers: {
-      "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Content-Type": "text/html; charset=utf-8",
       ...headers,
     },
+    status,
   });
-}
-
-export function splitBeforeBodyClose(bodyPost: string): [string, string] {
-  const index = bodyPost.toLowerCase().lastIndexOf("</body>");
-  if (index === -1) {
-    return [bodyPost, ""];
-  }
-  return [bodyPost.slice(0, index), bodyPost.slice(index)];
 }

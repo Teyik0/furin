@@ -25,6 +25,7 @@ export function CardDetailPage({
   const deleteCard = useSync(apiClient.api.cards({ id: card.id }).delete);
 
   const handleSave = async () => {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null before the form mounts
     if (!formRef.current) {
       return;
     }
@@ -126,7 +127,7 @@ export function CardDetailPage({
               </label>
               <input
                 aria-label="Card title"
-                className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
+                className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
                 defaultValue={card.title}
                 id="card-title"
                 name="title"
@@ -144,7 +145,7 @@ export function CardDetailPage({
               </label>
               <textarea
                 aria-label="Card description"
-                className="w-full resize-none rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
+                className="w-full resize-none rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
                 defaultValue={card.description}
                 id="card-description"
                 name="description"
@@ -155,7 +156,7 @@ export function CardDetailPage({
 
             <div className="flex items-center justify-between pt-1">
               <button
-                className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-2.5 font-medium text-red-400 text-sm transition-all hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.98]"
+                className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-2.5 font-medium text-red-400 text-sm transition-[border-color,background-color,transform] hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.98]"
                 onClick={handleDelete}
                 type="button"
               >
@@ -164,7 +165,7 @@ export function CardDetailPage({
               </button>
 
               <button
-                className="rounded-xl bg-violet-600 px-5 py-2.5 font-semibold text-sm text-white shadow-lg shadow-violet-500/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
+                className="rounded-xl bg-violet-600 px-5 py-2.5 font-semibold text-sm text-white shadow-lg shadow-violet-500/20 transition-[background-color,transform] hover:bg-violet-500 active:scale-[0.98]"
                 type="submit"
               >
                 Save Changes

@@ -1,7 +1,10 @@
-import { parseQueryFromURL, parseQueryStandardSchema } from "elysia/parse-query";
-import { getSchemaValidator } from "elysia/schema";
-import type { AnySchema } from "elysia/types";
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import {
+  type FurinSchema,
+  getSchemaValidator,
+  parseQueryFromURL,
+  parseQueryStandardSchema,
+} from "../../shared/elysia-contract.ts";
 import {
   collectSearchDefaults,
   type SearchParamsInput,
@@ -140,7 +143,7 @@ type RouteInputValidationResult =
 
 async function validateRouteInput(
   input: UnknownObject,
-  schema: AnySchema
+  schema: FurinSchema
 ): Promise<RouteInputValidationResult> {
   if (isStandardSchema(schema)) {
     const validator = getSchemaValidator(schema, { dynamic: true });
@@ -175,7 +178,7 @@ async function validateRouteInput(
  */
 export async function parseRouteQuery(
   url: URL,
-  schema: AnySchema | undefined
+  schema: FurinSchema | undefined
 ): Promise<ParseRouteQueryResult> {
   if (!schema) {
     return { ok: true, query: parseQueryFromURL(url.search, 1) as SearchParamsInput };
@@ -193,14 +196,14 @@ export async function parseRouteQuery(
 
 /**
  * Validates and coerces path params for the synthetic `/_furin/data` request
- * path. This mirrors the params schema installed by createRoutePlugin's Elysia
- * guard so SPA loaders receive the same values as full SSR loaders.
+ * path. This mirrors the composed Elysia route schema so SPA loaders receive
+ * the same values as full SSR loaders.
  *
  * @internal Exported for unit testing.
  */
 export async function parseRouteParams(
   params: UnknownObject,
-  schema: AnySchema | undefined
+  schema: FurinSchema | undefined
 ): Promise<ParseRouteParamsResult> {
   if (!schema) {
     return { ok: true, params };

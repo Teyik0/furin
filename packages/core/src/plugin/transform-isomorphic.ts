@@ -1,6 +1,6 @@
 import MagicString from "magic-string";
+import { walk } from "yuku-ast";
 import type { CallExpression, ImportDeclaration, Program } from "yuku-parser";
-import { walk } from "yuku-parser";
 import {
   detectLangFromPath,
   detectLoaderFromPath,

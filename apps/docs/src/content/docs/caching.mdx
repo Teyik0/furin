@@ -11,20 +11,25 @@ Furin exposes three render modes — **SSG**, **ISR**, and **SSR** — each with
 | **SSR** | Loader, no `revalidate` | ❌ never | — |
 
 ```ts
-// SSG — no loader → static at startup
-export default route.page({ component: HomePage });
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+// SSG — static at startup
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => <HomePage />)
 
 // ISR — regenerate every 60 s
-export default createRoute({ revalidate: 60 }).page({
-  loader: async () => fetchPosts(),
-  component: BlogList,
-});
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .loader(async () => ({ posts: await fetchPosts() }))
+  .page(({ data: { posts } }) => <BlogList posts={posts} />)
 
 // SSR — fresh on every request
-export default createRoute().page({
-  loader: async () => fetchUser(),
-  component: Profile,
-});
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async () => ({ user: await fetchUser() }))
+  .page(({ data: { user } }) => <Profile user={user} />)
 ```
 
 ---
@@ -124,13 +129,13 @@ Cache tags let loaders describe the data they depend on, then let mutation route
 
 ```tsx
 // src/pages/blog/index.tsx
-export default route.page({
-  mode: "isr",
-  revalidate: 60,
-  tags: ["posts"],
-  loader: async () => ({ posts: await db.posts.findMany() }),
-  component: BlogList,
-});
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["posts"] })
+  .loader(async () => ({ posts: await db.posts.findMany() }))
+  .page(({ data: { posts } }) => <BlogList posts={posts} />)
 ```
 
 ```ts

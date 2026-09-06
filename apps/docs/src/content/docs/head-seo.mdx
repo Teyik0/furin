@@ -10,15 +10,19 @@ Define `head()` on a page or route:
 
 ```tsx
 // src/pages/blog/[slug].tsx
-export default route.page({
-  head: ({ post }) => ({
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
+  .head(({ data: { post } }) => ({
     meta: [
       { title: post.title },
       { name: "description", content: post.excerpt },
     ],
-  }),
-  component: ({ post }) => <article>{post.title}</article>,
-});
+  }))
+  .page(({ data: { post } }) => <article>{post.title}</article>)
 ```
 
 The `head()` function receives the same props as the page component (loader data, params, query).
@@ -134,18 +138,21 @@ During client-side navigation, Furin extracts the new `head()` result, updates `
 
 ```tsx
 // src/pages/root.tsx
-export const route = createRoute({
-  layout: ({ children }) => (
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* Page-specific head is injected here automatically */}
+        <HeadContent />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Scripts />
+      </body>
     </html>
-  ),
-});
+  ))
 ```
 
 ---
@@ -155,8 +162,13 @@ export const route = createRoute({
 A complete SEO setup for a blog post:
 
 ```tsx
-export default route.page({
-  head: ({ post }) => ({
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
+  .head(({ data: { post } }) => ({
     meta: [
       { title: post.title },
       { name: "description", content: post.excerpt },
@@ -175,7 +187,6 @@ export default route.page({
     links: [
       { rel: "canonical", href: `https://example.com/blog/${post.slug}` },
     ],
-  }),
-  // ...
-});
+  }))
+  .page(({ data: { post } }) => <Article post={post} />)
 ```

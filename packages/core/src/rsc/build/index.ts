@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBunBuild } from "../../build/bun-build.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
-import type { ResolvedRoute, RootLayout } from "../../server/router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
 import { assertInstalledRscVersions } from "../version.ts";
 import { environmentGuardPlugin } from "./environment.ts";
 

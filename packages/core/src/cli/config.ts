@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { TypeCompiler } from "elysia/type-system";
 import { configSchema, type FurinConfig } from "../config.ts";
+import { TypeCompiler } from "../shared/elysia-contract.ts";
 
 const compiledConfigSchema = TypeCompiler.Compile(configSchema);
 
@@ -64,11 +64,11 @@ export async function loadCliConfig(
   const resolvedRootDir = resolve(rootDir, configToValidate.rootDir ?? ".");
   return {
     ...configToValidate,
-    plugins,
     configPath,
-    rootDir: resolvedRootDir,
     pagesDir: configToValidate.pagesDir
       ? resolve(resolvedRootDir, configToValidate.pagesDir)
       : undefined,
+    plugins,
+    rootDir: resolvedRootDir,
   };
 }

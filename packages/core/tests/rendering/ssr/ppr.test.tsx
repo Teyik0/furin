@@ -1,8 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
-import { createRoute } from "../../../src/client";
-import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
@@ -12,9 +11,12 @@ import {
   withInstance,
 } from "../../../src/server/instance.ts";
 import { clearPprRouteCache, invalidatePprRoute } from "../../../src/server/render/ppr-route";
+import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
+import { collectRouteTags } from "../../../src/server/router/discovery.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
   true;
@@ -24,6 +26,32 @@ afterEach(async () => {
   await Promise.resolve();
 });
 const originalDevMode = IS_DEV;
+const rootTerminal = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  ));
+const root = {
+  path: "/root.tsx",
+  route: adaptDefinedLayout(rootTerminal, undefined),
+} satisfies RootLayout;
+
+function resolveRoute(route: Parameters<typeof adaptDefinedPage>[0]): ResolvedRoute {
+  const page = adaptDefinedPage(route, root.route);
+  const routeChain = collectRouteChainFromRoute(page._route);
+  return {
+    mode: page.mode ?? "ssr",
+    page,
+    path: "/account.tsx",
+    pattern: "/account",
+    routeChain,
+    segmentBoundaries: [],
+    tags: collectRouteTags(routeChain, page),
+  };
+}
+
 beforeAll(async () => {
   __setDevMode(false);
   await Promise.resolve();
@@ -35,35 +63,12 @@ afterAll(async () => {
 
 describe("partial prerendering", () => {
   test("cross-instance invalidation removes tags from the cache-owning app", async () => {
-    const route = createRoute({
-      loader: () => ({ catalog: "Shoes" }),
-      mode: "isr",
-      requestLoader: () => ({ user: "alice" }),
-      tags: ["catalog"],
-    });
-    const page = route.page({
-      component: ({ catalog }) => <main>{catalog}</main>,
-    });
-    const resolved = {
-      mode: "isr",
-      page: page as unknown as RuntimePage,
-      path: "/account.tsx",
-      pattern: "/account",
-      routeChain: [route as unknown as RuntimeRoute],
-      segmentBoundaries: [],
-      tags: ["catalog"],
-    } satisfies ResolvedRoute;
-    const root = {
-      path: "/root.tsx",
-      route: {
-        __type: "FURIN_ROUTE",
-        layout: ({ children }) => (
-          <html lang="en">
-            <body>{children}</body>
-          </html>
-        ),
-      },
-    } satisfies RootLayout;
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => ({ catalog: "Shoes" }))
+      .page(({ data }) => <main>{data.catalog}</main>);
+    const resolved = resolveRoute(route);
     const owner = registerInstance(createInstance("/owner", "/owner/pages"));
     registerInstance(createInstance("/other", "/other/pages"));
     const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
@@ -84,50 +89,28 @@ describe("partial prerendering", () => {
   test("an ISR route caches public data while requestLoader reruns per request", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const route = createRoute({
-      loader: () => {
-        publicCalls += 1;
-        return { catalog: "Shoes" };
-      },
-      mode: "isr",
-      requestLoader: ({ cookies }) => {
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(({ cookies }) => {
         privateCalls += 1;
         return { user: cookies.get("session") };
-      },
-      revalidate: 60,
-    });
+      })
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: "Shoes" };
+      });
     function User({ data }: { data: Promise<{ user: unknown }> }) {
       return <strong>{String(use(data).user)}</strong>;
     }
-    const page = route.page({
-      component: ({ catalog, requestData }) => (
-        <main>
-          <h1>{catalog}</h1>
-          <Suspense fallback={<span>Loading</span>}>
-            <User data={requestData} />
-          </Suspense>
-        </main>
-      ),
-    });
-    const resolved = {
-      mode: "isr",
-      page: page as unknown as RuntimePage,
-      path: "/account.tsx",
-      pattern: "/account",
-      routeChain: [route as unknown as RuntimeRoute],
-      segmentBoundaries: [],
-    } satisfies ResolvedRoute;
-    const root = {
-      path: "/root.tsx",
-      route: {
-        __type: "FURIN_ROUTE",
-        layout: ({ children }) => (
-          <html lang="en">
-            <body>{children}</body>
-          </html>
-        ),
-      },
-    } satisfies RootLayout;
+    const page = route.page(({ data, requestData }) => (
+      <main>
+        <h1>{data.catalog}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={requestData} />
+        </Suspense>
+      </main>
+    ));
+    const resolved = resolveRoute(page);
     const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
     const aliceResponse = await app.handle(
@@ -148,47 +131,30 @@ describe("partial prerendering", () => {
 
   test("keys PPR public shells by query string", async () => {
     let publicCalls = 0;
-    const route = createRoute({
-      loader: ({ query }) => {
+    const route = defineRoute()
+      .config({
+        layout: rootTerminal,
+        mode: "isr",
+        query: t.Object({ view: t.Optional(t.String()) }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(({ query }) => {
         publicCalls += 1;
-        return { view: String((query as { view?: unknown }).view ?? "") };
-      },
-      mode: "isr",
-      requestLoader: () => ({ user: "alice" }),
-      revalidate: 60,
-    });
+        return { view: query.view ?? "" };
+      });
     function User({ data }: { data: Promise<{ user: string }> }) {
       return <strong>{use(data).user}</strong>;
     }
-    const page = route.page({
-      component: ({ requestData, view }) => (
-        <main>
-          <h1>{view}</h1>
-          <Suspense fallback={<span>Loading</span>}>
-            <User data={requestData} />
-          </Suspense>
-        </main>
-      ),
-    });
-    const resolved = {
-      mode: "isr",
-      page: page as unknown as RuntimePage,
-      path: "/account.tsx",
-      pattern: "/account",
-      routeChain: [route as unknown as RuntimeRoute],
-      segmentBoundaries: [],
-    } satisfies ResolvedRoute;
-    const root = {
-      path: "/root.tsx",
-      route: {
-        __type: "FURIN_ROUTE",
-        layout: ({ children }) => (
-          <html lang="en">
-            <body>{children}</body>
-          </html>
-        ),
-      },
-    } satisfies RootLayout;
+    const page = route.page(({ data, requestData }) => (
+      <main>
+        <h1>{data.view}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={requestData} />
+        </Suspense>
+      </main>
+    ));
+    const resolved = resolveRoute(page);
     const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
     const alpha = await app
@@ -210,49 +176,25 @@ describe("partial prerendering", () => {
   test("revalidateTag invalidates a PPR public shell", async () => {
     let catalog = "Shoes";
     let publicCalls = 0;
-    const route = createRoute({
-      loader: () => {
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => {
         publicCalls += 1;
         return { catalog };
-      },
-      mode: "isr",
-      requestLoader: () => ({ user: "alice" }),
-      revalidate: 60,
-      tags: ["catalog"],
-    });
+      });
     function User({ data }: { data: Promise<{ user: string }> }) {
       return <strong>{use(data).user}</strong>;
     }
-    const page = route.page({
-      component: ({ catalog: pageCatalog, requestData }) => (
-        <main>
-          <h1>{pageCatalog}</h1>
-          <Suspense fallback={<span>Loading</span>}>
-            <User data={requestData} />
-          </Suspense>
-        </main>
-      ),
-    });
-    const resolved = {
-      mode: "isr",
-      page: page as unknown as RuntimePage,
-      path: "/account.tsx",
-      pattern: "/account",
-      routeChain: [route as unknown as RuntimeRoute],
-      segmentBoundaries: [],
-      tags: ["catalog"],
-    } satisfies ResolvedRoute;
-    const root = {
-      path: "/root.tsx",
-      route: {
-        __type: "FURIN_ROUTE",
-        layout: ({ children }) => (
-          <html lang="en">
-            <body>{children}</body>
-          </html>
-        ),
-      },
-    } satisfies RootLayout;
+    const page = route.page(({ data, requestData }) => (
+      <main>
+        <h1>{data.catalog}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={requestData} />
+        </Suspense>
+      </main>
+    ));
+    const resolved = resolveRoute(page);
     const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
     const first = await app
@@ -277,46 +219,24 @@ describe("partial prerendering", () => {
   });
 
   test("streams a rejected requestData chunk instead of aborting the PPR response", async () => {
-    const route = createRoute({
-      loader: () => ({ catalog: "Shoes" }),
-      mode: "isr",
-      requestLoader: () => {
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(() => {
         throw new Error("private boom");
-      },
-      revalidate: 60,
-    });
+      })
+      .loader(() => ({ catalog: "Shoes" }));
     function User({ data }: { data: Promise<{ user: unknown }> }) {
       return <strong>{String(use(data).user)}</strong>;
     }
-    const page = route.page({
-      component: ({ catalog, requestData }) => (
-        <main>
-          <h1>{catalog}</h1>
-          <Suspense fallback={<span>Loading</span>}>
-            <User data={requestData} />
-          </Suspense>
-        </main>
-      ),
-    });
-    const resolved = {
-      mode: "isr",
-      page: page as unknown as RuntimePage,
-      path: "/account.tsx",
-      pattern: "/account",
-      routeChain: [route as unknown as RuntimeRoute],
-      segmentBoundaries: [],
-    } satisfies ResolvedRoute;
-    const root = {
-      path: "/root.tsx",
-      route: {
-        __type: "FURIN_ROUTE",
-        layout: ({ children }) => (
-          <html lang="en">
-            <body>{children}</body>
-          </html>
-        ),
-      },
-    } satisfies RootLayout;
+    const page = route.page(({ data, requestData }) => (
+      <main>
+        <h1>{data.catalog}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={requestData} />
+        </Suspense>
+      </main>
+    ));
+    const resolved = resolveRoute(page);
     const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
     const html = await app

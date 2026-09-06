@@ -8,10 +8,11 @@ export function CreateBoardForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const inFlightRef = useRef(false);
+  const inFlightRef = useRef<boolean>(false);
   const createBoard = useSync(apiClient.api.boards.post);
 
   const handleCreate = async () => {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: concurrent submissions can observe the async lock as true
     if (inFlightRef.current) {
       return;
     }
@@ -51,7 +52,7 @@ export function CreateBoardForm() {
         <div className="relative flex-1">
           <input
             aria-label="New board name"
-            className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-zinc-600 focus:border-violet-500/40 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-50"
+            className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/40 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-50"
             disabled={isSubmitting}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name your new board..."
@@ -60,7 +61,7 @@ export function CreateBoardForm() {
           />
         </div>
         <button
-          className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold text-sm text-white transition-all hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold text-sm text-white transition-[background-color,box-shadow,transform] hover:bg-violet-500 hover:shadow-lg hover:shadow-violet-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isSubmitting}
           type="submit"
         >

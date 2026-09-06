@@ -49,6 +49,8 @@ export interface ResolvedRoute {
   tags?: string[];
 }
 
+export type ResolvedRoutesSource = ResolvedRoute[] | (() => ResolvedRoute[]);
+
 export interface RootLayout {
   error?: ErrorComponent;
   errorPath?: string;

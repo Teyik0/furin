@@ -195,7 +195,7 @@ describe("EJS files render without errors and leave no raw tags", () => {
 });
 
 describe("generated Biome config", () => {
-  it("keeps Furin route.page inference-safe object key order", async () => {
+  it("does not disable sorted assists for the removed object route API", async () => {
     for (const template of registry.templates) {
       const biomeFile = template.files.find((file) => file.dest === "biome.jsonc");
       expect(biomeFile).toBeDefined();
@@ -206,8 +206,8 @@ describe("generated Biome config", () => {
       const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, biomeFile.src), MOCK_EJS_VARS);
       const config = JSON.parse(rendered);
 
-      expect(config.assist?.actions?.source?.useSortedKeys).toBe("off");
-      expect(config.assist?.actions?.source?.useSortedProperties).toBe("off");
+      expect(config.assist?.actions?.source?.useSortedKeys).toBeUndefined();
+      expect(config.assist?.actions?.source?.useSortedProperties).toBeUndefined();
     }
   });
 });
@@ -254,7 +254,7 @@ describe("static files — no EJS-like tokens", () => {
 });
 
 describe("Furin page templates", () => {
-  it("declare loader before component so loader data remains inferred", async () => {
+  it("declare loader before the page terminal so loader data remains inferred", async () => {
     for (const template of registry.templates) {
       const pageFile = template.files.find((file) => file.dest === "src/pages/index.tsx");
       expect(pageFile).toBeDefined();
@@ -264,10 +264,9 @@ describe("Furin page templates", () => {
 
       const page = await Bun.file(resolve(TEMPLATES_DIR, pageFile.src)).text();
 
-      expect(page.indexOf("  loader:")).toBeGreaterThanOrEqual(0);
-      expect(page.indexOf("  component:")).toBeGreaterThan(page.indexOf("  loader:"));
-      expect(page).not.toContain("component: ({ apiMessage, apiSource }:");
-      expect(page).not.toContain("component: ({ message, source }:");
+      expect(page.indexOf(".loader(")).toBeGreaterThanOrEqual(0);
+      expect(page.indexOf(".page(")).toBeGreaterThan(page.indexOf(".loader("));
+      expect(page).toContain(".page(({ data:");
     }
   });
 });

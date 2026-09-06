@@ -1,20 +1,20 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
 import { route as rootRoute } from "./root";
 
-const isrQueryRoute = createRoute({
-  loader: ({ query }) => ({
-    tenant: String((query as { tenant?: unknown }).tenant ?? ""),
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "isr",
+    query: t.Object({ tenant: t.Optional(t.String()) }),
+    revalidate: 60,
+  })
+  .loader(({ query }) => ({
+    tenant: query.tenant ?? "",
     timestamp: Date.now(),
-  }),
-  mode: "isr",
-  parent: rootRoute,
-  revalidate: 60,
-});
-
-export default isrQueryRoute.page({
-  component: ({ tenant, timestamp }) => (
+  }))
+  .page(({ data: { tenant, timestamp } }) => (
     <div data-tenant={tenant} data-testid="isr-query-page" data-timestamp={String(timestamp)}>
       {tenant}
     </div>
-  ),
-});
+  ));

@@ -207,7 +207,9 @@ try {
   }
 
   const chainEntries = route.routeChain.filter((entry) => entry.query);
-  expect(chainEntries.length).toBe(2);
+  // Parent layout, child layout, and the leaf terminal each carry their local
+  // Elysia query contract in the generated route chain.
+  expect(chainEntries.length).toBe(3);
 
   let app = new Elysia().use(createRoutePlugin(route, result.root));
   let res = await app.handle(new Request("http://localhost" + routePattern));

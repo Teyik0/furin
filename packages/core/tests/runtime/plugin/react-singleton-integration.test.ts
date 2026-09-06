@@ -9,7 +9,9 @@ import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
 import { registerDevPagePlugin } from "../../../src/server/dev-page-plugin.ts";
+import { withDocumentState } from "../../../src/server/render/document.tsx";
 import { buildElement } from "../../../src/server/render/element.tsx";
+import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { requireTmpPath, withTmpFiles, withTmpPage } from "../../support/tmp-files";
 
 registerDevPagePlugin();
@@ -117,31 +119,31 @@ describe("furin-dev-page React singleton", () => {
     withTmpFiles(
       TMP_DIR,
       {
-        "_route.tsx": (paths) => `import { createRoute } from "@teyik0/furin/client";
+        "_route.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
           import { Nav } from ${JSON.stringify(paths["nav.tsx"])};
           import { route as rootRoute } from ${JSON.stringify(paths["root.tsx"])};
-          export const route = createRoute({
-            parent: rootRoute,
-            layout: ({ children }) => (
+          export const route = defineRoute()
+            .config({ layout: rootRoute, mode: "ssr" })
+            .layout(({ children }) => (
               <section>
                 <Nav />
                 {children}
               </section>
-            ),
-          });`,
+            ));`,
         "nav.tsx": `import { useState } from "react";
           export function Nav() {
             const [open] = useState(true);
             return <button data-open={String(open)}>nav</button>;
           }`,
-        "page.tsx": (paths) => `import { route } from ${JSON.stringify(paths["_route.tsx"])};
-          export default route.page({
-            component: () => <main>docs page</main>,
-          });`,
-        "root.tsx": `import { createRoute } from "@teyik0/furin/client";
-          export const route = createRoute({
-            layout: ({ children }) => <div data-root="yes">{children}</div>,
-          });`,
+        "page.tsx": (paths) => `import { defineRoute } from "@teyik0/furin";
+          import { route as parentRoute } from ${JSON.stringify(paths["_route.tsx"])};
+          export const route = defineRoute()
+            .config({ layout: parentRoute, mode: "ssg" })
+            .page(() => <main>docs page</main>);`,
+        "root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+          export const route = defineRootRoute()
+            .config({ mode: "ssr" })
+            .layout(({ children }) => <html lang="en"><head><HeadContent /></head><body><div data-root="yes">{children}</div><Scripts /></body></html>);`,
       },
       async (paths) => {
         const rootPath = requireTmpPath(paths, "root.tsx");
@@ -150,17 +152,35 @@ describe("furin-dev-page React singleton", () => {
         const rootMod = await import(rootPath);
         const routeMod = await import(routePath);
         const pageMod = await import(`${pagePath}?furin-server&t=${Date.now()}`);
+        const root = adaptDefinedLayout(rootMod.route, undefined);
+        const layout = adaptDefinedLayout(routeMod.route, root);
+        const page = adaptDefinedPage(pageMod.route, layout);
 
         const element = buildElement(
           {
-            page: pageMod.default,
-            routeChain: [rootMod.route, routeMod.route],
+            page,
+            routeChain: [root, layout, page._route],
           } as Parameters<typeof buildElement>[0],
           {},
-          rootMod.route
+          root
         );
 
-        expect(() => renderToString(element)).not.toThrow();
+        expect(() =>
+          renderToString(
+            withDocumentState(
+              element,
+              {
+                buildId: undefined,
+                entryModule: undefined,
+                faviconHref: undefined,
+                staticMode: false,
+                stylesheets: [],
+              },
+              undefined,
+              undefined
+            )
+          )
+        ).not.toThrow();
       }
     ));
 });

@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import "../../setup/evlog-mock";
 
 import { Elysia, t } from "elysia";
-import { createRoute, defer } from "../../../src/client";
-import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
-import type { ResolvedRoute } from "../../../src/server/router/index.ts";
-import { createDataEndpoint } from "../../../src/server/router/index.ts";
+import { defer } from "../../../src/client";
+import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
+import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
+import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const DIGEST_RE = /^[0-9a-f]{10}$/;
 
@@ -27,37 +29,35 @@ function cloneResolvedRoute(route: ResolvedRoute): ResolvedRoute {
   return cloned;
 }
 
-function runtimeRoute(route: unknown): RuntimeRoute {
-  return route as RuntimeRoute;
-}
-
-function runtimePage(page: unknown): RuntimePage {
-  return page as RuntimePage;
-}
-
-const rootRoute = createRoute({
-  layout: ({ children }) => children,
-});
-
-const queryDefaultRoute = createRoute({
-  parent: rootRoute,
-  query: t.Object({
-    city: t.Optional(t.String({ default: "Paris" })),
-  }),
-});
-
-const queryTypesRoute = createRoute({
-  parent: rootRoute,
-  query: t.Object({
-    active: t.Boolean(),
-    filter: t.Optional(t.Object({ category: t.String() })),
-    page: t.Number(),
-    tags: t.Optional(t.Array(t.String())),
-  }),
-});
-
-const withLoaderRouteDefinition = createRoute({
-  loader: ({ cookie, headers, path, request, set }) => {
+const rootTerminal = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => children);
+const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
+const queryDefaultRoute = defineRoute()
+  .config({
+    layout: rootTerminal,
+    mode: "ssr",
+    query: t.Object({
+      city: t.Optional(t.String({ default: "Paris" })),
+    }),
+  })
+  .page(() => null);
+const queryTypesRoute = defineRoute()
+  .config({
+    layout: rootTerminal,
+    mode: "ssr",
+    query: t.Object({
+      active: t.Boolean(),
+      filter: t.Optional(t.Object({ category: t.String() })),
+      page: t.Number(),
+      tags: t.Optional(t.Array(t.String())),
+    }),
+  })
+  .loader(({ query }) => ({ queryFromLoader: query }))
+  .page(() => null);
+const withLoaderLayout = defineRoute()
+  .config({ layout: rootTerminal, mode: "ssr" })
+  .loader(({ cookie, headers, path, request, set }) => {
     set.headers["x-loader-ran"] = "true";
     return {
       cookieValue: cookie.test?.value as string | undefined,
@@ -66,176 +66,113 @@ const withLoaderRouteDefinition = createRoute({
       layoutData: "from-layout",
       requestUrl: request.url,
     };
-  },
-  parent: rootRoute,
-});
+  })
+  .layout(({ children }) => children);
+const withLoaderRuntime = adaptDefinedLayout(withLoaderLayout, rootRoute);
 
-const deferRouteDefinition = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-const ssrRouteDefinition = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-const dynamicRoute = createRoute({
-  params: t.Object({ id: t.String() }),
-  parent: rootRoute,
-});
-
-const numericParamRoute = createRoute({
-  params: t.Object({ id: t.Number() }),
-  parent: rootRoute,
-});
-
-const staticSpecificRoute = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-const accountRoute = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-const dynamicDeferRoute = createRoute({
-  params: t.Object({ slug: t.String() }),
-  parent: rootRoute,
-});
+function resolveRoute(
+  route: Parameters<typeof adaptDefinedPage>[0],
+  parent: Parameters<typeof adaptDefinedPage>[1],
+  path: string,
+  pattern: string
+): ResolvedRoute {
+  const page = adaptDefinedPage(route, parent);
+  return {
+    mode: page.mode ?? "ssr",
+    page,
+    path,
+    pattern,
+    routeChain: collectRouteChainFromRoute(page._route),
+    segmentBoundaries: [],
+  };
+}
 
 const BASE_ROUTES: ResolvedRoute[] = [
-  {
-    mode: "ssr",
-    page: runtimePage(queryDefaultRoute.page({ component: () => null })),
-    path: "/query-default",
-    pattern: "/query-default",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(queryDefaultRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      queryTypesRoute.page({
-        component: () => null,
-        loader: ({ query }) => ({ queryFromLoader: query }),
+  resolveRoute(queryDefaultRoute, rootRoute, "/query-default", "/query-default"),
+  resolveRoute(queryTypesRoute, rootRoute, "/query-types", "/query-types"),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: withLoaderLayout, mode: "ssr" })
+      .loader(async () => ({ pageData: "from-page" }))
+      .page(() => null),
+    withLoaderRuntime,
+    "/with-loader",
+    "/with-loader"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(async () =>
+        defer({
+          stats: Promise.resolve(42),
+          title: "deferred page",
+        })
+      )
+      .page(() => null),
+    rootRoute,
+    "/defer-page",
+    "/defer-page"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .page(() => null),
+    rootRoute,
+    "/ssr-page",
+    "/ssr-page"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.String() }) })
+      .loader(() => ({ pageData: "from-dynamic" }))
+      .page(() => null),
+    rootRoute,
+    "/dynamic/[id]",
+    "/dynamic/:id"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.Number() }) })
+      .loader(({ params }) => ({ paramsFromLoader: params }))
+      .page(() => null),
+    rootRoute,
+    "/number/[id]",
+    "/number/:id"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(() => ({ pageData: "from-static-specific" }))
+      .page(() => null),
+    rootRoute,
+    "/dynamic/specific",
+    "/dynamic/specific"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(({ redirect }) => {
+        throw redirect("?tab=billing");
       })
-    ),
-    path: "/query-types",
-    pattern: "/query-types",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(queryTypesRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      withLoaderRouteDefinition.page({
-        component: () => null,
-        loader: async () => ({ pageData: "from-page" }),
-      })
-    ),
-    path: "/with-loader",
-    pattern: "/with-loader",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(withLoaderRouteDefinition)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      deferRouteDefinition.page({
-        component: () => null,
-        loader: async () =>
-          defer({
-            stats: Promise.resolve(42),
-            title: "deferred page",
-          }),
-      })
-    ),
-    path: "/defer-page",
-    pattern: "/defer-page",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(deferRouteDefinition)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(ssrRouteDefinition.page({ component: () => null })),
-    path: "/ssr-page",
-    pattern: "/ssr-page",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(ssrRouteDefinition)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      dynamicRoute.page({
-        component: () => null,
-        loader: () => ({ pageData: "from-dynamic" }),
-      })
-    ),
-    path: "/dynamic/[id]",
-    pattern: "/dynamic/:id",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(dynamicRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      numericParamRoute.page({
-        component: () => null,
-        loader: ({ params }) => ({ paramsFromLoader: params }),
-      })
-    ),
-    path: "/number/[id]",
-    pattern: "/number/:id",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(numericParamRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      staticSpecificRoute.page({
-        component: () => null,
-        loader: () => ({ pageData: "from-static-specific" }),
-      })
-    ),
-    path: "/dynamic/specific",
-    pattern: "/dynamic/specific",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(staticSpecificRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      accountRoute.page({
-        component: () => null,
-        loader: ({ redirect }) => {
-          throw redirect("?tab=billing");
-        },
-      })
-    ),
-    path: "/account",
-    pattern: "/account",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(accountRoute)],
-    segmentBoundaries: [],
-  },
-  {
-    mode: "ssr",
-    page: runtimePage(
-      dynamicDeferRoute.page({
-        component: () => null,
-        loader: ({ params }) =>
-          defer({
-            post: Promise.resolve({ title: `Post for ${String(params.slug)}` }),
-            slug: String(params.slug),
-          }),
-      })
-    ),
-    path: "/dynamic-defer/[slug]",
-    pattern: "/dynamic-defer/:slug",
-    routeChain: [runtimeRoute(rootRoute), runtimeRoute(dynamicDeferRoute)],
-    segmentBoundaries: [],
-  },
+      .page(() => null),
+    rootRoute,
+    "/account",
+    "/account"
+  ),
+  resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ slug: t.String() }) })
+      .loader(({ params }) =>
+        defer({
+          post: Promise.resolve({ title: `Post for ${params.slug}` }),
+          slug: params.slug,
+        })
+      )
+      .page(() => null),
+    rootRoute,
+    "/dynamic-defer/[slug]",
+    "/dynamic-defer/:slug"
+  ),
 ];
 
 function createDataTestApp(): { app: Elysia; routes: ResolvedRoute[] } {
@@ -423,19 +360,12 @@ describe("GET /_furin/data", () => {
   });
 
   test("streams requestData for an ISR route during SPA navigation", async () => {
-    const routeDefinition = createRoute({
-      loader: () => ({ catalog: "Shoes" }),
-      mode: "isr",
-      requestLoader: ({ cookies }) => ({ user: cookies.get("session") }),
-    });
-    const route = {
-      mode: "isr",
-      page: runtimePage(routeDefinition.page({ component: () => null })),
-      path: "/ppr-account",
-      pattern: "/ppr-account",
-      routeChain: [runtimeRoute(routeDefinition)],
-      segmentBoundaries: [],
-    } satisfies ResolvedRoute;
+    const routeDefinition = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
+      .loader(() => ({ catalog: "Shoes" }))
+      .page(() => null);
+    const route = resolveRoute(routeDefinition, rootRoute, "/ppr-account", "/ppr-account");
     const app = new Elysia().use(createDataEndpoint([route]));
 
     const res = await app.handle(
@@ -455,20 +385,14 @@ describe("GET /_furin/data", () => {
   });
 
   test("forwards request headers to loaders reading request.headers", async () => {
-    const routeDefinition = createRoute({
-      loader: ({ request }) => ({
+    const routeDefinition = defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(({ request }) => ({
         authHeader: request.headers.get("authorization"),
         cookieHeader: request.headers.get("cookie"),
-      }),
-    });
-    const route = {
-      mode: "ssr",
-      page: runtimePage(routeDefinition.page({ component: () => null })),
-      path: "/protected",
-      pattern: "/protected",
-      routeChain: [runtimeRoute(routeDefinition)],
-      segmentBoundaries: [],
-    } satisfies ResolvedRoute;
+      }))
+      .page(() => null);
+    const route = resolveRoute(routeDefinition, rootRoute, "/protected", "/protected");
     const app = new Elysia().use(createDataEndpoint([route]));
 
     const res = await app.handle(
@@ -535,7 +459,7 @@ describe("GET /_furin/data", () => {
     expect(await deferredPromises.stats).toBe(42);
   });
 
-  test("emits __furinTitle from the page head() for SPA navigation", async () => {
+  test("emits the resolved page head for SPA navigation", async () => {
     // During SPA navigation the client fetches /_furin/data (NDJSON) — head()
     // never runs in the browser, so the endpoint must resolve the page title
     // server-side and ship it as the reserved __furinTitle field. Without this,
@@ -562,6 +486,9 @@ describe("GET /_furin/data", () => {
       undefined
     );
     expect(syncData.__furinTitle).toBe("Page: from-page");
+    expect(syncData.__furinHead).toEqual({
+      meta: [{ title: "Page: from-page" }],
+    });
   });
 
   test("does not set __furinStatus for a route without a loader", async () => {

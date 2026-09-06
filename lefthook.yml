@@ -20,7 +20,9 @@ pre-commit:
             run: bun run knip
 
     - name: react doctor
-      run: bunx react-doctor -y --verbose
+      # Offline + scoped: the supply-chain scan (Socket.dev) and the score API
+      # are network calls that can hang a commit; they belong to CI.
+      run: bunx react-doctor -y --no-score --no-supply-chain --verbose
 
 pre-push:
   jobs:

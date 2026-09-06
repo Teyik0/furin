@@ -1,6 +1,6 @@
 import type { AnyElysia } from "elysia";
 import type { DevtoolsServerEventInput } from "../../devtools/protocol.ts";
-import type { ResolvedRoute } from "../router/types.ts";
+import type { ResolvedRoutesSource } from "../router/types.ts";
 import { appendDevtoolsEvent } from "./hub.ts";
 import { createDevtoolsPlugin } from "./plugin.ts";
 import {
@@ -55,7 +55,7 @@ export function instrumentationLoggerExclusions(prefix: string): string[] {
 }
 
 export function createInstrumentationPlugin(
-  routes: ResolvedRoute[],
+  routes: ResolvedRoutesSource,
   syncStreamPath: string | undefined
 ): AnyElysia {
   return createDevtoolsPlugin(routes, syncStreamPath);

@@ -1,4 +1,4 @@
-import type { RouteManifest as LinkRouteManifest, RouteSearch, RouteTo } from "@teyik0/furin/link";
+import type { RouteManifest, RouteSearch, RouteTo } from "@teyik0/furin/link";
 import { useCallback, useContext, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
@@ -7,19 +7,11 @@ import {
 import { buildHref } from "../link-utils.ts";
 import { FALLBACK_SEARCH_STORE, SearchStoreContext } from "../search-store.ts";
 
-export interface RouteManifest extends LinkRouteManifest {}
-
-export type SearchRouteTo = keyof LinkRouteManifest extends never
+export type SearchRouteTo = keyof RouteManifest extends never
   ? RouteTo
-  : (string & {}) | keyof LinkRouteManifest;
+  : (string & {}) | keyof RouteManifest;
 
-type SearchRouteSearch<To extends SearchRouteTo> = keyof LinkRouteManifest extends never
-  ? RouteSearch<To & RouteTo>
-  : To extends keyof LinkRouteManifest
-    ? LinkRouteManifest[To] extends { search?: infer S }
-      ? S
-      : undefined
-    : undefined;
+type SearchRouteSearch<To extends SearchRouteTo> = RouteSearch<To & RouteTo>;
 
 export type EmptyRouteSearch = Record<PropertyKey, never>;
 

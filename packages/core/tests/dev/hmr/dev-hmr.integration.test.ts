@@ -5,6 +5,8 @@ import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
 import { startProcess } from "../../support/process.ts";
 
+const BUN_DEV_CLIENT_ENTRY_PATTERN = /^\/_bun\/client\/index-/;
+
 /**
  * Integration test for the dev-mode HMR pipeline.
  *
@@ -36,11 +38,16 @@ describe.serial("dev HMR", () => {
     app.path,
     "src/pages/root.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
+      'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
-      "export const route = createRoute({",
-      '  layout: ({ children }) => <div data-root-version="root-v1">{children}</div>,',
-      "});",
+      "export const route = defineRootRoute()",
+      '  .config({ mode: "ssr" })',
+      "  .layout(({ children }) => (",
+      '    <html lang="en">',
+      "      <head><HeadContent /></head>",
+      '      <body data-root-version="root-v1">{children}<Scripts /></body>',
+      "    </html>",
+      "));",
     ].join("\n")
   );
 
@@ -48,19 +55,18 @@ describe.serial("dev HMR", () => {
     app.path,
     "src/pages/docs/_route.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
+      'import { defineRoute } from "@teyik0/furin";',
       'import { MobileNav } from "../../components/mobile-nav";',
       'import { route as rootRoute } from "../root";',
       "",
-      "export const route = createRoute({",
-      "  parent: rootRoute,",
-      "  layout: ({ children }) => (",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "  .layout(({ children }) => (",
       "    <section>",
       "      <MobileNav />",
       "      {children}",
       "    </section>",
-      "  ),",
-      "});",
+      "  ));",
     ].join("\n")
   );
 
@@ -68,11 +74,12 @@ describe.serial("dev HMR", () => {
     app.path,
     "src/pages/docs/index.tsx",
     [
-      'import { route } from "./_route";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as parentRoute } from "./_route";',
       "",
-      "export default route.page({",
-      "  component: () => <main>Docs page</main>,",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: parentRoute, mode: "ssg" })',
+      "  .page(() => <main>Docs page</main>);",
     ].join("\n")
   );
 
@@ -80,13 +87,12 @@ describe.serial("dev HMR", () => {
     app.path,
     "src/pages/index.tsx",
     [
+      'import { defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
       "",
-      "export default rootRoute.page({",
-      '  mode: "isr",',
-      "  revalidate: 60,",
-      "  component: () => <main>ISR home</main>,",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })',
+      "  .page(() => <main>ISR home</main>);",
     ].join("\n")
   );
 
@@ -124,7 +130,12 @@ describe.serial("dev HMR", () => {
     const html = await (await fetch(`http://localhost:${port}/`)).text();
     expect(html).toContain("ISR home");
     expect(html).toContain("__FURIN_DATA__");
-    expect(html).toContain('id="root"');
+    expect(html).toContain('data-furin-entry=""');
+    expect(html).not.toContain('id="root"');
+
+    const hmrEntryHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
+    expect(hmrEntryHtml).toContain("data-bun-dev-server-script");
+    expect(extractDevClientEntry(hmrEntryHtml)).toMatch(BUN_DEV_CLIENT_ENTRY_PATTERN);
   }, 30_000);
 
   test("after file edit, SSR returns updated content (no restart)", async () => {
@@ -137,11 +148,12 @@ describe.serial("dev HMR", () => {
       app.path,
       "src/pages/index.tsx",
       [
+        'import { defineRoute } from "@teyik0/furin";',
         'import { route as rootRoute } from "./root";',
         "",
-        "export default rootRoute.page({",
-        "  component: () => <main>Updated via HMR</main>,",
-        "});",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssg" })',
+        "  .page(() => <main>Updated via HMR</main>);",
       ].join("\n")
     );
 
@@ -169,11 +181,12 @@ describe.serial("dev HMR", () => {
       app.path,
       "src/pages/index.tsx",
       [
+        'import { defineRoute } from "@teyik0/furin";',
         'import { route as rootRoute } from "./root";',
         "",
-        "export default rootRoute.page({",
-        "  component: () => <main>Second edit works</main>,",
-        "});",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssg" })',
+        "  .page(() => <main>Second edit works</main>);",
       ].join("\n")
     );
 
@@ -217,11 +230,16 @@ describe.serial("dev HMR", () => {
       app.path,
       "src/pages/root.tsx",
       [
-        'import { createRoute } from "@teyik0/furin/client";',
+        'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
         "",
-        "export const route = createRoute({",
-        '  layout: ({ children }) => <div data-root-version="root-v2">{children}</div>,',
-        "});",
+        "export const route = defineRootRoute()",
+        '  .config({ mode: "ssr" })',
+        "  .layout(({ children }) => (",
+        '    <html lang="en">',
+        "      <head><HeadContent /></head>",
+        '      <body data-root-version="root-v2">{children}<Scripts /></body>',
+        "    </html>",
+        "));",
       ].join("\n")
     );
 
@@ -271,19 +289,18 @@ describe.serial("dev HMR", () => {
       app.path,
       "src/pages/docs/_route.tsx",
       [
-        'import { createRoute } from "@teyik0/furin/client";',
+        'import { defineRoute } from "@teyik0/furin";',
         'import { MobileNav } from "../../components/mobile-nav";',
         'import { route as rootRoute } from "../root";',
         "",
-        "export const route = createRoute({",
-        "  parent: rootRoute,",
-        "  layout: ({ children }) => (",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .layout(({ children }) => (",
         '    <section data-docs-layout="docs-v2">',
         "      <MobileNav />",
         "      {children}",
         "    </section>",
-        "  ),",
-        "});",
+        "  ));",
       ].join("\n")
     );
 

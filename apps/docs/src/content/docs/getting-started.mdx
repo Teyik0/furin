@@ -54,34 +54,37 @@ export type App = typeof app
 
 ## Root Layout
 
-Every app needs `src/pages/root.tsx`. It is the top-level layout and should render the document shell.
+Every app needs `src/pages/root.tsx`. It owns the complete document. `<HeadContent />` renders framework assets and route metadata; `<Scripts />` renders the hydration bootstrap and must stay inside `<body>`.
 
 ```tsx
 // src/pages/root.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
 
-export const route = createRoute({
-  layout: ({ children }) => (
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
-        <meta content="width=device-width, initial-scale=1" name="viewport" />
+        <HeadContent />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Scripts />
+      </body>
     </html>
-  ),
-})
+  ))
 ```
 
 ## First Page
 
 ```tsx
 // src/pages/index.tsx
-import { route } from "./root"
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "./root"
 
-export default route.page({
-  component: () => <h1>Hello Furin</h1>,
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .page(() => <h1>Hello Furin</h1>)
 ```
 
 ## Development
@@ -91,6 +94,17 @@ bun run dev
 ```
 
 The docs app and starters run Bun directly in development, so backend and frontend stay in the same process.
+
+You can also create empty route files and let development mode scaffold the smallest valid builder:
+
+- `pages/root.tsx` becomes an SSR root layout.
+- `pages/**/_route.tsx` becomes an SSR layout linked to its nearest ancestor layout.
+- Any other route file becomes an SSG page linked to its nearest ancestor layout.
+
+Non-empty helper files stay untouched. A route file must export exactly one builder as
+`export const route`, and its terminal must match its filename: `_route` uses `.layout()`, while
+normal route files use `.page()`. Ambiguous layouts and contradictory rendering options fail at
+boot and are reported again by the development watcher with the file path and required action.
 
 ## What To Learn Next
 

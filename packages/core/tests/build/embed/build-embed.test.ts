@@ -232,6 +232,28 @@ describe.serial("compile: embed", () => {
     expect(content).not.toContain('with { type: "file" }');
   });
 
+  test("generateCompileEntry stores the composed native app in its compile context", () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const nativeRoutes = "@teyik0/furin/routes?instance=test";
+
+    const entryPath = generateCompileEntry({
+      apps: [
+        {
+          nativeRoutes,
+          rootPath: join(app.path, "src/pages/root.tsx"),
+          routes: [],
+        },
+      ],
+      outDir: app.path,
+    });
+
+    const content = readFileSync(entryPath, "utf8");
+    expect(content).toContain(
+      `import { furinApp as _furinApp } from ${JSON.stringify(nativeRoutes)};`
+    );
+    expect(content).toContain("nativeRoutes: _furinApp,");
+  });
+
   test("generateCompileEntry with embed throws if clientDir does not exist", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 

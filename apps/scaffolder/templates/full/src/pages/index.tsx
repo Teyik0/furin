@@ -1,13 +1,15 @@
+import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { getHelloPayload } from "@/api/hello";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { route } from "./root";
+import { route as parentRoute } from "./root";
 
-export default route.page({
-  loader: () => getHelloPayload(),
-  component: ({ message, source }) => (
+export const route = defineRoute()
+  .config({ layout: parentRoute })
+  .loader(() => getHelloPayload())
+  .page(({ data: { message, source } }) => (
     <div className="w-full space-y-8">
       <div className="space-y-2">
         <h1 className="font-bold text-4xl tracking-tight">Welcome to Furin</h1>
@@ -49,5 +51,4 @@ export default route.page({
         </CardContent>
       </Card>
     </div>
-  ),
-});
+  ));

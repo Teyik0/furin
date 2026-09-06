@@ -40,7 +40,7 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
   };
 
   return (
-    <div className="group relative rounded-2xl border border-white/8 bg-white/3 transition-all duration-200 hover:border-violet-500/30 hover:bg-white/5 hover:shadow-violet-500/5 hover:shadow-xl">
+    <div className="group relative rounded-2xl border border-white/8 bg-white/3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-violet-500/30 hover:bg-white/5 hover:shadow-violet-500/5 hover:shadow-xl">
       {/* Delete button */}
       <div className="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100">
         <button

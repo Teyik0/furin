@@ -45,12 +45,12 @@ let _defaultInstance: FurinInstance | null = null;
 
 export function createInstance(prefix: string, pagesDir: string): FurinInstance {
   return {
-    prefix,
-    pagesDir,
-    syncStreamPath: undefined,
     buildId: "",
+    pagesDir,
+    prefix,
     registrationEpoch: 0,
     state: new Map(),
+    syncStreamPath: undefined,
   };
 }
 

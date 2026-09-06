@@ -293,21 +293,22 @@ function installSyncObserver(sync) {
 }
 
 function refreshBundleEntries() {
-  browserState.bundleEntries = performance
-    .getEntriesByType("resource")
-    .filter((entry) => {
-      const url = new URL(entry.name, window.location.href);
-      return url.origin === window.location.origin && !url.pathname.includes("/_furin/devtools/");
-    })
-    .map((entry) => ({
+  browserState.bundleEntries = [];
+  for (const entry of performance.getEntriesByType("resource")) {
+    const url = new URL(entry.name, window.location.href);
+    if (url.origin !== window.location.origin || url.pathname.includes("/_furin/devtools/")) {
+      continue;
+    }
+    browserState.bundleEntries.push({
       decodedBytes: entry.decodedBodySize,
       durationMs: entry.duration,
       encodedBytes: entry.encodedBodySize,
-      name: new URL(entry.name, window.location.href).pathname,
+      name: url.pathname,
       transferredBytes: entry.transferSize,
       type: entry.initiatorType || "resource",
-    }))
-    .sort((left, right) => right.transferredBytes - left.transferredBytes);
+    });
+  }
+  browserState.bundleEntries.sort((left, right) => right.transferredBytes - left.transferredBytes);
 }
 
 function installResourceObserver() {

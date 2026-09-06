@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
+import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
-import type { ResolvedRoute } from "../server/router/index.ts";
+import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
@@ -36,7 +37,16 @@ export interface BuildClientResult {
  */
 export async function buildClient(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, plugins, publicPath, basePath, clientLogging, clientDirName }: BuildClientOptions
+  {
+    outDir,
+    rootLayout,
+    plugins,
+    publicPath,
+    basePath,
+    clientLogging,
+    clientDirName,
+    pagesDir,
+  }: BuildClientOptions
 ): Promise<BuildClientResult> {
   // Per-app client dir so several mounted apps build side by side
   // ("client", "client-admin", …) without clobbering each other.
@@ -112,7 +122,14 @@ export async function buildClient(
     // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
     publicPath,
     // User plugins run before the internal transform so they pre-process files first
-    plugins: [...(plugins ?? []), environmentGuardPlugin("client"), transformPlugin],
+    plugins: [
+      ...(plugins ?? []),
+      ...(pagesDir
+        ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
+        : []),
+      environmentGuardPlugin("client"),
+      transformPlugin,
+    ],
     alias: {
       "@teyik0/furin/client": CLIENT_MODULE_PATH,
       "@teyik0/furin/link": LINK_MODULE_PATH,

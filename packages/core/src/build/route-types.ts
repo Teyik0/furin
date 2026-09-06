@@ -1,121 +1,26 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { extname, join, relative } from "node:path";
 import type { ResolvedRoute } from "../server/router/types.ts";
-
-/** @internal Exported for unit testing only. */
-export function patternToTypeString(pattern: string): string {
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — generates TS template literal syntax
-  const t = pattern.replace(/:[^/]+/g, "${string}").replace(/\*/g, "${string}");
-  return t.includes("${") ? `\`${t}\`` : `"${t}"`;
-}
-
-/**
- * Converts a runtime TypeBox/JSON Schema object to a TypeScript type string.
- * Handles the common cases found in Elysia query schemas (string, number, boolean,
- * optional fields, nullable via anyOf).
- *
- * @internal Exported for unit testing only.
- */
-export function schemaToTypeString(schema: unknown): string {
-  return schemaToTypeStringWithDefaults(schema, true);
-}
-
-function schemaToTypeStringWithDefaults(schema: unknown, defaultsAreRequired: boolean): string {
-  if (!schema || typeof schema !== "object") {
-    return "unknown";
-  }
-  const s = schema as Record<string, unknown>;
-  if (s.anyOf && Array.isArray(s.anyOf)) {
-    const parts: string[] = [];
-    for (const item of s.anyOf as unknown[]) {
-      const t = schemaToTypeStringWithDefaults(item, defaultsAreRequired);
-      if (t !== "null") {
-        parts.push(t);
-      }
-    }
-    return parts.join(" | ") || "unknown";
-  }
-  switch (s.type) {
-    case "string":
-      return "string";
-    case "number":
-    case "integer":
-      return "number";
-    case "boolean":
-      return "boolean";
-    case "null":
-      return "null";
-    case "array": {
-      const inner = schemaToTypeStringWithDefaults(s.items, defaultsAreRequired);
-      return inner.includes("|") || inner.includes("&") ? `(${inner})[]` : `${inner}[]`;
-    }
-    case "object": {
-      if (!s.properties || typeof s.properties !== "object") {
-        return "Record<string, unknown>";
-      }
-      const required = new Set<string>(Array.isArray(s.required) ? (s.required as string[]) : []);
-      const props = Object.entries(s.properties as Record<string, unknown>)
-        .map(([k, v]) => {
-          const isPresent = required.has(k) || (defaultsAreRequired && hasNonNullSchemaDefault(v));
-          return `${k}${isPresent ? "" : "?"}: ${schemaToTypeStringWithDefaults(v, defaultsAreRequired)}`;
-        })
-        .join("; ");
-      return `{ ${props} }`;
-    }
-    default:
-      return "unknown";
-  }
-}
-
-/** @internal Exported for unit testing only. */
-export function schemaToInputTypeString(schema: unknown): string {
-  return schemaToTypeStringWithDefaults(schema, false);
-}
-
-function hasNonNullSchemaDefault(schema: unknown): boolean {
-  if (!schema || typeof schema !== "object") {
-    return false;
-  }
-  const s = schema as Record<string, unknown>;
-  return "default" in s && s.default !== null;
-}
+import { routeMapDeclaration, type RouteMapEntry } from "../shared/route-map.ts";
 
 function tagKeyToPropertyName(tag: string): string {
   return /^[$A-Z_a-z][$\w]*$/.test(tag) ? tag : JSON.stringify(tag);
 }
 
 function tagToStringLiteral(tag: string): string {
-  // Use JSON.stringify for robust escaping of control chars, unicode
-  // separators, backslashes and quotes, then convert double quotes to single.
   const json = JSON.stringify(tag);
-  // json is double-quoted; convert to single-quoted literal by escaping
-  // any contained single quotes and swapping the outer quotes.
   return `'${json.slice(1, -1).replaceAll("'", "\\'")}'`;
 }
 
-/**
- * Generates furin-env.d.ts at the project root — augments RouteManifest
- * in furin/link so that <Link to="..."> has type-safe autocompletion and
- * <Link search={...}> is typed per-route from the route's query schema.
- *
- * Written to the project root (like Next.js's next-env.d.ts) so it is
- * committed to git and always available in CI without a build step.
- */
-/** @internal Exported for unit testing only. */
-export function writeRouteTypes(routes: ResolvedRoute[], projectRoot: string): void {
-  const sortedRoutes = [...routes].sort((a, b) => a.pattern.localeCompare(b.pattern));
-  const entries = sortedRoutes.map((r) => {
-    const typeKey = patternToTypeString(r.pattern);
-    const isDynamic = typeKey.startsWith("`");
-    const querySchema = mergeRouteSchemas(r.routeChain ?? [], "query");
-    const searchType = querySchema ? schemaToTypeString(querySchema) : "never";
-    const searchInputType = querySchema ? schemaToInputTypeString(querySchema) : "never";
-    return isDynamic
-      ? `    [key: ${typeKey}]: { search?: ${searchType}; searchInput?: ${searchInputType} }`
-      : `    ${typeKey}: { search?: ${searchType}; searchInput?: ${searchInputType} }`;
+/** @internal Exported for framework build and focused contract tests. */
+export function writeRouteTypes(routes: ResolvedRoute[], projectRoot: string): boolean {
+  const entries: RouteMapEntry[] = routes.map((route) => {
+    const extension = extname(route.path);
+    const sourcePath = extension ? route.path.slice(0, -extension.length) : route.path;
+    const relativePath = relative(projectRoot, sourcePath).replaceAll("\\", "/");
+    const specifier = relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
+    return { importSpecifier: specifier, pattern: route.pattern };
   });
-  const routeManifestEntries = entries.join(";\n");
 
   const sortedTags = [...new Set(routes.flatMap((route) => route.tags ?? []))].sort();
   const tagBlock =
@@ -127,18 +32,18 @@ export function writeRouteTypes(routes: ResolvedRoute[], projectRoot: string): v
 
   const content = `// Auto-generated by Furin. Do not edit manually.
 /// <reference types="@teyik0/furin/env" />
-import "@teyik0/furin/link";
+import "@teyik0/furin/routes";
 
-declare module "@teyik0/furin/link" {
-  interface RouteManifest {
-${routeManifestEntries};
-  }
-}${tagBlock}
+${routeMapDeclaration(entries)}${tagBlock}
 `;
 
   const typesPath = join(projectRoot, "furin-env.d.ts");
   const existing = existsSync(typesPath) ? readFileSync(typesPath, "utf8") : "";
-  if (content !== existing) {
-    writeFileSync(typesPath, content);
+  if (content === existing) {
+    return false;
   }
+  const temporaryPath = `${typesPath}.${process.pid}.${Bun.nanoseconds()}.tmp`;
+  writeFileSync(temporaryPath, content);
+  renameSync(temporaryPath, typesPath);
+  return true;
 }

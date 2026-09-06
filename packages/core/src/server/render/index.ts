@@ -21,6 +21,5 @@ export {
   renderSSR,
   renderToHTML,
   serializeLoaderDataNdjson,
-  splitBeforeBodyClose,
   withSSRRouterContext,
 } from "./ssr.ts";

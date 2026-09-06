@@ -1,3 +1,4 @@
+import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { codeToHtml } from "shiki";
 import { FeatureCard, HeroCodeWindow } from "@/components/hero-section";
@@ -11,38 +12,45 @@ import {
   RenderIcon,
   TypeIcon,
 } from "@/components/icons";
-import { route } from "./root";
+import { route as parentRoute } from "./root";
 
 const FILES = {
-  "pages/index.tsx": `import { route } from "./root"
+  "pages/index.tsx": `import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "./root"
 
-export default route.page({
-  loader: async () => ({
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async () => ({
     message: "Hello from Furin!",
-  }),
-  component: ({ message }) => (
+  }))
+  .page(({ data: { message } }) => (
     <h1>{message}</h1>
-  ),
-})`,
-  "pages/root.tsx": `import { createRoute } from "@teyik0/furin/client"
+  ))`,
+  "pages/root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
 import { Link } from "@teyik0/furin/link"
 import "./styles/globals.css"
 
 function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <nav>
-        <Link to="/">Home</Link>
-        <Link to="/blog">Blog</Link>
-      </nav>
-      <main>{children}</main>
-    </>
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <nav>
+          <Link to="/">Home</Link>
+          <Link to="/blog">Blog</Link>
+        </nav>
+        <main>{children}</main>
+        <Scripts />
+      </body>
+    </html>
   )
 }
 
-export const route = createRoute({
-  layout: ({ children }) => <RootLayout>{children}</RootLayout>,
-})`,
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => <RootLayout>{children}</RootLayout>)`,
   "server.ts": `import { Elysia } from "elysia"
 import { furin } from "@teyik0/furin"
 
@@ -53,8 +61,23 @@ const app = new Elysia()
 
 type FileName = keyof typeof FILES;
 
-export default route.page({
-  component: ({ codeHtmlMap }) => (
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssg" })
+  .loader(async () => {
+    const entries = Object.entries(FILES) as [FileName, string][];
+    const codeHtmlMap = Promise.all(
+      entries.map(async ([name, code]) => [
+        name,
+        await codeToHtml(code, { lang: "tsx", theme: "github-dark" }),
+      ])
+    ).then((resolvedEntries) => Object.fromEntries(resolvedEntries) as Record<FileName, string>);
+    return { codeHtmlMap: await codeHtmlMap };
+  })
+  .head(() => ({
+    links: [{ href: "/", rel: "canonical" }],
+    meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
+  }))
+  .page(({ data: { codeHtmlMap } }) => (
     <div>
       {/* Hero */}
       <section className="relative flex min-h-[calc(100vh-3.5rem)] items-center overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.22),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.12),transparent)]">
@@ -87,13 +110,13 @@ export default route.page({
 
             <div className="flex flex-wrap gap-4">
               <Link
-                className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
+                className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-[background-color,box-shadow] hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
                 to="/docs"
               >
                 Get Started
               </Link>
               <a
-                className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-all hover:border-foreground/40 hover:text-foreground"
+                className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
                 href="https://github.com/teyik0/furin"
                 rel="noopener noreferrer"
                 target="_blank"
@@ -173,13 +196,13 @@ export default route.page({
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
-              className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
+              className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-[background-color,box-shadow] hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
               to="/docs"
             >
               Explore Examples
             </Link>
             <Link
-              className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-all hover:border-foreground/40 hover:text-foreground"
+              className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
               to="/docs"
             >
               Read the Docs
@@ -188,19 +211,4 @@ export default route.page({
         </div>
       </section>
     </div>
-  ),
-  head: () => ({
-    links: [{ href: "/", rel: "canonical" }],
-    meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
-  }),
-  loader: async () => {
-    const entries = Object.entries(FILES) as [FileName, string][];
-    const codeHtmlMap = Promise.all(
-      entries.map(async ([name, code]) => [
-        name,
-        await codeToHtml(code, { lang: "tsx", theme: "github-dark" }),
-      ])
-    ).then((resolvedEntries) => Object.fromEntries(resolvedEntries) as Record<FileName, string>);
-    return { codeHtmlMap: await codeHtmlMap };
-  },
-});
+  ));

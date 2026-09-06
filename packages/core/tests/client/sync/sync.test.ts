@@ -87,7 +87,6 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
     principal: "principal",
   };
   const adapter: SyncAdapter = {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: (_input: BeginMutationInput): Promise<BeginMutationResult> =>
       Promise.resolve({ kind: "execute", lease }),
@@ -99,6 +98,7 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
     readChanges: (_input: ReadChangesInput): Promise<ChangePage> =>
       Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("renewed"),
+    scope: "distributed",
   };
   const notifier: SyncNotifier = {
     publish: () => Promise.reject(new Error("notifier unavailable")),
@@ -130,7 +130,6 @@ test("furinSync durably preserves manual and declarative invalidations", async (
     principal: "principal",
   };
   const adapter: SyncAdapter = {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: (input) => {
@@ -140,6 +139,7 @@ test("furinSync durably preserves manual and declarative invalidations", async (
     currentCursor: () => Promise.resolve("0"),
     readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("renewed"),
+    scope: "distributed",
   };
   const notifier: SyncNotifier = {
     publish: () => Promise.resolve(),
@@ -186,7 +186,6 @@ test("furinSync schedules the next lease renewal while the current renewal is pe
     principal: "principal",
   };
   const adapter: SyncAdapter = {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: () => Promise.resolve({ cursor: undefined, kind: "committed" }),
@@ -196,6 +195,7 @@ test("furinSync schedules the next lease renewal while the current renewal is pe
       renewalCalls += 1;
       return renewal.promise;
     },
+    scope: "distributed",
   };
   const notifier: SyncNotifier = {
     publish: () => Promise.resolve(),
@@ -461,7 +461,6 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
     principal: "principal",
   };
   const adapter: SyncAdapter = {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "execute", lease }),
     completeMutation: (input) => {
@@ -471,6 +470,7 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
     currentCursor: () => Promise.resolve("0"),
     readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("renewed"),
+    scope: "distributed",
   };
   const notifier: SyncNotifier = {
     publish: (cursor) => {
@@ -645,13 +645,13 @@ test("sync stream opens when notifier subscription fails", async () => {
   resetSyncTestState();
   const cursor = "0";
   const adapter: SyncAdapter = {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor: () => Promise.resolve(cursor),
     readChanges: () => Promise.resolve({ changes: [], cursor, hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
   };
   const notifier: SyncNotifier = {
     publish: () => Promise.resolve(),

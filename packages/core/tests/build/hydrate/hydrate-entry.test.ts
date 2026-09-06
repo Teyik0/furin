@@ -9,7 +9,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateHydrateEntry } from "../../../src/build/hydrate.ts";
-import type { ResolvedRoute } from "../../../src/server/router/index.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 
 // ── Minimal stub ──────────────────────────────────────────────────────────────
 
@@ -37,6 +37,14 @@ const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 // ── B12: no basePath — generated code is unchanged ───────────────────────────
 
 describe("generateHydrateEntry", () => {
+  test("hydrates the document owned by the root layout", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain("hydrateRoot(document, app)");
+    expect(code).not.toContain('document.getElementById("root")');
+    expect(code).not.toContain("createRoot(");
+  });
+
   test("imports RouterProvider via package specifier so client links share one RouterContext", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     expect(code).toContain('import { RouterProvider } from "@teyik0/furin/link";');
@@ -81,6 +89,29 @@ describe("generateHydrateEntry", () => {
     const code = generateHydrateEntry([route], ROOT, "", false);
 
     expect(code).toContain('searchDefaults: {"page":1}');
+  });
+
+  test("rebuilds the client layout chain from scanned layout modules", () => {
+    const route = {
+      ...makeRoute("/boards", "/app/src/pages/boards/index.tsx"),
+      routeChain: [
+        { __type: "FURIN_ROUTE" as const, layout: () => null },
+        {
+          __type: "FURIN_ROUTE" as const,
+          layout: () => null,
+          sourcePath: "/app/src/pages/boards/_route.tsx",
+        },
+      ],
+    } as ResolvedRoute;
+
+    const code = generateHydrateEntry([route], ROOT, "", false);
+
+    expect(code).toContain('import("/app/src/pages/boards/_route.tsx")');
+    expect(code).toContain(
+      'layout: hotComponent("layout:/app/src/pages/boards/_route.tsx", __furin_layout_route_0.component)'
+    );
+    expect(code).not.toContain("?? __furin_layout_0.default");
+    expect(code).toContain("parent: __furin_parent");
   });
 
   test("clientLogging off (default) — omits evlog from the client entry", () => {
@@ -193,23 +224,19 @@ describe("generateHydrateEntry", () => {
       writeFileSync(
         rootPath,
         [
-          'import { createRoute } from "@teyik0/furin/client";',
+          'import { defineRoute } from "@teyik0/furin/client";',
           "",
-          "export const route = createRoute({",
-          "  layout: ({ children }) => <div>{children}</div>,",
-          "});",
+          "export const route = defineRoute().layout(({ children }) => <div>{children}</div>);",
         ].join("\n")
       );
 
       writeFileSync(
         pagePath,
         [
+          'import { defineRoute } from "@teyik0/furin/client";',
           'import { Link } from "@teyik0/furin/link";',
           "",
-          "export default {",
-          '  component: () => <Link to="/docs">Docs</Link>,',
-          '  _route: { __type: "FURIN_ROUTE" },',
-          "};",
+          'export const route = defineRoute().page(() => <Link to="/docs">Docs</Link>);',
         ].join("\n")
       );
 
@@ -238,7 +265,7 @@ describe("generateHydrateEntry", () => {
         }
       );
 
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode, result.stderr.toString()).toBe(0);
 
       const chunks: string[] = [];
       for (const file of readdirSync(outDir)) {
@@ -248,9 +275,9 @@ describe("generateHydrateEntry", () => {
       }
       const bundleText = chunks.join("\n");
 
-      // RouterContext + SearchStoreContext. If the page-level Link import pulled
-      // in a second copy of Furin's router module, both contexts would duplicate.
-      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(2);
+      // RouterContext + SearchStoreContext and the document contexts bundled by
+      // the client/link public entries. A second router copy would add two more.
+      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(4);
     } finally {
       rmSync(tmpRoot, { force: true, recursive: true });
     }
@@ -407,6 +434,15 @@ describe("generateHydrateEntry — digest rehydration (Slice 10)", () => {
 // data and React throws a hydration mismatch.
 
 describe("generateHydrateEntry — HMR hardening", () => {
+  test("keeps page and root component identities stable across hot updates", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain("updateHotComponent } from \"@teyik0/furin/client\";");
+    expect(code).toContain('hotComponent("page:/app/src/pages/index.tsx"');
+    expect(code).toContain('hotComponent("root:/app/src/pages/root.tsx"');
+    expect(code).toContain("hmrWindow.__FURIN_HMR_UPDATE__");
+  });
+
   test("uses window.__FURIN_ROOT__ as the HMR root persistence mechanism", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     expect(code).toContain("(window as any).__FURIN_ROOT__");

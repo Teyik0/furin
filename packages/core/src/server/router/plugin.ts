@@ -1,7 +1,8 @@
 import { type AnyElysia, type Context, Elysia, t } from "elysia";
-import type { AnySchema } from "elysia/types";
 import { toCrossJSONAsync } from "seroval";
+import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
+import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { useLogger } from "../context-logger.ts";
@@ -28,7 +29,7 @@ import { handleDevRequest } from "./hmr.ts";
 import { buildRouteMatcher } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import { parseDataEndpointPath, parseRouteParams, parseRouteQuery } from "./schemas.ts";
-import type { ResolvedRoute, RootLayout } from "./types.ts";
+import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -106,7 +107,7 @@ async function createLoaderDataResponse(
     });
   }
 
-  const syncDataWithTitle = withResolvedTitle(route, result.syncData);
+  const syncDataWithTitle = withResolvedHead(route, result.syncData);
   if (result.deferredPromises !== undefined) {
     return new Response(
       createDeferredRouteFrameStream(syncDataWithTitle, result.deferredPromises),
@@ -186,45 +187,46 @@ export function createRoutePlugin(
 
   if (allParams || allQuery) {
     plugin.guard({
-      params: allParams as AnySchema,
-      query: allQuery as AnySchema,
+      params: allParams as FurinSchema,
+      query: allQuery as FurinSchema,
     });
   }
 
-  plugin.get(pattern, (ctx) => {
-    // Dev mode: re-imports page + layouts on every request via the
-    // ?furin-server cache-buster, then dispatches into one of:
-    //   - renderDevISRWithLoaderCache  (mode === "isr")
-    //   - renderDevSSGWithLoaderCache  (mode === "ssg")
-    //   - renderSSR                    (otherwise)
-    //
-    // Only the LOADER OUTPUT is cached in dev — HTML is always re-assembled
-    // fresh so the response always embeds the latest Bun client chunk URL.
-    // This avoids the "infinite reload loop" footgun where a cached ISR/SSG
-    // HTML response held an OLD chunk URL after Bun rebundled.  The dev
-    // cache is invalidated source-aware via `isDevLoaderCacheValid`
-    // (mtime-checked dependency walk on every read).
-    if (IS_DEV) {
-      return handleDevRequest(route, ctx, root, searchRoutes);
-    }
-
-    if ((route.mode === "ssg" || route.mode === "isr") && hasRequestLoader(route)) {
-      return renderPprRoute(route, ctx, root, resolvedBuildId, searchRoutes);
-    }
-
-    if (route.mode === "ssg") {
-      return handleSSGRequest(route, ctx, root, resolvedBuildId, searchRoutes);
-    }
-
-    if (route.mode === "isr") {
-      ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
-      return handleISR(route, ctx, root, resolvedBuildId, searchRoutes);
-    }
-
-    return renderSSR(route, ctx, root, undefined, searchRoutes);
-  });
+  plugin.get(pattern, (ctx) =>
+    renderResolvedRoute(route, ctx, root, resolvedBuildId, searchRoutes)
+  );
 
   return plugin;
+}
+
+export function renderResolvedRoute(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId: string,
+  searchRoutes: SearchRouteMetadata[] | undefined
+): unknown {
+  // Dev mode: re-imports page + layouts on every request via the
+  // ?furin-server cache-buster. Only loader output is cached in dev; HTML is
+  // always reassembled with the latest Bun client chunk URL.
+  if (IS_DEV) {
+    return handleDevRequest(route, ctx, root, searchRoutes);
+  }
+
+  if ((route.mode === "ssg" || route.mode === "isr") && hasRequestLoader(route)) {
+    return renderPprRoute(route, ctx, root, buildId, searchRoutes);
+  }
+
+  if (route.mode === "ssg") {
+    return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
+  }
+
+  if (route.mode === "isr") {
+    ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
+    return handleISR(route, ctx, root, buildId, searchRoutes);
+  }
+
+  return renderSSR(route, ctx, root, undefined, searchRoutes);
 }
 
 /**
@@ -240,9 +242,10 @@ export function createRoutePlugin(
  *   - `__furinNotFound`    — not-found payload
  *   - `__furinRedirect`    — logical path after a server-side redirect
  */
-export function createDataEndpoint(routes: ResolvedRoute[]): AnyElysia {
+export function createDataEndpoint(routesSource: ResolvedRoutesSource): AnyElysia {
   const plugin = new Elysia();
-  const matchRoute = buildRouteMatcher(routes);
+  let matchedRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+  let matchRoute = buildRouteMatcher(matchedRoutes);
 
   plugin.get(
     "/_furin/data",
@@ -266,8 +269,11 @@ export function createDataEndpoint(routes: ResolvedRoute[]): AnyElysia {
       const wideEventLog = useLogger();
       wideEventLog.set({ path: rawPath });
 
-      // Precompiled at plugin creation: route regexes are built once, sorted
-      // most-specific first, then the hot path only executes regex matches.
+      const currentRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+      if (currentRoutes !== matchedRoutes) {
+        matchedRoutes = currentRoutes;
+        matchRoute = buildRouteMatcher(matchedRoutes);
+      }
       const matched = matchRoute(pathname);
 
       if (!matched) {
@@ -309,8 +315,8 @@ export function createDataEndpoint(routes: ResolvedRoute[]): AnyElysia {
         status: (code: number) => new Response(null, { status: code }),
       } as unknown as SyntheticDataContext;
 
-      // Normalize params and query through the same merged schemas used by
-      // createRoutePlugin so loaders see identical typed/defaulted inputs.
+      // Normalize params and query through the route chain schemas so SPA and
+      // document requests expose identical typed/defaulted inputs.
       const mergedParams = mergeRouteSchemas(matched.route.routeChain, "params");
       const mergedQuery = mergeRouteSchemas(matched.route.routeChain, "query");
       const parsedParams = await parseRouteParams(matched.params, mergedParams);
@@ -356,7 +362,7 @@ export function createDataEndpoint(routes: ResolvedRoute[]): AnyElysia {
  * synchronous loader data. A throwing `head()` is swallowed: a missing title
  * must never break the data response.
  */
-function withResolvedTitle(
+function withResolvedHead(
   route: ResolvedRoute,
   syncData: Record<string, unknown>
 ): Record<string, unknown> {
@@ -364,14 +370,15 @@ function withResolvedTitle(
   if (!head) {
     return syncData;
   }
-  let title: string | undefined;
+  let headOptions: HeadOptions;
   try {
-    title = extractTitle(head(syncData).meta);
+    headOptions = head(syncData);
   } catch {
     return syncData;
   }
+  const title = extractTitle(headOptions.meta);
   if (title === undefined) {
-    return syncData;
+    return { ...syncData, __furinHead: headOptions };
   }
-  return { ...syncData, __furinTitle: title };
+  return { ...syncData, __furinHead: headOptions, __furinTitle: title };
 }

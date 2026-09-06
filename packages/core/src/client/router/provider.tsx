@@ -1,8 +1,10 @@
 import { log } from "evlog";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
+import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
 import {
@@ -85,6 +87,7 @@ export function RouterProvider({
   prefetchCacheSize,
   syncStream,
 }: RouterProviderProps): React.ReactElement {
+  const initialDocumentState = useDocumentState();
   // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
   // the provider boots into the inline not-found UI.
   const [state, setState] = useState<RouterState>(() => ({
@@ -237,6 +240,7 @@ export function RouterProvider({
         //   __furinError    — error sentinel (digest, message, status)
         //   __furinTitle    — document title resolved server-side from head()
         const {
+          __furinHead,
           __furinStatus,
           __furinNotFound,
           __furinRedirect,
@@ -248,6 +252,7 @@ export function RouterProvider({
           __furinNotFound?: { data?: unknown; message?: string };
           __furinRedirect?: string;
           __furinError?: { digest: string; message: string; status: number };
+          __furinHead?: HeadOptions;
           __furinTitle?: string;
           [key: string]: unknown;
         };
@@ -273,6 +278,7 @@ export function RouterProvider({
             data: {},
             error: __furinError,
             finalHref,
+            head: __furinHead,
             match: loadedMatch,
             title,
           };
@@ -292,6 +298,7 @@ export function RouterProvider({
           return {
             data,
             finalHref,
+            head: __furinHead,
             match: loadedMatch,
             notFound,
             title,
@@ -303,7 +310,7 @@ export function RouterProvider({
           return { data, finalHref, match: null, title };
         }
 
-        return { data, finalHref, match: loadedMatch, title };
+        return { data, finalHref, head: __furinHead, match: loadedMatch, title };
       } catch (err: unknown) {
         if (!isAbortError(err)) {
           log.error({
@@ -630,6 +637,7 @@ export function RouterProvider({
   // Render-synchronous scroll restoration.
   useLayoutEffect(() => {
     const instruction = pendingScrollRef.current;
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null until navigation schedules scrolling
     if (!instruction) {
       return;
     }
@@ -872,7 +880,7 @@ export function RouterProvider({
     );
   }
 
-  return (
+  const routerTree = (
     <SearchStoreContext.Provider value={searchStore}>
       {buildRouterTree(
         {
@@ -892,6 +900,7 @@ export function RouterProvider({
         pageElement,
         {
           digest: initialDigest,
+          document: initialDocumentState !== null,
           onReset: () => {
             refresh(undefined).catch((err: unknown) => {
               log.error({ action: "boundary_reset_failed", error: String(err) });
@@ -901,5 +910,18 @@ export function RouterProvider({
         }
       )}
     </SearchStoreContext.Provider>
+  );
+  if (initialDocumentState === null) {
+    return routerTree;
+  }
+  return (
+    <DocumentProvider
+      value={{
+        ...initialDocumentState,
+        head: state.head ?? initialDocumentState.head,
+      }}
+    >
+      {routerTree}
+    </DocumentProvider>
   );
 }

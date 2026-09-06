@@ -8,8 +8,8 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 
 const sql = new SQL(databaseUrl);
 try {
-  const migration = await Bun.file(new URL("./migration.sql", import.meta.url)).text();
-  await sql.unsafe(migration);
+  const migrationUrl = new URL("./migration.sql", import.meta.url);
+  await sql.file(migrationUrl.pathname);
 } finally {
   await sql.close();
 }

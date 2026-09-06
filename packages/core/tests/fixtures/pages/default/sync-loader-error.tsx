@@ -1,14 +1,9 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
-const syncLoaderErrorRoute = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-export default syncLoaderErrorRoute.page({
-  component: () => <div>unreachable</div>,
-  loader: () => {
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(() => {
     throw new Error("synchronous loader failure");
-  },
-});
+  })
+  .page(() => <div>unreachable</div>);

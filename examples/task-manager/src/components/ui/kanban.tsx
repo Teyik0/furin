@@ -561,7 +561,7 @@ const BurnBarrel = ({
         "fixed right-6 bottom-6 z-50",
         "grid h-14 w-14 place-content-center rounded-full",
         "border text-lg backdrop-blur-md",
-        "transition-all duration-200",
+        "transition-[transform,opacity,color,background-color,border-color,box-shadow] duration-200",
         isDragging ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
         active
           ? "scale-125 border-red-500/70 bg-red-500/20 text-red-400 shadow-lg shadow-red-500/20"

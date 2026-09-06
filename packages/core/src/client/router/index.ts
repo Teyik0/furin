@@ -50,6 +50,7 @@ export type {
   PreloadStrategy,
   RootBoundaryOptions,
   RouteManifest,
+  RouteParamsOf,
   RouterContextValue,
   RouterProviderProps,
   RouterState,

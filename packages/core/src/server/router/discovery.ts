@@ -1,5 +1,5 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: route discovery walks filesystem entries sequentially for deterministic ordering
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join, parse } from "node:path";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
@@ -7,13 +7,12 @@ import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import {
   collectRouteChainFromRoute,
-  isFurinPage,
-  isFurinRoute,
   mapWithConcurrency,
   validateRouteChain,
 } from "../../shared/utils/index.ts";
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import { filePathToPattern, resolveMode } from "./patterns.ts";
 import type { ResolvedRoute, RootLayout, SegmentBoundary } from "./types.ts";
 
@@ -58,10 +57,11 @@ export function loadProdRoutes(ctx: CompileContext): {
   routes: ResolvedRoute[];
 } {
   const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
-  const rootExport = rootMod.route ?? rootMod.default;
-  if (!(rootExport && isFurinRoute(rootExport) && rootExport.layout)) {
-    throw new Error("[furin] root.tsx: createRoute() with layout not found in CompileContext.");
+  const rootExport = rootMod.route;
+  if (!isDefinedRouteTerminal(rootExport) || typeof rootExport.layout !== "function") {
+    throw new Error("[furin] root.tsx: defineRoute().layout() not found in CompileContext.");
   }
+  const rootRoute = adaptDefinedLayout(rootExport, undefined, ctx.rootPath);
 
   function resolveModuleComponent<T>(modPath: string | undefined): T | undefined {
     if (!modPath) {
@@ -75,14 +75,14 @@ export function loadProdRoutes(ctx: CompileContext): {
     error: resolveModuleComponent(ctx.rootConventions?.errorPath),
     notFound: resolveModuleComponent(ctx.rootConventions?.notFoundPath),
     path: ctx.rootPath,
-    route: rootExport,
+    route: rootRoute,
   };
 
   const routes: ResolvedRoute[] = [];
   for (const { pattern, path, mode } of ctx.routes) {
-    const pageMod = ctx.modules[path] as { default: RuntimePage };
-    const page: RuntimePage = pageMod.default;
-    if (!isFurinPage(page)) {
+    const pageMod = ctx.modules[path] as { route?: unknown };
+    const page = resolveCompiledRuntimePage(pageMod, path, root, ctx);
+    if (!page) {
       throw new Error(`[furin] ${path}: invalid page module in CompileContext.`);
     }
     const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
@@ -123,6 +123,52 @@ export function loadProdRoutes(ctx: CompileContext): {
   return { root, routes };
 }
 
+function resolveCompiledRuntimePage(
+  module: { route?: unknown },
+  path: string,
+  root: RootLayout,
+  context: CompileContext
+): RuntimePage | undefined {
+  if (!isDefinedRouteTerminal(module.route) || typeof module.route.page !== "function") {
+    return;
+  }
+  const pagesDir = root.path.slice(0, root.path.lastIndexOf("/"));
+  const parent = resolveCompiledLayoutParent(path, pagesDir, root.route, context);
+  return adaptDefinedPage(module.route, parent);
+}
+
+function resolveCompiledLayoutParent(
+  pagePath: string,
+  pagesDir: string,
+  rootRoute: RuntimeRoute,
+  context: CompileContext
+): RuntimeRoute {
+  const pageDirectory = pagePath.slice(0, pagePath.lastIndexOf("/"));
+  if (pageDirectory.length <= pagesDir.length) {
+    return rootRoute;
+  }
+  const segments = pageDirectory.slice(pagesDir.length + 1).split("/");
+  let directory = pagesDir;
+  let parent = rootRoute;
+
+  for (const segment of segments) {
+    directory = `${directory}/${segment}`;
+    for (const candidate of getSourceModuleCandidates(directory, "_route")) {
+      const layoutModule = context.modules[candidate] as { route?: unknown } | undefined;
+      if (!layoutModule) {
+        continue;
+      }
+      const layout = layoutModule.route;
+      if (isDefinedRouteTerminal(layout) && typeof layout.layout === "function") {
+        parent = adaptDefinedLayout(layout, parent, candidate);
+      }
+      break;
+    }
+  }
+
+  return parent;
+}
+
 /**
  * Normalises OS-native path separators to POSIX "/" so the slash-based path
  * arithmetic in the scan (relative slicing, `lastIndexOf("/")`,
@@ -161,14 +207,15 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   }
 
   const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as Record<string, unknown>;
-  const rootExport = mod.route ?? mod.default;
-  if (!(rootExport && isFurinRoute(rootExport))) {
-    throw new Error("[furin] root.tsx: createRoute() export not found.");
+  const rootExport = mod.route;
+  if (!isDefinedRouteTerminal(rootExport)) {
+    throw new Error("[furin] root.tsx: defineRoute() export not found.");
   }
 
   if (!rootExport.layout) {
-    throw new Error("[furin] root.tsx: createRoute() has no layout.");
+    throw new Error("[furin] root.tsx: defineRoute() has no layout.");
   }
+  const rootRoute = adaptDefinedLayout(rootExport, undefined, rootPath);
 
   const [notFoundEntry, errorEntry] = await Promise.all([
     loadConventionComponent<NotFoundComponent>(pagesDir, "not-found"),
@@ -180,7 +227,7 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
     notFound: notFoundEntry?.component,
     notFoundPath: notFoundEntry?.path,
     path: rootPath,
-    route: rootExport,
+    route: rootRoute,
   };
 }
 
@@ -217,7 +264,11 @@ async function loadConventionComponent<T>(
   const ctx = getCompileContext();
   for (const filePath of getSourceModuleCandidates(dir, name)) {
     if (existsSync(filePath) || ctx?.modules[filePath]) {
-      const mod = (ctx?.modules[filePath] ?? (await import(filePath))) as {
+      const moduleSpecifier =
+        IS_DEV && existsSync(filePath)
+          ? `${filePath}?furin-server&t=${Math.trunc(statSync(filePath).mtimeMs * 1000)}`
+          : filePath;
+      const mod = (ctx?.modules[filePath] ?? (await import(moduleSpecifier))) as {
         default?: T;
       };
       if (mod.default) {
@@ -277,7 +328,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     ]);
 
     if (IS_DEV) {
-      const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root);
+      const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root, pagesDir);
       devRoute.notFound = notFound;
       devRoute.error = errorComponent;
       devRoute.segmentBoundaries = segmentBoundaries;
@@ -287,11 +338,11 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
 
     const ctx = getCompileContext();
     const pageMod = (ctx?.modules[absolutePath] ?? (await import(absolutePath))) as {
-      default: RuntimePage;
+      route?: unknown;
     };
-    const page: RuntimePage = pageMod.default;
-    if (!isFurinPage(page)) {
-      throw new Error(`[furin] ${relativePath}: no valid createRoute().page() export found`);
+    const page = await resolveRuntimePage(pageMod, absolutePath, pagesDir, root.route);
+    if (!page) {
+      throw new Error(`[furin] ${relativePath}: no valid defineRoute().page() export found`);
     }
 
     const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
@@ -312,6 +363,51 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
   }
 
   return routes;
+}
+
+async function resolveRuntimePage(
+  module: { route?: unknown },
+  absolutePath: string,
+  pagesDir: string,
+  rootRoute: RuntimeRoute
+): Promise<RuntimePage | undefined> {
+  if (!isDefinedRouteTerminal(module.route) || typeof module.route.page !== "function") {
+    return;
+  }
+  const parent = await resolveDefinedLayoutParent(absolutePath, pagesDir, rootRoute);
+  return adaptDefinedPage(module.route, parent);
+}
+
+async function resolveDefinedLayoutParent(
+  pagePath: string,
+  pagesDir: string,
+  rootRoute: RuntimeRoute
+): Promise<RuntimeRoute> {
+  const pageDirectory = pagePath.slice(0, pagePath.lastIndexOf("/"));
+  if (pageDirectory.length <= pagesDir.length) {
+    return rootRoute;
+  }
+  const relativeDirectory = pageDirectory.slice(pagesDir.length + 1);
+  const segments = relativeDirectory.split("/");
+  let directory = pagesDir;
+  let parent = rootRoute;
+
+  for (const segment of segments) {
+    directory = `${directory}/${segment}`;
+    for (const candidate of getSourceModuleCandidates(directory, "_route")) {
+      if (!existsSync(candidate)) {
+        continue;
+      }
+      const layoutModule = (await import(candidate)) as { route?: unknown };
+      const layout = layoutModule.route;
+      if (isDefinedRouteTerminal(layout) && typeof layout.layout === "function") {
+        parent = adaptDefinedLayout(layout, parent, candidate);
+      }
+      break;
+    }
+  }
+
+  return parent;
 }
 
 /**
@@ -407,7 +503,8 @@ async function buildDevRoute(
   absolutePath: string,
   relativePath: string,
   pattern: string,
-  root: RootLayout
+  root: RootLayout,
+  pagesDir: string
 ): Promise<ResolvedRoute> {
   // Import via the virtual namespace (registerDevPagePlugin must be called first)
   // so page files stay out of --hot's module graph. We still extract the route
@@ -418,19 +515,19 @@ async function buildDevRoute(
 
   try {
     const pageMod = (await import(`${absolutePath}?furin-server&t=${Date.now()}`)) as {
-      default: RuntimePage;
+      route?: unknown;
     };
-    if (isFurinPage(pageMod.default)) {
-      page = pageMod.default;
+    const resolvedPage = await resolveRuntimePage(pageMod, absolutePath, pagesDir, root.route);
+    if (resolvedPage) {
+      page = resolvedPage;
       routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);
       validateRouteChain(routeChain, root.route, relativePath);
     }
   } catch {
-    // Page will be loaded on first request in createRoutePlugin as fallback
+    // The dev renderer retries the named terminal on the first request.
   }
 
-  // Dev stub: a minimal RuntimePage that passes isFurinPage() but is never
-  // actually rendered — createRoutePlugin always re-imports from disk in dev mode.
+  // Dev stub: never rendered; the dev renderer re-imports from disk.
   const devStubPage: RuntimePage = {
     __type: "FURIN_PAGE",
     _route: { __type: "FURIN_ROUTE" },
@@ -439,7 +536,7 @@ async function buildDevRoute(
 
   return {
     mode: page ? resolveMode(page, routeChain) : "ssr",
-    // Still lazily re-imported on each request in createRoutePlugin for fresh code
+    // Still lazily re-imported on each request for fresh code.
     page: page ?? devStubPage,
     path: absolutePath,
     pattern,

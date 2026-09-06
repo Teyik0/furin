@@ -1,11 +1,18 @@
-import { notFound } from "@teyik0/furin";
+import { defineRoute, notFound } from "@teyik0/furin";
+import { t } from "elysia";
 import { getBoard } from "@/api/modules/boards/service";
 import { getCard } from "@/api/modules/cards/service";
 import { CardDetailPage } from "@/components/card-detail-page";
-import { route } from "./_route";
+import { route as parentRoute } from "./_route";
 
-export default route.page({
-  loader: ({ params }) => {
+export const route = defineRoute()
+  .config({
+    layout: parentRoute,
+    mode: "ssr",
+    params: t.Object({ boardId: t.String(), cardId: t.String() }),
+    tags: ["cards"],
+  })
+  .loader(({ params }) => {
     const board = getBoard(params.boardId);
     const card = getCard(params.cardId);
 
@@ -37,8 +44,11 @@ export default route.page({
       formattedCreatedAt,
       renderedAt,
     };
-  },
-  component: ({ params, card, boardName, renderedAt, formattedCreatedAt }) => (
+  })
+  .head(({ data: { card, boardName } }) => ({
+    meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
+  }))
+  .page(({ data: { card, boardName, renderedAt, formattedCreatedAt }, params }) => (
     <CardDetailPage
       boardName={boardName}
       card={card}
@@ -46,9 +56,4 @@ export default route.page({
       params={params}
       renderedAt={renderedAt}
     />
-  ),
-  head: ({ card, boardName }) => ({
-    meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
-  }),
-  tags: ["cards"],
-});
+  ));

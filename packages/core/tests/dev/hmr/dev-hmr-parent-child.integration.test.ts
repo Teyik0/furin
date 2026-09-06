@@ -41,8 +41,11 @@ const HELLO_ATTR_RE = /data-hello="([^"]+)"/;
  *   #6 (P1): Client-side SPA prefetch cache invalidation — requires browser
  *     automation (Playwright / Puppeteer) because `prefetchCache` lives in the
  *     browser process.
- *   #8 (P2): Hot-adding a brand-new page file at runtime — `scanPages` runs
- *     once at startup; the server must be restarted to discover new routes.
+ *
+ * #8 (P2, hot-adding a page file at runtime) is now COVERED by
+ * `dev-route-topology.integration.test.ts`: the topology watcher rebuilds the
+ * native renderer on route add/remove, so new routes are served without a
+ * restart.
  */
 
 async function pollUntil(
@@ -73,11 +76,11 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/root.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
+      'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
-      "export const route = createRoute({",
-      '  layout: ({ children }) => <div data-root="true">{children}</div>,',
-      "});",
+      "export const route = defineRootRoute()",
+      '  .config({ mode: "ssr" })',
+      '  .layout(({ children }) => <html lang="en"><head><HeadContent /></head><body><div data-root="true">{children}</div><Scripts /></body></html>);',
     ].join("\n")
   );
 
@@ -86,13 +89,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/blog/_route.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
+      'import { defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "../root";',
       "",
-      "export const route = createRoute({",
-      "  parent: rootRoute,",
-      '  layout: ({ children }) => <nav data-blog-layout="blog-v1">{children}</nav>,',
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      '  .layout(({ children }) => <nav data-blog-layout="blog-v1">{children}</nav>);',
     ].join("\n")
   );
 
@@ -101,11 +103,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/blog/index.tsx",
     [
-      'import { route } from "./_route";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as parentRoute } from "./_route";',
       "",
-      "export default route.page({",
-      '  component: () => <main data-blog-listing="true">Blog listing</main>,',
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: parentRoute, mode: "ssg" })',
+      '  .page(() => <main data-blog-listing="true">Blog listing</main>);',
     ].join("\n")
   );
 
@@ -114,13 +117,15 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/blog/[slug].tsx",
     [
-      'import { route } from "./_route";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { t } from "elysia";',
+      'import { route as parentRoute } from "./_route";',
       "",
-      "export default route.page({",
-      "  component: () => (",
+      "export const route = defineRoute()",
+      '  .config({ layout: parentRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })',
+      "  .page(() => (",
       '    <article data-post-version="post-v1">Blog post content</article>',
-      "  ),",
-      "});",
+      "  ));",
     ].join("\n")
   );
 
@@ -129,21 +134,15 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/blog/isr-stamp.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
-      'import { route as blogRoute } from "./_route";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as parentRoute } from "./_route";',
       "",
-      "const isrStampRoute = createRoute({",
-      "  parent: blogRoute,",
-      '  mode: "isr",',
-      "  revalidate: 60,",
-      "  loader: async () => ({ stamp: Date.now() }),",
-      "});",
-      "",
-      "export default isrStampRoute.page({",
-      "  component: ({ stamp }) => (",
-      "    <div data-stamp={String(stamp)}>ISR stamp: {stamp}</div>",
-      "  ),",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
+      "  .loader(async () => ({ stamp: Date.now() }))",
+      "  .page(({ data }) => (",
+      "    <div data-stamp={String(data.stamp)}>ISR stamp: {data.stamp}</div>",
+      "  ));",
     ].join("\n")
   );
 
@@ -152,11 +151,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     app.path,
     "src/pages/index.tsx",
     [
+      'import { defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
       "",
-      "export default rootRoute.page({",
-      "  component: () => <main>Home</main>,",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "  .page(() => <main>Home</main>);",
     ].join("\n")
   );
 
@@ -217,13 +217,15 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       app.path,
       "src/pages/blog/[slug].tsx",
       [
-        'import { route } from "./_route";',
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'import { route as parentRoute } from "./_route";',
         "",
-        "export default route.page({",
-        "  component: () => (",
+        "export const route = defineRoute()",
+        '  .config({ layout: parentRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })',
+        "  .page(() => (",
         '    <article data-post-version="post-v2">Updated blog post</article>',
-        "  ),",
-        "});",
+        "  ));",
       ].join("\n")
     );
 
@@ -280,13 +282,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       app.path,
       "src/pages/blog/_route.tsx",
       [
-        'import { createRoute } from "@teyik0/furin/client";',
+        'import { defineRoute } from "@teyik0/furin";',
         'import { route as rootRoute } from "../root";',
         "",
-        "export const route = createRoute({",
-        "  parent: rootRoute,",
-        '  layout: ({ children }) => <nav data-blog-layout="blog-v2">{children}</nav>,',
-        "});",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        '  .layout(({ children }) => <nav data-blog-layout="blog-v2">{children}</nav>);',
       ].join("\n")
     );
 
@@ -329,13 +330,12 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       app.path,
       "src/pages/blog/_route.tsx",
       [
-        'import { createRoute } from "@teyik0/furin/client";',
+        'import { defineRoute } from "@teyik0/furin";',
         'import { route as rootRoute } from "../root";',
         "",
-        "export const route = createRoute({",
-        "  parent: rootRoute,",
-        '  layout: ({ children }) => <nav data-blog-layout="blog-v3">{children}</nav>,',
-        "});",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        '  .layout(({ children }) => <nav data-blog-layout="blog-v3">{children}</nav>);',
       ].join("\n")
     );
 
@@ -431,22 +431,16 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       app.path,
       "src/pages/blog/isr-stamp.tsx",
       [
-        'import { createRoute } from "@teyik0/furin/client";',
-        'import { route as blogRoute } from "./_route";',
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as parentRoute } from "./_route";',
         "",
-        "const isrStampRoute = createRoute({",
-        "  parent: blogRoute,",
-        '  mode: "isr",',
-        "  revalidate: 60,",
+        "export const route = defineRoute()",
+        '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
         "  // Loader intentionally returns a bumped stamp so a cache miss is detectable.",
-        "  loader: async () => ({ stamp: Date.now() + 99999 }),",
-        "});",
-        "",
-        "export default isrStampRoute.page({",
-        "  component: ({ stamp }) => (",
-        "    <div data-stamp={String(stamp)}>ISR stamp v2: {stamp}</div>",
-        "  ),",
-        "});",
+        "  .loader(async () => ({ stamp: Date.now() + 99999 }))",
+        "  .page(({ data }) => (",
+        "    <div data-stamp={String(data.stamp)}>ISR stamp v2: {data.stamp}</div>",
+        "  ));",
       ].join("\n")
     );
 
@@ -491,23 +485,26 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
   test("#9 — editing root.tsx loader propagates to ISR pages on next request", async () => {
     // Helper — build a root.tsx whose loader contributes `hello: <value>`.
     // The layout renders `data-hello` on every response so we can assert
-    // against any registered page.  Adding a new page at runtime would not
-    // work (cf. limitation #8 — `scanPages` runs once at startup).
+    // against any registered page.
     const writeRoot = (helloValue: string): void => {
       writeAppFile(
         app.path,
         "src/pages/root.tsx",
         [
-          'import { createRoute } from "@teyik0/furin/client";',
+          'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
           "",
-          "export const route = createRoute({",
-          `  loader: () => ({ hello: "${helloValue}" }),`,
-          "  layout: ({ children, hello }) => (",
-          '    <div data-root="true" data-hello={hello as string}>',
-          "      {children}",
-          "    </div>",
-          "  ),",
-          "});",
+          "export const route = defineRootRoute()",
+          '  .config({ mode: "ssr" })',
+          `  .loader(() => ({ hello: "${helloValue}" }))`,
+          "  .layout(({ children, data }) => (",
+          '    <html lang="en">',
+          "      <head><HeadContent /></head>",
+          '      <body data-root="true" data-hello={data.hello}>',
+          "        {children}",
+          "        <Scripts />",
+          "      </body>",
+          "    </html>",
+          "  ));",
         ].join("\n")
       );
     };

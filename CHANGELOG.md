@@ -7,6 +7,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Breaking
+- **Strict route builder contract** — `defineRoute()` now exposes only `.config()` before `loader`/`page`/`layout` become reachable, and `.config()` requires `layout: <route>` and `mode` at minimum. The types-only parent reference is renamed from `parent` to `layout` and the overload matrix collapses from 8 signatures to 4 (one per schema shape); omitting `layout` keeps the route parentless. A new `defineRootRoute()` (the `createRootRoute` analogue) covers `pages/root.tsx` with `.config({ mode })` and no layout.
+
+### Added
+- **Elysia route builder** — legacy route definitions are replaced by a typed `defineRoute()` builder with schema-shaped overloads, `defineRootRoute()` for the root layout, and `Link` props gaining typed `params?: RouteParamsOf<To>` derived from the route's params schema (schema numbers accept both `42` and `"42"`).
+- **TanStack-style layout auto-fix** — the dev topology watcher verifies every route file's `.config` against the file-system tree and rewrites missing or misplaced `layout` references (plus a default `mode: "ssr"`), inserting the import when needed. Idempotent by construction and safe: content edits never retrigger the watcher.
+- **Hot-added routes served without restart** — the topology watcher rebuilds the native renderer in place (route matcher swap) and the global NOT_FOUND handler consults the fresh renderer, so hot-added routes are served (~250 ms) and hot-removed routes 404 without restarting the dev server.
+- **Stricter layout auto-import** — auto-import of parent layouts uses stricter and safer rules.
+- **parentData conflict surfacing** — a child loader key that shadows a parent key with an incompatible type surfaces a readable branded error at the read site; same-name-same-type overrides stay legitimate. A dev-only warning fires when a deeper loader silently overwrites a key inherited from its layout chain. Loader keys `params`/`query`/`path` are rejected as they are overwritten by route context.
+
+### Changed
+- **Single route-type generator** — one shared `routeMapDeclaration()` generator (segment-based key with escaping) now backs `writeRouteTypes` (RouteMap + FurinCacheTags, atomic content-diff write); the plugin-side duplicate generator and its test are removed.
+- **Incremental route-module cache** — route modules are re-evaluated only when their mtime changed (path→mtime cache), replacing the blanket cache-busting on every resolution.
+- **Private route files ignored** — route discovery skips underscore-prefixed files and directories, so co-located `_components.tsx` files no longer become routes; the `_route` layout convention is preserved.
+- **Documentation for the strict builder** — snippets declare complete `.config({ layout, mode })` with copy-paste-compilable imports, `defineRootRoute()` for root layouts, and prose updated from `config({ parent })` to `config({ layout })`.
+
+### Fixed
+- **React Doctor diagnostics** — all 25 warnings resolved: PostgreSQL migration uses `sql.file()` instead of `sql.unsafe(string)`; weather API fetches check `res.ok` before reading the body; `Promise.all` on independent PostgreSQL stream queries and several single-pass loops / cached lookups (perf); targeted CSS transitions instead of `transition-all` across examples and the scaffolder template.
+- **React Doctor pre-commit gate runs offline** — the supply-chain (Socket.dev) and score network calls no longer hang commits on blocked networks; the full networked scan belongs to CI or manual runs.
+
+## [0.3.0-alpha.1] — 2026-08-21
+
+### Breaking
 - **Strict public route types** — `RuntimeRoute`, `RuntimePage`, the obsolete `PageConfig`, and the phantom `RouteRef`/`route.ref` API have moved out of the public client contract. Route inference now uses hidden type-only symbols, accepts named loader-data interfaces without index signatures, hides deferred runtime metadata, and accepts readonly cache-tag arrays.
 - **Minimum Bun version** — Bun 1.4.0 is now required to avoid a runtime crash when updating RSC content.
 - **Explicit sync runtime** — `furinSync()`, `createSyncStreamPlugin()`, and active `furin({ sync })` configurations now require a shared runtime object. The `sync: true` and no-argument development shorthands, `MemorySyncAdapter`, and `MemorySyncNotifier` have been removed; `sync: false` remains available to disable sync explicitly. SQLite `:memory:` replaces the development storage implementation and remains rejected in production.

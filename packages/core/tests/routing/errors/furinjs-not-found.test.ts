@@ -44,8 +44,9 @@ try {
     'export default function RootNotFound() { return <div data-testid="root-not-found">Nothing at this URL</div>; }\\n'
   );
 
-  let instance = await furin({ pagesDir: join(app.path, "src/pages") });
-  let response = await instance.handle(new Request("http://furin/does-not-exist"));
+  let plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  let parent = new Elysia().use(plugin);
+  let response = await parent.handle(new Request("http://furin/does-not-exist"));
 
   expect(response.status).toBe(404);
   expect(response.headers.get("Content-Type")).toContain("text/html");
@@ -64,8 +65,8 @@ try {
     "export default function RootNotFound() { return <div>Nothing at this URL</div>; }\\n"
   );
 
-  let plugin = await furin({ pagesDir: join(app.path, "src/pages") });
-  let parent = new Elysia().use(plugin).get("/api/ping", () => ({ ok: true }));
+  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  parent = new Elysia().use(plugin).get("/api/ping", () => ({ ok: true }));
 
   let apiResponse = await parent.handle(new Request("http://furin/api/does-not-exist"));
   expect(apiResponse.status).toBe(404);
@@ -109,8 +110,9 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  instance = await furin({ pagesDir: join(app.path, "src/pages") });
-  response = await instance.handle(new Request("http://furin/does-not-exist"));
+  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  parent = new Elysia().use(plugin);
+  response = await parent.handle(new Request("http://furin/does-not-exist"));
 
   expect(response.status).toBe(404);
   body = await response.text();
@@ -122,8 +124,9 @@ try {
   __setDevMode(true);
   process.chdir(app.path);
 
-  instance = await furin({ pagesDir: join(app.path, "src/pages") });
-  response = await instance.handle(new Request("http://furin/no-route-here"));
+  plugin = await furin({ pagesDir: join(app.path, "src/pages") });
+  parent = new Elysia().use(plugin);
+  response = await parent.handle(new Request("http://furin/no-route-here"));
 
   expect(response.status).toBe(404);
   body = await response.text();

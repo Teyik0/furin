@@ -74,9 +74,9 @@ export const autoInvalidateRegistry: Pick<
   AutoInvalidateRegistry,
   "registerLoaderTags" | "pathsForTags" | "unregisterPath" | "reset"
 > = {
+  pathsForTags: (tags) => instanceAutoInvalidateRegistry().pathsForTags(tags),
   registerLoaderTags: (urlPath, tags) =>
     instanceAutoInvalidateRegistry().registerLoaderTags(urlPath, tags),
-  pathsForTags: (tags) => instanceAutoInvalidateRegistry().pathsForTags(tags),
-  unregisterPath: (urlPath) => instanceAutoInvalidateRegistry().unregisterPath(urlPath),
   reset: () => instanceAutoInvalidateRegistry().reset(),
+  unregisterPath: (urlPath) => instanceAutoInvalidateRegistry().unregisterPath(urlPath),
 };

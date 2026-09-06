@@ -10,3 +10,8 @@ export type InternalTypesAreNotPublic =
 test("the public client entry stays runtime-type free", () => {
   expect(true).toBe(true);
 });
+
+test("the public client entry does not expose the legacy route factory", async () => {
+  const client = await import("../../src/client.ts");
+  expect("createRoute" in client).toBe(false);
+});

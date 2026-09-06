@@ -22,11 +22,12 @@ function createCompileTmpApp(): TmpApp {
   writeFileSync(
     join(app.path, "src/pages/blog/[slug].tsx"),
     [
-      'import { route as rootRoute } from "../root";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { t } from "elysia";',
       "",
-      "export default rootRoute.page({",
-      "  component: () => <article>Blog post page</article>,",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ params: t.Object({ slug: t.String() }) })',
+      "  .page(() => <article>Blog post page</article>);",
     ].join("\n"),
   );
   return app;
@@ -101,12 +102,10 @@ describe.serial("buildBunTarget Bun branches", () => {
     writeFileSync(
       join(app.path, "src/pages/index.tsx"),
       [
-        'import { createRoute } from "@teyik0/furin/client";',
-        'const route = createRoute({ mode: "ssg" });',
-        "export default route.page({",
-        "  component: () => <main>Home</main>,",
+        'import { defineRoute } from "@teyik0/furin";',
+        'export const route = defineRoute().config({ mode: "ssg",',
         '  staticParams: async () => { throw new Error("snapshot should not run"); },',
-        "});",
+        "}).page(() => <main>Home</main>);",
       ].join("\n"),
     );
     const { root, routes } = await scanPages(join(app.path, "src/pages"));

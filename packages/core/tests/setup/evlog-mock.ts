@@ -1,6 +1,6 @@
 import { mock } from "bun:test";
 import type { AnyElysia } from "elysia";
-import type { RequestLogger } from "evlog";
+import type { LoggerConfig, RequestLogger } from "evlog";
 import type { EvlogElysiaOptions } from "evlog/elysia";
 
 export interface EvlogMockFields {
@@ -13,7 +13,9 @@ const noop = () => undefined;
 
 export const evlogSetMock = mock((_entry: EvlogMockFields) => undefined);
 export const evlogErrorMock = mock((_error: string | Error) => undefined);
+export const evlogWarnMock = mock((_message: string) => undefined);
 export const evlogOptionsMock = mock((_options: EvlogElysiaOptions | undefined) => undefined);
+export const initLoggerOptionsMock = mock((_options: LoggerConfig) => undefined);
 
 let setHandler: EvlogMockSet = evlogSetMock;
 
@@ -26,7 +28,7 @@ function createUseLoggerMock(): RequestLogger {
     info: noop,
     set: (entry: EvlogMockFields) => setHandler(entry),
     setLevel: noop,
-    warn: noop,
+    warn: (message: string) => evlogWarnMock(message),
   };
 }
 
@@ -39,6 +41,8 @@ export function resetEvlogMock(): void {
   evlogErrorMock.mockClear();
   evlogOptionsMock.mockClear();
   evlogSetMock.mockClear();
+  evlogWarnMock.mockClear();
+  initLoggerOptionsMock.mockClear();
 }
 
 mock.module("evlog/elysia", () => ({
@@ -69,7 +73,7 @@ mock.module("evlog", () => ({
     setLevel: noop,
     warn: noop,
   }),
-  initLogger: noop,
+  initLogger: initLoggerOptionsMock,
   log: { debug: noop, error: noop, info: noop, warn: noop },
   useLogger: createUseLoggerMock,
 }));

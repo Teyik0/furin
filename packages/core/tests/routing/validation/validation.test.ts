@@ -133,6 +133,20 @@ describe("scanRootLayout", () => {
     expect(scanRootLayout(invalidDefaultDir)).rejects.toThrow();
   });
 
+  test("rejects a valid route terminal exported as default", () => {
+    const defaultRouteDir = join(tempDir, "default-route");
+    mkdirSync(defaultRouteDir, { recursive: true });
+    const furinEntry = join(import.meta.dir, "../../../src/furin.ts");
+
+    writeFileSync(
+      join(defaultRouteDir, "root.tsx"),
+      `import { defineRootRoute } from ${JSON.stringify(furinEntry)};
+export default defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`
+    );
+
+    expect(scanRootLayout(defaultRouteDir)).rejects.toThrow();
+  });
+
   test("throw error when root has no layout", () => {
     const noLayoutDir = join(tempDir, "no-layout");
     mkdirSync(noLayoutDir, { recursive: true });
@@ -149,11 +163,12 @@ export { route };`
   test("returns root layout when valid", async () => {
     const validDir = join(tempDir, "valid-root");
     mkdirSync(validDir, { recursive: true });
+    const furinEntry = join(import.meta.dir, "../../../src/furin.ts");
 
     writeFileSync(
       join(validDir, "root.tsx"),
-      `const route = { __type: "FURIN_ROUTE", layout: () => null };
-export { route };`
+      `import { defineRootRoute } from ${JSON.stringify(furinEntry)};
+export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);`
     );
 
     const result = await scanRootLayout(validDir);

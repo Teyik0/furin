@@ -1,14 +1,7 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.3.0-alpha.1",
+  "version": "0.4.0-alpha.1",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
-  "license": "MIT",
-  "author": "teyik0",
-  "sideEffects": false,
-  "type": "module",
-  "engines": {
-    "bun": ">=1.4.0"
-  },
   "keywords": [
     "react",
     "furin",
@@ -20,27 +13,18 @@
     "routing",
     "file-based-routing"
   ],
+  "homepage": "https://github.com/teyik0/furin#readme",
+  "bugs": {
+    "url": "https://github.com/teyik0/furin/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/teyik0/furin.git"
   },
-  "bugs": {
-    "url": "https://github.com/teyik0/furin/issues"
-  },
-  "homepage": "https://github.com/teyik0/furin#readme",
-  "files": [
-    "dist",
-    "src",
-    "LICENSE",
-    "README.md"
-  ],
-  "main": "./dist/furin.js",
-  "module": "./dist/furin.js",
-  "types": "./dist/furin.d.ts",
-  "bin": {
-    "furin": "./src/cli/index.ts",
-    "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js"
-  },
+  "license": "MIT",
+  "author": "teyik0",
+  "sideEffects": false,
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/furin.d.ts",
@@ -51,6 +35,11 @@
       "types": "./dist/client.d.ts",
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
+    },
+    "./routes": {
+      "types": "./dist/routes.d.ts",
+      "bun": "./src/routes.ts",
+      "import": "./dist/routes.js"
     },
     "./rsc": {
       "types": "./dist/rsc.d.ts",
@@ -67,11 +56,6 @@
       "types": "./dist/config.d.ts",
       "bun": "./src/config.ts",
       "import": "./dist/config.js"
-    },
-    "./router": {
-      "types": "./dist/server/router/index.d.ts",
-      "bun": "./src/server/router/index.ts",
-      "import": "./dist/server/router/index.js"
     },
     "./sync": {
       "types": "./dist/server/sync/index.d.ts",
@@ -130,21 +114,36 @@
       "import": "./dist/client-only.js"
     }
   },
+  "main": "./dist/furin.js",
+  "module": "./dist/furin.js",
+  "types": "./dist/furin.d.ts",
+  "bin": {
+    "furin": "./src/cli/index.ts",
+    "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
+    "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
+    "build": "bun run build.ts",
     "fix": "ultracite fix",
     "test": "bun test --parallel --isolate --bail",
     "test:dev": "bun test --changed --parallel --isolate --bail",
-    "tscheck": "tsc --noEmit",
-    "build": "bun run build.ts",
-    "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts"
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
-    "@yuku-toolchain/types": "0.8.0",
-    "magic-string": "^1.1.0",
+    "@sinclair/typebox": "0.34.52",
+    "@yuku-toolchain/types": "0.9.3",
+    "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",
-    "seroval": "^1.5.6",
-    "yuku-parser": "0.8.0"
+    "seroval": "^1.6.4",
+    "yuku-ast": "0.9.3",
+    "yuku-parser": "0.9.3"
   },
   "devDependencies": {
     "@types/react": "catalog:",
@@ -156,5 +155,8 @@
     "evlog": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
   }
 }

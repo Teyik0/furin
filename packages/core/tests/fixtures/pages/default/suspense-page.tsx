@@ -1,11 +1,6 @@
+import { defineRoute } from "@teyik0/furin";
 import { Suspense, use } from "react";
-import { createRoute } from "../../../../src/client";
 import { route as rootRoute } from "./root";
-
-const suspenseRoute = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
 
 // Resolves synchronously on the next microtask — enough to trigger a Suspense boundary.
 const asyncContent = Promise.resolve("Suspense Content Loaded");
@@ -15,12 +10,12 @@ function AsyncChild() {
   return <span data-testid="suspense-content">{content}</span>;
 }
 
-export default suspenseRoute.page({
-  component: () => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .page(() => (
     <div data-testid="suspense-page">
       <Suspense fallback={<span data-testid="suspense-fallback">Loading…</span>}>
         <AsyncChild />
       </Suspense>
     </div>
-  ),
-});
+  ));

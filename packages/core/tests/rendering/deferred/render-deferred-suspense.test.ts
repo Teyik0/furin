@@ -9,7 +9,7 @@ const { join } = await import("node:path");
 const { defer } = await import("../../../src/client.ts");
 const { renderSSR } = await import("../../../src/server/render/index.ts");
 const { setProductionTemplateContent } = await import("../../../src/server/render/template.ts");
-const { scanPages } = await import("../../../src/server/router/index.ts");
+const { scanPages } = await import("../../../src/server/router/discovery.ts");
 const { __setDevMode } = await import("../../../src/server/runtime-env.ts");
 const { Await } = await import("../../../src/shared/await.tsx");
 
@@ -54,8 +54,8 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
         ...fixture.ssrRoute.page,
         loader: () =>
           defer({
-            slow: new Promise((resolve) => setTimeout(() => resolve("slow-value"), 80)),
             fast: new Promise((resolve) => setTimeout(() => resolve("fast-value"), 10)),
+            slow: new Promise((resolve) => setTimeout(() => resolve("slow-value"), 80)),
           }),
       },
     });
@@ -74,6 +74,14 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     expect(fastIdx).toBeGreaterThan(-1);
     expect(slowIdx).toBeGreaterThan(-1);
     expect(fastIdx).toBeLessThan(slowIdx);
+    expect(html.indexOf("window.__FURIN_ROUTE_FRAME_STREAM__=")).toBeLessThan(
+      html.indexOf('data-furin-entry=""')
+    );
+    expect(html.lastIndexOf("window.__FURIN_ROUTE_FRAME_STREAM__.push(")).toBeLessThan(
+      html.indexOf("</body>")
+    );
+    expect(html.indexOf("</body>")).toBeLessThan(html.indexOf("</html>"));
+    expect(html.match(/id="__FURIN_ROUTE_FRAMES__"/g)).toHaveLength(1);
   });
 
   test.serial("renderSSR resolves deferred Suspense content without aborting SSR", async () => {

@@ -146,19 +146,18 @@ export interface AwaitProps<T> {
  *
  * @example
  * ```tsx
- * export default route.page({
- *   loader: () => defer({ board: "x", stats: fetchStats() }),
- *   component: ({ board, stats }) => (
+ * export const route = defineRoute()
+ *   .loader(() => defer({ board: "x", stats: fetchStats() }))
+ *   .page(({ data }) => (
  *     <div>
- *       <h1>{board}</h1>
+ *       <h1>{data.board}</h1>
  *       <Suspense fallback={<Spinner />}>
- *         <Await resolve={stats}>
+ *         <Await resolve={data.stats}>
  *           {(s) => <StatsBar stats={s} />}
  *         </Await>
  *       </Suspense>
  *     </div>
- *   ),
- * });
+ *   ));
  * ```
  */
 export function Await<T>({ resolve, errorElement, children }: AwaitProps<T>): ReactNode {
