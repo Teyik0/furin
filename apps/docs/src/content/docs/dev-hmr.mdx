@@ -271,9 +271,12 @@ The standard tier covers:
 - live route addition/removal, prefixed multi-instance isolation, two browser tabs,
   repeated WebSocket reconnections, SSR/SSG/ISR, deferred data, and composite RSC
 
-Known gaps in the Bun-backed development pipeline remain executable with
-`test.failing`, so CI fails if their
-behavior changes without the expectation being reviewed. They currently cover:
+Known gaps in the Bun-backed development pipeline remain as executable
+`test.todo` specifications. The standard CI tier skips them because their current
+result depends on file-watcher timing; run
+`FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
+from `packages/core` when reviewing and promoting one of these behaviors. They
+currently cover:
 
 - editing a dynamic import before its first execution serves the old module
 - creating a previously missing import, or restoring a deleted imported component,
@@ -281,8 +284,8 @@ behavior changes without the expectation being reviewed. They currently cover:
 - removing a CSS import does not prune its injected stylesheet
 - CSS Module value imports are undefined in Bun's full-stack development bundle
 
-These expected failures mean the suite is a parity gate, not a claim that parity
-has already been reached. A global reload on every update would hide the gaps but
+These TODOs mean the suite is a parity gate, not a claim that parity has already
+been reached. A global reload on every update would hide the gaps but
 would also discard state for the working Fast Refresh cases, so Furin does not use
 that fallback.
 

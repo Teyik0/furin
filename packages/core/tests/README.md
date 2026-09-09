@@ -83,10 +83,11 @@ gate them behind `FURIN_WEBVIEW_TESTS=1` until the tier is stable in CI. The
 `test:webview` script runs the HMR browser conformance tier, including React
 boundaries, import graphs, error recovery, CSS, route topology, concurrent
 loaders, multi-tab reconnects, multiple prefixed instances, and the
-SSR/SSG/ISR/defer/RSC matrix. Known Bun-backed pipeline gaps use `test.failing`: they
-remain executable and become failures if the expectation unexpectedly starts
-passing, forcing an explicit review and promotion into the supported matrix.
-The longer soak is
+SSR/SSG/ISR/defer/RSC matrix. Timing-sensitive Bun-backed pipeline gaps use
+`test.todo`: they remain executable with
+`FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
+without making the supported matrix depend on whether a gap reproduces on a given
+runner. The longer soak is
 opt-in through `test:hmr:soak`; it performs 2,000 edits by default and reports
 Chrome heap, server RSS, and edit latency samples. Set `FURIN_HMR_SOAK_EDITS`
 to a smaller count for a local smoke test.
