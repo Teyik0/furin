@@ -26,6 +26,7 @@ export function startHmrProxy(listenPort: number, upstreamPort: number): Promise
     server = createServer((client) => {
       client.on("error", ignoreSocketError);
       client.once("data", (firstChunk) => {
+        client.pause();
         const connection: ProxyConnection = {
           client,
           upstream: connect({ host: "127.0.0.1", port: upstreamPort }),
@@ -40,6 +41,7 @@ export function startHmrProxy(listenPort: number, upstreamPort: number): Promise
           connection.upstream.write(firstChunk);
           client.pipe(connection.upstream);
           connection.upstream.pipe(client);
+          client.resume();
         });
       });
     });

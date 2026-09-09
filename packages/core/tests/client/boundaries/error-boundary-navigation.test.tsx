@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { buildRouterTree, type RouterContextValue } from "../../../src/client/link.tsx";
+import {
+  buildRouterTree,
+  type ClientRoute,
+  type LoadedClientRoute,
+  type RouterContextValue,
+  RouterProvider,
+} from "../../../src/client/link.tsx";
+import type { ErrorProps } from "../../../src/shared/error.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+
+const ROOT_PATH_RE = /^\/$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +39,10 @@ function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): 
 
 function ThrowOnRender(): React.ReactElement {
   throw new Error("boom");
+}
+
+function InitialErrorFallback({ error }: ErrorProps): React.ReactElement {
+  return createElement("p", { "data-testid": "initial-error-message" }, error.message);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -62,6 +75,8 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
           locationSpy.set(v);
         },
         origin: "http://localhost:3000",
+        pathname: "/",
+        search: "",
       }),
       set: locationSpy.set as unknown as (v: string) => void,
     });
@@ -116,5 +131,49 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
     expect(navigateSpy).toHaveBeenCalledTimes(1);
     expect(navigateSpy).toHaveBeenCalledWith("/", { replace: undefined, resetScroll: true });
     expect(locationSpy.set).not.toHaveBeenCalled();
+  });
+
+  test("a partial initial server error exposes a safe message to the route fallback", async () => {
+    const pageRoute = { __type: "FURIN_ROUTE" as const };
+    const route: ClientRoute = {
+      load: async () => ({
+        default: {
+          _route: pageRoute,
+          component: () => createElement("p", null, "page"),
+        },
+      }),
+      pattern: "/",
+      regex: ROOT_PATH_RE,
+    };
+    const initialMatch: LoadedClientRoute = {
+      ...route,
+      component: () => createElement("p", null, "page"),
+      pageRoute,
+      segmentBoundaries: [{ depth: 0, error: InitialErrorFallback }],
+    };
+
+    await act(() => {
+      root.render(
+        createElement(RouterProvider, {
+          autoRefresh: true,
+          basePath: "",
+          defaultPreload: "intent",
+          defaultPreloadDelay: 50,
+          defaultPreloadStaleTime: 30_000,
+          initialData: {},
+          initialDigest: "abc1234567",
+          initialError: { digest: "abc1234567", status: 500 },
+          initialMatch,
+          initialNotFound: undefined,
+          prefetchCacheSize: 50,
+          root: null,
+          routes: [route],
+        })
+      );
+    });
+
+    expect(container.querySelector('[data-testid="initial-error-message"]')?.textContent).toBe(
+      "Something went wrong"
+    );
   });
 });

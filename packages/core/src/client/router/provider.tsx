@@ -93,7 +93,12 @@ export function RouterProvider({
   // the provider boots into the inline not-found UI.
   const [state, setState] = useState<RouterState>(() => ({
     data: initialData,
-    error: initialError,
+    error: initialError
+      ? {
+          ...initialError,
+          message: initialError.message || "Something went wrong",
+        }
+      : undefined,
     head: initialDocumentState?.head,
     match: initialMatch,
     notFound: initialNotFound,

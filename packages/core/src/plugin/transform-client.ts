@@ -210,19 +210,162 @@ function calledHookName(call: AstNode): string | null {
   return null;
 }
 
-function collectClientHookSignature(code: string, filename: string): string[] {
-  const lang = detectLangFromPath(filename);
-  const { program } = parseSource(code, lang);
-  const hooks: string[] = [];
+function routeComponentExpression(program: Program, bindings: Set<string>): AstNode | null {
+  let component: AstNode | null = null;
   walk(program, {
-    CallExpression(call) {
-      const name = calledHookName(call as unknown as AstNode);
+    CallExpression(call, context) {
+      const callee = asAstNode(call.callee);
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.computed === true ||
+        !callee.property ||
+        typeof callee.property !== "object"
+      ) {
+        return;
+      }
+      const property = callee.property as AstNode;
+      const ancestors = context.ancestors() as AstNode[];
+      const routeDeclarator = ancestors.find((ancestor) => {
+        if (ancestor.type !== "VariableDeclarator") {
+          return false;
+        }
+        const identifier = asAstNode(ancestor.id);
+        return identifier?.type === "Identifier" && identifier.name === "route";
+      });
+      if (
+        !(
+          routeDeclarator &&
+          ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
+        ) ||
+        property.type !== "Identifier" ||
+        (property.name !== "page" && property.name !== "layout") ||
+        !chainRootIsDefineRoute(callee.object, bindings, ancestors)
+      ) {
+        return;
+      }
+      const args = call.arguments;
+      component = Array.isArray(args) ? asAstNode(args[0]) : null;
+      context.stop();
+    },
+  });
+  return component;
+}
+
+function localFunction(program: Program, name: string): AstNode | null {
+  let found: AstNode | null = null;
+  walk(program, {
+    Function(node, context) {
+      const functionNode = node as unknown as AstNode;
+      const identifier = asAstNode(functionNode.id);
+      if (identifier?.type === "Identifier" && identifier.name === name) {
+        found = functionNode;
+        context.stop();
+      }
+    },
+    VariableDeclarator(node, context) {
+      const identifier = asAstNode(node.id);
+      const initializer = asAstNode(node.init);
+      if (
+        identifier?.type === "Identifier" &&
+        identifier.name === name &&
+        (initializer?.type === "ArrowFunctionExpression" ||
+          initializer?.type === "FunctionExpression")
+      ) {
+        found = initializer;
+        context.stop();
+      }
+    },
+  });
+  return found;
+}
+
+interface ImportedRouteComponent {
+  end: number;
+  name: string;
+  start: number;
+}
+
+function isImportedBinding(program: Program, name: string): boolean {
+  return program.body.some(
+    (statement) =>
+      statement.type === "ImportDeclaration" &&
+      statement.importKind !== "type" &&
+      (statement.specifiers as unknown as AstNode[]).some(
+        (specifier) => specifier.importKind !== "type" && localName(specifier) === name
+      )
+  );
+}
+
+function sourceText(code: string, node: AstNode | null): string {
+  return node ? code.slice(node.start, node.end) : "";
+}
+
+function hookCallsiteSignature(
+  code: string,
+  call: AstNode,
+  hookName: string,
+  parent: AstNode | null
+): string {
+  let key = parent?.type === "VariableDeclarator" ? sourceText(code, asAstNode(parent.id)) : "";
+  const args = call.arguments;
+  const stateArgument = Array.isArray(args) ? asAstNode(args[0]) : null;
+  const reducerArgument = Array.isArray(args) ? asAstNode(args[1]) : null;
+  if (hookName === "useState" && stateArgument) {
+    key += `(${sourceText(code, stateArgument)})`;
+  } else if (hookName === "useReducer" && reducerArgument) {
+    key += `(${sourceText(code, reducerArgument)})`;
+  }
+  return `${hookName}{${key}}`;
+}
+
+function collectFunctionHookSignature(code: string, component: AstNode): string[] {
+  const hooks: string[] = [];
+  walk(component as never, {
+    CallExpression(call, context) {
+      const callNode = call as unknown as AstNode;
+      const name = calledHookName(callNode);
       if (name) {
-        hooks.push(name);
+        hooks.push(
+          hookCallsiteSignature(code, callNode, name, asAstNode(context.parent as unknown))
+        );
+      }
+    },
+    Function(node, context) {
+      if ((node as unknown as AstNode) !== component) {
+        context.skip();
       }
     },
   });
   return hooks;
+}
+
+function collectClientHookSignature(
+  code: string,
+  filename: string
+): string[] | ImportedRouteComponent | "external" | null {
+  const lang = detectLangFromPath(filename);
+  const { program } = parseSource(code, lang);
+  const componentExpression = routeComponentExpression(
+    program,
+    collectDefineRouteBindings(program)
+  );
+  if (!componentExpression) {
+    return null;
+  }
+  if (componentExpression.type !== "Identifier" || typeof componentExpression.name !== "string") {
+    return collectFunctionHookSignature(code, componentExpression);
+  }
+  const component = localFunction(program, componentExpression.name);
+  if (component) {
+    return collectFunctionHookSignature(code, component);
+  }
+  return isImportedBinding(program, componentExpression.name)
+    ? {
+        end: componentExpression.end,
+        name: componentExpression.name,
+        start: componentExpression.start,
+      }
+    : "external";
 }
 
 export function transformForClient(code: string, filename: string): TransformResult {
@@ -246,13 +389,28 @@ export function transformForClient(code: string, filename: string): TransformRes
   if (removedServerCode) {
     source = deadCodeElimination(source, code, lang);
   }
-  if (routeBindings.size > 0) {
-    const hookSignature = collectClientHookSignature(source.toString(), filename);
+  const transformedCode = source.toString();
+  let hookSignature =
+    routeBindings.size > 0 ? collectClientHookSignature(transformedCode, filename) : null;
+  if (hookSignature && typeof hookSignature === "object" && !Array.isArray(hookSignature)) {
+    source = new MagicString(transformedCode);
+    source.prepend('import { createElement as __furinCreateElement } from "react";\n');
+    source.update(
+      hookSignature.start,
+      hookSignature.end,
+      `(import.meta.hot ? (props) => __furinCreateElement(${hookSignature.name}, props) : ${hookSignature.name})`
+    );
+    hookSignature = [];
+  }
+  if (routeBindings.size > 0 && hookSignature !== null) {
+    const signatureValue = Array.isArray(hookSignature)
+      ? JSON.stringify(hookSignature)
+      : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';
     source.append(`
-if (import.meta.hot) {
+if (import.meta.hot && route?.component) {
   Object.defineProperty(route.component, Symbol.for("furin.hmr.hook-signature"), {
     configurable: true,
-    value: ${JSON.stringify(hookSignature)},
+    value: ${signatureValue},
   });
   import.meta.hot.accept((updatedModule) => {
     const updatedRoute = updatedModule?.route;

@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.4.0-alpha.1",
+  "version": "0.4.0-alpha.2",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
@@ -141,12 +141,12 @@
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
     "@sinclair/typebox": "0.34.52",
-    "@yuku-toolchain/types": "0.9.4",
+    "@yuku-toolchain/types": "0.9.5",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",
-    "seroval": "^1.6.5",
-    "yuku-ast": "0.9.4",
-    "yuku-parser": "0.9.4"
+    "seroval": "^1.6.7",
+    "yuku-ast": "0.9.5",
+    "yuku-parser": "0.9.5"
   },
   "devDependencies": {
     "@types/react": "catalog:",

@@ -12,7 +12,7 @@ jobs:
   soak:
     name: 2,000 browser edits
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout

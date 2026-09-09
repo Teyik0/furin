@@ -15,7 +15,10 @@ const soakTest =
   process.env.FURIN_WEBVIEW_TESTS === "1" && process.env.FURIN_HMR_SOAK_TESTS === "1"
     ? test
     : test.skip;
-const soakEditCount = Number.parseInt(process.env.FURIN_HMR_SOAK_EDITS ?? "2000", 10);
+const soakEditCount = Number(process.env.FURIN_HMR_SOAK_EDITS ?? "2000");
+if (!Number.isSafeInteger(soakEditCount) || soakEditCount < 1) {
+  throw new Error("FURIN_HMR_SOAK_EDITS must be a positive integer");
+}
 
 interface BrowserSnapshot {
   count: string | null;
@@ -145,6 +148,35 @@ function importedChildSource(version: string): string {
     "        Increment child",
     "      </button>",
     "    </section>",
+    "  );",
+    "}",
+  ].join("\n");
+}
+
+function importedRoutePageSource(): string {
+  return [
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { ImportedPage } from "../components/ImportedPage";',
+    'import { route as rootRoute } from "./root";',
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    "  .page(ImportedPage);",
+  ].join("\n");
+}
+
+function importedRouteComponentSource(version: string, includeSecondHook: boolean): string {
+  return [
+    'import { useState } from "react";',
+    "export function ImportedPage() {",
+    "  const [count, setCount] = useState(0);",
+    ...(includeSecondHook ? ['  useState("new-hook");'] : []),
+    "  return (",
+    `    <main data-version="${version}">`,
+    '      <output data-testid="count">{count}</output>',
+    '      <button data-testid="increment" onClick={() => setCount((value) => value + 1)}>',
+    "        Increment",
+    "      </button>",
+    "    </main>",
     "  );",
     "}",
   ].join("\n");
@@ -971,6 +1003,39 @@ browserTest(
 );
 
 browserTest(
+  "an imported route component remounts when its hook signature changes",
+  async () => {
+    const harness = await createBrowserHarness(
+      importedRoutePageSource(),
+      [
+        {
+          contents: importedRouteComponentSource("imported-v1", false),
+          relativePath: "src/components/ImportedPage.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="increment"]');
+
+    writeAppFile(
+      harness.app.path,
+      "src/components/ImportedPage.tsx",
+      importedRouteComponentSource("imported-v2", true)
+    );
+
+    const after = await waitForVersion(harness.view, "imported-v2");
+    expect(after.count).toBe("0");
+    expect(after.documentId).toBe(documentId);
+  },
+  30_000
+);
+
+browserTest(
   "an imported child edit preserves parent and child React state",
   async () => {
     const harness = await createBrowserHarness(
@@ -1147,12 +1212,7 @@ browserTodoTest(
       importedChildSource("restore-v2")
     );
 
-    await Bun.sleep(750);
-    expect(
-      (await harness.view.evaluate(
-        "document.querySelector('[data-testid=\"child-count\"]')?.textContent"
-      )) as string | undefined
-    ).toBe("restore-v2:1");
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "restore-v2:1");
     const after = await readSnapshot(harness.view);
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(documentId);
@@ -1247,14 +1307,8 @@ browserTodoTest(
 
     writeAppFile(harness.app.path, "src/components/LazyChild.tsx", lazyChildSource("unloaded-v2"));
     await waitForHmrFrame(harness);
-    await Bun.sleep(250);
     await harness.view.click('[data-testid="show-lazy"]');
-    await Bun.sleep(500);
-    expect(
-      (await harness.view.evaluate(
-        "document.querySelector('[data-testid=\"child-count\"]')?.textContent"
-      )) as string | undefined
-    ).toBe("unloaded-v2:0");
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "unloaded-v2:0");
   },
   30_000
 );

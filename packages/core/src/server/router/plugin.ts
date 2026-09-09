@@ -98,17 +98,7 @@ async function createLoaderDataResponse(
     });
   }
   if (result.type === "error") {
-    const serialized = await toCrossJSONAsync({
-      __furinError: {
-        digest: computeErrorDigest(result.error),
-        message: result.message,
-        status: result.status,
-      },
-    });
-    return new Response(`${JSON.stringify(serialized)}\n`, {
-      headers: { "content-type": "application/x-ndjson" },
-      status: result.status,
-    });
+    return createRouteDataErrorResponse(result.error, result.message, result.status);
   }
 
   const syncDataWithTitle = withResolvedHead(route, result.syncData);
@@ -134,6 +124,24 @@ async function createLoaderDataResponse(
       ...result.headers,
       "content-type": "application/x-furin-route",
     },
+  });
+}
+
+async function createRouteDataErrorResponse(
+  error: unknown,
+  message: string,
+  status: number
+): Promise<Response> {
+  const serialized = await toCrossJSONAsync({
+    __furinError: {
+      digest: computeErrorDigest(error),
+      message,
+      status,
+    },
+  });
+  return new Response(`${JSON.stringify(serialized)}\n`, {
+    headers: { "content-type": "application/x-ndjson" },
+    status,
   });
 }
 
@@ -273,8 +281,13 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
       const wideEventLog = useLogger();
       wideEventLog.set({ path: rawPath });
 
-      const currentRoutes =
-        typeof routesSource === "function" ? await routesSource() : routesSource;
+      let currentRoutes: ResolvedRoute[];
+      try {
+        currentRoutes = typeof routesSource === "function" ? await routesSource() : routesSource;
+      } catch (error) {
+        wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
+        return createRouteDataErrorResponse(error, "Something went wrong", 500);
+      }
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
         matchRoute = buildRouteMatcher(matchedRoutes);

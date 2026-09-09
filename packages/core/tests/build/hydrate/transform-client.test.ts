@@ -42,8 +42,89 @@ export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
     );
 
     expect(result.code).toContain('Symbol.for("furin.hmr.hook-signature")');
-    expect(result.code).toContain('["useRef","useState"]');
+    expect(result.code).toContain('["useRef{ref}","useState{[count](0)}"]');
     expect(result.code).not.toContain("useServerValue");
+  });
+
+  test("limits the hook signature to the route component", () => {
+    const result = transformForClient(
+      `import { useEffect, useMemo, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Helper() {
+  useEffect(() => undefined, []);
+}
+function Child() {
+  useMemo(() => 1, []);
+  return null;
+}
+function Page() {
+  const [count] = useState(0);
+  return <Child>{count}</Child>;
+}
+export const route = defineRoute().page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('["useState{[count](0)}"]');
+    expect(result.code).not.toContain('["useEffect","useMemo","useState"]');
+  });
+
+  test("changes the hook signature when same-named hook callsites are reordered", () => {
+    const transform = (declarations: string) =>
+      transformForClient(
+        `import { useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+${declarations}
+  return null;
+}
+export const route = defineRoute().page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string[] => {
+      const value = code.match(/value: (\[[^\n]+\])/u)?.[1];
+      if (!value) {
+        throw new Error("Expected an emitted hook signature");
+      }
+      return JSON.parse(value) as string[];
+    };
+
+    const first = signature(
+      transform('  const [first] = useState("first");\n  const [second] = useState("second");')
+    );
+    const reordered = signature(
+      transform('  const [second] = useState("second");\n  const [first] = useState("first");')
+    );
+
+    expect(first).toEqual(['useState{[first]("first")}', 'useState{[second]("second")}']);
+    expect(reordered).not.toEqual(first);
+  });
+
+  test("renders an imported route component through React Fast Refresh", () => {
+    const route = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { ImportedPage } from "../components/imported-page";
+export const route = defineRoute().page(ImportedPage);`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain(
+      "import.meta.hot ? (props) => __furinCreateElement(ImportedPage, props) : ImportedPage"
+    );
+    expect(route.code).toContain("value: []");
+  });
+
+  test("does not inject route HMR code when a module only imports the route builder", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+export function helper() {
+  return defineRoute;
+}`,
+      "helper.ts"
+    );
+
+    expect(result.code).not.toContain("route.component");
+    expect(result.code).not.toContain("import.meta.hot.accept");
   });
 
   test.each(["furin", "@teyik0/furin"])("rewrites separate document imports from %s", (moduleName) => {

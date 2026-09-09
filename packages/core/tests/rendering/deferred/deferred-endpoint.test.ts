@@ -191,6 +191,25 @@ describe("GET /_furin/data", () => {
     expect(res.status).toBe(400);
   });
 
+  test("returns a route-data error when resolving dynamic routes fails", async () => {
+    const app = new Elysia().use(
+      createDataEndpoint(() => Promise.reject(new Error("route refresh failed")))
+    );
+
+    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+
+    expect(res.status).toBe(500);
+    const { syncData } = await parseDeferredNdjson(
+      res.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
+      undefined
+    );
+    expect(syncData.__furinError).toEqual({
+      digest: expect.stringMatching(DIGEST_RE),
+      message: "Something went wrong",
+      status: 500,
+    });
+  });
+
   test("rejects an absolute URL passed in ?path= (open-redirect prevention)", async () => {
     const app = new Elysia().use(createDataEndpoint([]));
 

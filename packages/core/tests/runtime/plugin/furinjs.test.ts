@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Elysia from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import { routeModuleSpecifier } from "../../../src/plugin/routes.ts";
 import type { CompileContext } from "../../../src/server/internal";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { evlogOptionsMock, initLoggerOptionsMock, resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../support/app-fixtures";
 import { runCli } from "../../support/process";
@@ -193,6 +194,105 @@ test.serial("furin() refreshes route types after a topology change", async () =>
     await waitForFileContent(typesPath, '"/settings": typeof import("./src/pages/settings").route');
   } finally {
     await instance.stop();
+  }
+});
+
+test.serial("furin() serves data requests from the watcher-managed route snapshot", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  const importCountKey = `__furin_route_imports_${Date.now()}`;
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      `const importCountKey = ${JSON.stringify(importCountKey)};`,
+      "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
+      "testGlobal[importCountKey] = Number(testGlobal[importCountKey] ?? 0) + 1;",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(() => ({ title: 'Snapshot route' }))",
+      "  .page(({ data }) => <main>{data.title}</main>);",
+    ].join("\n")
+  );
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = await createTestApp({ pagesDir });
+  const importsAfterBoot = Number(
+    (globalThis as typeof globalThis & { [key: string]: unknown })[importCountKey]
+  );
+
+  const first = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+  const second = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+
+  expect(first.status).toBe(200);
+  expect(second.status).toBe(200);
+  expect(
+    Number((globalThis as typeof globalThis & { [key: string]: unknown })[importCountKey])
+  ).toBe(importsAfterBoot);
+});
+
+test.serial("furin() preserves route data while an edited route is invalid", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(() => ({ title: 'Last known good' }))",
+      "  .page(({ data }) => <main>{data.title}</main>);",
+    ].join("\n")
+  );
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
+  const instance = await createTestApp({ pagesDir });
+  instance.listen(0);
+  try {
+    writeAppFile(
+      app.path,
+      "src/pages/broken.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "const selectLayout = () => rootRoute;",
+        "export const route = defineRoute()",
+        '  .config({ layout: selectLayout(), mode: "ssr" })',
+        "  .page(() => null);",
+      ].join("\n")
+    );
+    const deadline = Date.now() + 3000;
+    while (
+      !errorSpy.mock.calls.some(
+        ([message]) => message === "[furin] Failed to refresh route topology"
+      )
+    ) {
+      if (Date.now() >= deadline) {
+        throw new Error("Timed out waiting for the invalid route refresh");
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
+      await Bun.sleep(20);
+    }
+
+    const response = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+    const { syncData } = await parseDeferredNdjson(
+      response.body ??
+        new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
+      undefined
+    );
+
+    expect(response.status).toBe(200);
+    expect(syncData.title).toBe("Last known good");
+  } finally {
+    await instance.stop();
+    errorSpy.mockRestore();
   }
 });
 
