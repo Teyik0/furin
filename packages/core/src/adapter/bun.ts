@@ -322,9 +322,11 @@ export async function buildBunTarget(
     });
 
     await runBunBuild({
+      bytecode: true,
       compile: { outfile },
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
       entrypoints: [entryPath],
+      format: "esm",
       minify: true,
       plugins: [
         productionInstrumentationPlugin(),
@@ -334,6 +336,7 @@ export async function buildBunTarget(
         environmentGuardPlugin("ssr"),
       ],
       sourcemap: "none",
+      target: "bun",
     });
 
     console.log(`[furin] Server binary: ${outfile}`);

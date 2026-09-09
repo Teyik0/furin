@@ -54,11 +54,15 @@ function runPluginSetups(plugins: Bun.BunPlugin[] | undefined): void {
  * Used by both build-cli.test.ts and adapter-bun.test.ts to avoid spawning
  * an actual Bun bundler process during unit tests.
  */
-export function withBuildStub<T>(run: () => Promise<T>): Promise<T> {
+export function withBuildStub<T>(
+  run: () => Promise<T>,
+  onBuild?: (config: Bun.BuildConfig) => void
+): Promise<T> {
   let buildCallCount = 0;
 
   const build = ((config) => {
     const { compile, outdir, plugins } = config as Bun.BuildConfig;
+    onBuild?.(config as Bun.BuildConfig);
     runPluginSetups(plugins);
     const outfile = typeof compile === "object" ? compile.outfile : undefined;
     if (typeof outfile === "string") {

@@ -97,6 +97,31 @@ describe.serial("buildBunTarget Bun branches", () => {
     await expectCompileAssets("embed", false);
   });
 
+  test("compiled server builds use ESM bytecode", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const buildConfigs: Bun.BuildConfig[] = [];
+
+    await withBuildStub(
+      () =>
+        buildBunTarget(
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          app.path,
+          join(app.path, ".furin/build"),
+          join(app.path, "src/server.ts"),
+          { compile: "server", target: "bun" }
+        ),
+      (config) => {
+        buildConfigs.push(config);
+      }
+    );
+
+    const serverBuild = buildConfigs.find((config) => config.compile !== undefined);
+    expect(serverBuild?.bytecode).toBe(true);
+    expect(serverBuild?.format).toBe("esm");
+    expect(serverBuild?.target).toBe("bun");
+  });
+
   test("client-only builds do not emit an RSC manifest", async () => {
     const app = trackedTmpApp("cli-app");
     writeFileSync(

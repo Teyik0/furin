@@ -2,8 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateCompileEntry } from "../../../src/build/compile-entry";
-import { runCli } from "../../support/process";
 import { createTmpApp, removeAppPath } from "../../support/app-fixtures";
+import { getTestPort, waitForHttp } from "../../support/http";
+import { runCli, startProcess } from "../../support/process";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
 
@@ -31,7 +32,7 @@ describe.serial("compile: embed", () => {
     expect(result.stderr + result.stdout).toContain("server.ts");
   });
 
-  test("CLI build --compile embed writes a single server binary", async () => {
+  test("CLI build --compile embed writes a runnable single server binary", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
     const result = await runCli(["build", "--compile", "embed"], { cwd: app.path });
@@ -54,7 +55,22 @@ describe.serial("compile: embed", () => {
     ]) {
       expect(existsSync(join(targetDir, file))).toBe(false);
     }
-  });
+
+    const port = getTestPort();
+    const server = startProcess([serverBin], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    try {
+      const response = await waitForHttp(`http://127.0.0.1:${port}/`, {
+        timeoutMs: 10_000,
+      });
+      expect(await response.text()).toContain("Home page");
+    } finally {
+      server.kill();
+      await server.exitCode;
+    }
+  }, 20_000);
 
   test("CLI build --compile=embed writes a single server binary", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
@@ -69,7 +85,7 @@ describe.serial("compile: embed", () => {
 
     expect(existsSync(serverBin)).toBe(true);
     expect(existsSync(join(targetDir, "client"))).toBe(false);
-  });
+  }, 20_000);
 
   test("CLI build rejects unknown flags", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));

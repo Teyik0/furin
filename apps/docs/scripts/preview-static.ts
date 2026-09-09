@@ -9,90 +9,77 @@
  * Usage: bun run preview:static
  */
 import { existsSync } from "node:fs";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 
-const distDir = join(import.meta.dir, "../dist");
-const basePath = "/furin";
-const port = 3012;
-
-const MIME: Record<string, string> = {
-  ".css": "text/css",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpg": "image/jpeg",
-  ".js": "application/javascript",
-  ".json": "application/json",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-};
-
-function mime(filePath: string): string {
-  return MIME[extname(filePath)] ?? "application/octet-stream";
+interface StaticPreviewOptions {
+  basePath: string;
+  distDir: string;
+  port: number;
 }
 
-function serveFile(filePath: string, status: number): Response {
-  const file = Bun.file(filePath);
-  return new Response(file, {
-    headers: { "content-type": mime(filePath) },
-    status,
+const TRAILING_SLASHES_RE = /\/+$/;
+
+export function startStaticPreview({ basePath, distDir, port }: StaticPreviewOptions) {
+  const normalizedBasePath = basePath.replace(TRAILING_SLASHES_RE, "");
+  const faviconPath = join(distDir, "favicon.ico");
+  const indexPath = join(distDir, "index.html");
+  const notFoundPath = join(distDir, "404.html");
+
+  function notFound(): Response {
+    return new Response(Bun.file(notFoundPath), { status: 404 });
+  }
+
+  const redirectToBasePath = (request: Request) =>
+    Response.redirect(new URL(`${normalizedBasePath}/`, request.url), 302);
+  const rootRoutes = normalizedBasePath
+    ? {
+        [normalizedBasePath]: redirectToBasePath,
+        "/": redirectToBasePath,
+      }
+    : { "/": Bun.file(indexPath) };
+
+  return Bun.serve({
+    async fetch(request) {
+      const url = new URL(request.url);
+      const { pathname } = url;
+      if (!pathname.startsWith(`${normalizedBasePath}/`)) {
+        return notFound();
+      }
+
+      const logicalPath = pathname.slice(normalizedBasePath.length);
+      const exactFile = Bun.file(join(distDir, logicalPath));
+      if (!logicalPath.endsWith("/") && (await exactFile.exists())) {
+        return new Response(exactFile);
+      }
+
+      const indexFile = Bun.file(join(distDir, logicalPath, "index.html"));
+      if (await indexFile.exists()) {
+        if (!pathname.endsWith("/")) {
+          url.pathname = `${pathname}/`;
+          return Response.redirect(url, 302);
+        }
+        return new Response(indexFile);
+      }
+
+      return notFound();
+    },
+    port,
+    routes: {
+      [`${normalizedBasePath}/_client/*`]: { dir: join(distDir, "_client") },
+      "/favicon.ico": existsSync(faviconPath) ? Bun.file(faviconPath) : notFound(),
+      ...rootRoutes,
+    },
   });
 }
 
-Bun.serve({
-  async fetch(req) {
-    const url = new URL(req.url);
-    const { pathname } = url;
+if (import.meta.main) {
+  const distDir = join(import.meta.dir, "../dist");
+  const basePath = "/furin";
+  const port = 3012;
+  startStaticPreview({ basePath, distDir, port });
 
-    // Redirect bare root → basePath
-    if (pathname === "/" || pathname === "") {
-      return Response.redirect(`${url.origin}${basePath}/`, 302);
-    }
-
-    // Serve favicon.ico from dist root even when requested without basePath
-    // (browsers always fetch /favicon.ico at the domain root)
-    if (pathname === "/favicon.ico") {
-      const faviconPath = join(distDir, "favicon.ico");
-      if (existsSync(faviconPath)) {
-        return serveFile(faviconPath, 200);
-      }
-    }
-
-    // Strip basePath prefix
-    let logical: string;
-    if (pathname.startsWith(`${basePath}/`)) {
-      logical = pathname.slice(basePath.length); // e.g. "/docs/routing"
-    } else if (pathname === basePath) {
-      logical = "/";
-    } else {
-      // Path outside basePath — serve 404 shell (mirrors GitHub Pages)
-      return serveFile(join(distDir, "404.html"), 404);
-    }
-
-    // Try exact file first (e.g. /_client/_hydrate.js)
-    const exactPath = join(distDir, logical);
-    if (existsSync(exactPath) && !exactPath.endsWith("/")) {
-      const stat = Bun.file(exactPath);
-      if (await stat.exists()) {
-        return serveFile(exactPath, 200);
-      }
-    }
-
-    // Try directory index (e.g. /docs/routing → dist/docs/routing/index.html)
-    const indexPath = join(distDir, logical, "index.html");
-    if (existsSync(indexPath)) {
-      return serveFile(indexPath, 200);
-    }
-
-    // SPA fallback — serve 404.html shell so client-side router can take over
-    return serveFile(join(distDir, "404.html"), 404);
-  },
-  port,
-});
-
-console.log("\x1b[32m◆\x1b[0m Preview server ready");
-console.log(`  Local:  http://localhost:${port}${basePath}/`);
-console.log(`  Serves: ${distDir}`);
-console.log("  Press Ctrl+C to stop\n");
+  console.log("\x1b[32m◆\x1b[0m Preview server ready");
+  console.log(`  Local:  http://localhost:${port}${basePath}/`);
+  console.log(`  Serves: ${distDir}`);
+  console.log("  Press Ctrl+C to stop\n");
+}
