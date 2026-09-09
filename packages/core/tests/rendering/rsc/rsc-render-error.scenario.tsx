@@ -1,5 +1,6 @@
 import type { Context } from "elysia";
 import { createContext, createElement, useContext } from "react";
+import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { createCompositeComponent, FurinRscRenderError } from "../../../src/rsc.tsx";
 import { renderSSR } from "../../../src/server/render/index.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
@@ -37,7 +38,13 @@ const root = {
   path: "/root.tsx",
   route: {
     __type: "FURIN_ROUTE",
-    layout: ({ children }) => createElement("html", null, createElement("body", null, children)),
+    layout: ({ children }) =>
+      createElement(
+        "html",
+        null,
+        createElement("head", null, createElement(HeadContent)),
+        createElement("body", null, children, createElement(Scripts))
+      ),
   },
 } satisfies RootLayout;
 const context = {

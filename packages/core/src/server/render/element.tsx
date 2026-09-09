@@ -4,7 +4,7 @@ import { DefaultErrorFallback, DefaultNotFoundFallback } from "../../client/defa
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { FurinNotFoundError, NotFoundComponent } from "../../shared/not-found.ts";
-import type { ResolvedRoute, SegmentBoundary } from "../router/index.ts";
+import type { ResolvedRoute, SegmentBoundary } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
 
 export function buildElement(
@@ -48,6 +48,18 @@ export function buildElement(
   }
 
   return element;
+}
+
+export function wrapRootLayout(
+  element: ReactNode,
+  data: Record<string, unknown>,
+  rootLayout: RuntimeRoute
+): ReactNode {
+  if (!rootLayout.layout) {
+    return element;
+  }
+  const RootLayoutComponent = rootLayout.layout;
+  return <RootLayoutComponent {...data}>{element}</RootLayoutComponent>;
 }
 
 export function buildNotFoundElement(

@@ -1,0 +1,2 @@
+[serve.static]
+plugins = ["@teyik0/furin/strip-plugin"]

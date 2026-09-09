@@ -1,22 +1,55 @@
 import { expect } from "bun:test";
 import { type Context, Elysia } from "elysia";
-import { createRoute, defer } from "furin/client";
+import { defer } from "furin/client";
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
 import { serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
+import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
 
 type RenderServerComponent = (node: ReactNode) => Promise<ReactNode>;
 
-function asResolvedRoute(route: unknown): ResolvedRoute {
-  return route as ResolvedRoute;
+const rootTerminal = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
+const root = {
+  path: "/root.tsx",
+  route: adaptDefinedLayout(rootTerminal, undefined),
+} satisfies RootLayout;
+
+function resolveRoute(
+  route: Parameters<typeof adaptDefinedPage>[0],
+  path: string,
+  pattern: string
+): ResolvedRoute {
+  const page = adaptDefinedPage(route, root.route);
+  return {
+    mode: page.mode ?? "ssr",
+    page,
+    path,
+    pattern,
+    routeChain: collectRouteChainFromRoute(page._route),
+    segmentBoundaries: [],
+  };
 }
 
 function responseBody(response: Response): ReadableStream<Uint8Array> {
@@ -57,29 +90,11 @@ function createRscRoute(renderServerComponent: RenderServerComponent): {
   resolved: ResolvedRoute;
   root: RootLayout;
 } {
-  const route = createRoute({
-    loader: async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }),
-  });
-  const page = route.page({ component: ({ article }) => <main>{article}</main> });
-  const resolved = asResolvedRoute({
-    mode: "ssr",
-    page,
-    path: "/rsc.tsx",
-    pattern: "/rsc",
-    routeChain: [route],
-    segmentBoundaries: [],
-  });
-  const root = {
-    path: "/root.tsx",
-    route: {
-      __type: "FURIN_ROUTE",
-      layout: ({ children }) => (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      ),
-    },
-  } satisfies RootLayout;
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
+    .page(({ data }) => <main>{data.article}</main>);
+  const resolved = resolveRoute(route, "/rsc.tsx", "/rsc");
   return { resolved, root };
 }
 
@@ -187,19 +202,13 @@ try {
   expect(html).toContain("Flight article");
   expect(html).toContain('id="__FURIN_ROUTE_FRAMES__"');
 
-  const nestedSsrRoute = createRoute({
-    loader: async () => ({
+  const nestedSsrRoute = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader(async () => ({
       content: { article: await renderServerComponent(<h1>SSR Nested Flight article</h1>) },
-    }),
-  });
-  let nestedSsrResolved = asResolvedRoute({
-    mode: "ssr",
-    page: nestedSsrRoute.page({ component: ({ content }) => <main>{content.article}</main> }),
-    path: "/ssr-nested-rsc.tsx",
-    pattern: "/ssr-nested-rsc",
-    routeChain: [nestedSsrRoute],
-    segmentBoundaries: [],
-  });
+    }))
+    .page(({ data: loaderData }) => <main>{loaderData.content.article}</main>);
+  let nestedSsrResolved = resolveRoute(nestedSsrRoute, "/ssr-nested-rsc.tsx", "/ssr-nested-rsc");
   response = await renderSSR(
     nestedSsrResolved,
     createMockContext("/ssr-nested-rsc"),
@@ -222,22 +231,16 @@ try {
   const slow = new Promise<string>((resolve) => {
     resolveSlow = resolve;
   });
-  const route = createRoute({
-    loader: async () =>
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader(async () =>
       defer({
         content: { article: await renderServerComponent(<h1>Nested Flight article</h1>) },
         slow,
-      }),
-  });
-  const page = route.page({ component: () => null });
-  const resolved = asResolvedRoute({
-    mode: "ssr",
-    page,
-    path: "/nested-rsc.tsx",
-    pattern: "/nested-rsc",
-    routeChain: [route],
-    segmentBoundaries: [],
-  });
+      })
+    )
+    .page(() => null);
+  const resolved = resolveRoute(route, "/nested-rsc.tsx", "/nested-rsc");
   app = new Elysia().use(createDataEndpoint([resolved]));
   response = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnested-rsc"));
 
@@ -255,21 +258,16 @@ try {
   resolveSlow("done");
   expect(await parsedRace.deferredPromises.slow).toBe("done");
 
-  const deferredRscRoute = createRoute({
-    loader: async () =>
+  const deferredRscRoute = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader(async () =>
       defer({
         readyArticle: await renderServerComponent(<h1>Ready Flight article</h1>),
         slowArticle: renderServerComponent(<h1>Deferred Flight article</h1>),
-      }),
-  });
-  const deferredRscResolved = asResolvedRoute({
-    mode: "ssr",
-    page: deferredRscRoute.page({ component: () => null }),
-    path: "/deferred-rsc.tsx",
-    pattern: "/deferred-rsc",
-    routeChain: [deferredRscRoute],
-    segmentBoundaries: [],
-  });
+      })
+    )
+    .page(() => null);
+  const deferredRscResolved = resolveRoute(deferredRscRoute, "/deferred-rsc.tsx", "/deferred-rsc");
   app = new Elysia().use(createDataEndpoint([deferredRscResolved]));
   response = await app.handle(new Request("http://localhost/_furin/data?path=%2Fdeferred-rsc"));
   parsedNdjson = await parseDeferredNdjson(responseBody(response), undefined);
@@ -280,23 +278,22 @@ try {
     "<h1>Deferred Flight article</h1>"
   );
 
-  const deferredOnlyRscRoute = createRoute({
-    loader: async () =>
+  const deferredOnlyRscRoute = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader(async () =>
       defer({
         slowArticle: Promise.resolve(
           await renderServerComponent(<h1>SSR Deferred Flight article</h1>)
         ),
         title: "deferred only",
-      }),
-  });
-  nestedSsrResolved = asResolvedRoute({
-    mode: "ssr",
-    page: deferredOnlyRscRoute.page({ component: () => null }),
-    path: "/ssr-deferred-rsc.tsx",
-    pattern: "/ssr-deferred-rsc",
-    routeChain: [deferredOnlyRscRoute],
-    segmentBoundaries: [],
-  });
+      })
+    )
+    .page(() => null);
+  nestedSsrResolved = resolveRoute(
+    deferredOnlyRscRoute,
+    "/ssr-deferred-rsc.tsx",
+    "/ssr-deferred-rsc"
+  );
   response = await renderSSR(
     nestedSsrResolved,
     createMockContext("/ssr-deferred-rsc"),

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { BuildAppOptions } from "../../../src/build/types.ts";
 import { __resetCacheState } from "../../../src/server/cache/index.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
-import { scanPages } from "../../../src/server/router/index.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";

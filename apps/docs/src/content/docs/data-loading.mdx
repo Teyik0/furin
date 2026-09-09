@@ -1,221 +1,139 @@
 # Data Loading
 
-Furin loaders run on the server before rendering. Route loaders live on `createRoute()`, and page loaders live on `route.page()`.
+Furin loaders run on the server before rendering. A route is one `defineRoute()` chain whose terminal is `page()` or `layout()`.
 
-## Route Loader
+## Page Loader
 
-Use `createRoute()` when the data should feed a layout or be shared with child pages.
+Use `loader()` for public data that is serialized into the rendered page.
+
+```tsx
+// src/pages/dashboard/index.tsx
+import { defineRoute } from "@teyik0/furin"
+import { route as parentRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async () => ({
+    stats: await getDashboardStats(),
+  }))
+  .page(({ data: { stats } }) => <Dashboard stats={stats} />)
+```
+
+## Layout Loader
+
+A `_route.tsx` layout can load data for itself and its descendants. `layout` is type-only metadata; filesystem nesting determines the runtime layout tree.
 
 ```tsx
 // src/pages/dashboard/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  loader: async ({ request }) => {
-    const user = await getSession(request)
-    return { user }
-  },
-  layout: ({ children, user }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ request }) => ({
+    user: await getSession(request),
+  }))
+  .layout(({ children, data: { user } }) => (
     <div>
       <DashboardNav user={user} />
       {children}
     </div>
-  ),
-})
+  ))
 ```
 
-## Page Loader
-
-Use `route.page()` when the data is specific to one page.
+A child loader receives every parent field as an individually awaitable promise. This keeps independent loaders parallel.
 
 ```tsx
 // src/pages/dashboard/index.tsx
-import { route } from "./_route"
+import { defineRoute } from "@teyik0/furin"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  loader: async ({ user }) => {
-    // user comes from the parent route loader — await it to access its value
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async ({ user }) => {
     const { id } = await user
-    const stats = await getDashboardStats(id)
-    return { stats }
-  },
-  component: ({ stats, user }) => <Dashboard user={user} stats={stats} />,
-})
+    return { stats: await getDashboardStats(id) }
+  })
+  .page(({ data: { stats, user } }) => <Dashboard stats={stats} user={user} />)
 ```
+
+Use `Promise.all` when a loader needs several parent fields. A single `await` is enough for a deferred parent field because JavaScript promises flatten nested promises.
 
 ## Loader Context
 
-Loaders receive a context object with:
+Loaders receive the Elysia context plus Furin's typed route values:
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `request` | `Request` | the incoming `Request` — direct value |
-| `params` | `TParams` | validated params from `createRoute({ params })` — direct value |
-| `query` | `TQuery` | validated query values from `createRoute({ query })` — direct value |
-| `set`, `headers`, `cookie`, `redirect` | — | server helpers — direct values |
-| _parent data fields_ | `Promise<T>` | each field returned by an ancestor loader is an **individually-awaitable `Promise<T>`** |
+| `request` | `Request` | incoming request |
+| `params` | inferred from `config({ params })` | validated path params |
+| `query` | inferred from `config({ query })` | validated query values |
+| `set`, `headers`, `cookie`, `redirect` | Elysia helpers | request and response controls |
+| parent loader fields | `Promise<T>` | individually awaitable ancestor data |
 
-### Why parent fields are Promises
+## Typed Query
 
-All loaders in the chain start **immediately in parallel**. A child loader receives parent data as a `Promise<T>` so it can:
-
-- **Opt in** to waiting — `const u = await user` — only blocking when it truly needs the value
-- **Parallelize** multiple parent fields — `const [u, o] = await Promise.all([user, org])`
-- **Stay fully parallel** — if it never awaits a parent field it runs concurrently with all others
-
-The flat-merge of results into component props is unchanged — components always receive all data as plain values.
-
-> **Deferred parent fields.** When an ancestor wraps a field with `defer()` (so the raw value is already a `Promise<T>`), the descendant still sees `Promise<T>` — not `Promise<Promise<T>>`. A single `await` is sufficient. The Furin runtime uses standard JS Promise chaining, which auto-flattens, and the types mirror that behaviour.
-
-## Typed Query Schemas
-
-`query` belongs to `createRoute()`, not `route.page()`.
+`config()` accepts a query schema without requiring a params schema.
 
 ```tsx
-// src/pages/search/_route.tsx
+import { defineRoute } from "@teyik0/furin"
 import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
-import { route as rootRoute } from "../root"
+import { route as parentRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  query: t.Object({
-    page: t.Optional(t.Number({ default: 1 })),
-    tag: t.Optional(t.String()),
-  }),
-})
+export const route = defineRoute()
+  .config({
+    layout: parentRoute,
+    mode: "ssr",
+    query: t.Object({
+      page: t.Optional(t.Number({ default: 1 })),
+      tag: t.Optional(t.String()),
+    }),
+  })
+  .loader(async ({ query }) => ({
+    posts: await db.getPosts(query),
+  }))
+  .page(({ data: { posts }, query }) => <PostList page={query.page} posts={posts} />)
 ```
 
-```tsx
-// src/pages/search/index.tsx
-import { route } from "./_route"
-
-export default route.page({
-  loader: async ({ query }) => {
-    const posts = await db.getPosts(query)
-    return { posts }
-  },
-  component: ({ posts }) => <PostList posts={posts} />,
-})
-```
-
-### Query schema merging across the route chain
-
-When a route inherits from multiple `_route.tsx` files (layout chain), their `query` schemas are merged into a single search type for that route. The generated `furin-env.d.ts` reflects the union of all query fields in the chain.
-
-```tsx
-// src/pages/products/_route.tsx
-export const route = createRoute({
-  parent: rootRoute,
-  query: t.Object({ sort: t.Optional(t.String()) }),
-});
-
-// src/pages/products/index.tsx
-export default route.page({
-  query: t.Object({ page: t.Optional(t.Number({ default: 1 })) }),
-  // generated search type: { sort?: string; page: number }
-});
-```
-
-> **Merging rules.** All query schemas in the chain must be TypeBox objects. Mixing a non-TypeBox schema (e.g. a plain Zod object) with a TypeBox parent or child throws a clear error during the build process.
-
-### Default values in generated types
-
-Query fields declared with a non-null `default` are emitted as **required** properties in `furin-env.d.ts`. The runtime still validates them as optional (falling back to the default), but the type system reflects the guaranteed presence after Elysia validation.
-
-```tsx
-query: t.Object({
-  page: t.Optional(t.Number({ default: 1 })), // emitted as `page: number`
-  tag: t.Optional(t.String()),                 // emitted as `tag?: string`
-})
-```
+Query schemas from nested layouts and the page are merged in the generated `RouteMap`. Fields with a non-null default are required after Elysia validation; optional fields without a default remain optional.
 
 ## Typed Params
 
-Params are also declared on `createRoute()`.
+Every dynamic segment must be covered by the local params schema. Generation fails before writing artifacts when the path and schema drift.
 
 ```tsx
+import { defineRoute } from "@teyik0/furin"
 import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  params: t.Object({
-    slug: t.String(),
-  }),
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })
+  .loader(({ params }) => getPost(params.slug).then((post) => ({ post })))
+  .page(({ data: { post } }) => <article>{post.title}</article>)
 ```
 
-## Awaiting Parent Data
+## Request-Specific Data
 
-When a child loader depends on data returned by an ancestor, it awaits the relevant field(s).
-
-### Simple await
+For SSG, ISR, or PPR data that must never enter the public loader payload, put `requestLoader()` before `loader()`. Its result is exposed separately as `requestData`.
 
 ```tsx
-// src/pages/dashboard/posts/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
-import { route as dashboardRoute } from "../_route"
+import { Suspense, use } from "react"
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: dashboardRoute,
-  loader: async ({ user }) => {
-    // user is Promise<{ id: string; name: string }>
-    const { id } = await user
-    return {
-      posts: await getPostsForUser(id),
-    }
-  },
-})
-```
-
-### Parallel await with `Promise.all`
-
-When a loader needs multiple parent fields, await them in parallel:
-
-```tsx
-export const route = createRoute({
-  parent: teamRoute,
-  loader: async ({ user, org }) => {
-    // Start both Promises simultaneously
-    const [{ id }, { plan }] = await Promise.all([user, org])
-    return { canEdit: plan === "pro" || id === "admin" }
-  },
-})
-```
-
-### No await — fully parallel
-
-A loader that doesn't need parent data at all starts immediately with zero waiting:
-
-```tsx
-export default route.page({
-  loader: async ({ params }) => ({
-    analytics: await getAnalytics(params.id), // runs fully in parallel
-  }),
-})
-```
-
-## Redirects And Status
-
-You can return a redirect from a loader.
-
-```tsx
-export const route = createRoute({
-  loader: async ({ request, redirect }) => {
-    const user = await getSession(request)
-    if (!user) {
-      return redirect("/login", 302)
-    }
-
-    return { user }
-  },
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .requestLoader(async ({ cookies }) => ({
+    session: await readSession(cookies),
+  }))
+  .loader(() => ({ title: "Dashboard" }))
+  .page(({ data: { title }, requestData }) => (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <Dashboard session={use(requestData).session} title={title} />
+    </Suspense>
+  ))
 ```
 
 ## Deferred Data
 
-For slow data that should stream after the initial shell, see [Deferred Data Streaming](/docs/defer). `defer()` works in **any** loader — page (`route.page({ loader })`) and route/layout (`createRoute({ loader })`).
+Use `defer()` inside `loader()` for public fields that should stream after the initial shell. See [Deferred Data Streaming](/docs/defer).

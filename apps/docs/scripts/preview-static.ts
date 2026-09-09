@@ -39,11 +39,6 @@ export function startStaticPreview({ basePath, distDir, port }: StaticPreviewOpt
     : { "/": Bun.file(indexPath) };
 
   return Bun.serve({
-    routes: {
-      [`${normalizedBasePath}/_client/*`]: { dir: join(distDir, "_client") },
-      "/favicon.ico": existsSync(faviconPath) ? Bun.file(faviconPath) : notFound(),
-      ...rootRoutes,
-    },
     async fetch(request) {
       const url = new URL(request.url);
       const { pathname } = url;
@@ -69,6 +64,11 @@ export function startStaticPreview({ basePath, distDir, port }: StaticPreviewOpt
       return notFound();
     },
     port,
+    routes: {
+      [`${normalizedBasePath}/_client/*`]: { dir: join(distDir, "_client") },
+      "/favicon.ico": existsSync(faviconPath) ? Bun.file(faviconPath) : notFound(),
+      ...rootRoutes,
+    },
   });
 }
 

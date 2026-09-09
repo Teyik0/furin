@@ -4,13 +4,13 @@ import { PollingSyncNotifier } from "../../../src/server/sync/notifier.ts";
 
 function adapterWithCursor(currentCursor: () => Promise<string>): SyncAdapter {
   return {
-    scope: "distributed",
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
     currentCursor,
     readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
   };
 }
 

@@ -5,9 +5,9 @@ import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
 import { runLoaders, runPublicLoaders } from "../../../src/server/render/loaders.ts";
-import type { ResolvedRoute } from "../../../src/server/router/index.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
-import { evlogErrorMock } from "../../setup/evlog-mock.ts";
+import { evlogErrorMock, evlogWarnMock } from "../../setup/evlog-mock.ts";
 
 const CACHED_PUBLIC_LOADERS_RE = /Cached public loaders/;
 
@@ -33,6 +33,8 @@ describe("runLoaders requestLoader", () => {
     const route = {
       mode: "ssr",
       page: {},
+      path: "/parallel.tsx",
+      pattern: "/parallel",
       routeChain: [
         {
           __type: "FURIN_ROUTE",
@@ -48,8 +50,6 @@ describe("runLoaders requestLoader", () => {
           },
         },
       ],
-      path: "/parallel.tsx",
-      pattern: "/parallel",
       segmentBoundaries: [],
     } as unknown as ResolvedRoute;
 
@@ -83,11 +83,94 @@ describe("runLoaders requestLoader", () => {
     }
   });
 
+  test("rejects loader data keys that would be shadowed by the route context", async () => {
+    for (const reservedKey of ["params", "query", "path"]) {
+      const route = {
+        mode: "ssr",
+        page: {
+          loader: () => ({ [reservedKey]: "dead-on-arrival" }),
+        },
+        path: `/${reservedKey}-shadow.tsx`,
+        pattern: `/${reservedKey}-shadow`,
+        routeChain: [],
+        segmentBoundaries: [],
+      } as unknown as ResolvedRoute;
+
+      // biome-ignore lint/performance/noAwaitInLoops: parametrised contract check
+      const result = await runLoaders(route, createMockLoaderContext({ path: "/shadow" }));
+
+      expect(result.type).toBe("error");
+      if (result.type === "error") {
+        expect(result.error).toBeInstanceOf(Error);
+        expect((result.error as Error).message).toContain(`"${reservedKey}" is reserved`);
+      }
+    }
+  });
+
+  test("warns in dev when a deeper loader overwrites a parent loader key", async () => {
+    __setDevMode(true);
+    evlogWarnMock.mockClear();
+    try {
+      const route = {
+        mode: "ssr",
+        page: {
+          // Awaiting a parent field forces the accumulation chain (and its
+          // collision warning) to settle before runLoaders resolves.
+          loader: async ({ user }: { user: Promise<string> }) => ({
+            greeting: `hello ${await user}`,
+          }),
+        },
+        path: "/collision.tsx",
+        pattern: "/collision",
+        routeChain: [{ loader: () => ({ user: "parent" }) }, { loader: () => ({ user: "child" }) }],
+        segmentBoundaries: [],
+      } as unknown as ResolvedRoute;
+
+      const result = await runLoaders(route, createMockLoaderContext({ path: "/collision" }));
+      expect(result.type).toBe("data");
+
+      expect(evlogWarnMock).toHaveBeenCalled();
+      const message = evlogWarnMock.mock.calls.map((call) => String(call[0])).join("\n");
+      expect(message).toContain('"user"');
+      expect(message).toContain("/collision");
+    } finally {
+      __setDevMode(false);
+    }
+  });
+
+  test("does not warn when parent and child loader keys are disjoint", async () => {
+    __setDevMode(true);
+    evlogWarnMock.mockClear();
+    try {
+      const route = {
+        mode: "ssr",
+        page: {
+          loader: async ({ user, org }: { user: Promise<string>; org: Promise<string> }) => ({
+            both: `${await user}/${await org}`,
+          }),
+        },
+        path: "/disjoint.tsx",
+        pattern: "/disjoint",
+        routeChain: [{ loader: () => ({ user: "parent" }) }, { loader: () => ({ org: "child" }) }],
+        segmentBoundaries: [],
+      } as unknown as ResolvedRoute;
+
+      const result = await runLoaders(route, createMockLoaderContext({ path: "/disjoint" }));
+      expect(result.type).toBe("data");
+
+      expect(evlogWarnMock).not.toHaveBeenCalled();
+    } finally {
+      __setDevMode(false);
+    }
+  });
+
   test("runs private data once with a read-only request context", async () => {
     let calls = 0;
     const route = {
       mode: "ssr",
       page: {},
+      path: "/with-loader.tsx",
+      pattern: "/with-loader",
       routeChain: [
         {
           __type: "FURIN_ROUTE",
@@ -99,8 +182,6 @@ describe("runLoaders requestLoader", () => {
           },
         },
       ],
-      path: "/with-loader.tsx",
-      pattern: "/with-loader",
       segmentBoundaries: [],
     } as unknown as ResolvedRoute;
     const context = createMockLoaderContext({

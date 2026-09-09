@@ -23,12 +23,10 @@ export function getFreePort(): Promise<number> {
 }
 
 /**
- * Matches the Bun dev-server's content-hashed client entry script URL
- * (e.g. `/_bun/client/index-0000000089848f40.js`).  Used by HMR tests to
- * detect that a server response embeds the LATEST chunk URL — proving the
- * shell template was re-assembled fresh after a rebundle.
+ * Matches Bun's content-hashed dev entry script URL. Bun 1.3 emitted
+ * `/_bun/client/index-<hash>.js`; Bun 1.4 emits `/chunk-<hash>.js`.
  */
-export const DEV_CLIENT_CHUNK_RE = /\/_bun\/client\/index-[^"]+\.js/;
+export const DEV_CLIENT_CHUNK_RE = /\/(?:_bun\/client\/index|chunk)-[^"]+\.js/;
 
 /**
  * Extracts the dev-server client entry chunk URL from a rendered HTML

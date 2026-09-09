@@ -1,182 +1,102 @@
 # Deferred Data
 
-Furin supports **deferred data streaming** — returning a mix of synchronous values and Promises from a page loader so the HTML shell can be sent immediately while slow data streams in later.
-
-## Why defer?
-
-In a standard loader, every `await` blocks the entire render. If one query takes 600 ms, the user sees a blank page until everything resolves.
-
-With `defer()`, scalar fields are embedded in the initial HTML shell immediately, and `Promise`-valued fields are streamed as late `<script>` chunks that resolve on the client. The shell renders instantly; slow data populates when ready.
+Furin supports deferred streaming from `loader()`: synchronous values enter the initial HTML shell while promise-valued fields resolve in later chunks.
 
 ## Using `defer()`
 
-`defer()` is available from `@teyik0/furin/client`. It wraps the loader return value and tells Furin to split scalar fields from Promise fields.
+`defer()` and `<Await>` are client-safe exports. The route builder itself comes from the server entry.
 
 ```tsx
 // src/pages/dashboard/index.tsx
-import { defer } from "@teyik0/furin/client"
-import { route } from "./_route"
+import { defineRoute } from "@teyik0/furin"
+import { Await, defer } from "@teyik0/furin/client"
+import { Suspense } from "react"
+import { route as rootRoute } from "../root"
 
-export default route.page({
-  loader: async () => {
-    const fast = { title: "Dashboard" }
-    const slow = fetchAnalytics()
-
-    return defer({
-      ...fast,
-      stats: slow, // Promise — streamed later
-    })
-  },
-  component: ({ title, stats }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async () => {
+    const title = "Dashboard"
+    const stats = fetchAnalytics()
+    return defer({ stats, title })
+  })
+  .page(({ data: { stats, title } }) => (
     <div>
       <h1>{title}</h1>
       <Suspense fallback={<Spinner />}>
         <Await resolve={stats}>
-          {(data) => <AnalyticsChart data={data} />}
+          {(value) => <AnalyticsChart data={value} />}
         </Await>
       </Suspense>
     </div>
-  ),
-})
+  ))
 ```
 
-## `<Await>`
+`<Await>` uses React's `use()` internally. It must be inside a `<Suspense>` boundary.
 
-`<Await>` consumes a deferred Promise. It uses React 19's `use()` to suspend the boundary until the Promise settles, then calls the render-prop `children` with the resolved value.
+## Error Handling
 
-```tsx
-import { Await } from "@teyik0/furin/client"
-
-<Await resolve={stats}>
-  {(data) => <AnalyticsChart data={data} />}
-</Await>
-```
-
-`<Await>` **must** be wrapped in a `<Suspense>` boundary so React has a fallback to show while the Promise is pending.
-
-## Error handling
-
-When a deferred Promise rejects, `<Await>` catches it with an internal error boundary. Provide `errorElement` to render a fallback:
+Provide `errorElement` for a local fallback. `useAsyncError()` reads the rejection inside that fallback.
 
 ```tsx
-<Await resolve={stats} errorElement={<ErrorCard />}>
-  {(data) => <AnalyticsChart data={data} />}
-</Await>
-```
-
-Inside `errorElement`, call `useAsyncError()` to read the rejection reason:
-
-```tsx
-import { useAsyncError } from "@teyik0/furin/client"
+import { Await, useAsyncError } from "@teyik0/furin/client"
 
 function ErrorCard() {
   const error = useAsyncError()
   return <p>Failed to load stats: {String(error)}</p>
 }
-```
 
-If `errorElement` is omitted, the error propagates to the nearest React error boundary.
-
-## `useAsyncValue()`
-
-As an alternative to the render-prop API, you can use `useAsyncValue()` inside a component rendered as children of `<Await>`:
-
-```tsx
-import { Await, useAsyncValue } from "@teyik0/furin/client"
-
-function Chart() {
-  const data = useAsyncValue<AnalyticsData>()
-  return <AnalyticsChart data={data} />
-}
-
-<Await resolve={stats} errorElement={<ErrorCard />}>
-  <Chart />
+<Await errorElement={<ErrorCard />} resolve={stats}>
+  {(value) => <AnalyticsChart data={value} />}
 </Await>
 ```
 
-## Deferring in layouts
+Without `errorElement`, the rejection propagates to the nearest React error boundary. `useAsyncValue<T>()` is available when a child component is more convenient than the render-prop form.
 
-`defer()` works in any loader of the route tree — page **and** layout/route loaders defined via `createRoute({ loader })`. A layout can ship its shell (nav, sidebar) immediately while a slow widget streams in the background:
+## Layout Loaders
+
+The same contract applies to layouts.
 
 ```tsx
-// src/pages/dashboard/_route.tsx
-import { createRoute, defer } from "@teyik0/furin/client"
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+import { Await, defer } from "@teyik0/furin/client"
 import { Suspense } from "react"
-import { Await } from "@teyik0/furin/client"
 
-export const route = createRoute({
-  loader: () =>
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(() =>
     defer({
-      user: "alice",                  // sync — embedded in the initial shell
-      widgets: fetchSidebarWidgets(), // Promise — streamed when it resolves
-    }),
-  layout: ({ children, user, widgets }) => (
-    <div>
-      <nav>Hello {user}</nav>
-      <aside>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <Await resolve={widgets}>
-            {(list) => <WidgetList widgets={list} />}
-          </Await>
-        </Suspense>
-      </aside>
-      <main>{children}</main>
-    </div>
-  ),
-})
-```
-
-The deferred field is exposed to the `layout` component as a `Promise`, exactly like a deferred field would be exposed to a page component. Promises from layouts and pages are streamed together — there is no separate transport.
-
-If both a layout and its page `defer()` a field with the same key, the page wins (last-spread semantics), matching the merge order used for synchronous loader data.
-
-## Important restrictions
-
-- **Always wrap `<Await>` in `<Suspense>`** — without a Suspense boundary, React has no fallback to render during the pending phase.
-- **SPA navigation** — deferred Promises are also supported on client-side navigation; Furin fetches them via `/_furin/data` and reconstructs the same Promise-based props.
-
-## Full example
-
-```tsx
-// src/pages/board/[id].tsx
-import { defer, Await } from "@teyik0/furin/client"
-import { route } from "./_route"
-import { Suspense } from "react"
-
-export default route.page({
-  loader: async ({ params }) => {
-    const board = await getBoard(params.id)        // fast — blocks render
-    const comments = fetchComments(params.id)        // slow — deferred
-
-    return defer({
-      board,
-      comments,
+      user: "alice",
+      widgets: fetchSidebarWidgets(),
     })
-  },
-
-  component: ({ board, comments }) => (
-    <div>
-      <h1>{board.name}</h1>
-      <Suspense fallback={<p>Loading comments…</p>}>
-        <Await
-          resolve={comments}
-          errorElement={<p>Could not load comments.</p>}
-        >
-          {(list) => <CommentList comments={list} />}
-        </Await>
-      </Suspense>
-    </div>
-  ),
-})
+  )
+  .layout(({ children, data: { user, widgets } }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <nav>Hello {user}</nav>
+        <Suspense fallback={<WidgetSkeleton />}>
+          <Await resolve={widgets}>{(value) => <WidgetList widgets={value} />}</Await>
+        </Suspense>
+        <main>{children}</main>
+        <Scripts />
+      </body>
+    </html>
+  ))
 ```
 
-## Limitations
+Layout and page promises share the same transport. If both loaders return the same key, the page value wins, matching the synchronous merge order.
 
-- **`defer()` is SSR-only.** A loader that returns `defer()` on a route rendered in `ssg` or `isr` mode throws an error: the HTML is pre-rendered and cached, so the deferred fields would be missing from the hydration payload and `<Await>` would crash on the client. Either return the data directly (await it inside the loader) or switch the route to SSR mode.
+## Restrictions
 
-## Comparison
+- Always wrap `<Await>` in `<Suspense>`.
+- SPA navigation reconstructs the same promise-valued `data` contract through `/_furin/data`.
+- `defer()` is SSR-only. SSG and ISR routes must await public loader data or use `requestLoader()` for per-request sections below Suspense.
 
 | Approach | When to use |
-|----------|-------------|
-| Normal loader | All data is fast (< 50 ms) or required before any paint |
-| `defer()` | Some data is slow and can appear after the shell |
+| --- | --- |
+| Normal loader | all public data is needed before paint |
+| `defer()` | some SSR data can stream after the shell |
+| `requestLoader()` | data is request-specific and must stay out of a cached shell |

@@ -228,13 +228,13 @@ async function buildTaskQueue(
     // would throw out of `for...of` and abort the entire build.
     if (!Array.isArray(result.paramSets)) {
       console.error(
-        `[furin] static: staticParams() for "${result.route.pattern}" returned a non-array value; skipping route.`
+        `[furin] static: staticParams() for "${pattern}" returned a non-array value; skipping route.`
       );
-      skippedRoutes.push(result.route.pattern);
+      skippedRoutes.push(pattern);
       continue;
     }
     for (const params of result.paramSets) {
-      const urlPath = resolvePath(result.route.pattern, params);
+      const urlPath = resolvePath(pattern, params);
       pathToOutputFile(urlPath, outDir, "index.html");
       tasks.push(() =>
         prerenderAndWrite(
@@ -389,6 +389,7 @@ export async function buildStaticTarget(
     basePath,
     clientLogging: Boolean(options.clientLogging),
     outDir: targetDir,
+    pagesDir: dirname(root.path),
     plugins: options.plugins,
     publicPath,
     rootLayout: root.path,

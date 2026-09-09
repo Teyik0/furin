@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { fileURLToPath } from "node:url";
 import { SQL } from "bun";
 
 const databaseUrl = process.env.FURIN_SYNC_POSTGRES_URL;
@@ -8,8 +9,8 @@ if (databaseUrl === undefined || databaseUrl.length === 0) {
 
 const sql = new SQL(databaseUrl);
 try {
-  const migration = await Bun.file(new URL("./migration.sql", import.meta.url)).text();
-  await sql.unsafe(migration);
+  const migrationUrl = new URL("./migration.sql", import.meta.url);
+  await sql.file(fileURLToPath(migrationUrl));
 } finally {
   await sql.close();
 }

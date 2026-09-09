@@ -1,17 +1,11 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
-const isrRoute = createRoute({
-  loader: async () => ({ timestamp: Date.now() }),
-  mode: "isr",
-  parent: rootRoute,
-  revalidate: 60,
-});
-
-export default isrRoute.page({
-  component: ({ timestamp }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .loader(async () => ({ timestamp: Date.now() }))
+  .page(({ data: { timestamp } }) => (
     <div data-testid="isr-page" data-timestamp={String(timestamp)}>
       ISR Page
     </div>
-  ),
-});
+  ));

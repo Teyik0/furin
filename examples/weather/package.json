@@ -1,15 +1,15 @@
 {
   "name": "@teyik0/furin-example-weather",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "fix": "ultracite fix",
-    "dev": "bun --hot src/server.ts",
-    "tscheck": "tsc --noEmit",
     "build": "furin build --target bun --compile embed",
+    "dev": "bun --hot src/server.ts",
+    "fix": "ultracite fix",
     "measure:client": "furin build --target bun && bun ../../scripts/measure-client-bundle.ts .furin/build/bun/client/index.html",
-    "start": "./.furin/build/bun/server"
+    "start": "./.furin/build/bun/server",
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "@teyik0/furin": "workspace:*",

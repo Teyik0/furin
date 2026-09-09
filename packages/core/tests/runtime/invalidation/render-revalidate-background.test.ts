@@ -11,7 +11,8 @@ import {
   waitForPendingISRRevalidations,
 } from "../../../src/server/cache/index.ts";
 import { handleISR } from "../../../src/server/render/index.ts";
-import { type ResolvedRoute, scanPages } from "../../../src/server/router/index.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
 

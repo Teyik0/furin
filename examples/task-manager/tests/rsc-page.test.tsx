@@ -26,14 +26,14 @@ afterAll(() => {
 });
 
 test("the RSC page renders server-owned boards with client interaction slots", async () => {
-  const page = (await import("../src/pages/rsc")).default;
-  const loaderData = await page.loader?.({});
+  const { route } = await import("../src/pages/rsc");
+  const loaderData = await route.loader({} as never);
 
   expect(loaderData).toBeDefined();
 
-  const Component = page.component;
+  const Component = route.component;
   const stream = await renderToReadableStream(
-    <Component {...loaderData} params={{}} path="/rsc" query={{}} />
+    <Component data={loaderData} params={{}} path="/rsc" query={{}} />
   );
   const html = await new Response(stream).text();
 

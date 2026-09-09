@@ -1,4 +1,4 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
 /**
@@ -6,16 +6,11 @@ import { route as rootRoute } from "./root";
  * The loader captures `Date.now()` so a cache hit (same timestamp) vs
  * miss (advanced timestamp) is directly observable in the rendered HTML.
  */
-const ssgLoaderRoute = createRoute({
-  loader: () => Promise.resolve({ timestamp: Date.now() }),
-  mode: "ssg",
-  parent: rootRoute,
-});
-
-export default ssgLoaderRoute.page({
-  component: ({ timestamp }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .loader(() => Promise.resolve({ timestamp: Date.now() }))
+  .page(({ data: { timestamp } }) => (
     <div data-testid="ssg-loader-page" data-timestamp={String(timestamp)}>
       SSG Loader Page
     </div>
-  ),
-});
+  ));

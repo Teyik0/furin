@@ -1,5 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: composite component slot renderers are passed as component factories
-import { createRoute } from "@teyik0/furin/client";
+import { defineRoute } from "@teyik0/furin";
 import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
 import type { ComponentType } from "react";
 import { getBoards } from "@/api/modules/boards/service";
@@ -20,23 +20,14 @@ function avatarColor(id: string): string {
   return AVATAR_COLORS[id.charCodeAt(0) % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
 }
 
-const route = createRoute({
-  mode: "isr",
-  parent: rootRoute,
-  revalidate: 10,
-  tags: ["boards"],
-});
-
-export default route.page({
-  component: ({ content }) => (
-    <CompositeComponent
-      CreateForm={() => <CreateBoardForm />}
-      DeleteButton={(boardId) => <DeleteBoardButton boardId={boardId} />}
-      src={content}
-    />
-  ),
-  head: () => ({ meta: [{ title: "Task Manager RSC — Furin" }] }),
-  loader: async () => {
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "isr",
+    revalidate: 10,
+    tags: ["boards"],
+  })
+  .loader(async () => {
     const generatedAt = new Date().toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
@@ -134,5 +125,12 @@ export default route.page({
     ));
 
     return { content };
-  },
-});
+  })
+  .head(() => ({ meta: [{ title: "Task Manager RSC — Furin" }] }))
+  .page(({ data: { content } }) => (
+    <CompositeComponent
+      CreateForm={() => <CreateBoardForm />}
+      DeleteButton={(boardId) => <DeleteBoardButton boardId={boardId} />}
+      src={content}
+    />
+  ));

@@ -1,5 +1,6 @@
 import type React from "react";
-import type { HeadOptions, RenderingMode, RequestLoaderContext } from "../../client.ts";
+import type { HeadOptions, RenderingMode } from "../../client.ts";
+import type { RequestLoaderContext } from "../../define-route.ts";
 
 export type RuntimeData = Record<string, unknown>;
 
@@ -15,6 +16,7 @@ export interface RuntimeRoute {
   query?: unknown;
   requestLoader?: (ctx: RequestLoaderContext) => Awaitable<object>;
   revalidate?: number;
+  sourcePath?: string;
   tags?: string[];
 }
 

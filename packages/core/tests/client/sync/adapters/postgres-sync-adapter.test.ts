@@ -32,6 +32,32 @@ test("bounds PostgreSQL mutation keys before binding them", async () => {
   expect(boundValues).not.toContain(`bounded-keys:${rawMutationKey}`);
 });
 
+test("requests a reset when retention prunes history while changes are read", async () => {
+  let retentionCommitted = false;
+  const sql = (async (strings: TemplateStringsArray) => {
+    const query = strings.join(" ");
+    if (query.includes("FROM furin_sync.changes")) {
+      await Promise.resolve();
+      retentionCommitted = true;
+      return [{ cursor: 2, invalidations: [] }];
+    }
+    return [
+      {
+        current_cursor: 2,
+        oldest_cursor: retentionCommitted ? 2 : 1,
+      },
+    ];
+  }) as unknown as SQL;
+  const adapter = postgresSyncAdapter({ namespace: "retention-race", sql });
+
+  expect(await adapter.readChanges({ after: "0", limit: 10 })).toEqual({
+    changes: [],
+    cursor: "2",
+    hasMore: false,
+    reset: true,
+  });
+});
+
 describeWithPostgres("PostgresSyncAdapter", () => {
   const sql = new SQL(databaseUrl as string);
   const namespace = "postgres-conformance";

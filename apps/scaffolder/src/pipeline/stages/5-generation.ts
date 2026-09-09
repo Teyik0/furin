@@ -58,22 +58,22 @@ interface PackageJsonContent {
 
 function buildPackageJson(ctx: PipelineContext): string {
   const packageJson: PackageJsonContent = {
-    name: ctx.projectNameKebab,
-    private: true,
-    version: "0.1.0",
-    type: "module",
+    dependencies: ctx.dependencies,
+    devDependencies: ctx.devDependencies,
     engines: {
       bun: ">=1.4.0",
     },
+    name: ctx.projectNameKebab,
+    private: true,
     scripts: {
-      fix: "ultracite fix",
-      tscheck: "tsc --noEmit",
-      dev: "bun --hot src/server.ts",
       build: "furin build --target bun --compile embed",
+      dev: "bun --hot src/server.ts",
+      fix: "ultracite fix",
       start: "./.furin/build/bun/server",
+      tscheck: "tsc --noEmit",
     },
-    dependencies: ctx.dependencies,
-    devDependencies: ctx.devDependencies,
+    type: "module",
+    version: "0.1.0",
   };
 
   return `${JSON.stringify(packageJson, null, 2)}\n`;

@@ -19,34 +19,35 @@ src/pages/blog/[slug].tsx   -> /blog/:slug
 src/pages/docs/[...path].tsx -> /docs/*
 ```
 
-If you want typed params, declare them on `createRoute()`:
+Declare typed params in `config()` on the page route:
 
 ```tsx
 // src/pages/blog/[slug].tsx
 import { t } from "elysia"
-import { route } from "./_route"
+import { defineRoute } from "@teyik0/furin"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  loader: async ({ params }) => {
+export const route = defineRoute()
+  .config({
+    layout: parentRoute,
+    mode: "ssr",
+    params: t.Object({ slug: t.String() }),
+  })
+  .loader(async ({ params }) => {
     const post = await db.getPost(params.slug)
     return { post }
-  },
-  component: ({ post }) => <article>{post.title}</article>,
-})
+  })
+  .page(({ data: { post } }) => <article>{post.title}</article>)
 ```
 
 ```tsx
 // src/pages/blog/_route.tsx
-import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  params: t.Object({
-    slug: t.String(),
-  }),
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .layout(({ children }) => children)
 ```
 
 ## Layout Files
@@ -61,18 +62,17 @@ src/pages/blog/[slug].tsx
 
 ```tsx
 // src/pages/blog/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  layout: ({ children }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .layout(({ children }) => (
     <div className="mx-auto flex max-w-5xl gap-8 px-4 py-10">
       <aside>Sidebar</aside>
       <main>{children}</main>
     </div>
-  ),
-})
+  ))
 ```
 
 ## Catch-All Routes
@@ -87,15 +87,16 @@ If you declare a schema for that route, the runtime param key is `"*"`:
 
 ```tsx
 import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  params: t.Object({
-    "*": t.String(),
-  }),
-})
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    params: t.Object({ "*": t.String() }),
+  })
+  .page(({ params }) => <DocsPage path={params["*"]} />)
 ```
 
 ## Typed Navigation

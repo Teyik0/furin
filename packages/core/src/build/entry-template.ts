@@ -26,6 +26,10 @@ export interface EntryAppContext {
   extraContext?: string[];
   /** Extra import lines this app needs (embedded asset imports). */
   extraImports?: string[];
+  /** Additional route modules such as filesystem-derived `_route` layouts. */
+  modulePaths?: string[];
+  /** Virtual module specifier exporting this app's composed Elysia route tree. */
+  nativeRoutes?: string;
   /** Mount prefix baked into the context for runtime lookup (`""` = root). */
   prefix?: string;
   rootConventions?: { errorPath?: string; notFoundPath?: string };
@@ -112,9 +116,12 @@ function buildAppContextBlock(
   varPrefix: string
 ): { contextLines: string[]; importLines: string[] } {
   const allModulePaths = [
-    app.rootPath,
-    ...app.routes.map((r) => r.path),
-    ...collectConventionPaths(app.rootConventions, app.routeMetadata),
+    ...new Set([
+      app.rootPath,
+      ...app.routes.map((r) => r.path),
+      ...(app.modulePaths ?? []),
+      ...collectConventionPaths(app.rootConventions, app.routeMetadata),
+    ]),
   ];
   const importLines: string[] = [];
   const moduleEntries: string[] = [];
@@ -124,6 +131,12 @@ function buildAppContextBlock(
     const varName = `${varPrefix}mod${i}`;
     importLines.push(`import * as ${varName} from ${JSON.stringify(absPath)};`);
     moduleEntries.push(`  ${JSON.stringify(absPath)}: ${varName},`);
+  }
+  const nativeRoutesVar = `${varPrefix}furinApp`;
+  if (app.nativeRoutes) {
+    importLines.push(
+      `import { furinApp as ${nativeRoutesVar} } from ${JSON.stringify(app.nativeRoutes)};`
+    );
   }
 
   const routeEntries = app.routes.map(
@@ -145,6 +158,7 @@ function buildAppContextBlock(
     `  clientLogging: ${JSON.stringify(app.clientLogging ?? false)},`,
     `  prefix: ${JSON.stringify(app.prefix ?? "")},`,
     `  rootPath: ${JSON.stringify(app.rootPath.replace(/\\/g, "/"))},`,
+    app.nativeRoutes ? `  nativeRoutes: ${nativeRoutesVar},` : "",
     rootConventionsLine,
     "  modules: {",
     ...moduleEntries,

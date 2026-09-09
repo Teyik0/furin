@@ -156,7 +156,7 @@ test.serial("native DevTools only correlates the exact same-origin data endpoint
   installDom();
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
   const testFetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ input, init });
+    calls.push({ init, input });
     return Promise.resolve(
       Response.json({
         caches: [],

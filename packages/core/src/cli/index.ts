@@ -78,10 +78,10 @@ if (command === "build") {
     rawValues = parseArgs({
       args: parseableArgs,
       options: {
-        target: { type: "string" },
+        config: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
-        config: { type: "string" },
+        target: { type: "string" },
       },
       strict: true,
     }).values;
@@ -120,9 +120,6 @@ if (command === "build") {
   log(`Building Furin for ${target}…`);
 
   const result = await buildApp({
-    target: target as BuildTarget | "all",
-    compile: resolveCompileMode(compileFlag, config.bun?.compile),
-    rootDir: config.rootDir,
     // --pagesDir/--prefix build a single explicit app; otherwise fall back to
     // the config's `apps` list (then to server.ts scanning inside buildApp).
     // normalizePrefix here so a bad --prefix fails before buildApp starts
@@ -136,11 +133,14 @@ if (command === "build") {
             },
           ]
         : config.apps,
-    pagesDir: undefined,
-    serverEntry: resolvedServerEntry,
-    plugins: config.plugins,
-    staticConfig: config.static,
     clientLogging: config.clientLogging ?? false,
+    compile: resolveCompileMode(compileFlag, config.bun?.compile),
+    pagesDir: undefined,
+    plugins: config.plugins,
+    rootDir: config.rootDir,
+    serverEntry: resolvedServerEntry,
+    staticConfig: config.static,
+    target: target as BuildTarget | "all",
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";

@@ -1,8 +1,9 @@
-import { route } from "./_route";
+import { defineRoute } from "@teyik0/furin";
+import { route as parentRoute, querySchema } from "./_route";
 
-export default route.page({
-  component: ({ query }) => <div data-testid="query-types-page">{JSON.stringify(query)}</div>,
-  loader: ({ query }) => ({
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr", query: querySchema })
+  .loader(({ query }) => ({
     queryFromLoader: query,
-  }),
-});
+  }))
+  .page(({ query }) => <div data-testid="query-types-page">{JSON.stringify(query)}</div>);

@@ -1,5 +1,6 @@
-import { route } from "./_route";
+import { defineRoute } from "@teyik0/furin";
+import { route as parentRoute } from "./_route";
 
-export default route.page({
-  component: () => <div data-testid="nested-page">Nested Page</div>,
-});
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssg" })
+  .page(() => <div data-testid="nested-page">Nested Page</div>);

@@ -11,6 +11,7 @@ export function GiscusComments() {
 
   useEffect(() => {
     const container = ref.current;
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null before the comments container mounts
     if (!container || missingGiscusFields.length > 0) {
       return;
     }

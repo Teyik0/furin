@@ -4,7 +4,7 @@ import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-inval
 import { registerCacheInvalidator } from "../cache/registry.ts";
 import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
-import type { ResolvedRoute, RootLayout } from "../router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
 import { renderSSR } from "./ssr.ts";

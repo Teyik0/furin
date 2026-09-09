@@ -1,13 +1,9 @@
-import { createRoute } from "../../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "../root";
 
-export const route = createRoute({
-  layout: ({ children, layoutData }) => (
-    <div data-layout={String(layoutData)} data-testid="loader-layout">
-      {children}
-    </div>
-  ),
-  loader: ({ request, headers, cookie, path, set }) => {
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(({ request, headers, cookie, path, set }) => {
     set.headers["x-loader-ran"] = "true";
     return {
       cookieValue: cookie.test?.value as string | undefined,
@@ -16,6 +12,9 @@ export const route = createRoute({
       layoutData: "from-layout",
       requestUrl: request.url,
     };
-  },
-  parent: rootRoute,
-});
+  })
+  .layout(({ data: { layoutData }, children }) => (
+    <div data-layout={String(layoutData)} data-testid="loader-layout">
+      {children}
+    </div>
+  ));

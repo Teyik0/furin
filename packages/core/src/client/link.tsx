@@ -5,7 +5,12 @@ import {
   type SearchParamsInput,
 } from "../shared/search-params.ts";
 import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouter } from "./router/context.ts";
-import { buildHref, navigationHrefPolicy, normalizeHref } from "./router/link-utils.ts";
+import {
+  applyLinkParams,
+  buildHref,
+  navigationHrefPolicy,
+  normalizeHref,
+} from "./router/link-utils.ts";
 import type { LinkProps, RouterContextValue, RouteTo } from "./router/types.ts";
 
 // biome-ignore lint/performance/noBarrelFile: re-exporting router symbols preserves backward compatibility for @teyik0/furin/link consumers
@@ -28,23 +33,31 @@ interface LinkView {
 function computeLinkView<To extends RouteTo>(
   {
     to,
+    params,
     search,
     hash,
     children,
     activeProps,
     inactiveProps,
-  }: Pick<LinkProps<To>, "to" | "search" | "hash" | "children" | "activeProps" | "inactiveProps">,
+  }: Pick<
+    LinkProps<To>,
+    "to" | "params" | "search" | "hash" | "children" | "activeProps" | "inactiveProps"
+  >,
   router: RouterContextValue
 ): LinkView {
-  const searchDefaults = findSearchDefaultsForRouteTarget(to as string, router.searchRoutes);
-  const logicalHref = buildHref(
+  const resolvedTo = applyLinkParams(
     to as string,
+    params as Record<string, string | number> | null | undefined
+  );
+  const searchDefaults = findSearchDefaultsForRouteTarget(resolvedTo, router.searchRoutes);
+  const logicalHref = buildHref(
+    resolvedTo,
     search as SearchParamsInput | null | undefined,
     hash,
     searchDefaults
   );
   const logicalHrefWithoutHash = buildHref(
-    to as string,
+    resolvedTo,
     search as SearchParamsInput | null | undefined,
     undefined,
     searchDefaults
@@ -76,6 +89,7 @@ function isSameOriginUrl(url: string): boolean {
  */
 function LinkInteractive<To extends RouteTo>({
   to,
+  params,
   search,
   hash,
   preload,
@@ -102,7 +116,7 @@ function LinkInteractive<To extends RouteTo>({
   // logicalHref: route-relative path (no basePath), used for navigation + active state.
   // physicalHref (href): what the browser sees — basePath + logicalHref.
   const { logicalHref, href, isActive, resolvedChildren, extraProps } = computeLinkView(
-    { activeProps, children, hash, inactiveProps, search, to },
+    { activeProps, children, hash, inactiveProps, params, search, to },
     router
   );
   const effectivePreload = preload ?? router.defaultPreload;
@@ -272,6 +286,7 @@ function renderLinkElement<To extends RouteTo>(
   // Destructure to strip Link-specific and client-only props before spreading onto <a>.
   const {
     to: _to,
+    params: _params,
     search: _search,
     hash: _hash,
     children: _children,

@@ -1,11 +1,10 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
-const inlineRoute = createRoute({
-  layout: ({ children }) => <div data-testid="inline-layout">{children}</div>,
-  parent: rootRoute,
-});
-
-export default inlineRoute.page({
-  component: () => <div data-testid="inline-page">Inline Layout Page</div>,
-});
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => (
+    <div data-testid="inline-layout">
+      <div data-testid="inline-page">Inline Layout Page</div>
+    </div>
+  ));

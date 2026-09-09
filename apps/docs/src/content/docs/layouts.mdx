@@ -1,55 +1,57 @@
 # Nested Layouts
 
-Furin uses `_route.tsx` files for directory-level layouts and route config. Each `_route.tsx` can point at a parent route, declare loaders, and wrap child pages.
+Furin uses `_route.tsx` files for directory layouts. Every route module exports one named `route` terminal; filesystem nesting determines how those terminals compose.
 
-## Basic Layout
+## Root Layout
+
+`src/pages/root.tsx` is required and owns `<html>` and `<body>`. Place `<HeadContent />` in `<head>` and `<Scripts />` at the end of `<body>`; Furin does not inject a second document shell.
+
+```tsx
+// src/pages/root.tsx
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .layout(({ children }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ))
+```
+
+## Directory Layout
 
 ```tsx
 // src/pages/blog/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  layout: ({ children }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .layout(({ children }) => (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BlogSidebar />
       <main>{children}</main>
     </div>
-  ),
-})
+  ))
 ```
 
-Pages inside that directory use the same route object:
+Pages create their own route terminal. They do not extend or mutate the layout instance.
 
 ```tsx
 // src/pages/blog/index.tsx
-import { route } from "./_route"
+import { defineRoute } from "@teyik0/furin"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  component: () => <BlogList />,
-})
-```
-
-## Root Layout
-
-`src/pages/root.tsx` is required. It is the top-level route and should render `<html>`, `<head>`, and `<body>`.
-
-```tsx
-// src/pages/root.tsx
-import { createRoute } from "@teyik0/furin/client"
-
-export const route = createRoute({
-  layout: ({ children }) => (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta content="width=device-width, initial-scale=1" name="viewport" />
-      </head>
-      <body>{children}</body>
-    </html>
-  ),
-})
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .page(() => <BlogList />)
 ```
 
 ## Multi-Level Nesting
@@ -64,79 +66,56 @@ src/pages/
 │       └── plugins.tsx
 ```
 
-```tsx
-// src/pages/docs/advanced/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
-import { route as docsRoute } from "../_route"
+Each child `_route.tsx` names its parent in `config({ layout })` for loader-data inference. The route generator mounts the child under its filesystem parent, so Elysia's local scope flows downward.
 
-export const route = createRoute({
-  parent: docsRoute,
-  layout: ({ children }) => <section className="advanced-layout">{children}</section>,
-})
-```
-
-## Layout Loaders
-
-Layout data flows into the layout itself and all child pages.
+## Layout Data
 
 ```tsx
 // src/pages/dashboard/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  loader: async ({ request }) => {
-    const user = await getSession(request)
-    return { user }
-  },
-  layout: ({ children, user }) => (
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ request }) => ({
+    user: await getSession(request),
+  }))
+  .layout(({ children, data: { user } }) => (
     <div>
       <DashboardNav user={user} />
       {children}
     </div>
-  ),
-})
+  ))
 ```
 
-The page below does not need to repeat the auth/session work:
+Descendant components receive merged loader data under `data`. Descendant loaders receive ancestor fields as promises and await only what they need.
 
-```tsx
-// src/pages/dashboard/index.tsx
-import { route } from "./_route"
-
-export default route.page({
-  component: ({ user }) => <DashboardHome user={user} />,
-})
-```
-
-## Streaming slow data from a layout
-
-A layout loader can return `defer({...})` to stream slow fields while the shell renders immediately. The deferred Promise lands on the layout's `children`-receiving component exactly like a page-level deferred field:
+## Deferred Layout Data
 
 ```tsx
 // src/pages/dashboard/_route.tsx
-import { createRoute, defer, Await } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
+import { Await, defer } from "@teyik0/furin/client"
 import { Suspense } from "react"
+import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  loader: () =>
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(() =>
     defer({
-      user: "alice",                   // sync — embedded in the initial shell
-      widgets: fetchSidebarWidgets(),  // Promise — streamed when it resolves
-    }),
-  layout: ({ children, user, widgets }) => (
+      user: "alice",
+      widgets: fetchSidebarWidgets(),
+    })
+  )
+  .layout(({ children, data: { user, widgets } }) => (
     <div>
       <nav>Hello {user}</nav>
-      <aside>
-        <Suspense fallback={<WidgetSkeleton />}>
-          <Await resolve={widgets}>{(list) => <WidgetList items={list} />}</Await>
-        </Suspense>
-      </aside>
+      <Suspense fallback={<WidgetSkeleton />}>
+        <Await resolve={widgets}>{(list) => <WidgetList items={list} />}</Await>
+      </Suspense>
       <main>{children}</main>
     </div>
-  ),
-})
+  ))
 ```
 
 See [Deferred Data Streaming](/docs/defer) for the full API.

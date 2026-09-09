@@ -9,7 +9,7 @@ test("deferred route frames stream as each promise settles", async () => {
   const fast = new Promise<string>((resolve) => {
     resolveFast = resolve;
   });
-  const reader = createDeferredRouteFrameStream({}, { slow, fast }).getReader();
+  const reader = createDeferredRouteFrameStream({}, { fast, slow }).getReader();
 
   await reader.read();
   resolveFast?.("ready");

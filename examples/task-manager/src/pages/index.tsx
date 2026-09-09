@@ -1,16 +1,12 @@
+import { defineRoute } from "@teyik0/furin";
 import { BoardCard } from "@/components/board-card";
 import { CreateBoardForm } from "@/components/create-board-form";
 import { client } from "@/lib/api";
-import { route } from "./root";
+import { route as rootRoute } from "./root";
 
-export default route.page({
-  mode: "isr",
-  revalidate: 10,
-  tags: ["boards"],
-  head: () => ({
-    meta: [{ title: "Task Manager — Furin" }],
-  }),
-  loader: async () => {
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 10, tags: ["boards"] })
+  .loader(async () => {
     const result = await client.boards.get();
     if (result.error) {
       throw new Error(`Failed to load boards (${result.error.status})`);
@@ -29,8 +25,11 @@ export default route.page({
       }),
     }));
     return { boards, generatedAt };
-  },
-  component: ({ boards, generatedAt }) => {
+  })
+  .head(() => ({
+    meta: [{ title: "Task Manager — Furin" }],
+  }))
+  .page(({ data: { boards, generatedAt } }) => {
     return (
       <div className="mx-auto max-w-5xl px-6 py-14">
         {/* Header */}
@@ -103,5 +102,4 @@ export default route.page({
         </div>
       </div>
     );
-  },
-});
+  });

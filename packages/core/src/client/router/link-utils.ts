@@ -69,6 +69,32 @@ export function isSameOriginFetchResult(
 }
 
 /**
+ * Substitutes typed path params into a route pattern: `/board/:boardId` with
+ * `{ boardId: 42 }` → `/board/42`. The `*` wildcard segment (catch-all) is
+ * replaced from `params["*"]`. Unknown segments are left untouched so
+ * partially-applied patterns stay visible.
+ *
+ * @internal Exported for unit testing only.
+ */
+export function applyLinkParams(
+  to: string,
+  params: Record<string, string | number> | null | undefined
+): string {
+  if (!params) {
+    return to;
+  }
+  let url = to.replaceAll(/:([a-zA-Z0-9_]+)/g, (match: string, name: string) =>
+    name in params ? encodeURIComponent(String(params[name])) : match
+  );
+  const wildcard: string | number | undefined = params["*"];
+  if (wildcard !== undefined && url.includes("/*")) {
+    const encodedWildcard = String(wildcard).split("/").map(encodeURIComponent).join("/");
+    url = url.replace("/*", () => `/${encodedWildcard}`);
+  }
+  return url;
+}
+
+/**
  * Builds a full href string from a pathname, optional search params, and optional hash.
  * Null/undefined search values are omitted.
  *

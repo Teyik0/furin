@@ -4,15 +4,39 @@ import { describe, test } from "bun:test";
 import type { EmptyRouteSearch, useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
 
-import "@teyik0/furin/link";
+import "@teyik0/furin/routes";
 
-declare module "@teyik0/furin/link" {
-  interface RouteManifest {
-    "/": { search?: never; searchInput?: never };
-    "/products": {
-      search?: { page: number; tag?: string };
-      searchInput?: { page?: number; tag?: string };
-    };
+declare const defineRoute: typeof import("../../src/furin.ts").defineRoute;
+declare const defineRootRoute: typeof import("../../src/furin.ts").defineRootRoute;
+declare const t: typeof import("elysia").t;
+
+const createRootLayout = () =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .layout(({ children }) => children);
+declare const rootLayout: ReturnType<typeof createRootLayout>;
+
+const createProductsRoute = () =>
+  defineRoute()
+    .config({
+      layout: rootLayout,
+      mode: "ssr",
+      query: t.Object({ page: t.Number(), tag: t.Optional(t.String()) }),
+    })
+    .page(() => null);
+
+const createRootRoute = () =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .page(() => null);
+
+declare const productsRoute: ReturnType<typeof createProductsRoute>;
+declare const rootRoute: ReturnType<typeof createRootRoute>;
+
+declare module "@teyik0/furin/routes" {
+  interface RouteMap {
+    "/": typeof rootRoute;
+    "/products": typeof productsRoute;
   }
 }
 
