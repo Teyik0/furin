@@ -1,0 +1,25 @@
+packages/core/tests/build-embed.test.ts
+  9042419100b04f07 4,6,23-24,29-32,38,40-41,47-51
+packages/core/bunfig.toml
+  9042419100b04f07 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "37b2070ecc75c116b0ca65dfe80e82c59c5760d9",
+  "prompts": {
+    "9042419100b04f07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50e6221f-a58f-4865-8544-562ac5526577",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 115,
+      "total_deletions": 118,
+      "accepted_lines": 55,
+      "overriden_lines": 2
+    }
+  }
+}

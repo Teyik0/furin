@@ -1,0 +1,25 @@
+packages/core/src/build/types.ts
+  7c0cdb2d585a6b5c 21,26
+packages/core/src/adapter/bun.ts
+  7c0cdb2d585a6b5c 74-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "1e5fafcd5eba44647862a02b8e80ffa2c12ef379",
+  "prompts": {
+    "7c0cdb2d585a6b5c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ba6f698a-9d6d-4f18-8088-9ddd0a732b8e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,21 @@
+react-doctor.config.json
+  s_387e6298567a5e::t_69cbbe95318e4d 16-19
+  s_387e6298567a5e::t_514521262641b3 1-2,10-11,14-15,21-30
+  s_387e6298567a5e::t_8ee8777c3c5549 3-9,12-13,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5e892967be1a75c0ffef85f19fc80397248dac94",
+  "prompts": {},
+  "sessions": {
+    "s_387e6298567a5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d07a70b-b935-4141-97c7-db178fa30bf1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

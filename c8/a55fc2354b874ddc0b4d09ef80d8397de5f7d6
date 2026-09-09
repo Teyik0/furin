@@ -1,0 +1,130 @@
+apps/docs/src/content/docs/api-routes.mdx
+  s_6016442ff2513c::t_57aa224590df8b 104
+apps/scaffolder/templates/full/bunfig.toml.ejs
+  s_b1ccf4183edd25::t_7366a1f777e517 4-6
+apps/scaffolder/src/generated/package-catalog.json
+  s_b1ccf4183edd25::t_95d5cb746ee128 5
+packages/core/tests/client/link/interactive.test.tsx
+  s_a84486ea2aef6e::t_38b919360182a0 83,599-600,613-614,627-628,641-642,853-854,879-880,899-900,919-920,936-937,940-941,1020-1021,1038-1039
+  s_a84486ea2aef6e::t_95ede056b14522 2,56,65,75-81,84-88,440,444
+  s_a84486ea2aef6e::t_79ebad76ecc98a 574,588,658,672,683,698,713,727,741,957,973,989,1005,1056,1076
+  s_a84486ea2aef6e::t_7c4c1373d7b842 82
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_a84486ea2aef6e::t_065da85e590f47 3,36,38-40
+  s_a84486ea2aef6e::t_38b919360182a0 199-202
+  s_a84486ea2aef6e::t_c83c88c24cb4b8 34,41-46,216
+  s_a84486ea2aef6e::t_7c4c1373d7b842 37
+  s_a84486ea2aef6e::t_738c99f8d47cce 88,109
+  s_a84486ea2aef6e::t_f3419f98f05924 35
+apps/scaffolder/templates/manifest.json
+  s_b1ccf4183edd25::t_7800ebdefc6090 11,97
+  s_b1ccf4183edd25::t_2d847d91dc2c3c 20,25-26,31,112,117-118,123
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_a84486ea2aef6e::t_065da85e590f47 37,39-41
+  s_a84486ea2aef6e::t_c83c88c24cb4b8 35,42-47,199,213,252
+  s_a84486ea2aef6e::t_738c99f8d47cce 110-112
+  s_a84486ea2aef6e::t_7c4c1373d7b842 38
+  s_a84486ea2aef6e::t_3796a85949d5b9 36
+  s_a84486ea2aef6e::t_38b919360182a0 242-245,247-250
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  s_b1ccf4183edd25::t_edb7f5418d3b35 9-17
+apps/scaffolder/tests/templates.test.ts
+  s_b1ccf4183edd25::t_7c12a31d9d4cd0 197-210,256-270
+  s_b1ccf4183edd25::t_9fcbd8603d906c 39-40,105-115,144-154,181-182,239-240
+  s_b1ccf4183edd25::t_61137a532ca5d0 34
+  s_b1ccf4183edd25::t_295b64b94c59fd 44-45,82-88,90-91
+  s_b1ccf4183edd25::t_6d36fba8026bcf 89
+  s_b1ccf4183edd25::t_d87249356374f1 92-93,211-213,215-231,271-273
+  s_b1ccf4183edd25::t_0adc672259c6c8 183,214,241,274
+apps/docs/src/content/docs/caching.mdx
+  s_6016442ff2513c::t_83736e176e5ffa 155
+apps/scaffolder/README.md
+  s_b1ccf4183edd25::t_b03696078dc54a 168
+  s_b1ccf4183edd25::t_ff6f9b833c5de3 87
+  s_b1ccf4183edd25::t_cf9fc33980e4ec 7
+apps/scaffolder/src/pipeline/context.ts
+  s_b1ccf4183edd25::t_89e22c63ea8062 10,12,15,20-27,46,49,56-64
+  s_b1ccf4183edd25::t_229887f495cb7b 16
+  s_a84486ea2aef6e::t_3fc7f4194cef24 65
+packages/core/tests/client/link/scroll-restoration.test.tsx
+  s_a84486ea2aef6e::t_7c4c1373d7b842 41,48
+  s_a84486ea2aef6e::t_065da85e590f47 3,40,49-51
+  s_a84486ea2aef6e::t_3cf6f5a7c306bb 39,42-44,46-47
+  s_a84486ea2aef6e::t_54d9b88719f981 38,45,52-57,233,239,243,249,266,272,292,297,304,309,314,319,323,328
+  s_a84486ea2aef6e::t_738c99f8d47cce 100,121
+packages/core/package.json
+  s_b1ccf4183edd25::t_5593c45eef9f51 10
+  s_b1ccf4183edd25::t_f15b879a2e4978 3
+apps/scaffolder/templates/full/src/pages/index.tsx
+  s_b1ccf4183edd25::t_6aa552a65b3c2c 9
+apps/scaffolder/templates/simple/biome.jsonc.ejs
+  s_b1ccf4183edd25::t_496a6ecd864198 11-18
+apps/scaffolder/src/pipeline/stages/5-generation.ts
+  s_b1ccf4183edd25::t_28ed2d019d7933 21-23,27-45,49-51,53-62,84-88
+  s_b1ccf4183edd25::t_ac2fce83cb73d9 24-26,46-48
+  s_b1ccf4183edd25::t_a815dd85e8b9f1 52
+apps/scaffolder/src/pipeline/stages/3-design.ts
+  s_b1ccf4183edd25::t_33c7514241b100 12-20,24-25
+apps/scaffolder/package.json
+  s_b1ccf4183edd25::t_0b1d6c3143798c 6-8
+README.md
+  s_b1ccf4183edd25::t_28545daea75152 9
+apps/scaffolder/src/package-catalog.ts
+  s_b1ccf4183edd25::t_89608d5deb36b4 4
+  s_b1ccf4183edd25::t_4b79162ef6cb41 6
+  s_b1ccf4183edd25::t_6aaac165ca9377 23
+package.json
+  s_a84486ea2aef6e::t_d6399a159ecf7b 27
+  s_b1ccf4183edd25::t_2da162f1a95dbe 5
+packages/core/README.md
+  s_b1ccf4183edd25::t_c9d321e4b620eb 9
+apps/scaffolder/src/pipeline/stages/4-deps.ts
+  s_b1ccf4183edd25::t_d40890074f9464 41
+  s_b1ccf4183edd25::t_637d7c4552b70b 30,49
+apps/scaffolder/templates/simple/bunfig.toml.ejs
+  s_b1ccf4183edd25::t_6e840e9efd3d96 4-6
+apps/scaffolder/tests/generation.test.ts
+  s_b1ccf4183edd25::t_38f31282183f24 107
+  s_b1ccf4183edd25::t_4d6f9ba86bce10 21,72-106,109-112
+  s_b1ccf4183edd25::t_354c5be40c8983 17,41
+  s_b1ccf4183edd25::t_2b0b6342d73b69 108
+  s_b1ccf4183edd25::t_17d23e22857b3f 113
+apps/scaffolder/templates/full/biome.jsonc.ejs
+  s_b1ccf4183edd25::t_81cb2ace1aaaf2 11-18
+CHANGELOG.md
+  s_b1ccf4183edd25::t_b327d48a1e5db0 9-10
+bun.lock
+  s_a84486ea2aef6e::t_b2dc6673649d42 8,111,182,184,186,188,190,192,194,196,198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c8a55fc2354b874ddc0b4d09ef80d8397de5f7d6",
+  "prompts": {},
+  "sessions": {
+    "s_6016442ff2513c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cc8-79d1-7b81-b467-5f984a404b07",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a84486ea2aef6e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cf8-9bf2-7d30-b774-2df7ef39f144",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b1ccf4183edd25": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cb5-f814-77e0-bc59-b5810e7ea9b6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

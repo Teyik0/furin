@@ -1,0 +1,59 @@
+packages/core/src/server/devtools/request-context.ts
+  s_611d0d55a09765::t_d8e25ff48f14f0 36-42
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_611d0d55a09765::t_90d4effb84e413 116
+  s_611d0d55a09765::t_d8e25ff48f14f0 122-123
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_611d0d55a09765::t_a09804cf5f9f0a 271-280,282-285,287-295
+  s_611d0d55a09765::t_769e28591267a9 24-29
+  s_611d0d55a09765::t_035e68e57b7492 175,195,198,215
+  s_611d0d55a09765::t_582cdac1ee09a1 9,13-16,19,173-174,176-194,196-197,199-214
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_611d0d55a09765::t_769e28591267a9 27-56
+packages/core/src/server/devtools/instrumentation.production.ts
+  s_611d0d55a09765::t_d8e25ff48f14f0 1,71
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_611d0d55a09765::t_90d4effb84e413 41-47
+  s_611d0d55a09765::t_878ef53e1e7295 16,18-20,51
+  s_611d0d55a09765::t_7c728309f2d434 2-9,11-15,21-30,32,34-40,49,52-65,67-68,71-73,75,78
+  s_611d0d55a09765::t_ebce82e52dcd74 17,31,33
+packages/core/src/server/devtools/plugin.ts
+  s_611d0d55a09765::t_769e28591267a9 29-47,136-137,153-154,242-243
+packages/core/src/server/cache/dev-loader.ts
+  s_611d0d55a09765::t_d8e25ff48f14f0 126
+packages/core/src/server/render/loaders.ts
+  s_611d0d55a09765::t_d8e25ff48f14f0 250-254
+packages/core/src/server/devtools/hub.ts
+  s_611d0d55a09765::t_d8e25ff48f14f0 1-5,54
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_611d0d55a09765::t_4379ea2e7f32b2 96
+  s_611d0d55a09765::t_d8e25ff48f14f0 155,237,257
+  s_611d0d55a09765::t_90d4effb84e413 44-64,66-70,72-95,97-127,129,131-139,141-143,145-151,153,198-217,219-222,224-226,228-233,235
+packages/core/src/devtools/devtools-element.js
+  s_491067a55a0752::t_49cf6a00ae95d2 483-497
+  s_611d0d55a09765::t_d8e25ff48f14f0 15-22,472
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bdc6109d8ad7ef0313b81a37bacb0ebb82efda14",
+  "prompts": {},
+  "sessions": {
+    "s_491067a55a0752": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9517-9d64-7342-a91e-86d02237d15e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_611d0d55a09765": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9519-164f-7803-8602-424a7c279283",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,88 @@
+packages/core/src/router.ts
+  2ac1997cd711cf51 103,132-154,157-164,172-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "9ffdd99c5066bb974cd8a507966ebc96cd2b73e0",
+  "prompts": {
+    "2ac1997cd711cf51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2c4ebf4ecffeEkjAUWR3Y4eQYK",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 101,
+      "total_deletions": 80,
+      "accepted_lines": 62,
+      "overriden_lines": 0
+    },
+    "3aec30bb18305645": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d38d1b07-1b11-47ab-bbd3-710b67ab3947",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 222,
+      "total_deletions": 45,
+      "accepted_lines": 215,
+      "overriden_lines": 2
+    },
+    "57beae3b58ac1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3351-f1b8-76a0-8ecd-f6d7be94da7b",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "915c387948ff3da4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d38f9-0811-7ad3-8943-c91fd76b3783",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    },
+    "97dd4cbc9cbaf241": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3118-4a71-7d90-bc0f-af756a276b1f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 134,
+      "overriden_lines": 0
+    },
+    "e69bae6678577e4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b39dd4b-4f53-4def-8f6f-1dd565cd19e1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 366,
+      "overriden_lines": 2
+    }
+  }
+}

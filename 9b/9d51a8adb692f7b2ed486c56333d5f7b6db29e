@@ -1,0 +1,107 @@
+apps/docs/src/content/docs/data-loading.mdx
+  s_0c6b20a65d9178::t_4c685bb6e0e616 104-134
+packages/core/src/client/router/context.ts
+  s_4fecf528305033::t_23f452ec67ccdf 11
+packages/core/tests/router/schema-merge.test.ts
+  s_4fecf528305033::t_d4fa653ad4e3cb 92,100
+  s_4fecf528305033::t_4816d7a1e4c687 90-91,93-99,101-109
+packages/core/package.json
+  s_4fecf528305033::t_184f766dda893a 79-83
+  s_2909a12ac413db::t_cc97baf514affa 103-104,108-111
+packages/core/src/client/router/types.ts
+  s_4fecf528305033::t_23f452ec67ccdf 118-119
+apps/docs/src/content/docs/link-navigation.mdx
+  s_0c6b20a65d9178::t_bfe0a88dcba45b 134-205
+packages/core/src/server/render/ssr.ts
+  s_4fecf528305033::t_a59d102bc2af40 277
+apps/docs/src/content/docs/comparison.mdx
+  s_0c6b20a65d9178::t_77f0c1a3893621 191
+packages/core/src/server/router/schemas.ts
+  s_4fecf528305033::t_3edb934417d361 119-124
+packages/core/src/build/shared.ts
+  s_4fecf528305033::t_184f766dda893a 13
+packages/core/tsconfig.json
+  s_4fecf528305033::t_d4fa653ad4e3cb 5,7
+packages/core/tests/link.test.tsx
+  s_4fecf528305033::t_d4fa653ad4e3cb 37
+packages/core/tests/route-types.test.ts
+  s_4fecf528305033::t_c462af20a86259 82-90,189-195,197-199,201-211
+  s_4fecf528305033::t_703b9520760153 5,196,200
+  s_4fecf528305033::t_082476c8d9f5e4 164,166
+packages/core/tests/link/interactive.test.tsx
+  s_4fecf528305033::t_d4fa653ad4e3cb 21
+  s_4fecf528305033::t_9c7955dad2a304 151,240,285,330
+CHANGELOG.md
+  s_0c6b20a65d9178::t_5c1a7fc96864f1 10-12
+  s_0c6b20a65d9178::t_73fa204d51a151 7,14-32
+  s_0c6b20a65d9178::t_e0d1f3cd53ac1c 34
+  s_0c6b20a65d9178::t_3af5f6299c47e5 42-45
+  s_0c6b20a65d9178::t_00c052692c33df 226-227
+packages/core/tests/router/use-search.test.tsx
+  s_4fecf528305033::t_d5a8a10985b966 72-83,108-155
+  s_4fecf528305033::t_59db33adf712c9 6,70-71,84-107
+  s_4fecf528305033::t_96d2e4ac5e75b4 29-32
+  s_4fecf528305033::t_fcf3c4d8973340 1-5,7-28,33-69,156-158
+packages/core/src/client/router/provider.tsx
+  s_4fecf528305033::t_a59d102bc2af40 703
+packages/core/src/build/client.ts
+  s_4fecf528305033::t_184f766dda893a 6,115
+  s_4fecf528305033::t_330725d8697d8b 72-74
+apps/docs/furin-env.d.ts
+  s_0c6b20a65d9178::t_fc2497d4872f82 4,30-31
+apps/docs/src/content/docs/routing.mdx
+  s_0c6b20a65d9178::t_2cd457d102ed25 103,117-123
+packages/core/src/server/render/not-found.ts
+  s_4fecf528305033::t_a59d102bc2af40 46
+packages/core/src/build/route-types.ts
+  s_4fecf528305033::t_efac2293de4050 3,48-51,60,65,68-70,98
+  s_4fecf528305033::t_d4fa653ad4e3cb 61-64,66-67
+  s_4fecf528305033::t_aadddafb78e5dc 104,117,121-127
+packages/core/tests/search-types.test.ts
+  s_4fecf528305033::t_96d2e4ac5e75b4 5,37-39
+  s_4fecf528305033::t_137fc47d76cc1b 1-3,6-7,9-10,18-29,31-36,40-42
+  s_4fecf528305033::t_7f04d1df94d255 4,30
+  s_4fecf528305033::t_f1c9b68f2ffc61 8,11-17
+packages/core/src/client/link.tsx
+  s_4fecf528305033::t_23f452ec67ccdf 241
+packages/core/tests/error-boundary-navigation.test.tsx
+  s_4fecf528305033::t_d4fa653ad4e3cb 12
+packages/core/src/client/router/search/index.ts
+  s_4fecf528305033::t_8a8f61663151ba 21
+  s_4fecf528305033::t_7f04d1df94d255 23-28,43
+  s_4fecf528305033::t_10a0ad567c7531 6-20,22,34,42
+  s_4fecf528305033::t_d444c94a89c550 1,3,30-33,35-41,44-56
+  s_4fecf528305033::t_23f452ec67ccdf 2,4-5,29,57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "9b9d51a8adb692f7b2ed486c56333d5f7b6db29e",
+  "prompts": {},
+  "sessions": {
+    "s_0c6b20a65d9178": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14cfb8beeffer3Rz335xTLEzn2",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2909a12ac413db": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14d0b6ee8ffeCl8hfH70Qk6mAi",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4fecf528305033": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ead90-967a-7333-a0ba-1f76f71ec010",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+apps/docs/scripts/preview-static.ts
+  s_d08a8495311633::t_d480bd3f7fd940 12,14-17,20-22,24-26,28-38,41-45,47-49,52-56,58-62,64-68
+apps/docs/tests/preview-static.test.ts
+  s_d08a8495311633::t_5d41d876927bb1 1-55
+bun.lock
+  s_d08a8495311633::t_060104a01e4e48 12,721,923
+package.json
+  s_d08a8495311633::t_e20831d06c5fe3 31
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_d08a8495311633::t_66eb1e8d1adcce 99-123
+packages/core/tests/build/embed/build-embed.test.ts
+  s_d08a8495311633::t_fc0d23701092e5 6-7,35,58-72
+packages/core/tests/support/with-build-stub.ts
+  s_d08a8495311633::t_bdf46cb3c334a9 57-60,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "e2987def33dfe4c3fc46b84669795c31582fe771",
+  "prompts": {},
+  "sessions": {
+    "s_d08a8495311633": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07fa7-7c92-7b70-b987-d1afa978e4bb",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

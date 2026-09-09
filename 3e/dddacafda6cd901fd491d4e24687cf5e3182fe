@@ -1,0 +1,86 @@
+packages/core/package.json
+  0a5c07464dcc80ec 56
+packages/core/src/link.tsx
+  7cdf6ea10e910d65 2,4-10,12-13,206-207
+packages/core/tests/link/should-intercept-click.test.ts
+  92bb1bdb544bd3bd 84
+  0a5c07464dcc80ec 1,3-4,10-18,24,29,34,36,40,42,46,48-50,56,60,62,66,68,72,74,78-79,81,85-95,99,101,105,107
+knip.config.ts
+  0a5c07464dcc80ec 9-15
+package.json
+  ba8f769c54b67f55 22
+packages/core/tests/link/interactive.test.tsx
+  7cdf6ea10e910d65 1-888
+apps/docs/package.json
+  0a5c07464dcc80ec 7
+packages/core/bunfig.toml
+  7cdf6ea10e910d65 15
+apps/docs/src/components/doc-page.tsx
+  92bb1bdb544bd3bd 19-25
+tests/setup.ts
+  0a5c07464dcc80ec 4-13,15-18,20,23,26,29,32,35,38
+  ba8f769c54b67f55 1-3,14,19,21-22,24-25,27-28,30-31,33-34,36-37,39-48
+packages/core/src/router-provider.tsx
+  7cdf6ea10e910d65 1-1408
+packages/core/src/render/index.ts
+  7cdf6ea10e910d65 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "3edddacafda6cd901fd491d4e24687cf5e3182fe",
+  "prompts": {
+    "0a5c07464dcc80ec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2205303fdffeZyOXbjLjR3Qgyg",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 99,
+      "overriden_lines": 0
+    },
+    "7cdf6ea10e910d65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21dec4207ffeQ1FEN5BlACD45b",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2311,
+      "overriden_lines": 0
+    },
+    "92bb1bdb544bd3bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21fe6975effexjDBIXTOJO5TD2",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "ba8f769c54b67f55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de285-df81-7540-89cb-307139901c19",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 2,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    }
+  }
+}

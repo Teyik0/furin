@@ -1,0 +1,25 @@
+packages/core/src/render/index.ts
+  63d9ad2af3e2135d 15
+packages/core/src/render/template.ts
+  63d9ad2af3e2135d 19,29,43,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "7c8f3f71538bd62999283e4243ea2f11e0da0a67",
+  "prompts": {
+    "63d9ad2af3e2135d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019cccae-33b3-7813-9a77-e8fe73270fe4",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 581,
+      "total_deletions": 40,
+      "accepted_lines": 560,
+      "overriden_lines": 8
+    }
+  }
+}

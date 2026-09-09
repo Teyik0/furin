@@ -1,0 +1,47 @@
+packages/core/src/server/render/route-frame-transport.ts
+  s_d68a51dec86ae3::t_19e55b7c10af05 45,50,58
+  s_d68a51dec86ae3::t_8ad561d0f288ea 46-48,51-57
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  s_d68a51dec86ae3::t_19e55b7c10af05 50-56
+packages/core/src/client/boundaries.tsx
+  s_d68a51dec86ae3::t_19e55b7c10af05 20,24-26,31-34,91,95-98
+packages/core/src/server/render/not-found.ts
+  s_d68a51dec86ae3::t_19e55b7c10af05 8,13,25,31
+  s_d68a51dec86ae3::t_c21ae0727250cd 26-30
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_d68a51dec86ae3::t_19e55b7c10af05 16
+apps/docs/src/content/docs/api-routes.mdx
+  s_d68a51dec86ae3::t_19e55b7c10af05 40
+packages/core/src/server/sync/redis/index.ts
+  s_d68a51dec86ae3::t_19e55b7c10af05 151
+packages/core/tests/client/sync/adapters/redis-sync.test.ts
+  s_d68a51dec86ae3::t_19e55b7c10af05 130-132
+packages/core/src/plugin/transform-client.ts
+  s_d68a51dec86ae3::t_4c97240795a0e4 173-203,215-216
+apps/scaffolder/tests/ejs-renderer.test.ts
+  s_d68a51dec86ae3::t_c21ae0727250cd 33
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_d68a51dec86ae3::t_c6d74472ba88cf 27-29,37,39,42,44,56,58-60
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_d68a51dec86ae3::t_1c6345e811e143 20
+  s_d68a51dec86ae3::t_c6d74472ba88cf 44,65-70,78-83
+  s_d68a51dec86ae3::t_7b2096adaab1fc 45-47
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_d68a51dec86ae3::t_4c97240795a0e4 234-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "aeb9988536c20207184f97b16a73906c1802713e",
+  "prompts": {},
+  "sessions": {
+    "s_d68a51dec86ae3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9534-522f-7b03-9094-6d0fe54ae160",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

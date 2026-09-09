@@ -1,0 +1,28 @@
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_2f9a3c6107255a::t_24643aca0fe523 32-52
+packages/core/src/server/render/loaders.ts
+  s_2f9a3c6107255a::t_b72b05700aa54d 53-61,153
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_2f9a3c6107255a::t_5120b02050a436 99-107,112
+  s_2f9a3c6107255a::t_26e113218bdc83 97-98,108-111,113-114
+packages/core/src/server/router/discovery.ts
+  s_2f9a3c6107255a::t_22da643e54f11c 2,143-166,270
+  s_2f9a3c6107255a::t_c1ee6c123c4bcd 251,272-280,300,327,429,465
+  s_2f9a3c6107255a::t_bc23e44dea5dc8 271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "6727e82a441241369715d36bd0ad765d0400080d",
+  "prompts": {},
+  "sessions": {
+    "s_2f9a3c6107255a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f93-07ff-7d62-90ff-5ea5a615103f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/core/src/server/render/isr.ts
+  s_815d738d114937::t_5dda95ded9d9f8 52,137,198
+  s_815d738d114937::t_40e7fef8bb3213 25-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a82cf0bbf1a0169b5b71a7985825dfeb70968dfa",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

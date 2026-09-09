@@ -1,0 +1,111 @@
+packages/core/src/lang-detect.ts
+  s_404d013be7a060::t_a9e7bdae94ccaf 1-46
+packages/core/src/render/index.ts
+  s_7e941f2bc779fa::t_d4c966e8824900 268-275,277,284,292-312
+  s_7e941f2bc779fa::t_1bdd98820353ba 4
+  s_7e941f2bc779fa::t_8fefcfcbf93988 329-336,338,347
+  s_7e941f2bc779fa::t_296c5eb6e97f64 386-391
+  s_7e941f2bc779fa::t_9a793a9e8fe9ec 48-56
+packages/core/src/router-provider.tsx
+  s_7e941f2bc779fa::t_6c836f5f43d02d 1102-1107
+  s_7e941f2bc779fa::t_b0abbc3827bb7e 913-945,947-965
+  s_7e941f2bc779fa::t_4db9d5d777b905 1029-1035
+  s_7e941f2bc779fa::t_1edef27c2cdd3d 439-440
+  s_7e941f2bc779fa::t_bf9b206e4b782d 946
+packages/core/src/build/client.ts
+  s_404d013be7a060::t_3a0b49bc41e556 65-68
+packages/core/tests/adapter-static.test.ts
+  s_7e941f2bc779fa::t_e28d1355849c75 103-134
+packages/core/tests/cache.test.ts
+  s_7e941f2bc779fa::t_b710f5eaa0fd7a 444-445
+  s_7e941f2bc779fa::t_d681fc1ba38871 119-124
+  s_7e941f2bc779fa::t_aa30913e3b1530 179-196
+packages/core/src/plugin/transform-client.ts
+  s_7e941f2bc779fa::t_cdb62746430dcb 172-179,181-184,188,205-215,229
+  s_404d013be7a060::t_9c71780481c499 2-3,283,285,333,337-338,342,351-356,358-360,366-368,370,374
+packages/core/src/build/scan-server.ts
+  s_404d013be7a060::t_6ea5a361f3d9de 3,20,27,52-54
+packages/core/src/adapter/static.ts
+  s_7e941f2bc779fa::t_b99d2113891f17 284
+  s_7e941f2bc779fa::t_46430c8d24b3bc 25-28,34,37,39
+  s_7e941f2bc779fa::t_40043445ab9f51 60-61,73-78,80
+packages/core/tests/deferred-endpoint.test.ts
+  s_525f445b34a89f::t_cf882e8f641d80 43-87
+packages/core/src/router.ts
+  s_525f445b34a89f::t_8deb59486ab3b5 1220-1221,1224
+  s_525f445b34a89f::t_79cdaf26a5de2a 518-546
+  s_7e941f2bc779fa::t_f8809084c3d41d 1264
+  s_7e941f2bc779fa::t_99eef967425fec 1226-1232,1261-1263
+  s_525f445b34a89f::t_75fe05ee74eb24 1280-1282,1284-1289
+  s_525f445b34a89f::t_2f292d25cfcd41 1283,1290
+  s_7e941f2bc779fa::t_2c19fc9b0e5599 8-11
+  s_525f445b34a89f::t_38a12f04d91763 1306-1309,1311-1319
+  s_525f445b34a89f::t_02e5a959d9a08c 476
+packages/core/tests/transform-client.test.ts
+  s_7e941f2bc779fa::t_17c731c6e69157 15-18
+  s_7e941f2bc779fa::t_4b2b2cfc35a02c 465
+  s_7e941f2bc779fa::t_318ebc3ba5023c 218-254,256-275,277
+  s_7e941f2bc779fa::t_f85c8daf558255 255
+  s_7e941f2bc779fa::t_ebd9b6ef95b8a8 276
+  s_404d013be7a060::t_58452dd3cadf8c 358,364-464,466-469
+packages/core/src/plugin/index.ts
+  s_404d013be7a060::t_cafcef99bf00d3 64-70
+packages/core/src/render/cache.ts
+  s_7e941f2bc779fa::t_222fdacee4a461 16-22
+packages/core/tests/data-endpoint-logging.test.ts
+  s_7e941f2bc779fa::t_0254e1b86483c4 70-88
+  s_7e941f2bc779fa::t_12bcf011948bd5 56
+  s_7e941f2bc779fa::t_c76b9f94e7b02b 20,22,24,26
+  s_7e941f2bc779fa::t_60854218b545d9 1-19,21,23,25,27-29,31-55,57-60,69,89
+  s_7e941f2bc779fa::t_ef1f5b6a1e10c8 61-68
+packages/core/src/furin.ts
+  s_7e941f2bc779fa::t_6014ba4ab0facd 187-192
+package.json
+  s_7e941f2bc779fa::t_4b2b2cfc35a02c 27-28,31,33,35
+packages/core/package.json
+  s_7e941f2bc779fa::t_4b2b2cfc35a02c 95
+tests/setup.ts
+  s_7e941f2bc779fa::t_680c5b1b9a5ca6 146,148-153
+  s_7e941f2bc779fa::t_ec2dcdf7157f72 14-27
+  s_7e941f2bc779fa::t_584e30aaf7f4cc 136-143,147,159-166
+packages/core/tests/scan-server.test.ts
+  s_404d013be7a060::t_0642f07a9f546c 125-178
+packages/core/src/render/shell.ts
+  s_7e941f2bc779fa::t_d458ff25eaf948 150-164,169-171,183,191
+packages/core/src/adapter/bun.ts
+  s_7e941f2bc779fa::t_5960fcd265b158 153
+packages/core/tests/link/build-data-endpoint.test.ts
+  s_7e941f2bc779fa::t_2348dc5cf1a3a6 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c868b607fdadbf5302ce3b8c806d9da94fa7db80",
+  "prompts": {},
+  "sessions": {
+    "s_404d013be7a060": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cfabe79f-731d-45fb-930f-374de955814f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_525f445b34a89f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f85e5a3-2139-4969-999f-2de30173cf9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_7e941f2bc779fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb9fedbf-89b7-45bf-b305-69c1d3858949",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
