@@ -42,6 +42,7 @@ export interface CreateRoutesPluginOptions {
 
 export interface DevRouteTopologyWatcher {
   close: () => void;
+  refresh: () => Promise<void>;
 }
 
 export interface DevRouteTopologyWatcherOptions {
@@ -53,7 +54,7 @@ export interface DevRouteTopologyWatcherOptions {
 
 interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   pending: boolean;
-  refreshing: boolean;
+  refreshPromise: Promise<void> | undefined;
   routeFilesSignature: string;
   source: string;
   timer: ReturnType<typeof setInterval>;
@@ -289,14 +290,8 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
   return watchers;
 }
 
-async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void> {
-  if (state.refreshing) {
-    state.pending = true;
-    return;
-  }
-  state.refreshing = true;
+async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Promise<void> {
   try {
-    state.pending = false;
     const source = routeTopologySource(state.instance);
     if (source === state.source) {
       const signature = routeFilesSignature(state.instance);
@@ -311,12 +306,27 @@ async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promis
     }
   } catch (error) {
     console.error("[furin] Failed to refresh route topology", error);
-  } finally {
-    state.refreshing = false;
-    if (state.pending) {
-      await refreshRouteTopology(state);
-    }
   }
+}
+
+function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void> {
+  state.pending = true;
+  if (state.refreshPromise) {
+    return state.refreshPromise;
+  }
+
+  state.refreshPromise = (async () => {
+    try {
+      while (state.pending) {
+        state.pending = false;
+        // biome-ignore lint/performance/noAwaitInLoops: refreshes must be serialized so requests observe the latest route snapshot
+        await refreshRouteTopologyOnce(state);
+      }
+    } finally {
+      state.refreshPromise = undefined;
+    }
+  })();
+  return state.refreshPromise;
 }
 
 export function registerDevRouteTopologyWatcher(
@@ -334,6 +344,7 @@ export function registerDevRouteTopologyWatcher(
         clearInterval(existing.timer);
         watchers.delete(watcherKey);
       },
+      refresh: () => refreshRouteTopology(existing),
     };
   }
 
@@ -349,7 +360,7 @@ export function registerDevRouteTopologyWatcher(
   state = {
     ...options,
     pending: false,
-    refreshing: false,
+    refreshPromise: undefined,
     routeFilesSignature: routeFilesSignatureValue,
     source,
     timer,
@@ -361,6 +372,7 @@ export function registerDevRouteTopologyWatcher(
       clearInterval(timer);
       watchers.delete(watcherKey);
     },
+    refresh: () => refreshRouteTopology(state),
   };
 }
 
