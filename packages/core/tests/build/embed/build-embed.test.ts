@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateCompileEntry } from "../../../src/build/compile-entry";
 import { createTmpApp, removeAppPath } from "../../support/app-fixtures";
@@ -34,6 +34,7 @@ describe.serial("compile: embed", () => {
 
   test("CLI build --compile embed writes a runnable single server binary", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeFileSync(join(app.path, "public/embed.txt"), "embedded public asset");
 
     const result = await runCli(["build", "--compile", "embed"], { cwd: app.path });
 
@@ -65,7 +66,20 @@ describe.serial("compile: embed", () => {
       const response = await waitForHttp(`http://127.0.0.1:${port}/`, {
         timeoutMs: 10_000,
       });
-      expect(await response.text()).toContain("Home page");
+      const html = await response.text();
+      expect(html).toContain("Home page");
+
+      const publicAsset = await fetch(`http://127.0.0.1:${port}/public/embed.txt`);
+      expect(publicAsset.status).toBe(200);
+      expect(await publicAsset.text()).toBe("embedded public asset");
+
+      const clientAssetPath = html.match(/src="([^"]+\.js)"/)?.[1];
+      expect(clientAssetPath).toBeDefined();
+      const clientAsset = await fetch(`http://127.0.0.1:${port}${clientAssetPath}`);
+      expect(clientAsset.status).toBe(200);
+      expect(clientAsset.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
     } finally {
       server.kill();
       await server.exitCode;
@@ -96,6 +110,21 @@ describe.serial("compile: embed", () => {
     expect(result.stderr + result.stdout).toContain("Unknown option");
   });
 
+  test("CLI build --analyze writes a complete client metafile", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+
+    const result = await runCli(["build", "--target", "bun", "--analyze"], {
+      cwd: app.path,
+    });
+
+    expect(result.exitCode).toBe(0);
+    const metafile = Bun.file(join(app.path, ".furin/build/analysis/bun-client.json"));
+    expect(await metafile.exists()).toBe(true);
+    const metadata = (await metafile.json()) as Bun.BuildMetafile;
+    expect(Object.keys(metadata.inputs).length).toBeGreaterThan(0);
+    expect(Object.keys(metadata.outputs).length).toBeGreaterThan(0);
+  });
+
   test("CLI build does not parse --compile after the option terminator", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
@@ -107,7 +136,7 @@ describe.serial("compile: embed", () => {
     expect(output).not.toContain("Invalid compile mode");
   });
 
-  test("generateCompileEntry with embed produces file imports and __setCompileContext", () => {
+  test("generateCompileEntry with embed produces an in-memory native directory context", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
     const clientDir = join(app.path, "fake-client");
@@ -118,7 +147,7 @@ describe.serial("compile: embed", () => {
     mkdirSync(join(app.path, "public", "sub"), { recursive: true });
     writeFileSync(join(app.path, "public", "sub", "logo.png"), "fake");
 
-    const entryPath = generateCompileEntry({
+    const entry = generateCompileEntry({
       apps: [
         {
           buildId: undefined,
@@ -135,24 +164,24 @@ describe.serial("compile: embed", () => {
       publicDir: join(app.path, "public"),
     });
 
-    expect(existsSync(entryPath)).toBe(true);
-    const content = readFileSync(entryPath, "utf8");
+    expect(existsSync(entry.entrypoint)).toBe(false);
+    const content = entry.files[entry.entrypoint] as string;
 
-    expect(content).toContain('with { type: "file" }');
     expect(content).toContain("__setCompileContext");
     expect(content).toContain("clientLogging: true");
     expect(content).toContain("embedded:");
+    expect(content).toContain("clientDir: import.meta.dir");
     expect(content).toContain("modules:");
     expect(content).toContain("import(");
-    expect(content).toContain("/public/logo.png");
-    expect(content).toContain("/public/sub/logo.png");
+    expect(content).toContain("publicDir: import.meta.dir");
+    expect(content).not.toContain('with { type: "file" }');
+    expect(content).not.toContain("/public/logo.png");
   });
 
-  test("generateCompileEntry embeds public assets into every app's context", () => {
+  test("generateCompileEntry shares Bun's embedded public directory across app contexts", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
-    // Two embedded apps sharing one project-level public/ dir — each instance
-    // serves only from its own embedded.assets, so both need the /public keys.
+    // Two embedded apps share one project-level public directory in BunFS.
     const clientDirs = [join(app.path, "fake-client-a"), join(app.path, "fake-client-b")];
     for (const clientDir of clientDirs) {
       mkdirSync(clientDir, { recursive: true });
@@ -160,7 +189,7 @@ describe.serial("compile: embed", () => {
     }
     writeFileSync(join(app.path, "public", "logo.png"), "fake");
 
-    const entryPath = generateCompileEntry({
+    const entry = generateCompileEntry({
       apps: [
         {
           rootPath: join(app.path, "src/pages/root.tsx"),
@@ -179,18 +208,14 @@ describe.serial("compile: embed", () => {
       publicDir: join(app.path, "public"),
     });
 
-    const content = readFileSync(entryPath, "utf8");
+    const content = entry.files[entry.entrypoint] as string;
 
-    // Both apps' asset maps carry the /public key, each via its own var namespace…
-    const publicLines = content.split("\n").filter((line) => line.includes('"/public/logo.png"'));
+    const publicLines = content.split("\n").filter((line) => line.includes("publicDir:"));
     expect(publicLines).toHaveLength(2);
-    expect(publicLines[0]).toContain("_a0_");
-    expect(publicLines[1]).toContain("_a1_");
-    // …but both import the SAME file path, which Bun dedupes into one embedded payload.
-    expect(content.split('"./public/logo.png"')).toHaveLength(3);
+    expect(content).not.toContain("/public/logo.png");
   });
 
-  test("generateCompileEntry with embed excludes client sourcemaps", () => {
+  test("generateCompileEntry with embed does not enumerate client files", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
     const clientDir = join(app.path, "fake-client");
@@ -201,7 +226,7 @@ describe.serial("compile: embed", () => {
     writeFileSync(join(clientDir, "style.css"), "body{}");
     writeFileSync(join(clientDir, "style.css.map"), "{}");
 
-    const entryPath = generateCompileEntry({
+    const entry = generateCompileEntry({
       apps: [
         {
           buildId: undefined,
@@ -216,17 +241,18 @@ describe.serial("compile: embed", () => {
       outDir: app.path,
     });
 
-    const content = readFileSync(entryPath, "utf8");
+    const content = entry.files[entry.entrypoint] as string;
 
-    expect(content).toContain("/_client/chunk-abc.js");
-    expect(content).toContain("/_client/style.css");
+    expect(content).toContain("clientDir: import.meta.dir");
+    expect(content).not.toContain("chunk-abc.js");
+    expect(content).not.toContain("style.css");
     expect(content).not.toContain(".map");
   });
 
   test("generateCompileEntry without embed does not contain embedded block", () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 
-    const entryPath = generateCompileEntry({
+    const entry = generateCompileEntry({
       apps: [
         {
           buildId: undefined,
@@ -240,7 +266,7 @@ describe.serial("compile: embed", () => {
       outDir: app.path,
     });
 
-    const content = readFileSync(entryPath, "utf8");
+    const content = entry.files[entry.entrypoint] as string;
 
     expect(content).toContain("__setCompileContext");
     expect(content).toContain("modules:");

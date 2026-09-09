@@ -1,10 +1,13 @@
-interface ClientAsset {
+import { isAbsolute, resolve } from "node:path";
+
+interface ClientOutput {
   gzipBytes: number;
+  metadata: Bun.BuildMetafile["outputs"][string];
   path: string;
   rawBytes: number;
 }
 
-const decoder = new TextDecoder();
+const CLIENT_OUTPUT_RE = /\.(?:css|js)$/;
 const formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
   minimumFractionDigits: 1,
@@ -14,122 +17,105 @@ function formatKilobytes(bytes: number): string {
   return `${formatter.format(bytes / 1024)} KiB`;
 }
 
-function getDirectory(filePath: string): string {
-  const normalized = filePath.replaceAll("\\", "/");
-  const slashIndex = normalized.lastIndexOf("/");
-
-  if (slashIndex === -1) {
-    return ".";
-  }
-
-  if (slashIndex === 0) {
-    return "/";
-  }
-
-  return normalized.slice(0, slashIndex);
+function isClientOutput(path: string): boolean {
+  return CLIENT_OUTPUT_RE.test(path);
 }
 
-function joinPath(rootDir: string, assetPath: string): string {
-  const cleanAssetPath = assetPath.split("?")[0]?.split("#")[0];
-
-  if (!cleanAssetPath) {
-    throw new Error(`Invalid asset path: ${assetPath}`);
-  }
-
-  if (cleanAssetPath.startsWith("/_client/")) {
-    return `${rootDir}/${cleanAssetPath.slice("/_client/".length)}`;
-  }
-
-  if (cleanAssetPath.startsWith("/")) {
-    return `${rootDir}${cleanAssetPath}`;
-  }
-
-  return `${rootDir}/${cleanAssetPath}`;
+function resolveOutputPath(directory: string, outputPath: string): string {
+  return isAbsolute(outputPath) ? outputPath : resolve(directory, outputPath);
 }
 
-function isLocalAssetPath(assetPath: string): boolean {
-  if (assetPath.startsWith("//")) {
-    return false;
+async function measureOutput(
+  directory: string,
+  path: string,
+  metadata: Bun.BuildMetafile["outputs"][string]
+): Promise<ClientOutput> {
+  const filePath = resolveOutputPath(directory, path);
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) {
+    throw new Error(`Bundle output not found: ${filePath}`);
   }
-
-  if (URL.canParse(assetPath)) {
-    return false;
-  }
-  return true;
-}
-
-function extractClientAssetPaths(sourceHtml: string): string[] {
-  const assetPaths = new Set<string>();
-  const attributePattern = /\b(?:src|href)=["']([^"']+\.(?:js|css)(?:[?#][^"']*)?)["']/g;
-
-  for (const match of sourceHtml.matchAll(attributePattern)) {
-    const [, assetPath] = match;
-
-    if (assetPath !== undefined && isLocalAssetPath(assetPath)) {
-      assetPaths.add(assetPath);
-    }
-  }
-
-  return [...assetPaths].toSorted();
-}
-
-async function measureAsset(rootDir: string, assetPath: string): Promise<ClientAsset> {
-  const filePath = joinPath(rootDir, assetPath);
-  const bytes = new Uint8Array(await Bun.file(filePath).arrayBuffer());
-
+  const bytes = new Uint8Array(await file.arrayBuffer());
   return {
     gzipBytes: Bun.gzipSync(bytes).byteLength,
-    path: assetPath,
-    rawBytes: bytes.byteLength,
+    metadata,
+    path,
+    rawBytes: metadata.bytes,
   };
 }
 
 function printUsage(): void {
-  console.error("Usage: bun scripts/measure-client-bundle.ts <path-to-client-index.html>");
+  console.error(
+    "Usage: bun scripts/measure-client-bundle.ts <path-to-metafile.json> <path-to-client-output>"
+  );
 }
 
-const [, , htmlPath] = Bun.argv;
+const [, , metafilePath, clientOutputDir] = Bun.argv;
 
-if (htmlPath === undefined) {
+if (metafilePath === undefined || clientOutputDir === undefined) {
   printUsage();
   process.exit(1);
 }
 
-const htmlFile = Bun.file(htmlPath);
-
-if (!(await htmlFile.exists())) {
-  console.error(`Client HTML not found: ${htmlPath}`);
+const metafileFile = Bun.file(metafilePath);
+if (!(await metafileFile.exists())) {
+  console.error(`Client metafile not found: ${metafilePath}`);
   process.exit(1);
 }
 
-const documentHtml = decoder.decode(await htmlFile.arrayBuffer());
-const htmlBaseDir = getDirectory(htmlPath);
-const assetPaths = extractClientAssetPaths(documentHtml);
+const metafile = (await metafileFile.json()) as Bun.BuildMetafile;
+const outputEntries = Object.entries(metafile.outputs)
+  .filter(([path]) => isClientOutput(path))
+  .toSorted(([left], [right]) => left.localeCompare(right));
 
-if (assetPaths.length === 0) {
-  console.error(`No client JS or CSS assets found in: ${htmlPath}`);
+if (outputEntries.length === 0) {
+  console.error(`No client JS or CSS outputs found in: ${metafilePath}`);
   process.exit(1);
 }
 
-const assets = await Promise.all(
-  assetPaths.map((assetPath) => measureAsset(htmlBaseDir, assetPath))
+const importedOutputKinds = new Map<string, Bun.ImportKind>();
+for (const [, metadata] of outputEntries) {
+  for (const imported of metadata.imports) {
+    if (imported.kind === "dynamic-import" || !importedOutputKinds.has(imported.path)) {
+      importedOutputKinds.set(imported.path, imported.kind);
+    }
+  }
+}
+
+const outputs = await Promise.all(
+  outputEntries.map(([path, metadata]) => measureOutput(clientOutputDir, path, metadata))
 );
-const totals = assets.reduce(
-  (current, asset) => ({
-    gzipBytes: current.gzipBytes + asset.gzipBytes,
-    rawBytes: current.rawBytes + asset.rawBytes,
+const totals = outputs.reduce(
+  (current, output) => ({
+    gzipBytes: current.gzipBytes + output.gzipBytes,
+    rawBytes: current.rawBytes + output.rawBytes,
   }),
   { gzipBytes: 0, rawBytes: 0 }
 );
 
-for (const asset of assets) {
+for (const output of outputs) {
+  const importedAs = importedOutputKinds.get(output.path);
+  let kind = "entry";
+  if (importedAs === "dynamic-import") {
+    kind = "lazy";
+  } else if (importedAs !== undefined) {
+    kind = "chunk";
+  }
   console.log(
-    `${asset.path}  raw=${formatKilobytes(asset.rawBytes)}  gzip=${formatKilobytes(asset.gzipBytes)}`
+    `${output.path} [${kind}]  raw=${formatKilobytes(output.rawBytes)}  gzip=${formatKilobytes(output.gzipBytes)}`
   );
+
+  const contributingInputs = Object.entries(output.metadata.inputs)
+    .toSorted(([, left], [, right]) => right.bytesInOutput - left.bytesInOutput)
+    .slice(0, 5);
+  for (const [inputPath, input] of contributingInputs) {
+    console.log(`  ${formatKilobytes(input.bytesInOutput)}  ${inputPath}`);
+  }
+  for (const imported of output.metadata.imports) {
+    console.log(`  ${imported.kind} → ${imported.path}`);
+  }
 }
 
 console.log(
   `total  raw=${formatKilobytes(totals.rawBytes)}  gzip=${formatKilobytes(totals.gzipBytes)}`
 );
-
-export {};

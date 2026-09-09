@@ -7,6 +7,7 @@ import { buildEntrySource } from "../build/entry-template.ts";
 import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import { buildSSGCacheSnapshot } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, PackageTargetBuildManifest } from "../build/types.ts";
+import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
@@ -53,6 +54,8 @@ export async function buildPackageTarget(
     publicPath: `${prefix}/_client/`,
     basePath: prefix,
     clientLogging: options.clientLogging ?? false,
+    metafilePath: options.analyze ? join(buildRoot, "analysis", "package-client.json") : undefined,
+    reactCompiler: options.reactCompiler,
   });
 
   // Same fingerprint as the Bun target: hashing only the client chunks would
@@ -134,10 +137,11 @@ export async function buildPackageTarget(
     mode: "register",
   });
   const registerEntry = join(targetDir, "register.ts");
-  writeFileSync(registerEntry, registerSource);
+  const register = createVirtualBuildEntry(registerEntry, registerSource, "ts");
 
   const result = await runBunBuild({
-    entrypoints: [registerEntry],
+    entrypoints: [register.entrypoint],
+    files: register.files,
     outdir: targetDir,
     target: "bun",
     // Keep EVERY dependency external (incl. @teyik0/furin): the host must
@@ -147,14 +151,11 @@ export async function buildPackageTarget(
     naming: { entry: "[name].[ext]", chunk: "[name]-[hash].[ext]" },
     sourcemap: "none",
     minify: false,
-    plugins: options.plugins,
+    plugins: [register.plugin, ...(options.plugins ?? [])],
   });
   if (!result.success) {
     throw new AggregateError(result.logs, "[furin] package register build failed");
   }
-  rmSync(registerEntry, { force: true });
-  rmSync(join(targetDir, "_hydrate.tsx"), { force: true });
-
   // 2. index.js — the factory the host mounts. The baked relative pagesDir
   // keeps monorepo dev working; in a published package the compile context is
   // resolved by prefix instead.

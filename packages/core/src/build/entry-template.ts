@@ -24,8 +24,6 @@ export interface EntryAppContext {
   clientLogging?: boolean;
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
-  /** Extra import lines this app needs (embedded asset imports). */
-  extraImports?: string[];
   /** Mount prefix baked into the context for runtime lookup (`""` = root). */
   prefix?: string;
   rootConventions?: { errorPath?: string; notFoundPath?: string };
@@ -172,14 +170,11 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
 
   for (let appIndex = 0; appIndex < apps.length; appIndex++) {
     const app = apps[appIndex] as EntryAppContext;
-    // Per-app variable namespace so several apps' module/asset imports never
-    // collide inside the single generated entry.
+    // Per-app variable namespace so several apps' module imports never collide
+    // inside the single generated entry.
     const varPrefix = apps.length === 1 ? "_" : `_a${appIndex}_`;
     const block = buildAppContextBlock(app, varPrefix);
     importLines.push(...block.importLines);
-    if (app.extraImports && app.extraImports.length > 0) {
-      importLines.push("", ...app.extraImports);
-    }
     contextBlocks.push("", ...block.contextLines);
   }
 

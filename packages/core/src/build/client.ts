@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
@@ -8,6 +8,7 @@ import { runBunBuild } from "./bun-build.ts";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
+import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
@@ -36,7 +37,17 @@ export interface BuildClientResult {
  */
 export async function buildClient(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, plugins, publicPath, basePath, clientLogging, clientDirName }: BuildClientOptions
+  {
+    outDir,
+    rootLayout,
+    plugins,
+    publicPath,
+    basePath,
+    clientLogging,
+    clientDirName,
+    metafilePath,
+    reactCompiler,
+  }: BuildClientOptions
 ): Promise<BuildClientResult> {
   // Per-app client dir so several mounted apps build side by side
   // ("client", "client-admin", …) without clobbering each other.
@@ -55,7 +66,7 @@ export async function buildClient(
     outDir,
     dirName === "client" ? "_hydrate.tsx" : `_hydrate-${dirName}.tsx`
   );
-  writeFileSync(hydratePath, hydrateCode);
+  const hydrateEntry = createVirtualBuildEntry(hydratePath, hydrateCode, "tsx");
 
   console.log("[furin] Building production client bundle…");
 
@@ -94,25 +105,35 @@ export async function buildClient(
     // with code-splitting incorrectly references a leaf chunk in the output
     // index.html instead of the actual entry chunk, preventing React from
     // mounting. We write index.html ourselves after the build.
-    entrypoints: [hydratePath],
+    entrypoints: [hydrateEntry.entrypoint],
+    files: hydrateEntry.files,
     outdir: clientDir,
     target: "browser",
     format: "esm",
     splitting: true,
+    reactCompiler: reactCompiler ?? true,
+    reactCompilerOutputMode: "client",
     minify: true,
     sourcemap: "none",
+    metafile: metafilePath !== undefined,
     // Hash the entry point name so it gets immutable caching like chunks.
     // Without this, _hydrate.js keeps the same name across builds and browsers
     // serve stale versions that reference old chunk hashes → dynamic import 404.
     naming: {
-      entry: "[dir]/[name]-[hash].[ext]",
+      entry: "[name]-[hash].[ext]",
       chunk: "[name]-[hash].[ext]",
     },
     // Absolute public path so SSR template asset URLs resolve on any route.
     // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
     publicPath,
-    // User plugins run before the internal transform so they pre-process files first
-    plugins: [...(plugins ?? []), environmentGuardPlugin("client"), transformPlugin],
+    // Resolve the in-memory entry first. User plugins still run before Furin's
+    // transforms for every imported application module.
+    plugins: [
+      hydrateEntry.plugin,
+      ...(plugins ?? []),
+      environmentGuardPlugin("client"),
+      transformPlugin,
+    ],
     alias: {
       "@teyik0/furin/client": CLIENT_MODULE_PATH,
       "@teyik0/furin/link": LINK_MODULE_PATH,
@@ -124,6 +145,14 @@ export async function buildClient(
   };
 
   const result = await runBunBuild(clientBuildConfig);
+  if (metafilePath !== undefined) {
+    if (result.metafile === undefined) {
+      throw new Error("[furin] client build did not produce the requested metafile");
+    }
+    mkdirSync(dirname(metafilePath), { recursive: true });
+    writeFileSync(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
+    console.log(`[furin] Client metafile: ${metafilePath}`);
+  }
   for (const output of result.outputs) {
     console.log(`[furin]   ${output.path} (${(output.size / 1024).toFixed(1)} KB)`);
   }

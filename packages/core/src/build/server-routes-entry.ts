@@ -1,20 +1,20 @@
-import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildEntrySource, type BuildEntryOptions } from "./entry-template";
 import { ensureDir } from "./shared";
+import { createVirtualBuildEntry, type VirtualBuildEntry } from "./virtual-entry.ts";
 
 /**
- * Generates `server.ts` — an intermediate entry used to produce `server.js`.
+ * Generates a virtual `server.ts` entry used to produce `server.js`.
  *
  * Equivalent to `_compile-entry.ts` but for disk (non-binary) production builds:
  * 1. Statically imports every page module of every app so Bun bundles them
  * 2. Sets production mode and registers one CompileContext PER APP
  * 3. Imports server.ts to boot the composed app
  *
- * This file is intermediate: `adapter/bun.ts` runs `Bun.build()` on it to produce
- * the self-contained `server.js` bundle, then deletes this file.
+ * `adapter/bun.ts` passes the source through `Bun.build({ files })`, so no
+ * intermediate source file is written to disk.
  */
-export function generateServerRoutesEntry(options: BuildEntryOptions): string {
+export function generateServerRoutesEntry(options: BuildEntryOptions): VirtualBuildEntry {
   const { apps, outDir, serverEntry } = options;
   ensureDir(outDir);
   const source = buildEntrySource({
@@ -25,6 +25,5 @@ export function generateServerRoutesEntry(options: BuildEntryOptions): string {
 
   // Named "server.ts" so Bun.build() outputs "server.js"
   const entryPath = join(outDir, "server.ts");
-  writeFileSync(entryPath, source);
-  return entryPath;
+  return createVirtualBuildEntry(entryPath, source, "ts");
 }

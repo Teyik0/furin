@@ -82,6 +82,29 @@ async function runBuildPackageTargetScenarios(): Promise<void> {
 
   {
     const app = trackedTmpApp("cli-app");
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const buildConfigs: Bun.BuildConfig[] = [];
+    await withBuildStub(
+      () =>
+        buildPackageTarget(
+          { pagesDir: join(app.path, "src/pages"), prefix: "/shop", root, routes },
+          app.path,
+          join(app.path, ".furin/build"),
+          { target: "package" }
+        ),
+      (config) => {
+        buildConfigs.push(config);
+      }
+    );
+    const registerBuild = buildConfigs.find((config) => config.target === "bun");
+    const entrypoint = registerBuild?.entrypoints[0];
+    expect(entrypoint).toEndWith("register.ts");
+    expect(registerBuild?.files?.[entrypoint as string]).toContain("__setCompileContext");
+    expect(existsSync(entrypoint as string)).toBe(false);
+  }
+
+  {
+    const app = trackedTmpApp("cli-app");
     const first = await buildPackage(app.path, "/shop");
     const pagePath = join(app.path, "src/pages/index.tsx");
     writeAppFile(

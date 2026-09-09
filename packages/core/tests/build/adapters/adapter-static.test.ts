@@ -272,14 +272,20 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
       join(app.path, ".furin/build"),
       scanned.root,
       {
-        staticConfig: { outDir: scanned.distDir },
+        staticConfig: { basePath: "/furin", outDir: scanned.distDir },
         target: "static",
       },
     ),
   );
-  expect(manifest.renderedRoutes).not.toContain("/redirect-me");
+  expect(manifest.renderedRoutes).toContain("/redirect-me");
   expect(manifest.skippedRoutes).not.toContain("/redirect-me");
-  expect(existsSync(join(scanned.distDir, "redirect-me/index.html"))).toBe(false);
+  const redirectHtml = readFileSync(
+    join(scanned.distDir, "redirect-me/index.html"),
+    "utf8",
+  );
+  expect(redirectHtml).toContain('http-equiv="refresh"');
+  expect(redirectHtml).toContain('content="0;url=/furin/home"');
+  expect(redirectHtml).toContain('href="/furin/home"');
 
   route = {
     ...baseRoute,

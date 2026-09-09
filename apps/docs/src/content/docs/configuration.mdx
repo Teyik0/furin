@@ -12,6 +12,7 @@ export default defineConfig({
   pagesDir: "src/pages",
   serverEntry: "src/server.ts",
   clientLogging: false,
+  reactCompiler: true,
   targets: ["bun"],
   plugins: [tailwind],
   bun: {
@@ -70,6 +71,23 @@ import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
   clientLogging: true,
+});
+```
+
+---
+
+## `reactCompiler`
+
+**Type:** `boolean`
+**Default:** `true`
+
+Enables Bun's native Rust React Compiler for production client bundles. Furin uses Bun's `reactCompiler` build option directly; it does not add Babel to the build pipeline.
+
+Set `reactCompiler: false` only when diagnosing a compiler incompatibility:
+
+```ts
+export default defineConfig({
+  reactCompiler: false,
 });
 ```
 

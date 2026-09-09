@@ -53,6 +53,39 @@ function sortRouteList(routes: string[]): string[] {
   return routes.toSorted((a, b) => (a < b ? -1 : Number(a > b)));
 }
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function resolveStaticRedirectLocation(location: string, basePath: string): string {
+  if (
+    basePath === "" ||
+    !location.startsWith("/") ||
+    location.startsWith("//") ||
+    location === basePath ||
+    location.startsWith(`${basePath}/`)
+  ) {
+    return location;
+  }
+  return location === "/" ? `${basePath}/` : `${basePath}${location}`;
+}
+
+function createStaticRedirectHtml(location: string): string {
+  const escapedLocation = escapeHtmlAttribute(location);
+  return (
+    "<!doctype html>\n" +
+    '<meta charset="utf-8">\n' +
+    `<meta http-equiv="refresh" content="0;url=${escapedLocation}">\n` +
+    `<link rel="canonical" href="${escapedLocation}">\n` +
+    "<title>Redirecting…</title>\n" +
+    `<a href="${escapedLocation}">Redirecting…</a>\n`
+  );
+}
+
 function assertNoStaticExportSkips(onSSR: "error" | "skip", skippedRoutes: string[]): void {
   if (onSSR !== "error" || skippedRoutes.length === 0) {
     return;
@@ -108,8 +141,18 @@ async function prerenderAndWrite(
     );
 
     if (entry instanceof Response) {
-      console.warn(
-        `[furin] static: route "${route.pattern}" loader returned a redirect — skipping.`
+      const location = entry.headers.get("location");
+      if (entry.status < 300 || entry.status >= 400 || location === null) {
+        throw new Error(
+          `[furin] static: route "${route.pattern}" returned a response that cannot be exported.`
+        );
+      }
+      const staticLocation = resolveStaticRedirectLocation(location, basePath);
+      ensureDir(dirname(htmlOutputFile));
+      writeFileSync(htmlOutputFile, createStaticRedirectHtml(staticLocation));
+      renderedRoutes.push(urlPath);
+      console.log(
+        `[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)} (redirects to ${staticLocation})`
       );
       return;
     }
@@ -388,9 +431,11 @@ export async function buildStaticTarget(
   const { entryChunk, cssChunks } = await buildClient(ssgRoutes, {
     basePath,
     clientLogging: Boolean(options.clientLogging),
+    metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
     outDir: targetDir,
     plugins: options.plugins,
     publicPath,
+    reactCompiler: options.reactCompiler,
     rootLayout: root.path,
   });
 

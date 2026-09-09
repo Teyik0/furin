@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startStaticPreview } from "../scripts/preview-static";
+import { startStaticPreview } from "../../src/cli/preview.ts";
 
 const tempDirs: string[] = [];
 const servers: Bun.Server<undefined>[] = [];
@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 describe("static preview", () => {
-  test("serves the exported directory under its base path with a 404 fallback", async () => {
+  test("serves a static export from a base path with Bun directory routes", async () => {
     const distDir = mkdtempSync(join(tmpdir(), "furin-static-preview-"));
     tempDirs.push(distDir);
     mkdirSync(join(distDir, "docs"), { recursive: true });
@@ -51,5 +51,24 @@ describe("static preview", () => {
     const missing = await fetch(new URL("/furin/missing", server.url));
     expect(missing.status).toBe(404);
     expect(await missing.text()).toBe("<h1>Missing</h1>");
+  });
+
+  test("serves root deployments without redirecting the homepage", async () => {
+    const distDir = mkdtempSync(join(tmpdir(), "furin-static-preview-root-"));
+    tempDirs.push(distDir);
+    mkdirSync(join(distDir, "_client"), { recursive: true });
+    writeFileSync(join(distDir, "index.html"), "<h1>Root</h1>");
+    writeFileSync(join(distDir, "404.html"), "<h1>Missing</h1>");
+
+    const server = startStaticPreview({
+      basePath: "",
+      distDir,
+      port: 0,
+    });
+    servers.push(server);
+
+    const homepage = await fetch(server.url, { redirect: "manual" });
+    expect(homepage.status).toBe(200);
+    expect(await homepage.text()).toBe("<h1>Root</h1>");
   });
 });
