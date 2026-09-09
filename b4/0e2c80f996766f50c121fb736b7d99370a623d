@@ -1,0 +1,22 @@
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_b776a8fb50e190::t_35cb7b4df4b9f9 42,188-207
+  s_b776a8fb50e190::t_3c869211a41d0c 208-210
+packages/core/src/server/cache/invalidation.ts
+  s_b776a8fb50e190::t_18a0f504c986a4 85-88,91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "b40e2c80f996766f50c121fb736b7d99370a623d",
+  "prompts": {},
+  "sessions": {
+    "s_b776a8fb50e190": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5d5c-656b-77e2-b6b6-efa071fb242b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

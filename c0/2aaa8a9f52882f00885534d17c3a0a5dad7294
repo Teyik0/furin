@@ -1,0 +1,27 @@
+packages/core/src/server/sync/response.ts
+  s_6016442ff2513c::t_8a7e76bc8bfc42 44-48,154,171
+  s_6016442ff2513c::t_01e626ee547f4b 5-16,49-118,144,147-152
+  s_6016442ff2513c::t_994bcf0d64f360 119,121-140
+  s_6016442ff2513c::t_2a0435d82065b8 120
+packages/core/src/server/sync/plugin.ts
+  s_6016442ff2513c::t_8e3fb56e31c869 10,179-185,194
+packages/core/tests/client/sync/sync.test.ts
+  s_6016442ff2513c::t_ddf43a4730c9ed 8,132-200
+  s_6016442ff2513c::t_a3db0902d1937d 120-131,201-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c02aaa8a9f52882f00885534d17c3a0a5dad7294",
+  "prompts": {},
+  "sessions": {
+    "s_6016442ff2513c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cc8-79d1-7b81-b467-5f984a404b07",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

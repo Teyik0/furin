@@ -1,0 +1,161 @@
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_ad9852be7e3a44::t_2e7cd800467182 7-8,114-118
+  s_ad9852be7e3a44::t_a62f987e30c979 1-6,10-30,33-35,38-46,48,50-51,54,59-72,75-80,82,84-86,88-100,103-107,110-112,119-120,122-125,127-149,152-212
+  s_ad9852be7e3a44::t_3e08da142b1dc0 9,47,49,52-53,55-58,83
+apps/docs/src/content/docs/caching.mdx
+  s_ad9852be7e3a44::t_654d938fecd320 140,143,154,192,194
+  s_d06819928ef61e::t_e74f70646ac226 156
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_ad9852be7e3a44::t_31a45186581ba9 19,31-34,41-45,169
+packages/core/tests/fixtures/sync-bundles/redis.ts
+  s_ad9852be7e3a44::t_aef655a414200d 1
+CHANGELOG.md
+  s_d06819928ef61e::t_e74f70646ac226 10,16
+  s_d06819928ef61e::t_8a1fe98a62e5c2 11,34
+  s_3acaae2d9edf86::t_b8aa45ddb33ee7 33,35
+  s_ad9852be7e3a44::t_d0b038d252f0e5 37
+  s_ad9852be7e3a44::t_53d1e656a9a994 12,15,17-18,25
+packages/core/tests/fixtures/sync-bundles/hybrid.ts
+  s_ad9852be7e3a44::t_aef655a414200d 1-2
+packages/core/src/server/sync/config.ts
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 11-13,40-41
+  s_d06819928ef61e::t_9e899411ab2d42 15
+  s_d06819928ef61e::t_38e86e23b8bdf9 14
+examples/task-manager/package.json
+  s_ad9852be7e3a44::t_f3b5b1c54b4382 9-10
+apps/docs/src/content/docs/deployment.mdx
+  s_d06819928ef61e::t_8a1fe98a62e5c2 190
+  s_ad9852be7e3a44::t_654d938fecd320 181,183,186-187,198,217,221
+packages/core/tests/fixtures/sync-bundles/postgres.ts
+  s_ad9852be7e3a44::t_aef655a414200d 1
+packages/core/src/server/sync/index.ts
+  s_d06819928ef61e::t_9e899411ab2d42 37
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 8
+packages/core/src/server/sync/stream.ts
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 4-5,121-123,184
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_ad9852be7e3a44::t_f2dbc9a46ef350 1,32-34,36,39,41-48
+  s_ad9852be7e3a44::t_52ec376299aca2 8
+  s_ad9852be7e3a44::t_ad3de87d8b2f22 23
+packages/core/tests/client/sync/sync-notifier.test.ts
+  s_ad9852be7e3a44::t_ad3de87d8b2f22 3,9
+packages/core/src/client/router/provider.tsx
+  s_3acaae2d9edf86::t_2f3738c783eed7 809,831
+  s_d06819928ef61e::t_9fd2af587aae6d 791
+packages/core/tests/client/sync/adapters/sqlite-sync-adapter.test.ts
+  s_ad9852be7e3a44::t_cc434214008b8a 7,14,24-27,66-78,245-295
+  s_ad9852be7e3a44::t_52ec376299aca2 6
+  s_ad9852be7e3a44::t_f2dbc9a46ef350 28-36,194-195
+packages/core/src/client/router/types.ts
+  s_ad9852be7e3a44::t_53d1e656a9a994 209
+packages/core/tests/fixtures/sync-bundles/sqlite.ts
+  s_ad9852be7e3a44::t_aef655a414200d 1
+packages/core/tests/client/sync/adapters/redis-sync.test.ts
+  s_ad9852be7e3a44::t_52ec376299aca2 4
+  s_ad9852be7e3a44::t_cc434214008b8a 3,5,178
+apps/docs/src/content/docs/api-routes.mdx
+  s_d06819928ef61e::t_e74f70646ac226 126,142-144
+  s_ad9852be7e3a44::t_853f94ef31537b 31-50
+  s_ad9852be7e3a44::t_654d938fecd320 56,59,70,75,78,132,136,139,147,156,176-177,193,201
+packages/core/src/server/sync/sqlite/migration.sql
+  s_ad9852be7e3a44::t_6b159a47bf4459 14-22,27-52,70
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_ad9852be7e3a44::t_ccd137380f2aef 56-57,94-95,101,116,121,126,131,136,142,173-177,203,205
+  s_ad9852be7e3a44::t_410f9c4544e02a 146-158
+packages/core/src/server/sync/sqlite/index.ts
+  s_ad9852be7e3a44::t_6b159a47bf4459 14-15,68,78-81,85-101,103-107,111-127,129-132,147-164,168-175,178-182,184-188,190-194,196-200,203-206,208-220,222-234,237-239,243-258,262-269,273-280,284-304,306-320,325-335
+packages/core/src/server/sync/plugin.ts
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 141
+packages/core/src/server/sync/postgres/migration.sql
+  s_ad9852be7e3a44::t_6b159a47bf4459 29-50
+packages/core/package.json
+  s_ad9852be7e3a44::t_b7585d2866b7a6 41-42,81-97
+packages/core/src/server/sync/postgres/index.ts
+  s_ad9852be7e3a44::t_6b159a47bf4459 14
+  s_ad9852be7e3a44::t_52ec376299aca2 1
+packages/core/src/server/sync/redis/index.ts
+  s_ad9852be7e3a44::t_52ec376299aca2 1
+  s_ad9852be7e3a44::t_6b159a47bf4459 16,22
+packages/core/src/furin.ts
+  s_ad9852be7e3a44::t_f219339d3e91c5 623
+  s_d06819928ef61e::t_8a1fe98a62e5c2 331-333
+  s_ad9852be7e3a44::t_43f39bda4f2507 456,563
+  s_d06819928ef61e::t_9e899411ab2d42 34,622
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_ad9852be7e3a44::t_f3747ffa8349d9 35-36,44-51
+  s_ad9852be7e3a44::t_cc434214008b8a 3-4,8,17
+packages/core/tests/client/sync/sync.test.ts
+  s_ad9852be7e3a44::t_ec80c565b610d2 1,26-27,46-47,49-50,194,222,245,275,299,332,366,400-401,440,450
+  s_ad9852be7e3a44::t_0e7c931aef7a31 28-45,48
+  s_ad9852be7e3a44::t_52ec376299aca2 21
+examples/task-manager/src/sync.ts
+  s_ad9852be7e3a44::t_601c7313833cd8 1
+.github/workflows/distributed-sync-validation.yaml
+  s_ad9852be7e3a44::t_8af35fa9e1a97a 59,62
+  s_3acaae2d9edf86::t_2f3738c783eed7 42,45,51
+apps/docs/src/content/docs/configuration.mdx
+  s_ad9852be7e3a44::t_53d1e656a9a994 195,198,211,215,217-219,221
+  s_d06819928ef61e::t_e74f70646ac226 205,207
+.gitignore
+  s_d06819928ef61e::t_21edb765796169 48
+packages/core/tests/contract/sync-types.test.ts
+  s_ad9852be7e3a44::t_7f17bb2c6342ea 12,17,21-23,25
+  s_d06819928ef61e::t_be3261d332bb18 24
+  s_ad9852be7e3a44::t_b7f074dfcf5710 8,14-16,19-20,28-33
+apps/docs/src/content/docs/comparison.mdx
+  s_ad9852be7e3a44::t_53d1e656a9a994 153
+knip.config.ts
+  s_ad9852be7e3a44::t_601c7313833cd8 37
+packages/core/README.md
+  s_ad9852be7e3a44::t_53d1e656a9a994 36
+packages/core/src/server/sync/postgres/migrate.ts
+  s_ad9852be7e3a44::t_6b159a47bf4459 11
+packages/core/src/server/sync/runtime.ts
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 3,13
+packages/core/build.ts
+  s_ad9852be7e3a44::t_b7585d2866b7a6 43-46,73,82,87-95
+packages/core/src/server/sync/adapter.ts
+  s_ad9852be7e3a44::t_ce5efd00c6fac2 23
+packages/core/tests/fixtures/sync-bundles/core.ts
+  s_ad9852be7e3a44::t_ccd137380f2aef 1,3
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_d06819928ef61e::t_22854ae7e13fd9 299-300,308
+  s_d06819928ef61e::t_349318c58f1a92 28,43,55,275
+  s_3acaae2d9edf86::t_b8aa45ddb33ee7 247-248
+  s_d06819928ef61e::t_be850b979e3cf4 174,206
+  s_d06819928ef61e::t_8c1e16a24f8652 243-246,260-274,276-298,301-307,309-310
+bun.lock
+  s_ad9852be7e3a44::t_c09ebe2c57590d 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2415444922d73a1b465d6ccfa4eb0c87982e3d82",
+  "prompts": {},
+  "sessions": {
+    "s_3acaae2d9edf86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66f2-5c0e-7931-9ef5-8e64d70799e5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ad9852be7e3a44": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66f5-78d0-7221-9095-401b4cdfbb70",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d06819928ef61e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f671d-5d96-7c01-8665-2da9245d51b7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

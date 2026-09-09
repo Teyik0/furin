@@ -1,0 +1,125 @@
+apps/docs/src/lib/strip-mdx.ts
+  41f54705eb3f9d58 8-13,34,39,44,51,57
+  450a2db3c33a9c51 1-7,14-33,35-38,40-43,45-50,52-56,58-69
+apps/docs/scripts/generate-docs-content.ts
+  de14f9939d0bd88d 1-46
+apps/docs/src/pages/index.tsx
+  d3068cb89d11d8ec 66
+tsconfig.base.json
+  af39498ba022cf6a 4
+apps/scaffolder/templates/minimal/src/pages/root.tsx
+  569bad89f1875a10 6-8
+apps/docs/src/pages/root.tsx
+  d3068cb89d11d8ec 64
+apps/docs/src/server.ts
+  de14f9939d0bd88d 24,31,71-72
+  450a2db3c33a9c51 6,8,21-23,25-30,32-36,38,40-47,49,51-56
+apps/docs/src/components/docs-search-dialog.tsx
+  3aec30bb18305645 5,44,52-73
+apps/docs/package.json
+  450a2db3c33a9c51 12,14
+  de14f9939d0bd88d 13,15-16
+apps/docs/src/lib/docs.ts
+  de14f9939d0bd88d 3,150-152,154
+apps/docs/scripts/generate-llms-txt.ts
+  450a2db3c33a9c51 1-34,36,38-41,43-213,215-230
+  41f54705eb3f9d58 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "3eb5c78cb1292b780174ebe349ff8ded08f45a4f",
+  "prompts": {
+    "3aec30bb18305645": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d38d1b07-1b11-47ab-bbd3-710b67ab3947",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    },
+    "41f54705eb3f9d58": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2bade488effe9NqFeT7dexlv7W",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 6,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "450a2db3c33a9c51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53e58beb-2dd1-4121-8715-6317a55d2189",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 391,
+      "total_deletions": 72,
+      "accepted_lines": 318,
+      "overriden_lines": 5
+    },
+    "569bad89f1875a10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2a324db-47c3-4728-a97f-ac459e4c9011",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "af39498ba022cf6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d773a36f-d20b-43c7-b320-5f2a613fe008",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 18,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    },
+    "d3068cb89d11d8ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fab0ded-4783-41e7-9f15-554fd93511e9",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "de14f9939d0bd88d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af51c9fb-4b7b-4b3f-a91f-71f793c7a313",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 95,
+      "total_deletions": 39,
+      "accepted_lines": 67,
+      "overriden_lines": 1
+    }
+  }
+}

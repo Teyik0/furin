@@ -1,0 +1,36 @@
+CHANGELOG.md
+  c0d058597c0554f8 9-15,17-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "83076b5c3eba0a8002f28bd2c886b3abf54baaf3",
+  "prompts": {
+    "c0d058597c0554f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c58fff69-ed55-459d-b9ef-69355b0f8399",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 2,
+      "accepted_lines": 11,
+      "overriden_lines": 2
+    },
+    "c7b440576cc96b36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cbd55511-8551-4725-959d-3fe9737dbd51",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

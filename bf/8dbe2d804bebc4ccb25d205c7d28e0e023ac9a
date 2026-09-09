@@ -1,0 +1,23 @@
+packages/core/src/server/render/isr.ts
+  s_815d738d114937::t_9a3c5c7c9c139a 9-14
+  s_815d738d114937::t_d9b318c1a863a3 86-90,93,95
+packages/core/src/server/render/ssr.ts
+  s_815d738d114937::t_f5127ddbc57e46 443-448,451,453
+  s_815d738d114937::t_e885be8b18f8a9 93-99,101-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "bf8dbe2d804bebc4ccb25d205c7d28e0e023ac9a",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

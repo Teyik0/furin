@@ -1,0 +1,42 @@
+packages/core/src/build/types.ts
+  s_815d738d114937::t_1561c89868541f 58-59
+  s_815d738d114937::t_7df64f0cde3dac 11-12
+packages/core/src/build/hydrate.ts
+  s_815d738d114937::t_1c96be18c6573a 101-111
+  s_815d738d114937::t_0516eb927cb055 25-26
+  s_815d738d114937::t_9b5b553d65bbd9 119,124
+  s_815d738d114937::t_30854788ed4157 302,309
+packages/core/src/adapter/bun.ts
+  s_815d738d114937::t_00e4e5dbd61f32 144
+packages/core/src/build/client.ts
+  s_815d738d114937::t_541f6eea1a2819 36
+  s_815d738d114937::t_76d9561baef43c 47
+packages/core/src/cli/index.ts
+  s_815d738d114937::t_fa331770b2b618 96
+packages/core/tests/hydrate-entry.test.ts
+  s_815d738d114937::t_b8fe994290370e 41,47,63,87,95,101,108,122,127,166-169,263,272,288,299,320,337,345,352,368,373,378,383,390,396
+  s_815d738d114937::t_22ebdbe9033885 113
+  s_815d738d114937::t_620dac02c5701d 67-83
+  s_815d738d114937::t_2a65985969b08d 55
+packages/core/src/furin.ts
+  s_815d738d114937::t_ca3e60a14bf38e 179,183-188
+  s_815d738d114937::t_fc28514cc8cf26 268-271,274
+packages/core/src/adapter/static.ts
+  s_815d738d114937::t_86fd9c7e94dcf5 313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d524053fe0d06ce0ae8a73dca3b70e876b503dcf",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

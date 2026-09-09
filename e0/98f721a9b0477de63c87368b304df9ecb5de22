@@ -1,0 +1,36 @@
+packages/core/src/server/sync/fingerprint.ts
+  s_dcc50a23d00a31::t_9e94f8bf648a66 27-33,48
+examples/task-manager/package.json
+  s_dcc50a23d00a31::t_3607c501b0b01d 9
+examples/task-manager/tests/boards-invalidation.test.ts
+  s_dcc50a23d00a31::t_b85c2eb451eba5 1,26-37,39-48,52-64,66-71,73-78
+  s_dcc50a23d00a31::t_3bf697d2dba7b9 2,5-8,13-15
+  s_dcc50a23d00a31::t_3607c501b0b01d 10-11,17-21
+  s_dcc50a23d00a31::t_7873c9d778ba2f 22
+packages/core/tests/client/sync/sync.test.ts
+  s_dcc50a23d00a31::t_5ce3cb8fe7cae1 45,60,64-66,71,76,90,101,106
+  s_dcc50a23d00a31::t_fc770554a4491f 1-2,7
+  s_dcc50a23d00a31::t_fbbddd48f5e352 41,48-49,69,91,93-96,119-120
+  s_dcc50a23d00a31::t_af495a8cce4b22 42-44,46-47,50-59,61-63,67-68,70,72-75,77-89,92,97-100,102-105,107-115
+  s_dcc50a23d00a31::t_dc5c19cd10bbf3 10,40,121-132,134-143,145-152
+  s_dcc50a23d00a31::t_002002690846df 3-6,8,15-24,26-31,33-39
+  s_dcc50a23d00a31::t_6e72e5e3c4d2d3 9
+packages/core/src/server/sync/plugin.ts
+  s_dcc50a23d00a31::t_9e94f8bf648a66 63,68,121,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e098f721a9b0477de63c87368b304df9ecb5de22",
+  "prompts": {},
+  "sessions": {
+    "s_dcc50a23d00a31": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5a19-1495-7720-aa9d-c2878ae4b0d6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

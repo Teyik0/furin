@@ -1,0 +1,36 @@
+apps/docs/src/content/docs/api-routes.mdx
+  h_a2cbd1b0e3ae6e 98-100,102,261
+apps/docs/src/content/docs/caching.mdx
+  h_a2cbd1b0e3ae6e 14-16,19,24,30,132-134,136
+apps/docs/src/content/docs/data-loading.mdx
+  h_a2cbd1b0e3ae6e 15,24,32,52,86,107,110,121-122,125
+apps/docs/src/content/docs/defer.mdx
+  h_a2cbd1b0e3ae6e 14,17,61,65-66
+apps/docs/src/content/docs/error-handling.mdx
+  h_a2cbd1b0e3ae6e 77
+apps/docs/src/content/docs/getting-started.mdx
+  h_a2cbd1b0e3ae6e 61,63-65,84
+apps/docs/src/content/docs/head-seo.mdx
+  h_a2cbd1b0e3ae6e 13-15,17,141-145,164-166,168
+apps/docs/src/content/docs/layouts.mdx
+  h_a2cbd1b0e3ae6e 11,13-23,34,51,67,77,94,98-99
+apps/docs/src/content/docs/link-navigation.mdx
+  h_a2cbd1b0e3ae6e 201-204,209,220
+apps/docs/src/content/docs/logging.mdx
+  h_a2cbd1b0e3ae6e 56
+apps/docs/src/content/docs/rendering.mdx
+  h_a2cbd1b0e3ae6e 11,14,27,30,39,43,64,68,86,89,115,118,144-145,148
+apps/docs/src/content/docs/routing.mdx
+  h_a2cbd1b0e3ae6e 33,49,69,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a8787f6fca375b1b9a8aba0bf5b57369ae788b6a",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
