@@ -4,14 +4,33 @@ apps/docs/tests/preview-static.test.ts
   s_d08a8495311633::t_5d41d876927bb1 1-55
 bun.lock
   s_d08a8495311633::t_060104a01e4e48 12,721,923
+  s_d08a8495311633::t_782e70289dc7ee 12,721,923
 package.json
   s_d08a8495311633::t_e20831d06c5fe3 31
+  s_d08a8495311633::t_0a4d56e216675a 31
 packages/core/tests/build/adapters/adapter-bun-client.test.ts
   s_d08a8495311633::t_66eb1e8d1adcce 99-123
 packages/core/tests/build/embed/build-embed.test.ts
   s_d08a8495311633::t_fc0d23701092e5 6-7,35,58-72
 packages/core/tests/support/with-build-stub.ts
   s_d08a8495311633::t_bdf46cb3c334a9 57-60,65
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_d08a8495311633::t_cc195553e0b5dd 46,49,51,158,163
+  s_d08a8495311633::t_7e82b373c6cba1 164
+  s_9d4bccb36b0235::t_f269c6bb4ae09b 229,233-234
+  s_9d4bccb36b0235::t_430b51bcaf9da7 249,252-253
+  s_9d4bccb36b0235::t_92b738ac5acbb7 109
+  s_9d4bccb36b0235::t_ec3602eecff793 188,191,196,215-216
+packages/core/src/furin.ts
+  s_d08a8495311633::t_cc195553e0b5dd 532
+packages/core/src/server/router/plugin.ts
+  s_d08a8495311633::t_cc195553e0b5dd 32
+packages/core/src/plugin/transform-client.ts
+  s_d08a8495311633::t_cc195553e0b5dd 179,184,186,190,192,194,196-197,303,319-321,324-325
+  s_9d4bccb36b0235::t_0c6ab865fad6dd 324-325
+  s_9d4bccb36b0235::t_5d6298f8f78c2a 218-219,233-234,307
+  s_9d4bccb36b0235::t_b47a65006e02ac 287,289,292-293,304
+  s_9d4bccb36b0235::t_b6514b027f5504 204-205,208-209
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -19,6 +38,14 @@ packages/core/tests/support/with-build-stub.ts
   "base_commit_sha": "e2987def33dfe4c3fc46b84669795c31582fe771",
   "prompts": {},
   "sessions": {
+    "s_9d4bccb36b0235": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087a7-c520-75c0-8f1b-0497dd325197",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
     "s_d08a8495311633": {
       "agent_id": {
         "tool": "codex",
