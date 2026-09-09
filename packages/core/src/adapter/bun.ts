@@ -148,6 +148,21 @@ export interface BunTargetApp {
   routes: ResolvedRoute[];
 }
 
+function collectEmbeddedAssets(
+  entryApps: BuildEntryOptions["apps"],
+  publicDir: string | undefined,
+  compile: BuildAppOptions["compile"]
+): string[] | undefined {
+  if (compile !== "embed") {
+    return;
+  }
+  const assets = entryApps.flatMap((app) => (app.embed ? [app.embed.clientDir] : []));
+  if (publicDir !== undefined) {
+    assets.push(publicDir);
+  }
+  return assets;
+}
+
 /** Builds one app's client bundle + compile context payload for the entry. */
 async function buildOneApp(
   app: BunTargetApp,
@@ -157,7 +172,6 @@ async function buildOneApp(
 ): Promise<{
   buildId: string;
   entryApp: BuildEntryOptions["apps"][number];
-  hydrateIntermediate: string;
 }> {
   const { prefix, root, routes } = app;
   const clientDirName = clientDirNameForPrefix(prefix);
@@ -171,6 +185,11 @@ async function buildOneApp(
     basePath: prefix,
     clientLogging: options.clientLogging ?? false,
     clientDirName,
+    metafilePath: options.analyze
+      ? join(dirname(targetDir), "analysis", `bun-${clientDirName}.json`)
+      : undefined,
+    optimizeImports: options.optimizeImports,
+    reactCompiler: options.reactCompiler,
   });
 
   const buildFingerprint = await createBuildFingerprint(
@@ -217,8 +236,6 @@ async function buildOneApp(
       ssgCache,
       embed: options.compile === "embed" ? { clientDir } : undefined,
     },
-    hydrateIntermediate:
-      clientDirName === "client" ? "_hydrate.tsx" : `_hydrate-${clientDirName}.tsx`,
   };
 }
 
@@ -230,24 +247,21 @@ async function buildAppsSequentially(
 ): Promise<{
   entryApps: BuildEntryOptions["apps"];
   headlineBuildId: string;
-  hydrateIntermediates: string[];
 }> {
   const entryApps: BuildEntryOptions["apps"] = [];
-  const hydrateIntermediates: string[] = [];
   let headlineBuildId = "";
 
   for (const app of apps) {
     // biome-ignore lint/performance/noAwaitInLoops: each app installs a build-time template before SSG snapshotting, so this must remain ordered.
     const built = await buildOneApp(app, targetDir, serverEntry, options);
     entryApps.push(built.entryApp);
-    hydrateIntermediates.push(built.hydrateIntermediate);
     // The ROOT app's buildId is the manifest's headline id (back-compat).
     if (app.prefix === "" || headlineBuildId === "") {
       headlineBuildId = built.buildId;
     }
   }
 
-  return { entryApps, headlineBuildId, hydrateIntermediates };
+  return { entryApps, headlineBuildId };
 }
 
 export async function buildBunTarget(
@@ -275,7 +289,7 @@ export async function buildBunTarget(
   ensureDir(targetDir);
 
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
-  const { entryApps, headlineBuildId, hydrateIntermediates } = await buildAppsSequentially(
+  const { entryApps, headlineBuildId } = await buildAppsSequentially(
     apps,
     targetDir,
     serverEntry,
@@ -296,23 +310,27 @@ export async function buildBunTarget(
   if (options.compile && serverEntry) {
     const outfile = join(targetDir, "server");
 
-    const entryPath = generateCompileEntry({
+    const entry = generateCompileEntry({
       apps: entryApps,
       serverEntry,
       outDir: targetDir,
       publicDir,
     });
+    const embeddedAssets = collectEmbeddedAssets(entryApps, publicDir, options.compile);
 
     await runBunBuild({
-      entrypoints: [entryPath],
-      compile: { outfile },
+      entrypoints: [entry.entrypoint],
+      files: entry.files,
+      compile: { outfile, assets: embeddedAssets },
       bytecode: true,
       format: "esm",
       target: "bun",
+      splitting: true,
       minify: true,
       sourcemap: "none",
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
       plugins: [
+        entry.plugin,
         productionInstrumentationPlugin(),
         ...(options.plugins ?? []),
         isomorphicTransformPlugin("server"),
@@ -337,19 +355,22 @@ export async function buildBunTarget(
     }
   } else if (serverEntry) {
     // Disk mode: generate server.ts then bundle it into self-contained server.js
-    const entryPath = generateServerRoutesEntry({
+    const entry = generateServerRoutesEntry({
       apps: entryApps,
       serverEntry,
       outDir: targetDir,
     });
 
     await runBunBuild({
-      entrypoints: [entryPath],
+      entrypoints: [entry.entrypoint],
+      files: entry.files,
       outdir: targetDir,
       target: "bun",
       minify: true,
+      naming: { entry: "[name].[ext]", chunk: "[name]-[hash].[ext]" },
       sourcemap: "none",
       plugins: [
+        entry.plugin,
         productionInstrumentationPlugin(),
         ...(options.plugins ?? []),
         isomorphicTransformPlugin("server"),
@@ -361,19 +382,6 @@ export async function buildBunTarget(
     );
 
     targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server.js"));
-  }
-
-  // Clean up build intermediates — no longer needed once the bundle/binary is built.
-  // NOTE: "index.html" is intentionally absent — generateProdIndexHtml writes
-  // the final artifact to client/index.html (inside targetDir/client/), not to
-  // targetDir directly, so there is nothing to remove here.
-  for (const file of [
-    "_compile-entry.ts",
-    "_compile-entry.js.map",
-    "server.ts", // disk mode intermediate
-    ...hydrateIntermediates,
-  ]) {
-    rmSync(join(targetDir, file), { force: true });
   }
 
   return targetManifest;

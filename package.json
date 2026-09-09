@@ -19,6 +19,8 @@
     "build": "bun run --filter '@teyik0/furin' build && bun run --parallel --filter '!@teyik0/furin' build",
     "start": "bun run --parallel --filter '*' --if-present start",
     "measure:client": "bun scripts/measure-client-bundle.ts",
+    "performance:compare": "bun scripts/compare-performance-reports.ts",
+    "performance:startup": "bun scripts/probe-server-startup.ts",
     "cache:clean": "rm -rf node_modules examples/*/node_modules packages/*/node_modules && bun pm cache rm",
     "iup": "bun update --interactive --recursive",
     "knip": "knip"

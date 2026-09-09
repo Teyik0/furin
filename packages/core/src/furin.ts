@@ -166,10 +166,11 @@ async function setupProdTemplate(
   instance: FurinInstance
 ): Promise<void> {
   if (embedded) {
-    if (!embedded.template) {
+    const templatePath = join(embedded.clientDir, "index.html");
+    if (!existsSync(templatePath)) {
       throw new Error("[furin] Embedded app is missing its HTML template (index.html).");
     }
-    const html = await Bun.file(embedded.template).text();
+    const html = await Bun.file(templatePath).text();
     setProductionTemplateContent(html, instance);
     return;
   }
@@ -550,10 +551,9 @@ export async function furin({
   });
 
   const embedded = ctx?.embedded;
-  const clientDir = embedded ? "" : (explicitClientDir ?? resolveClientDirFromArgv(prefix));
+  const clientDir = embedded?.clientDir ?? explicitClientDir ?? resolveClientDirFromArgv(prefix);
   await setupProdTemplate(embedded, clientDir, instance);
 
-  const clientAssetPrefix = `${prefix}/_client/`;
   const prodApp = new Elysia({
     name: instanceName,
     seed: resolvedPagesDir,
@@ -567,12 +567,7 @@ export async function furin({
         return await renderRootNotFound(root, request, server?.url.origin);
       }
     })
-    .onAfterHandle(({ path, set }) => {
-      // Content-hashed client assets are permanently cacheable — browsers never need to
-      // revalidate them because any change produces a new filename.
-      if (path.startsWith(clientAssetPrefix)) {
-        set.headers["cache-control"] = "public, max-age=31536000, immutable";
-      }
+    .onAfterHandle(({ set }) => {
       // Forward pending revalidation paths so the client can bust its prefetch cache
       const pending = consumePendingInvalidations();
       if (pending.length > 0) {
@@ -594,38 +589,22 @@ export async function furin({
     })
     .use(
       await (async () => {
-        if (embedded) {
-          return new Elysia()
-            .get("/favicon.ico", ({ status }) => {
-              const asset = embedded.assets["/public/favicon.ico"];
-              if (!asset) {
-                return status("Not Found");
-              }
-              return Bun.file(asset);
-            })
-            .get("/_client/*", ({ params, status }) => {
-              const asset = embedded.assets[`/_client/${params["*"]}`];
-              if (!asset) {
-                return status("Not Found");
-              }
-              return Bun.file(asset);
-            })
-            .get("/public/*", ({ params, status }) => {
-              const asset = embedded.assets[`/public/${params["*"]}`];
-              if (!asset) {
-                return status("Not Found");
-              }
-              return Bun.file(asset);
-            });
-        }
-        const publicDir = join(dirname(clientDir), "public");
+        const publicDir = embedded?.publicDir ?? join(dirname(clientDir), "public");
         const app = new Elysia();
         if (existsSync(publicDir)) {
           app
             .get("/favicon.ico", file(join(publicDir, "favicon.ico")))
             .use(await staticPlugin({ assets: publicDir, prefix: "/public" }));
         }
-        app.use(await staticPlugin({ assets: clientDir, prefix: "/_client" }));
+        app.use(
+          await staticPlugin({
+            assets: clientDir,
+            headers: {
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+            prefix: "/_client",
+          })
+        );
         return app;
       })()
     )

@@ -6,6 +6,7 @@ import { buildApp } from "../build/index.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
+import { startStaticPreview } from "./preview.ts";
 
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -70,7 +71,43 @@ function extractCompileFlag(args: string[]): {
   return { compileFlag, parseableArgs };
 }
 
-if (command === "build") {
+if (command === "preview") {
+  let rawValues: ReturnType<typeof parseArgs>["values"];
+  try {
+    rawValues = parseArgs({
+      args: argv.slice(1),
+      options: {
+        basePath: { type: "string" },
+        config: { type: "string" },
+        dir: { type: "string" },
+        port: { type: "string" },
+      },
+      strict: true,
+    }).values;
+  } catch (error) {
+    bail(error instanceof Error ? error.message : String(error));
+  }
+
+  const values = rawValues as {
+    basePath?: string;
+    config?: string;
+    dir?: string;
+    port?: string;
+  };
+  const config = await loadCliConfig(process.cwd(), values.config);
+  const port = values.port === undefined ? 3000 : Number(values.port);
+  if (!(Number.isInteger(port) && port > 0 && port <= 65_535)) {
+    bail(`Invalid preview port "${values.port}". Expected an integer between 1 and 65535.`);
+  }
+
+  const distDir = resolve(config.rootDir, values.dir ?? config.static?.outDir ?? "dist");
+  const basePath = values.basePath ?? config.static?.basePath ?? "";
+  const server = startStaticPreview({ basePath, distDir, port });
+  log("Static preview ready");
+  console.log(`  Local:  ${new URL(`${basePath || ""}/`, server.url)}`);
+  console.log(`  Serves: ${distDir}`);
+  console.log("  Press Ctrl+C to stop\n");
+} else if (command === "build") {
   const buildArgv = argv.slice(1);
   const { compileFlag, parseableArgs } = extractCompileFlag(buildArgv);
   let rawValues: ReturnType<typeof parseArgs>["values"];
@@ -78,6 +115,7 @@ if (command === "build") {
     rawValues = parseArgs({
       args: parseableArgs,
       options: {
+        analyze: { type: "boolean" },
         target: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
@@ -90,6 +128,7 @@ if (command === "build") {
   }
 
   const values = rawValues as {
+    analyze?: boolean;
     target?: string;
     pagesDir?: string;
     prefix?: string;
@@ -120,6 +159,7 @@ if (command === "build") {
   log(`Building Furin for ${target}…`);
 
   const result = await buildApp({
+    analyze: values.analyze,
     target: target as BuildTarget | "all",
     compile: resolveCompileMode(compileFlag, config.bun?.compile),
     rootDir: config.rootDir,
@@ -141,6 +181,8 @@ if (command === "build") {
     plugins: config.plugins,
     staticConfig: config.static,
     clientLogging: config.clientLogging ?? false,
+    optimizeImports: config.optimizeImports,
+    reactCompiler: config.reactCompiler,
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";
@@ -149,15 +191,24 @@ if (command === "build") {
   console.log(
     `Furin CLI
 
-USAGE  furin build [options]
+USAGE
+  furin build [options]
+  furin preview [options]
 
-OPTIONS
+BUILD OPTIONS
   --target    ${BUILD_TARGETS.join(" | ")} | all  (default: bun)
               "package" builds a publishable Elysia-plugin artifact (register.js + factory + client assets)
   --pagesDir  Pages directory
   --prefix    Mount prefix for the built app (e.g. /admin) — pairs with --pagesDir
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
+  --analyze   Write complete client bundle metafiles to .furin/build/analysis
+
+PREVIEW OPTIONS
+  --dir       Static export directory (default: static.outDir or dist)
+  --basePath  Static export base path (default: static.basePath or "")
+  --port      Listening port (default: 3000)
+  --config    Config file path
 `
   );
 } else {

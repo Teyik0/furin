@@ -15,9 +15,15 @@ export interface BuildClientOptions {
   clientDirName?: string;
   /** Inject the evlog client logger into the hydrate entry. Off by default. */
   clientLogging: boolean;
+  /** Write Bun's complete build metafile to this path when provided. */
+  metafilePath?: string;
+  /** Package barrels Bun should parse on demand instead of loading in full. */
+  optimizeImports?: string[];
   outDir: string;
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];
+  /** Enable Bun's native Rust React Compiler. Defaults to true. */
+  reactCompiler?: boolean;
   /**
    * Public path prefix for all emitted JS/CSS chunks.
    * Pass "/_client/" for root deployments; override for basePath deployments,
@@ -87,6 +93,8 @@ export interface BuildManifest {
 }
 
 export interface BuildAppOptions {
+  /** Emit Bun metafiles for client bundle analysis. */
+  analyze?: boolean;
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
    * and server-entry auto-detection.
@@ -95,8 +103,12 @@ export interface BuildAppOptions {
   /** Inject the evlog client logger into the hydrate entry. Defaults to false. */
   clientLogging?: boolean;
   compile?: "server" | "embed";
+  /** Package barrels Bun should parse on demand in production client bundles. */
+  optimizeImports?: string[];
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];
+  /** Enable Bun's native Rust React Compiler for client bundles. Defaults to true. */
+  reactCompiler?: boolean;
   rootDir?: string;
   serverEntry?: string;
   /** Configuration for the `static` build target. */

@@ -58,6 +58,16 @@ export const configSchema = t.Object({
    * via the `furin({ logger })` plugin option).
    */
   clientLogging: t.Optional(t.Boolean()),
+  /**
+   * Enable Bun's native Rust React Compiler for production client bundles.
+   * Enabled by default.
+   */
+  reactCompiler: t.Optional(t.Boolean()),
+  /**
+   * Package barrels Bun should parse on demand in production client bundles.
+   * Packages declaring `sideEffects: false` are optimized automatically.
+   */
+  optimizeImports: t.Optional(t.Array(t.String())),
   targets: t.Optional(t.Array(buildTargetSchema)),
   bun: t.Optional(
     t.Object({
