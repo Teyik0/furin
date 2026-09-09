@@ -10,7 +10,7 @@ const {
   __resetTemplateState,
   setProductionTemplateContent,
 } = await import("./packages/core/src/server/render/template.ts");
-const { scanPages } = await import("./packages/core/src/server/router/index.ts");
+const { scanPages } = await import("./packages/core/src/server/router/discovery.ts");
 const { __setDevMode } = await import("./packages/core/src/server/runtime-env.ts");
 
 function assert(condition, message) {
@@ -23,12 +23,14 @@ __setDevMode(false);
 const fixturesDir = join(process.cwd(), "packages/core/tests/fixtures/pages/default");
 
 __resetTemplateState();
-setProductionTemplateContent("<!DOCTYPE html><html><body>PROD</body></html>");
+setProductionTemplateContent(
+  '<!DOCTYPE html><html><body><script type="module" src="/prod-entry.js"></script></body></html>'
+);
 let result = await scanPages(fixturesDir);
 let response = await renderRootNotFound(result.root, undefined);
-assert(response.status === 404, "production template response status");
+assert(response.status === 404, "production assets response status");
 let body = await response.text();
-assert(body.includes("PROD"), "production template body");
+assert(body.includes('src="/prod-entry.js"'), "production entry asset");
 
 __resetTemplateState();
 result = await scanPages(fixturesDir);
@@ -57,7 +59,7 @@ await import("./packages/core/tests/setup/evlog-mock.ts");
 const { join } = await import("node:path");
 const { renderRootNotFound } = await import("./packages/core/src/server/render/index.ts");
 const { __resetTemplateState } = await import("./packages/core/src/server/render/template.ts");
-const { scanPages } = await import("./packages/core/src/server/router/index.ts");
+const { scanPages } = await import("./packages/core/src/server/router/discovery.ts");
 const { __setDevMode } = await import("./packages/core/src/server/runtime-env.ts");
 
 __setDevMode(true);

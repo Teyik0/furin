@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuildTarget } from "../config";
-import type { ResolvedRoute } from "../server/router/index.ts";
+import type { ResolvedRoute } from "../server/router/types.ts";
 import type { BuildRouteManifestEntry, TargetBuildManifest } from "./types";
 
 // import.meta.dir/path/url are inlined at bundle time to the OUTPUT file's

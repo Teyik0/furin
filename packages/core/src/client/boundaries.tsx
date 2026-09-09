@@ -3,6 +3,7 @@ import { computeErrorDigest } from "../shared/digest.ts";
 import { type ErrorComponent, getPublicErrorMessage } from "../shared/error.ts";
 import { isNotFoundError, type NotFoundComponent } from "../shared/not-found.ts";
 import { DefaultErrorFallback, DefaultNotFoundFallback } from "./default-screens.tsx";
+import { FurinDocumentFallback } from "./document.tsx";
 import { isFurinServerError } from "./server-error.ts";
 
 /**
@@ -50,6 +51,8 @@ interface ErrorBoundaryProps {
    * keep distinct IDs.
    */
   digest?: string;
+  /** @internal Preserve a valid document when the outer root boundary catches. */
+  document?: boolean;
   /** Component rendered when an error is caught. Omit to use the built-in default. */
   fallback?: ErrorComponent;
   /**
@@ -151,11 +154,16 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
       // (or the loader's computed 500 for non-Response throws); everything else
       // collapses to the default 500.
       const status = isFurinServerError(error) ? error.status : DEFAULT_ERROR_STATUS;
-      return (
+      const fallback = (
         <Fallback
           error={{ digest: finalDigest, message, status }}
           reset={typeof window === "undefined" ? SERVER_RESET_NOOP : this.reset}
         />
+      );
+      return this.props.document ? (
+        <FurinDocumentFallback>{fallback}</FurinDocumentFallback>
+      ) : (
+        fallback
       );
     }
     // The `key` trick ensures that after a reset, children remount fresh

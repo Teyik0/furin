@@ -1,23 +1,5 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: polling helpers intentionally await each retry before the next attempt
-import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
-
-export function isFurinPage(value: unknown): value is RuntimePage {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__type" in value &&
-    (value as { __type: unknown }).__type === "FURIN_PAGE"
-  );
-}
-
-export function isFurinRoute(value: unknown): value is RuntimeRoute {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__type" in value &&
-    (value as { __type: unknown }).__type === "FURIN_ROUTE"
-  );
-}
+import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
 
 export function collectRouteChainFromRoute(route: RuntimeRoute): RuntimeRoute[] {
   const chain: RuntimeRoute[] = [];
@@ -89,7 +71,7 @@ export function validateRouteChain(
     const location = pagePath ? `in ${pagePath}` : "";
     throw new Error(
       `[furin] Page ${location} must inherit from root route. ` +
-        'Add: import { route } from "./root"; and use route.page() or set parent: route'
+        "Add the root terminal to defineRoute().config({ layout: rootRoute })."
     );
   }
 

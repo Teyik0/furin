@@ -6,7 +6,7 @@ import { buildApp } from "../build/index.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
-import { startStaticPreview } from "./preview.ts";
+import { normalizeStaticPreviewBasePath, startStaticPreview } from "./preview.ts";
 
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -101,7 +101,7 @@ if (command === "preview") {
   }
 
   const distDir = resolve(config.rootDir, values.dir ?? config.static?.outDir ?? "dist");
-  const basePath = values.basePath ?? config.static?.basePath ?? "";
+  const basePath = normalizeStaticPreviewBasePath(values.basePath ?? config.static?.basePath ?? "");
   const server = startStaticPreview({ basePath, distDir, port });
   log("Static preview ready");
   console.log(`  Local:  ${new URL(`${basePath || ""}/`, server.url)}`);
@@ -116,10 +116,10 @@ if (command === "preview") {
       args: parseableArgs,
       options: {
         analyze: { type: "boolean" },
-        target: { type: "string" },
+        config: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
-        config: { type: "string" },
+        target: { type: "string" },
       },
       strict: true,
     }).values;
@@ -160,9 +160,6 @@ if (command === "preview") {
 
   const result = await buildApp({
     analyze: values.analyze,
-    target: target as BuildTarget | "all",
-    compile: resolveCompileMode(compileFlag, config.bun?.compile),
-    rootDir: config.rootDir,
     // --pagesDir/--prefix build a single explicit app; otherwise fall back to
     // the config's `apps` list (then to server.ts scanning inside buildApp).
     // normalizePrefix here so a bad --prefix fails before buildApp starts
@@ -176,13 +173,16 @@ if (command === "preview") {
             },
           ]
         : config.apps,
-    pagesDir: undefined,
-    serverEntry: resolvedServerEntry,
-    plugins: config.plugins,
-    staticConfig: config.static,
     clientLogging: config.clientLogging ?? false,
+    compile: resolveCompileMode(compileFlag, config.bun?.compile),
     optimizeImports: config.optimizeImports,
+    pagesDir: undefined,
+    plugins: config.plugins,
     reactCompiler: config.reactCompiler,
+    rootDir: config.rootDir,
+    serverEntry: resolvedServerEntry,
+    staticConfig: config.static,
+    target: target as BuildTarget | "all",
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";

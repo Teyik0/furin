@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { BuildAppOptions } from "../../../src/build/types.ts";
 import { __resetCacheState } from "../../../src/server/cache/index.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
-import { scanPages } from "../../../src/server/router/index.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
@@ -256,15 +256,16 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
     (route) => route.mode === "ssg" && !route.pattern.includes(":"),
   )!;
   expect(baseRoute).toBeDefined();
-  let route = {
+  const redirectRoute = (location: string, pattern: string): ResolvedRoute => ({
     ...baseRoute,
     page: {
       ...baseRoute.page,
       loader: () =>
-        Promise.reject(new Response(null, { headers: { Location: "/home" }, status: 302 })),
+        Promise.reject(new Response(null, { headers: { Location: location }, status: 302 })),
     },
-    pattern: "/redirect-me",
-  };
+    pattern,
+  });
+  let route = redirectRoute("/home", "/redirect-me");
   let manifest = await withBuildStub(() =>
     buildStaticTarget(
       [route, ...scanned.routes.filter((item) => item.mode === "ssg")],
@@ -286,6 +287,79 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
   expect(redirectHtml).toContain('http-equiv="refresh"');
   expect(redirectHtml).toContain('content="0;url=/furin/home"');
   expect(redirectHtml).toContain('href="/furin/home"');
+  const redirectNdjson = readFileSync(
+    join(scanned.distDir, "redirect-me/__furin_data.ndjson"),
+    "utf8",
+  );
+  const redirectStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(redirectNdjson));
+      controller.close();
+    },
+  });
+  const parsedRedirect = await parseDeferredNdjson(redirectStream, undefined);
+  expect(parsedRedirect.syncData).toEqual({ __furinRedirect: "/home" });
+
+  route = redirectRoute(
+    "http://localhost/home?from=redirect#content",
+    "/absolute-redirect",
+  );
+  await withBuildStub(() =>
+    buildStaticTarget([route], app.path, join(app.path, ".furin/build"), scanned.root, {
+      staticConfig: { basePath: "/furin", outDir: scanned.distDir },
+      target: "static",
+    }),
+  );
+  const absoluteRedirectHtml = readFileSync(
+    join(scanned.distDir, "absolute-redirect/index.html"),
+    "utf8",
+  );
+  expect(absoluteRedirectHtml).toContain(
+    'content="0;url=/furin/home?from=redirect#content"',
+  );
+  expect(absoluteRedirectHtml).not.toContain("http://localhost");
+
+  const relativeRedirectRoute = redirectRoute("home", "/relative-redirect");
+  const prefixedRedirectRoute = redirectRoute(
+    "/furin?from=redirect#content",
+    "/prefixed-redirect",
+  );
+  const externalRedirectRoute = redirectRoute(
+    "https://example.com/away?from=furin#content",
+    "/external-redirect",
+  );
+  const unsafeRedirectRoute = redirectRoute("javascript:alert(1)", "/unsafe-redirect");
+  manifest = await withBuildStub(() =>
+    buildStaticTarget(
+      [
+        relativeRedirectRoute,
+        prefixedRedirectRoute,
+        externalRedirectRoute,
+        unsafeRedirectRoute,
+      ],
+      app.path,
+      join(app.path, ".furin/build"),
+      scanned.root,
+      {
+        staticConfig: { basePath: "/furin", onSSR: "skip", outDir: scanned.distDir },
+        target: "static",
+      },
+    ),
+  );
+  expect(
+    readFileSync(join(scanned.distDir, "relative-redirect/index.html"), "utf8"),
+  ).toContain('content="0;url=/furin/home"');
+  expect(
+    readFileSync(join(scanned.distDir, "prefixed-redirect/index.html"), "utf8"),
+  ).toContain('content="0;url=/furin?from=redirect#content"');
+  expect(
+    readFileSync(join(scanned.distDir, "external-redirect/index.html"), "utf8"),
+  ).toContain('content="0;url=https://example.com/away?from=furin#content"');
+  expect(manifest.renderedRoutes).toContain("/relative-redirect");
+  expect(manifest.renderedRoutes).toContain("/prefixed-redirect");
+  expect(manifest.renderedRoutes).toContain("/external-redirect");
+  expect(manifest.skippedRoutes).toContain("/unsafe-redirect");
+  expect(existsSync(join(scanned.distDir, "unsafe-redirect/index.html"))).toBe(false);
 
   route = {
     ...baseRoute,

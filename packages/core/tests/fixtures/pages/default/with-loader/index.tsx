@@ -1,13 +1,11 @@
-import { route } from "./_route";
+import { defineRoute } from "@teyik0/furin";
+import { route as parentRoute } from "./_route";
 
-export default route.page({
-  component: ({ layoutData, pageData }) => (
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async () => ({ pageData: "from-page" }))
+  .page(({ data: { layoutData, pageData } }) => (
     <div data-layout={String(layoutData)} data-page={String(pageData)} data-testid="loader-page">
       Loader Page
     </div>
-  ),
-  // Page loader only returns its own data.
-  // layoutData arrives via the flat merge from the ancestor layout loader —
-  // no need to re-forward it (would be undefined with parallel execution anyway).
-  loader: async () => ({ pageData: "from-page" }),
-});
+  ));

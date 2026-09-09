@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { createElement, type ReactNode } from "react";
+import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
-import type { ResolvedRoute, RootLayout } from "../../../src/server/router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
 import { evlogSetMock } from "../../setup/evlog-mock";
@@ -12,7 +13,17 @@ import { evlogSetMock } from "../../setup/evlog-mock";
 const ROOT_ROUTE: RuntimeRoute = {
   __type: "FURIN_ROUTE",
   layout: ({ children }: { children: ReactNode | undefined }) =>
-    createElement("div", { "data-testid": "root-layout" }, children),
+    createElement(
+      "html",
+      { lang: "en" },
+      createElement("head", null, createElement(HeadContent)),
+      createElement(
+        "body",
+        null,
+        createElement("div", { "data-testid": "root-layout" }, children),
+        createElement(Scripts)
+      )
+    ),
 };
 
 const RootError: ErrorComponent = () =>

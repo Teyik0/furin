@@ -44,9 +44,6 @@ bunx furin build --config ./furin.production.config.ts
 
 # Emit a Bun metafile containing entrypoints, lazy chunks, and source contributions
 bunx furin build --target bun --analyze
-bun ../../scripts/measure-client-bundle.ts \
-  .furin/build/analysis/bun-client.json \
-  .furin/build/bun/client
 ```
 
 The metafile describes emitted bytes and the import graph, so it can identify initial assets, lazy chunks, and the source files contributing to each output. It does not measure startup time, request throughput, CPU usage, or heap usage; those require runtime benchmarks and profiles.

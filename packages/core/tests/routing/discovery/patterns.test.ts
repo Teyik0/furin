@@ -64,15 +64,22 @@ describe("filePathToPattern", () => {
   test("handles dynamic and static mix", () => {
     expect(filePathToPattern("api/users/[id]/settings.tsx")).toBe("/api/users/:id/settings");
   });
+
+  test("rejects dynamic parameter names that Elysia cannot route", () => {
+    expect(() => filePathToPattern("blog/[post-id].tsx")).toThrow(
+      '[furin] Invalid dynamic parameter "post-id" in "blog/[post-id].tsx"'
+    );
+    expect(() => filePathToPattern("blog/[123id].tsx")).toThrow(
+      '[furin] Invalid dynamic parameter "123id" in "blog/[123id].tsx"'
+    );
+    expect(() => filePathToPattern("docs/[...docs-path].tsx")).toThrow(
+      '[furin] Invalid dynamic parameter "docs-path" in "docs/[...docs-path].tsx"'
+    );
+  });
 });
 
 describe("compareRouteSpecificity", () => {
   const moreSpecific = (a: string, b: string) => compareRouteSpecificity(a, b) > 0;
-
-  test("keeps the legacy routeSpecificity export as an alias", async () => {
-    const { routeSpecificity } = await import("../../../src/server/router/index.ts");
-    expect(routeSpecificity).toBe(compareRouteSpecificity);
-  });
 
   test("literal segment outranks :param at the same position", () => {
     expect(moreSpecific("/users/new", "/users/:id")).toBe(true);

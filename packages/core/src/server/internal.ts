@@ -1,3 +1,4 @@
+import type { AnyElysia } from "elysia";
 import type { SsgCacheEntry } from "./cache/index.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 
@@ -23,6 +24,8 @@ export interface CompileContext {
   clientLogging?: boolean;
   embedded?: EmbeddedAppData;
   modules: Record<string, unknown>;
+  /** Elysia-native route tree generated for this mounted app. */
+  nativeRoutes?: AnyElysia;
   /** Mount prefix this app was built for (`""` = root). */
   prefix?: string;
   /** Root-level conventions discovered at compile time. */

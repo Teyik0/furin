@@ -23,7 +23,7 @@ export default function BlogError({ error, reset }: ErrorProps) {
 
 The boundary catches:
 
-- **Loader errors** — any throw from `route.page().loader()` or `createRoute().loader()`
+- **Loader errors** — any throw from `defineRoute().loader()`
 - **Render errors** — any throw during React render inside that segment
 - **Nested boundary failures** — if a deeper boundary fails to render, the parent boundary catches it
 
@@ -70,19 +70,19 @@ Call `notFound()` from a loader to render the nearest `not-found.tsx` instead of
 
 ```tsx
 // src/pages/blog/[slug].tsx
-import { notFound } from "@teyik0/furin"
-import { route } from "./_route"
+import { defineRoute, notFound } from "@teyik0/furin"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  loader: async ({ params }) => {
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async ({ params }) => {
     const post = await db.getPost(params.slug)
     if (!post) {
       notFound({ message: `Post "${params.slug}" does not exist.` })
     }
     return { post }
-  },
-  component: ({ post }) => <Post post={post} />,
-})
+  })
+  .page(({ data: { post } }) => <Post post={post} />)
 ```
 
 `notFound(options)` accepts:

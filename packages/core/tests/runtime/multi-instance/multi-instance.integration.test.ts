@@ -67,22 +67,24 @@ function writeAdminPages(appPath) {
     appPath,
     "src/admin/root.tsx",
     [
-      'import { createRoute } from "@teyik0/furin/client";',
+      'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
       "",
-      "export const route = createRoute({",
-      '  layout: ({ children }) => <div data-testid="admin-layout">{children}</div>,',
-      "});",
+      "export const route = defineRootRoute()",
+      '  .config({ mode: "ssr" })',
+      '  .layout(({ children }) => <html lang="en"><head><HeadContent /></head><body><div data-testid="admin-layout">{children}</div><Scripts /></body></html>);',
     ].join("\\n")
   );
   writeAppFile(
     appPath,
     "src/admin/index.tsx",
     [
+      'import { defer, defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
       "",
-      "export default rootRoute.page({",
-      "  component: () => <main>Admin home</main>,",
-      "});",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      '  .loader(() => defer({ ready: Promise.resolve("yes") }))',
+      "  .page(() => <main>Admin home</main>);",
     ].join("\\n")
   );
   writeAppFile(
@@ -90,33 +92,30 @@ function writeAdminPages(appPath) {
     "src/admin/nav.tsx",
     [
       'import { Link } from "@teyik0/furin/link";',
+      'import { defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
       "",
-      "export default rootRoute.page({",
-      '  mode: "ssr",',
-      "  component: () => (",
+      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => (',
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
       '      <Link to="/nav">Self link</Link>',
       "    </nav>",
-      "  ),",
-      "});",
+      "  ));",
     ].join("\\n")
   );
   writeAppFile(
     appPath,
     "src/admin/users.tsx",
     [
+      'import { defineRoute, revalidatePath } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
-      'import { revalidatePath } from "@teyik0/furin";',
       "",
-      "export default rootRoute.page({",
-      "  loader: () => {",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(() => {",
       '    revalidatePath("/from-admin", "page");',
       '    return { who: "admin" };',
-      "  },",
-      "  component: () => <main>Admin users</main>,",
-      "});",
+      "  }).page(() => <main>Admin users</main>);",
     ].join("\\n")
   );
   return join(appPath, "src/admin");
@@ -131,16 +130,15 @@ async function mountBothApps(options) {
     app.path,
     "src/pages/revalidating.tsx",
     [
+      'import { defineRoute, revalidatePath } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
-      'import { revalidatePath } from "@teyik0/furin";',
       "",
-      "export default rootRoute.page({",
-      "  loader: () => {",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(() => {",
       '    revalidatePath("/from-front", "page");',
       "    return {};",
-      "  },",
-      "  component: () => <main>Front revalidating</main>,",
-      "});",
+      "  }).page(() => <main>Front revalidating</main>);",
     ].join("\\n")
   );
   writeAppFile(
@@ -148,15 +146,16 @@ async function mountBothApps(options) {
     "src/pages/nav.tsx",
     [
       'import { Link } from "@teyik0/furin/link";',
+      'import { defineRoute } from "@teyik0/furin";',
       'import { route as rootRoute } from "./root";',
       "",
-      "export default rootRoute.page({",
-      "  component: () => (",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "  .page(() => (",
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
       "    </nav>",
-      "  ),",
-      "});",
+      "  ));",
     ].join("\\n")
   );
   const adminPagesDir = writeAdminPages(app.path);
@@ -252,6 +251,7 @@ try {
 
     const adminHtml = await (await parent.handle(new Request("http://furin/admin"))).text();
     expect(adminHtml).toContain("__FURIN_SYNC__");
+    expect(adminHtml.match(/id="__FURIN_SYNC__"/g)).toHaveLength(1);
     expect(adminHtml).toContain("/_furin/sync");
 
     const frontHtml = await (await parent.handle(new Request("http://furin/"))).text();

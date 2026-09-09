@@ -1,8 +1,9 @@
+import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { createRoute } from "../../../../../../src/client";
 import { route as rootRoute } from "../../root";
 
-export const route = createRoute({
-  params: t.Object({ id: t.String() }),
-  parent: rootRoute,
-});
+export const paramsSchema = t.Object({ id: t.String() });
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr", params: paramsSchema })
+  .layout(({ children }) => children);

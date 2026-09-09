@@ -5,10 +5,12 @@ import { dirname, join, relative } from "node:path";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
-// root.tsx — minimal FURIN_ROUTE with a layout, no external imports
+const FURIN_ENTRY = join(import.meta.dir, "../../../src/furin.ts");
+
+// root.tsx — minimal named route terminal with a layout.
 const ROOT_MODULE = `
-const route = { __type: "FURIN_ROUTE", layout: ({ children }) => children };
-export { route };
+import { defineRootRoute } from ${JSON.stringify(FURIN_ENTRY)};
+export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);
 `;
 
 // page module that inherits from root — import path is computed per page so
@@ -20,12 +22,11 @@ function pageModule(pageAbsPath: string, rootAbsPath: string): string {
     rel = `./${rel}`;
   }
   return `
+import { defineRoute } from ${JSON.stringify(FURIN_ENTRY)};
 import { route as rootRoute } from ${JSON.stringify(rel)};
-export default {
-  __type: "FURIN_PAGE",
-  _route: { __type: "FURIN_ROUTE", parent: rootRoute },
-  component: () => null,
-};
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .page(() => null);
 `;
 }
 

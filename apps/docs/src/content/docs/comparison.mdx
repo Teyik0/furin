@@ -105,7 +105,7 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 | **Cache hit/miss visibility** | `NEXT_PRIVATE_DEBUG_CACHE=1` | Console logs | **Built-in logs** (`[furin] ISR miss` / `hit` / `stale`) |
 | **Startup time (`bun dev` / `next dev`)** | Medium | Fast | **Fast** (single process, no Vite server to boot) |
 | **Type-safe links** | ❌ (string-based `href`) | ✅ (`<Link to="/about">`) | ✅ (`<Link to="/about">` with autocomplete) |
-| **Typed params / query** | ⚠️ Zod manual | ✅ (`validateSearch`, `params`) | ✅ (`createRoute({ params: t.Object(...) })`) |
+| **Typed params / query** | ⚠️ Zod manual | ✅ (`validateSearch`, `params`) | ✅ (`defineRoute().config({ params: t.Object(...) })`) |
 | **Error overlay** | ✅ (Turbopack) | ✅ (Vite) | ✅ (Bun runtime errors) |
 | **Source maps in dev** | ✅ | ✅ | ✅ |
 | **Log streaming** | `next-log` or custom | Custom | **evlog structured logging** (built-in) |
@@ -184,9 +184,9 @@ Sources: [Next.js revalidation](https://nextjs.org/docs/app/getting-started/reva
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **Route loaders** | ✅ (`async function Page()`) | ✅ (`Route.loader`) | ✅ (`createRoute().loader()`) |
+| **Route loaders** | ✅ (`async function Page()`) | ✅ (`Route.loader`) | ✅ (`defineRoute().loader()`) |
 | **Layout loaders** | ✅ (`async function Layout()`) | ✅ (`Route.loader`) | ✅ (`_route.tsx` loader) |
-| **Typed loader output** | ⚠️ (TypeScript inference, no runtime validation) | ✅ (Zod/Valibot via `validateSearch`) | ✅ (TypeBox via `params`/`query` on `createRoute()`) |
+| **Typed loader output** | ⚠️ (TypeScript inference, no runtime validation) | ✅ (Zod/Valibot via `validateSearch`) | ✅ (TypeBox via `params`/`query` on `defineRoute()`) |
 | **Data cache intermédiaire** | ✅ (`fetch` cache, `unstable_cache`) | ⚠️ (TanStack Query) | ❌ (planned) |
 | **Mutations (server actions)** | ✅ (`"use server"`) | ✅ (`createServerFn()`) | ❌ (use API routes) |
 | **Redirect from loader** | ✅ (`redirect()`) | ✅ (`throw redirect()`) | ✅ (`throw redirect()` or `ctx.redirect()`) |
@@ -194,7 +194,7 @@ Sources: [Next.js revalidation](https://nextjs.org/docs/app/getting-started/reva
 | **Error handling** | `error.js` boundaries | `ErrorBoundary` | `error.tsx` per segment |
 | **Streaming loader data** | ✅ (RSC streaming) | ✅ (`defer` + `<Await>`) | ✅ (`defer()` + `<Await>` + `<Suspense>`) |
 
-> 💡 **Furin advantage** — Loaders are standard async functions with TypeBox schemas for params/query. No magic conventions: what you see in `createRoute()` is what gets validated at runtime.
+> 💡 **Furin advantage** — Loaders are standard async functions with TypeBox schemas for params/query. No magic conventions: what you see in `defineRoute()` is what gets validated at runtime.
 >
 > ⚠️ **Furin limitation** — No server actions. Mutations must go through Elysia API routes (`/api/*`) or external endpoints. This is explicit but more verbose than Next.js `"use server"`.
 
@@ -212,7 +212,7 @@ Sources: [Next.js revalidation](https://nextjs.org/docs/app/getting-started/reva
 | **End-to-end type inference** | ❌ | ✅ (TanStack Query + Router) | ⚠️ (Router + client types, no Query equivalent) |
 | **Generated manifest** | ❌ | ✅ (`routeTree.gen.ts`) | ✅ (`furin-env.d.ts`) |
 
-> 💡 **Furin advantage** — `createRoute()` is the single source of truth for params, query, and loader types. The generated `furin-env.d.ts` gives autocomplete on `<Link>` without any runtime overhead.
+> 💡 **Furin advantage** — `defineRoute()` is the single source of truth for params, query, and loader types. The generated `furin-env.d.ts` gives autocomplete on `<Link>` without any runtime overhead.
 >
 > ⚠️ **Furin limitation** — No equivalent to TanStack Query for client-side data fetching. If you need complex client caching, deduplication, and background refetch, you must bring your own data library.
 

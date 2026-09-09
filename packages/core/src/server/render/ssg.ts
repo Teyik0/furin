@@ -4,7 +4,7 @@ import { mapWithConcurrency } from "../../shared/utils/index.ts";
 import type { SsgCacheEntry } from "../cache/isr-ssg.ts";
 import { getSSGCache, setSSGCache } from "../cache/ssg.ts";
 import { createLogger } from "../context-logger.ts";
-import type { ResolvedRoute, RootLayout } from "../router/index.ts";
+import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { renderForPath } from "./ssr.ts";
 

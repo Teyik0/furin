@@ -1,15 +1,11 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
-const ssgRoute = createRoute({
-  mode: "ssg",
-  parent: rootRoute,
-});
-
-export default ssgRoute.page({
-  component: () => <div data-testid="ssg-page">SSG Page</div>,
-  head: () => ({
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .loader(() => ({}))
+  .head(() => ({
     links: [{ href: "/test.css", rel: "stylesheet" }],
     meta: [{ title: "SSG Test Page" }, { content: "Test description", name: "description" }],
-  }),
-});
+  }))
+  .page(() => <div data-testid="ssg-page">SSG Page</div>);

@@ -24,7 +24,7 @@ Internal asset paths are excluded from request logging by default:
 
 ## Customising the Logger
 
-Pass a `logger` option to `furin()`. It accepts the full `EvlogElysiaOptions` shape — drain adapters, enrichers, redaction, tail sampling, and extra path exclusions.
+Pass a `logger` option to `furin()`. It accepts the full `EvlogElysiaOptions` shape — drain adapters, enrichers, redaction, tail sampling, and extra path exclusions — plus evlog's global `sampling` configuration.
 
 ```ts
 // src/server.ts
@@ -43,22 +43,45 @@ const app = new Elysia()
   .listen(3000)
 ```
 
+### Sampling Frequent Requests
+
+Use head sampling to reduce successful request noise, then tail sampling to retain errors and slow requests. A middleware `keep` callback can also preserve every non-GET mutation:
+
+```ts
+await furin({
+  logger: {
+    sampling: {
+      rates: { info: 10 },
+      keep: [{ status: 400 }, { duration: 1000 }],
+    },
+    keep: (context) => {
+      if (context.method !== "GET") {
+        context.shouldKeep = true
+      }
+    },
+  },
+})
+```
+
+This keeps 10% of healthy `info` events, every response with status `>= 400`, every request lasting at least one second, and every non-GET request.
+
 ## Adding Fields During a Request
 
 `log` is available directly in the loader context — no import needed:
 
 ```ts
 // src/pages/blog/[slug].tsx
-import { route } from "./_route"
+import { defineRoute } from "@teyik0/furin"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  loader: async ({ params, log }) => {
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async ({ params, log }) => {
     log.set({ slug: params.slug })
     const post = await getPost(params.slug, log)
     return { post }
-  },
-  component: ({ post }) => <BlogPost post={post} />,
-})
+  })
+  .page(({ data: { post } }) => <BlogPost post={post} />)
 ```
 
 Pass `log` explicitly to service functions that need it:

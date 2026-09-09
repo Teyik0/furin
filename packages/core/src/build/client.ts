@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
+import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
-import type { ResolvedRoute } from "../server/router/index.ts";
+import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
@@ -11,6 +12,16 @@ import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+
+function resolveClientModuleSpecifiers(code: string): string {
+  return code
+    .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
+    .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
+    .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
+    .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
+    .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
+    .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
+}
 
 export interface BuildClientResult {
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
@@ -48,6 +59,7 @@ export async function buildClient(
     metafilePath,
     optimizeImports,
     reactCompiler,
+    pagesDir,
   }: BuildClientOptions
 ): Promise<BuildClientResult> {
   // Per-app client dir so several mounted apps build side by side
@@ -62,7 +74,9 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootLayout, basePath, clientLogging);
+  const hydrateCode = resolveClientModuleSpecifiers(
+    generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
+  );
   const hydratePath = join(
     outDir,
     dirName === "client" ? "_hydrate.tsx" : `_hydrate-${dirName}.tsx`
@@ -85,13 +99,7 @@ export async function buildClient(
         // transformForClient now emits TS/TSX directly (no pre-transpile),
         // so JSX → React handling is delegated to Bun.build's loader, which
         // applies the project tsconfig's automatic runtime by default.
-        const transformed = result.code
-          .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
-          .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-          .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
-          .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
-          .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
-          .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
+        const transformed = resolveClientModuleSpecifiers(result.code);
 
         return {
           contents: transformed,
@@ -133,6 +141,9 @@ export async function buildClient(
     plugins: [
       hydrateEntry.plugin,
       ...(plugins ?? []),
+      ...(pagesDir
+        ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
+        : []),
       environmentGuardPlugin("client"),
       transformPlugin,
     ],

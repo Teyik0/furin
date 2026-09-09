@@ -95,13 +95,13 @@ There are no mutation names, collections, or client wrappers to configure. The A
 Tags come from page and route metadata:
 
 ```tsx
-export default route.page({
-  mode: "isr",
-  revalidate: 60,
-  tags: ["posts"],
-  loader: async () => ({ posts: await db.posts.findMany() }),
-  component: PostsPage,
-})
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["posts"] })
+  .loader(async () => ({ posts: await db.posts.findMany() }))
+  .page(({ data: { posts } }) => <PostsPage posts={posts} />)
 ```
 
 Path-based invalidation is also available when a mutation targets a known URL:
@@ -253,17 +253,18 @@ Furin loaders remain server-only during SSR, SSG, ISR, and client navigation. Th
 
 ```tsx
 // src/pages/blog/index.tsx
+import { defineRoute } from "@teyik0/furin"
 import { getApi } from "@/lib/api"
-import { route } from "./_route"
+import { route as parentRoute } from "./_route"
 
-export default route.page({
-  loader: async () => {
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr" })
+  .loader(async () => {
     const { data, error } = await getApi().api.posts.get()
     if (error) throw error.value
     return { posts: data }
-  },
-  component: ({ posts }) => <PostList posts={posts} />,
-})
+  })
+  .page(({ data: { posts } }) => <PostList posts={posts} />)
 ```
 
 The Elysia instance passed to `treaty(serverApi)` must contain the guards, auth hooks, logging, and sync plugins required by its routes. Parent hooks mounted only on a different outer Elysia instance are not implicitly included.

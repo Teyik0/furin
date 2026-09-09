@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: static build emits routes in sequence to keep output deterministic
 import { cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { toCrossJSONAsync } from "seroval";
 import { buildClient } from "../build/client.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, StaticTargetBuildManifest } from "../build/types.ts";
+import { toLogical } from "../client/router/link-utils.ts";
 import type { StaticExportConfig } from "../config.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
@@ -22,6 +24,13 @@ const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 
 /** Strips all trailing slashes from a string. */
 const TRAILING_SLASHES_RE = /\/+$/;
+
+const STATIC_RENDER_ORIGIN = "http://localhost";
+
+interface StaticRedirectLocation {
+  html: string;
+  spa: string | null;
+}
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
@@ -61,17 +70,33 @@ function escapeHtmlAttribute(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function resolveStaticRedirectLocation(location: string, basePath: string): string {
+function resolveStaticRedirectLocation(
+  location: string,
+  basePath: string,
+  sourcePath: string
+): StaticRedirectLocation {
+  const sourceUrl = new URL(sourcePath, STATIC_RENDER_ORIGIN);
+  const targetUrl = new URL(location, sourceUrl);
+  if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
+    throw new Error(
+      `[furin] static: redirect from "${sourcePath}" uses unsupported protocol "${targetUrl.protocol}".`
+    );
+  }
+  if (targetUrl.origin !== sourceUrl.origin) {
+    return { html: targetUrl.href, spa: null };
+  }
+
+  const suffix = `${targetUrl.search}${targetUrl.hash}`;
+  const spa = `${toLogical(targetUrl.pathname, basePath)}${suffix}`;
   if (
     basePath === "" ||
-    !location.startsWith("/") ||
-    location.startsWith("//") ||
-    location === basePath ||
-    location.startsWith(`${basePath}/`)
+    targetUrl.pathname === basePath ||
+    targetUrl.pathname.startsWith(`${basePath}/`)
   ) {
-    return location;
+    return { html: `${targetUrl.pathname}${suffix}`, spa };
   }
-  return location === "/" ? `${basePath}/` : `${basePath}${location}`;
+  const pathname = targetUrl.pathname === "/" ? `${basePath}/` : `${basePath}${targetUrl.pathname}`;
+  return { html: `${pathname}${suffix}`, spa };
 }
 
 function createStaticRedirectHtml(location: string): string {
@@ -147,12 +172,18 @@ async function prerenderAndWrite(
           `[furin] static: route "${route.pattern}" returned a response that cannot be exported.`
         );
       }
-      const staticLocation = resolveStaticRedirectLocation(location, basePath);
+      const staticLocation = resolveStaticRedirectLocation(location, basePath, urlPath);
       ensureDir(dirname(htmlOutputFile));
-      writeFileSync(htmlOutputFile, createStaticRedirectHtml(staticLocation));
+      writeFileSync(htmlOutputFile, createStaticRedirectHtml(staticLocation.html));
+      if (staticLocation.spa !== null) {
+        const serializedRedirect = await toCrossJSONAsync({
+          __furinRedirect: staticLocation.spa,
+        });
+        writeFileSync(dataOutputFile, `${JSON.stringify(serializedRedirect)}\n`);
+      }
       renderedRoutes.push(urlPath);
       console.log(
-        `[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)} (redirects to ${staticLocation})`
+        `[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)} (redirects to ${staticLocation.html})`
       );
       return;
     }
@@ -271,13 +302,13 @@ async function buildTaskQueue(
     // would throw out of `for...of` and abort the entire build.
     if (!Array.isArray(result.paramSets)) {
       console.error(
-        `[furin] static: staticParams() for "${result.route.pattern}" returned a non-array value; skipping route.`
+        `[furin] static: staticParams() for "${pattern}" returned a non-array value; skipping route.`
       );
-      skippedRoutes.push(result.route.pattern);
+      skippedRoutes.push(pattern);
       continue;
     }
     for (const params of result.paramSets) {
-      const urlPath = resolvePath(result.route.pattern, params);
+      const urlPath = resolvePath(pattern, params);
       pathToOutputFile(urlPath, outDir, "index.html");
       tasks.push(() =>
         prerenderAndWrite(
@@ -434,6 +465,7 @@ export async function buildStaticTarget(
     metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
     optimizeImports: options.optimizeImports,
     outDir: targetDir,
+    pagesDir: dirname(root.path),
     plugins: options.plugins,
     publicPath,
     reactCompiler: options.reactCompiler,

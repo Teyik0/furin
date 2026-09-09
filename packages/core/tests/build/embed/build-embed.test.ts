@@ -84,7 +84,9 @@ describe.serial("compile: embed", () => {
       server.kill();
       await server.exitCode;
     }
-  });
+    },
+    20_000,
+  );
 
   test("CLI build --compile=embed writes a single server binary", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
@@ -99,7 +101,7 @@ describe.serial("compile: embed", () => {
 
     expect(existsSync(serverBin)).toBe(true);
     expect(existsSync(join(targetDir, "client"))).toBe(false);
-  });
+  }, 20_000);
 
   test("CLI build rejects unknown flags", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
@@ -272,6 +274,28 @@ describe.serial("compile: embed", () => {
     expect(content).toContain("modules:");
     expect(content).not.toContain("embedded:");
     expect(content).not.toContain('with { type: "file" }');
+  });
+
+  test("generateCompileEntry stores the composed native app in its compile context", () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const nativeRoutes = "@teyik0/furin/routes?instance=test";
+
+    const entry = generateCompileEntry({
+      apps: [
+        {
+          nativeRoutes,
+          rootPath: join(app.path, "src/pages/root.tsx"),
+          routes: [],
+        },
+      ],
+      outDir: app.path,
+    });
+
+    const content = entry.files[entry.entrypoint] as string;
+    expect(content).toContain(
+      `import { furinApp as _furinApp } from ${JSON.stringify(nativeRoutes)};`
+    );
+    expect(content).toContain("nativeRoutes: _furinApp,");
   });
 
   test("generateCompileEntry with embed throws if clientDir does not exist", () => {

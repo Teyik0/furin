@@ -22,9 +22,10 @@ describe("E2E: route chain works without routeFilePaths", () => {
 
     const chain = collectRouteChainFromRoute(nestedRoute.page._route);
 
-    expect(chain.length).toBeGreaterThanOrEqual(2);
+    expect(chain).toHaveLength(3);
     expect(chain[0]?.layout).toBeDefined();
     expect(chain[1]?.layout).toBeDefined();
+    expect(chain[2]?.layout).toBeUndefined();
   });
 
   test("scanPages handles deeply nested layouts (3 levels)", async () => {
@@ -35,13 +36,14 @@ describe("E2E: route chain works without routeFilePaths", () => {
 
     const chain = collectRouteChainFromRoute(deepRoute.page._route);
 
-    expect(chain).toHaveLength(3);
+    expect(chain).toHaveLength(4);
     expect(chain[0]?.layout).toBeDefined();
     expect(chain[1]?.layout).toBeDefined();
     expect(chain[2]?.layout).toBeDefined();
+    expect(chain[3]?.layout).toBeUndefined();
   });
 
-  test("scanPages supports inline layout (no route.tsx needed)", async () => {
+  test("a page-level JSX wrapper does not create a route layout", async () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const inlineRoute = result.routes.find((r) => r.pattern === "/inline-layout");
@@ -50,7 +52,7 @@ describe("E2E: route chain works without routeFilePaths", () => {
 
     expect(chain).toHaveLength(2);
     expect(chain[0]?.layout).toBeDefined();
-    expect(chain[1]?.layout).toBeDefined();
+    expect(chain[1]?.layout).toBeUndefined();
   });
 
   test("scanPages supports skipping layouts (level 3 uses root directly)", async () => {
@@ -61,8 +63,9 @@ describe("E2E: route chain works without routeFilePaths", () => {
 
     const chain = collectRouteChainFromRoute(skipRoute.page._route);
 
-    expect(chain).toHaveLength(1);
-    expect(chain[0]).toBe(result.root?.route);
+    expect(chain).toHaveLength(2);
+    expect(chain[0]).toBe(result.root.route);
+    expect(chain[1]?.layout).toBeUndefined();
   });
 
   test("all routes have root in their chain", async () => {

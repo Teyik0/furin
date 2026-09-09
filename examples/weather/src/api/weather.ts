@@ -28,6 +28,9 @@ export interface WeatherResponse {
 async function geocode(city: string): Promise<GeoResult | null> {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en`;
   const res = await fetch(url);
+  if (!res.ok) {
+    return null;
+  }
   const json = (await res.json()) as {
     results?: Array<{
       name: string;
@@ -56,6 +59,9 @@ async function fetchForecast(
 ): Promise<{ current: CurrentWeather; daily: DailyForecast[] }> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto`;
   const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Weather API error (${res.status})`);
+  }
   const json = (await res.json()) as {
     current: {
       temperature_2m: number;

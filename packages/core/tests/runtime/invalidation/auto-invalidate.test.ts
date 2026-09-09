@@ -24,8 +24,8 @@ import {
   ssgCache,
 } from "../../../src/server/cache/index.ts";
 import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
-import type { ResolvedRoute } from "../../../src/server/router/index.ts";
 import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { flushMicrotasks } from "../../support/microtasks";
 
 afterEach(async () => {

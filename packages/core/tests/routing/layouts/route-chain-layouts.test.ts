@@ -20,7 +20,7 @@ beforeAll(() => {
 afterAll(() => __setDevMode(originalDevMode));
 
 describe("route chain contains layouts", () => {
-  test("page._route contains the page's layout", async () => {
+  test("keeps the page leaf separate from its filesystem layout", async () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
@@ -29,10 +29,10 @@ describe("route chain contains layouts", () => {
     const page = nestedRoute?.page;
     expect(page).toBeDefined();
     expect(page?._route).toBeDefined();
-    expect(page?._route?.layout).toBeDefined();
+    expect(page?._route?.layout).toBeUndefined();
   });
 
-  test("page._route.parent contains the parent layout (root)", async () => {
+  test("page._route.parent contains the nearest layout and root ancestor", async () => {
     const result = await scanPages(FIXTURES_DIR);
 
     const nestedRoute = result.routes.find((r) => r.pattern === "/nested");
@@ -40,6 +40,7 @@ describe("route chain contains layouts", () => {
 
     expect(page?._route?.parent).toBeDefined();
     expect(page?._route?.parent?.layout).toBeDefined();
+    expect(page?._route?.parent?.parent?.layout).toBeDefined();
   });
 
   test("collectRouteChainFromRoute returns all layouts in order", async () => {
@@ -49,9 +50,10 @@ describe("route chain contains layouts", () => {
     expectDefined(nestedRoute);
     const chain = collectRouteChainFromRoute(nestedRoute.page._route);
 
-    expect(chain).toHaveLength(2);
+    expect(chain).toHaveLength(3);
     expect(chain[0]?.layout).toBeDefined();
     expect(chain[1]?.layout).toBeDefined();
+    expect(chain[2]?.layout).toBeUndefined();
   });
 
   test("deeply nested route chain (3 levels)", async () => {
@@ -61,10 +63,11 @@ describe("route chain contains layouts", () => {
     expectDefined(deepRoute);
     const chain = collectRouteChainFromRoute(deepRoute.page._route);
 
-    expect(chain).toHaveLength(3);
+    expect(chain).toHaveLength(4);
     expect(chain[0]?.layout).toBeDefined();
     expect(chain[1]?.layout).toBeDefined();
     expect(chain[2]?.layout).toBeDefined();
+    expect(chain[3]?.layout).toBeUndefined();
   });
 
   test("root route is in every page's chain", async () => {

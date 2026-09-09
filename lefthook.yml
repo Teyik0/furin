@@ -20,7 +20,10 @@ pre-commit:
             run: bun run knip
 
     - name: react doctor
-      run: bunx react-doctor -y --verbose
+      # Offline + staged: the supply-chain scan (Socket.dev) and the score API
+      # are network calls that can hang a commit; the project wildcard keeps
+      # React-aware rules enabled for staged files across the monorepo.
+      run: bunx react-doctor --staged --project "*" --no-score --no-supply-chain --verbose
 
 pre-push:
   jobs:

@@ -35,8 +35,6 @@ const buildTargetSchema = t.Union(BUILD_TARGETS.map((v) => t.Literal(v)));
 const compileTargetSchema = t.Union([t.Literal("server"), t.Literal("embed")]);
 
 export const configSchema = t.Object({
-  rootDir: t.Optional(t.String()),
-  pagesDir: t.Optional(t.String()),
   /**
    * Multi-instance builds: one entry per mounted furin app. Overrides
    * `pagesDir` and server-entry auto-detection. `prefix` must match the
@@ -50,7 +48,11 @@ export const configSchema = t.Object({
       })
     )
   ),
-  serverEntry: t.Optional(t.String()),
+  bun: t.Optional(
+    t.Object({
+      compile: t.Optional(compileTargetSchema),
+    })
+  ),
   /**
    * Initialize the browser HTTP log drain in the hydration entry. Off by
    * default — enabling it adds `evlog/http` drain setup and points browser
@@ -59,28 +61,26 @@ export const configSchema = t.Object({
    */
   clientLogging: t.Optional(t.Boolean()),
   /**
-   * Enable Bun's native Rust React Compiler for production client bundles.
-   * Enabled by default.
-   */
-  reactCompiler: t.Optional(t.Boolean()),
-  /**
    * Package barrels Bun should parse on demand in production client bundles.
    * Packages declaring `sideEffects: false` are optimized automatically.
    */
   optimizeImports: t.Optional(t.Array(t.String())),
-  targets: t.Optional(t.Array(buildTargetSchema)),
-  bun: t.Optional(
-    t.Object({
-      compile: t.Optional(compileTargetSchema),
-    })
-  ),
+  pagesDir: t.Optional(t.String()),
+  /**
+   * Enable Bun's native Rust React Compiler for production client bundles.
+   * Enabled by default.
+   */
+  reactCompiler: t.Optional(t.Boolean()),
+  rootDir: t.Optional(t.String()),
+  serverEntry: t.Optional(t.String()),
   static: t.Optional(
     t.Object({
       basePath: t.Optional(t.String()),
-      outDir: t.Optional(t.String()),
       onSSR: t.Optional(t.Union([t.Literal("error"), t.Literal("skip")])),
+      outDir: t.Optional(t.String()),
     })
   ),
+  targets: t.Optional(t.Array(buildTargetSchema)),
   // plugins omitted : TypeBox can't validate Bun.BunPlugin[] (functions)
 });
 

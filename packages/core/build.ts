@@ -32,13 +32,13 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cli/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/furin.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/routes.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc.tsx`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc-client.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server-only.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client-only.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/build/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/config.ts`] }),
-  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/router/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/migrate.ts`] }),
@@ -64,21 +64,18 @@ await Bun.build({
 await $`cp src/env.d.ts dist/env.d.ts`;
 
 // Ensure target directories exist before copying runtime source files.
-// dist/build is created by Bun.build above, but dist/server/render and
-// dist/server/router are not — without this, clean builds where tsc is
+// dist/build is created by Bun.build above, but dist/server/render is not —
+// without this, clean builds where tsc is
 // skipped would fail.
 mkdirSync(`${import.meta.dir}/dist/build`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/render`, { recursive: true });
-mkdirSync(`${import.meta.dir}/dist/server/router`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/sync/postgres`, { recursive: true });
 
 // Copy template source files that the adapter reads at runtime.
 await $`cp src/build/compile-entry.ts dist/build/compile-entry.ts`;
 await $`cp src/build/entry-template.ts dist/build/entry-template.ts`;
-await $`cp src/build/server-routes-entry.ts dist/build/server-routes-entry.ts`;
 await $`cp src/server/render/index.ts dist/server/render/index.ts`;
 await $`cp src/server/render/shell.ts dist/server/render/shell.ts`;
-await $`cp src/server/router/index.ts dist/server/router/index.ts`;
 await $`cp src/server/sync/postgres/migration.sql dist/server/sync/postgres/migration.sql`;
 
 // Prepend shebang to CLI dist file so the OS runs it with Bun (not as a shell script).

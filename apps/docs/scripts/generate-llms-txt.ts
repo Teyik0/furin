@@ -64,7 +64,7 @@ const DOCS_NAV: NavSection[] = [
         sourcePath: "src/content/docs/data-loading.mdx",
       },
       {
-        description: "Use SSR, SSG, and ISR from createRoute().",
+        description: "Use SSR, SSG, and ISR from defineRoute().",
         href: "/docs/rendering",
         label: "Rendering Modes",
         sourcePath: "src/content/docs/rendering.mdx",

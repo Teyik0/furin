@@ -17,7 +17,7 @@ import { Glob } from "bun";
  * right granularity: type-only edges are erased at build time and cannot leak
  * code into a bundle, whereas a value/dynamic import is a real dependency.
  *
- * `client.ts` (the public contracts barrel: RouteContext, createRoute, defer,
+ * `client.ts` (the public contracts barrel: rendering metadata and defer,
  * …) is browser-safe — it pulls in only `shared/` and `elysia`/`evlog` *types*
  * — so both `shared/` and `client/` may depend on it.
  */

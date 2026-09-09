@@ -1,197 +1,163 @@
 # Rendering Modes
 
-Furin configures rendering mode at the route level with `createRoute()`. The page itself still comes from `route.page()`.
-
-## Composite React Server Components
-
-RSC is a value returned by a loader, not a fourth rendering mode. Import the explicit API from `furin/rsc`; no `use client` or `use server` directive is required.
-
-```tsx
-import { createCompositeComponent, CompositeComponent } from "furin/rsc"
-
-const route = createRoute({
-  loader: async () => ({
-    card: await createCompositeComponent<{
-      Action: React.ComponentType<{ productId: string }>
-      children?: React.ReactNode
-      renderMeta?: (value: { updatedAt: string }) => React.ReactNode
-    }>(({ Action, children, renderMeta }) => (
-      <article>
-        <Action productId="product-1" />
-        {renderMeta?.({ updatedAt: "today" })}
-        {children}
-      </article>
-    )),
-  }),
-})
-
-export default route.page({
-  component: ({ card }) => (
-    <CompositeComponent
-      src={card}
-      Action={({ productId }) => <button>Add {productId}</button>}
-      renderMeta={({ updatedAt }) => <small>{updatedAt}</small>}
-    >
-      <p>Client-owned composition</p>
-    </CompositeComponent>
-  ),
-})
-```
-
-The server fragment is encoded as Flight and contributes no application JavaScript. Client interactivity enters through `children`, component slots, or render props. Arbitrary client imports from the server fragment are intentionally unsupported in composite v1.
-
-Each encoded RSC source has a 4 MiB safety limit in every runtime and build graph. Furin rejects an oversized source before transport; split large content into smaller sources or load the data separately. This limit is not configurable.
-
-The task-manager example includes equivalent ISR routes for comparison: `/` renders the board list as a conventional client component tree, while `/rsc` keeps the board markup on the server and hydrates only the create form and delete buttons. Build `examples/task-manager` in production mode to compare their route chunks; shared React and Furin runtime chunks are intentionally excluded from that comparison.
-
-With two boards in the example database, the production snapshot is:
-
-| Transfer | Conventional ISR | Composite RSC | Difference |
-| --- | ---: | ---: | ---: |
-| Route JavaScript (gzip) | 1,999 B | 675 B | -66.2% |
-| Initial HTML + route JavaScript (gzip) | 4,385 B | 3,526 B | -19.6% |
-| SPA data + route JavaScript (gzip) | 2,456 B | 2,304 B | -6.2% |
-
-Flight increases the HTML or navigation payload, so the JavaScript reduction is not a direct total-transfer reduction. The larger runtime benefit is that React does not hydrate the server-owned card markup. Treat these numbers as an example-specific snapshot, not a framework-wide benchmark.
-
-Use `import "furin/server-only"` or `import "furin/client-only"` as optional build-time assertions. These imports validate graph boundaries; they do not classify components.
-
-### Personalized cached routes
-
-For an SSG or ISR route, keep shared data in `loader` and request-specific data in `requestLoader`:
-
-```tsx
-const route = createRoute({
-  mode: "isr",
-  loader: async () => ({ catalog: await getPublicCatalog() }),
-  requestLoader: ({ cookies }) => ({
-    user: getUser(cookies.get("session")),
-  }),
-})
-```
-
-The component receives `requestData` as a Promise. Read it below an explicit `<Suspense>` boundary. Furin caches only the public React 19.2 prerender shell and resumes the private section once per request. Pure static export rejects `requestLoader` because no request runtime exists.
-
-Public `loader` functions on these cached routes cannot read `request`, `cookie`, or request `headers`; Furin rejects that access to prevent user-specific data from entering a shared shell. Move all request-specific work to `requestLoader`.
-
-Mutations remain Elysia/Eden Treaty endpoints. Furin does not expose React Server Functions or accept incoming Flight payloads.
+Rendering metadata belongs in `config()`. The same chain then declares loaders, head metadata, and its `page()` or `layout()` terminal.
 
 ## SSR
 
-SSR is the default mode when you omit `mode`.
+SSR is the default mode.
 
 ```tsx
-// src/pages/dashboard/_route.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
 import { route as rootRoute } from "../root"
 
-export const route = createRoute({
-  parent: rootRoute,
-  loader: async ({ request }) => {
-    const user = await getSession(request)
-    return { user }
-  },
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ request }) => ({
+    user: await getSession(request),
+  }))
+  .page(({ data: { user } }) => <Dashboard user={user} />)
 ```
 
-Use SSR for session-dependent pages, personalized data, and anything that must render fresh on every request.
-
-SSR also supports [deferred data streaming](/docs/defer) via `defer()` and `<Await>` for slow loader data.
+Use SSR for personalized pages and request-time data. SSR supports [deferred streaming](/docs/defer).
 
 ## SSG
 
-Set `mode: "ssg"` on `createRoute()` to pre-render the page.
-
 ```tsx
-// src/pages/about.tsx
-import { createRoute } from "@teyik0/furin/client"
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
 
-const route = createRoute({
-  mode: "ssg",
-})
-
-export default route.page({
-  component: () => <div>This page is pre-rendered</div>,
-})
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => <div>This page is pre-rendered</div>)
 ```
 
-For dynamic SSG routes, declare `staticParams()` on `route.page()`:
+Dynamic SSG params are also declared in `config()`.
 
 ```tsx
-// src/pages/blog/[slug].tsx
+import { defineRoute } from "@teyik0/furin"
 import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
 
-const route = createRoute({
-  mode: "ssg",
-  params: t.Object({
-    slug: t.String(),
-  }),
-})
-
-export default route.page({
-  staticParams: async () => {
-    const slugs = await db.getAllSlugs()
-    return slugs.map((slug) => ({ slug }))
-  },
-  loader: async ({ params }) => {
-    const post = await db.getPost(params.slug)
-    return { post }
-  },
-  component: ({ post }) => <Post post={post} />,
-})
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssg",
+    params: t.Object({ slug: t.String() }),
+    staticParams: async () => {
+      const slugs = await db.getAllSlugs()
+      return slugs.map((slug) => ({ slug }))
+    },
+  })
+  .loader(async ({ params }) => ({
+    post: await db.getPost(params.slug),
+  }))
+  .page(({ data: { post } }) => <Post post={post} />)
 ```
 
 ## ISR
 
-ISR also belongs on `createRoute()`. Pair `mode: "isr"` with `revalidate`.
+Pair `mode: "isr"` with `revalidate`.
 
 ```tsx
-// src/pages/products/[id].tsx
+import { defineRoute } from "@teyik0/furin"
 import { t } from "elysia"
-import { createRoute } from "@teyik0/furin/client"
+import { route as rootRoute } from "../root"
 
-const route = createRoute({
-  mode: "isr",
-  revalidate: 60,
-  params: t.Object({
-    id: t.String(),
-  }),
-})
-
-export default route.page({
-  loader: async ({ params }) => {
-    const product = await db.getProduct(params.id)
-    return { product }
-  },
-  component: ({ product }) => <ProductPage product={product} />,
-})
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "isr",
+    params: t.Object({ id: t.String() }),
+    revalidate: 60,
+  })
+  .loader(async ({ params }) => ({
+    product: await db.getProduct(params.id),
+  }))
+  .page(({ data: { product } }) => <ProductPage product={product} />)
 ```
 
-## Comparison
+## Personalized Cached Routes
 
-| Mode | Configured on | Best for |
-| --- | --- | --- |
-| `ssr` | `createRoute()` or default | request-time, personalized data |
-| `ssg` | `createRoute({ mode: "ssg" })` | content that changes rarely |
-| `isr` | `createRoute({ mode: "isr", revalidate })` | pages that can be cached then refreshed periodically |
+Keep cacheable data in `loader()` and request-specific data in `requestLoader()`.
+
+```tsx
+import { defineRoute } from "@teyik0/furin"
+import { Suspense, use } from "react"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .requestLoader(({ cookies }) => ({
+    user: getUser(cookies.get("session")),
+  }))
+  .loader(async () => ({
+    catalog: await getPublicCatalog(),
+  }))
+  .page(({ data: { catalog }, requestData }) => (
+    <>
+      <Catalog value={catalog} />
+      <Suspense fallback={<AccountSkeleton />}>
+        <Account value={use(requestData).user} />
+      </Suspense>
+    </>
+  ))
+```
+
+The component receives `requestData` as a promise. Only public loader data enters the cached shell. Static export rejects `requestLoader()` because no request runtime exists.
+
+## Composite React Server Components
+
+RSC is a loader value, not a rendering mode. Use the explicit composite API.
+
+```tsx
+import { defineRoute } from "@teyik0/furin"
+import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async () => ({
+    card: await createCompositeComponent<{
+      Action: React.ComponentType<{ productId: string }>
+    }>(({ Action }) => (
+      <article>
+        <Action productId="product-1" />
+      </article>
+    )),
+  }))
+  .page(({ data: { card } }) => (
+    <CompositeComponent
+      Action={({ productId }) => <button>Add {productId}</button>}
+      src={card}
+    />
+  ))
+```
+
+The server fragment is encoded as Flight. Client interactivity enters through children, component slots, or render props. Furin does not expose React Server Functions; mutations remain Elysia/Eden Treaty endpoints.
 
 ## Head Metadata
 
-Page-level `head()` still lives on `route.page()`.
+`head()` follows `loader()` and precedes the terminal.
 
 ```tsx
-export default route.page({
-  loader: async ({ params }) => {
-    const post = await db.getPost(params.slug)
-    return { post }
-  },
-  head: ({ post }) => ({
+import { t } from "elysia"
+import { defineRoute } from "@teyik0/furin"
+import { route as rootRoute } from "../root"
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })
+  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
+  .head(({ data: { post } }) => ({
     meta: [
       { title: post.title },
-      { name: "description", content: post.excerpt },
+      { content: post.excerpt, name: "description" },
     ],
-  }),
-  component: ({ post }) => <Post post={post} />,
-})
+  }))
+  .page(({ data: { post } }) => <Post post={post} />)
 ```
+
+| Mode | Configuration | Best for |
+| --- | --- | --- |
+| `ssr` | `config({ layout, mode: "ssr" })` | request-time and personalized data |
+| `ssg` | `config({ layout, mode: "ssg" })` | content that changes rarely |
+| `isr` | `config({ layout, mode: "isr", revalidate })` | cached pages refreshed periodically |

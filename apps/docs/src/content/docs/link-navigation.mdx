@@ -154,7 +154,7 @@ function ProductList() {
 
 ### `useSearch(to)`
 
-Returns a tuple with the server-resolved query object and a setter. The type is inferred from the `query` schema declared on the route chain (`createRoute({ query })` in layout or page `_route.tsx` files).
+Returns a tuple with the server-resolved query object and a setter. The type is inferred from `defineRoute().config({ query })` across the route chain.
 
 ```tsx
 // Route declares: query: t.Object({ page: t.Optional(t.Number({ default: 1 })), tag: t.Optional(t.String()) })
@@ -198,17 +198,30 @@ navigate({
 When a route inherits from multiple `_route.tsx` files (layout chain), their `query` schemas are merged. The generated `furin-env.d.ts` reflects the union of all query fields in the chain.
 
 ```tsx
+import { defineRoute } from "@teyik0/furin"
+import { t } from "elysia"
+import { route as rootRoute } from "../root"
+
 // src/pages/products/_route.tsx
-export const route = createRoute({
-  parent: rootRoute,
-  query: t.Object({ sort: t.Optional(t.String()) }),
-});
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    query: t.Object({ sort: t.Optional(t.String()) }),
+  })
+  .layout(({ children }) => children)
 
 // src/pages/products/index.tsx
-export default route.page({
-  query: t.Object({ page: t.Optional(t.Number({ default: 1 })) }),
-  // generated search type: { sort?: string; page: number }
-});
+import { route as productsRoute } from "./_route"
+
+export const route = defineRoute()
+  .config({
+    layout: productsRoute,
+    mode: "ssr",
+    query: t.Object({ page: t.Optional(t.Number({ default: 1 })) }),
+  })
+  .page(() => <ProductList />)
+// generated search type: { sort?: string; page: number }
 ```
 
 ---

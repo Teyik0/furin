@@ -1,8 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: readable streams must be consumed sequentially
 import type { toCrossJSON } from "seroval";
-import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import { getSyncStreamPath } from "../sync/config.ts";
-import type { buildHeadInjection } from "./shell";
 import { safeJson } from "./shell";
 
 /**
@@ -103,45 +101,6 @@ export async function streamToString(stream: ReadableStream): Promise<string> {
 
   html += decoder.decode();
   return html;
-}
-
-interface SplitTemplate {
-  bodyPost: string;
-  bodyPre: string;
-  headPre: string;
-}
-
-export function splitTemplate(template: string): SplitTemplate {
-  const [headPre, afterHead = ""] = template.split("<!--ssr-head-->");
-  const [bodyPre, bodyPost = ""] = afterHead.split("<!--ssr-outlet-->");
-  return { bodyPost, bodyPre, headPre } as SplitTemplate;
-}
-
-export function assembleHTML(
-  template: string,
-  headData: ReturnType<typeof buildHeadInjection>,
-  reactHtml: string,
-  data: Record<string, unknown> | undefined
-): string {
-  const { headPre, bodyPre, bodyPost } = splitTemplate(template);
-
-  let dataScript = "";
-  if (data !== undefined) {
-    dataScript = containsRscSource(data)
-      ? buildRouteFrameTemplate(serializeRouteFrames(data, undefined))
-      : `<script id="__FURIN_DATA__" type="application/json">${safeJson(data)}</script>`;
-  }
-  const syncScript = buildSyncRuntimeScript();
-  const runtimeScripts = `${syncScript}${dataScript}`;
-
-  let injectedBodyPost = bodyPost;
-  if (runtimeScripts) {
-    injectedBodyPost = bodyPost.includes("</body>")
-      ? bodyPost.replace("</body>", `${runtimeScripts}</body>`)
-      : bodyPost + runtimeScripts;
-  }
-
-  return headPre + headData + bodyPre + reactHtml + injectedBodyPost;
 }
 
 export function buildRouteFrameTemplate(payload: string): string {

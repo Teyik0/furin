@@ -1,11 +1,6 @@
-import { createRoute } from "../../../../src/client";
+import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 
-const ssrRoute = createRoute({
-  mode: "ssr",
-  parent: rootRoute,
-});
-
-export default ssrRoute.page({
-  component: () => <div data-testid="ssr-page">SSR Page</div>,
-});
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .page(() => <div data-testid="ssr-page">SSR Page</div>);

@@ -1,5 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: docs route active link props are computed from router active state
-import { createRoute } from "@teyik0/furin/client";
+import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { DocsMobileNav } from "@/components/docs-mobile-nav";
 import { DocsPager } from "@/components/docs-pager";
@@ -8,8 +8,9 @@ import { GiscusComments } from "@/components/giscus-comments";
 import { DOCS_NAV } from "@/lib/docs";
 import { route as rootRoute } from "../root";
 
-export const route = createRoute({
-  layout: ({ children, path }) => {
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .layout(({ children, path }) => {
     // `path` is injected by Furin from componentProps (ctx.path server-side,
     // state.data.path client-side) — always correct on SSR and SPA navigation.
     const pathname = typeof path === "string" ? path : "/";
@@ -67,7 +68,4 @@ export const route = createRoute({
         </div>
       </div>
     );
-  },
-  mode: "ssg",
-  parent: rootRoute,
-});
+  });

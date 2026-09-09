@@ -4,11 +4,17 @@ import { log } from "evlog";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
+import {
+  DocumentProvider,
+  type DocumentState,
+  useDocumentState,
+} from "../../../src/client/document.tsx";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
 const CATCH_ALL_ROUTE_RE = /^\/(.*)$/;
+const PAGE_B_RE = /^\/page-b$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +45,11 @@ function makeCatchAllRoute(): ClientRoute {
     ...makeRoute("/*", "/"),
     regex: CATCH_ALL_ROUTE_RE,
   };
+}
+
+function DocumentHeadPage(): React.ReactElement {
+  const state = useDocumentState();
+  return createElement("p", { "data-document-head": "" }, JSON.stringify(state?.head));
 }
 
 /** Page rendering a plain `<a>` (MDX/CMS-style), which goes through the
@@ -83,7 +94,8 @@ interface RenderRouterResult {
 
 async function renderRouterWithLink(
   routes: ClientRoute[],
-  initialPath: string | undefined
+  initialPath: string | undefined,
+  documentState: DocumentState | undefined
 ): Promise<RenderRouterResult> {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -110,22 +122,25 @@ async function renderRouterWithLink(
     };
   }
 
+  const router = createElement(RouterProvider, {
+    autoRefresh: true,
+    basePath: "",
+    defaultPreload: "intent",
+    defaultPreloadDelay: 50,
+    defaultPreloadStaleTime: 30_000,
+    initialData: {},
+    initialDigest: undefined,
+    initialMatch,
+    initialNotFound: undefined,
+    prefetchCacheSize: 50,
+    root: null,
+    routes,
+  } as any);
   await act(() => {
     root.render(
-      createElement(RouterProvider, {
-        autoRefresh: true,
-        basePath: "",
-        defaultPreload: "intent",
-        defaultPreloadDelay: 50,
-        defaultPreloadStaleTime: 30_000,
-        initialData: {},
-        initialDigest: undefined,
-        initialMatch,
-        initialNotFound: undefined,
-        prefetchCacheSize: 50,
-        root: null,
-        routes,
-      } as any)
+      documentState === undefined
+        ? router
+        : createElement(DocumentProvider, { value: documentState }, router)
     );
   });
 
@@ -214,7 +229,7 @@ describe("RouterProvider click interception", () => {
 
   test("click on Furin Link triggers history.pushState exactly once", async () => {
     const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;
@@ -240,6 +255,43 @@ describe("RouterProvider click interception", () => {
     expect(pushStateCalls[0]?.url).toBe("/page-b");
   });
 
+  test("navigation to a route without head clears the initial document head", async () => {
+    const pageB: ClientRoute = {
+      load: async () => ({
+        default: {
+          _route: { __type: "FURIN_ROUTE" } as never,
+          component: DocumentHeadPage,
+        },
+      }),
+      pattern: "/page-b",
+      regex: PAGE_B_RE,
+    };
+    const documentState: DocumentState = {
+      assets: {
+        buildId: undefined,
+        entryModule: undefined,
+        faviconHref: undefined,
+        staticMode: false,
+        stylesheets: [],
+      },
+      dataJson: undefined,
+      head: { meta: [{ title: "Initial title" }] },
+      syncJson: undefined,
+    };
+    const { container, cleanup } = await renderRouterWithLink(
+      [makeRoute("/page-a", "/page-b"), pageB],
+      "/page-a",
+      documentState
+    );
+    currentCleanup = cleanup;
+
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushReactUpdates();
+
+    expect(container.querySelector("[data-document-head]")?.textContent).toBe("");
+  });
+
   test("superseding a Link navigation does not leak an AbortError", async () => {
     const errorLog = spyOn(log, "error");
     const waitFor = (condition: () => boolean) =>
@@ -259,7 +311,7 @@ describe("RouterProvider click interception", () => {
     try {
       abortFirstPageBRequest = true;
       const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-      const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+      const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
       currentCleanup = cleanup;
       const anchor = container.querySelector("a") as HTMLAnchorElement;
 
@@ -307,7 +359,7 @@ describe("RouterProvider click interception", () => {
 
   test("native <a> matching a local route is intercepted as SPA navigation", async () => {
     const routes = [makeNativeAnchorRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;
@@ -342,7 +394,7 @@ describe("RouterProvider click interception", () => {
       makeRoute("/page-b", "/page-a"),
       makeCatchAllRoute(),
     ];
-    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
     currentCleanup = cleanup;
 
     const anchor = container.querySelector("a") as HTMLAnchorElement;

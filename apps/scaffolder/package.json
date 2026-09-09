@@ -3,9 +3,6 @@
   "version": "0.3.3",
   "description": "Official scaffolder for Furin — the React meta-framework on Elysia + Bun",
   "type": "module",
-  "engines": {
-    "bun": ">=1.4.0"
-  },
   "bin": {
     "create-furin": "./dist/index.js"
   },
@@ -15,12 +12,12 @@
     "README.md"
   ],
   "scripts": {
+    "build": "bun build src/index.ts --target bun --outdir dist --external ejs",
     "fix": "ultracite fix",
+    "prepublishOnly": "bun run build",
     "test": "bun test --parallel --isolate --bail",
     "test:dev": "bun test --changed --parallel --isolate --bail",
-    "tscheck": "tsc --noEmit",
-    "build": "bun build src/index.ts --target bun --outdir dist --external ejs",
-    "prepublishOnly": "bun run build"
+    "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "ejs": "^6.0.1"
@@ -29,5 +26,8 @@
     "@clack/prompts": "^1.6.0",
     "@types/ejs": "^3.1.5",
     "picocolors": "^1.1.1"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
   }
 }

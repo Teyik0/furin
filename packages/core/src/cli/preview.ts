@@ -10,7 +10,7 @@ export interface StaticPreviewOptions {
   port: number;
 }
 
-function normalizeBasePath(basePath: string): string {
+export function normalizeStaticPreviewBasePath(basePath: string): string {
   if (basePath === "" || basePath === "/") {
     return "";
   }
@@ -25,7 +25,7 @@ export function startStaticPreview({
   distDir: rawDistDir,
   port,
 }: StaticPreviewOptions): Bun.Server<undefined> {
-  const basePath = normalizeBasePath(rawBasePath);
+  const basePath = normalizeStaticPreviewBasePath(rawBasePath);
   const distDir = resolve(rawDistDir);
   const indexPath = join(distDir, "index.html");
   const notFoundPath = join(distDir, "404.html");
@@ -40,7 +40,13 @@ export function startStaticPreview({
   const notFound = (): Response => new Response(Bun.file(notFoundPath), { status: 404 });
   const clientDir = join(distDir, "_client");
   const fetchStaticFile = async (request: Request): Promise<Response> => {
-    const { pathname } = new URL(request.url);
+    const encodedPathname = new URL(request.url).pathname;
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(encodedPathname);
+    } catch {
+      return notFound();
+    }
     if (basePath && pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
       return notFound();
     }
@@ -73,12 +79,12 @@ export function startStaticPreview({
     : { "/": Bun.file(indexPath) };
 
   return Bun.serve({
+    fetch: fetchStaticFile,
+    port,
     routes: {
       ...entryRoutes,
       [`${basePath}/_client/*`]: { dir: clientDir },
       "/favicon.ico": existsSync(faviconPath) ? Bun.file(faviconPath) : notFound(),
     },
-    fetch: fetchStaticFile,
-    port,
   });
 }

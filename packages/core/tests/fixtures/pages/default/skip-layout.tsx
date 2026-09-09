@@ -1,5 +1,6 @@
-import { route } from "./root";
+import { defineRoute } from "@teyik0/furin";
+import { route as parentRoute } from "./root";
 
-export default route.page({
-  component: () => <div data-testid="skip-page">Skip Layout Page (uses root directly)</div>,
-});
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssg" })
+  .page(() => <div data-testid="skip-page">Skip Layout Page (uses root directly)</div>);
