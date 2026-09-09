@@ -33,7 +33,7 @@ export function startHmrProxy(listenPort: number, upstreamPort: number): Promise
           webSocket: WEBSOCKET_UPGRADE_RE.test(firstChunk.toString("latin1")),
         };
         connections.add(connection);
-        connection.upstream.on("error", ignoreSocketError);
+        connection.upstream.once("error", () => client.destroy());
         const forget = () => connections.delete(connection);
         client.once("close", forget);
         connection.upstream.once("close", forget);

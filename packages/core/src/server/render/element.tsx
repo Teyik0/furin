@@ -86,6 +86,23 @@ const SERVER_RESET_NOOP = () => {
 
 const GENERIC_ERROR_MESSAGE = "An unexpected error occurred.";
 
+export function errorMessageForRender(
+  component: ErrorComponent | undefined,
+  error: unknown,
+  messageOverride: string | undefined
+): string {
+  if (component && IS_DEV) {
+    return messageOverride ?? errorMessageOf(error);
+  }
+  if (component) {
+    return messageOverride ?? GENERIC_ERROR_MESSAGE;
+  }
+  if (IS_DEV) {
+    return (messageOverride ?? errorMessageOf(error)) || GENERIC_ERROR_MESSAGE;
+  }
+  return GENERIC_ERROR_MESSAGE;
+}
+
 /**
  * Builds the error element rendered when a loader (or the SSR shell) fails.
  *
@@ -110,19 +127,6 @@ export function buildErrorElement(
   status: number
 ): ReactNode {
   const ErrorView = component ?? DefaultErrorFallback;
-  let message: string;
-  if (component && IS_DEV) {
-    message = messageOverride ?? errorMessageOf(error);
-  } else if (component) {
-    message = messageOverride ?? GENERIC_ERROR_MESSAGE;
-  } else if (IS_DEV) {
-    // No user error.tsx: in dev, surface the real error message so the
-    // developer can see what actually broke instead of a generic placeholder.
-    // Production stays generic to avoid leaking internals — the digest still
-    // correlates the rendered page with the full server-side log entry.
-    message = (messageOverride ?? errorMessageOf(error)) || GENERIC_ERROR_MESSAGE;
-  } else {
-    message = GENERIC_ERROR_MESSAGE;
-  }
+  const message = errorMessageForRender(component, error, messageOverride);
   return <ErrorView error={{ digest, message, status }} reset={SERVER_RESET_NOOP} />;
 }

@@ -103,8 +103,20 @@ async function renderISRNon200(
   renderStart: number,
   buildId: string | undefined
 ): Promise<string> {
-  const { assets, componentProps, element, headData, headers, status, notFoundError } = prepared;
+  const {
+    assets,
+    componentProps,
+    element,
+    errorMessage,
+    headData,
+    headers,
+    status,
+    notFoundError,
+  } = prepared;
   const fallbackProps: Record<string, unknown> = { ...componentProps };
+  if (errorDigest && errorMessage) {
+    fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
+  }
   if (status === 404) {
     fallbackProps.__furinStatus = 404;
     if (notFoundError) {
@@ -116,10 +128,10 @@ async function renderISRNon200(
     withDocumentState(element, assets, headData, fallbackProps),
     route.error ?? root.error,
     prepared.ssrContext,
-    (fallback, digest) =>
+    (fallback, digest, message) =>
       withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
         ...fallbackProps,
-        __furinError: { digest, status: 500 },
+        __furinError: { digest, message, status: 500 },
         __furinStatus: 500,
       })
   );
@@ -137,11 +149,15 @@ async function renderISRNon200(
         route: route.pattern,
       },
     });
-    fallbackProps.__furinError = { digest: finalDigest, status: finalStatus };
+    fallbackProps.__furinError = {
+      digest: finalDigest,
+      message: shellError.message,
+      status: finalStatus,
+    };
     fallbackProps.__furinStatus = 500;
   }
-  if (!fallbackProps.__furinError && errorDigest) {
-    fallbackProps.__furinError = { digest: errorDigest, status };
+  if (!fallbackProps.__furinError && errorDigest && errorMessage) {
+    fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
   }
 
   await reactStream.allReady;
@@ -231,15 +247,16 @@ export async function handleISR(
       withDocumentState(element, assets, headData, syncData),
       route.error ?? root.error,
       prepared.ssrContext,
-      (fallback, digest) =>
+      (fallback, digest, message) =>
         withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-          __furinError: { digest, status: 500 },
+          __furinError: { digest, message, status: 500 },
           __furinStatus: 500,
         })
     );
     if (shellError) {
       prepared.status = 500;
       prepared.errorDigest = shellError.digest;
+      prepared.errorMessage = shellError.message;
       return renderISRNon200(prepared, route, ctx, root, shellError.digest, renderStart, buildId);
     }
     await stream.allReady;

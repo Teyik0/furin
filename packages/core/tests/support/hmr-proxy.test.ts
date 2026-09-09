@@ -41,3 +41,25 @@ test("forwards every client chunk received while the upstream connection opens",
 
   expect(await received).toEqual(payload);
 });
+
+test("closes the client when the upstream connection fails", async () => {
+  const upstreamPort = await getFreePort();
+  const proxyPort = await getFreePort();
+  proxy = await startHmrProxy(proxyPort, upstreamPort);
+
+  const client = connect({ host: "127.0.0.1", port: proxyPort });
+  client.on("error", () => undefined);
+  const closed = new Promise<void>((resolve) => client.once("close", resolve));
+  await new Promise<void>((resolve, reject) => {
+    client.once("connect", resolve);
+    client.once("error", reject);
+  });
+  client.write("GET /_bun/hmr HTTP/1.1\r\nUpgrade: websocket\r\n\r\n");
+
+  await Promise.race([
+    closed,
+    Bun.sleep(1000).then(() => {
+      throw new Error("Timed out waiting for the proxy to close the client");
+    }),
+  ]);
+});

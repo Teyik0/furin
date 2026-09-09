@@ -1021,6 +1021,7 @@ browserTest(
       "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
     )) as string;
     await harness.view.click('[data-testid="increment"]');
+    await waitForElementText(harness.view, '[data-testid="count"]', "1");
 
     writeAppFile(
       harness.app.path,

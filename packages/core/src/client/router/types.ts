@@ -216,7 +216,7 @@ export interface RouterProviderProps {
    */
   initialDigest: string | undefined;
   /** Server loader error serialized into the initial SSR document. */
-  initialError?: Omit<FurinServerErrorPayload, "message"> & { message?: string };
+  initialError?: FurinServerErrorPayload;
   /**
    * The route matched at hydration time. `null` is a valid value ONLY when
    * `initialNotFound` is also provided.

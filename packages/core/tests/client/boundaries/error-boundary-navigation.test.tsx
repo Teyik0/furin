@@ -133,7 +133,7 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
     expect(locationSpy.set).not.toHaveBeenCalled();
   });
 
-  test("a partial initial server error exposes a safe message to the route fallback", async () => {
+  test("an initial server error preserves the serialized safe message", async () => {
     const pageRoute = { __type: "FURIN_ROUTE" as const };
     const route: ClientRoute = {
       load: async () => ({
@@ -162,7 +162,11 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
           defaultPreloadStaleTime: 30_000,
           initialData: {},
           initialDigest: "abc1234567",
-          initialError: { digest: "abc1234567", status: 500 },
+          initialError: {
+            digest: "abc1234567",
+            message: "Something went wrong",
+            status: 500,
+          },
           initialMatch,
           initialNotFound: undefined,
           prefetchCacheSize: 50,

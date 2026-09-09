@@ -252,47 +252,51 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   __setDevMode(true);
   process.chdir(app.path);
 
-  const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
-  const instance = await createTestApp({ pagesDir });
-  instance.listen(0);
+  let instance: Awaited<ReturnType<typeof createTestApp>> | undefined;
   try {
-    writeAppFile(
-      app.path,
-      "src/pages/broken.tsx",
-      [
-        'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        "const selectLayout = () => rootRoute;",
-        "export const route = defineRoute()",
-        '  .config({ layout: selectLayout(), mode: "ssr" })',
-        "  .page(() => null);",
-      ].join("\n")
-    );
-    const deadline = Date.now() + 3000;
-    while (
-      !errorSpy.mock.calls.some(
-        ([message]) => message === "[furin] Failed to refresh route topology"
-      )
-    ) {
-      if (Date.now() >= deadline) {
-        throw new Error("Timed out waiting for the invalid route refresh");
+    instance = await createTestApp({ pagesDir });
+    instance.listen(0);
+    const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      writeAppFile(
+        app.path,
+        "src/pages/broken.tsx",
+        [
+          'import { defineRoute } from "@teyik0/furin";',
+          'import { route as rootRoute } from "./root";',
+          "const selectLayout = () => rootRoute;",
+          "export const route = defineRoute()",
+          '  .config({ layout: selectLayout(), mode: "ssr" })',
+          "  .page(() => null);",
+        ].join("\n")
+      );
+      const deadline = Date.now() + 3000;
+      while (
+        !errorSpy.mock.calls.some(
+          ([message]) => message === "[furin] Failed to refresh route topology"
+        )
+      ) {
+        if (Date.now() >= deadline) {
+          throw new Error("Timed out waiting for the invalid route refresh");
+        }
+        // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
+        await Bun.sleep(20);
       }
-      // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
-      await Bun.sleep(20);
+
+      const response = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+      const { syncData } = await parseDeferredNdjson(
+        response.body ??
+          new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
+        undefined
+      );
+
+      expect(response.status).toBe(200);
+      expect(syncData.title).toBe("Last known good");
+    } finally {
+      errorSpy.mockRestore();
     }
-
-    const response = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
-    const { syncData } = await parseDeferredNdjson(
-      response.body ??
-        new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
-      undefined
-    );
-
-    expect(response.status).toBe(200);
-    expect(syncData.title).toBe("Last known good");
   } finally {
-    await instance.stop();
-    errorSpy.mockRestore();
+    await instance?.stop();
   }
 });
 

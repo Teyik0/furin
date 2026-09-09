@@ -458,6 +458,7 @@ describe("renderSSR — digest", () => {
     const body = await response.text();
     expect(body).toContain("__furinError");
     expect(body).toMatch(FURIN_ERROR_DIGEST_RE);
+    expect(body).toContain('"message":"Something went wrong"');
   });
 
   test("server logs the digest alongside the rendered error", async () => {
