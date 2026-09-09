@@ -28,6 +28,24 @@ export const route = defineRoute()
     expect(result.removedServerCode).toBe(true);
   });
 
+  test("annotates route components with their client hook signature", () => {
+    const result = transformForClient(
+      `import { useRef, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+  const ref = useRef(null);
+  const [count] = useState(0);
+  return <output ref={ref}>{count}</output>;
+}
+export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('Symbol.for("furin.hmr.hook-signature")');
+    expect(result.code).toContain('["useRef","useState"]');
+    expect(result.code).not.toContain("useServerValue");
+  });
+
   test.each(["furin", "@teyik0/furin"])("rewrites separate document imports from %s", (moduleName) => {
     const result = transformForClient(
       `import { HeadContent as Head, Scripts } from "${moduleName}";
@@ -81,6 +99,19 @@ export const route = defineRoute()
 
     expect(result.code).toContain('import { Page } from "./feature"');
     expect(result.code).not.toContain("loaderOnly");
+  });
+
+  test("preserves a CSS module binding referenced by JSX", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import styles from "./styles.module.css";
+const Page = () => <main className={styles.color}>CSS module</main>;
+export const route = defineRoute().config({ mode: "ssr" }).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('import styles from "./styles.module.css"');
+    expect(result.code).toContain("className={styles.color}");
   });
 
   test("does not transform a shadowed local factory", () => {

@@ -78,6 +78,7 @@ export function RouterProvider({
   initialMatch,
   initialData,
   initialDigest,
+  initialError,
   initialNotFound,
   autoRefresh,
   basePath,
@@ -92,10 +93,12 @@ export function RouterProvider({
   // the provider boots into the inline not-found UI.
   const [state, setState] = useState<RouterState>(() => ({
     data: initialData,
+    error: initialError,
     head: initialDocumentState?.head,
     match: initialMatch,
     notFound: initialNotFound,
   }));
+  const [boundaryResetVersion, setBoundaryResetVersion] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
   // currentHref stores the LOGICAL path (basePath stripped) so Link active-state
   // detection works with route patterns that never include the basePath prefix.
@@ -459,6 +462,9 @@ export function RouterProvider({
         }
 
         currentMatchRef.current = newState.match;
+        if (!newState.error) {
+          setBoundaryResetVersion((version) => version + 1);
+        }
         setState(newState);
         if (newState.title) {
           document.title = newState.title;
@@ -605,6 +611,9 @@ export function RouterProvider({
         }
 
         currentMatchRef.current = newState.match;
+        if (!newState.error) {
+          setBoundaryResetVersion((version) => version + 1);
+        }
         setState(newState);
         if (newState.title) {
           document.title = newState.title;
@@ -875,7 +884,7 @@ export function RouterProvider({
             log.error({ action: "boundary_reset_failed", error: String(err) });
           });
         },
-        resetKey: currentHref,
+        resetKey: `${currentHref}:${boundaryResetVersion}`,
       },
       state.error
     );
@@ -907,7 +916,7 @@ export function RouterProvider({
               log.error({ action: "boundary_reset_failed", error: String(err) });
             });
           },
-          resetKey: currentHref,
+          resetKey: `${currentHref}:${boundaryResetVersion}`,
         }
       )}
     </SearchStoreContext.Provider>

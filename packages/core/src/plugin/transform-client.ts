@@ -11,6 +11,7 @@ import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
 const FURIN_SERVER_MODULES = new Set(["@teyik0/furin", "furin"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
+const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 
 interface TransformResult {
   code: string;
@@ -186,6 +187,44 @@ function removeChainedServerCalls(
   return transformed;
 }
 
+function calledHookName(call: AstNode): string | null {
+  const callee = asAstNode(call.callee);
+  if (callee?.type === "Identifier" && typeof callee.name === "string") {
+    return REACT_HOOK_NAME_RE.test(callee.name) ? callee.name : null;
+  }
+  if (
+    callee?.type === "MemberExpression" &&
+    callee.computed !== true &&
+    callee.property &&
+    typeof callee.property === "object"
+  ) {
+    const property = callee.property as AstNode;
+    if (
+      property.type === "Identifier" &&
+      typeof property.name === "string" &&
+      REACT_HOOK_NAME_RE.test(property.name)
+    ) {
+      return property.name;
+    }
+  }
+  return null;
+}
+
+function collectClientHookSignature(code: string, filename: string): string[] {
+  const lang = detectLangFromPath(filename);
+  const { program } = parseSource(code, lang);
+  const hooks: string[] = [];
+  walk(program, {
+    CallExpression(call) {
+      const name = calledHookName(call as unknown as AstNode);
+      if (name) {
+        hooks.push(name);
+      }
+    },
+  });
+  return hooks;
+}
+
 export function transformForClient(code: string, filename: string): TransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
@@ -208,8 +247,13 @@ export function transformForClient(code: string, filename: string): TransformRes
     source = deadCodeElimination(source, code, lang);
   }
   if (routeBindings.size > 0) {
+    const hookSignature = collectClientHookSignature(source.toString(), filename);
     source.append(`
 if (import.meta.hot) {
+  Object.defineProperty(route.component, Symbol.for("furin.hmr.hook-signature"), {
+    configurable: true,
+    value: ${JSON.stringify(hookSignature)},
+  });
   import.meta.hot.accept((updatedModule) => {
     const updatedRoute = updatedModule?.route;
     if (updatedRoute?.component) {

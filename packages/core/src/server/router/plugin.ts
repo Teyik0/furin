@@ -33,6 +33,8 @@ import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts
 
 const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 
+type DataResolvedRoutesSource = ResolvedRoutesSource | (() => Promise<ResolvedRoute[]>);
+
 interface DataRouteParamsInput {
   [key: string]: unknown;
 }
@@ -244,9 +246,9 @@ export function renderResolvedRoute(
  *   - `__furinNotFound`    — not-found payload
  *   - `__furinRedirect`    — logical path after a server-side redirect
  */
-export function createDataEndpoint(routesSource: ResolvedRoutesSource): AnyElysia {
+export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyElysia {
   const plugin = new Elysia();
-  let matchedRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+  let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
 
   plugin.get(
@@ -271,7 +273,8 @@ export function createDataEndpoint(routesSource: ResolvedRoutesSource): AnyElysi
       const wideEventLog = useLogger();
       wideEventLog.set({ path: rawPath });
 
-      const currentRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+      const currentRoutes =
+        typeof routesSource === "function" ? await routesSource() : routesSource;
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
         matchRoute = buildRouteMatcher(matchedRoutes);

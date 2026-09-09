@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   type HotComponentRegistry,
   reconcileHotComponentRegistry,
@@ -19,7 +21,7 @@ test("a hot component keeps its identity while using the latest implementation",
   );
 
   expect(second).toBe(first);
-  expect(first({ label: "state" })).toBe("second:state");
+  expect(renderToStaticMarkup(createElement(first, { label: "state" }))).toBe("second:state");
 });
 
 test("a rebuilt route set removes stale components without replacing surviving slots", () => {
@@ -32,5 +34,5 @@ test("a rebuilt route set removes stale components without replacing surviving s
 
   expect([...registry.keys()]).toEqual(["page:/current.tsx"]);
   expect(updated).toBe(current);
-  expect(current({} as never)).toBe("updated");
+  expect(renderToStaticMarkup(createElement(current))).toBe("updated");
 });

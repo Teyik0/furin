@@ -730,7 +730,12 @@ export async function furin({
       )
       .use(createInstrumentationPlugin(() => currentSnapshot.routes, syncStreamPath))
       .use(sync ? createSyncStreamPlugin(sync) : new Elysia())
-      .use(createDataEndpoint(() => currentSnapshot.routes))
+      .use(
+        createDataEndpoint(async () => {
+          await refreshDevelopmentRoutes();
+          return currentSnapshot.routes;
+        })
+      )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
       .use(nativeRoutesApp)
       .use(

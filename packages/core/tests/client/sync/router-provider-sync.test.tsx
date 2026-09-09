@@ -114,6 +114,7 @@ async function renderRouter(
         defaultPreloadStaleTime: 30_000,
         initialData: { message: "stale" },
         initialDigest: undefined,
+        initialError: undefined,
         initialMatch,
         initialNotFound: undefined,
         prefetchCacheSize: 50,

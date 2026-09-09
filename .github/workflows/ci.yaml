@@ -50,6 +50,10 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: HMR Browser Conformance
+        working-directory: packages/core
+        run: bun run test:webview
+
       - name: Knip
         run: bun run knip
 
