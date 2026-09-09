@@ -1,0 +1,57 @@
+packages/core/src/build/hydrate.ts
+  s_d08a8495311633::t_cc195553e0b5dd 164-180,333,351
+packages/core/tests/support/process.ts
+  s_d08a8495311633::t_cc195553e0b5dd 18,121
+.github/workflows/ci.yaml
+  s_d08a8495311633::t_cc195553e0b5dd 53-56
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_d08a8495311633::t_cc195553e0b5dd 31-48,104-115
+  s_d08a8495311633::t_7e82b373c6cba1 116
+packages/core/src/client/hmr.ts
+  s_d08a8495311633::t_cc195553e0b5dd 1,3-4,7,9,15-27,47-51,56,58-59
+packages/core/src/furin.ts
+  s_d08a8495311633::t_cc195553e0b5dd 733-738
+.github/workflows/hmr-soak.yaml
+  s_d08a8495311633::t_cc195553e0b5dd 1-41
+packages/core/tests/client/hmr-component.test.ts
+  s_d08a8495311633::t_cc195553e0b5dd 2-3,24,37
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_d08a8495311633::t_cc195553e0b5dd 117
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_d08a8495311633::t_cc195553e0b5dd 1-2147
+packages/core/tests/support/hmr-proxy.ts
+  s_d08a8495311633::t_cc195553e0b5dd 1-75
+packages/core/package.json
+  s_d08a8495311633::t_cc195553e0b5dd 137-138
+packages/core/src/server/router/plugin.ts
+  s_d08a8495311633::t_cc195553e0b5dd 36-37,249,251,276-277
+packages/core/src/client/router/provider.tsx
+  s_d08a8495311633::t_cc195553e0b5dd 81,96,101,465-467,614-616,887,919
+packages/core/tests/README.md
+  s_d08a8495311633::t_cc195553e0b5dd 83-92,105
+packages/core/src/plugin/transform-client.ts
+  s_d08a8495311633::t_cc195553e0b5dd 14,190-227,250,253-256
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_d08a8495311633::t_cc195553e0b5dd 138-142,254-291
+  s_d08a8495311633::t_3532f4d8140528 292
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_d08a8495311633::t_cc195553e0b5dd 488-495
+packages/core/src/client/router/types.ts
+  s_d08a8495311633::t_cc195553e0b5dd 13,218-219,247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bfd4baedb55c80b8756b46f162fbb7089496acb1",
+  "prompts": {},
+  "sessions": {
+    "s_d08a8495311633": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07fa7-7c92-7b70-b987-d1afa978e4bb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
