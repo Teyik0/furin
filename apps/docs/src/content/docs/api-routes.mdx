@@ -131,7 +131,7 @@ Repeating the same request with the same key returns the original response witho
 .post("/payments", createPayment, { sync: false })
 ```
 
-The sync stream endpoint is internal and opinionated: `/_furin/sync`. SSE only announces the latest cursor; the client recovers ordered invalidations through `/_furin/sync/changes`. Passing the explicit runtime to `furin({ sync })` injects the client configuration automatically, so you do not need a React provider or application wrapper.
+The sync stream endpoint is internal and opinionated: `/_furin/sync`. SSE announces the current cursor when the stream opens and every later cursor change; the client recovers ordered invalidations through `/_furin/sync/changes`. Passing the explicit runtime to `furin({ sync })` injects the client configuration automatically, so you do not need a React provider or application wrapper.
 
 ### Production adapters
 
@@ -155,11 +155,16 @@ PostgreSQL is the recommended source of truth for most multi-replica application
 import { SQL } from "bun"
 import { Elysia } from "elysia"
 import { furin, furinSync } from "@teyik0/furin"
-import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres"
+import {
+  postgresSyncAdapter,
+  postgresSyncNotifier,
+} from "@teyik0/furin/sync/postgres"
 
 const sql = new SQL(databaseUrl) // read from server-only configuration
+const postgres = { namespace: "task-manager", sql }
 const sync = {
-  adapter: postgresSyncAdapter({ namespace: "task-manager", sql }),
+  adapter: postgresSyncAdapter(postgres),
+  notifier: postgresSyncNotifier(postgres),
   principal: ({ request }) => requireUser(request).id,
 }
 
@@ -172,35 +177,32 @@ new Elysia()
   .listen(3000)
 ```
 
-Without a notifier, Furin polls `currentCursor()` as a correctness-preserving wake-up. Add the independent Redis notifier when lower cross-replica wake-up latency matters:
+The PostgreSQL notifier uses Bun's native `SQL.listen()` and `SQL.notify()` support. Its channel is derived from the namespace, and the adapter queues `NOTIFY` in the same transaction as durable completion so it is delivered only after commit. The listener reconnect callback reads the durable cursor to recover notifications missed while disconnected. No periodic cursor polling runs while the listener is healthy; a failed initial subscription restores the safety poll.
+
+Distributed production adapters require an explicit notifier. If `LISTEN/NOTIFY` is unavailable through an intermediary such as an incompatible connection pooler, opt into the polling fallback:
 
 ```ts
-import { RedisClient, SQL } from "bun"
-import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres"
-import { redisSyncNotifier } from "@teyik0/furin/sync/redis"
+import { PollingSyncNotifier } from "@teyik0/furin/sync"
 
+const adapter = postgresSyncAdapter(postgres)
 const sync = {
-  adapter: postgresSyncAdapter({
-    namespace: "task-manager",
-    sql: new SQL(databaseUrl),
-  }),
-  notifier: redisSyncNotifier({
-    client: new RedisClient(redisUrl),
-    namespace: "task-manager",
-  }),
+  adapter,
+  notifier: new PollingSyncNotifier(adapter, 250),
   principal: ({ request }) => requireUser(request).id,
 }
 ```
+
+An independent `redisSyncNotifier()` remains available when Redis is already part of the deployment.
 
 | Deployment | Choice |
 |---|---|
 | Local development or one disposable process | SQLite `:memory:` |
 | Durable deployment on one host | SQLite adapter |
-| Multi-replica with an application PostgreSQL database | PostgreSQL adapter (recommended) |
+| Multi-replica with an application PostgreSQL database | PostgreSQL adapter + PostgreSQL notifier (recommended) |
 | Redis is already the durable sync source | Redis adapter |
-| PostgreSQL durability with faster wake-ups | PostgreSQL adapter + Redis notifier |
+| PostgreSQL durability with an existing Redis bus | PostgreSQL adapter + Redis notifier |
 
-The notifier only sends a small cursor and is best-effort. The durable adapter owns response replay and ordered catch-up, so a Redis outage or missed SSE event delays refresh but does not lose changes. Completion atomically stores the replay response and its invalidations. This is not a claim of exactly-once execution for arbitrary domain writes: Furin cannot put an external API call or an application database transaction inside the adapter transaction.
+The notifier only sends a small cursor and is best-effort. The durable adapter owns response replay and ordered catch-up, so a missed PostgreSQL, Redis, or SSE notification does not lose changes. Completion atomically stores the replay response and its invalidations. This is not a claim of exactly-once execution for arbitrary domain writes: Furin cannot put an external API call or an application database transaction inside the adapter transaction.
 
 The main package declares `sideEffects: false`, and each adapter has an independent entrypoint. SQLite, PostgreSQL, and Redis remain isolated from one another and no backend is present in the browser bundle. The task-manager example uses file-backed SQLite for its application data and sync journal. SQLite `:memory:` is process-local and development-only; file-backed SQLite is `host-local`. Use PostgreSQL or Redis instead when replicas run on separate hosts. IndexedDB outbox/offline replay is tracked separately and is not part of this server contract.
 

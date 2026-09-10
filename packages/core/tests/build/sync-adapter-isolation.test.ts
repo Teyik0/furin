@@ -11,6 +11,7 @@ import { join, resolve } from "node:path";
 
 const fixtures = new URL("../fixtures/sync-bundles/", import.meta.url);
 const postgresMarker = "pg_advisory_xact_lock";
+const postgresNotifierMarker = "furin_sync_";
 const redisMarker = "redis.call";
 const redisNotifierMarker = ":notify";
 const sqliteMarker = "furin_sync_mutations";
@@ -77,6 +78,7 @@ describe("sync adapter bundle isolation", () => {
       bundle("hybrid", "bun"),
     ]);
     expect(postgres).toContain(postgresMarker);
+    expect(postgres).toContain(postgresNotifierMarker);
     expect(postgres).not.toContain(redisMarker);
     expect(postgres).not.toContain(sqliteMarker);
     expect(redis).toContain(redisMarker);
@@ -118,8 +120,8 @@ describe("sync adapter bundle isolation", () => {
         },
         {
           absent: [redisMarker, sqliteMarker],
-          entry: 'import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres"; console.log(postgresSyncAdapter);',
-          markers: [postgresMarker],
+          entry: 'import { postgresSyncAdapter, postgresSyncNotifier } from "@teyik0/furin/sync/postgres"; console.log(postgresSyncAdapter, postgresSyncNotifier);',
+          markers: [postgresMarker, postgresNotifierMarker],
         },
         {
           absent: [postgresMarker, sqliteMarker],

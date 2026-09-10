@@ -80,6 +80,7 @@ function resetSyncTestState() {
 
 test("furinSync uses the injected adapter for reservation and atomic completion", async () => {
   const completed: CompleteMutationInput[] = [];
+  let postCommitPublications = 0;
   const lease: MutationLease = {
     id: "lease-1",
     key: "POST:/cards:injected",
@@ -95,13 +96,18 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
       return Promise.resolve({ cursor: "1", kind: "committed" });
     },
     currentCursor: () => Promise.resolve("0"),
+    notificationChannel: "furin-sync-test",
     readChanges: (_input: ReadChangesInput): Promise<ChangePage> =>
       Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("renewed"),
     scope: "distributed",
   };
   const notifier: SyncNotifier = {
-    publish: () => Promise.reject(new Error("notifier unavailable")),
+    notificationChannel: "furin-sync-test",
+    publish: () => {
+      postCommitPublications += 1;
+      return Promise.reject(new Error("notifier unavailable"));
+    },
     subscribe: () => Promise.reject(new Error("notifier unavailable")),
   };
   const app = new Elysia()
@@ -118,6 +124,7 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
   expect(response.status).toBe(200);
   expect(completed).toHaveLength(1);
   expect(completed[0]?.lease).toEqual(lease);
+  expect(postCommitPublications).toBe(0);
 });
 
 test("furinSync durably preserves manual and declarative invalidations", async () => {
@@ -591,6 +598,8 @@ test("furinSync SSE notification completes inside bun:test", async () => {
   try {
     const connected = await readStreamChunk(reader, "SSE connection prelude", 1000);
     expect(new TextDecoder().decode(connected.value)).toContain(": connected");
+    const initialCursor = await readStreamChunk(reader, "initial SSE cursor", 1000);
+    expect(new TextDecoder().decode(initialCursor.value)).toContain("event: furin.sync");
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(
         new Request("http://localhost/cards/1", {
@@ -634,6 +643,8 @@ test("sync stream closes a client that does not drain its queue", async () => {
 
     const connected = await readStreamChunk(reader, "queued SSE prelude", 1000);
     expect(new TextDecoder().decode(connected.value)).toContain(": connected");
+    const initialCursor = await readStreamChunk(reader, "queued initial cursor", 1000);
+    expect(new TextDecoder().decode(initialCursor.value)).toContain("event: furin.sync");
     expect((await readStreamChunk(reader, "slow client closure", 1000)).done).toBe(true);
   } finally {
     await reader.cancel();
@@ -643,6 +654,12 @@ test("sync stream closes a client that does not drain its queue", async () => {
 
 test("sync stream opens when notifier subscription fails", async () => {
   resetSyncTestState();
+  const intervalDelays: number[] = [];
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    intervalDelays.push(args[1] ?? 0);
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
   const cursor = "0";
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
@@ -655,6 +672,7 @@ test("sync stream opens when notifier subscription fails", async () => {
   };
   const notifier: SyncNotifier = {
     publish: () => Promise.resolve(),
+    recovery: "self",
     subscribe: () => Promise.reject(new Error("notifier unavailable")),
   };
   const app = new Elysia().use(
@@ -663,7 +681,50 @@ test("sync stream opens when notifier subscription fails", async () => {
   const response = await app.handle(new Request("http://localhost/_furin/sync"));
   try {
     expect(response.status).toBe(200);
+    expect(intervalDelays).toEqual([250, 15_000]);
   } finally {
+    globalThis.setInterval = originalSetInterval;
+    resetSyncTestState();
+  }
+});
+
+test("sync stream does not poll when the notifier recovers missed notifications", async () => {
+  resetSyncTestState();
+  const intervalDelays: number[] = [];
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    intervalDelays.push(args[1] ?? 0);
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
+  let cursorReads = 0;
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
+    completeMutation: () => Promise.resolve({ kind: "lost" }),
+    currentCursor: () => {
+      cursorReads += 1;
+      return Promise.resolve("0");
+    },
+    readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
+    renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
+  };
+  const notifier: SyncNotifier = {
+    publish: () => Promise.resolve(),
+    recovery: "self",
+    subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
+  };
+  const app = new Elysia().use(
+    createSyncStreamPlugin({ adapter, notifier, principal: () => "principal" })
+  );
+  const response = await app.handle(new Request("http://localhost/_furin/sync"));
+
+  try {
+    expect(response.status).toBe(200);
+    expect(cursorReads).toBe(1);
+    expect(intervalDelays).toEqual([15_000]);
+  } finally {
+    globalThis.setInterval = originalSetInterval;
     resetSyncTestState();
   }
 });

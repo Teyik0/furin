@@ -195,18 +195,26 @@ Construct the adapter on the server and pass the same runtime object to the muta
 import { SQL } from "bun"
 import { Elysia } from "elysia"
 import { furin, furinSync } from "@teyik0/furin"
-import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres"
+import {
+  postgresSyncAdapter,
+  postgresSyncNotifier,
+} from "@teyik0/furin/sync/postgres"
 
 const databaseUrl = process.env.FURIN_SYNC_POSTGRES_URL
 if (databaseUrl === undefined) {
   throw new Error("FURIN_SYNC_POSTGRES_URL is required")
 }
 const namespace = "task-manager"
-const adapter = postgresSyncAdapter({
+const postgres = {
   namespace,
   sql: new SQL(databaseUrl),
-})
-const sync = { adapter, principal: ({ request }) => requireUser(request).id }
+}
+const adapter = postgresSyncAdapter(postgres)
+const sync = {
+  adapter,
+  notifier: postgresSyncNotifier(postgres),
+  principal: ({ request }) => requireUser(request).id,
+}
 
 new Elysia()
   .use(furinSync(sync))
@@ -214,7 +222,21 @@ new Elysia()
   .listen(3000)
 ```
 
-For low-latency cross-replica wake-ups, import the Redis notifier subpath and use the same namespace. Create the Redis client once and replace the `sync` declaration above with:
+This setup uses a namespace-isolated PostgreSQL channel and performs no periodic cursor polling while its listener is healthy. The adapter queues `NOTIFY` in its durable completion transaction, so PostgreSQL delivers the wake-up only after commit. Bun automatically reconnects and restores `LISTEN`; Furin then reads the durable cursor so the journal covers notifications missed during the disconnect. If the initial subscription fails, Furin restores its safety poll instead of caching a dead stream.
+
+If PostgreSQL notifications are unavailable, choose the compatibility poller explicitly:
+
+```ts
+import { PollingSyncNotifier } from "@teyik0/furin/sync"
+
+const sync = {
+  adapter,
+  notifier: new PollingSyncNotifier(adapter, 250),
+  principal: ({ request }) => requireUser(request).id,
+}
+```
+
+When Redis is already part of the deployment, its independent notifier can replace the native PostgreSQL notifier:
 
 ```ts
 import { RedisClient } from "bun"
@@ -232,7 +254,7 @@ const sync = {
 }
 ```
 
-Redis is not a correctness dependency in this hybrid: clients catch up from PostgreSQL after a missed notification, and the SSE coordinator also polls the current cursor as a safety net.
+Redis is not a correctness dependency in this hybrid: a later wake-up or SSE reconnect catches clients up from the PostgreSQL journal after a missed notification. Furin retains a low-frequency safety poll for notifiers that do not declare their own missed-notification recovery.
 
 Use a stable, application-specific `namespace` in every replica. Changing it creates a separate replay and change history. Keep database and Redis URLs in server-only environment variables; adapters are backend-only and never belong in route components or the browser entry.
 
