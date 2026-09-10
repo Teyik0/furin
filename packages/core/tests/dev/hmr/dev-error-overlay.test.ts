@@ -131,5 +131,6 @@ test("the overlay client captures hydration failures", async () => {
   expect(source).toContain("sessionStorage");
   expect(source).toContain("serverId");
   expect(source).toContain("event.serverId !== currentEvent.serverId");
+  expect(source).toContain("Cursor persistence is optional.");
   expect(source).not.toContain('window.addEventListener("unhandledrejection"');
 });

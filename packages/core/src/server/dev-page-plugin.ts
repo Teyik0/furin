@@ -385,6 +385,9 @@ export function transformDevSource(
     throw new Error(`[furin] Unsupported source loader for ${filePath}`);
   }
 
+  for (const graph of developmentGraphs()) {
+    graph.clearSourceErrors(filePath);
+  }
   const dir = dirname(filePath);
   try {
     recordDevImports(raw, filePath);

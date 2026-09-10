@@ -25,7 +25,11 @@ function storedCursor() {
 }
 
 function rememberEvent(event) {
-  sessionStorage.setItem(cursorKey, JSON.stringify({ id: event.id, serverId: event.serverId }));
+  try {
+    sessionStorage.setItem(cursorKey, JSON.stringify({ id: event.id, serverId: event.serverId }));
+  } catch {
+    // Cursor persistence is optional.
+  }
 }
 
 let currentEvent = state.event;

@@ -261,6 +261,16 @@ export class DevGraph<Snapshot> {
     return this.importChain(from, normalizedTo).includes(normalizedTo);
   }
 
+  clearSourceErrors(path: string): void {
+    const modulePath = normalizeModulePath(path);
+    for (const [message, positions] of this.#sourceErrors) {
+      positions.delete(modulePath);
+      if (positions.size === 0) {
+        this.#sourceErrors.delete(message);
+      }
+    }
+  }
+
   publishError(error: DevErrorPayload): Extract<DevGraphEvent, { type: "error" }> {
     const latest = this.#events.at(-1);
     if (latest?.type === "error" && JSON.stringify(latest.error) === JSON.stringify(error)) {

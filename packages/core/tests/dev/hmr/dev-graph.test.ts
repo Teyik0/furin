@@ -93,6 +93,19 @@ test("DevGraph does not republish an unchanged unresolved error", () => {
   expect(graph.events).toHaveLength(1);
 });
 
+test("DevGraph clears stale source errors before a new transform", () => {
+  const graph = new DevGraph<null>(null);
+  graph.recordSourceError("Unexpected token", {
+    column: 4,
+    file: "C:\\app\\component.tsx",
+    line: 8,
+  });
+
+  graph.clearSourceErrors("C:/app/component.tsx");
+
+  expect(graph.sourceError("Unexpected token", "C:/app/component.tsx")).toBeUndefined();
+});
+
 test("DevGraph versions an entry when a transitive dependency changes", () => {
   const directory = mkdtempSync(join(tmpdir(), "furin-dev-graph-"));
   const entryPath = join(directory, "page.tsx");
