@@ -1,0 +1,25 @@
+packages/core/tests/adapter-bun.test.ts
+  7e26aedc40f58c7d 1-94
+packages/core/tests/elyra-runtime.test.ts
+  7e26aedc40f58c7d 1-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "bf55e36da396fe30663120ef2f651d67fcee7c0c",
+  "prompts": {
+    "7e26aedc40f58c7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ceca0-f091-7dc0-9dae-fbce65a1a305",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 384,
+      "total_deletions": 0,
+      "accepted_lines": 384,
+      "overriden_lines": 0
+    }
+  }
+}

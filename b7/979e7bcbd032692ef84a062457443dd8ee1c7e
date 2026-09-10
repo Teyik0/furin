@@ -1,0 +1,140 @@
+apps/docs/src/content/docs/defer.mdx
+  h_a2cbd1b0e3ae6e 61,74-86
+apps/docs/src/content/docs/getting-started.mdx
+  h_a2cbd1b0e3ae6e 57,61,68,70-73
+apps/docs/src/content/docs/head-seo.mdx
+  h_a2cbd1b0e3ae6e 141,148,150-153
+apps/docs/src/content/docs/layouts.mdx
+  h_a2cbd1b0e3ae6e 7,11,18,20-23
+apps/docs/src/content/docs/logging.mdx
+  h_a2cbd1b0e3ae6e 27,46-67
+apps/docs/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 29,35-47
+apps/docs/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 2,7-17
+apps/scaffolder/templates/full/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,7-17
+apps/scaffolder/templates/simple/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,7-17
+examples/task-manager/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,6-16
+examples/task-manager/src/server.ts
+  h_a2cbd1b0e3ae6e 9-25
+examples/weather/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 3,13-21
+packages/core/src/build/hydrate.ts
+  h_a2cbd1b0e3ae6e 147,149-150,188-206,334,372-373,378,406,409,417,421,424-428
+packages/core/src/build/route-types.ts
+  h_a2cbd1b0e3ae6e 16,43,48
+packages/core/src/client.ts
+  h_a2cbd1b0e3ae6e 7-13
+packages/core/src/client/boundaries.tsx
+  h_a2cbd1b0e3ae6e 6,54-55,157,163-167
+packages/core/src/client/document.tsx
+  h_a2cbd1b0e3ae6e 1-164
+packages/core/src/client/router/link-utils.ts
+  h_a2cbd1b0e3ae6e 91-92
+packages/core/src/client/router/provider.tsx
+  h_a2cbd1b0e3ae6e 4,7,90,243,255,281,301,313,883,903,914-926
+packages/core/src/client/router/types.ts
+  h_a2cbd1b0e3ae6e 3,247,298-299
+packages/core/src/define-route.ts
+  h_a2cbd1b0e3ae6e 164
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 6,38,341-349,456-474,496-497,513,556,567,626-627,630-631,634,636,642,650,653-656,676-677,703,722,724,922
+packages/core/src/plugin/route-config-autofix.ts
+  h_a2cbd1b0e3ae6e 7,270,283-295,328,334,347-355,359,397,411,424,677-678,681,779,783-793,842-843,878,889-968,978,980,1031-1032,1037-1038
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 5,7,28-32,114-117,129,223-252,255,263,675,683-695,698,700-703,706-707,709-711,714-715,717-718,721-723,726-729,732,737,740,742,770-772
+packages/core/src/server/dev-page-plugin.ts
+  h_a2cbd1b0e3ae6e 19-22,354-355,408-410
+packages/core/src/server/render/document.tsx
+  h_a2cbd1b0e3ae6e 1-25
+packages/core/src/server/render/element.tsx
+  h_a2cbd1b0e3ae6e 53-64
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 3,5,28,107,117,119-125,150,225,231-233,236
+packages/core/src/server/render/not-found.ts
+  h_a2cbd1b0e3ae6e 1,3,11-13,16-20,31-32,35,37,39-40,42,78,82-90,104-113,117
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 7,16,36-42,50-55,77,93,134-166,180-181,184-185,190-195,198,201-206,209,259-264,266,281,285-288,291,293,298,344,347,374-376,403,481-484,489,504-552,661,663-665,671,707,709-720,723-728,730-735,783-800,802
+packages/core/src/server/render/template.ts
+  h_a2cbd1b0e3ae6e 4,15,17,23-29,33-79,98-107,111,119-127,157-168,173,175
+packages/core/src/server/router/discovery.ts
+  h_a2cbd1b0e3ae6e 2,267-271
+packages/core/src/server/router/hmr.ts
+  h_a2cbd1b0e3ae6e 2,28-95,113-118,120,147,177-179,190,204,232-233,256,268,284
+packages/core/src/server/router/patterns.ts
+  h_a2cbd1b0e3ae6e 45-55,57,60-77,103-108
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 3,110,365,373,375,379,381,383
+packages/core/tests/build/hydrate/dev-files.test.ts
+  h_a2cbd1b0e3ae6e 1-29
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  h_a2cbd1b0e3ae6e 40-47,268,278-280
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  h_a2cbd1b0e3ae6e 25,123-149
+packages/core/tests/client/link/apply-link-params.test.ts
+  h_a2cbd1b0e3ae6e 26-34
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  h_a2cbd1b0e3ae6e 35,39
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  h_a2cbd1b0e3ae6e 79,83,494,500-506
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  h_a2cbd1b0e3ae6e 41,46-49,133-134,233,238-241
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  h_a2cbd1b0e3ae6e 3,48,52,70-87,260-347
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,5-15
+packages/core/tests/fixtures/apps/cli-app/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,5-15
+packages/core/tests/fixtures/pages/default/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-14
+packages/core/tests/fixtures/pages/nested-errors/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-14
+packages/core/tests/fixtures/pages/nested-not-found/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-14
+packages/core/tests/fixtures/pages/not-found/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-14
+packages/core/tests/plugin/route-config-autofix.test.ts
+  h_a2cbd1b0e3ae6e 125,129-139,147-222,565
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  h_a2cbd1b0e3ae6e 462,489-491
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  h_a2cbd1b0e3ae6e 77-84
+packages/core/tests/rendering/document/document-root.test.tsx
+  h_a2cbd1b0e3ae6e 1-174
+packages/core/tests/rendering/errors/render-error.test.ts
+  h_a2cbd1b0e3ae6e 5,16-26
+packages/core/tests/rendering/errors/render-not-found.test.ts
+  h_a2cbd1b0e3ae6e 7,20-30
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  h_a2cbd1b0e3ae6e 26-28,31,33
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  h_a2cbd1b0e3ae6e 6,25-31
+packages/core/tests/rendering/templates/render-template.test.ts
+  h_a2cbd1b0e3ae6e 7,23-31
+packages/core/tests/routing/cache/dev-route-module-cache.test.ts
+  h_a2cbd1b0e3ae6e 1-36
+packages/core/tests/routing/discovery/patterns.test.ts
+  h_a2cbd1b0e3ae6e 67-78
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  h_a2cbd1b0e3ae6e 70,74
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  h_a2cbd1b0e3ae6e 8,115-138
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  h_a2cbd1b0e3ae6e 12,143,146,168-183
+packages/core/tests/setup/evlog-mock.ts
+  h_a2cbd1b0e3ae6e 3,18,45,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "b7979e7bcbd032692ef84a062457443dd8ee1c7e",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

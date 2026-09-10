@@ -1,0 +1,63 @@
+packages/core/tests/build-cli.test.ts
+  9042419100b04f07 2,124-187
+packages/core/package.json
+  9042419100b04f07 50-54
+packages/core/src/cli/config.ts
+  9042419100b04f07 9,25,28-29,43,84,86-90,96,98-99,102
+packages/core/src/config.ts
+  9042419100b04f07 1-2,9,17
+packages/core/src/build/types.ts
+  9042419100b04f07 5,8,10,46,50
+packages/core/src/render/template.ts
+  9042419100b04f07 36-39,45-46
+packages/core/src/adapter/bun.ts
+  9042419100b04f07 2,4-5,10-25,34,36-37,51-53,56-69
+packages/core/src/build/scan-server.ts
+  9042419100b04f07 1-88
+packages/core/src/build/manifest.ts
+  9042419100b04f07 1-24
+packages/core/src/elyra.ts
+  9042419100b04f07 4-5,7-8,10-11,19-33,37-38,41-74,92-93,114-115,118,132,134,136-138
+packages/core/src/internal.ts
+  9042419100b04f07 1-25
+packages/core/tests/cli-config.test.ts
+  9042419100b04f07 80-122
+packages/core/tests/build-embed.test.ts
+  9042419100b04f07 1-110
+packages/core/src/cli/index.ts
+  9042419100b04f07 18-21,23,26,28-30,39,49,68,75,91
+packages/core/src/build/compile-entry.ts
+  9042419100b04f07 1-113
+packages/core/src/build/shared.ts
+  9042419100b04f07 3
+packages/core/tests/scan-server.test.ts
+  9042419100b04f07 1-2,4-104
+packages/core/src/build/client.ts
+  9042419100b04f07 27,68-72,92-97
+packages/core/src/router.ts
+  9042419100b04f07 7,66-67,71,83-88,90,97,112,125-129
+packages/core/src/build/index.ts
+  9042419100b04f07 1,4-5,8,34,53-58,63-73,80-83
+packages/core/tests/render-template.test.ts
+  9042419100b04f07 8,31-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "ba0f8d15e32f4c50bd9f21c12dc3e2485f1925bb",
+  "prompts": {
+    "9042419100b04f07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50e6221f-a58f-4865-8544-562ac5526577",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 272,
+      "total_deletions": 262,
+      "accepted_lines": 871,
+      "overriden_lines": 0
+    }
+  }
+}

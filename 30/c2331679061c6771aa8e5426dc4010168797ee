@@ -1,0 +1,55 @@
+packages/core/src/server/cache/isr-ssg.ts
+  s_23811ed23eebca::t_17aeba2d09f33f 21
+packages/core/tests/deferred-abort.test.ts
+  s_23811ed23eebca::t_6787e08118fc53 108,116-118,120-131
+packages/core/src/client/router/types.ts
+  s_1e61b4c1a53034::t_82e4bea4288dee 108-109,117
+packages/core/tests/adapter-bun.test.ts
+  s_23811ed23eebca::t_12a443cd23c706 2,80-102
+packages/core/src/server/render/ssg.ts
+  s_23811ed23eebca::t_7fd10699417169 39
+  s_23811ed23eebca::t_4ff7a124c3caf2 20-25
+packages/core/src/client/router/provider.tsx
+  s_23811ed23eebca::t_e0f22f66c50e86 378-387,458
+  s_23811ed23eebca::t_b191c0d9c0dfa3 37-54
+  s_23811ed23eebca::t_4c3295d77ca8e9 324-333
+packages/core/tests/link/interactive.test.tsx
+  s_23811ed23eebca::t_2185aa3f30d3d7 12-13,357-374
+packages/core/src/adapter/bun.ts
+  s_23811ed23eebca::t_59e9f93349cde4 167-169
+packages/core/src/server/cache/ssg.ts
+  s_23811ed23eebca::t_38633a1021c26a 1,14
+packages/core/src/server/internal.ts
+  s_23811ed23eebca::t_956860aa98974b 1-2,39
+packages/core/tests/furinjs-runtime.test.ts
+  s_23811ed23eebca::t_20414321103654 7-8,267-305
+packages/core/src/shared/deferred-ndjson.ts
+  s_23811ed23eebca::t_abd9c627e31e68 60
+  s_23811ed23eebca::t_980062004022d0 61-72
+packages/core/src/build/entry-template.ts
+  s_23811ed23eebca::t_a0ecf2b981a4b9 4,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "30c2331679061c6771aa8e5426dc4010168797ee",
+  "prompts": {},
+  "sessions": {
+    "s_1e61b4c1a53034": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14d7f3bf5ffeUU5MBDB2RfVAJQ",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_23811ed23eebca": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb288-7df3-7721-8383-0f40f8be4615",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

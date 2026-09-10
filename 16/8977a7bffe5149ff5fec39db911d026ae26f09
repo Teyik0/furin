@@ -1,0 +1,73 @@
+.github/workflows/ci.yaml
+  s_02d46857ef0d54::t_35e7827e092827 74-200
+CHANGELOG.md
+  s_02d46857ef0d54::t_ca3f4b4a2c54ab 16-18,30
+apps/docs/package.json
+  s_34e52b5ede54e2::t_9aa045463a7d00 13,18
+apps/docs/src/content/docs/cli.mdx
+  s_02d46857ef0d54::t_e5385858bb28b8 23,31,33,44-49,52-53,89,97-115
+apps/docs/src/content/docs/configuration.mdx
+  s_34e52b5ede54e2::t_6b27a6604a5293 15-16,80-113
+packages/core/src/adapter/bun.ts
+  s_9d4bccb36b0235::t_1d58e6a7eb03f9 151-165,188-192,264,292,313,319,322-324,328,333,358,365-366,370,373
+packages/core/src/adapter/package.ts
+  s_9d4bccb36b0235::t_6b1654bdf7e147 10,57-59,141,144-145,155
+packages/core/src/adapter/static.ts
+  s_9d4bccb36b0235::t_d1318721f0091b 56-88,144-155,434-435,439
+packages/core/src/build/client.ts
+  s_9d4bccb36b0235::t_c502e3ba0893f8 2,11,40-51,70,109-110,115-117,120,125,131-138,150-157
+packages/core/src/build/types.ts
+  s_9d4bccb36b0235::t_38dd4b462c762d 18-21,25-26,96-97,106-107,110-111
+packages/core/src/cli/index.ts
+  s_02d46857ef0d54::t_0e904d1219c1c7 9,74-110,118,131,162,184-185,194-196,198,205-211
+packages/core/src/cli/preview.ts
+  s_34e52b5ede54e2::t_39de67eff9dd57 2,4-7,13-30,32,34-37,40-46,48-58,60-71,73,75-79,81
+packages/core/src/config.ts
+  s_9d4bccb36b0235::t_a611e2dbbe85eb 61-70
+packages/core/tests/build/measurement/measure-client-bundle.test.ts
+  s_34e52b5ede54e2::t_d5eda589621046 18,20-22,24-43,47,59-150
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_9d4bccb36b0235::t_f3e137056985fc 2,4,100,122,126-319
+packages/core/tests/build/measurement/compare-performance-reports.test.ts
+  s_02d46857ef0d54::t_1ab751e5b3c6a7 1-57
+scripts/build-performance-report.ts
+  s_02d46857ef0d54::t_ef0c43c39e0cdb 1-43
+scripts/compare-performance-reports.ts
+  s_02d46857ef0d54::t_f9427069a1c137 1-193
+scripts/measure-client-bundle.ts
+  s_02d46857ef0d54::t_51ade589588cfc 1-4,6,11,21-22,25-27,29-37,39-46,48-51,54-57,59-61,63,66-81,83-90,92,95,97-99,102-109,111-112,116-118,122-125,127-128,132-146,148-162,167-172,174,176-185,192-216
+scripts/probe-server-startup.ts
+  s_02d46857ef0d54::t_ba42e1bad41d92 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "168977a7bffe5149ff5fec39db911d026ae26f09",
+  "prompts": {},
+  "sessions": {
+    "s_02d46857ef0d54": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087db-43c3-70a0-9d27-fdd1e0c812ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_34e52b5ede54e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087ae-6943-7bf1-9fb4-d573fd11ef08",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_9d4bccb36b0235": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087a7-c520-75c0-8f1b-0497dd325197",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

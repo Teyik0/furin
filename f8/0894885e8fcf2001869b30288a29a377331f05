@@ -1,0 +1,96 @@
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_ca6707d3fb3097::t_de3d39e67eab1d 314-342
+  s_ca6707d3fb3097::t_c04bc55fb5ea75 343-371
+packages/core/src/server/sync/postgres/index.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 264-274
+packages/core/src/furin.ts
+  s_ca6707d3fb3097::t_2229675db4ff4d 616,618,621,623-624
+  s_ca6707d3fb3097::t_4346e221fffd83 617,619-620,622
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_ca6707d3fb3097::t_ab4588fd9d083e 37-38,40,81,115,140,165,181-204
+  s_376e4b8ca195b4::t_98032a1d8c070e 205
+packages/core/src/server/sync/postgres/migrate.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 2,13
+packages/core/tests/client/hmr-component.test.ts
+  s_ca6707d3fb3097::t_0438bc9f5bfcd2 2-3,5-6,24-35
+  s_ca6707d3fb3097::t_a453c293cb21d7 4
+  s_376e4b8ca195b4::t_73aa619416ab20 36
+apps/docs/src/content/docs/getting-started.mdx
+  s_ca6707d3fb3097::t_4346e221fffd83 102
+packages/core/tests/bench/dbg-growth.bench.ts
+  s_f90033b8bee4cd::t_90e8e3c60f2813 1-74,76-82
+  s_f90033b8bee4cd::t_dcfa110f84c9e9 75
+packages/core/src/client/hmr.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 12-22
+packages/core/tests/contract/define-route-mode.test.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 56-60,62
+  s_ca6707d3fb3097::t_e8f43ff078c7d3 55
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_ca6707d3fb3097::t_de3d39e67eab1d 35-60
+packages/core/src/build/hydrate.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 48,65-68,151-152,156,167
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_ca6707d3fb3097::t_4346e221fffd83 451
+examples/task-manager/src/components/ui/kanban.tsx
+  s_ca6707d3fb3097::t_4346e221fffd83 564
+apps/docs/src/components/ui/button.tsx
+  s_ca6707d3fb3097::t_4346e221fffd83 8
+packages/core/src/plugin/route-config-autofix.ts
+  s_ca6707d3fb3097::t_a453c293cb21d7 496,535
+  s_ca6707d3fb3097::t_0b78ac3d993902 1,56-57,106,119,444,461,467,473,482-495,497-534,536-538,666,952,1096
+packages/core/tests/rendering/document/document-root.test.tsx
+  s_ca6707d3fb3097::t_d4d84fd228989a 5-9
+  s_ca6707d3fb3097::t_09e99e17dfd6d9 1-2,4,14,16,18-22,24-25,27-30,34-38,40-42,45-49,51-89,106-108,110-118,128-133,135-137,147,151-165,177-179,181,193-195,197-202,213-215,217-222
+  s_ca6707d3fb3097::t_f9634ef66a6379 33,39,50,109,134,180,196,216
+lefthook.yml
+  s_376e4b8ca195b4::t_02c0631e0ccaa8 23-26
+apps/scaffolder/templates/full/src/components/ui/button.tsx
+  s_ca6707d3fb3097::t_4346e221fffd83 7
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_ca6707d3fb3097::t_a453c293cb21d7 5
+  s_ca6707d3fb3097::t_4346e221fffd83 136
+packages/core/src/client.ts
+  s_ca6707d3fb3097::t_fc05d8e735aa76 14-18
+apps/docs/src/content/docs/introduction.mdx
+  s_ca6707d3fb3097::t_4346e221fffd83 34
+apps/docs/package.json
+  s_376e4b8ca195b4::t_00fc318a63e69b 32
+examples/task-manager/package.json
+  s_376e4b8ca195b4::t_a5d246ad7fc2ff 28
+package.json
+  s_376e4b8ca195b4::t_43351594ba330d 29,32-33,38,45,47
+packages/core/package.json
+  s_376e4b8ca195b4::t_05609c8372fd57 141,144-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "f80894885e8fcf2001869b30288a29a377331f05",
+  "prompts": {},
+  "sessions": {
+    "s_376e4b8ca195b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07da7-12f5-73f1-a2e3-b2f4140c0ce5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ca6707d3fb3097": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d79-9d64-7880-8c10-36d5996925b1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_f90033b8bee4cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07da7-7538-7471-b2ab-09d4fae0122e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

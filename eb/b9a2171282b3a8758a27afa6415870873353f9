@@ -1,0 +1,43 @@
+packages/core/src/server/sync/sqlite/index.ts
+  s_ca235b95877121::t_7029894f8737e7 40-41,45,49-52,200,275,286-287,304
+  s_ca235b95877121::t_f675c0835321a1 90-96,107-111,115-128,130-133,148-163,168-174,177-181,183-187,189-193,195-199,201-228,232-233,235,237,239-241,245-258,263-265,267,272-274,276-277,282-285,288-303,305-317,323-326,329-330
+  s_ca235b95877121::t_5b16b37ff7e4b6 1,89,164,167,259,262,268,271,278,281,319,322,331
+  s_ca235b95877121::t_9b737203a438ee 69
+packages/core/src/server/sync/postgres/index.ts
+  s_ca235b95877121::t_db6965a57253b5 47-49
+packages/core/src/server/cache/invalidation.ts
+  s_ca235b95877121::t_0af11531fdb396 43-46
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_ca235b95877121::t_d68d1706f140d0 127-159
+  s_ca235b95877121::t_2af35dc017066e 10-34
+packages/core/src/server/sync/plugin.ts
+  s_ca235b95877121::t_0af11531fdb396 8,219,230-233,235-239
+  s_ca235b95877121::t_6a5cd2f08f19dc 47,135
+  s_ca235b95877121::t_068ada7046842f 234
+packages/core/tests/client/sync/adapters/sqlite-sync-adapter.test.ts
+  s_ca235b95877121::t_27ad6c016df747 108-142,144-149
+  s_ca235b95877121::t_ad0e9c922aebbd 143
+packages/core/tests/client/sync/sync.test.ts
+  s_ca235b95877121::t_40de5391e0cfb1 151,158,167
+  s_ca235b95877121::t_41c4eb0e832be9 7,122-150,152-157,159-166,168-174
+  s_ca235b95877121::t_c183d20f8bf2b9 175-176
+CHANGELOG.md
+  s_ca235b95877121::t_f64a93a557954d 35
+  s_ca235b95877121::t_8077995f9fb2c4 33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ebb9a2171282b3a8758a27afa6415870873353f9",
+  "prompts": {},
+  "sessions": {
+    "s_ca235b95877121": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6782-da2e-7fd2-a3be-7e00a6b14636",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

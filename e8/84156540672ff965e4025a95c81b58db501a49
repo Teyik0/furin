@@ -1,0 +1,77 @@
+examples/weather/src/pages/index.tsx
+  s_013aa92b7e2fef::t_f4ca2a99821dcc 2
+apps/docs/src/components/hero-section.tsx
+  s_013aa92b7e2fef::t_66cbf92907395a 3-7
+  s_013aa92b7e2fef::t_62ea831dc1bc91 1-2,8-60
+examples/task-manager/src/components/create-board-form.tsx
+  s_013aa92b7e2fef::t_162bee6fcecc44 1-68
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_013aa92b7e2fef::t_acf26c4d045e4c 4
+  s_013aa92b7e2fef::t_908d808027e1a7 44-52
+packages/core/src/router.ts
+  s_013aa92b7e2fef::t_94b96e11dc906d 284-300
+  s_013aa92b7e2fef::t_e4b3e123e3b7e8 375,381
+  s_013aa92b7e2fef::t_1c4813afbc07f3 211-214
+  s_013aa92b7e2fef::t_39d7ec675ca727 1076
+  s_013aa92b7e2fef::t_e6351cb880732c 373-374,376-380,382-386
+  s_013aa92b7e2fef::t_488dd86234cdf7 1065-1068,1072-1074,1078-1082
+  s_013aa92b7e2fef::t_7590cff241ff2a 678-685,687
+packages/core/src/adapter/static.ts
+  s_013aa92b7e2fef::t_e01cde7449b0b3 144-148,159-164,169-173,175,178,181
+  s_013aa92b7e2fef::t_08c17b868e4624 149-158,165-167,182,192
+  s_013aa92b7e2fef::t_acf26c4d045e4c 183-191
+examples/weather/src/components/current-weather-card.tsx
+  s_013aa92b7e2fef::t_5f78813db80a17 1-30
+apps/docs/src/pages/root.tsx
+  s_013aa92b7e2fef::t_126233ef0a0940 3
+react-doctor.config.json
+  s_013aa92b7e2fef::t_5c49f19060c8b9 19-23,26
+  s_013aa92b7e2fef::t_508437614b4013 27-28
+  s_013aa92b7e2fef::t_33241d51bb7a37 12,17-18,24-25
+  s_013aa92b7e2fef::t_cac43a3c573e07 42,47
+  s_013aa92b7e2fef::t_acf26c4d045e4c 46
+  s_013aa92b7e2fef::t_b32d47aa1fbf54 6,11,13-16,30-33,38,50,61,65
+  s_013aa92b7e2fef::t_7dd0d7df150844 51-60,62-64,66
+packages/core/src/render/index.ts
+  s_013aa92b7e2fef::t_fa1caa0f976e71 934-938,940-945,950-951,957,961,966
+  s_013aa92b7e2fef::t_e0f1d01ed7ac2e 939,946-948,960,962
+apps/docs/src/pages/index.tsx
+  s_013aa92b7e2fef::t_f19805e391db7f 3-13
+apps/docs/src/components/root-layout.tsx
+  s_013aa92b7e2fef::t_760714e24ae7ec 1-12,14-96
+examples/task-manager/src/components/board-card.tsx
+  s_013aa92b7e2fef::t_e663f39da26d42 1-87
+examples/task-manager/src/components/card-detail-page.tsx
+  s_013aa92b7e2fef::t_025727106c60e0 1-191,193-199
+  s_013aa92b7e2fef::t_acf26c4d045e4c 192
+apps/docs/package.json
+  s_013aa92b7e2fef::t_16c16c67d1315e 46-50,58-60
+  s_013aa92b7e2fef::t_acf26c4d045e4c 51-57
+apps/docs/src/components/icons.tsx
+  s_013aa92b7e2fef::t_6967ce77667ecf 1-112,114,116-120
+  s_013aa92b7e2fef::t_79dea3494f0d03 113,115
+examples/task-manager/src/pages/index.tsx
+  s_013aa92b7e2fef::t_c23bdd6d12aa0a 2-3
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_013aa92b7e2fef::t_775d224c7fbb9c 2
+examples/task-manager/src/components/board-page-content.tsx
+  s_013aa92b7e2fef::t_370c289026604b 167-168
+  s_013aa92b7e2fef::t_071bc9cce9a722 1,3-4,6-166,169-218
+  s_013aa92b7e2fef::t_acf26c4d045e4c 2,5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e884156540672ff965e4025a95c81b58db501a49",
+  "prompts": {},
+  "sessions": {
+    "s_013aa92b7e2fef": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a7a748bdffekaGT0fU7bYoX4B",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

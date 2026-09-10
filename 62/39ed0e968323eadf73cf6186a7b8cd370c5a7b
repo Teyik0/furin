@@ -1,0 +1,19 @@
+packages/core/src/plugin/transform-isomorphic.ts
+  s_134d8def1194c6::t_8eb2c4b5c36269 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6239ed0e968323eadf73cf6186a7b8cd370c5a7b",
+  "prompts": {},
+  "sessions": {
+    "s_134d8def1194c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f990f-4cd7-7a01-bd9e-20c2f04494ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

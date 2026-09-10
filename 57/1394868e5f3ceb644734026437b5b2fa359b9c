@@ -1,0 +1,61 @@
+apps/scaffolder/package.json
+  3b9e32ecb71ea272 7,10,22,25-26
+apps/scaffolder/src/pipeline/context.ts
+  3b9e32ecb71ea272 1,127-128,130-143
+packages/core/src/build/scan-server.ts
+  9c11bd0b614c0409 2,10-20,30-32
+packages/core/package.json
+  9c11bd0b614c0409 65
+packages/core/src/router-provider.tsx
+  1cfe1932626f5279 896,1137,1227
+packages/core/build.ts
+  9c11bd0b614c0409 18
+packages/core/src/plugin/transform-client.ts
+  9c11bd0b614c0409 2,283,285,350-351,353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "571394868e5f3ceb644734026437b5b2fa359b9c",
+  "prompts": {
+    "1cfe1932626f5279": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212495232ffe2002p7YvShnu0U",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "3b9e32ecb71ea272": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_213033225ffeFb4HkuWnaNW5vW",
+        "model": "opencode/big-pickle"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 18,
+      "accepted_lines": 24,
+      "overriden_lines": 2
+    },
+    "9c11bd0b614c0409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212b8bc7effepOL0Y8nYHoJ7he",
+        "model": "opencode/big-pickle"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 13,
+      "accepted_lines": 23,
+      "overriden_lines": 2
+    }
+  }
+}

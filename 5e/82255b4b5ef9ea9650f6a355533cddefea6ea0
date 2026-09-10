@@ -1,0 +1,47 @@
+apps/docs/src/content/docs/caching.mdx
+  53ff89752e234495 251-264
+apps/docs/src/pages/docs/link-navigation.tsx
+  53ff89752e234495 1-22
+CHANGELOG.md
+  53ff89752e234495 9-30
+apps/docs/src/content/docs/configuration.mdx
+  53ff89752e234495 1-161
+apps/docs/src/content/docs/cli.mdx
+  53ff89752e234495 1-125
+apps/docs/src/lib/docs.ts
+  53ff89752e234495 53-70,85-93,112-120
+apps/docs/src/content/docs/link-navigation.mdx
+  53ff89752e234495 1-160
+apps/docs/src/pages/docs/head-seo.tsx
+  53ff89752e234495 1-22
+apps/docs/src/pages/docs/configuration.tsx
+  53ff89752e234495 1-22
+apps/docs/src/content/docs/dev-hmr.mdx
+  53ff89752e234495 248-279
+apps/docs/src/pages/docs/cli.tsx
+  53ff89752e234495 1-18
+apps/docs/furin-env.d.ts
+  53ff89752e234495 11,13,19,21
+apps/docs/src/content/docs/head-seo.mdx
+  53ff89752e234495 1-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "5e82255b4b5ef9ea9650f6a355533cddefea6ea0",
+  "prompts": {
+    "53ff89752e234495": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21d5b6a7dffeUiCWuJBFSFwlFY",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 823,
+      "total_deletions": 0,
+      "accepted_lines": 819,
+      "overriden_lines": 0
+    }
+  }
+}

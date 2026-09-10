@@ -1,0 +1,28 @@
+packages/core/tests/bench/dbg-growth.bench.ts
+  s_781916c5240a38::t_689f8079ddf731 9-12,63
+packages/core/src/plugin/route-config-autofix.ts
+  s_781916c5240a38::t_91014168134dd6 444-445,472,518-523,528-533,535,539-553,683-684,968-969,1109,1112-1113
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_781916c5240a38::t_ca7d5e40436de2 365
+  s_781916c5240a38::t_935c048fa15641 343-364,366-371
+packages/core/package.json
+  s_781916c5240a38::t_689f8079ddf731 131
+packages/core/tests/contract/define-route-mode.test.ts
+  s_781916c5240a38::t_6d0c55bc3db6a1 56-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "69291c760c8688538576bf0933335cb4817ea48e",
+  "prompts": {},
+  "sessions": {
+    "s_781916c5240a38": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07dba-5b91-7fa2-8e1d-9cf73813d413",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
