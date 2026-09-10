@@ -145,9 +145,22 @@ export function mergeDevtoolsSnapshotEvents(
   current: DevtoolsServerEvent[],
   snapshot: DevtoolsSnapshot
 ): DevtoolsServerEvent[] {
-  return [...snapshot.events, ...current.filter((event) => event.id > snapshot.lastEventId)].slice(
-    -MAX_EVENTS
-  );
+  const merged = [
+    ...snapshot.events,
+    ...current.filter((event) => event.id > snapshot.lastEventId),
+  ];
+  const latestResourceIds = new Map<string, number>();
+  for (const event of merged) {
+    if (event.type === "browser.resources") {
+      latestResourceIds.set(event.clientId, event.id);
+    }
+  }
+  return merged
+    .filter(
+      (event) =>
+        event.type !== "browser.resources" || latestResourceIds.get(event.clientId) === event.id
+    )
+    .slice(-MAX_EVENTS);
 }
 
 function useDevtools(): {

@@ -14,7 +14,7 @@ class DashboardEventSource extends EventTarget {
   }
 }
 
-function validSnapshot(): object {
+function validSnapshot(): DevtoolsSnapshot {
   return {
     caches: [],
     events: [],
@@ -104,6 +104,36 @@ test.serial("snapshot refresh preserves newer events already delivered over SSE"
     expect(mergeDevtoolsSnapshotEvents([liveEvent], snapshot).map((event) => event.id)).toEqual([
       1, 2,
     ]);
+  } finally {
+    await uninstallDom();
+  }
+});
+
+test.serial("snapshot refresh keeps only the newest resources for each browser", async () => {
+  installDom();
+  try {
+    const { mergeDevtoolsSnapshotEvents } = await import("../../../src/devtools/dashboard.tsx");
+    const resourceEvent = {
+      clientId: "browser",
+      clientTimestamp: 1,
+      id: 1,
+      instanceId: "dashboard-test",
+      resources: [],
+      timestamp: 1,
+      type: "browser.resources",
+      version: 2,
+    } satisfies DevtoolsServerEvent;
+    const snapshot = {
+      ...validSnapshot(),
+      events: [resourceEvent],
+      lastEventId: 1,
+    } as DevtoolsSnapshot;
+
+    const merged = mergeDevtoolsSnapshotEvents(
+      [{ ...resourceEvent, clientTimestamp: 2, id: 2, timestamp: 2 }],
+      snapshot
+    );
+    expect(merged.map((event) => event.id)).toEqual([2]);
   } finally {
     await uninstallDom();
   }

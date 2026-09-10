@@ -159,9 +159,14 @@ if (command === "dev") {
     bail(`[furin] Entrypoint ${config.serverEntry ?? "src/server.ts"} not found`);
   }
   const appUrl = `http://localhost:${port}/`;
-  const configuredPrefixes =
-    config.apps?.map((app) => normalizePrefix(app.prefix)) ??
-    (config.pagesDir ? [""] : scanFurinInstances(serverEntry).map((instance) => instance.prefix));
+  let configuredPrefixes: string[];
+  if (config.apps && config.apps.length > 0) {
+    configuredPrefixes = config.apps.map((app) => normalizePrefix(app.prefix));
+  } else if (config.pagesDir) {
+    configuredPrefixes = [""];
+  } else {
+    configuredPrefixes = scanFurinInstances(serverEntry).map((instance) => instance.prefix);
+  }
   const prefixes = [...new Set(configuredPrefixes.length > 0 ? configuredPrefixes : [""])];
   const devtoolsUrls = prefixes.map((prefix) => new URL(`${prefix}/_furin/devtools`, appUrl).href);
 

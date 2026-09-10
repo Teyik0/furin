@@ -72,16 +72,18 @@ function assetUrl(path: string): string {
 
 function clientId(): string {
   const key = "furin:devtools:client-id";
+  const fallback = (): string =>
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   try {
     const existing = sessionStorage.getItem(key);
     if (existing) {
       return existing;
     }
-    const created = crypto.randomUUID();
+    const created = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : fallback();
     sessionStorage.setItem(key, created);
     return created;
   } catch {
-    return crypto.randomUUID();
+    return fallback();
   }
 }
 

@@ -65,6 +65,7 @@ Bun.serve({
       : new Response("Not found", { status: 404 });
   },
 });`);
+  writeFileSync(resolve(directory, "furin.config.ts"), "export default { apps: [] };\n");
   const port = await getFreePort();
   const cli = startCli(["dev", "--port", String(port)], { cwd: directory });
 
