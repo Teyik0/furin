@@ -1,0 +1,42 @@
+packages/core/tests/types.test.tsx
+  s_815d738d114937::t_1f89dbc87ea00e 17
+doctor.config.ts
+  s_815d738d114937::t_88da863bd7fc3e 28
+packages/core/tests/furinjs.test.ts
+  s_815d738d114937::t_9a07a343e36340 5
+packages/core/src/build/entry-template.ts
+  s_815d738d114937::t_6c8d8572e5f8ea 7-10
+packages/core/build.ts
+  s_815d738d114937::t_89a6647dd9a03b 26
+packages/core/tests/furinjs-runtime.test.ts
+  s_815d738d114937::t_adfa0a4dfd3ba0 6
+packages/core/src/server/auto-invalidate/types.ts
+  s_815d738d114937::t_269b65062a1038 1
+packages/core/package.json
+  s_815d738d114937::t_cc4204b18ec9c0 37-39
+  s_815d738d114937::t_c2f410d0db9bc9 45-47
+packages/core/tsconfig.json
+  s_815d738d114937::t_579cc44ee0af0c 5
+packages/core/src/furin.ts
+  s_815d738d114937::t_730eb8ea84d5ab 392-405
+  s_815d738d114937::t_a60727fc100fb1 250-258
+  s_815d738d114937::t_49e5e3cae84bae 13-22
+packages/core/src/adapter/bun.ts
+  s_815d738d114937::t_40bfeca79d3b67 15-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6f7b2c69f795b75042f0e844dc029f47a48cca8e",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

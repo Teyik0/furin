@@ -1,0 +1,23 @@
+packages/core/tests/client/sync/memory-sync-adapter.test.ts
+  s_9ec73f6fd8dcd0::t_ea95a7eedb5e13 34-59
+packages/core/src/server/sync/memory-adapter.ts
+  s_9ec73f6fd8dcd0::t_d8c8a5ca948302 57-63
+  s_9ec73f6fd8dcd0::t_005a36ae403fc4 49,54-56,65-67,76,166-167,173-181,186-187
+  s_9ec73f6fd8dcd0::t_72c124e2b6f6ee 188-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "58b641b3c1d5861373b68702f278860d19aa3a58",
+  "prompts": {},
+  "sessions": {
+    "s_9ec73f6fd8dcd0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f57ec-0d10-7a73-bdb6-223aab32c392",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

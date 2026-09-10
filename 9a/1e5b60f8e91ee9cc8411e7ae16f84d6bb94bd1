@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "9a1e5b60f8e91ee9cc8411e7ae16f84d6bb94bd1",
+  "prompts": {
+    "c2d879ff99ccc281": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbdd8-875b-74b1-b66b-45b70f0d906f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 1484,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

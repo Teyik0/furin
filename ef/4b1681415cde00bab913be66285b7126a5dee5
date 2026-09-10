@@ -1,0 +1,32 @@
+furin-env.d.ts
+  s_a4998db202e930::t_1eb07bbcd4eb22 26-31
+  s_a4998db202e930::t_75c34f4390ac8a 23-25
+  s_a4998db202e930::t_61cb102e64b5fc 32-33
+CHANGELOG.md
+  s_12b392977c20f6::t_cea089e376d239 10-30
+  s_12b392977c20f6::t_ee86156591df4e 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "ef4b1681415cde00bab913be66285b7126a5dee5",
+  "prompts": {},
+  "sessions": {
+    "s_12b392977c20f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f9c41d86dffeI1j7MKSPmpROkr",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a4998db202e930": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05987-f8b9-7623-af33-f5750288f506",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

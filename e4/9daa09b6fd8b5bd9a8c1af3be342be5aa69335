@@ -1,0 +1,21 @@
+packages/core/tests/build/adapters/adapter-static-unsafe-path.test.ts
+  s_35483d62efd75c::t_d5f0480ba9e94e 33-35,38-47
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_35483d62efd75c::t_738c595a9c618f 65-78,102,110-112,120-121,147,154-155,159,166-167,187,194-195,214,219-220,231,236-238,243-245,250-251,306,316-317,332,339-340
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e49daa09b6fd8b5bd9a8c1af3be342be5aa69335",
+  "prompts": {},
+  "sessions": {
+    "s_35483d62efd75c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f70d7-b622-7e42-b031-3585047a770e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

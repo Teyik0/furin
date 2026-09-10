@@ -1,0 +1,29 @@
+packages/core/src/render/dev-cache.ts
+  0d463d84f21e2371 19-20,166-207
+packages/core/tests/dev-hmr-parent-child.integration.test.ts
+  0d463d84f21e2371 9-10,29-37,389,392-393,395-401,403-404,406-408,410,463-467,474-588
+packages/core/src/router.ts
+  0d463d84f21e2371 15,659-672
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  0d463d84f21e2371 468-632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "54949d9d51b86824ff4e7dd55b87527cf3660048",
+  "prompts": {
+    "0d463d84f21e2371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "812debb7-e3fd-4db3-b981-cdd1df7901b3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1766,
+      "total_deletions": 154,
+      "accepted_lines": 371,
+      "overriden_lines": 0
+    }
+  }
+}

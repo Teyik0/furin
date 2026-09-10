@@ -1,0 +1,151 @@
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_d432856ae333ab::t_27e304da8560a0 105-109
+packages/core/src/client/router/provider.tsx
+  s_13e5e537fe6e57::t_6f0108236e132a 702-705
+packages/core/src/server/devtools/instrumentation.ts
+  s_6dfbaca2c5b7fe::t_e22b0da4b05e8a 53-56
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_d432856ae333ab::t_27e304da8560a0 142-161
+packages/core/src/server/devtools/instrumentation.production.ts
+  s_6dfbaca2c5b7fe::t_e22b0da4b05e8a 67-70
+packages/core/src/server/render/loaders.ts
+  s_a2f393c05f4fcc::t_49ecb31a038770 4
+  s_a2f393c05f4fcc::t_ab70eb75ac0f32 374-417,507
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_13e5e537fe6e57::t_a4077a11fb7e2c 37-39,41-43,337-344
+  s_13e5e537fe6e57::t_583429959774ee 11-12,40
+packages/core/tests/rendering/rsc/rsc-render-server-error.scenario.tsx
+  s_a2f393c05f4fcc::t_583d18dc5c8171 1-24
+packages/core/src/build/hydrate.ts
+  s_d432856ae333ab::t_785bf9187d2545 4-7,49-53
+packages/core/tests/rendering/rsc/rsc-server-runtime.scenario.tsx
+  s_a2f393c05f4fcc::t_473acd43ea1732 2
+  s_a2f393c05f4fcc::t_a85434064d8ec0 1,3-5,42-43
+  s_a2f393c05f4fcc::t_1e5253dd54e7e5 6-28,41
+  s_a2f393c05f4fcc::t_b75e878c2cf599 29-40
+packages/core/src/rsc/codec.ts
+  s_a2f393c05f4fcc::t_6b292f121d7d3f 80-81
+  s_a2f393c05f4fcc::t_d2cc85077dfea0 5-6,9,84
+packages/core/src/server/router/patterns.ts
+  s_d432856ae333ab::t_785bf9187d2545 130,133
+packages/core/src/rsc/shared.tsx
+  s_d432856ae333ab::t_785bf9187d2545 36-37
+packages/core/src/rsc-client.ts
+  s_a2f393c05f4fcc::t_49ecb31a038770 3
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_6dfbaca2c5b7fe::t_e22b0da4b05e8a 6,89-99
+  s_6dfbaca2c5b7fe::t_100f866b7bba74 100-101
+packages/core/tests/setup/evlog-mock.ts
+  s_a2f393c05f4fcc::t_ffe46ac590fabd 15
+  s_a2f393c05f4fcc::t_7331539149e517 23,39
+  s_6dfbaca2c5b7fe::t_e22b0da4b05e8a 4,16,40,45-53
+packages/core/src/rsc-server.tsx
+  s_a2f393c05f4fcc::t_7a3662f9fcafa9 16
+  s_a2f393c05f4fcc::t_ab70eb75ac0f32 13
+  s_a2f393c05f4fcc::t_d2cc85077dfea0 2-4,17
+  s_a2f393c05f4fcc::t_49ecb31a038770 14
+  s_a2f393c05f4fcc::t_e393d195450634 15,45,83
+packages/core/src/plugin/transform-isomorphic.ts
+  s_3f6a8dd5f39c3b::t_ad9ee064940aec 243,256-272,287-291
+packages/core/src/rsc/react-server-dom-webpack.d.ts
+  s_a2f393c05f4fcc::t_6b292f121d7d3f 5-8
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_3f6a8dd5f39c3b::t_24e457b267b44c 143-159
+  s_3f6a8dd5f39c3b::t_a0628bd84aea9f 221-239
+apps/docs/src/content/docs/multi-instance.mdx
+  s_13e5e537fe6e57::t_1cdf98ba74f7a5 49
+packages/core/tests/rendering/rsc/rsc-render-error.scenario.tsx
+  s_a2f393c05f4fcc::t_eb0dc9d97778de 2-3,6-8,10-11,13-14,16-18,20
+  s_a2f393c05f4fcc::t_064cdf437acc4a 1,4-5,15,19,21-23,31-32,34,36-39,41-58,60-67
+  s_a2f393c05f4fcc::t_e733dd3643caae 40,59
+  s_a2f393c05f4fcc::t_ab70eb75ac0f32 9,12
+  s_a2f393c05f4fcc::t_a65fb093c270b1 24-30,33,35
+packages/core/src/rsc/render-error.ts
+  s_a2f393c05f4fcc::t_d3f5c8c21267f4 33
+  s_a2f393c05f4fcc::t_49ecb31a038770 81,98-106
+  s_a2f393c05f4fcc::t_403c3839c7b666 19
+  s_a2f393c05f4fcc::t_deee4fce3551c8 46,56
+  s_a2f393c05f4fcc::t_6b292f121d7d3f 1-18,22-31,34-41,43-45,47-55,57-80,82-97,107-120
+  s_a2f393c05f4fcc::t_ab70eb75ac0f32 20-21,42
+  s_a2f393c05f4fcc::t_583d18dc5c8171 32
+packages/core/src/rsc.tsx
+  s_a2f393c05f4fcc::t_e733dd3643caae 13
+  s_a2f393c05f4fcc::t_6b292f121d7d3f 28,63-67
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_a2f393c05f4fcc::t_7a3662f9fcafa9 59
+  s_a2f393c05f4fcc::t_11f66ade6e0544 43-58,60-61
+apps/docs/src/content/docs/rendering.mdx
+  s_a2f393c05f4fcc::t_40d3fd8424feb1 43-44
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_a2f393c05f4fcc::t_7331539149e517 6,10,164-196
+  s_a2f393c05f4fcc::t_d3216a1d388dea 197-198
+packages/core/src/furin.ts
+  s_6dfbaca2c5b7fe::t_e22b0da4b05e8a 12,265
+packages/core/src/rsc/server-codec.ts
+  s_a2f393c05f4fcc::t_e733dd3643caae 13-20
+  s_a2f393c05f4fcc::t_6b292f121d7d3f 5-12,21-24
+  s_a2f393c05f4fcc::t_d2cc85077dfea0 2,4
+apps/docs/src/content/docs/logging.mdx
+  s_6dfbaca2c5b7fe::t_478a5fedd8f387 20
+packages/core/tests/rendering/rsc/rsc-server-runtime.test.ts
+  s_a2f393c05f4fcc::t_a85434064d8ec0 1-8,10-21,25-37
+  s_a2f393c05f4fcc::t_621fbb099bbf5d 9,22-24
+  s_a2f393c05f4fcc::t_b75e878c2cf599 52-60
+  s_a2f393c05f4fcc::t_1e5253dd54e7e5 38-51
+packages/core/tests/rendering/rsc/rsc-render-error.test.ts
+  s_a2f393c05f4fcc::t_eb0dc9d97778de 1-8,11-31,49-69,88
+  s_a2f393c05f4fcc::t_064cdf437acc4a 9-10,70-72
+  s_a2f393c05f4fcc::t_583d18dc5c8171 32-37,39-48,73-87
+  s_a2f393c05f4fcc::t_e733dd3643caae 38
+packages/core/src/rsc/flight-drain.ts
+  s_a2f393c05f4fcc::t_7a3662f9fcafa9 11
+  s_a2f393c05f4fcc::t_d2cc85077dfea0 1-10,12-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d9efcec154c562b7a8bf9c8d9e6fb3414e33e85f",
+  "prompts": {},
+  "sessions": {
+    "s_13e5e537fe6e57": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9d65-ec0b-72d2-a896-7cdba0e5666e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3f6a8dd5f39c3b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f99f5-771d-7bc2-a85f-47bee5cc1032",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_6dfbaca2c5b7fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9da7-a01e-71f3-972e-7845341f6baf",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a2f393c05f4fcc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9b64-92ab-7541-b20a-452f7bed7135",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d432856ae333ab": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9b49-042b-75c3-9196-b37f599917aa",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

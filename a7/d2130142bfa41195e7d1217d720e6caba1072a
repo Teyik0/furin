@@ -1,0 +1,212 @@
+apps/docs/src/content/docs/layouts.mdx
+  s_85384bf2deb542::t_9c0c0117c67893 94-95,98,100-101
+packages/core/src/plugin/transform-client.ts
+  s_a4998db202e930::t_489fcc3a6ea34e 146-150,199-200,205-215
+  s_a4998db202e930::t_f6140008cbf2c2 216
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_85384bf2deb542::t_45935fd989ef25 67
+packages/core/src/plugin/routes.ts
+  s_85384bf2deb542::t_2c6e3044799a39 1,539
+  s_85384bf2deb542::t_665205a31e20ae 2,463,465-467,469,473-476,489,493-495,497,499-502,536-538,540-550,552,554-556,559-566,568-572,584-586,588
+  s_85384bf2deb542::t_4905b4120a4312 236,477,551,553,557,567
+  s_a4998db202e930::t_c2cdc34774f85f 263,269,271-272
+  s_85384bf2deb542::t_5332dc5a6f4608 503,577-581
+  s_85384bf2deb542::t_5fda3ae181054d 490-492,496,498,504-526,528-535,558
+  s_85384bf2deb542::t_a490bb6227ab5d 232,527
+  s_85384bf2deb542::t_5503e5c6083fa3 234-235,237-240
+  s_a4998db202e930::t_7e406e3211c448 43,51,221,241-243,264-268,292,303,315
+  s_85384bf2deb542::t_b6a20d9b83dc1d 222-231,233
+  s_85384bf2deb542::t_d014dbca0bd571 573
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_85384bf2deb542::t_3ab1f031abccfc 584
+  s_85384bf2deb542::t_2a398f05ee881b 13,83-92
+  s_85384bf2deb542::t_f9ba7fbd752874 120-136
+  s_85384bf2deb542::t_538262908dcd10 442-462
+  s_85384bf2deb542::t_8848e5588f78c5 315-331,333-339
+  s_85384bf2deb542::t_fcf85959e8c773 340,354-356
+  s_85384bf2deb542::t_8d6ded9423fc4b 52-68
+  s_85384bf2deb542::t_c7fa10219f3bba 694-702,706-710
+  s_85384bf2deb542::t_566d12bc73be5d 693,703-705
+  s_85384bf2deb542::t_8c56c64a89ff64 155-172
+  s_85384bf2deb542::t_5fc1f950617350 766-786
+  s_85384bf2deb542::t_24f87f749aa8a6 221,332,592-652,654-687
+  s_85384bf2deb542::t_9f7df73770db3a 93-96,357-360,688-691,787-807
+  s_85384bf2deb542::t_1216c45b6a0451 382-387,428-441
+  s_85384bf2deb542::t_9e4ffe57f46614 503-522
+  s_85384bf2deb542::t_428731353e959a 483-502
+  s_85384bf2deb542::t_ea1927de927bc3 294-314,388-427
+  s_85384bf2deb542::t_c918a33c6afd63 362-381
+  s_85384bf2deb542::t_ecec5c450e9736 725
+  s_85384bf2deb542::t_1c64dfc86a9e06 560-573
+  s_85384bf2deb542::t_e73604297302c1 228-248
+  s_85384bf2deb542::t_b5f55e178ecabd 653
+  s_85384bf2deb542::t_6bd4b1aaeaff87 748-765
+  s_85384bf2deb542::t_54b051d9a2ad26 523-536
+  s_85384bf2deb542::t_58793171a9eeaf 137-154
+  s_85384bf2deb542::t_6583aeb9e1f4ef 173-188
+  s_85384bf2deb542::t_1a968dc3ace912 211-220,222-227
+  s_85384bf2deb542::t_a1cf63100ca9e8 463-482
+  s_85384bf2deb542::t_f748637e723a7f 97
+  s_85384bf2deb542::t_ea00252e3d8b2d 361
+  s_85384bf2deb542::t_3986a7f9bc5fe1 692
+packages/core/tests/contract/define-route-layout.test.ts
+  s_85384bf2deb542::t_f8a70d32af64fa 62
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  s_85384bf2deb542::t_45935fd989ef25 29
+packages/core/src/client/router/link-utils.ts
+  s_85384bf2deb542::t_72fc795e68d30e 91
+  s_85384bf2deb542::t_4f1fb257b71af0 87
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_a4998db202e930::t_71b3190dcc6f5c 47-49,68-69,113-115,127-129
+packages/core/src/client.ts
+  s_a4998db202e930::t_5a9f977dff3f24 7
+packages/core/src/client/router/types.ts
+  s_85384bf2deb542::t_60d3bd8ac1a8b8 22-23,57-59
+packages/core/tests/build/routes-plugin.test.ts
+  s_85384bf2deb542::t_a4766a0b99b7e3 84
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_a4998db202e930::t_6c97dc281266ae 3,12-15,24,38,49,69,84,107,129,146,168,185,216
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_85384bf2deb542::t_45935fd989ef25 127,152
+packages/core/tests/fixtures/routes-v2/root/boards/[id].ts
+  s_85384bf2deb542::t_ccb53a3606b76b 8
+packages/core/tests/client/link/apply-link-params.test.ts
+  s_85384bf2deb542::t_08099940783884 26-30
+  s_85384bf2deb542::t_4bf03244790935 10-15
+apps/docs/src/content/docs/introduction.mdx
+  s_85384bf2deb542::t_7cd14eb7b8d087 34,40
+  s_85384bf2deb542::t_ae5729042f6a47 41
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_85384bf2deb542::t_b9b2737979e194 41-51,57,80-81
+  s_85384bf2deb542::t_8078617824f979 82
+packages/core/tests/contract/define-route-mode.test.ts
+  s_85384bf2deb542::t_2e480e019e70fb 1-7,12-16,18-20,55-57,71-72
+  s_85384bf2deb542::t_b5f55e178ecabd 9-11
+  s_85384bf2deb542::t_2cbc2605f42794 8,17,25,33,41,47-52
+  s_85384bf2deb542::t_5d6abb1469a331 21-24,26-32,34-40,42-46,53-54,58-70
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_85384bf2deb542::t_678eca4ba1ab2c 1,94-95,97-129
+  s_a4998db202e930::t_1cb793d83a6e31 25,29-31,41,44-46,53-54
+  s_85384bf2deb542::t_bd1f6b078c945c 64-85,90-93,130-132
+  s_85384bf2deb542::t_33087ee4058d8f 2,86-89
+  s_85384bf2deb542::t_16cd84f09a6f0c 96
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_a4998db202e930::t_ae67073f240a7a 161-171,173-179
+  s_85384bf2deb542::t_6e6b5b3a6833c6 180-198,200-202,350
+  s_85384bf2deb542::t_8467c150d2fe9d 115-132
+  s_85384bf2deb542::t_f2a3e6221d7740 199
+  s_a4998db202e930::t_6fdd3936c9bc84 5,26-29,105,140,221,271,299,341,344-345,348-349,360,412,444
+  s_a4998db202e930::t_c2cdc34774f85f 172,351
+packages/core/src/client/hmr.ts
+  s_a4998db202e930::t_a9e22d3afc2ea8 1-29
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_a4998db202e930::t_bcadfab435ad6a 26-27,89
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_a4998db202e930::t_0d4c5927b1d69a 8-9,134
+  s_a4998db202e930::t_fd70b1a791c8c1 131-133
+packages/core/src/build/hydrate.ts
+  s_a4998db202e930::t_a383b4d3ca4079 92-97,103-104,144-146,148,151,153,157-167
+  s_a4998db202e930::t_1608c590bd0456 336
+  s_a4998db202e930::t_0e7fea75e040f5 330
+  s_a4998db202e930::t_4d64ad55fea46e 323-329,331-335,337-341
+  s_a4998db202e930::t_f13107337c7d7b 168
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_a4998db202e930::t_05de77f5dfe914 74,79
+packages/core/tests/fixtures/routes-v2/catch-all/docs/[...path].ts
+  s_85384bf2deb542::t_4ec85c68313936 7-8
+packages/core/src/furin.ts
+  s_a4998db202e930::t_6f912368ae4526 574-575
+  s_85384bf2deb542::t_f2a3e6221d7740 584-588
+  s_85384bf2deb542::t_6b26c631b15d0d 577-578,591,654-658
+  s_85384bf2deb542::t_5ec52fe74aa518 633
+  s_a4998db202e930::t_b674c36ff75365 376-386,722,730,844
+  s_85384bf2deb542::t_5503e5c6083fa3 579-582
+  s_a4998db202e930::t_6648a8a7f35ba6 651,723-729
+  s_a4998db202e930::t_379d3bb10424cb 502-504
+  s_85384bf2deb542::t_8fb833cbf12a47 583,593
+  s_85384bf2deb542::t_f997d3adbb3881 622-632,634-636,660-664,666
+apps/docs/src/pages/index.tsx
+  s_85384bf2deb542::t_9c0c0117c67893 22,29,45-46
+packages/core/tests/client/hmr-component.test.ts
+  s_a4998db202e930::t_09ba62f040b4d0 1,3-5,10,15-19
+  s_a4998db202e930::t_c2cdc34774f85f 2,6-9,11-14
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_85384bf2deb542::t_9c0c0117c67893 222-228
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_85384bf2deb542::t_45935fd989ef25 364
+packages/core/src/plugin/route-config-autofix.ts
+  s_85384bf2deb542::t_d4698d9c878d08 521,523-526,530
+  s_85384bf2deb542::t_2be2b9c12604cc 176-191,203
+  s_85384bf2deb542::t_f8806ee846f9cf 568,576
+  s_85384bf2deb542::t_e1fbd131d8b086 205,243,275-280,289-293,303,308,337-338,352-353,355-360,364-365,367-372
+  s_85384bf2deb542::t_f81a02b459d144 659-665
+  s_85384bf2deb542::t_6d99e363b6bf8a 306,339,341-349,712,717,719-720
+  s_85384bf2deb542::t_652b6c9efe643d 518-519
+  s_85384bf2deb542::t_35dbc3a5e70cd7 733
+  s_85384bf2deb542::t_9bfafbb9f4c8ee 302,305,307,309-327,329,331,350,709
+  s_85384bf2deb542::t_40155dc545646d 496
+  s_85384bf2deb542::t_b982f7f287df6b 558
+  s_85384bf2deb542::t_4bee50a2ed0045 391-412,432-434,447-448,455-456,483-485,499,536-538,541-542,544-545,548,561,592
+  s_85384bf2deb542::t_1e8799cb131ea0 691-693,706
+  s_85384bf2deb542::t_8eda621ad6f91a 440-446,449-454,457-482,550,562,624
+  s_85384bf2deb542::t_1371e5aaa4bf7e 304,354,366
+  s_85384bf2deb542::t_56ef1d026d78ba 629,631-658,666,675-681,688-689,695,697-699,701-705,707-708,710-711,713-716,718,722-732,734-739,741-747,749-759,766,777-780,786-787,791-797,799-800,802,807,812-814
+  s_85384bf2deb542::t_805bf878e6da85 501,690,748
+  s_85384bf2deb542::t_379edc193f4178 740
+  s_85384bf2deb542::t_76562d6dfa2694 700
+  s_85384bf2deb542::t_d73bd99896ccd1 694,696
+  s_85384bf2deb542::t_4aab1f4b2d9d8e 100
+  s_85384bf2deb542::t_d82301075bbf04 527,529
+  s_85384bf2deb542::t_d9a0b35a1431aa 486-495,497,502-517,520,522,528,531,535,539-540,543,546-547,549,551-557,559-560,563-567,569-575,578-579,581-585,587,591,594-611,614-615,621-623,625-628
+  s_85384bf2deb542::t_b5f55e178ecabd 328,340
+  s_85384bf2deb542::t_4e9cb80200bf66 667-674
+  s_85384bf2deb542::t_c875cae96e0905 32-35
+  s_85384bf2deb542::t_e87eba702c3cd9 95
+  s_85384bf2deb542::t_ec36ccfa448a43 532-533
+  s_85384bf2deb542::t_dbc248f27ffe85 682-687
+  s_85384bf2deb542::t_0075dfaa071167 204,215-239,383,805
+  s_85384bf2deb542::t_5a93db8aad0b7a 721
+  s_85384bf2deb542::t_33ad0f828cad04 500
+  s_85384bf2deb542::t_117a2eeb9f4f15 534
+  s_85384bf2deb542::t_192e84d7cafaf8 630
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_a4998db202e930::t_bed7e997c5dfc4 102-104
+  s_a4998db202e930::t_0d176cd1a59adf 429-431,433-434,436-437
+  s_a4998db202e930::t_e90fae588ca928 435
+  s_a4998db202e930::t_c18eed949f48a8 432
+packages/core/src/adapter/package.ts
+  s_a4998db202e930::t_05de77f5dfe914 182,197,201
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_a4998db202e930::t_39eef1471a9d7e 6,34-37,107,140-143,178,207,237,263,291,345,381
+packages/core/src/define-route.ts
+  s_85384bf2deb542::t_e6b8372c6d460b 60,64,82-85
+  s_85384bf2deb542::t_c34d7b3be0cc85 65-81
+apps/docs/src/content/docs/rendering.mdx
+  s_85384bf2deb542::t_9c0c0117c67893 161-163
+apps/docs/src/content/docs/getting-started.mdx
+  s_85384bf2deb542::t_ccb53a3606b76b 96-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "a7d2130142bfa41195e7d1217d720e6caba1072a",
+  "prompts": {},
+  "sessions": {
+    "s_85384bf2deb542": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05b9f-65ef-77f1-8d25-1a13243dab6e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a4998db202e930": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05987-f8b9-7623-af33-f5750288f506",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
