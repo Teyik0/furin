@@ -80,6 +80,21 @@ async function flushReactUpdates(): Promise<void> {
   });
 }
 
+function waitFor(condition: () => boolean): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      if (condition()) {
+        clearInterval(interval);
+        resolve();
+      } else if (Date.now() - startedAt > 2000) {
+        clearInterval(interval);
+        reject(new Error("Timed out waiting for navigation"));
+      }
+    }, 10);
+  });
+}
+
 /** Returns a single-line NDJSON response (CrossJSON-serialised) for the /_furin/data endpoint. */
 function makeNdjsonResponse(data: Record<string, unknown>): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
@@ -164,7 +179,11 @@ describe("RouterProvider click interception", () => {
   let pushStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
   let abortFirstPageBRequest = false;
+  let deferPageARequest = false;
+  let deferPageBRequest = false;
+  let pageARequests = 0;
   let pageBRequests = 0;
+  let resolvePageBRequest: ((response: Response) => void) | undefined;
 
   beforeEach(() => {
     installDom();
@@ -177,15 +196,50 @@ describe("RouterProvider click interception", () => {
     pushStateCalls = [];
     currentCleanup = undefined;
     abortFirstPageBRequest = false;
+    deferPageARequest = false;
+    deferPageBRequest = false;
+    pageARequests = 0;
     pageBRequests = 0;
+    resolvePageBRequest = undefined;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
       const logicalPath =
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
 
+      if (logicalPath === "/page-a") {
+        pageARequests += 1;
+        if (deferPageARequest) {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                const error = new Error("signal is aborted without reason");
+                error.name = "AbortError";
+                reject(error);
+              },
+              { once: true }
+            );
+          });
+        }
+        return Promise.resolve(makeNdjsonResponse({ message: "page-a" }));
+      }
       if (logicalPath === "/page-b") {
         pageBRequests += 1;
+        if (deferPageBRequest) {
+          return new Promise<Response>((resolve, reject) => {
+            resolvePageBRequest = resolve;
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                const error = new Error("signal is aborted without reason");
+                error.name = "AbortError";
+                reject(error);
+              },
+              { once: true }
+            );
+          });
+        }
         if (abortFirstPageBRequest && pageBRequests === 1) {
           return new Promise<Response>((_resolve, reject) => {
             init?.signal?.addEventListener(
@@ -294,19 +348,6 @@ describe("RouterProvider click interception", () => {
 
   test("superseding a Link navigation does not leak an AbortError", async () => {
     const errorLog = spyOn(log, "error");
-    const waitFor = (condition: () => boolean) =>
-      new Promise<void>((resolve, reject) => {
-        const startedAt = Date.now();
-        const interval = setInterval(() => {
-          if (condition()) {
-            clearInterval(interval);
-            resolve();
-          } else if (Date.now() - startedAt > 2000) {
-            clearInterval(interval);
-            reject(new Error("Timed out waiting for navigation"));
-          }
-        }, 10);
-      });
 
     try {
       abortFirstPageBRequest = true;
@@ -333,6 +374,104 @@ describe("RouterProvider click interception", () => {
     } finally {
       errorLog.mockRestore();
     }
+  });
+
+  test("component-only HMR does not cancel a pending Link navigation", async () => {
+    deferPageBRequest = true;
+    const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(pageBRequests).toBe(1);
+
+    const hmrRefresh = (
+      window as unknown as {
+        __FURIN_HMR_REFRESH__: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }
+    ).__FURIN_HMR_REFRESH__;
+    await act(() => hmrRefresh(() => undefined, false));
+    resolvePageBRequest?.(makeNdjsonResponse({ message: "page-b" }));
+    await waitFor(() => window.location.pathname === "/page-b");
+
+    expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("data-changing HMR waits for a pending Link navigation", async () => {
+    deferPageBRequest = true;
+    const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(pageBRequests).toBe(1);
+
+    let hmrCommitted = false;
+    const hmrRefresh = (
+      window as unknown as {
+        __FURIN_HMR_REFRESH__: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }
+    ).__FURIN_HMR_REFRESH__;
+    const hmrPromise = hmrRefresh(() => {
+      hmrCommitted = true;
+    }, true);
+    await Promise.resolve();
+    expect(hmrCommitted).toBe(false);
+
+    deferPageBRequest = false;
+    resolvePageBRequest?.(makeNdjsonResponse({ message: "page-b" }));
+    await waitFor(() => window.location.pathname === "/page-b");
+    await act(() => hmrPromise);
+
+    expect(window.location.pathname).toBe("/page-b");
+    expect(pageBRequests).toBe(2);
+    expect(hmrCommitted).toBe(true);
+  });
+
+  test("a user navigation preserves invalidation from an aborted HMR refresh", async () => {
+    deferPageARequest = true;
+    const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+    const hmrRefresh = (
+      window as unknown as {
+        __FURIN_HMR_REFRESH__: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }
+    ).__FURIN_HMR_REFRESH__;
+
+    let staleHmrCommitted = false;
+    const staleHmr = hmrRefresh(() => {
+      staleHmrCommitted = true;
+    }, true);
+    await waitFor(() => pageARequests === 1);
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await waitFor(() => window.location.pathname === "/page-b");
+    await staleHmr.catch(() => {
+      // The Link navigation intentionally aborts this stale HMR request.
+    });
+
+    let retryCommitted = false;
+    await act(() =>
+      hmrRefresh(() => {
+        retryCommitted = true;
+      }, false)
+    );
+
+    expect(staleHmrCommitted).toBe(false);
+    expect(retryCommitted).toBe(true);
+    expect(pageBRequests).toBe(2);
   });
 
   /** Clicks `anchor` with a trailing document-level listener (registered after

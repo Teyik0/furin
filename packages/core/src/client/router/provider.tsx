@@ -54,6 +54,35 @@ function getHistoryStateObject(): object {
   return value !== null && typeof value === "object" ? value : {};
 }
 
+interface PendingUserNavigationRef {
+  current: Promise<void> | null;
+}
+
+interface HmrTransactionState {
+  dataInvalidated: boolean;
+}
+
+function beginUserNavigation(ref: PendingUserNavigationRef): () => void {
+  let resolveNavigation: () => void = () => undefined;
+  const navigation = new Promise<void>((resolve) => {
+    resolveNavigation = resolve;
+  });
+  ref.current = navigation;
+  return () => {
+    if (ref.current === navigation) {
+      ref.current = null;
+    }
+    resolveNavigation();
+  };
+}
+
+async function waitForUserNavigation(ref: PendingUserNavigationRef): Promise<void> {
+  while (ref.current) {
+    // biome-ignore lint/performance/noAwaitInLoops: superseded user navigations must settle in sequence before HMR may refresh the final URL
+    await ref.current;
+  }
+}
+
 export function setPrefetchCacheEntry(
   cache: Map<string, CacheEntry>,
   href: string,
@@ -116,6 +145,10 @@ export function RouterProvider({
   const prefetchCache = useRef(new Map<string, CacheEntry>());
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
+  /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
+  const hmrVersion = useRef(0);
+  const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
+  const pendingUserNavigation = useRef<Promise<void> | null>(null);
   /**
    * AbortController for the current navigation. Cancelled when a newer
    * navigation starts so any in-flight `parseDeferredNdjson` releases its
@@ -217,12 +250,13 @@ export function RouterProvider({
 
         // ── NDJSON data endpoint + JS chunk load (parallel) ──────────────────
         const dataEndpoint = buildDataEndpoint(basePath, logicalHref, staticMode);
+        const loadedModule = hmrRefresh ? Promise.resolve(undefined) : match.load();
         const [res, loadedMod] = await Promise.all([
           fetch(dataEndpoint, {
             headers: hmrRefresh ? { "x-furin-hmr-refresh": "1" } : undefined,
             signal,
           }),
-          match.load(),
+          loadedModule,
         ]);
 
         // Stale-deploy detection: force a full page reload to pick up the new bundle.
@@ -281,12 +315,17 @@ export function RouterProvider({
 
         const title = typeof __furinTitle === "string" ? __furinTitle : "";
 
-        const loadedMatch: LoadedClientRoute = {
-          ...match,
-          component: loadedMod.default.component,
-          pageRoute: loadedMod.default._route,
-          segmentBoundaries: loadedMod.segmentBoundaries ?? match.segmentBoundaries,
-        };
+        const loadedMatch: LoadedClientRoute | null = loadedMod
+          ? {
+              ...match,
+              component: loadedMod.default.component,
+              pageRoute: loadedMod.default._route,
+              segmentBoundaries: loadedMod.segmentBoundaries ?? match.segmentBoundaries,
+            }
+          : currentMatchRef.current;
+        if (!loadedMatch) {
+          return null;
+        }
 
         // Loader threw a non-redirect Response (or an Error).
         if (__furinError) {
@@ -408,9 +447,19 @@ export function RouterProvider({
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — redirect follow, history management, and scroll handling require this depth
     async function navigateTo(
       rawLogicalHref: string,
-      opts: { hmrRefresh?: boolean; replace?: boolean; resetScroll?: boolean } | undefined
+      opts:
+        | {
+            beforeCommit?: () => void;
+            hmrRefresh?: boolean;
+            replace?: boolean;
+            resetScroll?: boolean;
+            shouldCommit?: () => boolean;
+          }
+        | undefined
     ) {
       const logicalHref = normalizeHref(rawLogicalHref);
+      const finishUserNavigation =
+        opts?.hmrRefresh === true ? undefined : beginUserNavigation(pendingUserNavigation);
       navVersion.current += 1;
       const myVersion = navVersion.current;
       navAbortRef.current?.abort();
@@ -424,7 +473,7 @@ export function RouterProvider({
           cached && !shouldRefetch(cached)
             ? await cached.promise
             : await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
-        if (navVersion.current !== myVersion) {
+        if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
         if (newState && (!cached || shouldRefetch(cached))) {
@@ -473,6 +522,10 @@ export function RouterProvider({
           newState = redirectState;
         }
 
+        if (opts?.shouldCommit?.() === false) {
+          return;
+        }
+        opts?.beforeCommit?.();
         currentMatchRef.current = newState.match;
         if (!newState.error) {
           setBoundaryResetVersion((version) => version + 1);
@@ -506,6 +559,7 @@ export function RouterProvider({
           pendingScrollRef.current = { href: physicalEffective, type: "reset" };
         }
       } finally {
+        finishUserNavigation?.();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
         }
@@ -538,14 +592,25 @@ export function RouterProvider({
   }, [searchStore, searchSnapshot]);
 
   const refresh = useCallback(
-    async (opts: { hmrRefresh?: boolean; resetScroll?: boolean } | undefined) => {
+    async (
+      opts:
+        | {
+            beforeCommit?: () => void;
+            hmrRefresh?: boolean;
+            resetScroll?: boolean;
+            shouldCommit?: () => boolean;
+          }
+        | undefined
+    ) => {
       const logicalPath = toLogical(window.location.pathname, basePath);
       const logicalHref = logicalPath + window.location.search;
       invalidatePrefetch(logicalHref, "page");
       await navigate(logicalHref, {
+        beforeCommit: opts?.beforeCommit,
         hmrRefresh: opts?.hmrRefresh,
         replace: true,
         resetScroll: opts?.resetScroll ?? false,
+        shouldCommit: opts?.shouldCommit,
       });
     },
     [navigate, invalidatePrefetch, basePath]
@@ -561,13 +626,43 @@ export function RouterProvider({
     [refresh]
   );
 
-  // Expose refresh() to the HMR handler in _hydrate.tsx so that after a hot
-  // reload of a loader-bearing route the client re-fetches fresh data instead
-  // of rendering with stale initialData from the initial SSR payload.
+  // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
+  // callback swaps the hot component only after fresh data is ready and just
+  // before setState publishes the complete router snapshot.
   useEffect(() => {
     if (typeof window !== "undefined") {
       // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
-      (window as any).__FURIN_HMR_REFRESH__ = () => refresh({ hmrRefresh: true });
+      (window as any).__FURIN_HMR_REFRESH__ = async (
+        beforeCommit: (() => void) | undefined,
+        dataChanged: boolean | undefined
+      ) => {
+        hmrVersion.current += 1;
+        const myHmrVersion = hmrVersion.current;
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref persists invalidation from an earlier HMR callback
+        const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
+        if (!shouldRefreshData) {
+          beforeCommit?.();
+          setState((current) => ({ ...current }));
+          return;
+        }
+        hmrState.current.dataInvalidated = true;
+        await waitForUserNavigation(pendingUserNavigation);
+        if (hmrVersion.current !== myHmrVersion) {
+          return;
+        }
+        let didCommit = false;
+        await refresh({
+          beforeCommit: () => {
+            didCommit = true;
+            beforeCommit?.();
+          },
+          hmrRefresh: true,
+          shouldCommit: () => hmrVersion.current === myHmrVersion,
+        });
+        if (didCommit && hmrVersion.current === myHmrVersion) {
+          hmrState.current.dataInvalidated = false;
+        }
+      };
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
         (window as any).__FURIN_HMR_REFRESH__ = undefined;
@@ -576,6 +671,7 @@ export function RouterProvider({
   }, [refresh]);
 
   const handlePopState = useCallback(() => {
+    const finishUserNavigation = beginUserNavigation(pendingUserNavigation);
     const destKey = getHistoryKey(history.state);
     const logicalPath = normalizeHref(toLogical(window.location.pathname, basePath));
     const logicalHref = logicalPath + window.location.search;
@@ -645,6 +741,7 @@ export function RouterProvider({
           window.scrollTo({ behavior: "instant", top: 0 });
         }
       } finally {
+        finishUserNavigation();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
         }

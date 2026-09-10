@@ -13,6 +13,15 @@ const FURIN_SERVER_MODULES = new Set(["@teyik0/furin", "furin"]);
 const REACT_COMPONENT_WRAPPERS = new Set(["forwardRef", "memo"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
+const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
+const TYPESCRIPT_RUNTIME_WRAPPERS = new Map([
+  ["TSAsExpression", ["expression"]],
+  ["TSInstantiationExpression", ["expression"]],
+  ["TSNonNullExpression", ["expression"]],
+  ["TSParameterProperty", ["decorators", "parameter"]],
+  ["TSSatisfiesExpression", ["expression"]],
+  ["TSTypeAssertion", ["expression"]],
+]);
 
 interface TransformResult {
   code: string;
@@ -186,6 +195,321 @@ function removeChainedServerCalls(
     },
   });
   return transformed;
+}
+
+function collectBindingNames(pattern: unknown, names: string[]): void {
+  const node = asAstNode(pattern);
+  if (!node) {
+    return;
+  }
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    names.push(node.name);
+    return;
+  }
+  if (node.type === "AssignmentPattern") {
+    collectBindingNames(node.left, names);
+    return;
+  }
+  if (node.type === "RestElement") {
+    collectBindingNames(node.argument, names);
+    return;
+  }
+  if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    for (const element of node.elements) {
+      collectBindingNames(element, names);
+    }
+    return;
+  }
+  if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    for (const property of node.properties) {
+      const propertyNode = asAstNode(property);
+      collectBindingNames(
+        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument,
+        names
+      );
+    }
+  }
+}
+
+function collectDeclarationBindings(
+  declaration: AstNode | null,
+  declarations: Map<string, AstNode>
+): void {
+  if (declaration?.type === "FunctionDeclaration" || declaration?.type === "ClassDeclaration") {
+    const identifier = asAstNode(declaration.id);
+    if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
+      declarations.set(identifier.name, declaration);
+    }
+    return;
+  }
+  if (declaration?.type !== "VariableDeclaration" || !Array.isArray(declaration.declarations)) {
+    return;
+  }
+  for (const item of declaration.declarations as AstNode[]) {
+    const names: string[] = [];
+    collectBindingNames(item.id, names);
+    for (const name of names) {
+      declarations.set(name, item);
+    }
+  }
+}
+
+function collectModuleBindings(program: Program): {
+  declarations: Map<string, AstNode>;
+  imports: Set<string>;
+} {
+  const declarations = new Map<string, AstNode>();
+  const imports = new Set<string>();
+  for (const statement of program.body as unknown as AstNode[]) {
+    if (statement.type === "ImportDeclaration" && Array.isArray(statement.specifiers)) {
+      for (const specifier of statement.specifiers as AstNode[]) {
+        const local = localName(specifier);
+        if (local) {
+          imports.add(local);
+        }
+      }
+      continue;
+    }
+    const declaration =
+      statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration"
+        ? asAstNode(statement.declaration)
+        : statement;
+    collectDeclarationBindings(declaration, declarations);
+  }
+  return { declarations, imports };
+}
+
+function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
+  const node = asAstNode(pattern);
+  if (!node) {
+    return false;
+  }
+  if (node.type === "Identifier") {
+    return node.start === identifier.start && node.end === identifier.end;
+  }
+  if (node.type === "AssignmentPattern") {
+    return isBindingIdentifier(identifier, node.left);
+  }
+  if (node.type === "RestElement") {
+    return isBindingIdentifier(identifier, node.argument);
+  }
+  if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    return node.elements.some((element) => isBindingIdentifier(identifier, element));
+  }
+  if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    return node.properties.some((property) => {
+      const propertyNode = asAstNode(property);
+      return isBindingIdentifier(
+        identifier,
+        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument
+      );
+    });
+  }
+  return false;
+}
+
+function nodeContains(container: unknown, node: AstNode): boolean {
+  if (Array.isArray(container)) {
+    return container.some((entry) => nodeContains(entry, node));
+  }
+  const containerNode = asAstNode(container);
+  return Boolean(
+    containerNode && containerNode.start <= node.start && node.end <= containerNode.end
+  );
+}
+
+function isTypePosition(node: AstNode, ancestors: AstNode[]): boolean {
+  return ancestors.some((ancestor) => {
+    if (!ancestor.type.startsWith("TS")) {
+      return false;
+    }
+    const runtimeChildren = TYPESCRIPT_RUNTIME_WRAPPERS.get(ancestor.type);
+    if (runtimeChildren) {
+      return !runtimeChildren.some((key) => nodeContains(ancestor[key], node));
+    }
+    return true;
+  });
+}
+
+function isNonReferenceKey(node: AstNode, parent: AstNode | undefined): boolean {
+  return Boolean(
+    parent &&
+      ((parent.type === "MemberExpression" &&
+        parent.computed !== true &&
+        parent.property === node) ||
+        (parent.type === "Property" &&
+          parent.computed !== true &&
+          parent.shorthand !== true &&
+          parent.key === node) ||
+        ((parent.type === "MethodDefinition" || parent.type === "PropertyDefinition") &&
+          parent.computed !== true &&
+          parent.key === node) ||
+        ((parent.type === "LabeledStatement" ||
+          parent.type === "BreakStatement" ||
+          parent.type === "ContinueStatement") &&
+          parent.label === node))
+  );
+}
+
+function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
+  if (isTypePosition(node, ancestors) || isNonReferenceKey(node, ancestors.at(-1))) {
+    return false;
+  }
+  for (const ancestor of ancestors) {
+    if (
+      (ancestor.type === "VariableDeclarator" && isBindingIdentifier(node, ancestor.id)) ||
+      ((ancestor.type === "FunctionDeclaration" ||
+        ancestor.type === "FunctionExpression" ||
+        ancestor.type === "ArrowFunctionExpression") &&
+        (isBindingIdentifier(node, ancestor.id) ||
+          (Array.isArray(ancestor.params) &&
+            ancestor.params.some((parameter) => isBindingIdentifier(node, parameter))))) ||
+      (ancestor.type === "ClassDeclaration" && isBindingIdentifier(node, ancestor.id)) ||
+      (ancestor.type === "CatchClause" && isBindingIdentifier(node, ancestor.param))
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function walkWithAncestors(
+  value: unknown,
+  ancestors: AstNode[],
+  visitor: (node: AstNode, ancestors: AstNode[]) => void
+): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      walkWithAncestors(entry, ancestors, visitor);
+    }
+    return;
+  }
+  const node = asAstNode(value);
+  if (!node) {
+    return;
+  }
+  visitor(node, ancestors);
+  const nextAncestors = [...ancestors, node];
+  for (const [key, child] of Object.entries(node)) {
+    if (key !== "type" && key !== "start" && key !== "end" && key !== "comments") {
+      walkWithAncestors(child, nextAncestors, visitor);
+    }
+  }
+}
+
+interface HmrDependencyState {
+  dependencies: Map<number, AstNode>;
+  hasUnresolvedImport: boolean;
+  importTrackedDependencies: Set<number>;
+  moduleBindings: ReturnType<typeof collectModuleBindings>;
+}
+
+function collectDependencyIdentifier(
+  child: AstNode,
+  ancestors: AstNode[],
+  trackImports: boolean,
+  state: HmrDependencyState
+): void {
+  if (
+    child.type !== "Identifier" ||
+    typeof child.name !== "string" ||
+    !isReferenceIdentifier(child, ancestors) ||
+    hasShadowingDeclaration(child.name, ancestors)
+  ) {
+    return;
+  }
+  const declaration = state.moduleBindings.declarations.get(child.name);
+  if (!declaration) {
+    if (trackImports && state.moduleBindings.imports.has(child.name)) {
+      state.hasUnresolvedImport = true;
+    }
+    return;
+  }
+  const alreadyTracked = state.dependencies.has(declaration.start);
+  if (!alreadyTracked) {
+    state.dependencies.set(declaration.start, declaration);
+  }
+  if (trackImports) {
+    if (state.importTrackedDependencies.has(declaration.start)) {
+      return;
+    }
+    state.importTrackedDependencies.add(declaration.start);
+  } else if (alreadyTracked) {
+    return;
+  }
+  collectDependencies(declaration, trackImports, state);
+}
+
+function collectDependencies(
+  node: AstNode,
+  trackImports: boolean,
+  state: HmrDependencyState
+): void {
+  walkWithAncestors(node, [], (child, ancestors) => {
+    collectDependencyIdentifier(child, ancestors, trackImports, state);
+  });
+}
+
+function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
+  const serverStages: Array<{ source: string; start: number }> = [];
+  const dependencyState: HmrDependencyState = {
+    dependencies: new Map(),
+    hasUnresolvedImport: false,
+    importTrackedDependencies: new Set(),
+    moduleBindings: collectModuleBindings(program),
+  };
+
+  walk(program, {
+    CallExpression(call, context) {
+      const callee = asAstNode(call.callee);
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.computed === true ||
+        !callee.property ||
+        typeof callee.property !== "object"
+      ) {
+        return;
+      }
+      const property = callee.property as AstNode;
+      if (
+        property.type !== "Identifier" ||
+        typeof property.name !== "string" ||
+        !SERVER_ONLY_METHODS.has(property.name) ||
+        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors() as AstNode[])
+      ) {
+        return;
+      }
+      const object = asAstNode(callee.object);
+      if (!object) {
+        return;
+      }
+      serverStages.push({
+        source: code.slice(object.end, call.end),
+        start: call.start,
+      });
+      if (Array.isArray(call.arguments)) {
+        for (const argument of call.arguments) {
+          const argumentNode = asAstNode(argument);
+          if (argumentNode) {
+            collectDependencies(argumentNode, property.name !== "config", dependencyState);
+          }
+        }
+      }
+    },
+  });
+
+  const dataSource = [
+    ...serverStages,
+    ...[...dependencyState.dependencies.values()].map((dependency) => ({
+      source: code.slice(dependency.start, dependency.end),
+      start: dependency.start,
+    })),
+  ]
+    .sort((left, right) => left.start - right.start)
+    .map((entry) => entry.source)
+    .join("\n");
+  const hash = new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
+  return dependencyState.hasUnresolvedImport ? `external:${hash}` : hash;
 }
 
 function calledHookName(call: AstNode): string | null {
@@ -533,11 +857,28 @@ export function transformForClient(code: string, filename: string): TransformRes
     hookSignature = [];
   }
   if (routeBindings.size > 0 && hookSignature !== null) {
+    const originalParse = parseSource(code, lang);
+    const originalError = originalParse.diagnostics.find(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    if (originalError) {
+      throw new Error(`Failed to parse ${filename}: ${originalError.message}`);
+    }
+    const hmrDataSignature = createHmrDataSignature(
+      code,
+      originalParse.program,
+      collectDefineRouteBindings(originalParse.program)
+    );
     const signatureValue = Array.isArray(hookSignature)
       ? JSON.stringify(hookSignature)
       : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';
     source.append(`
 if (import.meta.hot && route?.component) {
+  const previousDataSignature = ${JSON.stringify(hmrDataSignature)};
+  Object.defineProperty(route, Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)}), {
+    configurable: true,
+    value: previousDataSignature,
+  });
   Object.defineProperty(route.component, Symbol.for("furin.hmr.hook-signature"), {
     configurable: true,
     value: ${signatureValue},
@@ -545,7 +886,16 @@ if (import.meta.hot && route?.component) {
   import.meta.hot.accept((updatedModule) => {
     const updatedRoute = updatedModule?.route;
     if (updatedRoute?.component) {
-      window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component);
+      const updatedDataSignature = Reflect.get(
+        updatedRoute,
+        Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)})
+      );
+      const dataChanged =
+        previousDataSignature.startsWith("external:") ||
+        typeof updatedDataSignature !== "string" ||
+        updatedDataSignature.startsWith("external:") ||
+        updatedDataSignature !== previousDataSignature;
+      window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component, dataChanged);
     }
   });
 }
