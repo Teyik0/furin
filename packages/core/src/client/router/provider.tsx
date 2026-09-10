@@ -195,7 +195,8 @@ export function RouterProvider({
   const fetchPageState = useCallback(
     async (
       rawLogicalHref: string,
-      signal: AbortSignal | undefined
+      signal: AbortSignal | undefined,
+      hmrRefresh: boolean
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — response shapes (redirect, stale-deploy, deferred) + abort-signal wiring require this depth
     ): Promise<RouterState | null> => {
       // Normalize trailing slashes so "/docs/routing/" matches the route
@@ -216,7 +217,13 @@ export function RouterProvider({
 
         // ── NDJSON data endpoint + JS chunk load (parallel) ──────────────────
         const dataEndpoint = buildDataEndpoint(basePath, logicalHref, staticMode);
-        const [res, loadedMod] = await Promise.all([fetch(dataEndpoint, { signal }), match.load()]);
+        const [res, loadedMod] = await Promise.all([
+          fetch(dataEndpoint, {
+            headers: hmrRefresh ? { "x-furin-hmr-refresh": "1" } : undefined,
+            signal,
+          }),
+          match.load(),
+        ]);
 
         // Stale-deploy detection: force a full page reload to pick up the new bundle.
         if (isStaleDeployResponse(res)) {
@@ -371,7 +378,7 @@ export function RouterProvider({
         href,
         {
           createdAt: Date.now(),
-          promise: fetchPageState(href, undefined),
+          promise: fetchPageState(href, undefined, false),
           staleTime,
         },
         prefetchCacheSize
@@ -390,7 +397,7 @@ export function RouterProvider({
     const redirectState =
       cached && !shouldRefetch(cached)
         ? await cached.promise
-        : await fetchPageState(redirectLogical, signal);
+        : await fetchPageState(redirectLogical, signal, false);
     if (navVersion.current !== myVersion) {
       return null;
     }
@@ -401,7 +408,7 @@ export function RouterProvider({
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — redirect follow, history management, and scroll handling require this depth
     async function navigateTo(
       rawLogicalHref: string,
-      opts: { replace?: boolean; resetScroll?: boolean } | undefined
+      opts: { hmrRefresh?: boolean; replace?: boolean; resetScroll?: boolean } | undefined
     ) {
       const logicalHref = normalizeHref(rawLogicalHref);
       navVersion.current += 1;
@@ -416,7 +423,7 @@ export function RouterProvider({
         let newState =
           cached && !shouldRefetch(cached)
             ? await cached.promise
-            : await fetchPageState(logicalHref, navSignal);
+            : await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
         if (navVersion.current !== myVersion) {
           return;
         }
@@ -531,11 +538,15 @@ export function RouterProvider({
   }, [searchStore, searchSnapshot]);
 
   const refresh = useCallback(
-    async (opts: { resetScroll?: boolean } | undefined) => {
+    async (opts: { hmrRefresh?: boolean; resetScroll?: boolean } | undefined) => {
       const logicalPath = toLogical(window.location.pathname, basePath);
       const logicalHref = logicalPath + window.location.search;
       invalidatePrefetch(logicalHref, "page");
-      await navigate(logicalHref, { replace: true, resetScroll: opts?.resetScroll ?? false });
+      await navigate(logicalHref, {
+        hmrRefresh: opts?.hmrRefresh,
+        replace: true,
+        resetScroll: opts?.resetScroll ?? false,
+      });
     },
     [navigate, invalidatePrefetch, basePath]
   );
@@ -556,7 +567,7 @@ export function RouterProvider({
   useEffect(() => {
     if (typeof window !== "undefined") {
       // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
-      (window as any).__FURIN_HMR_REFRESH__ = refresh;
+      (window as any).__FURIN_HMR_REFRESH__ = () => refresh({ hmrRefresh: true });
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
         (window as any).__FURIN_HMR_REFRESH__ = undefined;
@@ -584,7 +595,7 @@ export function RouterProvider({
         if (cached && !shouldRefetch(cached)) {
           newState = await cached.promise;
         } else {
-          newState = await fetchPageState(logicalHref, navSignal);
+          newState = await fetchPageState(logicalHref, navSignal, false);
         }
         if (navVersion.current !== myVersion) {
           return;

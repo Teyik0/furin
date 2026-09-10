@@ -33,7 +33,9 @@ import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts
 
 const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 
-type DataResolvedRoutesSource = ResolvedRoutesSource | (() => Promise<ResolvedRoute[]>);
+type DataResolvedRoutesSource =
+  | ResolvedRoutesSource
+  | ((request: Request) => Promise<ResolvedRoute[]>);
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -283,7 +285,8 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
 
       let currentRoutes: ResolvedRoute[];
       try {
-        currentRoutes = typeof routesSource === "function" ? await routesSource() : routesSource;
+        currentRoutes =
+          typeof routesSource === "function" ? await routesSource(ctx.request) : routesSource;
       } catch (error) {
         wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
         return createRouteDataErrorResponse(error, "Something went wrong", 500);
