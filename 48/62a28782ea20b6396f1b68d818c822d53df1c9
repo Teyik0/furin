@@ -1,0 +1,21 @@
+packages/core/tests/runtime/devtools/devtools-build.test.ts
+  s_2a4069bf188ef3::t_36ec09909d7216 4-22
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_2a4069bf188ef3::t_c73484a995efab 21-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4862a28782ea20b6396f1b68d818c822d53df1c9",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
