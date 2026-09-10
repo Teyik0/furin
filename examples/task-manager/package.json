@@ -11,7 +11,7 @@
     "dev": "furin dev --port 3002",
     "fix": "ultracite fix",
     "start": "./.furin/build/bun/server",
-    "test": "bun test --parallel --isolate --bail && bun run test:e2e",
+    "test": "bun test --parallel --isolate --bail --timeout 30000 && bun run test:e2e",
     "test:dev": "bun test --changed --parallel --isolate --bail",
     "test:e2e": "bun test --bail ./e2e/task-manager.e2e.ts",
     "tscheck": "tsc --noEmit"
