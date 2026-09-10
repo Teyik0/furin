@@ -771,6 +771,32 @@ async function waitForBodyText(
   }
 }
 
+async function waitForDevErrorOverlayText(
+  view: InstanceType<typeof Bun.WebView>,
+  expectedText: string
+): Promise<void> {
+  const startedAt = Date.now();
+  let latestText: unknown;
+  for (;;) {
+    try {
+      latestText = await view.evaluate(
+        "document.querySelector('#__furin-dev-error-overlay')?.shadowRoot?.textContent ?? null"
+      );
+      if (typeof latestText === "string" && latestText.includes(expectedText)) {
+        return;
+      }
+    } catch {
+      // A full reload may briefly replace the inspected target.
+    }
+    if (Date.now() - startedAt >= 15_000) {
+      throw new Error(
+        `Timed out waiting for the dev error overlay to contain ${expectedText}; latest value was ${String(latestText)}`
+      );
+    }
+    await Bun.sleep(50);
+  }
+}
+
 async function waitForProxyWebSocketCount(proxy: HmrProxy, expectedCount: number): Promise<void> {
   const startedAt = Date.now();
   for (;;) {
@@ -1560,10 +1586,7 @@ browserTest(
     const harness = await createBrowserHarness(loaderPageSource("cold-broken", true), [], false);
     activeHarness = harness;
 
-    await waitForBodyText(harness.view, "Something went wrong");
-    const documentId = (await harness.view.evaluate(
-      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
-    )) as string;
+    await waitForDevErrorOverlayText(harness.view, "server loader exploded");
 
     writeAppFile(
       harness.app.path,
@@ -1571,9 +1594,13 @@ browserTest(
       loaderPageSource("cold-recovered", false)
     );
 
-    const after = await waitForVersion(harness.view, "cold-recovered");
+    await waitForVersion(harness.view, "cold-recovered");
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-cold-recovered");
-    expect(after.documentId).toBe(documentId);
+    expect(
+      (await harness.view.evaluate(
+        "document.querySelector('#__furin-dev-error-overlay') !== null"
+      )) as boolean
+    ).toBe(false);
   },
   45_000
 );

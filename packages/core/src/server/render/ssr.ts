@@ -195,10 +195,10 @@ async function requireDocumentStream(
 }
 
 /**
- * Renders `element` to a React stream, recovering from a synchronous shell
- * throw with a 500 error UI. The supplied error component (route-level, else
- * root-level) is tried first; if it ALSO throws, the built-in error element is
- * used, so a broken custom error page can never take down the whole response.
+ * Renders `element` to a React stream. Development propagates synchronous shell
+ * failures to its diagnostic overlay. Production recovers with a 500 error UI:
+ * the supplied error component (route-level, else root-level) is tried first;
+ * if it ALSO throws, the built-in error element is used.
  *
  * Shared by SSR (which pipes the stream) and ISR/SSG non-200 (which drains it
  * to a string) — both start from this same React stream and only diverge in how
@@ -214,6 +214,9 @@ export async function renderElementWithShellFallback(
     const stream = await renderToReadableStream(element);
     return { shellError: undefined, stream: await requireDocumentStream(stream) };
   } catch (error) {
+    if (IS_DEV) {
+      throw error;
+    }
     const digest = computeErrorDigest(error);
     try {
       const message = errorMessageForRender(errorComponent, error, undefined);

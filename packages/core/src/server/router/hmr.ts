@@ -14,30 +14,24 @@ import {
   setDevSSGLoaderCache,
 } from "../cache/dev-loader.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
+import { publishDevError } from "../dev/error.ts";
+import { type DevErrorPhase, devGraph } from "../dev/graph.ts";
+import { renderDevErrorResponse } from "../dev/plugin.ts";
+import { currentInstance } from "../instance.ts";
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { resolvePath } from "../render/assemble.ts";
 import { type LoaderResult, runLoaders } from "../render/loaders.ts";
 import { renderSSR } from "../render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import { collectRouteTags, getSourceModuleCandidates, isModuleNotFoundError } from "./discovery.ts";
-import { collectIntermediateLayoutDirs, resolveMode } from "./patterns.ts";
+import { collectIntermediateLayoutDirs, resolveMode, resolveRouteRevalidate } from "./patterns.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
 type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>;
 
-interface DevRouteModuleCacheEntry {
-  module: Promise<Record<string, unknown>>;
-  stamp: string;
-}
-
 const routeModuleImport: RouteModuleImport = (specifier) =>
   import(specifier) as Promise<Record<string, unknown>>;
-const runtimeDevRouteModuleCache = new Map<string, DevRouteModuleCacheEntry>();
-const devRouteModuleCaches = new WeakMap<
-  RouteModuleImport,
-  Map<string, DevRouteModuleCacheEntry>
->();
 
 /**
  * Reuses one virtual ESM module per source version. A timestamp generated on
@@ -46,44 +40,16 @@ const devRouteModuleCaches = new WeakMap<
  * request-proportional growth. Promise caching also deduplicates concurrent
  * requests for the same edited version.
  */
-export async function importStampedRouteModule(
+export function importStampedRouteModule(
   path: string,
   resolveImport: RouteModuleImport
 ): Promise<Record<string, unknown>> {
-  let cache = runtimeDevRouteModuleCache;
-  if (resolveImport !== routeModuleImport) {
-    const resolverCache = devRouteModuleCaches.get(resolveImport);
-    if (resolverCache) {
-      cache = resolverCache;
-    } else {
-      cache = new Map();
-      devRouteModuleCaches.set(resolveImport, cache);
-    }
-  }
   const stamp = routeModuleSourceVersion(path);
-  const cached = cache.get(path);
-  if (cached?.stamp === stamp) {
-    return cached.module;
-  }
-
-  const entry: DevRouteModuleCacheEntry = {
-    module: resolveImport(`${path}?furin-server&t=${stamp}`),
-    stamp,
-  };
-  cache.set(path, entry);
-  try {
-    return await entry.module;
-  } catch (error) {
-    if (cache.get(path) === entry) {
-      cache.delete(path);
-    }
-    throw error;
-  }
+  return devGraph(undefined).importModule(path, stamp, resolveImport);
 }
 
 export function invalidateStampedRouteModules(): void {
   invalidateRouteModuleSourceVersions();
-  runtimeDevRouteModuleCache.clear();
 }
 
 function isResolvedRouteModuleCandidate(
@@ -246,6 +212,54 @@ export function rebuildDevRoute(
   };
 }
 
+class DevPhaseFailure extends Error {
+  readonly error: unknown;
+  readonly phase: "loader" | "render";
+
+  constructor(phase: "loader" | "render", error: unknown) {
+    super(`Development ${phase} phase failed`, { cause: error });
+    this.error = error;
+    this.phase = phase;
+  }
+}
+
+async function runDevPhase<Result>(
+  phase: "loader" | "render",
+  operation: () => Promise<Result>
+): Promise<Result> {
+  try {
+    return await operation();
+  } catch (error) {
+    // biome-ignore lint/style/useErrorCause: DevPhaseFailure forwards the error to Error.cause.
+    throw new DevPhaseFailure(phase, error);
+  }
+}
+
+async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  const result = await runDevPhase("loader", () => runLoaders(route, ctx));
+  if (result.type === "error") {
+    if (result.error instanceof Response) {
+      throw new DevPhaseFailure(
+        "loader",
+        new Error(result.message, { cause: `${result.error.status} ${result.error.statusText}` })
+      );
+    }
+    throw new DevPhaseFailure("loader", result.error);
+  }
+  return result;
+}
+
+function renderDevFailure(error: unknown, phase: DevErrorPhase, route: ResolvedRoute): Response {
+  const graph = devGraph(undefined);
+  const event = publishDevError(graph, error, {
+    entryPath: route.path,
+    phase,
+    route: route.pattern,
+  });
+  console.error(`[furin] Dev ${phase} error for ${route.pattern}:`, error);
+  return renderDevErrorResponse(event, currentInstance().prefix);
+}
+
 /** @internal Handles a request in dev mode using the current source-version modules. */
 export async function handleDevRequest(
   route: ResolvedRoute,
@@ -305,7 +319,7 @@ export async function handleDevRequest(
       // a fresh entry exists.  HTML re-assembles every time so the dev shell
       // chunk URL is always current.
       if (refreshedRoute.mode === "isr") {
-        return renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+        return await renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
       }
 
       // Live SSG — same trick as Live ISR, but the cache entry is forever-fresh
@@ -315,19 +329,24 @@ export async function handleDevRequest(
       // loader on every refresh — which would make expensive loaders (DB
       // queries, MDX parsing, sitemap reads) painful in dev.
       if (refreshedRoute.mode === "ssg") {
-        return renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+        return await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
       }
 
-      return renderSSR(refreshedRoute, ctx, currentRoot, undefined, searchRoutes);
+      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
+      return await runDevPhase("render", () =>
+        renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
+      );
     }
   } catch (err) {
-    console.error(`[furin] Dev page load error for ${route.path}:`, err);
+    if (err instanceof DevPhaseFailure) {
+      return renderDevFailure(err.error, err.phase, route);
+    }
+    return renderDevFailure(err, "import", route);
   }
-  // Fallback: page couldn't load — return a clear error response rather than
-  // delegating to renderSSR with an undefined page.
-  return new Response(
-    `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
-    { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 500 }
+  return renderDevFailure(
+    new Error(`${route.path} does not export a valid Furin page route.`),
+    "transform",
+    route
   );
 }
 
@@ -354,12 +373,12 @@ export async function renderDevISRWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return renderSSR(route, ctx, root, precomputed, searchRoutes);
+    return runDevPhase("render", () => renderSSR(route, ctx, root, precomputed, searchRoutes));
   }
 
-  const result = await runLoaders(route, ctx);
+  const result = await runDevLoaders(route, ctx);
   if (result.type === "data") {
-    const revalidate = route.page._route.revalidate ?? 60;
+    const revalidate = resolveRouteRevalidate(route.page) ?? 60;
     const entry: DevLoaderCacheEntry = {
       dependencies: computeRouteDependencies(route.path, root.path),
       generatedAt: Date.now(),
@@ -374,7 +393,7 @@ export async function renderDevISRWithLoaderCache(
       route.tags
     );
   }
-  return renderSSR(route, ctx, root, result, searchRoutes);
+  return runDevPhase("render", () => renderSSR(route, ctx, root, result, searchRoutes));
 }
 
 /**
@@ -400,10 +419,10 @@ export async function renderDevSSGWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return renderSSR(route, ctx, root, precomputed, searchRoutes);
+    return runDevPhase("render", () => renderSSR(route, ctx, root, precomputed, searchRoutes));
   }
 
-  const result = await runLoaders(route, ctx);
+  const result = await runDevLoaders(route, ctx);
   if (result.type === "data") {
     const entry: DevLoaderCacheEntry = {
       dependencies: computeRouteDependencies(route.path, root.path),
@@ -420,7 +439,7 @@ export async function renderDevSSGWithLoaderCache(
       route.tags
     );
   }
-  return renderSSR(route, ctx, root, result, searchRoutes);
+  return runDevPhase("render", () => renderSSR(route, ctx, root, result, searchRoutes));
 }
 
 /**

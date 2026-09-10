@@ -17,6 +17,7 @@ import type { ISRCacheEntry } from "../cache/isr-ssg.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
 import { createLogger, useLogger } from "../context-logger.ts";
 import { currentInstance, withInstance } from "../instance.ts";
+import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import {
   injectSyncRuntimeScript,
@@ -199,7 +200,7 @@ export async function handleISR(
   buildId: string | undefined,
   searchRoutes?: SearchRouteMetadata[]
 ) {
-  const revalidate = route.page._route.revalidate ?? 60;
+  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
   const cacheKey = pathWithRequestSearch(resolvedPath, ctx.request.url);

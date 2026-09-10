@@ -408,6 +408,7 @@ if (__deferred && __deferred._chunks) {
   log.info({ action: "hydrate_complete", pathname });
 })().catch((err: unknown) => {
   log.error({ action: "hydrate_failed", pathname, error: String(err) });
+  window.dispatchEvent(new CustomEvent("furin:hydrate-error", { detail: err }));
 });
 `;
 }

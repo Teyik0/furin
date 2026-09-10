@@ -57,9 +57,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
+import { publishDevError } from "./dev/error.ts";
+import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
 import { routeModuleSourceVersion } from "./router/source-version.ts";
 
-// Matches ?furin-server with an optional &t=<ms> cache-buster.
+// Matches ?furin-server with an optional &t=<module-revision> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
@@ -333,6 +335,46 @@ function shouldSkipWorkspaceTransform(filePath: string): boolean {
   return normalized.includes("/.furin/");
 }
 
+function recordDevImports(source: string, filePath: string): void {
+  const { imports } = resolveDevSourceImports(source, filePath, getSourceLoader(filePath) ?? "tsx");
+  for (const graph of developmentGraphs()) {
+    graph.recordImports(toImportSpecifier(filePath), imports);
+  }
+}
+
+function rethrowWithSourcePath(error: unknown, filePath: string): never {
+  const position =
+    typeof error === "object" && error !== null && "position" in error
+      ? (error as { position?: { column?: unknown; line?: unknown } }).position
+      : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  const sourcePosition = {
+    column: typeof position?.column === "number" ? position.column : null,
+    file: filePath,
+    line: typeof position?.line === "number" ? position.line : null,
+  };
+  const sourced = new Error(message, { cause: error });
+  if (error instanceof Error && error.stack) {
+    sourced.stack = error.stack;
+  }
+  Reflect.set(sourced, "furinPosition", sourcePosition);
+  for (const graph of developmentGraphs()) {
+    graph.recordSourceError(message, sourcePosition);
+    const route = graph.snapshot?.routes.find((candidate) =>
+      graph.dependsOn(candidate.path, filePath)
+    );
+    if (!route && graph.snapshot?.root.path !== filePath) {
+      continue;
+    }
+    publishDevError(graph, sourced, {
+      entryPath: route?.path ?? filePath,
+      phase: "transform",
+      route: route?.pattern ?? "*",
+    });
+  }
+  throw sourced;
+}
+
 export function transformDevSource(
   raw: string,
   filePath: string,
@@ -343,21 +385,29 @@ export function transformDevSource(
     throw new Error(`[furin] Unsupported source loader for ${filePath}`);
   }
 
-  const dir = dirname(filePath);
-  const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
-  const sourceForTranspile = options.rewriteRelativeImports
-    ? rewriteRelativeImportsWithVersion(serverSource, dir, true)
-    : serverSource;
-  const transpiler = new Bun.Transpiler({ loader });
-  const transpiled = transpiler.transformSync(sourceForTranspile, loader);
-
-  let result = transpiled;
-  if (options.rewriteBareImports) {
-    result = rewriteBareImports(serverSource, result, dir);
+  for (const graph of developmentGraphs()) {
+    graph.clearSourceErrors(filePath);
   }
+  const dir = dirname(filePath);
+  try {
+    recordDevImports(raw, filePath);
+    const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
+    const sourceForTranspile = options.rewriteRelativeImports
+      ? rewriteRelativeImportsWithVersion(serverSource, dir, true)
+      : serverSource;
+    const transpiler = new Bun.Transpiler({ loader });
+    const transpiled = transpiler.transformSync(sourceForTranspile, loader);
 
-  result = rewriteSingletonImports(result);
-  return injectJsxHelperImports(result);
+    let result = transpiled;
+    if (options.rewriteBareImports) {
+      result = rewriteBareImports(serverSource, result, dir);
+    }
+
+    result = rewriteSingletonImports(result);
+    return injectJsxHelperImports(result);
+  } catch (error) {
+    return rethrowWithSourcePath(error, filePath);
+  }
 }
 
 export function registerDevPagePlugin(): void {

@@ -15,10 +15,14 @@ export function collectIntermediateLayoutDirs(pagePath: string, rootPath: string
   return layoutDirs;
 }
 
+export function resolveRouteRevalidate(page: RuntimePage): number | undefined {
+  return page.revalidate ?? page._route.revalidate;
+}
+
 export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr" | "ssg" | "isr" {
   const routeConfig = page._route;
   const mode = routeConfig.mode ?? page.mode;
-  const revalidate = routeConfig.revalidate ?? page.revalidate;
+  const revalidate = resolveRouteRevalidate(page);
 
   if (mode) {
     return mode;
