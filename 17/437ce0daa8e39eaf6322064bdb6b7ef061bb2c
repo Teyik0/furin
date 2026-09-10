@@ -1,0 +1,50 @@
+CHANGELOG.md
+  e393f88b9e16eb4e 26-28,35,43-44
+packages/core/src/render/index.ts
+  e393f88b9e16eb4e 451,456-462,487-494,578-671,695,698
+apps/docs/src/content/docs/dev-hmr.mdx
+  e393f88b9e16eb4e 220
+packages/core/tests/render.test.ts
+  e393f88b9e16eb4e 29,727-762
+packages/core/tests/router/route-chain-layouts.test.ts
+  e393f88b9e16eb4e 162-184
+packages/core/src/router.ts
+  e393f88b9e16eb4e 135-144,505-514,520-523,526-530,535-537,745
+packages/core/tests/router/refresh-layout.test.ts
+  e393f88b9e16eb4e 124-227
+apps/docs/public/llms-full.txt
+  e393f88b9e16eb4e 1316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "17437ce0daa8e39eaf6322064bdb6b7ef061bb2c",
+  "prompts": {
+    "1b5cfed0440ccef3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_24e33e113ffehGvL0FmZr05lxN",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2046,
+      "total_deletions": 5,
+      "accepted_lines": 1495,
+      "overriden_lines": 126
+    },
+    "e393f88b9e16eb4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_24e3229a3ffeJhpL5GPXwua7QR",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 513,
+      "total_deletions": 1563,
+      "accepted_lines": 322,
+      "overriden_lines": 0
+    }
+  }
+}

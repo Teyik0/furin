@@ -1,0 +1,46 @@
+apps/docs/src/components/hero-section.tsx
+  h_a2cbd1b0e3ae6e 53
+apps/docs/src/components/ui/button.tsx
+  h_a2cbd1b0e3ae6e 8
+apps/docs/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 107,113,193,199
+apps/scaffolder/templates/full/src/components/ui/button.tsx
+  h_a2cbd1b0e3ae6e 7
+examples/task-manager/src/components/board-card.tsx
+  h_a2cbd1b0e3ae6e 43
+examples/task-manager/src/components/card-detail-page.tsx
+  h_a2cbd1b0e3ae6e 130,148,159,168
+examples/task-manager/src/components/create-board-form.tsx
+  h_a2cbd1b0e3ae6e 55,64
+examples/task-manager/src/components/ui/kanban.tsx
+  h_a2cbd1b0e3ae6e 564
+examples/task-manager/src/pages/board/_route.tsx
+  h_a2cbd1b0e3ae6e 64,91
+examples/weather/src/api/weather.ts
+  h_a2cbd1b0e3ae6e 31-33,62-64
+examples/weather/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 21-23
+packages/core/src/adapter/static.ts
+  h_a2cbd1b0e3ae6e 231,233,237
+packages/core/src/devtools/devtools-element.js
+  h_a2cbd1b0e3ae6e 296-302,306,309-311
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 388,392-393,450-453,594-600,605-608
+packages/core/src/server/sync/postgres/index.ts
+  h_a2cbd1b0e3ae6e 264-276
+packages/core/src/server/sync/postgres/migrate.ts
+  h_a2cbd1b0e3ae6e 11-12
+packages/core/src/server/sync/response.ts
+  h_a2cbd1b0e3ae6e 135-141,196-201,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "01604e2eac9b50278904e6bd983359138e1fa0b9",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

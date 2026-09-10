@@ -1,0 +1,51 @@
+apps/docs/src/content/docs/cli.mdx
+  s_d08a8495311633::t_9b7404060efc3b 23,31,33,44-49,87,95-113
+packages/core/tests/build/embed/build-embed.test.ts
+  s_d08a8495311633::t_2bd46e50638665 2,37,69-82,113-127,139,150,167-168,173,176-178,181,184,192,211,213,215,218,229,244,246-248,255,269
+packages/core/tests/build/preview.test.ts
+  s_d08a8495311633::t_4b5add43824323 5,18,55-73
+apps/docs/package.json
+  s_d08a8495311633::t_e310fe9aeba359 17
+apps/docs/src/content/docs/configuration.mdx
+  s_d08a8495311633::t_44458901cf9349 15,79-95
+examples/weather/package.json
+  s_d08a8495311633::t_69598c07fa551d 11
+packages/core/src/adapter/bun.ts
+  s_9d4bccb36b0235::t_e032d8a6646411 151-165,188-191,263,291,312,318,321-323,327,332,357,364-365,369,372
+packages/core/src/build/compile-entry.ts
+  s_d08a8495311633::t_80a31731f0e7f9 1-2,4-5,8-9,11,13-14,20,26,28-31,37,39,43,47,54-57,68
+packages/core/src/build/entry-template.ts
+  s_d08a8495311633::t_fd5759151dfc7c 173-174
+packages/core/src/build/server-routes-entry.ts
+  s_d08a8495311633::t_687cc5a7ae03d4 4,7,14-15,17,28
+packages/core/src/config.ts
+  s_d08a8495311633::t_6a4c61ee372137 61-65
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_d08a8495311633::t_5877e2a91a1663 83-105
+packages/core/tests/support/with-build-stub.ts
+  s_d08a8495311633::t_c3dc97895d86f5 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09841d1c314c1e583bc4c5b9efca0d39e1c024b0",
+  "prompts": {},
+  "sessions": {
+    "s_9d4bccb36b0235": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087a7-c520-75c0-8f1b-0497dd325197",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d08a8495311633": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07fa7-7c92-7b70-b987-d1afa978e4bb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

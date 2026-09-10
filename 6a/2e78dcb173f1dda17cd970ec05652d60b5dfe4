@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  s_2a4069bf188ef3::t_40a8366e322303 104-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6a2e78dcb173f1dda17cd970ec05652d60b5dfe4",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

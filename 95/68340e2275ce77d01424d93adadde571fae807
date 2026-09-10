@@ -1,0 +1,91 @@
+packages/sync-sqlite/src/sql.d.ts
+  s_000ecae1a57fe6::t_55d0d8c0ce3f6e 1-4
+examples/task-manager/package.json
+  s_000ecae1a57fe6::t_0c2faacc82609f 21
+apps/docs/src/content/docs/configuration.mdx
+  s_000ecae1a57fe6::t_4272539c342c2e 210,218,220
+packages/core/src/server/sync/runtime.ts
+  s_000ecae1a57fe6::t_7926da261a0f1b 17,21
+apps/docs/src/content/docs/api-routes.mdx
+  s_000ecae1a57fe6::t_4272539c342c2e 114,120-121,168,175
+packages/sync-sqlite/README.md
+  s_000ecae1a57fe6::t_1ccdab059921cf 11
+  s_000ecae1a57fe6::t_1a51b8920a0544 1-10,12-23
+CHANGELOG.md
+  s_000ecae1a57fe6::t_4272539c342c2e 13,16,23
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_000ecae1a57fe6::t_ec74ae2b7e4f2e 16,66,71-72,75,80,83-86,90,94,98,102,104,106-108,120,129,135,141,147,152-157,186,191-193,207,237-238
+  s_000ecae1a57fe6::t_cdac9c1b65695b 239
+.github/workflows/cd.yaml
+  s_000ecae1a57fe6::t_4272539c342c2e 102-107
+examples/task-manager/src/server.ts
+  s_000ecae1a57fe6::t_0c2faacc82609f 4,9
+packages/core/tests/fixtures/sync-bundles/sqlite.ts
+  s_000ecae1a57fe6::t_ec74ae2b7e4f2e 1-3
+examples/task-manager/src/api/modules/boards/index.ts
+  s_000ecae1a57fe6::t_0c2faacc82609f 3,19
+examples/task-manager/src/sync.ts
+  s_000ecae1a57fe6::t_0c2faacc82609f 1-12
+apps/docs/src/content/docs/caching.mdx
+  s_000ecae1a57fe6::t_4272539c342c2e 193
+packages/sync-sqlite/src/index.ts
+  s_000ecae1a57fe6::t_7926da261a0f1b 68
+  s_000ecae1a57fe6::t_33337d8641a135 12-13,17,20,38-47,154-219,224,233-234,236,253-258,262-297
+  s_000ecae1a57fe6::t_ba88a4c12e69a6 85-91
+  s_000ecae1a57fe6::t_55d0d8c0ce3f6e 2-11,14-16,18-19,21-37,48-67,69-84,92-153,220-223,225-232,235,237-241,249-252,259-261,298-299,310-315
+  s_000ecae1a57fe6::t_2018c22861b9ef 242-248,300-309
+  s_000ecae1a57fe6::t_36b28fc93c6729 1
+packages/core/README.md
+  s_000ecae1a57fe6::t_4272539c342c2e 36
+packages/sync-sqlite/package.json
+  s_000ecae1a57fe6::t_482f74cb93f929 14,23
+  s_000ecae1a57fe6::t_d09ffe4cc33c5a 1-13,15-22,24-41
+apps/docs/src/content/docs/deployment.mdx
+  s_000ecae1a57fe6::t_4272539c342c2e 183-184
+examples/task-manager/src/db/index.ts
+  s_000ecae1a57fe6::t_4272539c342c2e 9
+  s_000ecae1a57fe6::t_0c2faacc82609f 7
+packages/sync-sqlite/tsconfig.build.json
+  s_000ecae1a57fe6::t_d09ffe4cc33c5a 1-16
+apps/docs/src/content/docs/comparison.mdx
+  s_000ecae1a57fe6::t_4272539c342c2e 151
+packages/sync-sqlite/tsconfig.json
+  s_000ecae1a57fe6::t_d09ffe4cc33c5a 1-10
+packages/sync-sqlite/migrations/0001_sync.sql
+  s_000ecae1a57fe6::t_55d0d8c0ce3f6e 1-36
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_000ecae1a57fe6::t_de8c2829e581b2 15-18,20,39,45-50,55
+packages/core/src/server/sync/adapter.ts
+  s_000ecae1a57fe6::t_7926da261a0f1b 64
+examples/task-manager/src/api/modules/cards/index.ts
+  s_000ecae1a57fe6::t_0c2faacc82609f 3,8
+packages/sync-sqlite/tests/sqlite-sync-adapter.test.ts
+  s_000ecae1a57fe6::t_36b28fc93c6729 2
+  s_000ecae1a57fe6::t_dddea0d7969632 10
+  s_000ecae1a57fe6::t_4ec3f121afce50 3-5,131-140,142-146,148,156-197
+  s_000ecae1a57fe6::t_baf5771234e3c4 12,105-130,141,147,149-151
+  s_000ecae1a57fe6::t_57d71049c969ff 53-81
+  s_000ecae1a57fe6::t_933674e20a35a3 23-26
+  s_000ecae1a57fe6::t_10af6d6e15a4b1 82-104,152-155,198
+  s_000ecae1a57fe6::t_b4783bec487132 199-242
+  s_000ecae1a57fe6::t_dbe5a31dffc671 6,13-21
+  s_000ecae1a57fe6::t_d09ffe4cc33c5a 1,7-9,11,22,27-52
+bun.lock
+  s_000ecae1a57fe6::t_823a878a130c43 73,139-141,159-168,732-733
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "9568340e2275ce77d01424d93adadde571fae807",
+  "prompts": {},
+  "sessions": {
+    "s_000ecae1a57fe6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f602a-3ef5-7970-b12c-54ec1f1c72e8",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+packages/core/src/furin.ts
+  b16194350eef2867 242-243,255-261
+  7e9b80754061f499 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6fd5aff9ac329b5d0530ea4b5b0b2552e14d10bc",
+  "prompts": {
+    "72dd5765b10cdaff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d6358-0f66-77b3-aa26-67fd01cec50a",
+        "model": "unknown"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "7e9b80754061f499": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8fc8a498-5c66-4afc-b30e-9c4a8a21647e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "b16194350eef2867": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7c9372b-41f7-4795-ad67-c54d2b830365",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2122,
+      "overriden_lines": 0
+    }
+  }
+}

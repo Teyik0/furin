@@ -1,0 +1,230 @@
+examples/task-manager/src/pages/index.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 26,32-40,55-57,61-62,68,70,85-86,99,126-147,149,153,164-165,176,180,185-198,202,204-205,207,211,217,227,235,242
+packages/core/tests/deferred-hydration-race.test.ts
+  s_b60f6df1b379b3::t_19454c7f0d167f 49,115
+  s_b60f6df1b379b3::t_3be7f7a37288d0 65-67,69-72,76-79
+  s_b60f6df1b379b3::t_67e73f3dc99eaf 1-4,8-21,23-36,38-48,50-64,68,73-75,80-114,116-217
+  s_b60f6df1b379b3::t_0d41bcae22b3ed 22,37
+  s_b60f6df1b379b3::t_0cfa449769e72f 5-7
+examples/task-manager/package.json
+  s_161cb79b75eeab::t_1ad763cca3e675 31,37
+packages/core/tests/fixtures/pages/dynamic-defer/[slug]/_route.tsx
+  s_b60f6df1b379b3::t_d8ba9b48a304d7 1-8
+packages/core/tests/deferred-endpoint.test.ts
+  s_b60f6df1b379b3::t_68c2f79a56cb94 294-295
+  s_161cb79b75eeab::t_2e625bbb6e6cb4 184-188,190-197,199-207
+  s_161cb79b75eeab::t_191f45371cabee 41,50,64,80,96,112,133,162,198,217,231,261,274,308,340
+  s_161cb79b75eeab::t_7556872ddf2c90 40,49,63,79,95,106,127,150,189,211,230,249,273,298,331
+  s_161cb79b75eeab::t_1ad763cca3e675 19,27-30,88-89,119-120,140-141,149,151-161,163-181,222-223,237-238,244-248,250-260,262-272,275-293,317-318,345-346
+examples/weather/package.json
+  s_161cb79b75eeab::t_1ad763cca3e675 24
+packages/core/tests/render.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 17-19,632-635,717-756,785-812
+  s_161cb79b75eeab::t_925236c9d88c56 151,168,182,190,203,215,242,269,292,319,345,366,389,416,451,470,996,1012
+  s_161cb79b75eeab::t_7821119ce9ba61 813-814
+packages/core/tests/fixtures/pages/dynamic-defer/[slug]/index.tsx
+  s_b60f6df1b379b3::t_2d62ceec626927 1-11
+examples/weather/src/pages/index.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1,3,20-26,33-41,47-48,54,56,65-66,79,114,117,127,136-138,150,155
+packages/core/tests/types.test.tsx
+  s_161cb79b75eeab::t_4bfba5cbd6d252 13
+  s_161cb79b75eeab::t_fa7c1c8ef8be52 540-587
+packages/core/src/await.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1,16,28,42,48,65,68-78,152
+packages/core/src/build/hydrate.ts
+  s_b60f6df1b379b3::t_ee55760a7d361d 187
+  s_161cb79b75eeab::t_1ad763cca3e675 140-154,157-162,164-165,168-169,183-186
+CHANGELOG.md
+  s_161cb79b75eeab::t_1ad763cca3e675 13,17-20
+  s_161cb79b75eeab::t_95974f5640ae09 14-16
+packages/core/src/furin.ts
+  s_161cb79b75eeab::t_191f45371cabee 285,372
+apps/docs/src/lib/docs.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 104-111
+apps/docs/src/components/docs-toc.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 42,51-64,147,149,155,165,168
+apps/docs/src/components/theme-toggle.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 15
+apps/docs/src/pages/index.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1,3,52,54-60,79,113-119,127,131,181,207-228,233,235-238,243,257-258,276,287,301,315,329,343,357,371,385
+packages/core/src/deferred-ndjson.ts
+  s_b60f6df1b379b3::t_57c7c62e8d9cd8 122,124-125
+  s_161cb79b75eeab::t_1ad763cca3e675 20-27,39-42,45-46,50,52-71,75-81,85,90-96,99-101,109-121,123,126-175,178-210
+packages/core/src/render/deferred-warn.ts
+  s_b60f6df1b379b3::t_9268c48119624b 1-31
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1,5,32-37,42,48,51-91,100,106-107,112,123,126-127,131,140,146,157,163,175,184-185,196,200-201,205
+apps/docs/src/content/docs/data-loading.mdx
+  s_161cb79b75eeab::t_1ad763cca3e675 185-188
+packages/core/tests/deferred-loaders.test.ts
+  s_161cb79b75eeab::t_925236c9d88c56 73,87,110,129,150,164,179
+  s_b60f6df1b379b3::t_ee55760a7d361d 160-161
+  s_161cb79b75eeab::t_1ad763cca3e675 25-27,141-149,151-159,173-178,180-188
+  s_b60f6df1b379b3::t_e2482259360c0c 189
+apps/docs/src/pages/root.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 5,27,58,63,76
+lefthook.yml
+  s_161cb79b75eeab::t_1ad763cca3e675 15-17
+packages/core/src/client.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 14-16,316-320,329-334
+  s_161cb79b75eeab::t_98c42c3c1e89e2 116-118,121
+apps/docs/src/components/theme-provider.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1,15-33,35,37,39-40,44-45,53-59,70
+apps/docs/furin-env.d.ts
+  s_b60f6df1b379b3::t_9a98d881fca92e 15
+apps/docs/src/content/docs/getting-started.mdx
+  s_161cb79b75eeab::t_1ad763cca3e675 100-104
+apps/docs/src/components/code-tabs.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 26,73
+apps/docs/src/lib/giscus.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 51-57
+apps/docs/src/content/docs/defer.mdx
+  s_8d7cb3f89eff7f::t_ccee89ca2976c1 1-137,143-148
+  s_8d7cb3f89eff7f::t_8671886eacbb5e 138-142
+packages/core/tests/deferred-client.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 35,56,66-72,75-87,90-102,104
+examples/task-manager/src/api/modules/boards/service.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 261-265
+packages/core/tests/defer.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 28-47,58-60
+  s_b60f6df1b379b3::t_ee55760a7d361d 61-62
+packages/core/tests/deferred-rejection.test.ts
+  s_b60f6df1b379b3::t_fca95cf38c520f 1-90
+packages/core/tests/deferred-static-warn.test.ts
+  s_b60f6df1b379b3::t_dcf3e44e93011f 22-23
+  s_b60f6df1b379b3::t_750cb97578e822 1-21,24-44,46-66
+  s_b60f6df1b379b3::t_7fc22c53d96232 45
+packages/core/tests/data-endpoint-logging.test.ts
+  s_161cb79b75eeab::t_7556872ddf2c90 53,72
+  s_161cb79b75eeab::t_191f45371cabee 54,73
+packages/core/tests/link/router-provider-intercept.test.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 3,74,97
+examples/task-manager/src/server.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 3-4,12
+packages/core/tests/render-element-boundaries.test.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 63-71,98,227
+packages/core/react-doctor.config.json
+  s_bb2fab13dfeca3::t_d942e7de72e043 1-41
+apps/docs/package.json
+  s_161cb79b75eeab::t_1ad763cca3e675 37,43
+examples/task-manager/src/components/ui/kanban.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 2,110,173,383,410,528,579,617,619,630
+.github/workflows/ci.yaml
+  s_161cb79b75eeab::t_1ad763cca3e675 46-48
+packages/core/src/router.ts
+  s_161cb79b75eeab::t_477015ce601d95 1212
+  s_161cb79b75eeab::t_da14d5bf6b377a 1409-1439
+  s_161cb79b75eeab::t_1ad763cca3e675 6,31,962,1151,1217,1380,1390,1392,1408,1440-1473
+  s_161cb79b75eeab::t_bced65a55325cb 1376-1379,1381-1389,1393
+  s_161cb79b75eeab::t_a5f16a3fa89073 33,828,869,1327
+apps/docs/src/content/docs/comparison.mdx
+  s_161cb79b75eeab::t_1ad763cca3e675 8,26,30,93-94,104,177,264
+examples/task-manager/src/pages/board/_route.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 32,34,36,68,94
+packages/core/tests/link-boundaries.test.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 29-37,90,195,228,252,274,313
+apps/docs/src/components/docs-search-dialog.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 40-46,107,133,240,331-332,346,380,390,396
+packages/core/tests/adapter-static.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 131
+packages/core/tests/fixtures/pages/suspense-page.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 21
+apps/docs/src/components/docs-actions.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 50-56
+packages/core/src/render/assemble.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 5-12,26-29,31-33,35,69-70
+packages/core/src/render/shell.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 42-48
+packages/core/src/render/index.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 24,27,35,269-272,277,324,331,493-494,509,524-534,536-548,551,565-572,854,863
+  s_161cb79b75eeab::t_a5f16a3fa89073 127
+apps/docs/src/pages/docs/defer.tsx
+  s_8d7cb3f89eff7f::t_7744d14f0ce948 1-15,17-18
+  s_8d7cb3f89eff7f::t_5a88d43db839a2 16
+packages/core/tests/deferred-abort.test.ts
+  s_b60f6df1b379b3::t_8b5b489bafdf43 116-117,119
+  s_b60f6df1b379b3::t_fb9281ba0f892a 1-29,84-91,96-98,101-115,118,120-128,130-133,135-142,145-153,156-158
+  s_b60f6df1b379b3::t_f0c1c2fa5c7191 92-95,99-100
+  s_b60f6df1b379b3::t_e7645ef87f7e25 129,134
+  s_b60f6df1b379b3::t_135d9aa21c7b14 143-144,154-155
+  s_b60f6df1b379b3::t_85d7907adbb687 30-83
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 2-3,5,14-15,53,57,67,75,84,98-99,102-108,113-123,125-149,151-159,161-166,168,170-175,177-192,194-251
+  s_bb2fab13dfeca3::t_07d12040d5881d 176
+packages/core/tests/await.test.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 9,83
+packages/core/tests/hydrate-entry.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 173-179
+packages/core/src/plugin/transform-client.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 171-227,236,274
+packages/core/tests/loaders.test.ts
+  s_161cb79b75eeab::t_191f45371cabee 76,90,105,119,133,150,161
+packages/core/src/render/default-screens.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 223
+apps/docs/src/lib/docs-search.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 85-91,285
+packages/core/src/render/loaders.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 131-136,141-142,154-211,272-273
+  s_161cb79b75eeab::t_fab0d5ca6fb6fc 212
+packages/core/src/adapter/bun.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 68,80
+apps/docs/src/content/docs/rendering.mdx
+  s_161cb79b75eeab::t_1ad763cca3e675 25-26
+packages/core/src/router-provider.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 1015-1020,1061-1092,1095-1099,1113,1144,1238,1274,1290-1291,1297,1314-1319,1352,1444-1449,1461,1483
+  s_b60f6df1b379b3::t_d2408e317e7546 1093
+  s_161cb79b75eeab::t_2d6e51fda9c96f 1161-1176,1185-1188
+packages/core/tests/transform-client.test.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 471-552
+package.json
+  s_161cb79b75eeab::t_1ad763cca3e675 26,31,33,39
+packages/core/tests/deferred-render.test.ts
+  s_b60f6df1b379b3::t_3f64eeaf801b93 98
+  s_161cb79b75eeab::t_1ad763cca3e675 3,6-7,11,16,24,31,36,42,82-97
+packages/core/src/build/route-types.ts
+  s_161cb79b75eeab::t_1ad763cca3e675 25-29
+packages/core/tests/error-boundary-navigation.test.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 2,53-54,65,73
+packages/core/src/link.tsx
+  s_161cb79b75eeab::t_1ad763cca3e675 106,109-110,320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b39f4c71518dd12bf31346bb75268b3d97d49afc",
+  "prompts": {},
+  "sessions": {
+    "s_161cb79b75eeab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a96f0117-e59d-4d2b-b3d7-61e741c1515b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_8d7cb3f89eff7f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1f26c15fcffecmUVdDuFj0LCPo",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b60f6df1b379b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d30193eb-6941-4b35-8ff7-f1c92fd34f71",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_bb2fab13dfeca3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "332f07d3-6da1-4573-b1b7-cb450d6fb981",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
