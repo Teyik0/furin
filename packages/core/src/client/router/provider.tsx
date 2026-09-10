@@ -58,6 +58,10 @@ interface PendingUserNavigationRef {
   current: Promise<void> | null;
 }
 
+interface HmrTransactionState {
+  dataInvalidated: boolean;
+}
+
 function beginUserNavigation(ref: PendingUserNavigationRef): () => void {
   let resolveNavigation: () => void = () => undefined;
   const navigation = new Promise<void>((resolve) => {
@@ -143,6 +147,7 @@ export function RouterProvider({
   const navVersion = useRef(0);
   /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
   const hmrVersion = useRef(0);
+  const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
   const pendingUserNavigation = useRef<Promise<void> | null>(null);
   /**
    * AbortController for the current navigation. Cancelled when a newer
@@ -633,20 +638,26 @@ export function RouterProvider({
       ) => {
         hmrVersion.current += 1;
         const myHmrVersion = hmrVersion.current;
-        if (dataChanged !== false) {
-          await waitForUserNavigation(pendingUserNavigation);
-          if (hmrVersion.current !== myHmrVersion) {
-            return;
-          }
-          await refresh({
-            beforeCommit,
-            hmrRefresh: true,
-            shouldCommit: () => hmrVersion.current === myHmrVersion,
-          });
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref persists invalidation from an earlier HMR callback
+        const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
+        if (!shouldRefreshData) {
+          beforeCommit?.();
+          setState((current) => ({ ...current }));
           return;
         }
-        beforeCommit?.();
-        setState((current) => ({ ...current }));
+        hmrState.current.dataInvalidated = true;
+        await waitForUserNavigation(pendingUserNavigation);
+        if (hmrVersion.current !== myHmrVersion) {
+          return;
+        }
+        await refresh({
+          beforeCommit,
+          hmrRefresh: true,
+          shouldCommit: () => hmrVersion.current === myHmrVersion,
+        });
+        if (hmrVersion.current === myHmrVersion) {
+          hmrState.current.dataInvalidated = false;
+        }
       };
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook

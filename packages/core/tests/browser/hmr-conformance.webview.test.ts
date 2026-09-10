@@ -2066,7 +2066,7 @@ browserTest(
 );
 
 browserTest(
-  "a component-only edit supersedes an older slow loader refresh",
+  "a component-only edit supersedes an older component without dropping its data refresh",
   async () => {
     const harness = await createBrowserHarness(loaderPageSource("supersede-v1", false), [], false);
     activeHarness = harness;
@@ -2101,7 +2101,7 @@ browserTest(
     await Bun.sleep(1400);
 
     expect((await readSnapshot(harness.view)).version).toBe("supersede-latest");
-    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-v1");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-slow");
   },
   45_000
 );

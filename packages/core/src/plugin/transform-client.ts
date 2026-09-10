@@ -14,12 +14,13 @@ const REACT_COMPONENT_WRAPPERS = new Set(["forwardRef", "memo"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
-const TYPESCRIPT_EXPRESSION_WRAPPERS = new Set([
-  "TSAsExpression",
-  "TSInstantiationExpression",
-  "TSNonNullExpression",
-  "TSSatisfiesExpression",
-  "TSTypeAssertion",
+const TYPESCRIPT_RUNTIME_WRAPPERS = new Map([
+  ["TSAsExpression", "expression"],
+  ["TSInstantiationExpression", "expression"],
+  ["TSNonNullExpression", "expression"],
+  ["TSParameterProperty", "parameter"],
+  ["TSSatisfiesExpression", "expression"],
+  ["TSTypeAssertion", "expression"],
 ]);
 
 interface TransformResult {
@@ -319,8 +320,9 @@ function isTypePosition(node: AstNode, ancestors: AstNode[]): boolean {
     if (!ancestor.type.startsWith("TS")) {
       return false;
     }
-    if (TYPESCRIPT_EXPRESSION_WRAPPERS.has(ancestor.type)) {
-      return !nodeContains(ancestor.expression, node);
+    const runtimeChild = TYPESCRIPT_RUNTIME_WRAPPERS.get(ancestor.type);
+    if (runtimeChild) {
+      return !nodeContains(ancestor[runtimeChild], node);
     }
     return true;
   });
