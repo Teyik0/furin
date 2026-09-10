@@ -859,22 +859,7 @@ export function RouterProvider({
       source.addEventListener("furin.sync", onSync);
     };
 
-    catchUp
-      .initialize()
-      .then(() => {
-        if (disposed) {
-          return;
-        }
-        connect();
-      })
-      .catch((error: unknown) => {
-        if (disposed) {
-          return;
-        }
-        log.warn({ action: "sync_initialize_failed", error: String(error) });
-        // Keep notifications alive; the next event recovers from cursor zero.
-        connect();
-      });
+    connect();
     return () => {
       disposed = true;
       source?.removeEventListener("open", onOpen);

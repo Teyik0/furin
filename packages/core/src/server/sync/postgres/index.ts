@@ -11,6 +11,8 @@ import type {
   SyncAdapter,
   SyncChange,
   SyncInvalidation,
+  SyncNotifier,
+  SyncSubscription,
 } from "../adapter.ts";
 
 const CHANGE_RETENTION = 1000;
@@ -41,6 +43,18 @@ interface CursorRow {
 interface ChangeRow {
   cursor: string | number | bigint;
   invalidations: SyncInvalidation[];
+}
+
+function notificationChannel(namespace: string): string {
+  const digest = new Bun.CryptoHasher("sha256").update(namespace).digest("hex");
+  return `furin_sync_${digest.slice(0, 52)}`;
+}
+
+async function readCurrentCursor(sql: SQL, namespace: string): Promise<string> {
+  const rows = await sql<Pick<CursorRow, "current_cursor">[]>`
+    SELECT current_cursor FROM furin_sync.streams WHERE namespace = ${namespace}
+  `;
+  return String(rows[0]?.current_cursor ?? 0);
 }
 
 function mutationKey(input: Pick<MutationLease, "key" | "principal">): string {
@@ -235,11 +249,8 @@ export class PostgresSyncAdapter implements SyncAdapter {
     `;
   }
 
-  async currentCursor(): Promise<string> {
-    const rows = await this.sql<Pick<CursorRow, "current_cursor">[]>`
-      SELECT current_cursor FROM furin_sync.streams WHERE namespace = ${this.namespace}
-    `;
-    return String(rows[0]?.current_cursor ?? 0);
+  currentCursor(): Promise<string> {
+    return readCurrentCursor(this.sql, this.namespace);
   }
 
   async readChanges(input: ReadChangesInput): Promise<ChangePage> {
@@ -298,4 +309,47 @@ export class PostgresSyncAdapter implements SyncAdapter {
 
 export function postgresSyncAdapter(options: PostgresSyncAdapterOptions): PostgresSyncAdapter {
   return new PostgresSyncAdapter(options);
+}
+
+export class PostgresSyncNotifier implements SyncNotifier {
+  readonly recovery = "self" as const;
+  private readonly channel: string;
+  private readonly namespace: string;
+  private readonly sql: SQL;
+
+  constructor(options: PostgresSyncAdapterOptions) {
+    if (options.namespace.length === 0) {
+      throw new Error("[furin-sync-postgres] namespace must not be empty.");
+    }
+    this.channel = notificationChannel(options.namespace);
+    this.namespace = options.namespace;
+    this.sql = options.sql;
+  }
+
+  publish(cursor: string): Promise<void> {
+    return this.sql.notify(this.channel, cursor);
+  }
+
+  async subscribe(listener: (cursor: string) => void): Promise<SyncSubscription> {
+    const emit = (cursor: string) => {
+      try {
+        listener(cursor);
+      } catch {
+        // Notifications are best-effort wake-ups; durable recovery reads the change log.
+      }
+    };
+    const recover = () => {
+      readCurrentCursor(this.sql, this.namespace)
+        .then(emit)
+        .catch(() => undefined);
+    };
+    const subscription = await this.sql.listen(this.channel, emit, recover);
+    return {
+      unsubscribe: () => subscription.unlisten(),
+    };
+  }
+}
+
+export function postgresSyncNotifier(options: PostgresSyncAdapterOptions): PostgresSyncNotifier {
+  return new PostgresSyncNotifier(options);
 }

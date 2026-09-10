@@ -667,3 +667,44 @@ test("sync stream opens when notifier subscription fails", async () => {
     resetSyncTestState();
   }
 });
+
+test("sync stream does not poll when the notifier recovers missed notifications", async () => {
+  resetSyncTestState();
+  const intervalDelays: number[] = [];
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    intervalDelays.push(args[1] ?? 0);
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
+  let cursorReads = 0;
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
+    completeMutation: () => Promise.resolve({ kind: "lost" }),
+    currentCursor: () => {
+      cursorReads += 1;
+      return Promise.resolve("0");
+    },
+    readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
+    renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
+  };
+  const notifier: SyncNotifier = {
+    publish: () => Promise.resolve(),
+    recovery: "self",
+    subscribe: () => Promise.reject(new Error("notifier unavailable")),
+  };
+  const app = new Elysia().use(
+    createSyncStreamPlugin({ adapter, notifier, principal: () => "principal" })
+  );
+  const response = await app.handle(new Request("http://localhost/_furin/sync"));
+
+  try {
+    expect(response.status).toBe(200);
+    expect(cursorReads).toBe(1);
+    expect(intervalDelays).toEqual([15_000]);
+  } finally {
+    globalThis.setInterval = originalSetInterval;
+    resetSyncTestState();
+  }
+});

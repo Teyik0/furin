@@ -17,6 +17,11 @@ export function resolveSyncRuntime(options: SyncRuntimeOptions): ResolvedSyncRun
   if (options.notifier) {
     return { adapter: options.adapter, notifier: options.notifier };
   }
+  if (!IS_DEV && options.adapter.scope === "distributed") {
+    throw new Error(
+      "[furin] Distributed production sync requires an explicit SyncNotifier. Configure the adapter notifier or pass PollingSyncNotifier as a compatibility fallback."
+    );
+  }
   const existing = pollingNotifiers.get(options.adapter);
   if (existing) {
     return { adapter: options.adapter, notifier: existing };

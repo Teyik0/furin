@@ -5,6 +5,7 @@ interface ListenerSubscription {
 }
 
 export class PollingSyncNotifier implements SyncNotifier {
+  readonly recovery = "self" as const;
   private readonly adapter: SyncAdapter;
   private readonly intervalMs: number;
   private readonly listeners = new Set<ListenerSubscription>();

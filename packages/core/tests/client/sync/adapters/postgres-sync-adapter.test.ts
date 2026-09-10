@@ -1,11 +1,28 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { SQL } from "bun";
-import { postgresSyncAdapter } from "../../../../src/server/sync/postgres/index.ts";
+import {
+  postgresSyncAdapter,
+  postgresSyncNotifier,
+} from "../../../../src/server/sync/postgres/index.ts";
 import { testSyncAdapterConformance } from "../../../helpers/sync-adapter-conformance.ts";
 
 const databaseUrl = process.env.FURIN_SYNC_POSTGRES_URL;
 const describeWithPostgres = databaseUrl === undefined ? describe.skip : describe;
 const succeededResponseCheckPattern = /furin_sync_mutations_succeeded_response_check/;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 test("bounds PostgreSQL mutation keys before binding them", async () => {
   const boundValues: unknown[] = [];
@@ -273,5 +290,65 @@ describeWithPostgres("PostgresSyncAdapter", () => {
       completed.flatMap((result) => (result.kind === "committed" ? [result.cursor] : [])).sort()
     ).toEqual(["1", "2"]);
     expect((await adapter.readChanges({ after: "0", limit: 10 })).changes).toHaveLength(2);
+  });
+
+  test("wakes another runtime after its durable change is visible", async () => {
+    const replicaSql = new SQL(databaseUrl as string);
+    const publisher = postgresSyncNotifier({ namespace, sql });
+    const subscriber = postgresSyncNotifier({ namespace, sql: replicaSql });
+    let markReady: () => void = () => undefined;
+    let receiveCursor: (cursor: string) => void = () => undefined;
+    const ready = new Promise<void>((resolve) => {
+      markReady = resolve;
+    });
+    const received = new Promise<string>((resolve) => {
+      receiveCursor = (cursor) => {
+        if (cursor === "0") {
+          markReady();
+        } else if (cursor === "1") {
+          resolve(cursor);
+        }
+      };
+    });
+    const subscription = await subscriber.subscribe(receiveCursor);
+
+    try {
+      await withTimeout(ready, 2000, "PostgreSQL listener did not finish its initial catch-up");
+      const mutation = await adapter.beginMutation({
+        fingerprint: "notification",
+        key: "notification",
+        principal: "user",
+      });
+      if (mutation.kind !== "execute") {
+        throw new Error("Expected an executable mutation");
+      }
+      const completion = await adapter.completeMutation({
+        invalidations: [{ kind: "path", path: "/notifications", type: "page" }],
+        lease: mutation.lease,
+        response: { body: new Uint8Array(), headers: [], status: 204 },
+      });
+      if (completion.kind !== "committed" || completion.cursor === undefined) {
+        throw new Error("Expected a committed invalidation");
+      }
+
+      await publisher.publish(completion.cursor);
+      expect(await withTimeout(received, 2000, "PostgreSQL notification was not delivered")).toBe(
+        "1"
+      );
+
+      const replica = postgresSyncAdapter({ namespace, sql: replicaSql });
+      expect(await replica.readChanges({ after: "0", limit: 10 })).toMatchObject({
+        changes: [
+          {
+            cursor: "1",
+            invalidations: [{ kind: "path", path: "/notifications", type: "page" }],
+          },
+        ],
+        cursor: "1",
+      });
+    } finally {
+      await subscription.unsubscribe();
+      await replicaSql.close();
+    }
   });
 });

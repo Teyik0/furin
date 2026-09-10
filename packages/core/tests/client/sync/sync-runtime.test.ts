@@ -55,23 +55,30 @@ describe("sync runtime", () => {
     expect(resolveSyncRuntime({ adapter, principal }).adapter).toBe(adapter);
   });
 
-  test("uses currentCursor polling when a distributed adapter has no notifier", async () => {
+  test("requires distributed production adapters to choose their notifier explicitly", () => {
     __setDevMode(false);
-    let cursor = "0";
+    const adapter = durableAdapter("distributed", async () => "0");
+
+    expect(() => resolveSyncRuntime({ adapter, principal })).toThrow(
+      "Distributed production sync requires an explicit SyncNotifier"
+    );
+
+    const notifier = new PollingSyncNotifier(adapter, 250);
+    expect(
+      resolveSyncRuntime({
+        adapter,
+        notifier,
+        principal,
+      }).notifier
+    ).toBe(notifier);
+  });
+
+  test("keeps polling as a development convenience", () => {
+    __setDevMode(true);
     const runtime = resolveSyncRuntime({
-      adapter: durableAdapter("distributed", async () => cursor),
+      adapter: durableAdapter("distributed", async () => "0"),
       principal,
     });
     expect(runtime.notifier).toBeInstanceOf(PollingSyncNotifier);
-    let receiveCursor: (nextCursor: string) => void = () => {
-      throw new Error("Polling resolved before the test was ready");
-    };
-    const received = new Promise<string>((resolve) => {
-      receiveCursor = resolve;
-    });
-    const subscription = await runtime.notifier.subscribe(receiveCursor);
-    cursor = "1";
-    expect(await received).toBe("1");
-    await subscription.unsubscribe();
   });
 });

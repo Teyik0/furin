@@ -25,7 +25,7 @@ interface StreamState {
     ReturnType<typeof setInterval> | undefined
   >;
   cursor: string | undefined;
-  safetyPoll: ReturnType<typeof setInterval>;
+  safetyPoll: ReturnType<typeof setInterval> | undefined;
   subscription: SyncSubscription;
 }
 
@@ -77,13 +77,15 @@ async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamSt
   const state = {} as StreamState;
   state.clients = new Map();
   state.cursor = await runtime.adapter.currentCursor();
-  state.safetyPoll = setInterval(() => {
-    runtime.adapter
-      .currentCursor()
-      .then((cursor) => notifyState(state, cursor))
-      .catch(() => undefined);
-  }, SAFETY_POLL_INTERVAL_MS);
-  state.safetyPoll.unref?.();
+  if (runtime.notifier.recovery !== "self") {
+    state.safetyPoll = setInterval(() => {
+      runtime.adapter
+        .currentCursor()
+        .then((cursor) => notifyState(state, cursor))
+        .catch(() => undefined);
+    }, SAFETY_POLL_INTERVAL_MS);
+    state.safetyPoll.unref?.();
+  }
   state.subscription = await runtime.notifier
     .subscribe((cursor) => notifyState(state, cursor))
     .catch(() => noOpSubscription);
@@ -208,7 +210,9 @@ export function createSyncStreamPlugin(options: FurinSyncOptions) {
 export function __resetSyncState(): void {
   for (const state of resolvedStates) {
     state.subscription.unsubscribe().catch(() => undefined);
-    clearInterval(state.safetyPoll);
+    if (state.safetyPoll) {
+      clearInterval(state.safetyPoll);
+    }
     for (const client of state.clients.keys()) {
       closeClient(state, client);
     }

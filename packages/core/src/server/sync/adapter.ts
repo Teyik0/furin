@@ -69,6 +69,11 @@ export interface SyncSubscription {
 
 export interface SyncNotifier {
   publish: (cursor: string) => Promise<void>;
+  /**
+   * Declares that the notifier independently recovers missed wake-ups, so the
+   * SSE coordinator does not need its compatibility safety poll.
+   */
+  readonly recovery?: "self";
   subscribe: (listener: (cursor: string) => void) => Promise<SyncSubscription>;
 }
 
