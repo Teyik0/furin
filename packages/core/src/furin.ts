@@ -801,7 +801,11 @@ export async function furin({
           sync: sync || undefined,
         })
       )
-      .use(createDevDiagnosticPlugin(devDiagnosticStore(instance), instance))
+      .use(
+        createDevDiagnosticPlugin(devDiagnosticStore(instance), instance, async () => {
+          await routeTopologyWatcher?.refresh();
+        })
+      )
       .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath))
       .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
       .use(

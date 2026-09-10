@@ -249,7 +249,6 @@ function installSyncObserver(sync, browserEvents) {
       if (cursor === null) {
         return;
       }
-      browserState.syncStatus = "connected";
       pushBounded(browserState.syncEvents, {
         cursor,
         timestamp: Date.now(),
@@ -823,7 +822,11 @@ async function start() {
   };
   try {
     const browserEvents = window[BROWSER_EVENTS_RUNTIME_KEY];
-    if (!browserEvents || typeof browserEvents.subscribe !== "function") {
+    if (
+      !browserEvents ||
+      typeof browserEvents.subscribe !== "function" ||
+      typeof browserEvents.subscribeStatus !== "function"
+    ) {
       throw new Error("Furin browser event transport is unavailable");
     }
     if (!customElements.get(ELEMENT_NAME)) {

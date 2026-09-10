@@ -71,7 +71,14 @@ interface WebSocketFrameEvent extends Event {
 
 interface WebSocketCreatedEvent extends Event {
   data?: {
+    requestId?: string;
     url?: string;
+  };
+}
+
+interface WebSocketHandshakeEvent extends Event {
+  data?: {
+    requestId?: string;
   };
 }
 
@@ -641,6 +648,8 @@ async function createBrowserHarness(
   const webSocketClosed: number[] = [];
   const webSocketHandshakes: number[] = [];
   const webSocketUrls: string[] = [];
+  const webSocketUrlsByRequest = new Map<string, string>();
+  const handshakenWebSocketUrls: string[] = [];
   const view = new Bun.WebView({
     backend: { type: "chrome", url: false },
     console: (type, ...args) => {
@@ -674,19 +683,39 @@ async function createBrowserHarness(
     }
   });
   view.addEventListener("Network.webSocketCreated", (event) => {
-    const url = (event as unknown as WebSocketCreatedEvent).data?.url;
+    const { requestId, url } = (event as unknown as WebSocketCreatedEvent).data ?? {};
     if (url) {
       webSocketUrls.push(url);
+      if (requestId) {
+        webSocketUrlsByRequest.set(requestId, url);
+      }
     }
   });
   view.addEventListener("Network.webSocketClosed", () => {
     webSocketClosed.push(Date.now());
   });
-  view.addEventListener("Network.webSocketHandshakeResponseReceived", () => {
+  view.addEventListener("Network.webSocketHandshakeResponseReceived", (event) => {
     webSocketHandshakes.push(Date.now());
+    const requestId = (event as unknown as WebSocketHandshakeEvent).data?.requestId;
+    const url = requestId ? webSocketUrlsByRequest.get(requestId) : undefined;
+    if (url) {
+      handshakenWebSocketUrls.push(url);
+    }
   });
   await view.navigate(`http://127.0.0.1:${browserPort}/`);
   const url = `http://127.0.0.1:${browserPort}`;
+  const hasColdDiagnostic = (await view.evaluate(
+    'document.querySelector("#__furin-dev-error-overlay") !== null'
+  )) as boolean;
+  if (!hasColdDiagnostic) {
+    const startedAt = Date.now();
+    while (!handshakenWebSocketUrls.some((socketUrl) => socketUrl.endsWith("/_bun/hmr"))) {
+      if (Date.now() - startedAt >= 15_000) {
+        throw new Error("Timed out waiting for the initial Bun HMR WebSocket handshake");
+      }
+      await Bun.sleep(50);
+    }
+  }
 
   return {
     app,
@@ -858,6 +887,24 @@ async function waitForDevErrorOverlayText(
       throw new Error(
         `Timed out waiting for the dev error overlay to contain ${expectedText}; latest value was ${String(latestText)}`
       );
+    }
+    await Bun.sleep(50);
+  }
+}
+
+async function waitForDevErrorOverlayRemoved(
+  view: InstanceType<typeof Bun.WebView>
+): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    const present = (await view.evaluate(
+      'document.querySelector("#__furin-dev-error-overlay") !== null'
+    )) as boolean;
+    if (!present) {
+      return;
+    }
+    if (Date.now() - startedAt >= 15_000) {
+      throw new Error("Timed out waiting for the dev error overlay to close");
     }
     await Bun.sleep(50);
   }
@@ -1053,19 +1100,20 @@ async function waitForWebSocketHandshakeCount(
   }
 }
 
-function closeBrowserHarness(harness: BrowserHarness): void {
+async function closeBrowserHarness(harness: BrowserHarness): Promise<void> {
   harness.view.close();
   for (const view of harness.extraViews) {
     view.close();
   }
   harness.proxy?.close();
   harness.server.kill();
+  await harness.server.exitCode;
   harness.app.cleanup();
 }
 
-afterEach(() => {
+afterEach(async () => {
   if (activeHarness) {
-    closeBrowserHarness(activeHarness);
+    await closeBrowserHarness(activeHarness);
   }
   activeHarness = undefined;
 });
@@ -1629,8 +1677,23 @@ browserTest(
       await Bun.sleep(100);
     }
 
-    expect(location).toContain("src/pages/index.tsx");
+    if (!location.includes("src/pages/index.tsx")) {
+      const body = await harness.view.evaluate("document.body?.innerText ?? ''");
+      throw new Error(
+        `Expected an application overlay location; observed ${JSON.stringify({
+          body,
+          consoleErrors: harness.consoleErrors,
+          hmrFrames: harness.hmrFrames,
+          location,
+          webSocketUrls: harness.webSocketUrls,
+        })}`
+      );
+    }
     expect(location).not.toContain("/_bun/client/");
+
+    writeAppFile(harness.app.path, "src/pages/index.tsx", pageSource("overlay-recovered", false));
+    await waitForVersion(harness.view, "overlay-recovered");
+    await waitForDevErrorOverlayRemoved(harness.view);
   },
   45_000
 );
@@ -1723,11 +1786,7 @@ browserTest(
 
     await waitForVersion(harness.view, "cold-recovered");
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-cold-recovered");
-    expect(
-      (await harness.view.evaluate(
-        "document.querySelector('#__furin-dev-error-overlay') !== null"
-      )) as boolean
-    ).toBe(false);
+    await waitForDevErrorOverlayRemoved(harness.view);
   },
   45_000
 );
@@ -2168,7 +2227,7 @@ browserTest(
       expect(after.count).toBe("1");
       expect(after.documentId).toBe(documentId);
 
-      closeBrowserHarness(harness);
+      await closeBrowserHarness(harness);
       activeHarness = undefined;
     }
   },

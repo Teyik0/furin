@@ -162,6 +162,36 @@ test("the dev topology watcher can refresh before the filesystem debounce", asyn
   }
 });
 
+test("the dev topology watcher migrates state retained across a soft reload", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-legacy-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    const registry = Reflect.get(globalThis, Symbol.for("@teyik0/furin/dev-route-watchers"));
+    if (!(registry instanceof Map)) {
+      throw new Error("Expected the global development watcher registry");
+    }
+    const state = [...registry.values()][0] as { changedSources?: Set<string> } | undefined;
+    if (!state) {
+      throw new Error("Expected retained development watcher state");
+    }
+    Reflect.deleteProperty(state, "changedSources");
+
+    await watcher.refresh();
+
+    expect(state.changedSources).toBeInstanceOf(Set);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
 test.serial(
   "the dev topology watcher reports a route error and retries reconciliation",
   async () => {

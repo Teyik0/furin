@@ -102,6 +102,34 @@ test.serial("browser event consumers share one multiplexed connection", async ()
   }
 });
 
+test.serial("browser event status returns to connecting when a cached page resumes", async () => {
+  installDom();
+  TestWebSocket.instances.length = 0;
+  const originalWebSocket = window.WebSocket;
+  window.WebSocket = TestWebSocket as unknown as typeof WebSocket;
+
+  try {
+    installBrowserEventsRuntime(window, "http://localhost:3000/_furin/events/client.js");
+    const runtime = (window as typeof window & { [RUNTIME_KEY]?: BrowserEventRuntime })[
+      RUNTIME_KEY
+    ];
+    const statuses: string[] = [];
+    runtime?.subscribeStatus((status) => statuses.push(status));
+    TestWebSocket.instances[0]?.open();
+
+    window.dispatchEvent(new window.Event("pagehide"));
+    window.dispatchEvent(new window.Event("pageshow"));
+
+    expect(statuses).toEqual(["connecting", "connected", "connecting"]);
+    expect(TestWebSocket.instances).toHaveLength(2);
+  } finally {
+    window.dispatchEvent(new window.Event("pagehide"));
+    Reflect.deleteProperty(window, RUNTIME_KEY);
+    window.WebSocket = originalWebSocket;
+    await uninstallDom();
+  }
+});
+
 test("browser event client source is a self-contained module", () => {
   const source = browserEventsClientSource();
   const transpiler = new Bun.Transpiler({ loader: "js" });

@@ -71,7 +71,8 @@ function serializeForHtml(value: EmbeddedDiagnosticState): string {
 
 export function createDevDiagnosticPlugin(
   store: DevDiagnosticStore,
-  instance: FurinInstance | undefined
+  instance: FurinInstance | undefined,
+  reconcileRoutes: (() => Promise<void>) | undefined
 ): AnyElysia {
   return new Elysia({ name: "furin-dev-diagnostics" })
     .get("/_furin/dev/overlay.js", async ({ request, server }) => {
@@ -96,6 +97,7 @@ export function createDevDiagnosticPlugin(
       if (!report) {
         return new Response("Invalid client diagnostic", { status: 400 });
       }
+      await reconcileRoutes?.();
       return await publishClientDiagnostic(store, report, new URL(request.url).origin, instance);
     });
 }

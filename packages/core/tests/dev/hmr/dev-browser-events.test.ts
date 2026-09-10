@@ -16,7 +16,7 @@ function requestStarted(path: string) {
   };
 }
 
-test("development browser events stream only live DevTools events", async () => {
+test("development browser events replay DevTools events without a snapshot-subscription gap", async () => {
   const instance = createInstance("", "/workspace/pages");
   withInstance(instance, () => appendDevtoolsEvent(requestStarted("/before")));
   const [, source] = createDevelopmentBrowserEventSources(instance, new DevDiagnosticStore());
@@ -26,9 +26,10 @@ test("development browser events stream only live DevTools events", async () => 
   const received: BrowserEventEnvelope[] = [];
   const subscription = await source.subscribe((event) => received.push(event));
 
-  expect(received).toEqual([]);
-  withInstance(instance, () => appendDevtoolsEvent(requestStarted("/after")));
   expect(received).toHaveLength(1);
-  expect(received[0]?.channel).toBe("devtools");
+  expect(received[0]?.data).toMatchObject({ path: "/before" });
+  withInstance(instance, () => appendDevtoolsEvent(requestStarted("/after")));
+  expect(received).toHaveLength(2);
+  expect(received[1]?.channel).toBe("devtools");
   subscription.unsubscribe();
 });

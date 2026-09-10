@@ -281,15 +281,29 @@ test("a reconnect burst never subscribes sources above the connection limit", as
   );
 
   try {
-    await Promise.all(
-      sockets.map(
-        (socket) =>
-          new Promise<void>((resolve) => {
-            socket.addEventListener("open", () => resolve(), { once: true });
-            socket.addEventListener("error", () => resolve(), { once: true });
-          })
-      )
-    );
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.all(
+        sockets.map(
+          (socket) =>
+            new Promise<void>((resolve) => {
+              socket.addEventListener("open", () => resolve(), { once: true });
+              socket.addEventListener("error", () => resolve(), { once: true });
+              socket.addEventListener("close", () => resolve(), { once: true });
+            })
+        )
+      ),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Timed out waiting for the browser event reconnect burst")),
+          2000
+        );
+      }),
+    ]).finally(() => {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+      }
+    });
     await Bun.sleep(20);
 
     expect(maximumSubscriptions).toBeLessThanOrEqual(100);

@@ -326,9 +326,20 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
   return watchers;
 }
 
+function watcherChangedSources(state: DevRouteTopologyWatcherState): Set<string> {
+  const existing = Reflect.get(state, "changedSources");
+  if (existing instanceof Set) {
+    return existing as Set<string>;
+  }
+  const changedSources = new Set<string>();
+  state.changedSources = changedSources;
+  return changedSources;
+}
+
 async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Promise<void> {
-  let changedSources = [...state.changedSources];
-  state.changedSources.clear();
+  const pendingChangedSources = watcherChangedSources(state);
+  let changedSources = [...pendingChangedSources];
+  pendingChangedSources.clear();
   try {
     state.dirty = false;
     const source = routeTopologySource(state.instance);
@@ -359,7 +370,7 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
     console.error("[furin] Failed to refresh route topology", error);
     state.dirty = true;
     for (const sourcePath of changedSources) {
-      state.changedSources.add(sourcePath);
+      pendingChangedSources.add(sourcePath);
     }
     scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
   }
@@ -416,7 +427,7 @@ function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
       }
       state.dirty = true;
       if (filename !== null) {
-        state.changedSources.add(resolve(directory, String(filename)));
+        watcherChangedSources(state).add(resolve(directory, String(filename)));
       }
       reportChangedSourceError(state, directory, filename);
       scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);

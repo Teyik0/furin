@@ -188,6 +188,9 @@ test.serial("native DevTools observes sync on the shared browser event transport
     expect(root?.querySelector("main")?.textContent).toContain("connected");
     browserEvents.updateStatus("reconnecting");
     expect(root?.querySelector("main")?.textContent).toContain("reconnecting");
+    browserEvents.emitChannel("sync", { cursor: "43" });
+    expect(root?.querySelector("main")?.textContent).toContain("43");
+    expect(root?.querySelector("main")?.textContent).toContain("reconnecting");
   } finally {
     cleanupDevtoolsRuntime();
     await uninstallDom();
@@ -270,7 +273,7 @@ test.serial(
           instance: { id: "rollback-test", prefix: "" },
           lastEventId: 0,
           routes: [],
-          sync: { changesPath: null, enabled: false },
+          sync: { changesPath: "/_furin/sync/changes", enabled: true },
           version: 2,
         })
       )) as unknown as typeof window.fetch;
@@ -290,6 +293,7 @@ test.serial(
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(window.fetch).toBe(testFetch);
+      expect(document.querySelector("furin-devtools")).toBeNull();
     } finally {
       cleanupDevtoolsRuntime();
       await uninstallDom();

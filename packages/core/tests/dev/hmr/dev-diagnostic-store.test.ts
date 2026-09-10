@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { createDevDiagnostic, DevDiagnosticStore } from "../../../src/server/dev/diagnostics.ts";
+import {
+  createDevDiagnostic,
+  DevDiagnosticStore,
+  publishClientDiagnostic,
+} from "../../../src/server/dev/diagnostics.ts";
+import { createInstance } from "../../../src/server/instance.ts";
 import type { DevDiagnostic } from "../../../src/shared/dev-diagnostics.ts";
 
 const diagnostic: DevDiagnostic = {
@@ -81,6 +86,26 @@ describe("DevDiagnosticStore", () => {
 
     expect(second).toBe(first);
     expect(store.revision).toBe(0);
+  });
+
+  test("strips an instance prefix from client diagnostic routes", async () => {
+    const store = new DevDiagnosticStore();
+    const instance = createInstance("/admin", "/workspace/admin-pages");
+
+    const event = await publishClientDiagnostic(
+      store,
+      {
+        cause: undefined,
+        message: "prefixed client error",
+        phase: "client-render",
+        route: "/admin/dashboard",
+        stack: undefined,
+      },
+      "http://localhost",
+      instance
+    );
+
+    expect(event.diagnostic.route).toBe("/dashboard");
   });
 
   test("decodes file URL source locations", () => {

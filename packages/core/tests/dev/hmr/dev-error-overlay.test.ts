@@ -33,7 +33,7 @@ test("dev error response embeds diagnostics and the shared browser event client"
 
 test("the overlay client captures hydration and client-render failures", async () => {
   const store = new DevDiagnosticStore();
-  const app = new Elysia().use(createDevDiagnosticPlugin(store, undefined));
+  const app = new Elysia().use(createDevDiagnosticPlugin(store, undefined, undefined));
 
   const response = await app.handle(new Request("http://localhost/_furin/dev/overlay.js"));
   const source = await response.text();
@@ -47,7 +47,9 @@ test("the overlay client captures hydration and client-render failures", async (
 });
 
 test("invalid browser diagnostics are rejected", async () => {
-  const app = new Elysia().use(createDevDiagnosticPlugin(new DevDiagnosticStore(), undefined));
+  const app = new Elysia().use(
+    createDevDiagnosticPlugin(new DevDiagnosticStore(), undefined, undefined)
+  );
   const response = await app.handle(
     new Request("http://localhost/_furin/dev/client-errors", {
       body: JSON.stringify({ message: "missing phase" }),
@@ -57,4 +59,41 @@ test("invalid browser diagnostics are rejected", async () => {
   );
 
   expect(response.status).toBe(400);
+});
+
+test("reconciles route diagnostics before publishing a browser error", async () => {
+  const store = new DevDiagnosticStore();
+  renderFailure(store);
+  const app = new Elysia().use(
+    createDevDiagnosticPlugin(store, undefined, () => {
+      expect(store.markReady("/dashboard")).toBeDefined();
+      return Promise.resolve();
+    })
+  );
+
+  const response = await app.handle(
+    new Request("http://localhost/_furin/dev/client-errors", {
+      body: JSON.stringify({
+        message: "client render exploded",
+        phase: "client-render",
+        route: "/dashboard",
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    })
+  );
+  const event = await response.json();
+  const subscription = store.subscribe(0, undefined, () => undefined);
+
+  expect(response.status).toBe(200);
+  expect(event).toMatchObject({
+    diagnostic: { message: "client render exploded" },
+    type: "error",
+  });
+  expect(subscription.replay).toHaveLength(1);
+  expect(subscription.replay[0]).toMatchObject({
+    diagnostic: { message: "client render exploded" },
+    type: "error",
+  });
+  subscription.unsubscribe();
 });

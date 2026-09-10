@@ -71,13 +71,21 @@ function openSyncSocket(baseUrl: string): {
       if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
         return Promise.reject(new Error("Browser events closed"));
       }
-      return withTimeout(
-        new Promise<SyncEnvelope>((resolve, reject) => {
-          waiting.add({ reject, resolve });
-        }),
-        "the sync browser event",
-        EVENT_TIMEOUT_MS
-      );
+      let waiter:
+        | {
+            reject: (error: Error) => void;
+            resolve: (event: SyncEnvelope) => void;
+          }
+        | undefined;
+      const eventPromise = new Promise<SyncEnvelope>((resolve, reject) => {
+        waiter = { reject, resolve };
+        waiting.add(waiter);
+      });
+      return withTimeout(eventPromise, "the sync browser event", EVENT_TIMEOUT_MS).finally(() => {
+        if (waiter) {
+          waiting.delete(waiter);
+        }
+      });
     },
   };
 }

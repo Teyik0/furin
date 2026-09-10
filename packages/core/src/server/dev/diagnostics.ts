@@ -69,6 +69,18 @@ function canonicalSourcePath(path: string): string {
   }
 }
 
+function logicalDiagnosticRoute(route: string, instance: FurinInstance | undefined): string {
+  const prefix = instance?.prefix;
+  if (
+    prefix &&
+    route.startsWith(prefix) &&
+    (route.length === prefix.length || route[prefix.length] === "/")
+  ) {
+    return route.slice(prefix.length) || "/";
+  }
+  return route;
+}
+
 function stackLocation(
   stack: string | undefined,
   entryPath: string
@@ -252,7 +264,8 @@ export async function publishClientDiagnostic(
     : undefined;
   const graph = devGraph(instance);
   const { snapshot } = graph;
-  const routeMatch = snapshot ? buildRouteMatcher(snapshot.routes)(report.route) : null;
+  const logicalRoute = logicalDiagnosticRoute(report.route, instance);
+  const routeMatch = snapshot ? buildRouteMatcher(snapshot.routes)(logicalRoute) : null;
   const routeEntry = routeMatch?.route.path;
   const sourceFile = symbolicated.location
     ? canonicalSourcePath(sourceFilePath(symbolicated.location.file))
@@ -278,7 +291,7 @@ export async function publishClientDiagnostic(
     location,
     message: report.message,
     phase: report.phase,
-    route: routeMatch?.route.pattern ?? report.route,
+    route: routeMatch?.route.pattern ?? logicalRoute,
     stack: report.stack,
   });
 }

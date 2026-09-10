@@ -173,6 +173,9 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
   };
   const resume = (): void => {
     suspended = false;
+    if (socket === undefined) {
+      updateStatus("connecting");
+    }
     connect();
   };
   browser.addEventListener("pagehide", suspend);

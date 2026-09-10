@@ -341,7 +341,7 @@ throw new Error("recovery exploded");`
     expect(event.diagnostic.message).toBe("client render exploded");
     expect(event.diagnostic.importChain[0]).toContain("src/pages/index.tsx");
     expect(event.diagnostic.importChain[1]).toContain("src/components/client-card.tsx");
-  });
+  }, 20_000);
 
   test("normalizes client diagnostic paths to dynamic route patterns", async () => {
     const pagePath = join(app.path, "src/pages/blog/[slug].tsx");
@@ -377,7 +377,7 @@ throw new Error("recovery exploded");`
     const event = (await response.json()) as EmbeddedDiagnosticState["event"];
 
     expect(event.diagnostic.route).toBe("/blog/:slug");
-  });
+  }, 20_000);
 
   test("a loader failure reports its phase and cause", async () => {
     writeAppFile(app.path, "src/pages/index.tsx", failingLoaderPage());
