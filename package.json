@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "bun run --filter '@teyik0/furin' build && bun run --parallel --filter '!@teyik0/furin' build",
+    "build:vercel": "bun run --cwd examples/weather build:vercel",
     "cache:clean": "rm -rf node_modules examples/*/node_modules packages/*/node_modules && bun pm cache rm",
     "dev": "bun run --parallel --filter '*' --if-present dev",
     "fix": "ultracite fix",
