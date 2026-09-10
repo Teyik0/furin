@@ -1602,6 +1602,40 @@ browserTest(
 );
 
 browserTest(
+  "the development overlay points client render errors to application source",
+  async () => {
+    const harness = await createBrowserHarness(pageSource("overlay-v1", false), [], false);
+    activeHarness = harness;
+    await harness.view.click('[data-testid="increment"]');
+    harness.consoleErrors.length = 0;
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      pageSource("overlay-broken", false).replace(
+        "function CounterPage() {",
+        'function CounterPage() {\n  throw new Error("overlay render exploded");'
+      )
+    );
+
+    let location = "";
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      location = (await harness.view.evaluate(
+        'document.querySelector("#__furin-dev-error-overlay")?.shadowRoot?.querySelector("[data-furin-diagnostic-location]")?.textContent ?? ""'
+      )) as string;
+      if (location.includes("src/pages/index.tsx")) {
+        break;
+      }
+      await Bun.sleep(100);
+    }
+
+    expect(location).toContain("src/pages/index.tsx");
+    expect(location).not.toContain("/_bun/client/");
+  },
+  45_000
+);
+
+browserTest(
   "successive syntax and render errors recover on the next valid edit",
   async () => {
     const harness = await createBrowserHarness(pageSource("sequence-v1", false), [], false);

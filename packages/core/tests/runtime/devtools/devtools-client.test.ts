@@ -1,33 +1,47 @@
 import { expect, test } from "bun:test";
 import { installDom, uninstallDom, waitForDom } from "../../support/dom.ts";
 
-const TestRuntimeEvent = Event;
+const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
 
-class TestEventSource extends EventTarget {
-  static readonly CLOSED = 2;
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly instances: TestEventSource[] = [];
+interface TestBrowserEventEnvelope {
+  channel: "devtools" | "sync";
+  data: unknown;
+  version: 1;
+}
 
-  readonly CLOSED = 2;
-  readonly CONNECTING = 0;
-  readonly OPEN = 1;
-  readonly readyState = 1;
-  readonly url: string;
-  readonly withCredentials = false;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
+class TestBrowserEventRuntime {
+  readonly listeners = new Map<
+    TestBrowserEventEnvelope["channel"],
+    Set<(event: TestBrowserEventEnvelope) => void>
+  >();
 
-  constructor(url: string | URL) {
-    super();
-    this.url = String(url);
-    TestEventSource.instances.push(this);
+  emit(data: unknown): void {
+    this.emitChannel("devtools", data);
   }
 
-  close(): void {
-    // The test stream has no resources to release.
+  emitChannel(channel: TestBrowserEventEnvelope["channel"], data: unknown): void {
+    for (const listener of this.listeners.get(channel) ?? []) {
+      listener({ channel, data, version: 1 });
+    }
   }
+
+  subscribe(channel: string, listener: (event: TestBrowserEventEnvelope) => void): () => void {
+    if (channel !== "devtools" && channel !== "sync") {
+      return () => undefined;
+    }
+    const listeners = this.listeners.get(channel) ?? new Set();
+    listeners.add(listener);
+    this.listeners.set(channel, listeners);
+    return () => listeners.delete(listener);
+  }
+}
+
+function installBrowserEventRuntime(): TestBrowserEventRuntime {
+  const browserEvents = new TestBrowserEventRuntime();
+  (window as typeof window & { [key: symbol]: TestBrowserEventRuntime })[
+    BROWSER_EVENTS_RUNTIME_KEY
+  ] = browserEvents;
+  return browserEvents;
 }
 
 function cleanupDevtoolsRuntime(): void {
@@ -39,6 +53,7 @@ function cleanupDevtoolsRuntime(): void {
   )[runtimeKey];
   runtimeState?.cleanup?.();
   Reflect.deleteProperty(window, runtimeKey);
+  Reflect.deleteProperty(window, BROWSER_EVENTS_RUNTIME_KEY);
 }
 
 test.serial(
@@ -46,8 +61,8 @@ test.serial(
   async () => {
     installDom();
     const originalFetch = window.fetch;
-    const originalEventSource = window.EventSource;
     const originalGetEntriesByType = performance.getEntriesByType.bind(performance);
+    installBrowserEventRuntime();
     window.fetch = (() =>
       Promise.resolve(
         Response.json({
@@ -56,11 +71,10 @@ test.serial(
           instance: { id: "test-instance", prefix: "" },
           lastEventId: 0,
           routes: [],
-          sync: { enabled: false, streamPath: null },
+          sync: { changesPath: null, enabled: false },
           version: 1,
         })
       )) as unknown as typeof window.fetch;
-    window.EventSource = TestEventSource as unknown as typeof EventSource;
     performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
 
     try {
@@ -121,12 +135,45 @@ test.serial(
     } finally {
       cleanupDevtoolsRuntime();
       window.fetch = originalFetch;
-      window.EventSource = originalEventSource;
       performance.getEntriesByType = originalGetEntriesByType;
       await uninstallDom();
     }
   }
 );
+
+test.serial("native DevTools observes sync on the shared browser event transport", async () => {
+  installDom();
+  const browserEvents = installBrowserEventRuntime();
+  window.fetch = (() =>
+    Promise.resolve(
+      Response.json({
+        caches: [],
+        events: [],
+        instance: { id: "sync-test", prefix: "" },
+        lastEventId: 0,
+        routes: [],
+        sync: { changesPath: "/_furin/sync/changes", enabled: true },
+        version: 1,
+      })
+    )) as unknown as typeof window.fetch;
+  performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+
+  try {
+    await import(`../../../src/devtools/devtools-element.js?sync=${Date.now()}`);
+    await waitForDom(() => document.querySelector("furin-devtools") !== null, undefined);
+    browserEvents.emitChannel("sync", { cursor: "42" });
+
+    const root = document.querySelector("furin-devtools")?.shadowRoot;
+    root?.querySelector<HTMLButtonElement>('[data-action="toggle"]')?.click();
+    root?.querySelector<HTMLButtonElement>('[data-tab="sync"]')?.click();
+
+    expect(root?.querySelector("main")?.textContent).toContain("42");
+    expect(root?.querySelector("main")?.textContent).toContain("connected");
+  } finally {
+    cleanupDevtoolsRuntime();
+    await uninstallDom();
+  }
+});
 
 test.serial(
   "native DevTools leaves browser globals untouched when startup validation fails",
@@ -134,16 +181,13 @@ test.serial(
     installDom();
     const rejectedFetch = (() =>
       Promise.resolve(new Response(null, { status: 404 }))) as unknown as typeof window.fetch;
-    const originalEventSource = TestEventSource as unknown as typeof EventSource;
     window.fetch = rejectedFetch;
-    window.EventSource = originalEventSource;
 
     try {
       await import(`../../../src/devtools/devtools-element.js?failed=${Date.now()}`);
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(window.fetch).toBe(rejectedFetch);
-      expect(window.EventSource).toBe(originalEventSource);
       expect(document.querySelector("furin-devtools")).toBeNull();
     } finally {
       cleanupDevtoolsRuntime();
@@ -154,6 +198,7 @@ test.serial(
 
 test.serial("native DevTools only correlates the exact same-origin data endpoint", async () => {
   installDom();
+  installBrowserEventRuntime();
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
   const testFetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ init, input });
@@ -164,13 +209,12 @@ test.serial("native DevTools only correlates the exact same-origin data endpoint
         instance: { id: "origin-test", prefix: "" },
         lastEventId: 0,
         routes: [],
-        sync: { enabled: false, streamPath: null },
+        sync: { changesPath: null, enabled: false },
         version: 1,
       })
     );
   }) as typeof window.fetch;
   window.fetch = testFetch;
-  window.EventSource = TestEventSource as unknown as typeof EventSource;
   performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
 
   try {
@@ -207,18 +251,19 @@ test.serial(
           instance: { id: "rollback-test", prefix: "" },
           lastEventId: 0,
           routes: [],
-          sync: { enabled: false, streamPath: null },
+          sync: { changesPath: null, enabled: false },
           version: 1,
         })
       )) as unknown as typeof window.fetch;
-    class ThrowingEventSource {
-      constructor() {
-        throw new Error("EventSource unavailable");
-      }
-    }
-    const originalEventSource = ThrowingEventSource as unknown as typeof EventSource;
+    const unavailableBrowserEvents = {
+      subscribe() {
+        throw new Error("Browser event transport unavailable");
+      },
+    };
     window.fetch = testFetch;
-    window.EventSource = originalEventSource;
+    (window as typeof window & { [key: symbol]: typeof unavailableBrowserEvents })[
+      BROWSER_EVENTS_RUNTIME_KEY
+    ] = unavailableBrowserEvents;
     performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
 
     try {
@@ -226,7 +271,6 @@ test.serial(
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(window.fetch).toBe(testFetch);
-      expect(window.EventSource).toBe(originalEventSource);
     } finally {
       cleanupDevtoolsRuntime();
       await uninstallDom();
@@ -234,43 +278,36 @@ test.serial(
   }
 );
 
-test.serial("native DevTools rejects malformed same-origin snapshots and SSE events", async () => {
+test.serial("native DevTools rejects malformed snapshots and browser events", async () => {
   installDom();
-  TestEventSource.instances.length = 0;
+  const browserEvents = installBrowserEventRuntime();
   const snapshot = {
     caches: [],
     events: [],
     instance: { id: "validation-test", prefix: "" },
     lastEventId: 0,
     routes: [],
-    sync: { enabled: false, streamPath: null },
+    sync: { changesPath: null, enabled: false },
     version: 1,
   };
   window.fetch = (() => Promise.resolve(Response.json(snapshot))) as unknown as typeof window.fetch;
-  window.EventSource = TestEventSource as unknown as typeof EventSource;
   performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
 
   try {
     await import(`../../../src/devtools/devtools-element.js?validation=${Date.now()}`);
     await waitForDom(() => document.querySelector("furin-devtools") !== null, undefined);
-    const source = TestEventSource.instances.at(-1);
-    expect(source).toBeDefined();
-    const maliciousEvent = new TestRuntimeEvent("furin.devtools");
-    Object.defineProperty(maliciousEvent, "data", {
-      value: JSON.stringify({
-        cache: "isr-loader",
-        id: 1,
-        instanceId: "validation-test",
-        operationId: null,
-        outcome: 'hit"><img src=x onerror=alert(1)>',
-        path: "/",
-        requestId: "request",
-        timestamp: Date.now(),
-        type: "cache.access",
-        version: 1,
-      }),
+    browserEvents.emit({
+      cache: "isr-loader",
+      id: 1,
+      instanceId: "validation-test",
+      operationId: null,
+      outcome: 'hit"><img src=x onerror=alert(1)>',
+      path: "/",
+      requestId: "request",
+      timestamp: Date.now(),
+      type: "cache.access",
+      version: 1,
     });
-    source?.dispatchEvent(maliciousEvent);
 
     const root = document.querySelector("furin-devtools")?.shadowRoot;
     root?.querySelector<HTMLButtonElement>('[data-action="toggle"]')?.click();
@@ -298,7 +335,6 @@ test.serial("native DevTools rejects malformed same-origin snapshots and SSE eve
         ],
       })
     )) as unknown as typeof window.fetch;
-  window.EventSource = TestEventSource as unknown as typeof EventSource;
   try {
     await import(`../../../src/devtools/devtools-element.js?bad-snapshot=${Date.now()}`);
     await new Promise((resolve) => setTimeout(resolve, 0));

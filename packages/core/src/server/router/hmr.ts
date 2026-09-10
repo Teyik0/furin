@@ -14,9 +14,10 @@ import {
   setDevSSGLoaderCache,
 } from "../cache/dev-loader.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
-import { publishDevError } from "../dev/error.ts";
-import { type DevErrorPhase, devGraph } from "../dev/graph.ts";
-import { renderDevErrorResponse } from "../dev/plugin.ts";
+import { devDiagnosticStore, publishDevDiagnostic } from "../dev/diagnostics.ts";
+import { devGraph } from "../dev/graph.ts";
+import { renderDevDiagnosticResponse } from "../dev/plugin.ts";
+import { DevTransformFailure } from "../dev/transform-failure.ts";
 import { currentInstance } from "../instance.ts";
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { resolvePath } from "../render/assemble.ts";
@@ -32,6 +33,62 @@ type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>
 
 const routeModuleImport: RouteModuleImport = (specifier) =>
   import(specifier) as Promise<Record<string, unknown>>;
+
+class DevPhaseFailure extends Error {
+  readonly error: unknown;
+  readonly phase: "loader" | "render";
+
+  constructor(error: unknown, phase: "loader" | "render", options: ErrorOptions) {
+    super(`Development ${phase} phase failed`, options);
+    this.error = error;
+    this.phase = phase;
+  }
+}
+
+async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  let result: LoaderResult;
+  try {
+    result = await runLoaders(route, ctx);
+  } catch (error) {
+    // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
+    throw new DevPhaseFailure(error, "loader", { cause: error });
+  }
+  if (result.type === "error") {
+    if (result.error instanceof Response) {
+      throw new DevPhaseFailure(
+        new Error(result.message, {
+          cause: `${result.error.status} ${result.error.statusText}`,
+        }),
+        "loader",
+        { cause: result.error }
+      );
+    }
+    throw new DevPhaseFailure(result.error, "loader", { cause: result.error });
+  }
+  return result;
+}
+
+async function runDevRender(operation: () => Promise<Response>): Promise<Response> {
+  try {
+    return await operation();
+  } catch (error) {
+    // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
+    throw new DevPhaseFailure(error, "render", { cause: error });
+  }
+}
+
+function devFailure(error: unknown): {
+  error: unknown;
+  phase: "import" | "loader" | "render" | "transform";
+} {
+  if (error instanceof DevPhaseFailure) {
+    return { error: error.error, phase: error.phase };
+  }
+  if (error instanceof DevTransformFailure) {
+    return { error: error.error, phase: "transform" };
+  }
+  return { error, phase: "import" };
+}
 
 /**
  * Reuses one virtual ESM module per source version. A timestamp generated on
@@ -212,54 +269,6 @@ export function rebuildDevRoute(
   };
 }
 
-class DevPhaseFailure extends Error {
-  readonly error: unknown;
-  readonly phase: "loader" | "render";
-
-  constructor(phase: "loader" | "render", error: unknown) {
-    super(`Development ${phase} phase failed`, { cause: error });
-    this.error = error;
-    this.phase = phase;
-  }
-}
-
-async function runDevPhase<Result>(
-  phase: "loader" | "render",
-  operation: () => Promise<Result>
-): Promise<Result> {
-  try {
-    return await operation();
-  } catch (error) {
-    // biome-ignore lint/style/useErrorCause: DevPhaseFailure forwards the error to Error.cause.
-    throw new DevPhaseFailure(phase, error);
-  }
-}
-
-async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  const result = await runDevPhase("loader", () => runLoaders(route, ctx));
-  if (result.type === "error") {
-    if (result.error instanceof Response) {
-      throw new DevPhaseFailure(
-        "loader",
-        new Error(result.message, { cause: `${result.error.status} ${result.error.statusText}` })
-      );
-    }
-    throw new DevPhaseFailure("loader", result.error);
-  }
-  return result;
-}
-
-function renderDevFailure(error: unknown, phase: DevErrorPhase, route: ResolvedRoute): Response {
-  const graph = devGraph(undefined);
-  const event = publishDevError(graph, error, {
-    entryPath: route.path,
-    phase,
-    route: route.pattern,
-  });
-  console.error(`[furin] Dev ${phase} error for ${route.pattern}:`, error);
-  return renderDevErrorResponse(event, currentInstance().prefix);
-}
-
 /** @internal Handles a request in dev mode using the current source-version modules. */
 export async function handleDevRequest(
   route: ResolvedRoute,
@@ -318,35 +327,45 @@ export async function handleDevRequest(
       // Live ISR — the loader chain is short-circuited by the dev cache when
       // a fresh entry exists.  HTML re-assembles every time so the dev shell
       // chunk URL is always current.
+      let response: Response;
       if (refreshedRoute.mode === "isr") {
-        return await renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+        response = await renderDevISRWithLoaderCache(
+          refreshedRoute,
+          ctx,
+          currentRoot,
+          searchRoutes
+        );
+      } else if (refreshedRoute.mode === "ssg") {
+        response = await renderDevSSGWithLoaderCache(
+          refreshedRoute,
+          ctx,
+          currentRoot,
+          searchRoutes
+        );
+      } else {
+        const loaderResult = await runDevLoaders(refreshedRoute, ctx);
+        response = await runDevRender(() =>
+          renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
+        );
       }
-
-      // Live SSG — same trick as Live ISR, but the cache entry is forever-fresh
-      // (revalidate: Infinity) so the loader runs ONCE per cache key until a
-      // source file in its dependency chain changes.  This matches production
-      // SSG semantics ("loader runs once") in dev, instead of re-running the
-      // loader on every refresh — which would make expensive loaders (DB
-      // queries, MDX parsing, sitemap reads) painful in dev.
-      if (refreshedRoute.mode === "ssg") {
-        return await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
-      }
-
-      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
-      return await runDevPhase("render", () =>
-        renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
-      );
+      devDiagnosticStore().markReady();
+      return response;
     }
   } catch (err) {
-    if (err instanceof DevPhaseFailure) {
-      return renderDevFailure(err.error, err.phase, route);
-    }
-    return renderDevFailure(err, "import", route);
+    console.error(`[furin] Dev page load error for ${route.path}:`, err);
+    const failure = devFailure(err);
+    const event = publishDevDiagnostic(failure.error, {
+      entryPath: route.path,
+      phase: failure.phase,
+      route: route.pattern,
+    });
+    return renderDevDiagnosticResponse(event, currentInstance().prefix);
   }
-  return renderDevFailure(
-    new Error(`${route.path} does not export a valid Furin page route.`),
-    "transform",
-    route
+  // Fallback: page couldn't load — return a clear error response rather than
+  // delegating to renderSSR with an undefined page.
+  return new Response(
+    `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
+    { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 500 }
   );
 }
 
@@ -373,7 +392,7 @@ export async function renderDevISRWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return runDevPhase("render", () => renderSSR(route, ctx, root, precomputed, searchRoutes));
+    return runDevRender(() => renderSSR(route, ctx, root, precomputed, searchRoutes));
   }
 
   const result = await runDevLoaders(route, ctx);
@@ -393,7 +412,7 @@ export async function renderDevISRWithLoaderCache(
       route.tags
     );
   }
-  return runDevPhase("render", () => renderSSR(route, ctx, root, result, searchRoutes));
+  return runDevRender(() => renderSSR(route, ctx, root, result, searchRoutes));
 }
 
 /**
@@ -419,7 +438,7 @@ export async function renderDevSSGWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return runDevPhase("render", () => renderSSR(route, ctx, root, precomputed, searchRoutes));
+    return runDevRender(() => renderSSR(route, ctx, root, precomputed, searchRoutes));
   }
 
   const result = await runDevLoaders(route, ctx);
@@ -439,7 +458,7 @@ export async function renderDevSSGWithLoaderCache(
       route.tags
     );
   }
-  return runDevPhase("render", () => renderSSR(route, ctx, root, result, searchRoutes));
+  return runDevRender(() => renderSSR(route, ctx, root, result, searchRoutes));
 }
 
 /**

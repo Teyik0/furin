@@ -3,7 +3,7 @@ import {
   type DevtoolsServerEvent,
   type DevtoolsServerEventInput,
 } from "../../devtools/protocol.ts";
-import { currentInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 
 const EVENT_LIMIT = 1000;
 
@@ -32,9 +32,10 @@ export function devtoolsEventsSnapshot(): {
 
 export function subscribeDevtoolsEventsAfter(
   cursor: number,
-  listener: (event: DevtoolsServerEvent) => void
+  listener: (event: DevtoolsServerEvent) => void,
+  instance?: FurinInstance
 ): { replay: DevtoolsServerEvent[]; unsubscribe: () => void } {
-  const hub = instanceDevtoolsHub();
+  const hub = instanceDevtoolsHub(instance);
   hub.listeners.add(listener);
   return {
     replay: hub.events.filter((event) => event.id > cursor),

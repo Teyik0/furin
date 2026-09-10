@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   comparePerformanceReports,
+  formatPerformanceComparison,
   type PerformanceReport,
 } from "../../../../../scripts/compare-performance-reports.ts";
 
@@ -53,5 +54,21 @@ describe("compare-performance-reports", () => {
       label: "Initial JavaScript gzip",
       status: "fail",
     });
+  });
+
+  test("formats a report that can identify its persistent PR comment", () => {
+    const base = report({
+      initialCssGzipBytes: 10_000,
+      initialJavaScriptGzipBytes: 100_000,
+      largestLazyChunkGzipBytes: 40_000,
+      serverBinaryBytes: 50_000_000,
+      totalClientGzipBytes: 150_000,
+    });
+
+    const markdown = formatPerformanceComparison(comparePerformanceReports(base, base));
+
+    expect(markdown).toStartWith("<!-- furin-performance-report -->\n");
+    expect(markdown).toContain("## Furin performance budgets");
+    expect(markdown).toContain("All deterministic performance budgets passed.");
   });
 });

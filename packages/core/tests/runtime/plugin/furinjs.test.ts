@@ -538,14 +538,15 @@ test.serial("furin() production plugin starts from built output", async () => {
   const clientResponse = await instance.handle(
     new Request("http://furin/_furin/devtools/client.js")
   );
-  const eventsResponse = await instance.handle(new Request("http://furin/_furin/devtools/events"));
+  const removedEventsResponse = await instance.handle(
+    new Request("http://furin/_furin/devtools/events")
+  );
 
   expect(htmlResponse.status).toBe(200);
   expect(await htmlResponse.text()).not.toContain("furin-devtools");
   expect(snapshotResponse.status).toBe(404);
   expect(clientResponse.status).toBe(404);
-  expect(eventsResponse.status).toBe(404);
-  await eventsResponse.body?.cancel();
+  expect(removedEventsResponse.status).toBe(404);
 
   const server = instance.listen(0);
 

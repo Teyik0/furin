@@ -1,17 +1,15 @@
 const ELEMENT_NAME = "furin-devtools";
 const PROTOCOL_VERSION = 1;
-const DEVTOOLS_EVENT = "furin.devtools";
 const MAX_BROWSER_EVENTS = 200;
 const RUNTIME_KEY = Symbol.for("furin.devtools.runtime");
+const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
 const runtime =
   window[RUNTIME_KEY] ??
   (window[RUNTIME_KEY] = {
     cleanup: null,
-    eventSource: window.EventSource,
     fetch: window.fetch,
   });
 const nativeFetch = runtime.fetch;
-const NativeEventSource = runtime.eventSource;
 const browserState =
   runtime.browserState ??
   (runtime.browserState = {
@@ -107,7 +105,7 @@ function isSnapshot(snapshot) {
     typeof snapshot.instance.prefix === "string" &&
     isObject(snapshot.sync) &&
     typeof snapshot.sync.enabled === "boolean" &&
-    (snapshot.sync.streamPath === null || typeof snapshot.sync.streamPath === "string") &&
+    (snapshot.sync.changesPath === null || typeof snapshot.sync.changesPath === "string") &&
     Array.isArray(snapshot.events) &&
     snapshot.events.every(isServerEvent) &&
     Array.isArray(snapshot.routes) &&
@@ -226,70 +224,34 @@ function installFetchObserver() {
   };
 }
 
-function installSyncObserver(sync) {
-  if (!(sync.enabled && sync.streamPath && typeof NativeEventSource === "function")) {
+function installSyncObserver(sync, browserEvents) {
+  if (!(sync.enabled && sync.changesPath)) {
     return () => undefined;
   }
-  const syncUrl = new URL(assetUrl(sync.streamPath), window.location.href);
-  class ObservedEventSource extends NativeEventSource {
-    constructor(url, options) {
-      super(url, options);
-      const absolute = new URL(String(url), window.location.href);
-      if (absolute.origin !== syncUrl.origin || absolute.pathname !== syncUrl.pathname) {
-        return;
-      }
-      browserState.syncStatus = "connecting";
-      pushBounded(browserState.syncEvents, {
-        cursor: null,
-        timestamp: Date.now(),
-        type: "connecting",
-        url: absolute.pathname,
-      });
-      this.addEventListener("open", () => {
-        browserState.syncStatus = "connected";
-        pushBounded(browserState.syncEvents, {
-          cursor: null,
-          timestamp: Date.now(),
-          type: "connected",
-          url: absolute.pathname,
-        });
-        notifyBrowserState();
-      });
-      this.addEventListener("error", () => {
-        browserState.syncStatus = "reconnecting";
-        pushBounded(browserState.syncEvents, {
-          cursor: null,
-          timestamp: Date.now(),
-          type: "reconnecting",
-          url: absolute.pathname,
-        });
-        notifyBrowserState();
-      });
-      this.addEventListener("furin.sync", (event) => {
-        let cursor = null;
-        try {
-          const payload = JSON.parse(event.data);
-          cursor = typeof payload.cursor === "string" ? payload.cursor : null;
-        } catch {
-          cursor = null;
-        }
-        pushBounded(browserState.syncEvents, {
-          cursor,
-          timestamp: Date.now(),
-          type: "cursor",
-          url: absolute.pathname,
-        });
-        notifyBrowserState();
-      });
-      notifyBrowserState();
+  const path = assetUrl("/_furin/events");
+  browserState.syncStatus = "connecting";
+  pushBounded(browserState.syncEvents, {
+    cursor: null,
+    timestamp: Date.now(),
+    type: "connecting",
+    url: path,
+  });
+  notifyBrowserState();
+  return browserEvents.subscribe("sync", (event) => {
+    const cursor =
+      isObject(event?.data) && typeof event.data.cursor === "string" ? event.data.cursor : null;
+    if (cursor === null) {
+      return;
     }
-  }
-  window.EventSource = ObservedEventSource;
-  return () => {
-    if (window.EventSource === ObservedEventSource) {
-      window.EventSource = NativeEventSource;
-    }
-  };
+    browserState.syncStatus = "connected";
+    pushBounded(browserState.syncEvents, {
+      cursor,
+      timestamp: Date.now(),
+      type: "cursor",
+      url: path,
+    });
+    notifyBrowserState();
+  });
 }
 
 function refreshBundleEntries() {
@@ -717,15 +679,15 @@ class FurinDevtoolsElement extends HTMLElement {
       (event) =>
         `<tr><td>${statusDot(syncEventStatus(event.type))}${escapeHtml(event.type)}</td><td><code>${escapeHtml(event.cursor ?? "—")}</code></td><td>${escapeHtml(event.url)}</td><td><time>${formatTime(event.timestamp)}</time></td></tr>`
     );
-    return `<div class="page-head"><div><h1>Sync stream</h1><p>The application’s native EventSource connection and cursors.</p></div><span class="connection">${statusDot(
+    return `<div class="page-head"><div><h1>Sync events</h1><p>The shared browser event connection and durable cursors.</p></div><span class="connection">${statusDot(
       enabled ? browserState.syncStatus : "disabled"
     )}${escapeHtml(enabled ? browserState.syncStatus : "disabled")}</span></div>
       <section class="block sync-summary"><dl><div><dt>Configured</dt><dd>${
         enabled ? "yes" : "no"
-      }</dd></div><div><dt>Stream</dt><dd><code>${escapeHtml(
-        this.#snapshot.sync.streamPath ?? "—"
+      }</dd></div><div><dt>Changes</dt><dd><code>${escapeHtml(
+        this.#snapshot.sync.changesPath ?? "—"
       )}</code></dd></div><div><dt>Events</dt><dd>${events.length}</dd></div></dl></section>
-      ${table(["State", "Cursor", "Stream", "Time"], rows)}`;
+      ${table(["State", "Cursor", "Socket", "Time"], rows)}`;
   }
 
   renderBundle() {
@@ -848,8 +810,12 @@ async function start() {
     runtime.cleanup = null;
   };
   try {
+    const browserEvents = window[BROWSER_EVENTS_RUNTIME_KEY];
+    if (!browserEvents || typeof browserEvents.subscribe !== "function") {
+      throw new Error("Furin browser event transport is unavailable");
+    }
     cleanups.push(installFetchObserver());
-    cleanups.push(installSyncObserver(snapshot.sync));
+    cleanups.push(installSyncObserver(snapshot.sync, browserEvents));
     cleanups.push(installResourceObserver());
     if (!customElements.get(ELEMENT_NAME)) {
       customElements.define(ELEMENT_NAME, FurinDevtoolsElement);
@@ -861,20 +827,18 @@ async function start() {
     }
     element.setSnapshot(snapshot);
     cleanups.push(installKeyboardShortcut());
-    const source = new NativeEventSource(
-      `${assetUrl("/_furin/devtools/events")}?after=${snapshot.lastEventId}`
-    );
-    cleanups.push(() => source.close());
-    source.addEventListener(DEVTOOLS_EVENT, (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (isServerEvent(payload) && payload.instanceId === snapshot.instance.id) {
+    cleanups.push(
+      browserEvents.subscribe("devtools", (event) => {
+        const payload = event?.data;
+        if (
+          isServerEvent(payload) &&
+          payload.id > snapshot.lastEventId &&
+          payload.instanceId === snapshot.instance.id
+        ) {
           element.appendEvent(payload);
         }
-      } catch {
-        // A malformed development event must never affect the application.
-      }
-    });
+      })
+    );
     runtime.cleanup = cleanup;
   } catch (error) {
     cleanup();

@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
 import type { SyncAdapter } from "../../../src/server/sync/adapter";
-import { resolveSyncStreamPath, syncRuntimeOptions } from "../../../src/server/sync/config";
+import { resolveSyncPath, syncRuntimeOptions } from "../../../src/server/sync/config";
 import { PollingSyncNotifier } from "../../../src/server/sync/notifier";
 import { resolveSyncRuntime } from "../../../src/server/sync/runtime";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
@@ -30,10 +30,10 @@ function durableAdapter(
 }
 
 describe("sync runtime", () => {
-  test("resolves a custom stream path from an explicit runtime", () => {
+  test("resolves a custom durable path from an explicit runtime", () => {
     const adapter = durableAdapter("host-local", async () => "0");
-    const sync = { adapter, principal, streamPath: "/events" };
-    expect(resolveSyncStreamPath(sync)).toBe("/events");
+    const sync = { adapter, path: "/sync", principal };
+    expect(resolveSyncPath(sync)).toBe("/sync");
     expect(syncRuntimeOptions(sync)).toEqual({ adapter, notifier: undefined, principal });
   });
 

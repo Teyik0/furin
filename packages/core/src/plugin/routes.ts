@@ -371,10 +371,8 @@ function reportChangedSourceError(
 }
 
 function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
-  for (const watcher of state.watchers) {
-    watcher.close();
-  }
-  state.watchers = [];
+  const previousWatchers = state.watchers;
+  const nextWatchers: FSWatcher[] = [];
   const pagesDir = resolve(state.instance.pagesDir);
   const directories = new Set(
     routeDependencyPaths(state.instance)
@@ -383,16 +381,30 @@ function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
   );
   const watchDirectory = (directory: string, recursive: boolean): void => {
     const watcher = watch(directory, { recursive }, (_, filename) => {
+      if (!state.watchers.includes(watcher)) {
+        return;
+      }
       state.dirty = true;
       reportChangedSourceError(state, directory, filename);
       scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
     });
     watcher.unref();
-    state.watchers.push(watcher);
+    nextWatchers.push(watcher);
   };
-  watchDirectory(pagesDir, true);
-  for (const directory of directories) {
-    watchDirectory(directory, false);
+  try {
+    watchDirectory(pagesDir, true);
+    for (const directory of directories) {
+      watchDirectory(directory, false);
+    }
+  } catch (error) {
+    for (const watcher of nextWatchers) {
+      watcher.close();
+    }
+    throw error;
+  }
+  state.watchers = nextWatchers;
+  for (const watcher of previousWatchers) {
+    watcher.close();
   }
 }
 

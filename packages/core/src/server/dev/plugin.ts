@@ -1,41 +1,106 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
-import type { DevGraph, DevGraphEvent } from "./graph.ts";
+import type { DevDiagnosticEvent } from "../../shared/dev-diagnostics.ts";
+import { browserEventsClientScript } from "../browser-events/plugin.ts";
+import {
+  type ClientErrorReport,
+  type DevDiagnosticStore,
+  publishClientDiagnostic,
+} from "./diagnostics.ts";
+import { forbiddenDevelopmentRequest } from "./request-security.ts";
 
-type DevErrorEvent = Extract<DevGraphEvent, { type: "error" }>;
+interface EmbeddedDiagnosticState {
+  basePath: string;
+  event: Extract<DevDiagnosticEvent, { type: "error" }>;
+}
 
 let overlayClientSource: string | undefined;
 
-function clientSource(): string {
-  const sourcePath = [
-    resolve(import.meta.dir, "../../client/dev-error-overlay.js"),
-    resolve(import.meta.dir, "../src/client/dev-error-overlay.js"),
-  ].find((path) => existsSync(path));
-  if (!sourcePath) {
-    throw new Error("[furin] Development error overlay client is missing.");
+async function clientSource(): Promise<string> {
+  if (overlayClientSource !== undefined) {
+    return overlayClientSource;
   }
-  overlayClientSource ??= readFileSync(sourcePath, "utf8");
+  const path = new URL("../../client/dev-error-overlay.ts", import.meta.url);
+  const source = await Bun.file(path).text();
+  overlayClientSource = new Bun.Transpiler({ loader: "ts" }).transformSync(source, "ts");
   return overlayClientSource;
 }
 
-function eventCursor(value: string | undefined): number {
-  if (value === undefined) {
-    return 0;
+function clientErrorReport(value: unknown): ClientErrorReport | undefined {
+  if (typeof value !== "object" || value === null) {
+    return;
   }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+  const candidate = value as {
+    cause?: unknown;
+    message?: unknown;
+    phase?: unknown;
+    route?: unknown;
+    stack?: unknown;
+  };
+  if (
+    typeof candidate.message !== "string" ||
+    (candidate.phase !== "client-render" && candidate.phase !== "hydrate") ||
+    typeof candidate.route !== "string"
+  ) {
+    return;
+  }
+  return {
+    cause: typeof candidate.cause === "string" ? candidate.cause : undefined,
+    message: candidate.message,
+    phase: candidate.phase,
+    route: candidate.route,
+    stack: typeof candidate.stack === "string" ? candidate.stack : undefined,
+  };
 }
 
-function serializeForHtml(value: unknown): string {
+function serializeForHtml(value: EmbeddedDiagnosticState): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
-export function renderDevErrorResponse(event: DevErrorEvent, basePath: string): Response {
-  const clientPath = `${basePath}/_furin/dev/error-overlay.js`;
+export function createDevDiagnosticPlugin(store: DevDiagnosticStore): AnyElysia {
+  return new Elysia({ name: "furin-dev-diagnostics" })
+    .get("/_furin/dev/overlay.js", async ({ request, server }) => {
+      const forbidden = forbiddenDevelopmentRequest(request, server);
+      if (forbidden) {
+        return forbidden;
+      }
+      return new Response(await clientSource(), {
+        headers: {
+          "cache-control": "no-store",
+          "content-type": "text/javascript; charset=utf-8",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    })
+    .post("/_furin/dev/client-errors", async ({ body, request, server }) => {
+      const forbidden = forbiddenDevelopmentRequest(request, server);
+      if (forbidden) {
+        return forbidden;
+      }
+      const report = clientErrorReport(body);
+      if (!report) {
+        return new Response("Invalid client diagnostic", { status: 400 });
+      }
+      return await publishClientDiagnostic(store, report, new URL(request.url).origin);
+    });
+}
+
+export function injectDevDiagnosticClient(html: string, basePath: string): string {
+  const script = `<script data-furin-framework-module="" type="module" src="${basePath}/_furin/dev/overlay.js"></script>`;
+  if (html.includes(script)) {
+    return html;
+  }
+  return html.includes("</head>")
+    ? html.replace("</head>", `${script}</head>`)
+    : `${script}${html}`;
+}
+
+export function renderDevDiagnosticResponse(
+  event: Extract<DevDiagnosticEvent, { type: "error" }>,
+  basePath: string
+): Response {
   const state = serializeForHtml({ basePath, event });
   return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Furin development error</title></head><body><script id="__FURIN_DEV_ERROR__" type="application/json">${state}</script><script type="module" src="${clientPath}"></script></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Furin development error</title>${browserEventsClientScript(basePath)}</head><body><script id="__FURIN_DEV_DIAGNOSTIC__" type="application/json">${state}</script><script type="module" src="${basePath}/_furin/dev/overlay.js"></script></body></html>`,
     {
       headers: {
         "cache-control": "no-store",
@@ -44,36 +109,4 @@ export function renderDevErrorResponse(event: DevErrorEvent, basePath: string): 
       status: 500,
     }
   );
-}
-
-export function createDevErrorPlugin<Snapshot>(graph: DevGraph<Snapshot>): AnyElysia {
-  const subscriptions = new WeakMap<object, () => void>();
-  return new Elysia({ name: "furin-dev-errors" })
-    .get(
-      "/_furin/dev/error-overlay.js",
-      () =>
-        new Response(clientSource(), {
-          headers: {
-            "cache-control": "no-store",
-            "content-type": "text/javascript; charset=utf-8",
-            "x-content-type-options": "nosniff",
-          },
-        })
-    )
-    .ws("/_furin/dev/errors", {
-      close(ws) {
-        subscriptions.get(ws.raw)?.();
-        subscriptions.delete(ws.raw);
-      },
-      open(ws) {
-        const cursor = eventCursor(ws.data.query.after);
-        const subscription = graph.subscribe(cursor, ws.data.query.server, (event) => {
-          ws.send(JSON.stringify(event));
-        });
-        subscriptions.set(ws.raw, subscription.unsubscribe);
-        for (const event of subscription.replay) {
-          ws.send(JSON.stringify(event));
-        }
-      },
-    });
 }

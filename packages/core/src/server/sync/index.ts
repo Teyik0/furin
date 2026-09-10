@@ -1,20 +1,20 @@
 // biome-ignore-all lint/performance/noBarrelFile: sync has a small public/internal surface
 
 import {
-  getSyncStreamPath as getSyncStreamPathImplementation,
-  resolveSyncStreamPath as resolveSyncStreamPathImplementation,
-  runWithSyncStreamPath as runWithSyncStreamPathImplementation,
+  getSyncPath as getSyncPathImplementation,
+  resolveSyncPath as resolveSyncPathImplementation,
+  runWithSyncPath as runWithSyncPathImplementation,
 } from "./config.ts";
 import { PollingSyncNotifier as PollingSyncNotifierImplementation } from "./notifier.ts";
 import { furinSync as furinSyncImplementation } from "./plugin.ts";
-import { createSyncStreamPlugin as createSyncStreamPluginImplementation } from "./stream.ts";
+import { createSyncChangesPlugin as createSyncChangesPluginImplementation } from "./stream.ts";
 
-export const createSyncStreamPlugin = createSyncStreamPluginImplementation;
+export const createSyncChangesPlugin = createSyncChangesPluginImplementation;
 export const furinSync = furinSyncImplementation;
-export const getSyncStreamPath = getSyncStreamPathImplementation;
+export const getSyncPath = getSyncPathImplementation;
 export const PollingSyncNotifier = PollingSyncNotifierImplementation;
-export const resolveSyncStreamPath = resolveSyncStreamPathImplementation;
-export const runWithSyncStreamPath = runWithSyncStreamPathImplementation;
+export const resolveSyncPath = resolveSyncPathImplementation;
+export const runWithSyncPath = runWithSyncPathImplementation;
 
 export type PollingSyncNotifier = PollingSyncNotifierImplementation;
 

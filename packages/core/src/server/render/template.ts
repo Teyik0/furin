@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import type { DocumentAssets } from "../../client/document.tsx";
+import { injectBrowserEventsClient } from "../browser-events/plugin.ts";
 import { injectInstrumentationClient } from "../devtools/instrumentation.ts";
 import {
   allStateBuckets,
@@ -44,6 +45,33 @@ function attributesOf(tag: string): Map<string, string> {
   return attributes;
 }
 
+function moduleAssetsFromTemplate(template: string): {
+  entryModule: string | undefined;
+  frameworkModules: readonly string[];
+} {
+  const frameworkModules: string[] = [];
+  let entryModule: string | undefined;
+  let bunEntryFound = false;
+  for (const tag of template.match(/<script\b[^>]*>/g) ?? []) {
+    const attributes = attributesOf(tag);
+    const src = attributes.get("src");
+    if (attributes.has("data-furin-framework-module") && src !== undefined) {
+      frameworkModules.push(src);
+      continue;
+    }
+    if (attributes.get("type") !== "module" || src === undefined) {
+      continue;
+    }
+    if (tag.includes("data-bun-dev-server-script")) {
+      entryModule = src;
+      bunEntryFound = true;
+    } else if (!bunEntryFound) {
+      entryModule = src;
+    }
+  }
+  return { entryModule, frameworkModules };
+}
+
 export function documentAssetsFromTemplate(template: string): DocumentAssets {
   const stylesheets: string[] = [];
   let faviconHref: string | undefined;
@@ -58,21 +86,13 @@ export function documentAssetsFromTemplate(template: string): DocumentAssets {
     }
   }
 
-  let entryModule: string | undefined;
-  for (const tag of template.match(/<script\b[^>]*>/g) ?? []) {
-    const attributes = attributesOf(tag);
-    if (attributes.get("type") === "module" && attributes.has("src")) {
-      entryModule = attributes.get("src");
-      if (tag.includes("data-bun-dev-server-script")) {
-        break;
-      }
-    }
-  }
+  const { entryModule, frameworkModules } = moduleAssetsFromTemplate(template);
 
   return {
     buildId: template.match(BUILD_ID_META_PATTERN)?.[1],
     entryModule,
     faviconHref,
+    frameworkModules,
     staticMode: template.includes('<meta name="furin-mode" content="static">'),
     stylesheets,
   };
@@ -90,7 +110,14 @@ export async function getDevTemplate(origin: string): Promise<string> {
   if (!r.ok) {
     throw new Error(`${entryPath} returned ${r.status}`);
   }
-  const html = injectInstrumentationClient(await r.text(), instance.prefix);
+  const { injectDevDiagnosticClient } = await import("../dev/plugin.ts");
+  const html = injectDevDiagnosticClient(
+    injectInstrumentationClient(
+      injectBrowserEventsClient(await r.text(), instance.prefix),
+      instance.prefix
+    ),
+    instance.prefix
+  );
   state.devCache = { html, ts: Date.now() };
   return html;
 }

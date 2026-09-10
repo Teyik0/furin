@@ -140,6 +140,7 @@
   },
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@sinclair/typebox": "0.34.52",
     "@yuku-toolchain/types": "0.9.5",
     "magic-string": "^1.2.3",

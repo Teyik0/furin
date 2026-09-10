@@ -20,9 +20,11 @@ import type {
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { MAX_SYNC_REPLAY_RESPONSE_BYTES } from "../../../src/server/sync/response.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
-import { __resetSyncState, createSyncStreamPlugin } from "../../../src/server/sync/stream.ts";
-
-type StreamReadResult = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
+import {
+  __resetSyncState,
+  createSyncChangesPlugin,
+  subscribeSyncCursor,
+} from "../../../src/server/sync/stream.ts";
 
 const syncDatabase = new Database(":memory:");
 migrateSqliteSync(syncDatabase);
@@ -50,29 +52,6 @@ const testSync = {
   principal: ({ request }: { request: Request }) => request.headers.get("x-user") ?? "principal",
 };
 
-function readStreamChunk(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  label: string,
-  timeoutMs: number
-): Promise<StreamReadResult> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error(`Timed out waiting for ${label}`));
-    }, timeoutMs);
-
-    reader.read().then(
-      (chunk) => {
-        clearTimeout(timeout);
-        resolve(chunk);
-      },
-      (error: unknown) => {
-        clearTimeout(timeout);
-        reject(error);
-      }
-    );
-  });
-}
-
 function resetSyncTestState() {
   __resetCacheState();
   __resetSyncState();
@@ -80,7 +59,6 @@ function resetSyncTestState() {
 
 test("furinSync uses the injected adapter for reservation and atomic completion", async () => {
   const completed: CompleteMutationInput[] = [];
-  let postCommitPublications = 0;
   const lease: MutationLease = {
     id: "lease-1",
     key: "POST:/cards:injected",
@@ -96,18 +74,13 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
       return Promise.resolve({ cursor: "1", kind: "committed" });
     },
     currentCursor: () => Promise.resolve("0"),
-    notificationChannel: "furin-sync-test",
     readChanges: (_input: ReadChangesInput): Promise<ChangePage> =>
       Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("renewed"),
     scope: "distributed",
   };
   const notifier: SyncNotifier = {
-    notificationChannel: "furin-sync-test",
-    publish: () => {
-      postCommitPublications += 1;
-      return Promise.reject(new Error("notifier unavailable"));
-    },
+    publish: () => Promise.reject(new Error("notifier unavailable")),
     subscribe: () => Promise.reject(new Error("notifier unavailable")),
   };
   const app = new Elysia()
@@ -124,7 +97,6 @@ test("furinSync uses the injected adapter for reservation and atomic completion"
   expect(response.status).toBe(200);
   expect(completed).toHaveLength(1);
   expect(completed[0]?.lease).toEqual(lease);
-  expect(postCommitPublications).toBe(0);
 });
 
 test("furinSync durably preserves manual and declarative invalidations", async () => {
@@ -580,79 +552,52 @@ test("furinSync refuses oversized Response bodies without re-executing retries",
   }
 });
 
-test("furinSync SSE notification completes inside bun:test", async () => {
-  resetSyncTestState();
-  const app = new Elysia()
-    .use(createSyncStreamPlugin(testSync))
-    .use(furinSync(testSync))
-    .patch("/cards/:cardId", () => ({ ok: true }), {
-      sync: { invalidate: { path: "/board", type: "layout" } },
-    });
+test("sync changes exposes durable invalidations without retaining the legacy SSE route", async () => {
+  const cursor = "12";
+  const reads: ReadChangesInput[] = [];
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
+    completeMutation: () => Promise.resolve({ kind: "lost" }),
+    currentCursor: () => Promise.resolve(cursor),
+    readChanges: (input) => {
+      reads.push(input);
+      return Promise.resolve({
+        changes: [
+          {
+            cursor,
+            invalidations: [{ kind: "path", path: "/board", type: "layout" }],
+          },
+        ],
+        cursor,
+        hasMore: false,
+        reset: false,
+      });
+    },
+    renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
+  };
+  const app = new Elysia().use(
+    createSyncChangesPlugin({ adapter, notifier: testNotifier, principal: () => "principal" })
+  );
 
-  const streamResponse = await app.handle(new Request("http://localhost/_furin/sync"));
-  const reader = streamResponse.body?.getReader();
-  if (!reader) {
-    throw new Error("Expected stream response body");
-  }
+  const response = await app.handle(
+    new Request("http://localhost/_furin/sync/changes?after=9&limit=25")
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    changes: [{ cursor, invalidations: ["/board:layout"] }],
+    cursor,
+    hasMore: false,
+    reset: false,
+  });
+  expect(reads).toEqual([{ after: "9", limit: 25 }]);
 
-  try {
-    const connected = await readStreamChunk(reader, "SSE connection prelude", 1000);
-    expect(new TextDecoder().decode(connected.value)).toContain(": connected");
-    const initialCursor = await readStreamChunk(reader, "initial SSE cursor", 1000);
-    expect(new TextDecoder().decode(initialCursor.value)).toContain("event: furin.sync");
-    const response = await _runWithRequestInvalidationScope(() =>
-      app.handle(
-        new Request("http://localhost/cards/1", {
-          headers: { "Idempotency-Key": "direct-sse" },
-          method: "PATCH",
-        })
-      )
-    );
-    expect(response.status).toBe(200);
-    expect(response.headers.get("x-furin-revalidate")).toBe("/board:layout");
-
-    const event = await readStreamChunk(reader, "SSE invalidation event", 1000);
-    expect(new TextDecoder().decode(event.value)).toContain("event: furin.sync");
-  } finally {
-    await reader.cancel();
-    resetSyncTestState();
-  }
+  const removedStream = await app.handle(new Request("http://localhost/_furin/sync"));
+  expect(removedStream.status).toBe(404);
 });
 
-test("sync stream closes a client that does not drain its queue", async () => {
-  resetSyncTestState();
-  const app = new Elysia()
-    .use(createSyncStreamPlugin(testSync))
-    .use(furinSync(testSync))
-    .post("/slow-client", () => ({ ok: true }), {
-      sync: { invalidate: { path: "/slow-client", type: "page" } },
-    });
-  const streamResponse = await app.handle(new Request("http://localhost/_furin/sync"));
-  const reader = streamResponse.body?.getReader();
-  if (!reader) {
-    throw new Error("Expected stream response body");
-  }
-
-  try {
-    await app.handle(
-      new Request("http://localhost/slow-client", {
-        headers: { "Idempotency-Key": "slow-client" },
-        method: "POST",
-      })
-    );
-
-    const connected = await readStreamChunk(reader, "queued SSE prelude", 1000);
-    expect(new TextDecoder().decode(connected.value)).toContain(": connected");
-    const initialCursor = await readStreamChunk(reader, "queued initial cursor", 1000);
-    expect(new TextDecoder().decode(initialCursor.value)).toContain("event: furin.sync");
-    expect((await readStreamChunk(reader, "slow client closure", 1000)).done).toBe(true);
-  } finally {
-    await reader.cancel();
-    resetSyncTestState();
-  }
-});
-
-test("sync stream opens when notifier subscription fails", async () => {
+test("sync cursor polling recovers when notifier subscription fails", async () => {
   resetSyncTestState();
   const intervalDelays: number[] = [];
   const originalSetInterval = globalThis.setInterval;
@@ -660,13 +605,12 @@ test("sync stream opens when notifier subscription fails", async () => {
     intervalDelays.push(args[1] ?? 0);
     return originalSetInterval(...args);
   }) as typeof setInterval;
-  const cursor = "0";
   const adapter: SyncAdapter = {
     abortMutation: () => Promise.resolve(),
     beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
     completeMutation: () => Promise.resolve({ kind: "lost" }),
-    currentCursor: () => Promise.resolve(cursor),
-    readChanges: () => Promise.resolve({ changes: [], cursor, hasMore: false, reset: false }),
+    currentCursor: () => Promise.resolve("0"),
+    readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
     renewMutation: () => Promise.resolve("lost"),
     scope: "distributed",
   };
@@ -675,20 +619,21 @@ test("sync stream opens when notifier subscription fails", async () => {
     recovery: "self",
     subscribe: () => Promise.reject(new Error("notifier unavailable")),
   };
-  const app = new Elysia().use(
-    createSyncStreamPlugin({ adapter, notifier, principal: () => "principal" })
-  );
-  const response = await app.handle(new Request("http://localhost/_furin/sync"));
+
   try {
-    expect(response.status).toBe(200);
-    expect(intervalDelays).toEqual([250, 15_000]);
+    const subscription = await subscribeSyncCursor(
+      { adapter, notifier, principal: () => "principal" },
+      () => undefined
+    );
+    expect(intervalDelays).toEqual([250]);
+    subscription.unsubscribe();
   } finally {
     globalThis.setInterval = originalSetInterval;
     resetSyncTestState();
   }
 });
 
-test("sync stream does not poll when the notifier recovers missed notifications", async () => {
+test("sync cursor does not poll when the notifier recovers missed notifications", async () => {
   resetSyncTestState();
   const intervalDelays: number[] = [];
   const originalSetInterval = globalThis.setInterval;
@@ -714,15 +659,15 @@ test("sync stream does not poll when the notifier recovers missed notifications"
     recovery: "self",
     subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
   };
-  const app = new Elysia().use(
-    createSyncStreamPlugin({ adapter, notifier, principal: () => "principal" })
-  );
-  const response = await app.handle(new Request("http://localhost/_furin/sync"));
 
   try {
-    expect(response.status).toBe(200);
+    const subscription = await subscribeSyncCursor(
+      { adapter, notifier, principal: () => "principal" },
+      () => undefined
+    );
     expect(cursorReads).toBe(1);
-    expect(intervalDelays).toEqual([15_000]);
+    expect(intervalDelays).toEqual([]);
+    subscription.unsubscribe();
   } finally {
     globalThis.setInterval = originalSetInterval;
     resetSyncTestState();

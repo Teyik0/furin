@@ -28,8 +28,8 @@ export interface DevtoolsInstance {
 }
 
 export interface DevtoolsSyncSnapshot {
+  changesPath: string | null;
   enabled: boolean;
-  streamPath: string | null;
 }
 
 export type DevtoolsServerEvent =

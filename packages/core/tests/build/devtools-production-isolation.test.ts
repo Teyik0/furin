@@ -5,7 +5,10 @@ import { createTmpApp, type TmpApp } from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
 
 const DEVTOOLS_MARKERS = [
+  "/_furin/dev/overlay",
   "/_furin/devtools",
+  "Development source transform failed",
+  "Furin development error",
   "furin-devtools",
   "x-furin-devtools-operation-id",
   "loader.finished",

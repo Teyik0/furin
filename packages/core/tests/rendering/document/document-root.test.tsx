@@ -101,6 +101,7 @@ test.serial("the root layout owns the rendered document", async () => {
   expect(html).toContain("<title>Document route</title>");
   expect(html).toContain("<main>Rendered once</main>");
   expect(html).not.toContain('id="root"');
+  expect(html).not.toContain("furin-theme");
 });
 
 test.serial("the root layout owns the not-found document", async () => {
@@ -141,7 +142,7 @@ test.serial("a broken root layout is reported by the development overlay", async
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('id="__FURIN_DEV_DIAGNOSTIC__"');
   expect(html).toContain("root layout failed");
   expect(html).toContain('"phase":"render"');
 });
@@ -183,7 +184,7 @@ test.serial("an invalid root document is reported by the development overlay", a
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('id="__FURIN_DEV_DIAGNOSTIC__"');
   expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("data-invalid-root");
 });
@@ -204,7 +205,7 @@ test.serial("a root document without Scripts is rejected", async () => {
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('id="__FURIN_DEV_DIAGNOSTIC__"');
   expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("missing scripts");
 });
@@ -225,7 +226,7 @@ test.serial("a root document without HeadContent is rejected", async () => {
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('id="__FURIN_DEV_DIAGNOSTIC__"');
   expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("missing head content");
 });

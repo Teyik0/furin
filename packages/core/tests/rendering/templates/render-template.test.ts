@@ -22,11 +22,26 @@ afterEach(() => {
 describe.serial("render/template", () => {
   test("derives the application entry after development-only module scripts", () => {
     const assets = documentAssetsFromTemplate(
-      '<script type="module" src="/_furin/devtools/client.js"></script>' +
+      '<script data-furin-framework-module="" type="module" src="/_furin/devtools/client.js"></script>' +
+        '<script data-furin-framework-module="" type="module" src="/_furin/dev/overlay.js"></script>' +
         '<script type="module" src="/_bun/app.js"></script>'
     );
 
     expect(assets.entryModule).toBe("/_bun/app.js");
+    expect(assets.frameworkModules).toEqual([
+      "/_furin/devtools/client.js",
+      "/_furin/dev/overlay.js",
+    ]);
+  });
+
+  test("keeps framework modules injected after Bun's application entry", () => {
+    const assets = documentAssetsFromTemplate(
+      '<script type="module" src="/_bun/app.js" data-bun-dev-server-script></script>' +
+        '<script data-furin-framework-module="" type="module" src="/_furin/dev/overlay.js"></script>'
+    );
+
+    expect(assets.entryModule).toBe("/_bun/app.js");
+    expect(assets.frameworkModules).toEqual(["/_furin/dev/overlay.js"]);
   });
 
   test("getProductionTemplate returns null until a template path is set", () => {
@@ -77,7 +92,10 @@ describe.serial("render/template", () => {
       const second = await getDevTemplate(origin);
 
       expect(first).toBe(
-        '<script type="module" src="/_furin/dev/error-overlay.js"></script><script type="module" src="/_furin/devtools/client.js"></script><html>dev-template</html>'
+        '<script data-furin-framework-module="" type="module" src="/_furin/dev/overlay.js"></script>' +
+          '<script data-furin-framework-module="" type="module" src="/_furin/devtools/client.js"></script>' +
+          '<script data-furin-framework-module="" type="module" src="/_furin/events/client.js"></script>' +
+          "<html>dev-template</html>"
       );
       expect(second).toBe(first);
       // Second call within 1s TTL should hit the cache
@@ -87,7 +105,7 @@ describe.serial("render/template", () => {
     }
   }, 10_000);
 
-  test("getDevTemplate injects development clients before application scripts", async () => {
+  test("getDevTemplate injects the native DevTools client before application scripts", async () => {
     const server = Bun.serve({
       fetch() {
         return new Response(
@@ -99,19 +117,18 @@ describe.serial("render/template", () => {
 
     try {
       const html = await getDevTemplate(server.url.origin);
-      const errorOverlayIndex = html.indexOf(
-        '<script type="module" src="/_furin/dev/error-overlay.js"></script>'
+      const browserEventsIndex = html.indexOf(
+        '<script data-furin-framework-module="" type="module" src="/_furin/events/client.js"></script>'
       );
       const devtoolsIndex = html.indexOf(
-        '<script type="module" src="/_furin/devtools/client.js"></script>'
+        '<script data-furin-framework-module="" type="module" src="/_furin/devtools/client.js"></script>'
       );
       const applicationIndex = html.indexOf(
         '<script type="module" src="/_bun/client/app.js"></script>'
       );
 
-      expect(errorOverlayIndex).toBeGreaterThan(-1);
-      expect(errorOverlayIndex).toBeLessThan(devtoolsIndex);
-      expect(devtoolsIndex).toBeGreaterThan(-1);
+      expect(browserEventsIndex).toBeGreaterThan(-1);
+      expect(browserEventsIndex).toBeLessThan(devtoolsIndex);
       expect(devtoolsIndex).toBeLessThan(applicationIndex);
     } finally {
       server.stop(true);

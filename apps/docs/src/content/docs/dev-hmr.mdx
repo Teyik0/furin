@@ -395,7 +395,7 @@ edit-to-paint, and memory behavior.
 | `src/server/cache/dev-loader.ts` | Cache loader output and invalidate it by route dependencies |
 | `src/plugin/routes.ts` | Generate Elysia route trees and watch route topology |
 | `src/server/render/template.ts` | Read current Bun document assets and inject framework clients |
-| `src/server/dev/module-graph.ts` | Record application dependencies for diagnostic import chains |
+| `src/server/dev/graph.ts` | Own route snapshots, module revisions, dependency chains, and development cache state |
 | `src/server/dev/diagnostics.ts` | Classify, store, replay, and symbolicate diagnostics |
 | `src/server/dev/plugin.ts` | Expose the overlay client, client-report endpoint, and cold-error response |
 | `src/server/browser-events/plugin.ts` | Multiplex sync, diagnostics, and DevTools over one versioned WebSocket |
