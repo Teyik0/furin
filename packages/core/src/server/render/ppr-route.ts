@@ -4,6 +4,7 @@ import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-inval
 import { registerCacheInvalidator } from "../cache/registry.ts";
 import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
+import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
@@ -86,7 +87,7 @@ async function buildPublicEntry(route: ResolvedRoute, ctx: Context): Promise<Cac
   return {
     generatedAt: Date.now(),
     publicResult: result,
-    revalidate: route.page._route.revalidate ?? 60,
+    revalidate: resolveRouteRevalidate(route.page) ?? 60,
   };
 }
 

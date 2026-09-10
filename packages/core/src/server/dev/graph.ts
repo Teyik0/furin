@@ -62,7 +62,11 @@ type DevModuleImporter<Module> = (specifier: string) => Promise<Module>;
 
 const EVENT_LIMIT = 100;
 
-function resolveSourceImports(source: string, path: string, loader: "js" | "jsx" | "ts" | "tsx") {
+export function resolveDevSourceImports(
+  source: string,
+  path: string,
+  loader: "js" | "jsx" | "ts" | "tsx"
+) {
   const imports: string[] = [];
   const transpiler = new Bun.Transpiler({ loader });
   for (const imported of transpiler.scanImports(source)) {
@@ -115,7 +119,7 @@ export class DevGraph<Snapshot> {
   readonly #state = new Map<symbol, unknown>();
   readonly #modulePaths = new Set<string>();
   readonly #moduleRevisions = new Map<string, DevModuleRevision>();
-  readonly #sourceErrors = new Map<string, DevSourcePosition>();
+  readonly #sourceErrors = new Map<string, Map<string, DevSourcePosition>>();
   #eventSequence = 0;
   #revision = 0;
   #snapshot: Snapshot;
@@ -166,7 +170,7 @@ export class DevGraph<Snapshot> {
       }
       try {
         const source = readFileSync(path, "utf8");
-        const { imports, transpiler } = resolveSourceImports(source, path, loader);
+        const { imports, transpiler } = resolveDevSourceImports(source, path, loader);
         this.recordImports(path, imports);
         try {
           transpiler.transformSync(source, loader);
@@ -249,11 +253,24 @@ export class DevGraph<Snapshot> {
   }
 
   recordSourceError(message: string, position: DevSourcePosition): void {
-    this.#sourceErrors.set(message, position);
+    let positions = this.#sourceErrors.get(message);
+    if (!positions) {
+      positions = new Map();
+      this.#sourceErrors.set(message, positions);
+    }
+    positions.set(position.file, position);
   }
 
-  sourceError(message: string): DevSourcePosition | undefined {
-    return this.#sourceErrors.get(message);
+  sourceError(message: string, entryPath: string): DevSourcePosition | undefined {
+    const positions = this.#sourceErrors.get(message);
+    if (!positions) {
+      return;
+    }
+    for (const position of positions.values()) {
+      if (this.importChain(entryPath, position.file).includes(position.file)) {
+        return position;
+      }
+    }
   }
 
   invalidateModules(): void {
@@ -261,13 +278,7 @@ export class DevGraph<Snapshot> {
   }
 
   sourceVersion(path: string): string {
-    let fingerprint: string;
-    try {
-      const stats = statSync(path, { bigint: true });
-      fingerprint = `${stats.mtimeNs}:${stats.size}:${this.#sourceGeneration}`;
-    } catch {
-      fingerprint = `missing:${this.#sourceGeneration}`;
-    }
+    const fingerprint = this.#sourceFingerprint(path, new Set());
     const current = this.#moduleRevisions.get(path);
     if (current?.fingerprint === fingerprint) {
       return String(current.revision);
@@ -275,6 +286,24 @@ export class DevGraph<Snapshot> {
     const revision = (current?.revision ?? 0) + 1;
     this.#moduleRevisions.set(path, { fingerprint, revision });
     return String(revision);
+  }
+
+  #sourceFingerprint(path: string, visited: Set<string>): string {
+    if (visited.has(path)) {
+      return path;
+    }
+    visited.add(path);
+    let ownFingerprint: string;
+    try {
+      const stats = statSync(path, { bigint: true });
+      ownFingerprint = `${stats.mtimeNs}:${stats.size}:${this.#sourceGeneration}`;
+    } catch {
+      ownFingerprint = `missing:${this.#sourceGeneration}`;
+    }
+    const dependencies = [...(this.#dependencies.get(path) ?? [])]
+      .toSorted((left, right) => left.localeCompare(right))
+      .map((dependency) => this.#sourceFingerprint(dependency, visited));
+    return `${path}:${ownFingerprint}:${dependencies.join(",")}`;
   }
 
   state<Value>(key: symbol, initialize: () => Value): Value {
@@ -291,8 +320,9 @@ export class DevGraph<Snapshot> {
     listener: (event: DevGraphEvent) => void
   ): { replay: DevGraphEvent[]; unsubscribe: () => void } {
     this.#listeners.add(listener);
+    const cursor = after > this.#eventSequence ? 0 : after;
     return {
-      replay: this.#events.filter((event) => event.id > after),
+      replay: this.#events.filter((event) => event.id > cursor),
       unsubscribe: () => {
         this.#listeners.delete(listener);
       },
@@ -312,7 +342,11 @@ export class DevGraph<Snapshot> {
       this.#events.shift();
     }
     for (const listener of this.#listeners) {
-      listener(complete);
+      try {
+        listener(complete);
+      } catch {
+        // A closing development socket must not abort an atomic graph commit.
+      }
     }
     return complete;
   }

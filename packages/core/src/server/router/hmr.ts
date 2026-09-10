@@ -238,6 +238,12 @@ async function runDevPhase<Result>(
 async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
   const result = await runDevPhase("loader", () => runLoaders(route, ctx));
   if (result.type === "error") {
+    if (result.error instanceof Response) {
+      throw new DevPhaseFailure(
+        "loader",
+        new Error(result.message, { cause: `${result.error.status} ${result.error.statusText}` })
+      );
+    }
     throw new DevPhaseFailure("loader", result.error);
   }
   return result;

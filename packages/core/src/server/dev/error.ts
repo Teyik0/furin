@@ -21,7 +21,7 @@ interface SourcePosition {
   line: number;
 }
 
-const STACK_POSITION_RE = /(?:^|[\s(])((?:file:\/\/)?[^()\s]+):(\d+):(\d+)\)?$/;
+const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/)?\S+):(\d+):(\d+)\)?$/;
 const DEV_PAGE_PREFIX_RE = /^furin-dev-page:/;
 const QUERY_RE = /\?.*$/;
 
@@ -131,7 +131,7 @@ export function publishDevError<Snapshot>(
   const sourceError =
     context.phase === "import" || context.phase === "transform"
       ? (graph.diagnoseTransformError(context.entryPath, payload.message) ??
-        graph.sourceError(payload.message))
+        graph.sourceError(payload.message, context.entryPath))
       : undefined;
   if (sourceError) {
     payload.column = sourceError.column;

@@ -10,7 +10,7 @@ import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
 import { publishDevError } from "./server/dev/error.ts";
 import { type DevelopmentRouteSnapshot, devGraph } from "./server/dev/graph.ts";
-import { createDevErrorPlugin, renderDevErrorResponse } from "./server/dev/plugin.ts";
+import { createDevErrorPlugin } from "./server/dev/plugin.ts";
 import {
   createInstrumentationPlugin,
   instrumentationLoggerExclusions,
@@ -639,11 +639,14 @@ export async function furin({
     };
     applyRouteConfigAutofix();
 
-    const { furinShell: nativeRoutesApp } = (await import(routeModuleSpecifier(routeInstance))) as {
-      furinShell: AnyElysia;
-    };
-    const { root, routes } = await loadDevelopmentRoutes(resolvedPagesDir);
     const graph = devGraph(instance);
+    const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
+      const { furinShell } = (await import(routeModuleSpecifier(routeInstance))) as {
+        furinShell: AnyElysia;
+      };
+      const loaded = await loadDevelopmentRoutes(resolvedPagesDir);
+      return { nativeRoutesApp: furinShell, ...loaded };
+    });
     const initialSnapshot = createDevelopmentRouteSnapshot(prefix, root, routes);
     nativeRouteRendererRegistry().set(instance, (context) => graph.snapshot?.render(context));
 
@@ -682,6 +685,7 @@ export async function furin({
             route: "*",
           });
           console.error("[furin] Failed to compile development routes", error);
+          throw error;
         }
       });
     const devHtmlBundle = (await import(join(furinDir, "index.html"))).default;
@@ -734,8 +738,7 @@ export async function furin({
       // bundle is also present in serve.routes once request hooks are installed.
       .use(await staticPlugin({ assets: furinDir, bunFullstack: true, prefix: "/_bun_hmr_entry" }))
       .use(loggerPlugin)
-      .onError(async ({ code, error, request, server }) => {
-        const { pathname } = new URL(request.url);
+      .onError(async ({ code, request, server }) => {
         if (code === "NOT_FOUND") {
           return await renderRootNotFound(
             graph.snapshot?.root ?? root,
@@ -743,18 +746,6 @@ export async function furin({
             server?.url.origin
           );
         }
-        const { snapshot } = graph;
-        const routePath =
-          prefix !== "" && pathname.startsWith(prefix)
-            ? pathname.slice(prefix.length) || "/"
-            : pathname;
-        const route = snapshot ? buildRouteMatcher(snapshot.routes)(routePath)?.route : undefined;
-        const event = publishDevError(graph, error, {
-          entryPath: route?.path ?? snapshot?.root.path ?? root.path,
-          phase: "import",
-          route: route?.pattern ?? routePath,
-        });
-        return renderDevErrorResponse(event, prefix);
       })
       .onAfterHandle(({ set }) => {
         // Forward pending revalidation paths so the client can bust its prefetch cache

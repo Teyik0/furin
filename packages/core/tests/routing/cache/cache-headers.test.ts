@@ -65,6 +65,10 @@ assertEqual(response.headers.get("cache-tag"), "/isr-page", "ISR cache-tag shoul
     (configured.headers.get("cache-control") ?? "").includes("stale-while-revalidate=17"),
     "ISR Cache-Control should preserve a non-default route revalidate value"
   );
+  assert(
+    (configured.headers.get("cache-control") ?? "").includes("s-maxage=17"),
+    "ISR shared max-age should preserve a non-default route revalidate value"
+  );
 }
 
 response = await routeResponse("/isr-page", "testbuild");

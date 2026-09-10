@@ -81,6 +81,27 @@ test("dev error WebSocket replays errors and publishes successful revisions", as
   }
 });
 
+test("a cursor from a restarted dev graph replays its current events", () => {
+  const graph = new DevGraph<null>(null);
+  graph.publishError({
+    cause: null,
+    column: null,
+    file: "src/pages/index.tsx",
+    importChain: ["src/pages/index.tsx"],
+    line: null,
+    message: "broken after restart",
+    phase: "import",
+    route: "/",
+    stack: null,
+  });
+
+  const subscription = graph.subscribe(42, () => undefined);
+
+  expect(subscription.replay).toHaveLength(1);
+  expect(subscription.replay[0]?.type).toBe("error");
+  subscription.unsubscribe();
+});
+
 test("the overlay client captures hydration failures", async () => {
   const graph = new DevGraph<null>(null);
   const app = new Elysia().use(createDevErrorPlugin(graph));
@@ -91,5 +112,6 @@ test("the overlay client captures hydration failures", async () => {
   expect(response.status).toBe(200);
   expect(source).toContain('"furin:hydrate-error"');
   expect(source).toContain('phase: "hydrate"');
-  expect(source).toContain('window.addEventListener("unhandledrejection"');
+  expect(source).toContain("sessionStorage");
+  expect(source).not.toContain('window.addEventListener("unhandledrejection"');
 });

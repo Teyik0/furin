@@ -95,18 +95,19 @@ const DEV_LOADER_STATE = Symbol.for("@teyik0/furin/dev-loader-state");
 // instance's DevGraph so module revisions and loader data share one lifetime.
 function instanceDevLoaderState(instance: FurinInstance | undefined): DevLoaderState {
   const target = instance ?? currentInstance();
-  return devGraph(target).state(DEV_LOADER_STATE, () => {
+  const state = devGraph(target).state<DevLoaderState>(DEV_LOADER_STATE, () => {
     const sourceFileToCacheKeys = new Map<string, Set<string>>();
     const isrCache = createDevLoaderCache("render:dev-isr-loader", sourceFileToCacheKeys);
     const ssgCache = createDevLoaderCache("render:dev-ssg-loader", sourceFileToCacheKeys);
-    registerCacheInvalidator(isrCache, target);
-    registerCacheInvalidator(ssgCache, target);
     return {
       isr: { cache: isrCache, kind: "isr" },
       sourceFileToCacheKeys,
       ssg: { cache: ssgCache, kind: "ssg" },
     };
   });
+  registerCacheInvalidator(state.isr.cache, target);
+  registerCacheInvalidator(state.ssg.cache, target);
+  return state;
 }
 
 function emitCacheAccess(

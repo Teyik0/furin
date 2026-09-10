@@ -41,6 +41,18 @@ function failingLoaderSource(): string {
   ].join("\n");
 }
 
+function failingResponseLoaderSource(): string {
+  return [
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { route as rootRoute } from "./root";',
+    "",
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    '  .loader(() => { throw new Response("response exploded", { status: 500, statusText: "Upstream" }); })',
+    "  .page(() => <main>Response loader failure</main>);",
+  ].join("\n");
+}
+
 function failingRenderSource(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
@@ -84,6 +96,25 @@ function waitForSocketEvent(
     };
     socket.addEventListener("message", onMessage);
   });
+}
+
+async function waitForDevError(
+  port: number,
+  message: string
+): Promise<{ response: Response; state: EmbeddedErrorState }> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await fetch(`http://localhost:${port}/`);
+    const html = await response.text();
+    const stateMatch = DEV_ERROR_STATE_RE.exec(html);
+    if (response.status === 500 && stateMatch?.[1]) {
+      const state = JSON.parse(stateMatch[1]) as EmbeddedErrorState;
+      if (state.event.error.message === message) {
+        return { response, state };
+      }
+    }
+    await Bun.sleep(250);
+  }
+  throw new Error(`Timed out waiting for development error: ${message}`);
 }
 
 describe.serial("dev error pipeline", () => {
@@ -172,20 +203,25 @@ describe.serial("dev error pipeline", () => {
     expect(recovered).toContain("Healthy again");
 
     writeAppFile(app.path, "src/pages/index.tsx", failingLoaderSource());
-    const loaderResponse = await fetch(`http://localhost:${port}/`);
-    const loaderHtml = await loaderResponse.text();
-    const loaderStateMatch = DEV_ERROR_STATE_RE.exec(loaderHtml);
-    const loaderState = JSON.parse(loaderStateMatch?.[1] ?? "{}") as EmbeddedErrorState;
+    const { response: loaderResponse, state: loaderState } = await waitForDevError(
+      port,
+      "loader exploded"
+    );
     expect(loaderResponse.status).toBe(500);
     expect(loaderState.event.error.phase).toBe("loader");
     expect(loaderState.event.error.message).toBe("loader exploded");
     expect(loaderState.event.error.cause).toBe("upstream");
 
+    writeAppFile(app.path, "src/pages/index.tsx", failingResponseLoaderSource());
+    const { state: responseLoaderState } = await waitForDevError(port, "response exploded");
+    expect(responseLoaderState.event.error.phase).toBe("loader");
+    expect(responseLoaderState.event.error.cause).toBe("500 Upstream");
+
     writeAppFile(app.path, "src/pages/index.tsx", failingRenderSource());
-    const renderResponse = await fetch(`http://localhost:${port}/`);
-    const renderHtml = await renderResponse.text();
-    const renderStateMatch = DEV_ERROR_STATE_RE.exec(renderHtml);
-    const renderState = JSON.parse(renderStateMatch?.[1] ?? "{}") as EmbeddedErrorState;
+    const { response: renderResponse, state: renderState } = await waitForDevError(
+      port,
+      "render exploded"
+    );
     expect(renderResponse.status).toBe(500);
     expect(renderState.event.error.phase).toBe("render");
     expect(renderState.event.error.message).toBe("render exploded");
@@ -196,10 +232,10 @@ describe.serial("dev error pipeline", () => {
       'throw new Error("component module exploded");\nexport function BrokenCard() { return <aside />; }'
     );
     writeAppFile(app.path, "src/pages/index.tsx", importedComponentPageSource());
-    const importResponse = await fetch(`http://localhost:${port}/`);
-    const importHtml = await importResponse.text();
-    const importStateMatch = DEV_ERROR_STATE_RE.exec(importHtml);
-    const importState = JSON.parse(importStateMatch?.[1] ?? "{}") as EmbeddedErrorState;
+    const { response: importResponse, state: importState } = await waitForDevError(
+      port,
+      "component module exploded"
+    );
     expect(importResponse.status).toBe(500);
     expect(importState.event.error.phase).toBe("import");
     expect(importState.event.error.file).toContain("src/components/broken-card.tsx");

@@ -103,8 +103,12 @@ test("the dev topology watcher reports source transform errors", async () => {
   writeFileSync(routePath, "export const route = 1;\n");
 
   const sourceErrors: Array<{ error: unknown; sourcePath: string }> = [];
+  let touchedRouteFiles = 0;
   const watcher = registerDevRouteTopologyWatcher({
     instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+    },
     onSourceError: (error, sourcePath) => {
       sourceErrors.push({ error, sourcePath });
     },
@@ -112,6 +116,8 @@ test("the dev topology watcher reports source transform errors", async () => {
   });
 
   try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    await waitForCount(() => touchedRouteFiles, 1);
     writeFileSync(routePath, "export const route = ;\n");
     await waitForCount(() => sourceErrors.length, 1);
 

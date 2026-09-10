@@ -285,10 +285,10 @@ function routeDependencyPaths(instance: RouteInstanceSpec): string[] {
 
 function routeFilesSignature(instance: RouteInstanceSpec): string {
   return routeDependencyPaths(instance)
-    .toSorted((left, right) => left.localeCompare(right))
     .map((path) => {
       try {
-        return `${path}:${Bun.hash(readFileSync(path))}`;
+        const stats = statSync(path, { bigint: true });
+        return `${path}:${stats.mtimeNs}:${stats.size}`;
       } catch {
         return `${path}:missing`;
       }
@@ -307,6 +307,9 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
 }
 
 async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void> {
+  if (state.closed) {
+    return;
+  }
   if (state.refreshing) {
     state.pending = true;
     return;
@@ -322,13 +325,17 @@ async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promis
       if (dirty || signature !== state.routeFilesSignature) {
         await state.onRouteFilesTouched?.();
         state.routeFilesSignature = routeFilesSignature(state.instance);
-        replaceSourceWatchers(state);
+        if (!state.closed) {
+          replaceSourceWatchers(state);
+        }
       }
     } else {
       await state.onTopologyChange();
       state.source = routeTopologySource(state.instance);
       state.routeFilesSignature = routeFilesSignature(state.instance);
-      replaceSourceWatchers(state);
+      if (!state.closed) {
+        replaceSourceWatchers(state);
+      }
     }
   } catch (error) {
     console.error("[furin] Failed to refresh route topology", error);
@@ -336,7 +343,7 @@ async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promis
     scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
   } finally {
     state.refreshing = false;
-    if (state.pending) {
+    if (state.pending && !state.closed) {
       await refreshRouteTopology(state);
     }
   }

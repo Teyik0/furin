@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DevGraph } from "../../../src/server/dev/graph.ts";
 
 interface TestSnapshot {
@@ -61,4 +64,40 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
     modules: 1,
     revision: 1,
   });
+});
+
+test("DevGraph versions an entry when a transitive dependency changes", () => {
+  const directory = mkdtempSync(join(tmpdir(), "furin-dev-graph-"));
+  const entryPath = join(directory, "page.tsx");
+  const dependencyPath = join(directory, "component.tsx");
+  writeFileSync(entryPath, "export const page = true;\n");
+  writeFileSync(dependencyPath, "export const value = 1;\n");
+  const graph = new DevGraph<null>(null);
+  graph.recordImports(entryPath, [dependencyPath]);
+
+  try {
+    const first = graph.sourceVersion(entryPath);
+    writeFileSync(dependencyPath, "export const value = 22;\n");
+    const second = graph.sourceVersion(entryPath);
+
+    expect(first).toBe("1");
+    expect(second).toBe("2");
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("DevGraph listeners cannot interrupt a snapshot commit", () => {
+  const graph = new DevGraph({ value: "initial" });
+  let received = false;
+  graph.subscribe(0, () => {
+    throw new Error("socket closed");
+  });
+  graph.subscribe(0, () => {
+    received = true;
+  });
+
+  expect(() => graph.commit({ value: "ready" })).not.toThrow();
+  expect(graph.snapshot).toEqual({ value: "ready" });
+  expect(received).toBe(true);
 });

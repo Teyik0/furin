@@ -10,8 +10,19 @@ const state = {
   basePath: initialState.basePath ?? inferredBasePath,
   event: initialState.event ?? null,
 };
+const cursorKey = `__furin_dev_error_cursor__:${state.basePath}`;
+
+function storedEventId() {
+  const parsed = Number.parseInt(sessionStorage.getItem(cursorKey) || "0", 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function rememberEventId(id) {
+  sessionStorage.setItem(cursorKey, String(id));
+}
+
 let currentEvent = state.event;
-let latestEventId = currentEvent?.id ?? 0;
+let latestEventId = Math.max(currentEvent?.id ?? 0, storedEventId());
 let latestRevision = currentEvent?.revision ?? 0;
 let host;
 let root;
@@ -188,6 +199,7 @@ function connect() {
       return;
     }
     latestEventId = event.id;
+    rememberEventId(latestEventId);
     latestRevision = event.revision;
     if (event.type === "ready" && currentEvent && event.revision > currentEvent.revision) {
       window.location.reload();
@@ -202,9 +214,6 @@ function connect() {
 
 window.addEventListener("furin:hydrate-error", (event) => {
   renderHydrationError(event.detail);
-});
-window.addEventListener("unhandledrejection", (event) => {
-  renderHydrationError(event.reason);
 });
 
 if (currentEvent) {
