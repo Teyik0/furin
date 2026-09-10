@@ -130,5 +130,6 @@ test("the overlay client captures hydration failures", async () => {
   expect(source).toContain('phase: "hydrate"');
   expect(source).toContain("sessionStorage");
   expect(source).toContain("serverId");
+  expect(source).toContain("event.serverId !== currentEvent.serverId");
   expect(source).not.toContain('window.addEventListener("unhandledrejection"');
 });

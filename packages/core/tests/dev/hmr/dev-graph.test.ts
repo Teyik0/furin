@@ -49,6 +49,7 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
     "C:/app/page.tsx",
     "C:/app/component.tsx",
   ]);
+  expect(graph.dependsOn("C:/app/page.tsx", "C:\\app\\component.tsx")).toBe(true);
 
   graph.publishError({
     cause: "dependency failed",

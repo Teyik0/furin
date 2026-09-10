@@ -256,6 +256,11 @@ export class DevGraph<Snapshot> {
     return [normalizedFrom];
   }
 
+  dependsOn(from: string, to: string): boolean {
+    const normalizedTo = normalizeModulePath(to);
+    return this.importChain(from, normalizedTo).includes(normalizedTo);
+  }
+
   publishError(error: DevErrorPayload): Extract<DevGraphEvent, { type: "error" }> {
     const latest = this.#events.at(-1);
     if (latest?.type === "error" && JSON.stringify(latest.error) === JSON.stringify(error)) {
@@ -287,7 +292,7 @@ export class DevGraph<Snapshot> {
       return;
     }
     for (const position of positions.values()) {
-      if (this.importChain(entryPath, position.file).includes(position.file)) {
+      if (this.dependsOn(entryPath, position.file)) {
         return position;
       }
     }

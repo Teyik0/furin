@@ -361,7 +361,7 @@ function rethrowWithSourcePath(error: unknown, filePath: string): never {
   for (const graph of developmentGraphs()) {
     graph.recordSourceError(message, sourcePosition);
     const route = graph.snapshot?.routes.find((candidate) =>
-      graph.importChain(candidate.path, filePath).includes(filePath)
+      graph.dependsOn(candidate.path, filePath)
     );
     if (!route && graph.snapshot?.root.path !== filePath) {
       continue;

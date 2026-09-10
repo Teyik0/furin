@@ -212,7 +212,11 @@ function connect() {
     latestRevision = event.revision;
     latestServerId = event.serverId;
     rememberEvent(event);
-    if (event.type === "ready" && currentEvent && event.revision > currentEvent.revision) {
+    if (
+      event.type === "ready" &&
+      currentEvent &&
+      (event.serverId !== currentEvent.serverId || event.revision > currentEvent.revision)
+    ) {
       window.location.reload();
       return;
     }

@@ -710,7 +710,7 @@ export async function furin({
           },
           onSourceError: (error, sourcePath) => {
             const route = graph.snapshot?.routes.find((candidate) =>
-              graph.importChain(candidate.path, sourcePath).includes(sourcePath)
+              graph.dependsOn(candidate.path, sourcePath)
             );
             publishDevError(graph, error, {
               entryPath: route?.path ?? sourcePath,
