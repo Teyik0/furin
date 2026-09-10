@@ -63,9 +63,11 @@ test("invalid browser diagnostics are rejected", async () => {
 
 test("reconciles route diagnostics before publishing a browser error", async () => {
   const store = new DevDiagnosticStore();
+  let reconciliationCount = 0;
   renderFailure(store);
   const app = new Elysia().use(
     createDevDiagnosticPlugin(store, undefined, () => {
+      reconciliationCount += 1;
       expect(store.markReady("/dashboard")).toBeDefined();
       return Promise.resolve();
     })
@@ -86,6 +88,7 @@ test("reconciles route diagnostics before publishing a browser error", async () 
   const subscription = store.subscribe(0, undefined, () => undefined);
 
   expect(response.status).toBe(200);
+  expect(reconciliationCount).toBe(1);
   expect(event).toMatchObject({
     diagnostic: { message: "client render exploded" },
     type: "error",

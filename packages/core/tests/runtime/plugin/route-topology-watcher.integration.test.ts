@@ -177,7 +177,11 @@ test("the dev topology watcher migrates state retained across a soft reload", as
     if (!(registry instanceof Map)) {
       throw new Error("Expected the global development watcher registry");
     }
-    const state = [...registry.values()][0] as { changedSources?: Set<string> } | undefined;
+    const states = [...registry.values()] as Array<{
+      changedSources?: Set<string>;
+      instance?: { pagesDir?: string };
+    }>;
+    const state = states.find((candidate) => candidate.instance?.pagesDir === pagesDir);
     if (!state) {
       throw new Error("Expected retained development watcher state");
     }
