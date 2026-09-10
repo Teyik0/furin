@@ -493,4 +493,12 @@ describe("generateHydrateEntry — HMR hardening", () => {
     // anyway, so the IIFE itself handles both mount and re-render paths.
     expect(code).not.toContain("import.meta.hot.accept(() => {");
   });
+
+  test("reloads after the native HMR WebSocket reconnects", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain('import.meta.hot.on("bun:ws:disconnect"');
+    expect(code).toContain('import.meta.hot.on("bun:ws:connect"');
+    expect(code).toContain("window.location.reload();");
+  });
 });

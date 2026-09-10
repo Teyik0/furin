@@ -98,14 +98,14 @@ describe.serial("task-manager production E2E", () => {
       "the task-manager server",
       SERVER_READY_TIMEOUT_MS
     );
-  });
+  }, 15_000);
 
   afterAll(async () => {
     server?.kill();
     await server?.exited;
     await Promise.allSettled([stdoutOutput, stderrOutput]);
     rmSync(workingDirectory, { force: true, recursive: true });
-  });
+  }, 15_000);
 
   test("a synced board mutation reaches SSE, the durable journal, and the invalidated ISR page", async () => {
     const boardName = `E2E board ${crypto.randomUUID()}`;

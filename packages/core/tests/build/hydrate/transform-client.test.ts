@@ -28,6 +28,204 @@ export const route = defineRoute()
     expect(result.removedServerCode).toBe(true);
   });
 
+  test("annotates route components with their client hook signature", () => {
+    const result = transformForClient(
+      `import { useRef, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+  const ref = useRef(null);
+  const [count] = useState(0);
+  return <output ref={ref}>{count}</output>;
+}
+export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('Symbol.for("furin.hmr.hook-signature")');
+    expect(result.code).toContain('["useRef{ref}","useState{[count](0)}"]');
+    expect(result.code).not.toContain("useServerValue");
+  });
+
+  test("limits the hook signature to the route component", () => {
+    const result = transformForClient(
+      `import { useEffect, useMemo, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Helper() {
+  useEffect(() => undefined, []);
+}
+function Child() {
+  useMemo(() => 1, []);
+  return null;
+}
+function Page() {
+  const [count] = useState(0);
+  return <Child>{count}</Child>;
+}
+export const route = defineRoute().page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('["useState{[count](0)}"]');
+    expect(result.code).not.toContain('["useEffect","useMemo","useState"]');
+  });
+
+  test("changes the hook signature when same-named hook callsites are reordered", () => {
+    const transform = (declarations: string) =>
+      transformForClient(
+        `import { useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+${declarations}
+  return null;
+}
+export const route = defineRoute().page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string[] => {
+      const value = code.match(/value: (\[[^\n]+\])/u)?.[1];
+      if (!value) {
+        throw new Error("Expected an emitted hook signature");
+      }
+      return JSON.parse(value) as string[];
+    };
+
+    const first = signature(
+      transform('  const [first] = useState("first");\n  const [second] = useState("second");')
+    );
+    const reordered = signature(
+      transform('  const [second] = useState("second");\n  const [first] = useState("first");')
+    );
+
+    expect(first).toEqual(['useState{[first]("first")}', 'useState{[second]("second")}']);
+    expect(reordered).not.toEqual(first);
+  });
+
+  test("renders an imported route component through React Fast Refresh", () => {
+    const route = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { ImportedPage } from "../components/imported-page";
+export const route = defineRoute().page(ImportedPage);`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain(
+      "import.meta.hot ? (props) => __furinCreateElement(ImportedPage, props) : ImportedPage"
+    );
+    expect(route.code).toContain("value: []");
+  });
+
+  test("avoids collisions with the injected React helper binding", () => {
+    const route = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { Page } from "../components/page";
+const __furinCreateElement = "existing";
+export const route = defineRoute().page(Page);`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain(
+      'import { createElement as __furinCreateElement_1 } from "react"'
+    );
+    expect(route.code).toContain(
+      "import.meta.hot ? (props) => __furinCreateElement_1(Page, props) : Page"
+    );
+  });
+
+  test("renders an imported namespace route component through React Fast Refresh", () => {
+    const route = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import * as Pages from "../components/pages";
+export const route = defineRoute().page(Pages.Page);`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain(
+      "import.meta.hot ? (props) => __furinCreateElement(Pages.Page, props) : Pages.Page"
+    );
+    expect(route.code).toContain("value: []");
+  });
+
+  test("collects hooks from an inline memo route component", () => {
+    const route = transformForClient(
+      `import { memo, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute().page(memo(function Page() {
+  const [count] = useState(0);
+  return <output>{count}</output>;
+}));`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain('value: ["useState{[count](0)}"]');
+  });
+
+  test("recognizes a React default imported through a named specifier", () => {
+    const route = transformForClient(
+      `import { default as React, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute().page(React.memo(function Page() {
+  const [count] = useState(0);
+  return <output>{count}</output>;
+}));`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain('value: ["useState{[count](0)}"]');
+  });
+
+  test.each(["forwardRef", "memo"])(
+    "collects hooks from a named route component passed to %s",
+    (wrapper) => {
+      const route = transformForClient(
+        `import { ${wrapper}, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+  const [count] = useState(0);
+  return <output>{count}</output>;
+}
+export const route = defineRoute().page(${wrapper}(Page));`,
+        "/app/pages/index.tsx"
+      );
+
+      expect(route.code).toContain('value: ["useState{[count](0)}"]');
+    }
+  );
+
+  test("resolves the route component binding in module scope", () => {
+    const route = transformForClient(
+      `import { useEffect } from "react";
+import { defineRoute } from "@teyik0/furin";
+import { Page } from "../components/page";
+function helper() {
+  function Page() {
+    useEffect(() => undefined, []);
+    return null;
+  }
+  return Page;
+}
+export const route = defineRoute().page(Page);`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain(
+      "import.meta.hot ? (props) => __furinCreateElement(Page, props) : Page"
+    );
+    expect(route.code).not.toContain('value: ["useEffect{}"]');
+  });
+
+  test("does not inject route HMR code when a module only imports the route builder", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+export function helper() {
+  return defineRoute;
+}`,
+      "helper.ts"
+    );
+
+    expect(result.code).not.toContain("route.component");
+    expect(result.code).not.toContain("import.meta.hot.accept");
+  });
+
   test.each(["furin", "@teyik0/furin"])("rewrites separate document imports from %s", (moduleName) => {
     const result = transformForClient(
       `import { HeadContent as Head, Scripts } from "${moduleName}";
@@ -81,6 +279,19 @@ export const route = defineRoute()
 
     expect(result.code).toContain('import { Page } from "./feature"');
     expect(result.code).not.toContain("loaderOnly");
+  });
+
+  test("preserves a CSS module binding referenced by JSX", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import styles from "./styles.module.css";
+const Page = () => <main className={styles.color}>CSS module</main>;
+export const route = defineRoute().config({ mode: "ssr" }).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('import styles from "./styles.module.css"');
+    expect(result.code).toContain("className={styles.color}");
   });
 
   test("does not transform a shadowed local factory", () => {

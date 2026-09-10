@@ -37,6 +37,7 @@ import {
   buildElement,
   buildErrorElement,
   buildNotFoundElement,
+  errorMessageForRender,
   wrapRootLayout,
 } from "./element.tsx";
 import {
@@ -89,6 +90,8 @@ export interface PreparedRender {
   element: ReactNode;
   /** Set when the prepared element is an error UI. */
   errorDigest?: string;
+  /** Public message rendered by the server error UI and serialized for hydration. */
+  errorMessage?: string;
   headData: HeadOptions | undefined;
   headers: Record<string, string>;
   loader_ms: number;
@@ -126,8 +129,16 @@ interface ShellFallbackResult {
    * fallback error UI was streamed instead. Carries the digest so the caller
    * can surface it in logs and the `__furinError` payload.
    */
-  shellError: { digest: string } | undefined;
+  shellError: { digest: string; message: string } | undefined;
   stream: Awaited<ReturnType<typeof renderToReadableStream>>;
+}
+
+function serializedErrorPayload(
+  digest: string | undefined,
+  message: string | undefined,
+  status: number
+): { digest: string; message: string; status: number } | undefined {
+  return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
 }
 
 function hasDocumentMarkers(html: string): boolean {
@@ -197,7 +208,7 @@ export async function renderElementWithShellFallback(
   element: ReactNode,
   errorComponent: Parameters<typeof buildErrorElement>[0],
   ssrContext: RouterContextValue,
-  wrapFallbackDocument: (element: ReactNode, digest: string) => ReactNode
+  wrapFallbackDocument: (element: ReactNode, digest: string, message: string) => ReactNode
 ): Promise<ShellFallbackResult> {
   try {
     const stream = await renderToReadableStream(element);
@@ -208,27 +219,31 @@ export async function renderElementWithShellFallback(
     }
     const digest = computeErrorDigest(error);
     try {
+      const message = errorMessageForRender(errorComponent, error, undefined);
       const stream = await renderToReadableStream(
         wrapFallbackDocument(
           withSSRRouterContext(
-            buildErrorElement(errorComponent, error, digest, undefined, 500),
+            buildErrorElement(errorComponent, error, digest, message, 500),
             ssrContext
           ),
-          digest
+          digest,
+          message
         )
       );
-      return { shellError: { digest }, stream: await requireDocumentStream(stream) };
+      return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
     } catch {
+      const message = errorMessageForRender(undefined, error, undefined);
       const stream = await renderToReadableStream(
         wrapFallbackDocument(
           withSSRRouterContext(
-            buildErrorElement(undefined, error, digest, undefined, 500),
+            buildErrorElement(undefined, error, digest, message, 500),
             ssrContext
           ),
-          digest
+          digest,
+          message
         )
       );
-      return { shellError: { digest }, stream: await requireDocumentStream(stream) };
+      return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
     }
   }
 }
@@ -281,26 +296,28 @@ function buildSuccessRender(
 ): {
   element: ReactNode;
   errorDigest: string | undefined;
+  errorMessage: string | undefined;
   headData: HeadOptions | undefined;
   status: number;
 } {
   try {
     const headData = route.page.head?.(componentProps);
     const element = buildElement(route, componentProps, root.route);
-    return { element, errorDigest: undefined, headData, status: 200 };
+    return { element, errorDigest: undefined, errorMessage: undefined, headData, status: 200 };
   } catch (headError) {
     if (throwOnFailure) {
       throw headError;
     }
     const errorDigest = computeErrorDigest(headError);
+    const errorMessage = errorMessageForRender(route.error ?? root.error, headError, undefined);
     const element = buildErrorElement(
       route.error ?? root.error,
       headError,
       errorDigest,
-      undefined,
+      errorMessage,
       500
     );
-    return { element, errorDigest, headData: undefined, status: 500 };
+    return { element, errorDigest, errorMessage, headData: undefined, status: 500 };
   }
 }
 
@@ -364,11 +381,13 @@ export async function prepareRender(
   };
 
   const assets = await resolveDocumentAssets(ctx);
+  const errorComponent = route.error ?? root.error;
 
   let element: ReactNode;
   let headData: HeadOptions | undefined;
   let status = 200;
   let errorDigest: string | undefined;
+  let errorMessage: string | undefined;
   let notFoundError: { data?: unknown; message?: string } | undefined;
   if (loaderResult.type === "not-found") {
     element = buildNotFoundElement(route.notFound ?? root.notFound, loaderResult.error);
@@ -377,16 +396,17 @@ export async function prepareRender(
   } else if (loaderResult.type === "error") {
     const { status: errorStatus } = loaderResult;
     errorDigest = computeErrorDigest(loaderResult.error);
+    errorMessage = errorMessageForRender(errorComponent, loaderResult.error, loaderResult.message);
     element = buildErrorElement(
-      route.error ?? root.error,
+      errorComponent,
       loaderResult.error,
       errorDigest,
-      loaderResult.message,
+      errorMessage,
       errorStatus
     );
     status = errorStatus;
   } else {
-    ({ element, errorDigest, headData, status } = buildSuccessRender(
+    ({ element, errorDigest, errorMessage, headData, status } = buildSuccessRender(
       route,
       root,
       componentProps,
@@ -427,6 +447,7 @@ export async function prepareRender(
     deferredPromises,
     element,
     errorDigest,
+    errorMessage,
     headData,
     headers,
     loader_ms,
@@ -449,9 +470,9 @@ async function renderBufferedResult(
     withDocumentState(element, assets, headData, syncData),
     route.error ?? root.error,
     prepared.ssrContext,
-    (fallback, digest) =>
+    (fallback, digest, message) =>
       withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        __furinError: { digest, status: 500 },
+        __furinError: { digest, message, status: 500 },
         __furinStatus: 500,
       })
   );
@@ -463,7 +484,11 @@ async function renderBufferedResult(
       html,
       ndjson: await serializeLoaderDataNdjson(
         {
-          __furinError: { digest: shellError.digest, status: 500 },
+          __furinError: {
+            digest: shellError.digest,
+            message: shellError.message,
+            status: 500,
+          },
           __furinStatus: 500,
         },
         undefined
@@ -745,11 +770,13 @@ export async function renderSSR(
   const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
 
   const initialDataPayload: Record<string, unknown> = { ...syncData };
-  if (prepared.errorDigest) {
-    initialDataPayload.__furinError = {
-      digest: prepared.errorDigest,
-      status: prepared.status,
-    };
+  const initialError = serializedErrorPayload(
+    prepared.errorDigest,
+    prepared.errorMessage,
+    prepared.status
+  );
+  if (initialError) {
+    initialDataPayload.__furinError = initialError;
   }
   if (prepared.status === 404 && prepared.notFoundError) {
     initialDataPayload.__furinNotFound = prepared.notFoundError;
@@ -766,25 +793,28 @@ export async function renderSSR(
     ),
     route.error ?? root.error,
     prepared.ssrContext,
-    (fallback, digest) =>
+    (fallback, digest, message) =>
       withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        __furinError: { digest, status: 500 },
+        __furinError: { digest, message, status: 500 },
         __furinStatus: 500,
       })
   );
   const shellErrored = shellError !== undefined;
   let { errorDigest: finalDigest, status } = prepared;
+  let finalMessage = prepared.errorMessage;
   if (shellError) {
     status = 500;
     finalDigest = shellError.digest;
+    finalMessage = shellError.message;
     useLogger().set({
       furin: { digest: finalDigest, phase: "shell", render: route.mode, route: route.pattern },
     });
   }
 
   const dataPayload: Record<string, unknown> = shellErrored ? {} : { ...syncData };
-  if (finalDigest) {
-    dataPayload.__furinError = { digest: finalDigest, status };
+  const finalError = serializedErrorPayload(finalDigest, finalMessage, status);
+  if (finalError) {
+    dataPayload.__furinError = finalError;
   }
   if (status === 404 && !shellErrored) {
     dataPayload.__furinStatus = 404;

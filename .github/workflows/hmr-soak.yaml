@@ -1,0 +1,41 @@
+name: HMR browser soak
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    name: 2,000 browser edits
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache bun
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install packages
+        run: bun install --frozen-lockfile
+
+      - name: Build core
+        working-directory: packages/core
+        run: bun run build
+
+      - name: Run HMR browser soak
+        working-directory: packages/core
+        run: bun run test:hmr:soak

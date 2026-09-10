@@ -52,6 +52,7 @@ export interface CreateRoutesPluginOptions {
 
 export interface DevRouteTopologyWatcher {
   close: () => void;
+  refresh: () => Promise<void>;
 }
 
 export interface DevRouteTopologyWatcherOptions {
@@ -66,7 +67,7 @@ interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   dirty: boolean;
   pending: boolean;
   reconcileTimer: ReturnType<typeof setTimeout> | undefined;
-  refreshing: boolean;
+  refreshPromise: Promise<void> | undefined;
   routeFilesSignature: string;
   source: string;
   watchers: FSWatcher[];
@@ -306,17 +307,8 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
   return watchers;
 }
 
-async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void> {
-  if (state.closed) {
-    return;
-  }
-  if (state.refreshing) {
-    state.pending = true;
-    return;
-  }
-  state.refreshing = true;
+async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Promise<void> {
   try {
-    state.pending = false;
     const { dirty } = state;
     state.dirty = false;
     const source = routeTopologySource(state.instance);
@@ -341,11 +333,6 @@ async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promis
     console.error("[furin] Failed to refresh route topology", error);
     state.dirty = true;
     scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
-  } finally {
-    state.refreshing = false;
-    if (state.pending && !state.closed) {
-      await refreshRouteTopology(state);
-    }
   }
 }
 
@@ -409,6 +396,29 @@ function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
   }
 }
 
+function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void> {
+  if (state.closed) {
+    return Promise.resolve();
+  }
+  state.pending = true;
+  if (state.refreshPromise) {
+    return state.refreshPromise;
+  }
+
+  state.refreshPromise = (async () => {
+    try {
+      while (state.pending && !state.closed) {
+        state.pending = false;
+        // biome-ignore lint/performance/noAwaitInLoops: refreshes must be serialized so requests observe the latest route snapshot
+        await refreshRouteTopologyOnce(state);
+      }
+    } finally {
+      state.refreshPromise = undefined;
+    }
+  })();
+  return state.refreshPromise;
+}
+
 export function registerDevRouteTopologyWatcher(
   options: DevRouteTopologyWatcherOptions
 ): DevRouteTopologyWatcher {
@@ -431,6 +441,7 @@ export function registerDevRouteTopologyWatcher(
         }
         watchers.delete(watcherKey);
       },
+      refresh: () => refreshRouteTopology(existing),
     };
   }
 
@@ -442,7 +453,7 @@ export function registerDevRouteTopologyWatcher(
     dirty: false,
     pending: false,
     reconcileTimer: undefined,
-    refreshing: false,
+    refreshPromise: undefined,
     routeFilesSignature: routeFilesSignatureValue,
     source,
     watchers: [],
@@ -462,6 +473,7 @@ export function registerDevRouteTopologyWatcher(
       }
       watchers.delete(watcherKey);
     },
+    refresh: () => refreshRouteTopology(state),
   };
 }
 

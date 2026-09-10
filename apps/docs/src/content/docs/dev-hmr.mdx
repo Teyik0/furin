@@ -135,6 +135,11 @@ The page is updated **twice** in quick succession:
 
 There is no hydration mismatch because the client never attempts to `hydrateRoot` against stale DOM — it reconciles the existing DOM with the new code, then refreshes the data.
 
+If the native Bun HMR WebSocket disconnects and later reconnects, Furin performs
+one automatic page reload. This intentionally trades local component state for
+a known-good client module graph after a transport outage. Ordinary edits do
+not take this path and continue to preserve compatible React state.
+
 ---
 
 ## Development Error Overlay
@@ -258,6 +263,48 @@ This setup gives Furin two useful properties in development:
 - client-side navigation stays on SPA transitions instead of degrading into full reloads
 - template URLs stay aligned with the latest client rebundle
 - live HMR updates seamlessly pick up layout changes and fresh loader data without hydration mismatches
+
+## Browser Conformance Tests
+
+`bun run test:webview` runs the real-browser HMR suite with `Bun.WebView` and a
+Chrome backend. Its behavioral baseline follows the public acceptance suites in
+[Next.js React Refresh](https://github.com/vercel/next.js/tree/canary/test/development/acceptance-app)
+and [Vite HMR](https://github.com/vitejs/vite/tree/main/playground/hmr), adapted
+to Furin's route and loader model rather than their private HMR APIs.
+
+The standard tier covers:
+
+- compatible state preservation and hook-signature remounts
+- imported children, root and nested layouts, re-exports, mixed exports, cycles,
+  loaded dynamic imports, and component moves
+- syntax, render, loader, cold-SSR, and successive-error recovery
+- global CSS, invalid-CSS recovery, `@import` dependencies, CSS removal, and CSS Modules
+- simultaneous component/loader edits, rapid save bursts, stale loader-response rejection,
+  and edit-to-paint measurement
+- live route addition/removal, prefixed multi-instance isolation, two browser tabs,
+  repeated WebSocket reconnections, SSR/SSG/ISR, deferred data, and composite RSC
+
+Known gaps in the Bun-backed development pipeline remain as executable
+`test.todo` specifications. The standard CI tier skips them because their current
+result depends on file-watcher timing; run
+`FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
+from `packages/core` when reviewing and promoting one of these behaviors. They
+currently cover:
+
+- editing a dynamic import before its first execution serves the old module
+- creating a previously missing import, or restoring a deleted imported component,
+  does not invalidate the browser graph
+- removing a CSS import does not prune its injected stylesheet
+- CSS Module value imports are undefined in Bun's full-stack development bundle
+
+These TODOs mean the suite is a parity gate, not a claim that parity has already
+been reached. A global reload on every update would hide the gaps but
+would also discard state for the working Fast Refresh cases, so Furin does not use
+that fallback.
+
+`bun run test:hmr:soak` runs the opt-in endurance tier: 2,000 edits by default,
+with periodic Chrome heap and server RSS samples. Use
+`FURIN_HMR_SOAK_EDITS=<count>` only for a shorter local smoke run.
 
 ---
 

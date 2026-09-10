@@ -765,7 +765,14 @@ export async function furin({
       .use(createDevErrorPlugin(graph))
       .use(createInstrumentationPlugin(() => graph.snapshot?.routes ?? routes, syncStreamPath))
       .use(sync ? createSyncStreamPlugin(sync) : new Elysia())
-      .use(createDataEndpoint(() => graph.snapshot?.routes ?? routes))
+      .use(
+        createDataEndpoint(async (request) => {
+          if (request.headers.get("x-furin-hmr-refresh") === "1") {
+            await routeTopologyWatcher?.refresh();
+          }
+          return graph.snapshot?.routes ?? routes;
+        })
+      )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
       .use(nativeRoutesApp)
       .use(
