@@ -183,6 +183,44 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(result.code).toContain('previousDataSignature.startsWith("external:")');
   });
 
+  test("rechecks imports when config and loader share a local dependency", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "./loader";
+const shared = () => loadData();
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute()
+  .config({ query: shared })
+  .loader(shared)
+  .page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+  });
+
+  test("tracks dependencies referenced by a destructuring default", () => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function fallbackLoader() {
+  return { message: "${loaderMessage}" };
+}
+const { loadData = fallbackLoader } = {};
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";

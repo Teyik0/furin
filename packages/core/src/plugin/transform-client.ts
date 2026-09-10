@@ -271,9 +271,33 @@ function collectModuleBindings(program: Program): {
   return { declarations, imports };
 }
 
-function isInside(node: AstNode, value: unknown): boolean {
-  const container = asAstNode(value);
-  return Boolean(container && container.start <= node.start && node.end <= container.end);
+function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
+  const node = asAstNode(pattern);
+  if (!node) {
+    return false;
+  }
+  if (node.type === "Identifier") {
+    return node.start === identifier.start && node.end === identifier.end;
+  }
+  if (node.type === "AssignmentPattern") {
+    return isBindingIdentifier(identifier, node.left);
+  }
+  if (node.type === "RestElement") {
+    return isBindingIdentifier(identifier, node.argument);
+  }
+  if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    return node.elements.some((element) => isBindingIdentifier(identifier, element));
+  }
+  if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    return node.properties.some((property) => {
+      const propertyNode = asAstNode(property);
+      return isBindingIdentifier(
+        identifier,
+        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument
+      );
+    });
+  }
+  return false;
 }
 
 function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
@@ -297,15 +321,15 @@ function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
   }
   for (const ancestor of ancestors) {
     if (
-      (ancestor.type === "VariableDeclarator" && isInside(node, ancestor.id)) ||
+      (ancestor.type === "VariableDeclarator" && isBindingIdentifier(node, ancestor.id)) ||
       ((ancestor.type === "FunctionDeclaration" ||
         ancestor.type === "FunctionExpression" ||
         ancestor.type === "ArrowFunctionExpression") &&
-        (isInside(node, ancestor.id) ||
+        (isBindingIdentifier(node, ancestor.id) ||
           (Array.isArray(ancestor.params) &&
-            ancestor.params.some((parameter) => isInside(node, parameter))))) ||
-      (ancestor.type === "ClassDeclaration" && isInside(node, ancestor.id)) ||
-      (ancestor.type === "CatchClause" && isInside(node, ancestor.param))
+            ancestor.params.some((parameter) => isBindingIdentifier(node, parameter))))) ||
+      (ancestor.type === "ClassDeclaration" && isBindingIdentifier(node, ancestor.id)) ||
+      (ancestor.type === "CatchClause" && isBindingIdentifier(node, ancestor.param))
     ) {
       return false;
     }
@@ -337,34 +361,66 @@ function walkWithAncestors(
   }
 }
 
+interface HmrDependencyState {
+  dependencies: Map<number, AstNode>;
+  hasUnresolvedImport: boolean;
+  importTrackedDependencies: Set<number>;
+  moduleBindings: ReturnType<typeof collectModuleBindings>;
+}
+
+function collectDependencyIdentifier(
+  child: AstNode,
+  ancestors: AstNode[],
+  trackImports: boolean,
+  state: HmrDependencyState
+): void {
+  if (
+    child.type !== "Identifier" ||
+    typeof child.name !== "string" ||
+    !isReferenceIdentifier(child, ancestors) ||
+    hasShadowingDeclaration(child.name, ancestors)
+  ) {
+    return;
+  }
+  const declaration = state.moduleBindings.declarations.get(child.name);
+  if (!declaration) {
+    if (trackImports && state.moduleBindings.imports.has(child.name)) {
+      state.hasUnresolvedImport = true;
+    }
+    return;
+  }
+  const alreadyTracked = state.dependencies.has(declaration.start);
+  if (!alreadyTracked) {
+    state.dependencies.set(declaration.start, declaration);
+  }
+  if (trackImports) {
+    if (state.importTrackedDependencies.has(declaration.start)) {
+      return;
+    }
+    state.importTrackedDependencies.add(declaration.start);
+  } else if (alreadyTracked) {
+    return;
+  }
+  collectDependencies(declaration, trackImports, state);
+}
+
+function collectDependencies(
+  node: AstNode,
+  trackImports: boolean,
+  state: HmrDependencyState
+): void {
+  walkWithAncestors(node, [], (child, ancestors) => {
+    collectDependencyIdentifier(child, ancestors, trackImports, state);
+  });
+}
+
 function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
   const serverStages: Array<{ source: string; start: number }> = [];
-  const moduleBindings = collectModuleBindings(program);
-  const dependencies = new Map<number, AstNode>();
-  let hasUnresolvedImport = false;
-  const collectDependencies = (node: AstNode, trackImports: boolean): void => {
-    walkWithAncestors(node, [], (child, ancestors) => {
-      if (
-        child.type !== "Identifier" ||
-        typeof child.name !== "string" ||
-        !isReferenceIdentifier(child, ancestors) ||
-        hasShadowingDeclaration(child.name, ancestors)
-      ) {
-        return;
-      }
-      const declaration = moduleBindings.declarations.get(child.name);
-      if (!declaration) {
-        if (trackImports && moduleBindings.imports.has(child.name)) {
-          hasUnresolvedImport = true;
-        }
-        return;
-      }
-      if (dependencies.has(declaration.start)) {
-        return;
-      }
-      dependencies.set(declaration.start, declaration);
-      collectDependencies(declaration, trackImports);
-    });
+  const dependencyState: HmrDependencyState = {
+    dependencies: new Map(),
+    hasUnresolvedImport: false,
+    importTrackedDependencies: new Set(),
+    moduleBindings: collectModuleBindings(program),
   };
 
   walk(program, {
@@ -399,7 +455,7 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
         for (const argument of call.arguments) {
           const argumentNode = asAstNode(argument);
           if (argumentNode) {
-            collectDependencies(argumentNode, property.name !== "config");
+            collectDependencies(argumentNode, property.name !== "config", dependencyState);
           }
         }
       }
@@ -408,7 +464,7 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
 
   const dataSource = [
     ...serverStages,
-    ...[...dependencies.values()].map((dependency) => ({
+    ...[...dependencyState.dependencies.values()].map((dependency) => ({
       source: code.slice(dependency.start, dependency.end),
       start: dependency.start,
     })),
@@ -417,7 +473,7 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
     .map((entry) => entry.source)
     .join("\n");
   const hash = new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
-  return hasUnresolvedImport ? `external:${hash}` : hash;
+  return dependencyState.hasUnresolvedImport ? `external:${hash}` : hash;
 }
 
 function calledHookName(call: AstNode): string | null {

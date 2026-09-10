@@ -116,6 +116,8 @@ export function RouterProvider({
   const prefetchCache = useRef(new Map<string, CacheEntry>());
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
+  /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
+  const hmrVersion = useRef(0);
   /**
    * AbortController for the current navigation. Cancelled when a newer
    * navigation starts so any in-flight `parseDeferredNdjson` releases its
@@ -420,6 +422,7 @@ export function RouterProvider({
             hmrRefresh?: boolean;
             replace?: boolean;
             resetScroll?: boolean;
+            shouldCommit?: () => boolean;
           }
         | undefined
     ) {
@@ -437,7 +440,7 @@ export function RouterProvider({
           cached && !shouldRefetch(cached)
             ? await cached.promise
             : await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
-        if (navVersion.current !== myVersion) {
+        if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
         if (newState && (!cached || shouldRefetch(cached))) {
@@ -486,6 +489,9 @@ export function RouterProvider({
           newState = redirectState;
         }
 
+        if (opts?.shouldCommit?.() === false) {
+          return;
+        }
         opts?.beforeCommit?.();
         currentMatchRef.current = newState.match;
         if (!newState.error) {
@@ -558,6 +564,7 @@ export function RouterProvider({
             beforeCommit?: () => void;
             hmrRefresh?: boolean;
             resetScroll?: boolean;
+            shouldCommit?: () => boolean;
           }
         | undefined
     ) => {
@@ -569,6 +576,7 @@ export function RouterProvider({
         hmrRefresh: opts?.hmrRefresh,
         replace: true,
         resetScroll: opts?.resetScroll ?? false,
+        shouldCommit: opts?.shouldCommit,
       });
     },
     [navigate, invalidatePrefetch, basePath]
@@ -594,16 +602,18 @@ export function RouterProvider({
         beforeCommit: (() => void) | undefined,
         dataChanged: boolean | undefined
       ) => {
+        hmrVersion.current += 1;
+        const myHmrVersion = hmrVersion.current;
         if (dataChanged !== false) {
-          await refresh({ beforeCommit, hmrRefresh: true });
+          await refresh({
+            beforeCommit,
+            hmrRefresh: true,
+            shouldCommit: () => hmrVersion.current === myHmrVersion,
+          });
           return;
         }
-        navVersion.current += 1;
-        navAbortRef.current?.abort();
-        navAbortRef.current = null;
         beforeCommit?.();
         setState((current) => ({ ...current }));
-        setIsNavigating(false);
       };
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook

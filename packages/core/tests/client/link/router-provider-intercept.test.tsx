@@ -164,7 +164,9 @@ describe("RouterProvider click interception", () => {
   let pushStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
   let abortFirstPageBRequest = false;
+  let deferPageBRequest = false;
   let pageBRequests = 0;
+  let resolvePageBRequest: ((response: Response) => void) | undefined;
 
   beforeEach(() => {
     installDom();
@@ -177,7 +179,9 @@ describe("RouterProvider click interception", () => {
     pushStateCalls = [];
     currentCleanup = undefined;
     abortFirstPageBRequest = false;
+    deferPageBRequest = false;
     pageBRequests = 0;
+    resolvePageBRequest = undefined;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
@@ -186,6 +190,20 @@ describe("RouterProvider click interception", () => {
 
       if (logicalPath === "/page-b") {
         pageBRequests += 1;
+        if (deferPageBRequest) {
+          return new Promise<Response>((resolve, reject) => {
+            resolvePageBRequest = resolve;
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                const error = new Error("signal is aborted without reason");
+                error.name = "AbortError";
+                reject(error);
+              },
+              { once: true }
+            );
+          });
+        }
         if (abortFirstPageBRequest && pageBRequests === 1) {
           return new Promise<Response>((_resolve, reject) => {
             init?.signal?.addEventListener(
@@ -333,6 +351,31 @@ describe("RouterProvider click interception", () => {
     } finally {
       errorLog.mockRestore();
     }
+  });
+
+  test("component-only HMR does not cancel a pending Link navigation", async () => {
+    deferPageBRequest = true;
+    const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(pageBRequests).toBe(1);
+
+    const hmrRefresh = (
+      window as unknown as {
+        __FURIN_HMR_REFRESH__: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }
+    ).__FURIN_HMR_REFRESH__;
+    await act(() => hmrRefresh(() => undefined, false));
+    resolvePageBRequest?.(makeNdjsonResponse({ message: "page-b" }));
+    await flushReactUpdates();
+
+    expect(window.location.pathname).toBe("/page-b");
   });
 
   /** Clicks `anchor` with a trailing document-level listener (registered after

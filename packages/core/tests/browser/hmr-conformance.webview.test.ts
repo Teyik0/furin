@@ -1943,9 +1943,25 @@ browserTest(
     activeHarness = harness;
 
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-v1");
+    await harness.view.evaluate(`(() => {
+      window.__furinHmrDataRequests = 0;
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (...args) => {
+        if (String(args[0]).includes("/_furin/data")) {
+          window.__furinHmrDataRequests += 1;
+        }
+        return originalFetch(...args);
+      };
+    })()`);
     const slowSource = slowLoaderPageSource("supersede-slow", 1200);
     writeAppFile(harness.app.path, "src/pages/index.tsx", slowSource);
-    await Bun.sleep(150);
+    const requestStartedAt = Date.now();
+    while (((await harness.view.evaluate("window.__furinHmrDataRequests ?? 0")) as number) === 0) {
+      if (Date.now() - requestStartedAt >= 15_000) {
+        throw new Error("Timed out waiting for the slow HMR loader request");
+      }
+      await Bun.sleep(10);
+    }
     writeAppFile(
       harness.app.path,
       "src/pages/index.tsx",
