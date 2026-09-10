@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "furin build --target bun --compile embed",
+    "build:vercel": "furin build --target bun",
     "dev": "furin dev --port 3001",
     "fix": "ultracite fix",
     "measure:client": "furin build --target bun --analyze && bun ../../scripts/measure-client-bundle.ts .furin/build/analysis/bun-client.json .furin/build/bun/client",
