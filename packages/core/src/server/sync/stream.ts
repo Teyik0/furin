@@ -77,7 +77,14 @@ async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamSt
   const state = {} as StreamState;
   state.clients = new Map();
   state.cursor = await runtime.adapter.currentCursor();
-  if (runtime.notifier.recovery !== "self") {
+  let subscriptionFailed = false;
+  state.subscription = await runtime.notifier
+    .subscribe((cursor) => notifyState(state, cursor))
+    .catch(() => {
+      subscriptionFailed = true;
+      return noOpSubscription;
+    });
+  if (runtime.notifier.recovery !== "self" || subscriptionFailed) {
     state.safetyPoll = setInterval(() => {
       runtime.adapter
         .currentCursor()
@@ -86,9 +93,6 @@ async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamSt
     }, SAFETY_POLL_INTERVAL_MS);
     state.safetyPoll.unref?.();
   }
-  state.subscription = await runtime.notifier
-    .subscribe((cursor) => notifyState(state, cursor))
-    .catch(() => noOpSubscription);
   resolvedStates.add(state);
   return state;
 }
@@ -179,6 +183,9 @@ export function createSyncStreamPlugin(options: FurinSyncOptions) {
         start(controller) {
           controllerRef = controller;
           controller.enqueue(encoder.encode(": connected\nretry: 3000\n\n"));
+          if (state.cursor !== undefined) {
+            controller.enqueue(encodeSseCursor(state.cursor));
+          }
           state.clients.set(controller, undefined);
           heartbeat = setInterval(() => {
             if (controller.desiredSize === null || controller.desiredSize <= 0) {

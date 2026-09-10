@@ -131,7 +131,7 @@ Repeating the same request with the same key returns the original response witho
 .post("/payments", createPayment, { sync: false })
 ```
 
-The sync stream endpoint is internal and opinionated: `/_furin/sync`. SSE only announces the latest cursor; the client recovers ordered invalidations through `/_furin/sync/changes`. Passing the explicit runtime to `furin({ sync })` injects the client configuration automatically, so you do not need a React provider or application wrapper.
+The sync stream endpoint is internal and opinionated: `/_furin/sync`. SSE announces the current cursor when the stream opens and every later cursor change; the client recovers ordered invalidations through `/_furin/sync/changes`. Passing the explicit runtime to `furin({ sync })` injects the client configuration automatically, so you do not need a React provider or application wrapper.
 
 ### Production adapters
 
@@ -177,7 +177,7 @@ new Elysia()
   .listen(3000)
 ```
 
-The PostgreSQL notifier uses Bun's native `SQL.listen()` and `SQL.notify()` support. Its channel is derived from the namespace, and its reconnect callback reads the durable cursor to recover notifications missed while disconnected. No periodic cursor polling runs in this setup.
+The PostgreSQL notifier uses Bun's native `SQL.listen()` and `SQL.notify()` support. Its channel is derived from the namespace, and the adapter queues `NOTIFY` in the same transaction as durable completion so it is delivered only after commit. The listener reconnect callback reads the durable cursor to recover notifications missed while disconnected. No periodic cursor polling runs while the listener is healthy; a failed initial subscription restores the safety poll.
 
 Distributed production adapters require an explicit notifier. If `LISTEN/NOTIFY` is unavailable through an intermediary such as an incompatible connection pooler, opt into the polling fallback:
 

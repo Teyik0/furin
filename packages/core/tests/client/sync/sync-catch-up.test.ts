@@ -63,6 +63,27 @@ describe("createSyncCatchUp", () => {
     expect(invalidations).toEqual(["/:layout"]);
     expect(sync.cursor()).toBe("8");
   });
+
+  test("starts from a cursor supplied by the sync stream", async () => {
+    const requestedAfter: Array<string | undefined> = [];
+    const sync = createSyncCatchUp({
+      fetchPage: (after) => {
+        requestedAfter.push(after);
+        return Promise.resolve({
+          changes: [],
+          cursor: "12",
+          hasMore: false,
+          reset: false,
+        });
+      },
+      onInvalidations: () => undefined,
+    });
+
+    sync.seed("12");
+    await sync.catchUp();
+
+    expect(requestedAfter).toEqual(["12"]);
+  });
 });
 
 describe("createInvalidationRefresh", () => {

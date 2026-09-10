@@ -837,17 +837,26 @@ export function RouterProvider({
         }
       });
     };
-    const onOpen = () => recover();
+    let opened = false;
+    const onOpen = () => {
+      if (opened) {
+        recover();
+      }
+      opened = true;
+    };
     const onSync = (event: MessageEvent) => {
+      let cursor: string;
       try {
-        const payload = JSON.parse(event.data) as { cursor?: unknown };
-        if (typeof payload.cursor !== "string") {
+        const { cursor: parsedCursor } = JSON.parse(event.data) as { cursor?: unknown };
+        if (typeof parsedCursor !== "string") {
           throw new Error("Missing sync cursor");
         }
+        cursor = parsedCursor;
       } catch {
         log.warn({ action: "sync_invalid_event", event: "furin.sync" });
         return;
       }
+      catchUp.seed(cursor);
       recover();
     };
     const connect = () => {

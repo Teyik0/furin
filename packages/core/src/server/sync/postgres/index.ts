@@ -18,6 +18,7 @@ import type {
 const CHANGE_RETENTION = 1000;
 const LEASE_MS = 30_000;
 const MUTATION_TTL_MS = 24 * 60 * 60 * 1000;
+const RECOVERY_RETRY_MS = 250;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 
 export interface PostgresSyncAdapterOptions {
@@ -75,6 +76,7 @@ function storedResponse(row: MutationRow): StoredResponse {
 }
 
 export class PostgresSyncAdapter implements SyncAdapter {
+  readonly notificationChannel: string;
   readonly scope = "distributed" as const;
   private readonly namespace: string;
   private readonly sql: SQL;
@@ -83,6 +85,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
     if (options.namespace.length === 0) {
       throw new Error("[furin-sync-postgres] namespace must not be empty.");
     }
+    this.notificationChannel = notificationChannel(options.namespace);
     this.namespace = options.namespace;
     this.sql = options.sql;
   }
@@ -235,6 +238,9 @@ export class PostgresSyncAdapter implements SyncAdapter {
           AND mutation_key = ${key}
           AND mutation_id = ${input.lease.id}
       `;
+      if (cursor !== undefined) {
+        await tx.notify(this.notificationChannel, cursor);
+      }
       return { cursor, kind: "committed" } as const;
     });
   }
@@ -312,8 +318,8 @@ export function postgresSyncAdapter(options: PostgresSyncAdapterOptions): Postgr
 }
 
 export class PostgresSyncNotifier implements SyncNotifier {
+  readonly notificationChannel: string;
   readonly recovery = "self" as const;
-  private readonly channel: string;
   private readonly namespace: string;
   private readonly sql: SQL;
 
@@ -321,31 +327,66 @@ export class PostgresSyncNotifier implements SyncNotifier {
     if (options.namespace.length === 0) {
       throw new Error("[furin-sync-postgres] namespace must not be empty.");
     }
-    this.channel = notificationChannel(options.namespace);
+    this.notificationChannel = notificationChannel(options.namespace);
     this.namespace = options.namespace;
     this.sql = options.sql;
   }
 
   publish(cursor: string): Promise<void> {
-    return this.sql.notify(this.channel, cursor);
+    return this.sql.notify(this.notificationChannel, cursor);
   }
 
   async subscribe(listener: (cursor: string) => void): Promise<SyncSubscription> {
+    let active = true;
+    let currentCursor: bigint | undefined;
+    let recovery: Promise<void> | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const emit = (cursor: string) => {
+      if (!(active && UNSIGNED_INTEGER_PATTERN.test(cursor))) {
+        return;
+      }
+      const nextCursor = BigInt(cursor);
+      if (currentCursor !== undefined && nextCursor <= currentCursor) {
+        return;
+      }
+      currentCursor = nextCursor;
       try {
         listener(cursor);
       } catch {
         // Notifications are best-effort wake-ups; durable recovery reads the change log.
       }
     };
-    const recover = () => {
-      readCurrentCursor(this.sql, this.namespace)
-        .then(emit)
-        .catch(() => undefined);
+    const scheduleRecovery = () => {
+      if (!active || retry) {
+        return;
+      }
+      retry = setTimeout(() => {
+        retry = undefined;
+        recover();
+      }, RECOVERY_RETRY_MS);
+      retry.unref?.();
     };
-    const subscription = await this.sql.listen(this.channel, emit, recover);
+    const recover = () => {
+      if (!active || recovery) {
+        return;
+      }
+      recovery = readCurrentCursor(this.sql, this.namespace)
+        .then(emit)
+        .catch(scheduleRecovery)
+        .finally(() => {
+          recovery = undefined;
+        });
+    };
+    const subscription = await this.sql.listen(this.notificationChannel, emit, recover);
     return {
-      unsubscribe: () => subscription.unlisten(),
+      unsubscribe: () => {
+        active = false;
+        if (retry) {
+          clearTimeout(retry);
+          retry = undefined;
+        }
+        return subscription.unlisten();
+      },
     };
   }
 }

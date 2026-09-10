@@ -240,7 +240,10 @@ export function furinSync(options: SyncRuntimeOptions) {
     if (completion.kind === "lost") {
       return leaseLostResponse();
     }
-    if (completion.cursor !== undefined) {
+    const notificationAlreadyPublished =
+      runtime.adapter.notificationChannel !== undefined &&
+      runtime.adapter.notificationChannel === runtime.notifier.notificationChannel;
+    if (completion.cursor !== undefined && !notificationAlreadyPublished) {
       runtime.notifier.publish(completion.cursor).catch(() => undefined);
     }
     if (result.kind === "unreplayable") {

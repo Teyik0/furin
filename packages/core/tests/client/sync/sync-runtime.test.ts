@@ -73,6 +73,22 @@ describe("sync runtime", () => {
     ).toBe(notifier);
   });
 
+  test("rejects mismatched transactional notification channels", () => {
+    const adapter = {
+      ...durableAdapter("distributed", async () => "0"),
+      notificationChannel: "furin-sync-a",
+    };
+    const notifier = {
+      notificationChannel: "furin-sync-b",
+      publish: () => Promise.resolve(),
+      subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
+    };
+
+    expect(() => resolveSyncRuntime({ adapter, notifier, principal })).toThrow(
+      "notification channels do not match"
+    );
+  });
+
   test("keeps polling as a development convenience", () => {
     __setDevMode(true);
     const runtime = resolveSyncRuntime({

@@ -188,11 +188,12 @@ describe("RouterProvider sync refresh", () => {
 
     await act(async () => {
       FakeEventSource.latest?.open();
+      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "12" }));
       await Promise.resolve();
     });
 
     await waitForDom(() => requested.length === 1, { timeoutMs: 100 });
-    expect(requested).toEqual(["0"]);
+    expect(requested).toEqual(["12"]);
   });
 
   test("refreshes the current page after an SSE sync event catches up through /changes", async () => {
@@ -229,7 +230,8 @@ describe("RouterProvider sync refresh", () => {
     await waitForDom(() => FakeEventSource.latest !== undefined, { timeoutMs: 2000 });
 
     await act(async () => {
-      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "1" }));
+      FakeEventSource.latest?.open();
+      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
       await Promise.resolve();
     });
 
@@ -275,6 +277,7 @@ describe("RouterProvider sync refresh", () => {
 
     await act(async () => {
       FakeEventSource.latest?.open();
+      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
       await Promise.resolve();
     });
     expect(requested.changes).toEqual(["0"]);
@@ -328,6 +331,7 @@ describe("RouterProvider sync refresh", () => {
     expect(requested.changes).toEqual([]);
     await act(async () => {
       FakeEventSource.latest?.open();
+      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
       await Promise.resolve();
     });
     expect(requested.changes).toEqual(["0"]);

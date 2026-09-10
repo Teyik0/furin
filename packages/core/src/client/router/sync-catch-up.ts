@@ -19,6 +19,7 @@ interface SyncCatchUpOptions {
 export interface SyncCatchUp {
   catchUp: () => Promise<void>;
   cursor: () => string | undefined;
+  seed: (cursor: string) => void;
 }
 
 interface InvalidationRefreshOptions {
@@ -103,6 +104,9 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       return running;
     },
     cursor: () => currentCursor,
+    seed(cursor) {
+      currentCursor ??= cursor;
+    },
   };
 }
 

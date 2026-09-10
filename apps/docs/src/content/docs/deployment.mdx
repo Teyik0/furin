@@ -222,7 +222,7 @@ new Elysia()
   .listen(3000)
 ```
 
-This setup uses a namespace-isolated PostgreSQL channel and performs no periodic cursor polling. Bun automatically reconnects and restores `LISTEN`; Furin then reads the durable cursor so the journal covers notifications missed during the disconnect.
+This setup uses a namespace-isolated PostgreSQL channel and performs no periodic cursor polling while its listener is healthy. The adapter queues `NOTIFY` in its durable completion transaction, so PostgreSQL delivers the wake-up only after commit. Bun automatically reconnects and restores `LISTEN`; Furin then reads the durable cursor so the journal covers notifications missed during the disconnect. If the initial subscription fails, Furin restores its safety poll instead of caching a dead stream.
 
 If PostgreSQL notifications are unavailable, choose the compatibility poller explicitly:
 
