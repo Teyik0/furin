@@ -18,7 +18,8 @@ import type {
 const CHANGE_RETENTION = 1000;
 const LEASE_MS = 30_000;
 const MUTATION_TTL_MS = 24 * 60 * 60 * 1000;
-const RECOVERY_RETRY_MS = 250;
+const RECOVERY_RETRY_INITIAL_MS = 250;
+const RECOVERY_RETRY_MAX_MS = 32_000;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 
 export interface PostgresSyncAdapterOptions {
@@ -341,6 +342,7 @@ export class PostgresSyncNotifier implements SyncNotifier {
     let currentCursor: bigint | undefined;
     let recovery: Promise<void> | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    let retryDelayMs = RECOVERY_RETRY_INITIAL_MS;
     const emit = (cursor: string) => {
       if (!(active && UNSIGNED_INTEGER_PATTERN.test(cursor))) {
         return;
@@ -360,18 +362,27 @@ export class PostgresSyncNotifier implements SyncNotifier {
       if (!active || retry) {
         return;
       }
+      const delayMs = retryDelayMs;
+      retryDelayMs = Math.min(retryDelayMs * 2, RECOVERY_RETRY_MAX_MS);
       retry = setTimeout(() => {
         retry = undefined;
         recover();
-      }, RECOVERY_RETRY_MS);
+      }, delayMs);
       retry.unref?.();
     };
     const recover = () => {
       if (!active || recovery) {
         return;
       }
+      if (retry) {
+        clearTimeout(retry);
+        retry = undefined;
+      }
       recovery = readCurrentCursor(this.sql, this.namespace)
-        .then(emit)
+        .then((cursor) => {
+          retryDelayMs = RECOVERY_RETRY_INITIAL_MS;
+          emit(cursor);
+        })
         .catch(scheduleRecovery)
         .finally(() => {
           recovery = undefined;

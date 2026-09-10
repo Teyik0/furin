@@ -165,7 +165,7 @@ describe("RouterProvider sync refresh", () => {
     await uninstallDom();
   });
 
-  test("performs one initial catch-up read when the sync stream opens", async () => {
+  test("performs one initial catch-up read from the stream cursor notification", async () => {
     const requested: string[] = [];
     globalThis.fetch = mock((input: RequestInfo | URL) => {
       const url = new URL(input.toString(), window.location.origin);
