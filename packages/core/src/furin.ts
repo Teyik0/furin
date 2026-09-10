@@ -745,6 +745,7 @@ export async function furin({
     const publicExists = existsSync(publicDir);
     const hmrEntryPath = `${prefix}/_bun_hmr_entry`;
     let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
+    const normalizedDevPagesDir = resolvedPagesDir.replaceAll("\\", "/");
     const pendingClientCycles: Array<{
       cycleId: string;
       detectedAt: number;
@@ -752,9 +753,10 @@ export async function furin({
     }> = [];
     const belongsToInstance = (path: string): boolean => {
       const { snapshot } = graph;
+      const normalizedPath = path.replaceAll("\\", "/");
       return (
         path === snapshot?.root.path ||
-        path.startsWith(`${resolvedPagesDir}/`) ||
+        normalizedPath.startsWith(`${normalizedDevPagesDir}/`) ||
         snapshot?.routes.some((route) => graph.dependsOn(route.path, path)) === true
       );
     };
@@ -812,17 +814,22 @@ export async function furin({
         throw error;
       } finally {
         const { snapshot } = graph;
+        const rebuiltModules = snapshot
+          ? [snapshot.root.path, ...snapshot.routes.map((route) => route.path)].filter(
+              (modulePath) =>
+                sourcePaths.some(
+                  (sourcePath) =>
+                    modulePath === sourcePath || graph.dependsOn(modulePath, sourcePath)
+                )
+            )
+          : [];
         withInstance(instance, () => {
           appendDevtoolsEvent({
             changedModules: sourcePaths.map(relativeDevtoolsPath),
             cycleId: correlatedCycleId,
             detectedAt,
             durationMs: performance.now() - startedAt,
-            rebuiltModules: snapshot
-              ? [snapshot.root.path, ...snapshot.routes.map((route) => route.path)].map(
-                  relativeDevtoolsPath
-                )
-              : [],
+            rebuiltModules: rebuiltModules.map(relativeDevtoolsPath),
             startedAt: startedAtEpoch,
             status,
             timestamp: Date.now(),

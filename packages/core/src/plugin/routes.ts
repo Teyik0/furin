@@ -320,15 +320,15 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
 }
 
 async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Promise<void> {
+  const { dirty } = state;
+  const { cycleId } = state;
+  const touchedAt = state.touchedAt ?? Date.now();
+  const touchedSourcePaths = [...state.touchedSourcePaths];
+  state.dirty = false;
+  state.cycleId = null;
+  state.touchedAt = null;
+  state.touchedSourcePaths.clear();
   try {
-    const { dirty } = state;
-    state.dirty = false;
-    const { cycleId } = state;
-    state.cycleId = null;
-    const touchedAt = state.touchedAt ?? Date.now();
-    state.touchedAt = null;
-    const touchedSourcePaths = [...state.touchedSourcePaths];
-    state.touchedSourcePaths.clear();
     const source = routeTopologySource(state.instance);
     if (source === state.source) {
       const signature = routeFilesSignature(state.instance);
@@ -350,6 +350,11 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
   } catch (error) {
     console.error("[furin] Failed to refresh route topology", error);
     state.dirty = true;
+    state.cycleId ??= cycleId;
+    state.touchedAt = state.touchedAt === null ? touchedAt : Math.min(state.touchedAt, touchedAt);
+    for (const sourcePath of touchedSourcePaths) {
+      state.touchedSourcePaths.add(sourcePath);
+    }
     scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
   }
 }
@@ -581,7 +586,7 @@ async function generateServerInstance(
   const tree = buildRouteTree(instance.pagesDir, instanceId);
   await retainComposableRoutes(tree);
   const imports = collectRouteFiles(tree)
-    .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
+    .toSorted((left, right) => left.sourcePath.localeCompare(right.sourcePath))
     .map((route) => {
       const specifier = routeFileSpecifier(route);
       routeFilesBySpecifier.set(specifier, {
@@ -922,7 +927,7 @@ async function clientRoutesSource(instance: RouteInstanceSpec): Promise<string> 
   const tree = buildRouteTree(instance.pagesDir, Bun.hash(instanceKey(instance)).toString(16));
   const routes = collectRouteFiles(tree)
     .filter((route) => route.path !== "")
-    .sort((left, right) => left.path.localeCompare(right.path));
+    .toSorted((left, right) => left.path.localeCompare(right.path));
   const metadata = await Promise.all(
     routes.map(async (routeFile): Promise<ClientRouteMetadata> => {
       const module = await loadRouteModule(routeFile.sourcePath);

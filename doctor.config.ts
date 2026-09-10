@@ -76,8 +76,12 @@ export default {
       {
         // These files generate source or reconcile watcher inputs; their ordered
         // array passes are intentional and independent from React render work.
-        files: ["src/build/hydrate.ts", "src/plugin/routes.ts"],
+        files: ["src/build/hydrate.ts"],
         rules: ["react-doctor/js-combine-iterations", "react-doctor/js-tosorted-immutable"],
+      },
+      {
+        files: ["src/plugin/routes.ts"],
+        rules: ["react-doctor/js-combine-iterations"],
       },
       {
         files: ["src/pages/docs/*.tsx", "src/components/ui/button.tsx"],

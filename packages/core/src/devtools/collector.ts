@@ -5,6 +5,7 @@ import {
   type DevtoolsFullReloadReason,
   type DevtoolsHmrClientPhase,
   type DevtoolsResource,
+  type DevtoolsSnapshot,
   type DevtoolsSyncSnapshot,
   isDevtoolsServerEvent,
   isDevtoolsSnapshot,
@@ -172,7 +173,9 @@ function browserResources(): DevtoolsResource[] {
       type: resource.initiatorType || "resource",
     });
   }
-  return resources.toSorted((left, right) => right.transferredBytes - left.transferredBytes);
+  return resources
+    .toSorted((left, right) => right.transferredBytes - left.transferredBytes)
+    .slice(0, 500);
 }
 
 function installKeyboardShortcut(): () => void {
@@ -273,42 +276,42 @@ function installSyncObserver(sync: DevtoolsSyncSnapshot, send: SendBrowserEvent)
   };
 }
 
+function documentSyncSnapshot(): DevtoolsSyncSnapshot {
+  const syncElement = document.getElementById("__FURIN_SYNC__");
+  try {
+    const value: unknown = JSON.parse(syncElement?.textContent ?? "{}");
+    if (value !== null && typeof value === "object") {
+      const streamPath = Reflect.get(value, "stream");
+      if (typeof streamPath === "string") {
+        return { enabled: true, streamPath };
+      }
+    }
+  } catch {
+    // The server snapshot remains the authoritative validation boundary.
+  }
+  return { enabled: false, streamPath: null };
+}
+
 async function start(): Promise<void> {
-  const response = await nativeFetch.call(window, assetUrl("/_furin/devtools/snapshot"));
-  if (!response.ok) {
-    return;
-  }
-  const snapshot: unknown = await response.json();
-  if (!isDevtoolsSnapshot(snapshot)) {
-    return;
-  }
-
-  runtime.cleanup?.();
   const id = clientId();
-  const pendingCycles: Array<{ cycleId: string; detectedAt: number }> = [];
-  let currentCycleId: string | null = null;
-  let lastCompletedAt = 0;
-  let updateInProgress = false;
-  let updateStartedAt: number | null = null;
-  let updateStartedEpoch = 0;
   const cleanups: Array<() => void> = [];
-  if (!customElements.get(ELEMENT_NAME)) {
-    customElements.define(ELEMENT_NAME, FurinDevtoolsLauncher);
-  }
-  const launcher =
-    document.querySelector<FurinDevtoolsLauncher>(ELEMENT_NAME) ??
-    (document.createElement(ELEMENT_NAME) as FurinDevtoolsLauncher);
-
-  const send = (input: DevtoolsBrowserEventPayload, beacon: boolean): void => {
+  const send = (
+    input: DevtoolsBrowserEventPayload,
+    beacon: boolean,
+    clientTimestamp?: number
+  ): void => {
     const event = {
       ...input,
       clientId: id,
-      clientTimestamp: performance.timeOrigin + performance.now(),
+      clientTimestamp: clientTimestamp ?? performance.timeOrigin + performance.now(),
     } as DevtoolsBrowserEventInput;
     const body = JSON.stringify(event);
     const url = assetUrl("/_furin/devtools/browser-events");
-    if (beacon && typeof navigator.sendBeacon === "function") {
-      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    if (
+      beacon &&
+      typeof navigator.sendBeacon === "function" &&
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }))
+    ) {
       return;
     }
     nativeFetch
@@ -320,6 +323,50 @@ async function start(): Promise<void> {
       })
       .catch(() => undefined);
   };
+  const hadActiveRuntime = runtime.cleanup !== null;
+  if (!hadActiveRuntime) {
+    cleanups.push(installSyncObserver(documentSyncSnapshot(), send));
+  }
+  let snapshot: DevtoolsSnapshot;
+  try {
+    const response = await nativeFetch.call(window, assetUrl("/_furin/devtools/snapshot"));
+    const candidate: unknown = response.ok ? await response.json() : null;
+    if (!isDevtoolsSnapshot(candidate)) {
+      for (const dispose of cleanups.reverse()) {
+        dispose();
+      }
+      return;
+    }
+    snapshot = candidate;
+  } catch {
+    for (const dispose of cleanups.reverse()) {
+      dispose();
+    }
+    return;
+  }
+
+  runtime.cleanup?.();
+  if (hadActiveRuntime) {
+    cleanups.push(installSyncObserver(snapshot.sync, send));
+  }
+  const pendingCycles: Array<{ cycleId: string; detectedAt: number }> = [];
+  let pendingBeforeUpdate:
+    | {
+        detail: HmrRuntimeEvent;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    | undefined;
+  let currentCycleId: string | null = null;
+  let lastCompletedAt = 0;
+  let updateInProgress = false;
+  let updateStartedAt: number | null = null;
+  let updateStartedEpoch = 0;
+  if (!customElements.get(ELEMENT_NAME)) {
+    customElements.define(ELEMENT_NAME, FurinDevtoolsLauncher);
+  }
+  const launcher =
+    document.querySelector<FurinDevtoolsLauncher>(ELEMENT_NAME) ??
+    (document.createElement(ELEMENT_NAME) as FurinDevtoolsLauncher);
 
   const updateLauncher = (state: DevtoolsConnectionState, durationMs: number | null): void => {
     launcher.update(state, durationMs);
@@ -347,7 +394,11 @@ async function start(): Promise<void> {
     );
   };
 
-  const sendClientPhase = (phase: DevtoolsHmrClientPhase, detail: HmrRuntimeEvent): void => {
+  const sendClientPhase = (
+    phase: DevtoolsHmrClientPhase,
+    detail: HmrRuntimeEvent,
+    clientTimestamp?: number
+  ): void => {
     const durationMs =
       detail.durationMs ??
       (updateStartedAt === null ? null : Math.max(0, performance.now() - updateStartedAt));
@@ -359,7 +410,8 @@ async function start(): Promise<void> {
         phase,
         type: "hmr.client.phase",
       },
-      false
+      false,
+      clientTimestamp
     );
     if (phase === "paint") {
       updateLauncher("connected", durationMs);
@@ -368,6 +420,15 @@ async function start(): Promise<void> {
       updateStartedAt = null;
       currentCycleId = null;
     }
+  };
+  const flushBeforeUpdate = (): void => {
+    if (!pendingBeforeUpdate) {
+      return;
+    }
+    clearTimeout(pendingBeforeUpdate.timer);
+    const { detail } = pendingBeforeUpdate;
+    pendingBeforeUpdate = undefined;
+    sendClientPhase("before-update", detail, updateStartedEpoch);
   };
 
   const hmrListener = (event: Event): void => {
@@ -385,13 +446,20 @@ async function start(): Promise<void> {
       updateStartedEpoch = performance.timeOrigin + updateStartedAt;
       updateInProgress = true;
       currentCycleId = pendingCycles.shift()?.cycleId ?? null;
+      pendingBeforeUpdate = {
+        detail,
+        timer: setTimeout(flushBeforeUpdate, 20),
+      };
+      return;
     }
     if (detail.phase === "full-reload" || detail.phase === "before-full-reload") {
+      flushBeforeUpdate();
       sendFullReload(detail);
       return;
     }
     const phase = detail.phase === "module" ? "after-update" : detail.phase;
-    if (phase === "before-update" || phase === "after-update" || phase === "paint") {
+    if (phase === "after-update" || phase === "paint") {
+      flushBeforeUpdate();
       sendClientPhase(phase, detail);
     }
   };
@@ -399,7 +467,6 @@ async function start(): Promise<void> {
   try {
     cleanups.push(installFetchObserver());
     cleanups.push(installKeyboardShortcut());
-    cleanups.push(installSyncObserver(snapshot.sync, send));
     window.addEventListener(HMR_EVENT, hmrListener);
     cleanups.push(() => window.removeEventListener(HMR_EVENT, hmrListener));
 
@@ -451,6 +518,7 @@ async function start(): Promise<void> {
             payload.detectedAt <= updateStartedEpoch + 10
           ) {
             currentCycleId = payload.cycleId;
+            flushBeforeUpdate();
             return;
           }
           pendingCycles.push({
@@ -467,6 +535,9 @@ async function start(): Promise<void> {
     });
 
     runtime.cleanup = () => {
+      if (pendingBeforeUpdate) {
+        clearTimeout(pendingBeforeUpdate.timer);
+      }
       for (const dispose of cleanups.reverse()) {
         dispose();
       }

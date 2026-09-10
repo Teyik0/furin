@@ -169,15 +169,19 @@ test.serial(
     writeFileSync(routePath, "export const route = 1;\n");
 
     let attempts = 0;
+    const metadata: Array<{ cycleId: string | null; detectedAt: number; sourcePaths: string[] }> =
+      [];
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     const watcher = registerDevRouteTopologyWatcher({
       instance: { pagesDir, prefix: "" },
-      onRouteFilesTouched: () => {
+      onRouteFilesTouched: (sourcePaths, detectedAt, cycleId) => {
         attempts += 1;
+        metadata.push({ cycleId, detectedAt, sourcePaths });
         if (attempts === 1) {
           throw new Error(`${routePath}: use a static layout route reference`);
         }
       },
+      onSourceChange: () => "retry-cycle",
       onTopologyChange: () => undefined,
     });
 
@@ -189,6 +193,8 @@ test.serial(
         "[furin] Failed to refresh route topology",
         expect.objectContaining({ message: `${routePath}: use a static layout route reference` })
       );
+      expect(metadata).toHaveLength(2);
+      expect(metadata[1]).toEqual(metadata[0]);
     } finally {
       watcher.close();
       errorSpy.mockRestore();

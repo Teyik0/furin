@@ -132,6 +132,60 @@ test.serial("DevTools collector correlates only the exact same-origin data endpo
   }
 });
 
+test.serial("DevTools observes sync before the snapshot request resolves", async () => {
+  installDom();
+  TestEventSource.instances.length = 0;
+  const postedEvents: Array<{
+    clientId?: string;
+    clientTimestamp?: number;
+    cursor?: string | null;
+    state?: string;
+    type: string;
+  }> = [];
+  const syncElement = document.createElement("script");
+  syncElement.id = "__FURIN_SYNC__";
+  syncElement.textContent = JSON.stringify({ stream: "/_furin/sync" });
+  document.body.append(syncElement);
+  let resolveSnapshot: ((response: Response) => void) | undefined;
+  const pendingSnapshot = new Promise<Response>((resolve) => {
+    resolveSnapshot = resolve;
+  });
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/snapshot")) {
+      return pendingSnapshot;
+    }
+    if (typeof init?.body === "string") {
+      postedEvents.push(JSON.parse(init.body));
+    }
+    return Promise.resolve(new Response(null, { status: 204 }));
+  }) as typeof fetch;
+  window.EventSource = TestEventSource as unknown as typeof EventSource;
+  performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+
+  try {
+    await import(`../../../src/devtools/collector.ts?early-sync=${Date.now()}`);
+    const syncSource = new window.EventSource("/_furin/sync");
+    expect(postedEvents).toContainEqual({
+      clientId: expect.any(String),
+      clientTimestamp: expect.any(Number),
+      cursor: null,
+      state: "connecting",
+      type: "sync.connection.changed",
+    });
+    resolveSnapshot?.(
+      Response.json({
+        ...snapshot(),
+        sync: { enabled: true, streamPath: "/_furin/sync" },
+      })
+    );
+    await waitForDom(() => document.querySelector("furin-devtools-launcher") !== null, undefined);
+    syncSource.close();
+  } finally {
+    cleanupDevtoolsRuntime();
+    await uninstallDom();
+  }
+});
+
 test.serial(
   "DevTools collector does not patch the application after invalid startup data",
   async () => {
@@ -161,17 +215,36 @@ test.serial("DevTools resource reporting ignores its own ingest requests", async
   const originalObserver = globalThis.PerformanceObserver;
   const originalEntries = performance.getEntriesByType.bind(performance);
   let browserEventRequests = 0;
-  window.fetch = ((input: RequestInfo | URL) => {
+  let reportedResources = 0;
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/browser-events")) {
       browserEventRequests += 1;
+      if (typeof init?.body === "string") {
+        const event = JSON.parse(init.body);
+        if (event.type === "browser.resources") {
+          reportedResources = event.resources.length;
+        }
+      }
     }
     return Promise.resolve(
       url.includes("/snapshot") ? Response.json(snapshot()) : new Response(null, { status: 204 })
     );
   }) as typeof fetch;
   window.EventSource = TestEventSource as unknown as typeof EventSource;
-  performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+  performance.getEntriesByType = (() =>
+    Array.from(
+      { length: 501 },
+      (_, index) =>
+        ({
+          decodedBodySize: index,
+          duration: index,
+          encodedBodySize: index,
+          initiatorType: "script",
+          name: `http://localhost:3000/assets/${index}.js`,
+          transferSize: index,
+        }) as PerformanceResourceTiming
+    )) as typeof performance.getEntriesByType;
   globalThis.PerformanceObserver = TestPerformanceObserver as unknown as typeof PerformanceObserver;
 
   try {
@@ -182,7 +255,7 @@ test.serial("DevTools resource reporting ignores its own ingest requests", async
       {
         getEntries: () => [
           {
-            name: "http://localhost/_furin/devtools/browser-events",
+            name: "http://localhost:3000/_furin/devtools/browser-events",
           } as PerformanceEntry,
         ],
       } as PerformanceObserverEntryList,
@@ -191,6 +264,7 @@ test.serial("DevTools resource reporting ignores its own ingest requests", async
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(browserEventRequests).toBe(requestCount);
+    expect(reportedResources).toBe(500);
   } finally {
     cleanupDevtoolsRuntime();
     globalThis.PerformanceObserver = originalObserver;
@@ -274,7 +348,7 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
 
     const phases = browserEvents.filter((event) => event.type === "hmr.client.phase");
     expect(phases.map((event) => [event.phase, event.cycleId])).toEqual([
-      ["before-update", null],
+      ["before-update", "cycle-a"],
       ["after-update", "cycle-a"],
       ["paint", "cycle-a"],
       ["before-update", "cycle-b"],

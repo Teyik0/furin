@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildApp } from "../build/index.ts";
+import { scanFurinInstances } from "../build/scan-server.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
@@ -158,11 +159,17 @@ if (command === "dev") {
     bail(`[furin] Entrypoint ${config.serverEntry ?? "src/server.ts"} not found`);
   }
   const appUrl = `http://localhost:${port}/`;
-  const devtoolsUrl = new URL("_furin/devtools", appUrl).href;
+  const configuredPrefixes =
+    config.apps?.map((app) => normalizePrefix(app.prefix)) ??
+    (config.pagesDir ? [""] : scanFurinInstances(serverEntry).map((instance) => instance.prefix));
+  const prefixes = [...new Set(configuredPrefixes.length > 0 ? configuredPrefixes : [""])];
+  const devtoolsUrls = prefixes.map((prefix) => new URL(`${prefix}/_furin/devtools`, appUrl).href);
 
   log("Development server starting");
   console.log(`  Local:     ${appUrl}`);
-  console.log(`  DevTools:  ${devtoolsUrl}`);
+  for (const devtoolsUrl of devtoolsUrls) {
+    console.log(`  DevTools:  ${devtoolsUrl}`);
+  }
   console.log("  Press Ctrl+C to stop\n");
 
   const child = Bun.spawn([process.execPath, "--hot", serverEntry], {
@@ -173,7 +180,7 @@ if (command === "dev") {
     stdout: "inherit",
   });
   const openPromise = values["open-devtools"]
-    ? openWhenReady(devtoolsUrl, child)
+    ? openWhenReady(devtoolsUrls[0] as string, child)
     : Promise.resolve();
   let stopping = false;
   const stop = (signal: NodeJS.Signals): void => {

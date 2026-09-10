@@ -177,8 +177,12 @@ function serializeEvent(event: DevtoolsSnapshot["events"][number]): string {
   return `id: ${event.id}\nevent: furin.devtools\ndata: ${JSON.stringify(event)}\n\n`;
 }
 
-function dashboardHtml(prefix: string): string {
-  const base = `${prefix}/_furin/devtools`;
+export function renderDevtoolsDashboardHtml(prefix: string): string {
+  const base = `${prefix}/_furin/devtools`
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -230,7 +234,7 @@ export function createDevtoolsPlugin(
       if (forbidden) {
         return forbidden;
       }
-      return new Response(dashboardHtml(currentInstance().prefix), {
+      return new Response(renderDevtoolsDashboardHtml(currentInstance().prefix), {
         headers: {
           "cache-control": "no-store",
           "content-security-policy":

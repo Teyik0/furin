@@ -15,7 +15,10 @@ import {
   revalidatePathForInstance,
 } from "../../../src/server/cache/invalidation.ts";
 import { appendDevtoolsEvent, devtoolsEventsSnapshot } from "../../../src/server/devtools/hub.ts";
-import { createDevtoolsPlugin } from "../../../src/server/devtools/plugin.ts";
+import {
+  createDevtoolsPlugin,
+  renderDevtoolsDashboardHtml,
+} from "../../../src/server/devtools/plugin.ts";
 import { runWithDevtoolsRequest } from "../../../src/server/devtools/request-context.ts";
 import { currentInstance } from "../../../src/server/instance.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
@@ -142,6 +145,14 @@ describe("native DevTools plugin", () => {
     expect(html).toContain("<title>Furin DevTools</title>");
     expect(html).toContain("/_furin/devtools/dashboard.js");
     expect(html).toContain("/_furin/devtools/dashboard.css");
+  });
+
+  test("escapes the configured prefix in dashboard asset attributes", async () => {
+    const html = renderDevtoolsDashboardHtml('/admin" onload="alert(1)');
+
+    expect(html).not.toContain('" onload="');
+    expect(html).toContain("/admin&quot; onload=&quot;alert(1)");
+    await Promise.resolve();
   });
 
   test("retains validated browser HMR events across a full reload", async () => {

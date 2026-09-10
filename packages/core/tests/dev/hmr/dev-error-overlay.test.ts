@@ -132,6 +132,9 @@ test("the overlay client captures hydration failures", async () => {
   expect(source).toContain("serverId");
   expect(source).toContain("event.serverId !== currentEvent.serverId");
   expect(source).toContain('reportFullReload("development-error-recovered")');
+  expect(source).toContain('typeof navigator.sendBeacon === "function"');
+  expect(source).toContain("fallbackClientId");
+  expect(source).toContain("keepalive: true");
   expect(source).toContain("Cursor persistence is optional.");
   expect(source).not.toContain('window.addEventListener("unhandledrejection"');
 });

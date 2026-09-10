@@ -105,17 +105,19 @@ const plugin: Bun.BunPlugin = {
         return;
       }
 
+      const previousFingerprint = sourceFingerprints.get(args.path);
+      activeBuild?.rebuiltModules.add(args.path);
+      if (previousFingerprint !== undefined) {
+        activeBuild?.changedModules.add(args.path);
+      }
       const sourceFile = Bun.file(args.path);
       const source = await sourceFile.text();
       const fingerprint = Bun.hash(source).toString(16);
-      const previousFingerprint = sourceFingerprints.get(args.path);
       sourceFingerprints.set(args.path, fingerprint);
-      activeBuild?.rebuiltModules.add(args.path);
-      if (previousFingerprint !== undefined && previousFingerprint !== fingerprint) {
-        activeBuild?.changedModules.add(args.path);
-        if (activeBuild) {
-          activeBuild.detectedAt = Math.min(activeBuild.detectedAt, sourceFile.lastModified);
-        }
+      if (previousFingerprint === fingerprint) {
+        activeBuild?.changedModules.delete(args.path);
+      } else if (previousFingerprint !== undefined && activeBuild) {
+        activeBuild.detectedAt = Math.min(activeBuild.detectedAt, sourceFile.lastModified);
       }
 
       const result = transformForClient(source, args.path);

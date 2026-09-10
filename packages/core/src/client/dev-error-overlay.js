@@ -215,11 +215,15 @@ function reportFullReload(reason) {
     return;
   }
   let clientId = "";
+  const fallbackClientId = () =>
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   try {
-    clientId = sessionStorage.getItem("furin:devtools:client-id") ?? crypto.randomUUID();
+    clientId =
+      sessionStorage.getItem("furin:devtools:client-id") ??
+      (typeof crypto.randomUUID === "function" ? crypto.randomUUID() : fallbackClientId());
     sessionStorage.setItem("furin:devtools:client-id", clientId);
   } catch {
-    clientId = crypto.randomUUID();
+    clientId = fallbackClientId();
   }
   const body = JSON.stringify({
     clientId,
@@ -228,10 +232,19 @@ function reportFullReload(reason) {
     reason,
     type: "hmr.full-reload",
   });
-  navigator.sendBeacon(
-    `${state.basePath}/_furin/devtools/browser-events`,
-    new Blob([body], { type: "application/json" })
-  );
+  const url = `${state.basePath}/_furin/devtools/browser-events`;
+  if (
+    typeof navigator.sendBeacon === "function" &&
+    navigator.sendBeacon(url, new Blob([body], { type: "application/json" }))
+  ) {
+    return;
+  }
+  fetch(url, {
+    body,
+    headers: { "content-type": "application/json" },
+    keepalive: true,
+    method: "POST",
+  }).catch(() => undefined);
 }
 
 function connect() {

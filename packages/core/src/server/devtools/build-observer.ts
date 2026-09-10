@@ -55,12 +55,15 @@ export function takeDevtoolsPendingCycle(
   changedModules: string[]
 ): DevtoolsPendingCycle | undefined {
   const changedModuleSet = new Set(changedModules);
-  const index = cycles.findLastIndex((candidate) => changedModuleSet.has(candidate.sourcePath));
-  if (index < 0) {
-    return;
+  let matchedCycle: DevtoolsPendingCycle | undefined;
+  for (let index = cycles.length - 1; index >= 0; index -= 1) {
+    const cycle = cycles[index];
+    if (cycle && changedModuleSet.has(cycle.sourcePath)) {
+      matchedCycle ??= cycle;
+      cycles.splice(index, 1);
+    }
   }
-  const [cycle] = cycles.splice(index, 1);
-  return cycle;
+  return matchedCycle;
 }
 
 export function subscribeDevtoolsClientBuilds(

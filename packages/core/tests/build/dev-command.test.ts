@@ -53,6 +53,38 @@ test("furin dev prints the application and dedicated DevTools URLs", async () =>
   }
 });
 
+test("furin dev discovers a prefixed instance dashboard", async () => {
+  const directory = createDevelopmentServer(`if (false) {
+  furin({ pagesDir: "./pages", prefix: "/admin" });
+}
+Bun.serve({
+  port: Number(process.env.PORT),
+  fetch(request) {
+    return new URL(request.url).pathname === "/admin/_furin/devtools"
+      ? new Response("Admin DevTools")
+      : new Response("Not found", { status: 404 });
+  },
+});`);
+  const port = await getFreePort();
+  const cli = startCli(["dev", "--port", String(port)], { cwd: directory });
+
+  try {
+    const response = await waitForHttp(`http://localhost:${port}/admin/_furin/devtools`, {
+      timeoutMs: 10_000,
+    });
+    await response.body?.cancel();
+
+    expect(cli.getStdout()).toContain(
+      `DevTools:  http://localhost:${port}/admin/_furin/devtools`
+    );
+    expect(cli.getStdout()).not.toContain(`DevTools:  http://localhost:${port}/_furin/devtools`);
+  } finally {
+    cli.kill();
+    await cli.exitCode;
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test("furin dev aborts a stalled readiness request when the child exits", async () => {
   const directory = createDevelopmentServer(`const server = Bun.listen({
   hostname: "127.0.0.1",

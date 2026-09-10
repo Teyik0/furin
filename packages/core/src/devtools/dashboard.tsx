@@ -141,6 +141,15 @@ function PageHeader({
   );
 }
 
+export function mergeDevtoolsSnapshotEvents(
+  current: DevtoolsServerEvent[],
+  snapshot: DevtoolsSnapshot
+): DevtoolsServerEvent[] {
+  return [...snapshot.events, ...current.filter((event) => event.id > snapshot.lastEventId)].slice(
+    -MAX_EVENTS
+  );
+}
+
 function useDevtools(): {
   connected: boolean;
   connectionError: string | null;
@@ -163,7 +172,7 @@ function useDevtools(): {
       return;
     }
     setSnapshot(candidate);
-    setEvents(candidate.events);
+    setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate));
   }, []);
 
   useEffect(() => {
@@ -937,7 +946,8 @@ export function mountDevtoolsDashboard(element: HTMLElement): () => void {
   return () => root.unmount();
 }
 
-const dashboardRoot = document.getElementById("furin-devtools-root");
+const dashboardRoot =
+  typeof document === "undefined" ? null : document.getElementById("furin-devtools-root");
 if (dashboardRoot) {
   mountDevtoolsDashboard(dashboardRoot);
 }

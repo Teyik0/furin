@@ -9,7 +9,7 @@
   --grid: rgba(238, 240, 231, 0.055);
   --ink: #eef0e7;
   --muted: #85887d;
-  --muted-deep: #5f6259;
+  --muted-deep: #92958a;
   --panel: #171814;
   --rule: #2b2d27;
   font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
@@ -105,7 +105,7 @@ time {
 }
 
 .brand small {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -392,7 +392,7 @@ time {
 
 .cycle small,
 .cycle time {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--muted-deep);
 }
 
@@ -579,7 +579,7 @@ time {
   grid-template-columns: 12px minmax(0, 1fr);
   gap: 6px;
   min-width: 0;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--muted-deep);
 }
 
@@ -593,7 +593,7 @@ time {
 .precision-note,
 .muted {
   margin: 13px 0 0;
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1.55;
   color: var(--muted-deep);
 }
@@ -614,7 +614,7 @@ table {
 
 th {
   padding: 12px 14px;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
   color: var(--muted-deep);
   text-transform: uppercase;
@@ -655,14 +655,14 @@ td code {
 .stacked-cell small {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 8px;
+  font-size: 9px;
   color: var(--muted-deep);
 }
 
 .mode {
   display: inline-block;
   padding: 3px 6px;
-  font-size: 8px;
+  font-size: 9px;
   text-transform: uppercase;
   border: 1px solid var(--rule);
   border-radius: 3px;
@@ -798,7 +798,7 @@ td code {
   }
 
   .sidebar nav button.active {
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .sidebar-foot {
