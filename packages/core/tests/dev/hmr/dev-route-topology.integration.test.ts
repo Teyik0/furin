@@ -27,8 +27,13 @@ async function pollUntil(
   delayMs: number
 ): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i += 1) {
-    if (await fn()) {
-      return true;
+    try {
+      if (await fn()) {
+        return true;
+      }
+    } catch {
+      // Bun --hot may briefly close the listening socket while replacing the
+      // development graph. Retry until the observable route state converges.
     }
     await Bun.sleep(delayMs);
   }
@@ -317,7 +322,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       40,
       250
     );
-    expect(added).toBe(true);
+    expect(added, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
 
     removeAppPath(app.path, "src/pages/not-found.tsx");
     const removed = await pollUntil(
@@ -328,7 +333,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       40,
       250
     );
-    expect(removed).toBe(true);
+    expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
   }, 20_000);
 
   test("hot-editing a legacy root layout applies the document layout autofix", async () => {
@@ -353,7 +358,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       250
     );
 
-    expect(fixed).toBe(true);
+    expect(fixed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
     let lastDocument = "";
     const served = await pollUntil(
       async () => {
