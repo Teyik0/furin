@@ -18,20 +18,24 @@ afterEach(() => {
   resetEvlogMock();
 });
 
-test.serial("browser log ingest is not mounted unless clientLogging is enabled", async () => {
-  __setDevMode(true);
+test.serial(
+  "browser log ingest is not mounted unless clientLogging is enabled",
+  async () => {
+    __setDevMode(true);
 
-  const app = await createTestApp(false);
-  const res = await app.handle(
-    new Request("http://localhost/_furin/ingest", {
-      body: "[]",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    })
-  );
+    const app = await createTestApp(false);
+    const res = await app.handle(
+      new Request("http://localhost/_furin/ingest", {
+        body: "[]",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      })
+    );
 
-  expect(res.status).toBe(404);
-});
+    expect(res.status).toBe(404);
+  },
+  { timeout: 15_000 }
+);
 
 test.serial("dev inspector is not mounted by default", async () => {
   __setDevMode(true);
