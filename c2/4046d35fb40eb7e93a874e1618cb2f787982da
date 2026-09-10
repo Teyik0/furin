@@ -1,0 +1,25 @@
+CHANGELOG.md
+  s_31911e27f29a63::t_e36561448504c8 26
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_31911e27f29a63::t_97de4a8da8c9fe 21,143-147,150,248-252,255,261-287,296
+packages/core/src/adapter/static.ts
+  s_31911e27f29a63::t_31a227490993f9 53
+  s_31911e27f29a63::t_87a32b129b1882 56-83,417,424
+  s_31911e27f29a63::t_4680c0f25ab235 52,54-55,442-443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "c24046d35fb40eb7e93a874e1618cb2f787982da",
+  "prompts": {},
+  "sessions": {
+    "s_31911e27f29a63": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5fc8-3e73-7913-8a06-17411edf2def",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

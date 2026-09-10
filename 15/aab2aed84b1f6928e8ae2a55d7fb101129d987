@@ -1,0 +1,19 @@
+.github/workflows/cd.yaml
+  s_1e61b4c1a53034::t_ad3cbcd461c736 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "15aab2aed84b1f6928e8ae2a55d7fb101129d987",
+  "prompts": {},
+  "sessions": {
+    "s_1e61b4c1a53034": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14d7f3bf5ffeUU5MBDB2RfVAJQ",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

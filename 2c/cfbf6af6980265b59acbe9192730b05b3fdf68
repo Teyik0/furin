@@ -1,0 +1,25 @@
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_1d727ea268cd69 185-205,1857-1884,1939-1963
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_9d08bd2c5b68af 601-603,606
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_9ed76427155847 6,192-252,254,256-260,263,265-269,271-342,344-359,362,366,402,419-420,768-779,797-800,802-805
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_2a4069bf188ef3::t_d6efc577a87674 93-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2ccfbf6af6980265b59acbe9192730b05b3fdf68",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

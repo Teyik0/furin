@@ -1,0 +1,188 @@
+apps/scaffolder/templates/simple/furin-env.d.ts.ejs
+  b16194350eef2867 1-9
+apps/scaffolder/templates/simple/package.json.ejs
+  b16194350eef2867 1-27
+apps/scaffolder/templates/full/src/pages/index.tsx
+  b16194350eef2867 1-3,5,11,13-15,18-27,29-53
+  03e6874ff988962f 4,6-10,12,16-17,28
+apps/scaffolder/templates/full/.gitignore
+  b16194350eef2867 1-5
+apps/scaffolder/src/cli.ts
+  b16194350eef2867 1-28
+apps/scaffolder/src/pipeline/context.ts
+  03e6874ff988962f 12-13,18,20,22-23,29,36-37,47-48,62-75,89-90
+  75d75e1c864838fe 35
+  b16194350eef2867 1-11,14-17,19,21,24-28,30-34,38-46,49-61,76-88,91-133
+apps/scaffolder/templates/simple/furin.config.ts
+  b16194350eef2867 1-6
+apps/scaffolder/tests/templates.test.ts
+  75d75e1c864838fe 45-54
+  03e6874ff988962f 6,11,15,22,64-66,81-83,103,127,130
+  b16194350eef2867 1-5,7-10,12-14,16-21,23-44,55-63,67-80,84-102,104-126,128-129,131-156
+apps/scaffolder/templates/full/src/api/hello.ts
+  b16194350eef2867 1-11
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  b16194350eef2867 1-50
+apps/scaffolder/templates/simple/src/api/hello.ts
+  b16194350eef2867 1-11
+apps/scaffolder/templates/simple/tsconfig.json
+  b16194350eef2867 1-25
+apps/scaffolder/src/index.ts
+  b16194350eef2867 1-52
+apps/scaffolder/src/utils/tree-view.ts
+  03e6874ff988962f 4,28,30,38-42,60-63
+  b16194350eef2867 1-3,5-27,29,31-37,43-59,64-75
+apps/scaffolder/src/utils/disk.ts
+  03e6874ff988962f 1-2,7,15,17,21,23,25,27,31,33
+  b16194350eef2867 3-6,8-14,16,18-20,22,24,26,28-30,32,34-39
+apps/scaffolder/src/args.ts
+  03e6874ff988962f 13-15,33-34,36-38,40,42-44,54-55,85
+  b16194350eef2867 1-12,16-32,35,39,41,45-53,56-84,86-87
+apps/scaffolder/templates/full/components.json
+  b16194350eef2867 1-20
+apps/scaffolder/templates/simple/bunfig.toml
+  b16194350eef2867 1-3
+apps/scaffolder/templates/manifest.json
+  75d75e1c864838fe 76-80,97,181-185
+  b16194350eef2867 1-75,81-96,98-180,186-191
+apps/scaffolder/tests/ejs-renderer.test.ts
+  75d75e1c864838fe 70,82
+  b16194350eef2867 1-69,71-81,83-86
+apps/scaffolder/templates/full/bunfig.toml
+  b16194350eef2867 1-3
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  b16194350eef2867 1-16
+apps/scaffolder/templates/full/src/components/ui/input.tsx
+  b16194350eef2867 2-7,9-10,13-18
+  03e6874ff988962f 1,8,11-12
+apps/scaffolder/src/pipeline/stages/6-validation.ts
+  b16194350eef2867 1-42
+apps/scaffolder/templates/simple/src/pages/root.tsx
+  b16194350eef2867 1-8
+apps/scaffolder/src/utils/git.ts
+  03e6874ff988962f 19,21-22,24
+  b16194350eef2867 1-18,20,23,25-29
+apps/scaffolder/templates/simple/.gitignore
+  b16194350eef2867 1-5
+apps/scaffolder/templates/simple/src/pages/globals.css
+  b16194350eef2867 1-18
+apps/scaffolder/src/utils/project-name.ts
+  b16194350eef2867 1-42
+apps/scaffolder/src/engine/renderer.ts
+  b16194350eef2867 1-32
+apps/scaffolder/templates/full/src/pages/root.tsx
+  b16194350eef2867 1-8
+apps/scaffolder/src/pipeline/stages/7-refinement.ts
+  b16194350eef2867 1-5,7-33
+  03e6874ff988962f 6
+apps/scaffolder/templates/full/src/components/ui/card.tsx
+  03e6874ff988962f 1,8,11,24,33,44,54,61,68,74
+  b16194350eef2867 2-7,9-10,12-23,25-32,34-43,45-53,55-60,62-67,69-73
+apps/scaffolder/templates/full/src/lib/utils.ts
+  b16194350eef2867 1-6
+apps/scaffolder/templates/full/src/server.ts.ejs
+  b16194350eef2867 1-12
+apps/scaffolder/src/pipeline/stages/3-design.ts
+  03e6874ff988962f 4,6
+  b16194350eef2867 1-3,5,7-26
+apps/scaffolder/tests/args.test.ts
+  b16194350eef2867 1-91
+apps/scaffolder/src/pipeline/index.ts
+  b16194350eef2867 1-22
+apps/scaffolder/templates/full/src/pages/globals.css
+  b16194350eef2867 1-89
+apps/scaffolder/templates/full/furin-env.d.ts.ejs
+  b16194350eef2867 1-9
+apps/scaffolder/src/pipeline/stages/5-generation.ts
+  75d75e1c864838fe 26-28,30-31
+  03e6874ff988962f 3-4
+  b16194350eef2867 1-2,5-25,29,32-42
+apps/scaffolder/templates/full/src/components/ui/button.tsx
+  b16194350eef2867 4-6,8-12,14,16-21,23-48,50-55
+  03e6874ff988962f 2-3,7,13,15,22,49
+  75d75e1c864838fe 1
+apps/scaffolder/README.md
+  75d75e1c864838fe 75-76,102-103,121,168
+  03e6874ff988962f 30,66-67
+  b16194350eef2867 3,5,7-13,19-25,27-29,31,36-65,68-74,77-84,86-101,104-120,122-167
+apps/scaffolder/src/pipeline/stages/2-selection.ts
+  b16194350eef2867 1,3-7,9,11-46
+  03e6874ff988962f 2,8,10
+apps/scaffolder/templates/full/furin.config.ts
+  b16194350eef2867 1-6
+apps/scaffolder/tests/name-utils.test.ts
+  b16194350eef2867 1-2,4-108
+  03e6874ff988962f 3
+apps/scaffolder/templates/full/tsconfig.json
+  b16194350eef2867 1-28
+apps/scaffolder/templates/full/package.json.ejs
+  75d75e1c864838fe 20
+  b16194350eef2867 1-19,21-33
+apps/scaffolder/src/pipeline/stages/1-analysis.ts
+  b16194350eef2867 1,3,5-18,20,23,26,28-60
+  03e6874ff988962f 2,4,19,21-22,24-25,27
+apps/scaffolder/src/pipeline/stages/4-deps.ts
+  03e6874ff988962f 31-33,38,40,42
+  b16194350eef2867 1,3-17,19,21-30,34-37,39,41,43,45-75
+  75d75e1c864838fe 44
+  72dd5765b10cdaff 2,18,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "dcdbd0d7a02294d4e92acddff81b2ff83ea7d812",
+  "prompts": {
+    "03e6874ff988962f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d6358-0fd8-74b1-9272-aba013f41413",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 24,
+      "accepted_lines": 141,
+      "overriden_lines": 0
+    },
+    "72dd5765b10cdaff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d6358-0f66-77b3-aa26-67fd01cec50a",
+        "model": "unknown"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "75d75e1c864838fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d639e-25d4-71e1-802e-7fc2470c5697",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 14,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "b16194350eef2867": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7c9372b-41f7-4795-ad67-c54d2b830365",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2080,
+      "overriden_lines": 0
+    }
+  }
+}

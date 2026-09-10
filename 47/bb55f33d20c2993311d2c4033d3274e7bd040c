@@ -1,0 +1,135 @@
+packages/core/src/render/cache.ts
+  163575be77def2df 33-60
+packages/core/src/render/index.ts
+  163575be77def2df 6-7,159,162,167-178,308
+packages/core/src/adapter/bun.ts
+  163575be77def2df 33-40,171-173
+  ff85c50a581606a1 57
+apps/scaffolder/src/pipeline/context.ts
+  163575be77def2df 6-8
+packages/core/src/link.tsx
+  787dcc22e8e37322 165-190,211-225,249-252,284-291,407,578-587,638,646-657,667,676
+  163575be77def2df 454-460
+packages/core/src/router.ts
+  163575be77def2df 250-255
+examples/task-manager/src/pages/index.tsx
+  163575be77def2df 71,113-123,125,127-173
+examples/weather/src/pages/index.tsx
+  8b5bcc32518b2b66 1,24-25,39-43,45,47
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  6650e09c2c508f1c 1-2,4,8-12,14,16,18-32,34-56,58,60-72,74-98,120-129,131-136,157-161,169
+examples/task-manager/src/api/modules/boards/index.ts
+  6650e09c2c508f1c 3,30-38
+  163575be77def2df 9-10,12
+packages/core/tests/render.test.ts
+  5e6b65bacf08dc7f 398,683
+packages/core/tests/helpers/with-build-stub.ts
+  163575be77def2df 1-46
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  ff85c50a581606a1 109
+packages/core/tests/build-cli.test.ts
+  163575be77def2df 7
+examples/task-manager/src/components/ui/kanban.tsx
+  6650e09c2c508f1c 26,104,123,134,145,156,168,186,202,262-263,367,444,508,510-511,545,549,575
+  ff85c50a581606a1 36-37,41-42,52,61,64-103,473-476
+  163575be77def2df 229-234,238-244,247-260,264-271,273-275,477-483,485-494,498-501,506,552,560,566-571,585-589,604-607
+apps/scaffolder/tests/templates.test.ts
+  163575be77def2df 2-4,9-10,12-22,24-36,83-84,92-103,108,116-125,131-132,139-144,158-162,180-181,183-186,189,191-194
+packages/core/tests/adapter-bun.test.ts
+  163575be77def2df 8,46,66
+examples/task-manager/src/api/modules/boards/service.ts
+  6650e09c2c508f1c 218-225,227-230,232,234-251
+apps/scaffolder/tests/disk.test.ts
+  163575be77def2df 33,44-78
+apps/scaffolder/tests/git.test.ts
+  163575be77def2df 25-27,29-30,32,34-36,41-48,50-51
+apps/scaffolder/src/args.ts
+  163575be77def2df 2,83-84,86-88,92-95
+packages/core/tests/link.test.tsx
+  787dcc22e8e37322 19,335,343-351,546-658
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "47bb55f33d20c2993311d2c4033d3274e7bd040c",
+  "prompts": {
+    "163575be77def2df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7785fddb-f931-4daf-ab19-75436fb3637b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 419,
+      "total_deletions": 173,
+      "accepted_lines": 411,
+      "overriden_lines": 2
+    },
+    "5e6b65bacf08dc7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "30246ec0-340e-4475-809d-0ce10450bfcf",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "6650e09c2c508f1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "55bd3779-bf73-4907-bb61-c109af49a5e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 257,
+      "total_deletions": 92,
+      "accepted_lines": 171,
+      "overriden_lines": 8
+    },
+    "787dcc22e8e37322": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed99ebb9-2b81-4311-9545-953fedef9f27",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 222,
+      "total_deletions": 17,
+      "accepted_lines": 205,
+      "overriden_lines": 0
+    },
+    "8b5bcc32518b2b66": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58dc937-e35d-450d-b951-f947f5f5e3a3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 2,
+      "accepted_lines": 10,
+      "overriden_lines": 1
+    },
+    "ff85c50a581606a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d63cc-a2c3-7430-8267-a394b77e9738",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 17,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  }
+}

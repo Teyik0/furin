@@ -1,0 +1,41 @@
+packages/core/src/build/route-types.ts
+  s_ca8fdc92fd1a52::t_21383c9f04c4fd 62-67
+packages/core/src/auto-invalidate/registry.ts
+  s_ca8fdc92fd1a52::t_0f483878898a15 7
+packages/core/tests/route-types.test.ts
+  s_ca8fdc92fd1a52::t_03ae879ac6c09e 134-135,137-138,141-143
+  s_ca8fdc92fd1a52::t_52bbdfd7cad13b 197,200
+  s_ca8fdc92fd1a52::t_56a4e2e147bd9e 186
+  s_ca8fdc92fd1a52::t_ab004338c748e3 178
+  s_ca8fdc92fd1a52::t_a669048e93a8fa 171
+  s_ca8fdc92fd1a52::t_e9fea3306c15f9 224
+  s_ca8fdc92fd1a52::t_fe758a987e1537 209,212
+packages/core/src/auto-invalidate/runtime.ts
+  s_ca8fdc92fd1a52::t_b6b3ceb705a1fb 35-54,56-60
+packages/core/tests/deferred-loaders.test.ts
+  s_ca8fdc92fd1a52::t_8918e8d1de338a 122-124
+  s_ca8fdc92fd1a52::t_5b1a3353d3795f 147
+  s_ca8fdc92fd1a52::t_5865f56ea3b281 119-121,125-126
+  s_ca8fdc92fd1a52::t_a8949056c21a78 41
+  s_ca8fdc92fd1a52::t_21acb6616bdb3b 83
+  s_ca8fdc92fd1a52::t_0babfda356e8a4 105
+  s_ca8fdc92fd1a52::t_72fa7ede05afbb 69
+examples/task-manager/src/api/modules/boards/index.ts
+  s_ca8fdc92fd1a52::t_e6800355161a73 5-15,21,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1dd5248193b2e17572dad033a54e19147f5ee223",
+  "prompts": {},
+  "sessions": {
+    "s_ca8fdc92fd1a52": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a499b345ffeiaY1kFB2hpEwRq",
+        "model": "glm-5.1"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

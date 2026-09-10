@@ -1,0 +1,80 @@
+examples/simple/src/components/comments-section.tsx
+  0448a5ee8e684841 1-20,22-31,33-42,44-48,50-52,54,56-97,99,101-133,135-146,148-151,153,155-157,159-160,162-180,182-206
+  a48066d0432f0e0c 21
+examples/simple/src/pages/root.tsx
+  0448a5ee8e684841 17,19
+  a46d2383b0a36077 5,8-16,18,20-43,71,114-118
+examples/simple/src/api/comments.ts
+  0448a5ee8e684841 1-13,15-35,37
+examples/simple/src/pages/index.tsx
+  a48066d0432f0e0c 6,12,14-15,17-31,33-44,51-63,117,119,206-207,209-243
+examples/simple/src/api/auth.ts
+  a46d2383b0a36077 3,25-28,30,33-34
+  0448a5ee8e684841 2,4-5,8-14,16
+examples/simple/package.json
+  0448a5ee8e684841 12-14
+examples/simple/src/db/models.ts
+  0448a5ee8e684841 1-5
+examples/simple/src/server.ts
+  a46d2383b0a36077 38
+examples/simple/src/db/schema.ts
+  0448a5ee8e684841 1-67
+examples/simple/src/api/index.ts
+  0448a5ee8e684841 3,5
+examples/simple/src/pages/login.tsx
+  a46d2383b0a36077 1,6-10,14-19,23-32,34
+examples/simple/src/pages/docs/_route.tsx
+  0448a5ee8e684841 3-4,36-41,71-72
+examples/simple/src/db/index.ts
+  0448a5ee8e684841 1-13
+examples/simple/drizzle.config.ts
+  0448a5ee8e684841 1-8
+examples/simple/src/lib/auth-client.ts
+  a46d2383b0a36077 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "83178882ea0e5466f8bc5ec7ebb5a2cef42c4c97",
+  "prompts": {
+    "0448a5ee8e684841": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "31462d5b-3cb6-475d-a7f2-a276be21f051",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 453,
+      "total_deletions": 106,
+      "accepted_lines": 351,
+      "overriden_lines": 10
+    },
+    "a46d2383b0a36077": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "384dad6c-706c-4baf-91af-025aa9434d6f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 153,
+      "total_deletions": 247,
+      "accepted_lines": 123,
+      "overriden_lines": 6
+    },
+    "a48066d0432f0e0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "25d4c240-4044-4d5c-bc69-e6c008854f5e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 94,
+      "total_deletions": 27,
+      "accepted_lines": 85,
+      "overriden_lines": 4
+    }
+  }
+}

@@ -1,0 +1,103 @@
+packages/core/tests/dev-hmr-parent-child.integration.test.ts
+  2bf24de24b812418 1-474
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  0d463d84f21e2371 253-271,274,276-302,304,308-314,316-318,320,327-346,348-353,358,360
+  2bf24de24b812418 11-12,14-23,31,41,48-60,62-64,69,71-92,98-108,119-145,151-157,159-161,166,168-187,193-204,207,209-245,247,250,252,361-373,375-383,385-390,392-395,397-466
+.gitignore
+  34a45e56f449cb05 46-47
+packages/core/tests/render-element-boundaries.test.tsx
+  0d463d84f21e2371 24,224-252
+packages/core/tests/render-not-found.test.ts
+  2bf24de24b812418 85-86,113-114
+packages/core/tests/fixtures/pages/ssg-loader-page.tsx
+  0d463d84f21e2371 1-21
+packages/core/src/render/index.ts
+  2bf24de24b812418 17,76-80,87-88,91,204,240,267,303-304,306,692
+packages/core/tests/dev-hmr-cache-invalidation.integration.test.ts
+  34a45e56f449cb05 1-158,161-174,177-182
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  0d463d84f21e2371 1,3,9-13,16,51-52,62,65-68,89,105-108,117,124-132,134-144,166-168
+packages/core/src/router.ts
+  2bf24de24b812418 11-13,15-16,18-25,659-667,678,692-695,697,701-725,727,773-775,779,908
+  0d463d84f21e2371 14,17,668-677,731-735,737,741-765,767
+  34a45e56f449cb05 888-898,900,905
+packages/core/tests/adapter-static.test.ts
+  0d463d84f21e2371 14,22-25,33,198-449
+packages/core/tests/dev-hmr.integration.test.ts
+  34a45e56f449cb05 18-23,95-108,141,267-324
+packages/core/tests/render-error.test.ts
+  2bf24de24b812418 90-91,177-178,207-208,240-241,425-426,454-455
+packages/core/src/dev-inspector.ts
+  2bf24de24b812418 1-60
+packages/core/src/furin.ts
+  2bf24de24b812418 240,279
+packages/core/tests/transform-client.test.ts
+  0d463d84f21e2371 2-3,11,192-290
+packages/core/tests/render.test.ts
+  2bf24de24b812418 592,623,637,648,675,687,697,711
+packages/core/src/dev-page-plugin.ts
+  2bf24de24b812418 56,368-372
+packages/core/tests/cache.test.ts
+  0d463d84f21e2371 36,375-431
+packages/core/src/render/dev-cache.ts
+  2bf24de24b812418 2-8,10-13,15-16,19-34,37-39,41-44,46-61,63,65-69,71-75,80-105,107-108,110-124,130,132-139,141,143-148,156-158,160-161,164-166,169-171,174-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "38e32b1dcbafb4eea2d91c577403ffde7b918b68",
+  "prompts": {
+    "0d463d84f21e2371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "812debb7-e3fd-4db3-b981-cdd1df7901b3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1591,
+      "total_deletions": 80,
+      "accepted_lines": 677,
+      "overriden_lines": 0
+    },
+    "2bf24de24b812418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7ff5d903-110d-4b8f-a99d-ebe975fb4525",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 6068,
+      "total_deletions": 1786,
+      "accepted_lines": 4313,
+      "overriden_lines": 0
+    },
+    "34a45e56f449cb05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61b9ab0f-2b15-41b7-9da9-634bcfad6707",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 834,
+      "total_deletions": 641,
+      "accepted_lines": 276,
+      "overriden_lines": 3
+    },
+    "c2d879ff99ccc281": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbdd8-875b-74b1-b66b-45b70f0d906f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 1484,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

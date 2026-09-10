@@ -1,0 +1,33 @@
+packages/core/tests/link.test.tsx
+  913b5bd45322c77f 12,259-272,274-312
+packages/core/src/shell.tsx
+  913b5bd45322c77f 33-36
+packages/core/src/render/index.ts
+  913b5bd45322c77f 3,165
+packages/core/tests/shell.test.ts
+  913b5bd45322c77f 13,17-43
+packages/core/src/render/assemble.ts
+  913b5bd45322c77f 3,70
+packages/core/src/link.tsx
+  913b5bd45322c77f 157,217,242,261-262,264-265,267,282,297-306,308,310-316,319-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "ae05cca15cfb9511be0fa1bf2c7c9e56be34f1b5",
+  "prompts": {
+    "913b5bd45322c77f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4d800d6-5ddd-4377-825b-9ce6c3bf457c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 129,
+      "total_deletions": 21,
+      "accepted_lines": 121,
+      "overriden_lines": 4
+    }
+  }
+}
