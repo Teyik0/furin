@@ -199,3 +199,39 @@ test("browser event socket releases successful source subscriptions when another
     await app.stop();
   }
 });
+
+test("browser event socket rejects connections above the per-instance limit", async () => {
+  const app = new Elysia().use(createBrowserEventsPlugin({})).listen(0);
+  const port = app.server?.port;
+  if (port === undefined) {
+    throw new Error("Expected browser event test server to listen");
+  }
+  const sockets: WebSocket[] = [];
+
+  try {
+    for (let index = 0; index < 100; index += 1) {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
+      sockets.push(socket);
+      // biome-ignore lint/performance/noAwaitInLoops: fill the connection map before opening the overflow socket
+      await new Promise<void>((resolve, reject) => {
+        socket.addEventListener("open", () => resolve(), { once: true });
+        socket.addEventListener("error", () => reject(new Error("Expected socket to open")), {
+          once: true,
+        });
+      });
+    }
+
+    const overflow = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
+    sockets.push(overflow);
+    const rejected = await new Promise<boolean>((resolve) => {
+      overflow.addEventListener("open", () => resolve(false), { once: true });
+      overflow.addEventListener("error", () => resolve(true), { once: true });
+    });
+    expect(rejected).toBe(true);
+  } finally {
+    for (const socket of sockets) {
+      socket.close();
+    }
+    await app.stop();
+  }
+});

@@ -348,9 +348,11 @@ export async function handleDevRequest(
           renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
         );
       }
-      devDiagnosticStore().markReady();
+      devDiagnosticStore().markReady(route.pattern);
       return response;
     }
+    const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
+    throw new DevTransformFailure(invalidExport, { cause: invalidExport });
   } catch (err) {
     console.error(`[furin] Dev page load error for ${route.path}:`, err);
     const failure = devFailure(err);
@@ -361,12 +363,6 @@ export async function handleDevRequest(
     });
     return renderDevDiagnosticResponse(event, currentInstance().prefix);
   }
-  // Fallback: page couldn't load — return a clear error response rather than
-  // delegating to renderSSR with an undefined page.
-  return new Response(
-    `<!doctype html><html><body><h1>Page load error</h1><p>Could not load ${route.path}. Check the server console for details.</p></body></html>`,
-    { headers: { "Content-Type": "text/html; charset=utf-8" }, status: 500 }
-  );
 }
 
 /**

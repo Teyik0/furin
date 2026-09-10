@@ -438,4 +438,33 @@ throw new Error("recovery exploded");`
     expect(state?.event.diagnostic.phase).toBe("transform");
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
   }, 20_000);
+
+  test("an invalid page export is routed through the diagnostic overlay", async () => {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .loader(() => ({}));",
+      ].join("\n")
+    );
+
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(state?.event.diagnostic.phase).toBe("transform");
+    expect(state?.event.diagnostic.message).toContain("valid Furin page export");
+  }, 20_000);
 });

@@ -127,8 +127,8 @@ export class DevDiagnosticStore {
     return this.#revision;
   }
 
-  markReady(): DevDiagnosticEvent | undefined {
-    if (!this.#activeError) {
+  markReady(route: string): DevDiagnosticEvent | undefined {
+    if (!this.#activeError || this.#activeError.diagnostic.route !== route) {
       return;
     }
     this.#activeError = undefined;
@@ -154,8 +154,9 @@ export class DevDiagnosticStore {
     let replay: readonly DevDiagnosticEvent[] = [];
     if (serverId === this.#serverId) {
       replay = this.#events.filter((event) => event.id > after);
-    } else if (this.#activeError) {
-      replay = [this.#activeError];
+    } else {
+      const latest = this.#activeError ?? this.#events.at(-1);
+      replay = latest ? [latest] : [];
     }
     return {
       replay,

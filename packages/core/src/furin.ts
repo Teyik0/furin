@@ -676,7 +676,13 @@ export async function furin({
           const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
           writeCurrentDevFiles(nextSnapshot);
           graph.commit(nextSnapshot);
-          devDiagnosticStore(instance).markReady();
+          const diagnostics = devDiagnosticStore(instance);
+          diagnostics.markReady("*");
+          for (const route of nextSnapshot.routes) {
+            if (diagnostics.markReady(route.pattern)) {
+              break;
+            }
+          }
         } catch (error) {
           publishDevDiagnostic(error, {
             entryPath: join(resolvedPagesDir, "root.tsx"),

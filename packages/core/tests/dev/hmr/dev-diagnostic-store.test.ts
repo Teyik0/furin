@@ -14,14 +14,27 @@ const diagnostic: DevDiagnostic = {
 };
 
 describe("DevDiagnosticStore", () => {
-  test("replays only the active error to a fresh browser", () => {
+  test("replays the latest ready state to a reconnecting browser", () => {
     const store = new DevDiagnosticStore();
     store.publish(diagnostic);
-    store.markReady();
+    const ready = store.markReady("/");
+    if (!ready) {
+      throw new Error("Expected the matching route to publish ready state");
+    }
 
     const subscription = store.subscribe(0, undefined, () => undefined);
 
-    expect(subscription.replay).toEqual([]);
+    expect(subscription.replay).toEqual([ready]);
+    subscription.unsubscribe();
+  });
+
+  test("does not clear a diagnostic when another route succeeds", () => {
+    const store = new DevDiagnosticStore();
+    const active = store.publish({ ...diagnostic, route: "/broken" });
+
+    expect(store.markReady("/healthy")).toBeUndefined();
+    const subscription = store.subscribe(0, undefined, () => undefined);
+    expect(subscription.replay).toEqual([active]);
     subscription.unsubscribe();
   });
 

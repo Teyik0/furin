@@ -13,6 +13,7 @@ import type { BrowserEventSource, BrowserEventSubscription } from "./types.ts";
 const CLIENT_PATH = "/_furin/events/client.js";
 const SOCKET_PATH = "/_furin/events";
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const MAX_BROWSER_EVENT_CONNECTIONS = 100;
 const CLIENT_SOURCE = browserEventsClientSource();
 
 interface BrowserEventsPluginOptions {
@@ -74,7 +75,13 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
     })
     .ws(SOCKET_PATH, {
       beforeHandle({ request, server }) {
-        return forbiddenBrowserRequest(request, server);
+        const forbidden = forbiddenBrowserRequest(request, server);
+        if (forbidden) {
+          return forbidden;
+        }
+        if (connections.size >= MAX_BROWSER_EVENT_CONNECTIONS) {
+          return Response.json({ code: "FURIN_BROWSER_EVENTS_CAPACITY" }, { status: 503 });
+        }
       },
       close(ws) {
         const state = connections.get(ws.id);

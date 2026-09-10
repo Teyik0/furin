@@ -189,7 +189,11 @@ const browserEvents = (
 )[Symbol.for("furin.browser-events.runtime")];
 browserEvents?.subscribe("diagnostic", (event) => {
   if (event.data.type === "error") {
-    coldFailure = false;
+    const replaysInitialFailure =
+      currentEvent?.serverId === event.data.serverId && currentEvent.id === event.data.id;
+    if (!replaysInitialFailure) {
+      coldFailure = false;
+    }
     render(event.data);
   } else {
     clear(event.data);
