@@ -1,0 +1,24 @@
+lefthook.yml
+  s_161cb79b75eeab::t_42826fe9adf01f 2-5,7-13,15-17,19-20
+apps/docs/src/components/theme-provider.tsx
+  s_161cb79b75eeab::t_ad5f0dc352f67c 45-48,53-57
+apps/docs/src/components/docs-toc.tsx
+  s_161cb79b75eeab::t_02d424097713e0 99
+  s_161cb79b75eeab::t_0b735b3db307b3 52-57,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "722d66c17aab499a28969240fa654d0c084f3274",
+  "prompts": {},
+  "sessions": {
+    "s_161cb79b75eeab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a96f0117-e59d-4d2b-b3d7-61e741c1515b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

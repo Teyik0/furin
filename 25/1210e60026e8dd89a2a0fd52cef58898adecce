@@ -1,0 +1,31 @@
+packages/core/tests/scan-server.test.ts
+  081761b165da6d55 107-124
+packages/core/src/build/scan-server.ts
+  081761b165da6d55 10,12,34-37
+packages/core/src/build/entry-template.ts
+  081761b165da6d55 8,11-12
+packages/core/src/render/index.ts
+  081761b165da6d55 6,150,477
+packages/core/build.ts
+  081761b165da6d55 1,33-36,42-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "251210e60026e8dd89a2a0fd52cef58898adecce",
+  "prompts": {
+    "081761b165da6d55": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_211f538d3ffeN5xRRTw1KF3vLC",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 9,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    }
+  }
+}

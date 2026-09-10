@@ -1,0 +1,112 @@
+apps/docs/src/content/docs/api-routes.mdx
+  h_a2cbd1b0e3ae6e 258
+apps/docs/src/content/docs/data-loading.mdx
+  h_a2cbd1b0e3ae6e 15,32,52,85
+apps/docs/src/content/docs/error-handling.mdx
+  h_a2cbd1b0e3ae6e 77
+apps/docs/src/content/docs/getting-started.mdx
+  h_a2cbd1b0e3ae6e 82
+apps/docs/src/content/docs/layouts.mdx
+  h_a2cbd1b0e3ae6e 32,49,75
+apps/docs/src/content/docs/link-navigation.mdx
+  h_a2cbd1b0e3ae6e 204,212
+apps/docs/src/content/docs/logging.mdx
+  h_a2cbd1b0e3ae6e 56
+apps/docs/src/content/docs/routing.mdx
+  h_a2cbd1b0e3ae6e 32,48,68,94
+apps/docs/src/pages/docs/_route.tsx
+  h_a2cbd1b0e3ae6e 12
+apps/docs/src/pages/docs/api-routes.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/caching.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/cli.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/comparison.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/configuration.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/data-loading.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/defer.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/deployment.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/dev-hmr.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/error-handling.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/getting-started.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/head-seo.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/index.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/layouts.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/link-navigation.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/logging.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/multi-instance.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/plugins.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/rendering.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/routing.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 22,58
+apps/scaffolder/templates/full/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 10
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 10
+examples/task-manager/package.json
+  h_a2cbd1b0e3ae6e 27
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  h_a2cbd1b0e3ae6e 10
+examples/task-manager/src/pages/board/[boardId]/card/_route.tsx
+  h_a2cbd1b0e3ae6e 7
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  h_a2cbd1b0e3ae6e 11
+examples/task-manager/src/pages/board/_route.tsx
+  h_a2cbd1b0e3ae6e 24
+examples/task-manager/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 8
+examples/task-manager/src/pages/rsc.tsx
+  h_a2cbd1b0e3ae6e 25
+examples/weather/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 13
+packages/core/src/define-route.ts
+  h_a2cbd1b0e3ae6e 89-109,117,772,774,778-779,781,790,792,794,803,805-811,813,818,828,831,838
+packages/core/src/shared/utils/index.ts
+  h_a2cbd1b0e3ae6e 74
+packages/core/tests/contract/define-route-conflicts.test.ts
+  h_a2cbd1b0e3ae6e 1-83
+packages/core/tests/contract/define-route-layout.test.ts
+  h_a2cbd1b0e3ae6e 1-78
+packages/core/tests/contract/define-route.test.tsx
+  h_a2cbd1b0e3ae6e 131,160,169
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/blog/[slug].tsx
+  h_a2cbd1b0e3ae6e 7
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/dashboard.tsx
+  h_a2cbd1b0e3ae6e 6
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/apps/cli-app/src/pages/blog/[slug].tsx
+  h_a2cbd1b0e3ae6e 7
+packages/core/tests/fixtures/apps/cli-app/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "3795e51767ce28a6937c009c59eab5648a69eb9f",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

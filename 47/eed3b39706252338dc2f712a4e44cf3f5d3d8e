@@ -1,0 +1,47 @@
+packages/core/src/render/cache.ts
+  cb7a03e321a40898 7,9,12,14-41
+packages/core/src/render/shell.ts
+  cb7a03e321a40898 34-38
+packages/core/src/render/loaders.ts
+  cb7a03e321a40898 26-32,59,61
+packages/core/src/furin.ts
+  cb7a03e321a40898 175-193,196-197
+packages/core/src/client.ts
+  cb7a03e321a40898 73-78,85-90,274
+packages/core/src/router.ts
+  cb7a03e321a40898 157-164,170,218-219
+packages/core/src/link.tsx
+  cb7a03e321a40898 256-274,294-295,362,366-369,386-389,392-395,403,406-417,432-433,436-438,440
+packages/core/src/build/index.ts
+  cb7a03e321a40898 71
+packages/core/src/render/template.ts
+  cb7a03e321a40898 8-9,11,13-15,20-22,49-54
+packages/core/tests/render-template.test.ts
+  cb7a03e321a40898 6,14,49,67-68
+packages/core/src/render/index.ts
+  cb7a03e321a40898 1,5,31-39,41-54,56-57,59-76,79,111,113-115,118,160,171-172,174-177,179-203,205-217,247-248,250-253,255-272,274-278,339-341,350-354,357,365-367
+packages/core/tests/shell.test.ts
+  cb7a03e321a40898 20,29-30
+packages/core/src/build/scan-server.ts
+  cb7a03e321a40898 36,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "47eed3b39706252338dc2f712a4e44cf3f5d3d8e",
+  "prompts": {
+    "cb7a03e321a40898": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9a77155-81d9-4d51-85d5-ab05b9030779",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 323,
+      "total_deletions": 178,
+      "accepted_lines": 311,
+      "overriden_lines": 2
+    }
+  }
+}

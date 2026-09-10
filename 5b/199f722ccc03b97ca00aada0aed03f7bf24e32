@@ -1,0 +1,40 @@
+packages/core/tests/client/sync/sync.test.ts
+  s_eea5911c60cbe9::t_5cff358505dfc8 11-12,17
+  s_eea5911c60cbe9::t_bd154e1e0b679b 13-16,18-35,263,276
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_eea5911c60cbe9::t_5617ebb1f2b15d 1,3-21,23-149,155-202
+  s_eea5911c60cbe9::t_bd154e1e0b679b 2,150,152-154
+  s_eea5911c60cbe9::t_a61378460ae486 22
+  s_eea5911c60cbe9::t_4cfab313e0d74e 151
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_eea5911c60cbe9::t_bd154e1e0b679b 29-47,245,247-249
+CHANGELOG.md
+  s_227040d2c83988::t_3a4f85fdcda451 29-40
+  s_eea5911c60cbe9::t_6ff2489c6a6d89 28
+AGENTS.md
+  s_eea5911c60cbe9::t_96e5a5e2996b91 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "5b199f722ccc03b97ca00aada0aed03f7bf24e32",
+  "prompts": {},
+  "sessions": {
+    "s_227040d2c83988": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5fa4-ef83-7b50-a5b3-028866624698",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_eea5911c60cbe9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5fce-d351-7b10-a506-63c3c7e2e764",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

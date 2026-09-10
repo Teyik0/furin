@@ -1,0 +1,170 @@
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_aec303be7b97b2::t_3cf3d3142f46ea 45-72
+  s_aec303be7b97b2::t_1c0601fd657cec 2
+  s_aec303be7b97b2::t_f3a283fd3fd52a 73-74
+apps/docs/src/content/docs/api-routes.mdx
+  s_aec303be7b97b2::t_36ca4b96fd5891 237,239,242,244-245,247-249,252-253,256,261-263,269-283
+  s_aec303be7b97b2::t_653253d1a4ef90 284
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_e33c18bd7bc6c0::t_6b11bb023bb797 103
+  s_e33c18bd7bc6c0::t_0903a0e4b80f06 54-82,100
+  s_e33c18bd7bc6c0::t_128f607d78b244 101-102
+  s_e33c18bd7bc6c0::t_5bf89a94e29b84 104-106
+  s_96e5e8e308a037::t_a6114b54264c6f 107-117
+packages/core/src/plugin/transform-isomorphic.ts
+  s_aec303be7b97b2::t_2ee7a1d11b6f71 1-6,9-10,12-22,24-46,70,75-84,86-88,90-91,97-100,102-103,119-139,147-156,160-162,173-181,183-193,200-202,211-226,333-348,353-362,366-368,370,373,394-395
+  s_aec303be7b97b2::t_e04d9894832c00 363-365
+  s_aec303be7b97b2::t_3615dd306cb099 23,101,106-115,117-118
+  s_aec303be7b97b2::t_9ac98fb7666ec1 141-142,163-172,194-199,204-210,352
+  s_aec303be7b97b2::t_af8f3666e11c83 369,371-372
+  s_aec303be7b97b2::t_1c0601fd657cec 252,377
+  s_aec303be7b97b2::t_e821692c5c98b6 7
+  s_aec303be7b97b2::t_948a98a141a848 227-251,253-281,349,351
+  s_aec303be7b97b2::t_768a70304009e2 157-159
+  s_aec303be7b97b2::t_c094ef3c1e2173 282-332,350
+  s_aec303be7b97b2::t_6093451c8aa8a7 382-383,385,389-390
+  s_aec303be7b97b2::t_f4c6e1022a7780 11,374-376,378-381,384,386-388,391-393
+  s_aec303be7b97b2::t_c6480a80ba37ef 8
+  s_aec303be7b97b2::t_197afaef6948e8 47-69,71-74,85,89
+  s_aec303be7b97b2::t_c55152b0181c27 92-96,104-105,116,140,143-146,182,203
+examples/task-manager/src/lib/api.ts
+  s_aec303be7b97b2::t_e93cf9d31a5ca2 2
+  s_aec303be7b97b2::t_1c0601fd657cec 3
+  s_fcc925b2a8ecde::t_6214843e93f924 9
+  s_fcc925b2a8ecde::t_26468ca79aab64 5-7
+packages/core/tests/contract/isomorphic-types.test.ts
+  s_aec303be7b97b2::t_0d8d01a1606cde 1-2,5,8-18,20-21
+  s_aec303be7b97b2::t_fdbf328ab1cd99 3-4,6-7,19
+  s_aec303be7b97b2::t_d2c116a8ea1f9e 35-36
+  s_aec303be7b97b2::t_7e1448c2e615b4 22-34,37-45
+packages/core/tests/rendering/ssr/route-frame-transport.test.ts
+  s_e33c18bd7bc6c0::t_648d4c4eebb86e 4-20
+packages/core/src/adapter/package.ts
+  s_aec303be7b97b2::t_6a0c39865424f8 10,53
+packages/core/tests/client/sync/sync.test.ts
+  s_fcc925b2a8ecde::t_d1bcc029b7bcc0 276-303
+apps/scaffolder/tests/ejs-renderer.test.ts
+  s_e33c18bd7bc6c0::t_07e87a47c57bcc 37-41,43-47,53-57
+  s_e33c18bd7bc6c0::t_4fdf532b1b7757 42,48-52
+  s_e33c18bd7bc6c0::t_cebebd7bc07b71 33
+packages/core/src/client/boundaries.tsx
+  s_e33c18bd7bc6c0::t_a788ab3b329005 32-39
+packages/core/src/plugin/binding-scope.ts
+  s_aec303be7b97b2::t_e821692c5c98b6 1-57,59-101,103-138
+  s_aec303be7b97b2::t_b876883b1aa5fc 58,102
+packages/core/src/plugin/dead-code-elimination.ts
+  s_aec303be7b97b2::t_1c0601fd657cec 135
+  s_aec303be7b97b2::t_7482cd8bba1ce1 1-134,136-148,150-168
+  s_aec303be7b97b2::t_d2c116a8ea1f9e 149
+packages/core/tests/runtime/isomorphic/isomorphic.test.ts
+  s_aec303be7b97b2::t_7e1448c2e615b4 1-22,39
+  s_aec303be7b97b2::t_d793e8f257b1cb 23-38
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_e33c18bd7bc6c0::t_ffa171714598f7 16
+packages/core/src/build/index.ts
+  s_aec303be7b97b2::t_6a0c39865424f8 8,34-42,123
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_aec303be7b97b2::t_d2c116a8ea1f9e 3-4
+  s_e33c18bd7bc6c0::t_b08b2c8b4c89cf 254-275
+packages/core/src/plugin/transform-client.ts
+  s_aec303be7b97b2::t_c6480a80ba37ef 12,14
+  s_aec303be7b97b2::t_05f26c8cb8843e 15,334-336,339,346-348
+  s_aec303be7b97b2::t_e821692c5c98b6 13
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  s_e33c18bd7bc6c0::t_aff2b9bc133a1d 76-96
+  s_e33c18bd7bc6c0::t_59b5acbafa2a7c 57-75
+packages/core/src/server/render/route-frame-transport.ts
+  s_e33c18bd7bc6c0::t_80a7d117fb609b 45-48,50-58
+packages/core/src/rsc/build/index.ts
+  s_aec303be7b97b2::t_6a0c39865424f8 5,56-61,76-80
+packages/core/src/server/dev-page-plugin.ts
+  s_aec303be7b97b2::t_6a0c39865424f8 56,318,329,331-332,338
+packages/core/tests/client/sync/adapters/redis-sync.test.ts
+  s_e33c18bd7bc6c0::t_86fb7b08df433e 13-23
+packages/core/src/server/render/not-found.ts
+  s_e33c18bd7bc6c0::t_7f7848e7e0ef68 21-22,26,28
+examples/task-manager/src/pages/index.tsx
+  s_fcc925b2a8ecde::t_d1bcc029b7bcc0 14-17,23
+  s_aec303be7b97b2::t_89e5f554e5d690 7-11,18-22,24-32
+packages/core/src/server/sync/redis/index.ts
+  s_e33c18bd7bc6c0::t_7a601d254fe044 52-54
+packages/core/src/isomorphic.ts
+  s_aec303be7b97b2::t_d2c116a8ea1f9e 9,11,16,18,22,24-25,27,33-34,43,53-54,65
+  s_aec303be7b97b2::t_56e989c30d4373 1-8,10,12-15,17,19-21,23,26,28-32,36-42,44-52,55-64,66
+  s_aec303be7b97b2::t_1c0601fd657cec 35
+examples/task-manager/tests/isomorphic-api.test.ts
+  s_aec303be7b97b2::t_e93cf9d31a5ca2 1-24
+packages/core/tests/contract/sync-types.test.ts
+  s_fcc925b2a8ecde::t_b56f175b5c007e 11
+  s_fcc925b2a8ecde::t_5cfd3f7c90d81b 12
+  s_fcc925b2a8ecde::t_437b1b9154b6f2 22,25-27,29-30,50-52
+  s_fcc925b2a8ecde::t_180d758919d98b 17-21,23-24,28,31-32,47-49
+  s_fcc925b2a8ecde::t_2d21fce834ed1d 13
+  s_fcc925b2a8ecde::t_8f005f231c0384 53-54
+packages/core/src/server/sync/plugin.ts
+  s_fcc925b2a8ecde::t_d3e5349ca69a62 42-43,54-60,273-275,291-292
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_aec303be7b97b2::t_db1849323d5c01 1-4,6-17,229-258
+  s_aec303be7b97b2::t_5db3a7318d9449 18-35,259
+  s_aec303be7b97b2::t_5c3fe5d5d9f386 5,212-228
+  s_aec303be7b97b2::t_4304ab5a7e9029 108-120
+  s_aec303be7b97b2::t_6fdfcee0ebfe5a 92-106
+  s_aec303be7b97b2::t_0a382661f686bd 133-169,172,189-211
+  s_aec303be7b97b2::t_31e7e506ada508 36-54
+  s_aec303be7b97b2::t_aa16886fd5ddee 170
+  s_aec303be7b97b2::t_205c397b5703b0 55-71
+  s_aec303be7b97b2::t_e9b42de8abfbc6 107,121-132
+  s_aec303be7b97b2::t_f2b5c74fbb18dd 72-91
+  s_aec303be7b97b2::t_b7f2b70739f9c9 171,173-188
+packages/core/src/furin.ts
+  s_e33c18bd7bc6c0::t_6b11bb023bb797 674
+  s_aec303be7b97b2::t_56e989c30d4373 50-56
+  s_e33c18bd7bc6c0::t_7f7848e7e0ef68 500,502,563,565,664,666
+packages/core/src/adapter/bun.ts
+  s_aec303be7b97b2::t_6a0c39865424f8 14,315,352
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_aec303be7b97b2::t_061d6dbdd57cc5 7,22-39
+  s_aec303be7b97b2::t_f443c683b0477d 40-41
+examples/task-manager/tests/rsc-page.test.tsx
+  s_aec303be7b97b2::t_a01afe777b0d31 5-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "8eb8f3d2a61435a553f804f90a100390cce1d63c",
+  "prompts": {},
+  "sessions": {
+    "s_96e5e8e308a037": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f97fe-668d-7e91-a685-9e219340dbe1",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_aec303be7b97b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f611e-eea1-7dd0-9810-b0e93a80346d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_e33c18bd7bc6c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f97fd-efef-7551-8926-7221c3f9199d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fcc925b2a8ecde": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f9834-7c2a-7b21-b59e-d354341ffa04",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

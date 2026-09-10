@@ -1,0 +1,80 @@
+package.json
+  d68640fcb7da6e4d 15-16
+  540af79e83839cb9 31
+packages/core/package.json
+  540af79e83839cb9 72
+  e99355d77c5915e8 13
+apps/docs/package.json
+  540af79e83839cb9 27
+examples/task-manager/package.json
+  540af79e83839cb9 22
+lefthook.yml
+  d68640fcb7da6e4d 12-14
+packages/core/build.ts
+  e99355d77c5915e8 34-36,39-41
+examples/weather/package.json
+  540af79e83839cb9 16
+packages/core/src/adapter/bun.ts
+  e99355d77c5915e8 3,15
+knip.config.ts
+  d68640fcb7da6e4d 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "3346747f836e9d0e0ff2d75b0d09ff42f6f28873",
+  "prompts": {
+    "44aace90491f2332": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bfbd8b1-cd10-4599-8155-525476a1b257",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "540af79e83839cb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "222a3851-cbda-4cbf-8351-cf5a3abe57d9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 4,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "d68640fcb7da6e4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7737d938-6b37-43af-8006-47ef7c3b51ad",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1539,
+      "total_deletions": 43,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "e99355d77c5915e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "250d5dc1-e751-4395-8f2d-f7611709417f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 4,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

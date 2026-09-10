@@ -1,0 +1,50 @@
+packages/core/src/context-logger.ts
+  c0d058597c0554f8 1-71
+apps/docs/public/search-entries.json
+  c0d058597c0554f8 712-831,838,848,858,868,878,888,898,908,918,928,938,948,958,968,978,988,998,1008,1018,1028,1038,1048,1058,1068
+packages/core/tests/isr-uselogger-bg-revalidation.test.ts
+  c0d058597c0554f8 2,4-6,8-10,15-16,43-47,52-54,58,63,69,73-107,109
+apps/docs/src/content/docs/logging.mdx
+  c0d058597c0554f8 46,53,55,62-82
+packages/core/src/render/loaders.ts
+  c0d058597c0554f8 3,60-64
+packages/core/src/render/assemble.ts
+  c0d058597c0554f8 4-7
+packages/core/src/client.ts
+  c0d058597c0554f8 12,47-48
+packages/core/src/render/index.ts
+  c0d058597c0554f8 29,140-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "a4485d9e5413319417b35f5768e8fde25f9eeab1",
+  "prompts": {
+    "c0d058597c0554f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c58fff69-ed55-459d-b9ef-69355b0f8399",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 4765,
+      "total_deletions": 4633,
+      "accepted_lines": 1252,
+      "overriden_lines": 2
+    },
+    "c7b440576cc96b36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cbd55511-8551-4725-959d-3fe9737dbd51",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}

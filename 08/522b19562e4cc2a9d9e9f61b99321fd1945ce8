@@ -1,0 +1,20 @@
+examples/task-manager/src/db/bootstrap.ts
+  s_075e79516eb63b::t_dfc6399b6450e4 2-14,17-27,31-93
+  s_075e79516eb63b::t_1a485f602a00f6 28-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "08522b19562e4cc2a9d9e9f61b99321fd1945ce8",
+  "prompts": {},
+  "sessions": {
+    "s_075e79516eb63b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb2b5-c73b-77f0-9d96-cf6d1727724d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

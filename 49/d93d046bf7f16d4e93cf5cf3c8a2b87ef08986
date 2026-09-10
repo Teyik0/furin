@@ -1,0 +1,20 @@
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_1c327f502c89c7::t_16f57f1ca435f6 5-9,11-18
+  s_1c327f502c89c7::t_e0d24b2649ab49 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "49d93d046bf7f16d4e93cf5cf3c8a2b87ef08986",
+  "prompts": {},
+  "sessions": {
+    "s_1c327f502c89c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f8d99-1709-74a1-a32a-1d0474d606cb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

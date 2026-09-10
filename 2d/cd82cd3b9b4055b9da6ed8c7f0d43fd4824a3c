@@ -1,0 +1,23 @@
+packages/core/src/server/render/ssr.ts
+  s_4103c1a96f7b22::t_0cf3aad0f5473f 412-413,415
+packages/core/src/adapter/static.ts
+  s_4103c1a96f7b22::t_67cb13d3d336d2 312
+packages/core/src/client/router/navigation.ts
+  s_4103c1a96f7b22::t_c82ee0efcc34a8 22-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2dcd82cd3b9b4055b9da6ed8c7f0d43fd4824a3c",
+  "prompts": {},
+  "sessions": {
+    "s_4103c1a96f7b22": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_13d46a81affew2BP5jlkFokqwA",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
