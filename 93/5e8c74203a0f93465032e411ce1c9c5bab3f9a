@@ -1,0 +1,21 @@
+packages/core/src/server/sync/postgres/index.ts
+  s_2a4069bf188ef3::t_45aa44bfd8d322 21-22,345,365-366,370,377-380,382-385
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_2a4069bf188ef3::t_92c0a1d65d8ee1 168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "935e8c74203a0f93465032e411ce1c9c5bab3f9a",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
