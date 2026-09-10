@@ -1,0 +1,37 @@
+apps/docs/src/content/docs/routing.mdx
+  s_2a4069bf188ef3::t_c1d10687d62e46 135-145
+packages/core/src/build/hydrate.ts
+  s_2a4069bf188ef3::t_0cb38f48566329 371-373,375-381,383-389,391-392,394,398-406,408-410
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_d49763670f4662 57-85,148-151,253,259,318-328,450-458,461-462,476,525-528,562,595-604,609,613,629-631,635-665,674,744
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_5205bc6d029283 16-24,200-514,860-871,877-881,889-898
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_a813601d5c38a9 185-205,446-490,958-984,1894-1903,1911-2009,2068-2108
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_2a4069bf188ef3::t_0cc2dfafa8fed4 479-487
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_2a4069bf188ef3::t_b5faee542d85c6 49-281
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_2a4069bf188ef3::t_40d868af0c93ea 83-97,182-184,186,199-201,203,210-226,229-242,379-476
+packages/core/tests/dev/hmr/dev-route-typegen-watch.integration.test.ts
+  s_2a4069bf188ef3::t_e86d43cedc5aaf 1-166
+CHANGELOG.md
+  s_2a4069bf188ef3::t_4335b475ccdf39 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ea3716cefe308750b079f039534bc25e65eb44e5",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
