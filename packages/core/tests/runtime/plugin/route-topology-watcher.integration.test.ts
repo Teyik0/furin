@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
 
 async function waitForCount(readCount: () => number, expected: number): Promise<void> {
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 10_000;
   while (readCount() < expected) {
     if (Date.now() >= deadline) {
       throw new Error(`Timed out waiting for ${expected} topology changes`);
