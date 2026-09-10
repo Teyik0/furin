@@ -202,6 +202,38 @@ function renderHydrationError(value) {
   });
 }
 
+function reportFullReload(reason) {
+  const detail = {
+    durationMs: null,
+    module: null,
+    phase: "full-reload",
+    reason,
+    state: null,
+  };
+  window.dispatchEvent(new CustomEvent("furin:hmr", { detail }));
+  if (document.querySelector("furin-devtools-launcher")) {
+    return;
+  }
+  let clientId = "";
+  try {
+    clientId = sessionStorage.getItem("furin:devtools:client-id") ?? crypto.randomUUID();
+    sessionStorage.setItem("furin:devtools:client-id", clientId);
+  } catch {
+    clientId = crypto.randomUUID();
+  }
+  const body = JSON.stringify({
+    clientId,
+    clientTimestamp: performance.timeOrigin + performance.now(),
+    cycleId: null,
+    reason,
+    type: "hmr.full-reload",
+  });
+  navigator.sendBeacon(
+    `${state.basePath}/_furin/devtools/browser-events`,
+    new Blob([body], { type: "application/json" })
+  );
+}
+
 function connect() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
@@ -221,6 +253,7 @@ function connect() {
       currentEvent &&
       (event.serverId !== currentEvent.serverId || event.revision > currentEvent.revision)
     ) {
+      reportFullReload("development-error-recovered");
       window.location.reload();
       return;
     }

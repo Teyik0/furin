@@ -214,11 +214,13 @@ try {
     expect(adminSnapshot.instance.prefix).toBe("/admin");
     expect(frontSnapshot.instance.id).not.toBe(adminSnapshot.instance.id);
 
-    const adminClient = await parent.handle(
-      new Request("http://localhost/admin/_furin/devtools/client.js")
+    const adminDashboard = await parent.handle(
+      new Request("http://localhost/admin/_furin/devtools")
     );
-    expect(adminClient.status).toBe(200);
-    expect(await adminClient.text()).toContain("furin-devtools");
+    expect(adminDashboard.status).toBe(200);
+    expect(await adminDashboard.text()).toContain(
+      'src="/admin/_furin/devtools/dashboard.js"'
+    );
   });
 
   await runScenario(async () => {

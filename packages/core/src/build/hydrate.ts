@@ -163,16 +163,108 @@ ${loggerSetup}
 
 if (import.meta.hot) {
   const connectionState = ((window as unknown as {
-    __FURIN_HMR_CONNECTION__?: { disconnected: boolean; installed: boolean };
-  }).__FURIN_HMR_CONNECTION__ ??= { disconnected: false, installed: false });
+    __FURIN_HMR_CONNECTION__?: {
+      disconnected: boolean;
+      installed: boolean;
+      state: "connected" | "disconnected" | "reconnecting";
+    };
+  }).__FURIN_HMR_CONNECTION__ ??= {
+    disconnected: false,
+    installed: false,
+    state: "connected",
+  });
   if (!connectionState.installed) {
+    let updateStartedAt: number | null = null;
+    const emitHmrEvent = (detail: {
+      durationMs: number | null;
+      module: string | null;
+      phase: string;
+      reason: string | null;
+      state: string | null;
+    }) => window.dispatchEvent(new CustomEvent("furin:hmr", { detail }));
+    import.meta.hot.on("bun:beforeUpdate", () => {
+      updateStartedAt = performance.now();
+      emitHmrEvent({
+        durationMs: null,
+        module: null,
+        phase: "before-update",
+        reason: null,
+        state: null,
+      });
+    });
+    import.meta.hot.on("bun:afterUpdate", () => {
+      const durationMs =
+        updateStartedAt === null ? null : Math.max(0, performance.now() - updateStartedAt);
+      emitHmrEvent({
+        durationMs,
+        module: null,
+        phase: "after-update",
+        reason: null,
+        state: null,
+      });
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          emitHmrEvent({
+            durationMs:
+              updateStartedAt === null
+                ? null
+                : Math.max(0, performance.now() - updateStartedAt),
+            module: null,
+            phase: "paint",
+            reason: null,
+            state: null,
+          });
+        }, 0);
+      });
+    });
+    import.meta.hot.on("bun:beforeFullReload", () => {
+      emitHmrEvent({
+        durationMs: null,
+        module: null,
+        phase: "before-full-reload",
+        reason: "native-hmr-boundary-missing",
+        state: null,
+      });
+    });
     import.meta.hot.on("bun:ws:disconnect", () => {
       connectionState.disconnected = true;
+      connectionState.state = "disconnected";
+      emitHmrEvent({
+        durationMs: null,
+        module: null,
+        phase: "connection",
+        reason: null,
+        state: "disconnected",
+      });
     });
     import.meta.hot.on("bun:ws:connect", () => {
       if (connectionState.disconnected) {
+        connectionState.state = "reconnecting";
+        emitHmrEvent({
+          durationMs: null,
+          module: null,
+          phase: "connection",
+          reason: null,
+          state: "reconnecting",
+        });
+        emitHmrEvent({
+          durationMs: null,
+          module: null,
+          phase: "full-reload",
+          reason: "hmr-connection-recovered",
+          state: null,
+        });
         window.location.reload();
+        return;
       }
+      connectionState.state = "connected";
+      emitHmrEvent({
+        durationMs: null,
+        module: null,
+        phase: "connection",
+        reason: null,
+        state: "connected",
+      });
     });
     connectionState.installed = true;
   }
@@ -383,6 +475,17 @@ if (__deferred && __deferred._chunks) {
       if (refresh) {
         requestAnimationFrame(() => refresh());
       }
+      window.dispatchEvent(
+        new CustomEvent("furin:hmr", {
+          detail: {
+            durationMs: null,
+            module: sourcePath,
+            phase: "module",
+            reason: null,
+            state: null,
+          },
+        })
+      );
     };
     if (existingRoot) {
       // Already mounted — reconciliation, NOT hydration. React Fast Refresh

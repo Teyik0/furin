@@ -8,7 +8,7 @@
     "build:compiled": "bun run generate:content && furin build --target bun --compile server",
     "build:embed": "bun run generate:content && furin build --target bun --compile embed",
     "build:static": "bun run generate:content && furin build --target static",
-    "dev": "bun --hot src/server.ts",
+    "dev": "furin dev --port 3000",
     "fix": "ultracite fix",
     "generate:content": "bun run scripts/generate-docs-content.ts && bun run scripts/generate-llms-txt.ts",
     "start": "bun run ./.furin/build/bun/server.js",

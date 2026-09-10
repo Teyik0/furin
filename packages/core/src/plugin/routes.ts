@@ -57,19 +57,31 @@ export interface DevRouteTopologyWatcher {
 
 export interface DevRouteTopologyWatcherOptions {
   instance: RouteInstanceSpec;
-  onRouteFilesTouched?: () => Promise<void> | void;
+  onRouteFilesTouched?: (
+    sourcePaths: string[],
+    detectedAt: number,
+    cycleId: string | null
+  ) => Promise<void> | void;
+  onSourceChange?: (sourcePath: string, detectedAt: number) => string;
   onSourceError?: (error: unknown, sourcePath: string) => void;
-  onTopologyChange: () => Promise<void> | void;
+  onTopologyChange: (
+    sourcePaths: string[],
+    detectedAt: number,
+    cycleId: string | null
+  ) => Promise<void> | void;
 }
 
 interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   closed: boolean;
+  cycleId: string | null;
   dirty: boolean;
   pending: boolean;
   reconcileTimer: ReturnType<typeof setTimeout> | undefined;
   refreshPromise: Promise<void> | undefined;
   routeFilesSignature: string;
   source: string;
+  touchedAt: number | null;
+  touchedSourcePaths: Set<string>;
   watchers: FSWatcher[];
 }
 
@@ -311,18 +323,24 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
   try {
     const { dirty } = state;
     state.dirty = false;
+    const { cycleId } = state;
+    state.cycleId = null;
+    const touchedAt = state.touchedAt ?? Date.now();
+    state.touchedAt = null;
+    const touchedSourcePaths = [...state.touchedSourcePaths];
+    state.touchedSourcePaths.clear();
     const source = routeTopologySource(state.instance);
     if (source === state.source) {
       const signature = routeFilesSignature(state.instance);
       if (dirty || signature !== state.routeFilesSignature) {
-        await state.onRouteFilesTouched?.();
+        await state.onRouteFilesTouched?.(touchedSourcePaths, touchedAt, cycleId);
         state.routeFilesSignature = routeFilesSignature(state.instance);
         if (!state.closed) {
           replaceSourceWatchers(state);
         }
       }
     } else {
-      await state.onTopologyChange();
+      await state.onTopologyChange(touchedSourcePaths, touchedAt, cycleId);
       state.source = routeTopologySource(state.instance);
       state.routeFilesSignature = routeFilesSignature(state.instance);
       if (!state.closed) {
@@ -384,6 +402,12 @@ function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
   const watchDirectory = (directory: string, recursive: boolean): void => {
     const watcher = watch(directory, { recursive }, (_, filename) => {
       state.dirty = true;
+      state.touchedAt ??= Date.now();
+      if (filename !== null) {
+        const sourcePath = resolve(directory, String(filename));
+        state.touchedSourcePaths.add(sourcePath);
+        state.cycleId ??= state.onSourceChange?.(sourcePath, state.touchedAt) ?? null;
+      }
       reportChangedSourceError(state, directory, filename);
       scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
     });
@@ -428,6 +452,7 @@ export function registerDevRouteTopologyWatcher(
   if (existing) {
     existing.instance = options.instance;
     existing.onRouteFilesTouched = options.onRouteFilesTouched;
+    existing.onSourceChange = options.onSourceChange;
     existing.onSourceError = options.onSourceError;
     existing.onTopologyChange = options.onTopologyChange;
     return {
@@ -450,12 +475,15 @@ export function registerDevRouteTopologyWatcher(
   const state: DevRouteTopologyWatcherState = {
     ...options,
     closed: false,
+    cycleId: null,
     dirty: false,
     pending: false,
     reconcileTimer: undefined,
     refreshPromise: undefined,
     routeFilesSignature: routeFilesSignatureValue,
     source,
+    touchedAt: null,
+    touchedSourcePaths: new Set(),
     watchers: [],
   };
   replaceSourceWatchers(state);

@@ -70,7 +70,7 @@ test.serial("native DevTools does not record its own transport requests", async 
 
   const initial = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));
   const before = await initial.json();
-  await app.handle(new Request("http://localhost/_furin/devtools/client.js"));
+  await app.handle(new Request("http://localhost/_furin/devtools"));
   const stream = await app.handle(new Request("http://localhost/_furin/devtools/events"));
   await stream.body?.cancel();
   const final = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));

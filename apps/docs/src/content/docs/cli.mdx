@@ -1,6 +1,32 @@
 # CLI Reference
 
-Furin ships with a minimal CLI for production builds. In development you use `bun dev` (Bun's built-in dev server) — no separate Furin CLI needed.
+Furin ships with a CLI for the Bun-powered development server, production builds, and static previews.
+
+---
+
+## `furin dev`
+
+Run the application's server entry with Bun hot reload:
+
+```bash
+bunx furin dev [options]
+```
+
+The command uses `serverEntry` from `furin.config.ts`, or `src/server.ts` when it is not configured. It sets `PORT`, starts the entry with `bun --hot`, and prints both local URLs:
+
+```text
+◆ Development server starting
+  Local:     http://localhost:3000/
+  DevTools:  http://localhost:3000/_furin/devtools
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `string` | `furin.config.ts` | Config file path |
+| `--port` | `number` | `PORT` or `3000` | Listening port exposed through `process.env.PORT` |
+| `--open-devtools` | `boolean` | `false` | Open the Furin DevTools dashboard once the server responds |
+
+No browser is opened unless `--open-devtools` is explicitly provided.
 
 ---
 
@@ -127,7 +153,7 @@ The recommended `package.json` setup:
 ```json
 {
   "scripts": {
-    "dev": "bun --hot src/server.ts",
+    "dev": "furin dev",
     "build": "furin build",
     "build:static": "furin build --target static",
     "start": "bun .furin/build/bun/server.js"
@@ -137,17 +163,13 @@ The recommended `package.json` setup:
 
 ---
 
-## Dev command
+## Development runtime
 
-Development does **not** use the Furin CLI. Use Bun's native dev server:
+`furin dev` remains a small supervisor around Bun rather than replacing the application's Elysia entrypoint. This preserves custom plugins, middleware, and `.listen()` configuration while giving you:
 
-```bash
-bun dev
-```
-
-This runs your `src/server.ts` with Bun's `--hot` flag, giving you:
 - React Fast Refresh
 - Server-side hot reload
 - File-system-based routing updates
+- the dedicated Furin DevTools dashboard
 
 See [Dev Mode HMR](/docs/dev-hmr) for the full internals.

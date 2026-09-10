@@ -37,7 +37,12 @@ const config: KnipConfig = {
       project: ["src/**/*.{ts,tsx}"],
     },
     "packages/core": {
-      entry: ["src/server/sync/postgres/migrate.ts", "tests/**/*.{ts,tsx}"],
+      entry: [
+        "src/devtools/collector.ts",
+        "src/devtools/dashboard.tsx",
+        "src/server/sync/postgres/migrate.ts",
+        "tests/**/*.{ts,tsx}",
+      ],
       ignore: [
         "src/server/cache/dev-loader.ts",
         "src/server/devtools/instrumentation.production.ts",

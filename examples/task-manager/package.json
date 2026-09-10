@@ -8,7 +8,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "dev": "bun --hot src/server.ts",
+    "dev": "furin dev --port 3002",
     "fix": "ultracite fix",
     "start": "./.furin/build/bun/server",
     "test": "bun test --parallel --isolate --bail && bun run test:e2e",

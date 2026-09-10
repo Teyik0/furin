@@ -53,6 +53,15 @@ export function appendDevtoolsEvent(event: DevtoolsServerEventInput): DevtoolsSe
     instanceId: devtoolsInstanceId(),
     version: DEVTOOLS_PROTOCOL_VERSION,
   } as DevtoolsServerEvent;
+  if (complete.type === "browser.resources") {
+    const previousIndex = hub.events.findIndex(
+      (candidate) =>
+        candidate.type === "browser.resources" && candidate.clientId === complete.clientId
+    );
+    if (previousIndex >= 0) {
+      hub.events.splice(previousIndex, 1);
+    }
+  }
   hub.events.push(complete);
   if (hub.events.length > EVENT_LIMIT) {
     hub.events.shift();

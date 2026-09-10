@@ -49,9 +49,11 @@ interface DevModuleRevision {
 }
 
 export interface DevGraphMetrics {
+  edges: number;
   events: number;
   modules: number;
   revision: number;
+  trackedModules: number;
 }
 
 export interface DevSourcePosition {
@@ -145,10 +147,20 @@ export class DevGraph<Snapshot> {
   }
 
   get metrics(): DevGraphMetrics {
+    const trackedModules = new Set(this.#dependencies.keys());
+    let edges = 0;
+    for (const dependencies of this.#dependencies.values()) {
+      edges += dependencies.size;
+      for (const dependency of dependencies) {
+        trackedModules.add(dependency);
+      }
+    }
     return {
+      edges,
       events: this.#events.length,
       modules: this.#modulePaths.size,
       revision: this.#revision,
+      trackedModules: trackedModules.size,
     };
   }
 

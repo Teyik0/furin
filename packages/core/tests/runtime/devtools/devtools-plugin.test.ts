@@ -92,7 +92,7 @@ describe("native DevTools plugin", () => {
     const serialized = JSON.stringify(snapshot);
 
     expect(response.status).toBe(200);
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.version).toBe(2);
     expect(snapshot.routes).toEqual([
       {
         file: "src/pages/blog/[slug].tsx",
@@ -130,14 +130,111 @@ describe("native DevTools plugin", () => {
     expect(snapshot.routes[0]?.file).not.toContain("private-project");
   });
 
-  test("serves the standalone browser client outside the application bundle", async () => {
+  test("serves a dedicated dashboard outside the application document", async () => {
     const app = new Elysia().use(createDevtoolsPlugin([], undefined));
-    const response = await app.handle(new Request("http://localhost/_furin/devtools/client.js"));
-    const source = await response.text();
+
+    const response = await app.handle(new Request("http://localhost/_furin/devtools"));
+    const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/javascript");
-    expect(source).toContain("furin-devtools");
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(html).toContain("<title>Furin DevTools</title>");
+    expect(html).toContain("/_furin/devtools/dashboard.js");
+    expect(html).toContain("/_furin/devtools/dashboard.css");
+  });
+
+  test("retains validated browser HMR events across a full reload", async () => {
+    appendDevtoolsEvent({
+      changedModule: "src/pages/current.tsx",
+      cycleId: "current-cycle",
+      detectedAt: Date.now(),
+      timestamp: Date.now(),
+      type: "hmr.cycle.started",
+    });
+    const cursor = devtoolsEventsSnapshot().lastEventId;
+    const app = new Elysia().use(createDevtoolsPlugin([], undefined));
+
+    const response = await app.handle(
+      new Request("http://localhost/_furin/devtools/browser-events", {
+        body: JSON.stringify({
+          clientId: "browser-tab",
+          clientTimestamp: 42,
+          cycleId: "build-7",
+          reason: "hmr-connection-recovered",
+          type: "hmr.full-reload",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      })
+    );
+    const events = devtoolsEventsSnapshot().events.filter((event) => event.id > cursor);
+
+    expect(response.status).toBe(204);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      clientId: "browser-tab",
+      cycleId: "build-7",
+      reason: "hmr-connection-recovered",
+      type: "hmr.full-reload",
+    });
+  });
+
+  test("keeps an unmatched browser phase explicit and redacts its module path", async () => {
+    appendDevtoolsEvent({
+      changedModule: "src/pages/current.tsx",
+      cycleId: "active-cycle",
+      detectedAt: Date.now(),
+      timestamp: Date.now(),
+      type: "hmr.cycle.started",
+    });
+    const cursor = devtoolsEventsSnapshot().lastEventId;
+    const app = new Elysia().use(createDevtoolsPlugin([], undefined));
+
+    const response = await app.handle(
+      new Request("http://localhost/_furin/devtools/browser-events", {
+        body: JSON.stringify({
+          clientId: "background-tab",
+          clientTimestamp: Date.now(),
+          cycleId: null,
+          durationMs: 3,
+          module: `${process.cwd()}/src/pages/card.tsx`,
+          phase: "paint",
+          type: "hmr.client.phase",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      })
+    );
+    const event = devtoolsEventsSnapshot().events.find((candidate) => candidate.id > cursor);
+
+    expect(response.status).toBe(204);
+    expect(event).toMatchObject({
+      clientId: "background-tab",
+      cycleId: null,
+      module: "src/pages/card.tsx",
+      phase: "paint",
+    });
+  });
+
+  test("rejects malformed browser DevTools events", async () => {
+    const app = new Elysia().use(createDevtoolsPlugin([], undefined));
+
+    const response = await app.handle(
+      new Request("http://localhost/_furin/devtools/browser-events", {
+        body: JSON.stringify({
+          clientId: "browser-tab",
+          clientTimestamp: 42,
+          cycleId: null,
+          reason: "invented-reason",
+          type: "hmr.full-reload",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(400);
   });
 
   test("projects cache metadata without exposing cached values", async () => {

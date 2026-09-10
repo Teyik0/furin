@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysiajs/static";
 import { type AnyElysia, Elysia, file } from "elysia";
@@ -598,6 +598,9 @@ export async function furin({
     const furinDir = resolve(cwd, ".furin", instanceSlug);
     // Lazy import — build pipeline has native deps not available in compiled binaries
     const { registerDevPagePlugin } = await import("./server/dev-page-plugin.ts");
+    const { nextDevtoolsBuildId, subscribeDevtoolsClientBuilds, takeDevtoolsPendingCycle } =
+      await import("./server/devtools/build-observer.ts");
+    const { appendDevtoolsEvent } = await import("./server/devtools/hub.ts");
     registerDevPagePlugin();
     const {
       registerDevRoutesPlugin,
@@ -639,7 +642,57 @@ export async function furin({
     };
     applyRouteConfigAutofix();
 
+    const relativeDevtoolsPath = (path: string): string => {
+      const sourcePath = isAbsolute(path) ? path : resolve(cwd, path);
+      const projected = relative(cwd, sourcePath).replaceAll("\\", "/");
+      return projected === ".." || projected.startsWith("../") ? basename(path) : projected;
+    };
+    const sanitizeDevtoolsText = (value: string | null, sourcePaths: string[]): string | null => {
+      let sanitized =
+        value?.replaceAll(cwd, ".").replaceAll(cwd.replaceAll("\\", "/"), ".") ?? null;
+      for (const sourcePath of sourcePaths) {
+        if (sanitized !== null && isAbsolute(sourcePath)) {
+          sanitized = sanitized.replaceAll(sourcePath, relativeDevtoolsPath(sourcePath));
+        }
+      }
+      return sanitized;
+    };
     const graph = devGraph(instance);
+    const lastGraphEvent = graph.events.at(-1);
+    const graphDiagnostics = graph.subscribe(
+      lastGraphEvent?.id ?? 0,
+      lastGraphEvent?.serverId,
+      (event) => {
+        withInstance(instance, () => {
+          if (event.type === "ready") {
+            appendDevtoolsEvent({
+              revision: event.revision,
+              timestamp: Date.now(),
+              type: "dev.ready",
+            });
+            return;
+          }
+          const errorSourcePaths = [
+            ...(event.error.file ? [event.error.file] : []),
+            ...event.error.importChain,
+          ];
+          appendDevtoolsEvent({
+            error: {
+              ...event.error,
+              cause: sanitizeDevtoolsText(event.error.cause, errorSourcePaths),
+              file: event.error.file ? relativeDevtoolsPath(event.error.file) : null,
+              importChain: event.error.importChain.map(relativeDevtoolsPath),
+              message:
+                sanitizeDevtoolsText(event.error.message, errorSourcePaths) ?? event.error.message,
+              stack: null,
+            },
+            revision: event.revision,
+            timestamp: Date.now(),
+            type: "dev.error",
+          });
+        });
+      }
+    );
     const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
       const { furinShell } = (await import(routeModuleSpecifier(routeInstance))) as {
         furinShell: AnyElysia;
@@ -692,6 +745,92 @@ export async function furin({
     const publicExists = existsSync(publicDir);
     const hmrEntryPath = `${prefix}/_bun_hmr_entry`;
     let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
+    const pendingClientCycles: Array<{
+      cycleId: string;
+      detectedAt: number;
+      sourcePath: string;
+    }> = [];
+    const belongsToInstance = (path: string): boolean => {
+      const { snapshot } = graph;
+      return (
+        path === snapshot?.root.path ||
+        path.startsWith(`${resolvedPagesDir}/`) ||
+        snapshot?.routes.some((route) => graph.dependsOn(route.path, path)) === true
+      );
+    };
+    const unsubscribeClientBuilds = subscribeDevtoolsClientBuilds((build) => {
+      const changedModules = build.changedModules.filter(belongsToInstance);
+      if (changedModules.length === 0) {
+        return;
+      }
+      const rebuiltModules = build.rebuiltModules.filter(belongsToInstance);
+      const matchedCycle = takeDevtoolsPendingCycle(pendingClientCycles, changedModules);
+      withInstance(instance, () => {
+        appendDevtoolsEvent({
+          ...build,
+          changedModules: changedModules.map(relativeDevtoolsPath),
+          cycleId: matchedCycle?.cycleId ?? build.cycleId,
+          detectedAt: matchedCycle?.detectedAt ?? build.detectedAt,
+          rebuiltModules: rebuiltModules.map(relativeDevtoolsPath),
+          timestamp: Date.now(),
+          type: "hmr.build.finished",
+        });
+      });
+    });
+    const beginHmrCycle = (sourcePath: string, detectedAt: number): string => {
+      const cycleId = nextDevtoolsBuildId();
+      pendingClientCycles.push({ cycleId, detectedAt, sourcePath });
+      if (pendingClientCycles.length > 50) {
+        pendingClientCycles.shift();
+      }
+      withInstance(instance, () => {
+        appendDevtoolsEvent({
+          changedModule: relativeDevtoolsPath(sourcePath),
+          cycleId,
+          detectedAt,
+          timestamp: Date.now(),
+          type: "hmr.cycle.started",
+        });
+      });
+      return cycleId;
+    };
+    const refreshAndReport = async (
+      sourcePaths: string[],
+      detectedAt: number,
+      cycleId: string | null
+    ): Promise<void> => {
+      const correlatedCycleId =
+        cycleId ?? beginHmrCycle(sourcePaths[0] ?? resolvedPagesDir, detectedAt);
+      const startedAt = performance.now();
+      const startedAtEpoch = Date.now();
+      let status: "fulfilled" | "rejected" = "fulfilled";
+      applyRouteConfigAutofix();
+      try {
+        await refreshDevelopmentRoutes();
+      } catch (error) {
+        status = "rejected";
+        throw error;
+      } finally {
+        const { snapshot } = graph;
+        withInstance(instance, () => {
+          appendDevtoolsEvent({
+            changedModules: sourcePaths.map(relativeDevtoolsPath),
+            cycleId: correlatedCycleId,
+            detectedAt,
+            durationMs: performance.now() - startedAt,
+            rebuiltModules: snapshot
+              ? [snapshot.root.path, ...snapshot.routes.map((route) => route.path)].map(
+                  relativeDevtoolsPath
+                )
+              : [],
+            startedAt: startedAtEpoch,
+            status,
+            timestamp: Date.now(),
+            type: "hmr.server.finished",
+          });
+        });
+      }
+    };
 
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
     // physical when this plugin is merged into the parent app (child prefixes
@@ -704,10 +843,8 @@ export async function furin({
       .onStart(() => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
-          onRouteFilesTouched: async () => {
-            applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
-          },
+          onRouteFilesTouched: refreshAndReport,
+          onSourceChange: beginHmrCycle,
           onSourceError: (error, sourcePath) => {
             const route = graph.snapshot?.routes.find((candidate) =>
               graph.dependsOn(candidate.path, sourcePath)
@@ -718,20 +855,21 @@ export async function furin({
               route: route?.pattern ?? "*",
             });
           },
-          onTopologyChange: async () => {
+          onTopologyChange: async (sourcePaths, detectedAt, cycleId) => {
             // Bun --hot cannot be triggered from generated artifacts (its
             // watch graph is the entry's static imports), so topology changes
             // are served by swapping the dispatcher's route matcher. Hot-added
             // routes then resolve through the NOT_FOUND fallback below;
             // removed routes 404 through the renderer's miss path.
-            applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
+            await refreshAndReport(sourcePaths, detectedAt, cycleId);
           },
         });
       })
       .onStop(() => {
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
+        graphDiagnostics.unsubscribe();
+        unsubscribeClientBuilds();
       })
       // Elysia 1.4.30 only preserves Bun's native HTMLBundle handler when the
       // bundle is also present in serve.routes once request hooks are installed.
