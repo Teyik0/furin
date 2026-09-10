@@ -1,0 +1,200 @@
+# Sync & Invalidations
+
+Furin Sync adds three guarantees around Elysia mutation routes:
+
+1. an `Idempotency-Key` identifies retries of the same principal and request;
+2. a successful bounded response can be replayed without running the handler again;
+3. committed cache invalidations enter an ordered change journal consumed by other browsers.
+
+Use it for repeatable application mutations whose response is small and whose clients benefit from automatic cross-tab refresh. It is not a transaction manager for arbitrary external side effects.
+
+## Configure One Runtime
+
+Create the adapter once and pass the same runtime object to the page plugin and mutation plugin:
+
+```ts
+// src/sync.ts
+import { Database } from "bun:sqlite";
+import {
+  migrateSqliteSync,
+  sqliteSyncAdapter,
+} from "@teyik0/furin/sync/sqlite";
+import { requireUser } from "./auth";
+
+const database = new Database("./data/sync.sqlite");
+migrateSqliteSync(database);
+
+export const sync = {
+  adapter: sqliteSyncAdapter({ database, namespace: "my-app" }),
+  principal: ({ request }) => requireUser(request).id,
+};
+```
+
+`namespace` separates applications sharing the same database. `principal` must return a stable, non-empty identity; it scopes idempotency keys so two users can safely use the same client-generated key.
+
+```ts
+// src/server.ts
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { api } from "./api";
+import { sync } from "./sync";
+
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages", sync }))
+  .use(api)
+  .listen(3000);
+```
+
+Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport automatically.
+
+The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. The shared WebSocket remains at `/_furin/events` under the Furin instance prefix.
+
+## Declare Synced Mutations
+
+Install `furinSync(sync)` before the routes it owns:
+
+```ts
+// src/api/index.ts
+import { Elysia, t } from "elysia";
+import { furinSync } from "@teyik0/furin";
+import { sync } from "../sync";
+
+export const api = new Elysia({ prefix: "/api" })
+  .use(furinSync(sync))
+  .post(
+    "/posts",
+    ({ body }) => db.posts.create(body),
+    {
+      body: t.Object({ title: t.String() }),
+      sync: { invalidate: { tags: ["posts"] } },
+    }
+  );
+```
+
+All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. The route option declares invalidation; it does not name or wrap the mutation.
+
+```ts
+sync: { invalidate: { path: "/blog", type: "layout" } }
+```
+
+Multiple rules are allowed. Tags target cached paths that declared those tags; a page rule targets one exact path, while a layout rule targets the path and descendants.
+
+Set `sync: false` for routes whose request or response cannot be replayed safely:
+
+```ts
+.post("/uploads", uploadFile, { sync: false })
+```
+
+Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
+
+## Call A Mutation
+
+Every synced mutation requires `Idempotency-Key`:
+
+```ts
+await api.api.posts.post(
+  { title: "Hello" },
+  { headers: { "Idempotency-Key": crypto.randomUUID() } }
+);
+```
+
+The optional React helper generates the key and centralizes optimistic rollback:
+
+```tsx
+import { useSync } from "@teyik0/furin/client";
+
+const createPost = useSync(api.api.posts.post, {
+  optimistic: ({ input }) => addPendingPost(input),
+  onError: ({ error }) => reportMutationError(error),
+  onSuccess: ({ result }) => confirmPost(result),
+});
+
+await createPost({ title: "Hello" });
+```
+
+`optimistic` runs synchronously and may return a rollback function. `useSync()` rolls back on a thrown request or an Eden-style result containing `error`, then calls the corresponding callback.
+
+## Replay Semantics
+
+The adapter keys a mutation by principal, method, pathname, and idempotency key, and fingerprints its payload.
+
+| Situation | Result |
+|---|---|
+| First request | Acquires a lease and runs the handler |
+| Same key and same request after success | Replays the stored response |
+| Same key while the first request is running | `409 FURIN_MUTATION_IN_PROGRESS` |
+| Same key with a different payload | `409 FURIN_IDEMPOTENCY_MISMATCH` |
+| Missing key | `428` |
+| Unsupported request body | `415` |
+| Lost mutation lease before commit | `503` |
+
+Only successful `2xx` and `3xx` responses are committed. Stored bodies are limited to 1 MiB. A returned `Response` needs a valid `Content-Length`; hop-by-hop, authentication, and cookie headers are excluded from replay. An unreplayable successful result becomes a safe framework error, so choose `sync: false` up front for unsuitable routes.
+
+The adapter atomically commits the replay response and its invalidation journal entry. Your handler and domain database are outside that adapter transaction. If a domain write and sync commit must be atomic, design that transaction in the application database; Furin cannot make a third-party API call exactly once.
+
+## Browser Catch-Up
+
+After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
+
+The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed WebSocket event or notifier outage delays discovery but does not erase committed changes.
+
+Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` WebSocket per page. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
+
+## Adapter Choice
+
+| Deployment | Adapter |
+|---|---|
+| Local tests or disposable development process | SQLite `:memory:` |
+| One durable host | File-backed SQLite |
+| Multiple replicas with PostgreSQL | PostgreSQL (recommended) |
+| Redis as the durable sync store | Redis |
+| PostgreSQL durability with faster wake-ups | PostgreSQL plus Redis notifier |
+
+Production rejects process-local adapters such as SQLite `:memory:`.
+
+### PostgreSQL
+
+Apply the bundled idempotent schema bootstrap through the CLI or your migration system:
+
+```sh
+FURIN_SYNC_POSTGRES_URL=postgres://... \
+  bunx --package @teyik0/furin furin-sync-postgres-migrate
+```
+
+```ts
+import { SQL } from "bun";
+import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres";
+
+const sync = {
+  adapter: postgresSyncAdapter({
+    namespace: "my-app",
+    sql: new SQL(databaseUrl),
+  }),
+  principal: ({ request }) => requireUser(request).id,
+};
+```
+
+### Redis Notifier
+
+Without an explicit notifier, Furin polls the adapter cursor. Add Redis when lower wake-up latency across replicas matters:
+
+```ts
+import { RedisClient, SQL } from "bun";
+import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres";
+import { redisSyncNotifier } from "@teyik0/furin/sync/redis";
+
+const sync = {
+  adapter: postgresSyncAdapter({ namespace: "my-app", sql: new SQL(databaseUrl) }),
+  notifier: redisSyncNotifier({
+    client: new RedisClient(redisUrl),
+    namespace: "my-app",
+  }),
+  principal: ({ request }) => requireUser(request).id,
+};
+```
+
+The notifier carries cursors only. The adapter remains the source of truth.
+
+## Lower-Level Alternative
+
+Use `furinInvalidate()` when only the initiating response needs `X-Furin-Revalidate` and you do not want idempotency or a change journal. Use Furin Sync when retries and cross-client catch-up are part of the mutation contract. See [Caching](/docs/caching) for the cache layers themselves.

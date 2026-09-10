@@ -1,81 +1,87 @@
 # Plugins
 
-Furin passes Bun plugins through its build pipeline. That lets you preprocess assets both in the production build and in development.
+Furin uses Bun plugins in three different execution contexts. Configure only the contexts where the transform is needed.
 
-## Production Build Plugins
+| Context | Configuration | Why it exists |
+|---|---|---|
+| Development browser graph | `[serve.static].plugins` in `bunfig.toml` | Bun's full-stack dev server transforms client imports |
+| Development server imports | `Bun.plugin()` before `furin()` | Bun can import transformed page dependencies during SSR |
+| Production route scan and bundles | `plugins` in `furin.config.ts` | Furin imports routes, then builds client/server artifacts |
 
-Declare plugins in `furin.config.ts`:
+## Tailwind
 
-```ts
-// furin.config.ts
-import { defineConfig } from "@teyik0/furin/config"
-import tailwind from "bun-plugin-tailwind"
-
-export default defineConfig({
-  pagesDir: "./src/pages",
-  plugins: [tailwind],
-})
-```
-
-Those plugins are forwarded into the Bun build calls used for client and server output.
-
-## Development Plugins
-
-For Bun dev mode, register the same plugin stack in `bunfig.toml` and call `Bun.plugin()` for SSR/runtime needs.
+Tailwind affects the browser asset graph but does not need runtime route-import registration:
 
 ```toml
+# bunfig.toml
 [serve.static]
 plugins = ["bun-plugin-tailwind", "@teyik0/furin/strip-plugin"]
 env = "FURIN_PUBLIC_*"
 ```
 
 ```ts
-// src/server.ts
-import { Elysia } from "elysia"
-import { furin } from "@teyik0/furin"
-import mdxPlugin from "./lib/bun-mdx-plugin.ts"
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import tailwind from "bun-plugin-tailwind";
 
-Bun.plugin(mdxPlugin)
-
-const app = new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .listen(3000)
+export default defineConfig({
+  plugins: [{ ...tailwind, buildOnly: true }],
+});
 ```
 
-## Example: MDX
+`@teyik0/furin/strip-plugin` is required in the development browser graph. It removes server-only route stages and provides browser stubs for server modules. Furin applies its equivalent internal transforms during production builds.
+
+## A Plugin Needed By Route Imports
+
+MDX is imported while Furin discovers routes and while Bun bundles the browser. Register the same plugin in all relevant contexts:
 
 ```ts
-// src/lib/bun-mdx-plugin.ts
-import { compile } from "@mdx-js/mdx"
-
-const MDX_FILTER = /\.mdx$/
+// src/lib/mdx-plugin.ts
+import { compile } from "@mdx-js/mdx";
 
 const mdxPlugin: Bun.BunPlugin = {
-  name: "furin-mdx",
+  name: "mdx",
   setup(build) {
-    build.onLoad({ filter: MDX_FILTER }, async (args) => {
-      const source = await Bun.file(args.path).text()
-      const compiled = await compile(source, {
-        outputFormat: "program",
-      })
-
-      return {
-        contents: String(compiled),
-        loader: "js",
-      }
-    })
+    build.onLoad({ filter: /\.mdx$/ }, async ({ path }) => ({
+      contents: String(await compile(await Bun.file(path).text())),
+      loader: "js",
+    }));
   },
-}
+};
 
-export default mdxPlugin
+export default mdxPlugin;
 ```
 
-If your plugin is needed in both build and dev, wire it in all three places:
+```toml
+[serve.static]
+plugins = ["@teyik0/furin/strip-plugin", "./src/lib/mdx-plugin.ts"]
+```
 
-- `furin.config.ts`
-- `bunfig.toml`
-- `Bun.plugin()` in `src/server.ts`
+```ts
+// src/server.ts
+import mdxPlugin from "./lib/mdx-plugin";
 
-## What Is Actually Exported Today
+Bun.plugin(mdxPlugin);
 
-`@teyik0/furin/config` currently exports `defineConfig()` and the config types. The build target support implemented in this branch is Bun; other targets are not yet wired in the core build step even if the config type mentions them.
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .listen(3000);
+```
+
+```ts
+// furin.config.ts
+import { defineConfig } from "@teyik0/furin/config";
+import mdxPlugin from "./src/lib/mdx-plugin";
+
+export default defineConfig({ plugins: [mdxPlugin] });
+```
+
+## `buildOnly`
+
+Set `buildOnly: true` when a plugin uses hooks unavailable to runtime `Bun.plugin()` or has no effect on server imports. Furin skips runtime registration but still passes it to production Bun builds.
+
+Do not mark a loader for `.mdx`, custom source files, or other page dependencies as build-only if route discovery must import those files.
+
+## Recommendation
+
+Prefer standard JavaScript/TypeScript and a small plugin surface. When a transform is necessary, export one plugin object and reference it from the three configurations instead of maintaining separate implementations. This minimizes dev/production drift while keeping each registration explicit.

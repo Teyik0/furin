@@ -25,5 +25,6 @@ declare module "@teyik0/furin/routes" {
     "/docs/plugins": typeof import("./src/pages/docs/plugins").route;
     "/docs/rendering": typeof import("./src/pages/docs/rendering").route;
     "/docs/routing": typeof import("./src/pages/docs/routing").route;
+    "/docs/sync": typeof import("./src/pages/docs/sync").route;
   }
 }

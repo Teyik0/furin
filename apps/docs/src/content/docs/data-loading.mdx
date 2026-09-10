@@ -1,139 +1,126 @@
 # Data Loading
 
-Furin loaders run on the server before rendering. A route is one `defineRoute()` chain whose terminal is `page()` or `layout()`.
+Furin runs loaders on the server and passes their results into the matched layout and page tree. Use `loader()` for public route data and `requestLoader()` for request-private data that must not enter a cached payload.
 
-## Page Loader
-
-Use `loader()` for public data that is serialized into the rendered page.
+## Public Loaders
 
 ```tsx
-// src/pages/dashboard/index.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as parentRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
-  .loader(async () => ({
-    stats: await getDashboardStats(),
-  }))
-  .page(({ data: { stats } }) => <Dashboard stats={stats} />)
-```
-
-## Layout Loader
-
-A `_route.tsx` layout can load data for itself and its descendants. `layout` is type-only metadata; filesystem nesting determines the runtime layout tree.
-
-```tsx
-// src/pages/dashboard/_route.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
+// src/pages/blog/index.tsx
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async ({ request }) => ({
-    user: await getSession(request),
-  }))
-  .layout(({ children, data: { user } }) => (
-    <div>
-      <DashboardNav user={user} />
-      {children}
-    </div>
-  ))
+  .loader(async ({ log }) => {
+    const posts = await db.posts.findMany();
+    log.set({ postCount: posts.length });
+    return { posts };
+  })
+  .page(({ data }) => <PostList posts={data.posts} />);
 ```
 
-A child loader receives every parent field as an individually awaitable promise. This keeps independent loaders parallel.
+The return object is serialized into the initial document and route-data response. It must therefore contain values supported by Furin's Seroval transport. Keys beginning with `__furin`, plus `params`, `query`, and `path`, are reserved.
+
+Returning a plain promise inside a plain object does not opt into streaming: it is resolved as normal loader data. Use `defer()` explicitly when a field should stream.
+
+## Layout Data And Parallelism
+
+Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant receives each ancestor field as an individual promise:
 
 ```tsx
-// src/pages/dashboard/index.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as parentRoute } from "./_route"
+// src/pages/dashboard/settings.tsx
+import { defineRoute } from "@teyik0/furin";
+import { route as dashboardRoute } from "./_route";
 
 export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
-  .loader(async ({ user }) => {
-    const { id } = await user
-    return { stats: await getDashboardStats(id) }
+  .config({ layout: dashboardRoute, mode: "ssr" })
+  .loader(async ({ organization, user }) => {
+    const [resolvedOrganization, resolvedUser] = await Promise.all([
+      organization,
+      user,
+    ]);
+    return {
+      settings: await getSettings(resolvedOrganization.id, resolvedUser.id),
+    };
   })
-  .page(({ data: { stats, user } }) => <Dashboard stats={stats} user={user} />)
+  .page(({ data }) => <Settings value={data.settings} user={data.user} />);
 ```
 
-Use `Promise.all` when a loader needs several parent fields. A single `await` is enough for a deferred parent field because JavaScript promises flatten nested promises.
+If the child does not read a parent field, its work stays parallel. Layout results are merged from root to leaf and the page result is applied last. Reusing a key with a compatible type overwrites the parent value; development logs a collision, so prefer unique field names.
 
 ## Loader Context
 
-Loaders receive the Elysia context plus Furin's typed route values:
+For SSR routes, `loader()` receives the Elysia context plus typed route values and ancestor promises:
 
-| Property | Type | Description |
-| --- | --- | --- |
-| `request` | `Request` | incoming request |
-| `params` | inferred from `config({ params })` | validated path params |
-| `query` | inferred from `config({ query })` | validated query values |
-| `set`, `headers`, `cookie`, `redirect` | Elysia helpers | request and response controls |
-| parent loader fields | `Promise<T>` | individually awaitable ancestor data |
+| Property | Description |
+|---|---|
+| `params` | Validated values from the merged path schemas |
+| `query` | Validated values and applied defaults from merged query schemas |
+| `request` | Incoming Web `Request` |
+| `cookie`, `headers`, `set`, `redirect` | Elysia request/response helpers |
+| `log` | Request-scoped evlog logger |
+| ancestor fields | `Promise<T>` values from layout loaders |
 
-## Typed Query
+On SSG and ISR public renders, request-bound properties (`request`, `cookie`, `headers`, and `set`) throw if accessed. This prevents accidental personalization from entering a shared cache.
 
-`config()` accepts a query schema without requiring a params schema.
+## Params And Query
 
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { t } from "elysia"
-import { route as parentRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({
-    layout: parentRoute,
+    layout: rootRoute,
     mode: "ssr",
-    query: t.Object({
-      page: t.Optional(t.Number({ default: 1 })),
-      tag: t.Optional(t.String()),
-    }),
+    params: t.Object({ slug: t.String() }),
+    query: t.Object({ preview: t.Optional(t.Boolean({ default: false })) }),
   })
-  .loader(async ({ query }) => ({
-    posts: await db.getPosts(query),
+  .loader(async ({ params, query }) => ({
+    post: await getPost(params.slug, { preview: query.preview }),
   }))
-  .page(({ data: { posts }, query }) => <PostList page={query.page} posts={posts} />)
+  .page(({ data, params, query }) => (
+    <Post post={data.post} preview={query.preview} slug={params.slug} />
+  ));
 ```
 
-Query schemas from nested layouts and the page are merged in the generated `RouteMap`. Fields with a non-null default are required after Elysia validation; optional fields without a default remain optional.
+The schemas are both runtime validators and TypeScript sources. Furin checks that dynamic filename segments and parameter schemas agree when generating the route graph.
 
-## Typed Params
+## Request-Private Data
 
-Every dynamic segment must be covered by the local params schema. Generation fails before writing artifacts when the path and schema drift.
+`requestLoader()` receives a small read-only request context and returns a separate promise named `requestData`:
 
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { t } from "elysia"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { Suspense, use } from "react";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })
-  .loader(({ params }) => getPost(params.slug).then((post) => ({ post })))
-  .page(({ data: { post } }) => <article>{post.title}</article>)
-```
-
-## Request-Specific Data
-
-For SSG, ISR, or PPR data that must never enter the public loader payload, put `requestLoader()` before `loader()`. Its result is exposed separately as `requestData`.
-
-```tsx
-import { Suspense, use } from "react"
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
-  .requestLoader(async ({ cookies }) => ({
-    session: await readSession(cookies),
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .requestLoader(async ({ cookies, headers, log, params, query, request }) => ({
+    session: await readSession(cookies.get("session"), request.signal),
   }))
-  .loader(() => ({ title: "Dashboard" }))
-  .page(({ data: { title }, requestData }) => (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <Dashboard session={use(requestData).session} title={title} />
-    </Suspense>
-  ))
+  .loader(async () => ({ catalog: await getPublicCatalog() }))
+  .page(({ data, requestData }) => (
+    <>
+      <Catalog items={data.catalog} />
+      <Suspense fallback={<AccountSkeleton />}>
+        <Account session={use(requestData).session} />
+      </Suspense>
+    </>
+  ));
 ```
 
-## Deferred Data
+The context exposes `cookies.get(name)`, read-only `headers`, `log`, `params`, `path`, `query`, and `request`. Request loaders across the route chain run in parallel and their results are merged into the same `requestData` promise.
 
-Use `defer()` inside `loader()` for public fields that should stream after the initial shell. See [Deferred Data Streaming](/docs/defer).
+For SSG or ISR on a Bun server, Furin caches only the public loader result, renders request data per request, and marks the final document `private, no-store`. Pure static export rejects every `requestLoader()` because no request runtime exists.
+
+## Redirects, Missing Data, And Headers
+
+- Use Elysia's redirect response from a loader for navigation redirects.
+- Call `notFound()` when the URL is valid but the resource is missing.
+- Set response headers through the Elysia context on SSR routes.
+- Throwing from any public loader selects the nearest `error.tsx`; rejecting `requestData` is observed by React's Suspense/error boundaries.
+
+For progressive public data, continue with [Deferred Data](/docs/defer).

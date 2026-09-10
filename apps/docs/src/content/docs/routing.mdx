@@ -1,118 +1,136 @@
 # File-Based Routing
 
-Furin scans `src/pages` and turns files into routes. Pages live in `.tsx` files, while `_route.tsx` files define layouts and route-level config for a directory.
+Furin maps source files in `src/pages` to URL paths. Directories create URL segments; `index` files collapse to their parent path.
 
-## Basic Pages
+| File | URL |
+|---|---|
+| `pages/index.tsx` | `/` |
+| `pages/about.tsx` | `/about` |
+| `pages/blog/index.tsx` | `/blog` |
+| `pages/blog/archive.tsx` | `/blog/archive` |
+| `pages/blog/[slug].tsx` | `/blog/:slug` |
+| `pages/docs/[...path].tsx` | `/docs/*` |
 
-```text
-src/pages/index.tsx       -> /
-src/pages/about.tsx       -> /about
-src/pages/blog/index.tsx  -> /blog
+Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js`. Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.
+
+## A Page Route
+
+Every page exports a named `route` terminal:
+
+```tsx
+// src/pages/about.tsx
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => <h1>About</h1>);
 ```
 
-## Dynamic Segments
-
-Use square brackets for params:
+The chain order is fixed:
 
 ```text
-src/pages/blog/[slug].tsx   -> /blog/:slug
-src/pages/docs/[...path].tsx -> /docs/*
+defineRoute()
+  → config()
+  → loader()?
+  → requestLoader()?
+  → head()?
+  → page() or layout()
 ```
 
-Declare typed params in `config()` on the page route:
+`config()` and the terminal `page()` or `layout()` are required. Optional stages disappear from the builder once used, preventing duplicate or out-of-order declarations.
+
+## Dynamic Parameters
+
+Filename brackets declare a parameter. Add a TypeBox schema to validate it at runtime and infer it everywhere else:
 
 ```tsx
 // src/pages/blog/[slug].tsx
-import { t } from "elysia"
-import { defineRoute } from "@teyik0/furin"
-import { route as parentRoute } from "./_route"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({
-    layout: parentRoute,
+    layout: rootRoute,
     mode: "ssr",
-    params: t.Object({ slug: t.String() }),
+    params: t.Object({ slug: t.String({ minLength: 1 }) }),
   })
-  .loader(async ({ params }) => {
-    const post = await db.getPost(params.slug)
-    return { post }
-  })
-  .page(({ data: { post } }) => <article>{post.title}</article>)
+  .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
+  .page(({ data, params }) => <article>{data.post.title}</article>);
 ```
+
+Parameter names must be valid JavaScript-style identifiers. Catch-all routes use Elysia's wildcard key, regardless of the filename label:
 
 ```tsx
-// src/pages/blog/_route.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .layout(({ children }) => children)
-```
-
-## Layout Files
-
-Files named `_route.tsx` define route-level config and layouts for their directory:
-
-```text
-src/pages/blog/_route.tsx
-src/pages/blog/index.tsx
-src/pages/blog/[slug].tsx
-```
-
-```tsx
-// src/pages/blog/_route.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .layout(({ children }) => (
-    <div className="mx-auto flex max-w-5xl gap-8 px-4 py-10">
-      <aside>Sidebar</aside>
-      <main>{children}</main>
-    </div>
-  ))
-```
-
-## Catch-All Routes
-
-Catch-all segments are written with `[...name]`. Furin turns them into `*` in the generated runtime pattern.
-
-```text
-src/pages/docs/[...path].tsx -> /docs/*
-```
-
-If you declare a schema for that route, the runtime param key is `"*"`:
-
-```tsx
-import { t } from "elysia"
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
+// src/pages/docs/[...path].tsx
 export const route = defineRoute()
   .config({
     layout: rootRoute,
     mode: "ssr",
     params: t.Object({ "*": t.String() }),
   })
-  .page(({ params }) => <DocsPage path={params["*"]} />)
+  .page(({ params }) => <p>{params["*"]}</p>);
 ```
 
-## Typed Navigation
+## Validated Search Parameters
 
-Furin generates `furin-env.d.ts` so `<Link />` and `useSearch` are fully typed from the route manifest.
+The `query` schema controls both request validation and navigation types:
 
 ```tsx
-import { Link } from "@teyik0/furin/link"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "./root";
 
-<Link to="/docs/rendering">Rendering</Link>
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    query: t.Object({
+      page: t.Numeric({ default: 1, minimum: 1 }),
+      q: t.Optional(t.String()),
+    }),
+  })
+  .loader(({ query }) => search({ page: query.page, query: query.q }))
+  .page(({ data, query }) => <Results items={data.items} page={query.page} />);
 ```
 
-When a route declares a `query` schema, `search` is typed from that schema.
+Schema defaults are applied before loaders run. Navigation omits values equal to those defaults from the generated URL, keeping canonical links clean.
+
+## Special Files
+
+| File | Role | Creates a URL? |
+|---|---|---|
+| `root.tsx` | Required document layout | No |
+| `_route.tsx` | Layout for its directory | No |
+| `error.tsx` | Nearest segment error boundary | No |
+| `not-found.tsx` | Nearest segment 404 boundary | No |
+| Any filename beginning with `_` | Non-route module | No |
+
+Only the filename is ignored by the route scanner. If you keep page-local helpers under `pages`, prefix each helper filename with `_`; a directory name beginning with `_` is not itself a route-group convention.
+
+## Layout Hierarchy
+
+Filesystem nesting decides which layouts wrap a page:
+
+```text
+pages/root.tsx
+└── pages/dashboard/_route.tsx
+    └── pages/dashboard/settings.tsx
+```
+
+The settings page references the dashboard route in `config({ layout })`, and the dashboard layout references the root route. Development validates this explicit type chain against the filesystem and repairs stale imports after route moves. See [Nested Layouts](/docs/layouts).
+
+## Generated Route Types
+
+Furin writes `furin-env.d.ts` during development and builds. It augments the route map used by `<Link>`, `useNavigate()`, and `useSearch()`:
 
 ```tsx
-<Link to="/search" search={{ page: 2 }} />
+import { Link } from "@teyik0/furin/link";
+
+<Link to="/blog/:slug" params={{ slug: "hello" }}>
+  Read the post
+</Link>;
 ```
 
 The same types drive `useSearch` from `@teyik0/furin/search`:
@@ -143,3 +161,5 @@ contract without a restart.
 TypeScript therefore reads schema and loader changes directly from the route
 module, while config changes that affect generated declarations, such as cache
 tags, trigger an atomic rewrite of `furin-env.d.ts`.
+
+Do not edit `furin-env.d.ts`. Commit it if your team wants route types available before the dev server runs; otherwise generate it in the local or CI workflow before type-checking.
