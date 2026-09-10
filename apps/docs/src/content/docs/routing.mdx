@@ -132,3 +132,14 @@ Make sure `furin-env.d.ts` is included in your app `tsconfig.json`:
   "include": ["src/**/*", "furin-env.d.ts"]
 }
 ```
+
+### Development type refresh
+
+While the development server is running, editing a route's `params`, `query`,
+loader, or config refreshes both the browser route snapshot and its TypeScript
+contract without a restart.
+
+`furin-env.d.ts` keeps route entries as `typeof import("./path/to/route").route`.
+TypeScript therefore reads schema and loader changes directly from the route
+module, while config changes that affect generated declarations, such as cache
+tags, trigger an atomic rewrite of `furin-env.d.ts`.

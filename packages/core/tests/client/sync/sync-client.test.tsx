@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createElement } from "react";
-import { flushSync } from "react-dom";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { type SyncMutationOptions, type UseSyncOptions, useSync } from "../../../src/client.ts";
 import { useDomTests } from "../../support/dom.ts";
@@ -28,7 +27,7 @@ function renderHook<TInput, TResult>(
   }
 
   document.body.appendChild(container);
-  flushSync(() => {
+  act(() => {
     root.render(createElement(TestComponent));
   });
 
@@ -38,7 +37,7 @@ function renderHook<TInput, TResult>(
 
   return {
     cleanup: () => {
-      flushSync(() => root.unmount());
+      act(() => root.unmount());
       container.remove();
     },
     run,
@@ -59,7 +58,7 @@ function renderVoidHook<TResult>(
   }
 
   document.body.appendChild(container);
-  flushSync(() => {
+  act(() => {
     root.render(createElement(TestComponent));
   });
 
@@ -69,7 +68,7 @@ function renderVoidHook<TResult>(
 
   return {
     cleanup: () => {
-      flushSync(() => root.unmount());
+      act(() => root.unmount());
       container.remove();
     },
     run,

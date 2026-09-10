@@ -77,7 +77,7 @@ describe.serial("render/template", () => {
       const second = await getDevTemplate(origin);
 
       expect(first).toBe(
-        '<script type="module" src="/_furin/devtools/client.js"></script><html>dev-template</html>'
+        '<script type="module" src="/_furin/dev/error-overlay.js"></script><script type="module" src="/_furin/devtools/client.js"></script><html>dev-template</html>'
       );
       expect(second).toBe(first);
       // Second call within 1s TTL should hit the cache
@@ -87,7 +87,7 @@ describe.serial("render/template", () => {
     }
   }, 10_000);
 
-  test("getDevTemplate injects the native DevTools client before application scripts", async () => {
+  test("getDevTemplate injects development clients before application scripts", async () => {
     const server = Bun.serve({
       fetch() {
         return new Response(
@@ -99,6 +99,9 @@ describe.serial("render/template", () => {
 
     try {
       const html = await getDevTemplate(server.url.origin);
+      const errorOverlayIndex = html.indexOf(
+        '<script type="module" src="/_furin/dev/error-overlay.js"></script>'
+      );
       const devtoolsIndex = html.indexOf(
         '<script type="module" src="/_furin/devtools/client.js"></script>'
       );
@@ -106,6 +109,8 @@ describe.serial("render/template", () => {
         '<script type="module" src="/_bun/client/app.js"></script>'
       );
 
+      expect(errorOverlayIndex).toBeGreaterThan(-1);
+      expect(errorOverlayIndex).toBeLessThan(devtoolsIndex);
       expect(devtoolsIndex).toBeGreaterThan(-1);
       expect(devtoolsIndex).toBeLessThan(applicationIndex);
     } finally {

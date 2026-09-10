@@ -33,7 +33,6 @@ test("the dev topology watcher reloads only when the route set changes", async (
       const paths = routeSourcePaths(instance).map((path) => path.replace(`${pagesDir}/`, ""));
       topologies.push(paths);
     },
-    pollIntervalMs: 20,
   });
 
   try {
@@ -66,10 +65,13 @@ test("the dev topology watcher observes transitive route dependencies", async ()
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-dependency-watch-"));
   const pagesDir = join(projectRoot, "src/pages");
   mkdirSync(pagesDir, { recursive: true });
-  writeFileSync(join(pagesDir, "_helper.ts"), 'export const value = "one";\n');
+  writeFileSync(join(projectRoot, "package.json"), "{}\n");
+  const helperPath = join(projectRoot, "src/lib/helper.ts");
+  mkdirSync(join(projectRoot, "src/lib"), { recursive: true });
+  writeFileSync(helperPath, 'export const value = "one";\n');
   writeFileSync(
     join(pagesDir, "index.ts"),
-    'import { value } from "./_helper.ts";\nexport const route = value;\n'
+    'import { value } from "../lib/helper.ts";\nexport const route = value;\n'
   );
 
   let touchedRouteFiles = 0;
@@ -79,11 +81,9 @@ test("the dev topology watcher observes transitive route dependencies", async ()
       touchedRouteFiles += 1;
     },
     onTopologyChange: () => undefined,
-    pollIntervalMs: 20,
   });
 
   try {
-    const helperPath = join(pagesDir, "_helper.ts");
     writeFileSync(helperPath, 'export const value = "two";\n');
     const changedAt = new Date(Date.now() + 1000);
     utimesSync(helperPath, changedAt, changedAt);
@@ -95,7 +95,41 @@ test("the dev topology watcher observes transitive route dependencies", async ()
   }
 });
 
-test("the dev topology watcher can refresh before the next polling interval", async () => {
+test("the dev topology watcher reports source transform errors", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-transform-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  const routePath = join(pagesDir, "index.ts");
+  writeFileSync(routePath, "export const route = 1;\n");
+
+  const sourceErrors: Array<{ error: unknown; sourcePath: string }> = [];
+  let touchedRouteFiles = 0;
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+    },
+    onSourceError: (error, sourcePath) => {
+      sourceErrors.push({ error, sourcePath });
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    await waitForCount(() => touchedRouteFiles, 1);
+    writeFileSync(routePath, "export const route = ;\n");
+    await waitForCount(() => sourceErrors.length, 1);
+
+    expect(sourceErrors[0]?.sourcePath).toBe(routePath);
+    expect(sourceErrors[0]?.error).toBeInstanceOf(Error);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher can refresh before the filesystem debounce", async () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-eager-watch-"));
   const pagesDir = join(projectRoot, "src/pages");
   mkdirSync(pagesDir, { recursive: true });
@@ -109,7 +143,6 @@ test("the dev topology watcher can refresh before the next polling interval", as
       touchedRouteFiles += 1;
     },
     onTopologyChange: () => undefined,
-    pollIntervalMs: 60_000,
   });
 
   try {
@@ -126,38 +159,40 @@ test("the dev topology watcher can refresh before the next polling interval", as
   }
 });
 
-test.serial("the dev topology watcher reports a route error and keeps polling", async () => {
-  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-error-watch-"));
-  const pagesDir = join(projectRoot, "src/pages");
-  mkdirSync(pagesDir, { recursive: true });
-  const routePath = join(pagesDir, "index.ts");
-  writeFileSync(routePath, "export const route = 1;\n");
+test.serial(
+  "the dev topology watcher reports a route error and retries reconciliation",
+  async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-error-watch-"));
+    const pagesDir = join(projectRoot, "src/pages");
+    mkdirSync(pagesDir, { recursive: true });
+    const routePath = join(pagesDir, "index.ts");
+    writeFileSync(routePath, "export const route = 1;\n");
 
-  let attempts = 0;
-  const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
-  const watcher = registerDevRouteTopologyWatcher({
-    instance: { pagesDir, prefix: "" },
-    onRouteFilesTouched: () => {
-      attempts += 1;
-      if (attempts === 1) {
-        throw new Error(`${routePath}: use a static layout route reference`);
-      }
-    },
-    onTopologyChange: () => undefined,
-    pollIntervalMs: 20,
-  });
+    let attempts = 0;
+    const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
+    const watcher = registerDevRouteTopologyWatcher({
+      instance: { pagesDir, prefix: "" },
+      onRouteFilesTouched: () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error(`${routePath}: use a static layout route reference`);
+        }
+      },
+      onTopologyChange: () => undefined,
+    });
 
-  try {
-    writeFileSync(routePath, "export const route = 2;\n");
-    await waitForCount(() => attempts, 2);
+    try {
+      writeFileSync(routePath, "export const route = 2;\n");
+      await waitForCount(() => attempts, 2);
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[furin] Failed to refresh route topology",
-      expect.objectContaining({ message: `${routePath}: use a static layout route reference` })
-    );
-  } finally {
-    watcher.close();
-    errorSpy.mockRestore();
-    rmSync(projectRoot, { force: true, recursive: true });
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[furin] Failed to refresh route topology",
+        expect.objectContaining({ message: `${routePath}: use a static layout route reference` })
+      );
+    } finally {
+      watcher.close();
+      errorSpy.mockRestore();
+      rmSync(projectRoot, { force: true, recursive: true });
+    }
   }
-});
+);

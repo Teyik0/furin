@@ -125,7 +125,7 @@ test.serial("the root layout owns the not-found document", async () => {
   expect(html).toContain('id="__FURIN_DATA__"');
 });
 
-test.serial("a broken root layout falls back to a complete document", async () => {
+test.serial("a broken root layout is reported by the development overlay", async () => {
   const app = await createDocumentApp({
     errorSource: `export default function RootError({ error }: { error: Error }) {
   return <main data-fallback="root">{error.message}</main>;
@@ -141,11 +141,9 @@ test.serial("a broken root layout falls back to a complete document", async () =
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html.match(/<!DOCTYPE html>/g)).toHaveLength(1);
-  expect(html.match(/<html/g)).toHaveLength(1);
-  expect(html.match(/<body/g)).toHaveLength(1);
-  expect(html).toContain('<main data-fallback="root">');
-  expect(html).toContain('id="__FURIN_DATA__"');
+  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain("root layout failed");
+  expect(html).toContain('"phase":"render"');
 });
 
 test.serial("a head failure is rendered inside the root document", async () => {
@@ -174,7 +172,7 @@ test.serial("a head failure is rendered inside the root document", async () => {
   expect(html).toContain('id="__FURIN_DATA__"');
 });
 
-test.serial("a root layout that does not render html is rejected as a document", async () => {
+test.serial("an invalid root document is reported by the development overlay", async () => {
   const app = await createDocumentApp({
     errorSource: undefined,
     pageSource: pageSource("<p>invalid document content</p>", undefined),
@@ -185,8 +183,8 @@ test.serial("a root layout that does not render html is rejected as a document",
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html.match(/<!DOCTYPE html>/g)).toHaveLength(1);
-  expect(html).toContain("Something went wrong");
+  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("data-invalid-root");
 });
 
@@ -206,7 +204,8 @@ test.serial("a root document without Scripts is rejected", async () => {
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain("Something went wrong");
+  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("missing scripts");
 });
 
@@ -226,6 +225,7 @@ test.serial("a root document without HeadContent is rejected", async () => {
   const html = await response.text();
 
   expect(response.status).toBe(500);
-  expect(html).toContain("Something went wrong");
+  expect(html).toContain('id="__FURIN_DEV_ERROR__"');
+  expect(html).toContain('"phase":"render"');
   expect(html).not.toContain("missing head content");
 });

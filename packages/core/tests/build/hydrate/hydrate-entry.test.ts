@@ -487,6 +487,14 @@ describe("generateHydrateEntry — HMR hardening", () => {
     expect(code).toContain("await refresh(commitComponent, dataChanged);");
   });
 
+  test("forwards hydration failures to the development overlay", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain(
+      'window.dispatchEvent(new CustomEvent("furin:hydrate-error", { detail: err }));'
+    );
+  });
+
   test("does NOT emit import.meta.hot.accept after the IIFE", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     // The accept handler was removed because Bun re-evaluates the entry module

@@ -1,16 +1,9 @@
-import { statSync } from "node:fs";
-
-let routeModuleGeneration = 0;
+import { devGraph } from "../dev/graph.ts";
 
 export function routeModuleSourceVersion(path: string): string {
-  try {
-    const stats = statSync(path, { bigint: true });
-    return Bun.hash(`${stats.mtimeNs}:${stats.size}:${routeModuleGeneration}`).toString();
-  } catch {
-    return Bun.hash(`missing:${routeModuleGeneration}`).toString();
-  }
+  return devGraph(undefined).sourceVersion(path);
 }
 
 export function invalidateRouteModuleSourceVersions(): void {
-  routeModuleGeneration += 1;
+  devGraph(undefined).invalidateModules();
 }

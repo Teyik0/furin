@@ -46,6 +46,12 @@ When no `error.tsx` exists, Furin renders a built-in error screen:
 - The **digest** so users can report it
 - A **Go Home** link and a **Try again** button
 
+### Development diagnostics
+
+In development, loader and render failures use the Furin error overlay instead of the production boundary UI. The overlay includes the original message and cause, source location, route, phase, import chain, and stack trace. It reloads automatically after the development graph publishes a successful revision, or you can select **Retry route**.
+
+These diagnostics are development-only. Production responses continue to use the boundary and digest behavior described above.
+
 ## `not-found.tsx` — Segment Not-Found Boundaries
 
 Create a `not-found.tsx` to handle missing content inside a route segment.

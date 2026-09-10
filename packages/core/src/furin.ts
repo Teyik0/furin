@@ -8,6 +8,9 @@ import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
+import { publishDevError } from "./server/dev/error.ts";
+import { type DevelopmentRouteSnapshot, devGraph } from "./server/dev/graph.ts";
+import { createDevErrorPlugin } from "./server/dev/plugin.ts";
 import {
   createInstrumentationPlugin,
   instrumentationLoggerExclusions,
@@ -77,7 +80,6 @@ export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
 const MAX_BROWSER_INGEST_EVENTS = 100;
-const DEV_ROUTE_TOPOLOGY_POLL_INTERVAL_MS = 100;
 
 function resolveClientDirFromArgv(prefix: string): string {
   const dirName = clientDirNameForPrefix(prefix);
@@ -455,12 +457,6 @@ function createNativeRouteRenderer(
   };
 }
 
-interface DevelopmentRouteSnapshot {
-  render: FurinRouteDispatcher;
-  root: RootLayout;
-  routes: ResolvedRoute[];
-}
-
 function createDevelopmentRouteSnapshot(
   prefix: string,
   root: RootLayout,
@@ -474,11 +470,21 @@ function createDevelopmentRouteSnapshot(
   };
 }
 
-const nativeRouteRenderers = new WeakMap<FurinInstance, FurinRouteDispatcher>();
+const NATIVE_ROUTE_RENDERERS = Symbol.for("@teyik0/furin/native-route-renderers");
+
+function nativeRouteRendererRegistry(): WeakMap<FurinInstance, FurinRouteDispatcher> {
+  const existing = Reflect.get(globalThis, NATIVE_ROUTE_RENDERERS);
+  if (existing instanceof WeakMap) {
+    return existing as WeakMap<FurinInstance, FurinRouteDispatcher>;
+  }
+  const renderers = new WeakMap<FurinInstance, FurinRouteDispatcher>();
+  Reflect.set(globalThis, NATIVE_ROUTE_RENDERERS, renderers);
+  return renderers;
+}
 
 function dispatchNativeRoute(context: Parameters<FurinRouteDispatcher>[0]): unknown {
   const { pathname } = new URL(context.request.url);
-  const renderer = nativeRouteRenderers.get(resolveInstanceByPath(pathname));
+  const renderer = nativeRouteRendererRegistry().get(resolveInstanceByPath(pathname));
   if (!renderer) {
     throw new Error(`[furin] No route renderer is registered for ${JSON.stringify(pathname)}`);
   }
@@ -633,12 +639,16 @@ export async function furin({
     };
     applyRouteConfigAutofix();
 
-    const { furinShell: nativeRoutesApp } = (await import(routeModuleSpecifier(routeInstance))) as {
-      furinShell: AnyElysia;
-    };
-    const { root, routes } = await loadDevelopmentRoutes(resolvedPagesDir);
-    let currentSnapshot = createDevelopmentRouteSnapshot(prefix, root, routes);
-    nativeRouteRenderers.set(instance, (context) => currentSnapshot.render(context));
+    const graph = devGraph(instance);
+    const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
+      const { furinShell } = (await import(routeModuleSpecifier(routeInstance))) as {
+        furinShell: AnyElysia;
+      };
+      const loaded = await loadDevelopmentRoutes(resolvedPagesDir);
+      return { nativeRoutesApp: furinShell, ...loaded };
+    });
+    const initialSnapshot = createDevelopmentRouteSnapshot(prefix, root, routes);
+    nativeRouteRendererRegistry().set(instance, (context) => graph.snapshot?.render(context));
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
     const writeCurrentDevFiles = (snapshot: DevelopmentRouteSnapshot): void => {
@@ -657,14 +667,26 @@ export async function furin({
         cwd
       );
     };
-    writeCurrentDevFiles(currentSnapshot);
-    const refreshDevelopmentRoutes = async (): Promise<void> => {
-      invalidateStampedRouteModules();
-      const next = await loadDevelopmentRoutes(resolvedPagesDir);
-      const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
-      writeCurrentDevFiles(nextSnapshot);
-      currentSnapshot = nextSnapshot;
-    };
+    writeCurrentDevFiles(initialSnapshot);
+    graph.commit(initialSnapshot);
+    const refreshDevelopmentRoutes = (): Promise<void> =>
+      withInstance(instance, async () => {
+        invalidateStampedRouteModules();
+        try {
+          const next = await loadDevelopmentRoutes(resolvedPagesDir);
+          const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
+          writeCurrentDevFiles(nextSnapshot);
+          graph.commit(nextSnapshot);
+        } catch (error) {
+          const rootPath = join(resolvedPagesDir, "root.tsx");
+          publishDevError(graph, error, {
+            entryPath: rootPath,
+            phase: "import",
+            route: "*",
+          });
+          throw error;
+        }
+      });
     const devHtmlBundle = (await import(join(furinDir, "index.html"))).default;
     const publicDir = resolve(cwd, "public");
     const publicExists = existsSync(publicDir);
@@ -686,6 +708,16 @@ export async function furin({
             applyRouteConfigAutofix();
             await refreshDevelopmentRoutes();
           },
+          onSourceError: (error, sourcePath) => {
+            const route = graph.snapshot?.routes.find((candidate) =>
+              graph.dependsOn(candidate.path, sourcePath)
+            );
+            publishDevError(graph, error, {
+              entryPath: route?.path ?? sourcePath,
+              phase: "transform",
+              route: route?.pattern ?? "*",
+            });
+          },
           onTopologyChange: async () => {
             // Bun --hot cannot be triggered from generated artifacts (its
             // watch graph is the entry's static imports), so topology changes
@@ -695,7 +727,6 @@ export async function furin({
             applyRouteConfigAutofix();
             await refreshDevelopmentRoutes();
           },
-          pollIntervalMs: DEV_ROUTE_TOPOLOGY_POLL_INTERVAL_MS,
         });
       })
       .onStop(() => {
@@ -706,11 +737,13 @@ export async function furin({
       // bundle is also present in serve.routes once request hooks are installed.
       .use(await staticPlugin({ assets: furinDir, bunFullstack: true, prefix: "/_bun_hmr_entry" }))
       .use(loggerPlugin)
-      // Local scope (default) — a global hook would leak onto sibling furin
-      // instances mounted on the same parent app.
       .onError(async ({ code, request, server }) => {
         if (code === "NOT_FOUND") {
-          return await renderRootNotFound(currentSnapshot.root, request, server?.url.origin);
+          return await renderRootNotFound(
+            graph.snapshot?.root ?? root,
+            request,
+            server?.url.origin
+          );
         }
       })
       .onAfterHandle(({ set }) => {
@@ -729,14 +762,15 @@ export async function furin({
           ? file(join(publicDir, "favicon.ico"))
           : () => new Response(null, { status: 404 })
       )
-      .use(createInstrumentationPlugin(() => currentSnapshot.routes, syncStreamPath))
+      .use(createDevErrorPlugin(graph))
+      .use(createInstrumentationPlugin(() => graph.snapshot?.routes ?? routes, syncStreamPath))
       .use(sync ? createSyncStreamPlugin(sync) : new Elysia())
       .use(
         createDataEndpoint(async (request) => {
           if (request.headers.get("x-furin-hmr-refresh") === "1") {
             await routeTopologyWatcher?.refresh();
           }
-          return currentSnapshot.routes;
+          return graph.snapshot?.routes ?? routes;
         })
       )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
@@ -747,7 +781,7 @@ export async function furin({
           // the root not-found page, so hot-added routes are served without
           // a restart. Instances outside this pathname's prefix are skipped.
           const { pathname } = new URL(notFoundContext.request.url);
-          if (!nativeRouteRenderers.has(resolveInstanceByPath(pathname))) {
+          if (!nativeRouteRendererRegistry().has(resolveInstanceByPath(pathname))) {
             return;
           }
           return await dispatchNativeRoute(
@@ -784,7 +818,7 @@ export async function furin({
     prodBuildId,
     searchRoutes
   );
-  nativeRouteRenderers.set(instance, renderNativeRoute);
+  nativeRouteRendererRegistry().set(instance, renderNativeRoute);
   instance.buildId = prodBuildId;
   // Init-time writes target THIS instance explicitly — with several mounted
   // apps there is no ambient request scope to resolve it from.
