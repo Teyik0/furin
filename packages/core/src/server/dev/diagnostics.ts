@@ -252,9 +252,8 @@ export async function publishClientDiagnostic(
     : undefined;
   const graph = devGraph(instance);
   const { snapshot } = graph;
-  const routeEntry = snapshot
-    ? buildRouteMatcher(snapshot.routes)(report.route)?.route.path
-    : undefined;
+  const routeMatch = snapshot ? buildRouteMatcher(snapshot.routes)(report.route) : null;
+  const routeEntry = routeMatch?.route.path;
   const sourceFile = symbolicated.location
     ? canonicalSourcePath(sourceFilePath(symbolicated.location.file))
     : routeEntry;
@@ -279,7 +278,7 @@ export async function publishClientDiagnostic(
     location,
     message: report.message,
     phase: report.phase,
-    route: report.route,
+    route: routeMatch?.route.pattern ?? report.route,
     stack: report.stack,
   });
 }

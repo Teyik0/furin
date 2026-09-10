@@ -352,6 +352,11 @@ export async function handleDevRequest(
       return response;
     }
     const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
+    Reflect.set(invalidExport, "furinPosition", {
+      column: 1,
+      file: route.path,
+      line: 1,
+    });
     throw new DevTransformFailure(invalidExport, { cause: invalidExport });
   } catch (err) {
     console.error(`[furin] Dev page load error for ${route.path}:`, err);

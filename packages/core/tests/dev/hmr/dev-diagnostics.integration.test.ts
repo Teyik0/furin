@@ -343,6 +343,42 @@ throw new Error("recovery exploded");`
     expect(event.diagnostic.importChain[1]).toContain("src/components/client-card.tsx");
   });
 
+  test("normalizes client diagnostic paths to dynamic route patterns", async () => {
+    const pagePath = join(app.path, "src/pages/blog/[slug].tsx");
+    writeAppFile(
+      app.path,
+      "src/pages/blog/[slug].tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "../root";',
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <main>Dynamic client page</main>);",
+      ].join("\n")
+    );
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const page = await fetch(`http://localhost:${port}/blog/post-1`);
+      if (page.ok && (await page.text()).includes("Dynamic client page")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    const response = await fetch(`http://localhost:${port}/_furin/dev/client-errors`, {
+      body: JSON.stringify({
+        message: "dynamic client render exploded",
+        phase: "client-render",
+        route: "/blog/post-1",
+        stack: `Error: dynamic client render exploded\n    at Page (${pathToFileURL(realpathSync(pagePath)).href}:1:1)`,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const event = (await response.json()) as EmbeddedDiagnosticState["event"];
+
+    expect(event.diagnostic.route).toBe("/blog/:slug");
+  });
+
   test("a loader failure reports its phase and cause", async () => {
     writeAppFile(app.path, "src/pages/index.tsx", failingLoaderPage());
 
@@ -354,7 +390,9 @@ throw new Error("recovery exploded");`
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
-        break;
+        if (state.event.diagnostic.message === "loader exploded") {
+          break;
+        }
       }
       await Bun.sleep(250);
     }
@@ -469,7 +507,12 @@ throw new Error("recovery exploded");`
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
-        break;
+        if (
+          state.event.diagnostic.phase === "transform" &&
+          !state.event.diagnostic.message.includes("valid Furin page export")
+        ) {
+          break;
+        }
       }
       await Bun.sleep(250);
     }
@@ -498,12 +541,15 @@ throw new Error("recovery exploded");`
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
-        break;
+        if (state.event.diagnostic.message.includes("valid Furin page export")) {
+          break;
+        }
       }
       await Bun.sleep(250);
     }
 
     expect(state?.event.diagnostic.phase).toBe("transform");
     expect(state?.event.diagnostic.message).toContain("valid Furin page export");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
   }, 20_000);
 });

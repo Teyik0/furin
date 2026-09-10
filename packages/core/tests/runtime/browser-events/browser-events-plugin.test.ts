@@ -248,3 +248,55 @@ test("browser event socket rejects connections above the per-instance limit", as
     await app.stop();
   }
 });
+
+test("a reconnect burst never subscribes sources above the connection limit", async () => {
+  let activeSubscriptions = 0;
+  let maximumSubscriptions = 0;
+  const app = new Elysia()
+    .use(
+      createBrowserEventsPlugin({
+        sources: [
+          {
+            subscribe: () => {
+              activeSubscriptions += 1;
+              maximumSubscriptions = Math.max(maximumSubscriptions, activeSubscriptions);
+              return {
+                unsubscribe: () => {
+                  activeSubscriptions -= 1;
+                },
+              };
+            },
+          },
+        ],
+      })
+    )
+    .listen(0);
+  const port = app.server?.port;
+  if (port === undefined) {
+    throw new Error("Expected browser event burst test server to listen");
+  }
+  const sockets = Array.from(
+    { length: 120 },
+    () => new WebSocket(`ws://127.0.0.1:${port}/_furin/events`)
+  );
+
+  try {
+    await Promise.all(
+      sockets.map(
+        (socket) =>
+          new Promise<void>((resolve) => {
+            socket.addEventListener("open", () => resolve(), { once: true });
+            socket.addEventListener("error", () => resolve(), { once: true });
+          })
+      )
+    );
+    await Bun.sleep(20);
+
+    expect(maximumSubscriptions).toBeLessThanOrEqual(100);
+  } finally {
+    for (const socket of sockets) {
+      socket.close();
+    }
+    await app.stop();
+  }
+});

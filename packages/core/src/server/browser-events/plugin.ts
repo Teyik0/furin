@@ -95,6 +95,10 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
         ws.close(1008, "Furin browser events are server-to-client only");
       },
       async open(ws) {
+        if (connections.size >= MAX_BROWSER_EVENT_CONNECTIONS) {
+          ws.close(1013, "Furin browser event capacity reached");
+          return;
+        }
         const send = (event: BrowserEventEnvelope): void => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(serialized(event));
