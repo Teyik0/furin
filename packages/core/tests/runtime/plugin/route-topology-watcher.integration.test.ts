@@ -119,6 +119,8 @@ test("the dev topology watcher reports source transform errors", async () => {
     writeFileSync(routePath, "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     writeFileSync(routePath, "export const route = ;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
     await waitForCount(() => sourceErrors.length, 1);
 
     expect(sourceErrors[0]?.sourcePath).toBe(routePath);
