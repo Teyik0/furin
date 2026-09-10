@@ -248,11 +248,11 @@ Synced mutations stay regular API routes. There are no server actions, generated
 
 The runtime is mandatory whenever sync is enabled. SQLite `:memory:` is process-local and intended for development or tests; production rejects it. File-backed SQLite is valid for one machine, while multi-host replicas require a distributed adapter such as PostgreSQL, Redis, or a custom durable `SyncAdapter`. Use the same runtime object with `furinSync(sync)` and `furin({ sync })`; this keeps mutation reservation, replay, SSE, and catch-up on one namespace.
 
-The notifier is optional. When omitted, Furin polls the adapter cursor. Notifications are only wake-ups: ordered recovery always reads `adapter.readChanges()`, including after a disconnect or lost notification.
+The notifier may be omitted for local adapters and during development, where Furin polls the adapter cursor. Distributed adapters require an explicit notifier in production so replicas cannot silently generate continuous polling traffic. Notifications are only wake-ups: ordered recovery always reads `adapter.readChanges()`, including after a disconnect or lost notification. Use `postgresSyncNotifier()` for a zero-poll PostgreSQL deployment, or pass `new PollingSyncNotifier(adapter, intervalMs)` as an explicit compatibility fallback.
 
 The adapters are isolated, tree-shakable subpaths of `@teyik0/furin`:
 
-- `@teyik0/furin/sync/postgres` — recommended durable adapter using `Bun.SQL` transactions and leases.
+- `@teyik0/furin/sync/postgres` — recommended durable adapter plus native PostgreSQL `LISTEN/NOTIFY`, using `Bun.SQL`.
 - `@teyik0/furin/sync/redis` — durable Redis Streams adapter plus an independent Redis notifier using Bun's native `RedisClient`.
 - `@teyik0/furin/sync/sqlite` — process-local in memory or host-local on disk using `bun:sqlite`.
 

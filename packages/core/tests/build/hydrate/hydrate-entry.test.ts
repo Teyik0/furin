@@ -476,7 +476,15 @@ describe("generateHydrateEntry — HMR hardening", () => {
   test("triggers a loader-data refresh via __FURIN_HMR_REFRESH__ on HMR", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     expect(code).toContain("__FURIN_HMR_REFRESH__");
-    expect(code).toContain("requestAnimationFrame(() => hmrRefresh());");
+    expect(code).toContain("await refresh(commitComponent, dataChanged);");
+    expect(code).toContain("await hmrRefresh(() => existingRoot.render(app), true);");
+    expect(code).not.toContain("requestAnimationFrame(() => hmrRefresh());");
+  });
+
+  test("commits a component-only update without refreshing loader data", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain("await refresh(commitComponent, dataChanged);");
   });
 
   test("forwards hydration failures to the development overlay", () => {
@@ -512,5 +520,6 @@ describe("generateHydrateEntry — HMR hardening", () => {
     expect(code).toContain('phase: "paint"');
     expect(code).toContain('reason: "native-hmr-boundary-missing"');
     expect(code).toContain('reason: "hmr-connection-recovered"');
+    expect(code).toContain('reason: "hmr-runtime-unavailable"');
   });
 });

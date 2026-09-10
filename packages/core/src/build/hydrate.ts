@@ -460,43 +460,72 @@ if (__deferred && __deferred._chunks) {
     const hmrWindow = window as unknown as {
       __FURIN_HMR_UPDATE__?: (
         sourcePath: string,
-        component: (props: never) => ReactNode
-      ) => void;
+        component: (props: never) => ReactNode,
+        dataChanged: boolean
+      ) => Promise<void>;
     };
-    hmrWindow.__FURIN_HMR_UPDATE__ = (sourcePath, component) => {
-      const componentKeySuffix = ":" + sourcePath;
-      for (const key of hotComponentRegistry.keys()) {
-        if (key.endsWith(componentKeySuffix)) {
-          updateHotComponent(hotComponentRegistry, key, component);
+    hmrWindow.__FURIN_HMR_UPDATE__ = async (sourcePath, component, dataChanged) => {
+      const reportModuleUpdate = () => {
+        window.dispatchEvent(
+          new CustomEvent("furin:hmr", {
+            detail: {
+              durationMs: null,
+              module: sourcePath,
+              phase: "module",
+              reason: null,
+              state: null,
+            },
+          })
+        );
+      };
+      const commitComponent = () => {
+        const componentKeySuffix = ":" + sourcePath;
+        for (const key of hotComponentRegistry.keys()) {
+          if (key.endsWith(componentKeySuffix)) {
+            updateHotComponent(hotComponentRegistry, key, component);
+          }
         }
-      }
-      (window as any).__FURIN_ROOT__?.render(app);
-      const refresh = (window as any).__FURIN_HMR_REFRESH__;
+      };
+      const refresh = (window as unknown as {
+        __FURIN_HMR_REFRESH__?: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }).__FURIN_HMR_REFRESH__;
       if (refresh) {
-        requestAnimationFrame(() => refresh());
+        await refresh(commitComponent, dataChanged);
+        reportModuleUpdate();
+        return;
       }
+      reportModuleUpdate();
       window.dispatchEvent(
         new CustomEvent("furin:hmr", {
           detail: {
             durationMs: null,
-            module: sourcePath,
-            phase: "module",
-            reason: null,
+            module: null,
+            phase: "full-reload",
+            reason: "hmr-runtime-unavailable",
             state: null,
           },
         })
       );
+      window.location.reload();
     };
     if (existingRoot) {
-      // Already mounted — reconciliation, NOT hydration. React Fast Refresh
-      // patched the component in-place, now re-render with the new module.
-      existingRoot.render(app);
       // The initialData embedded in the DOM is stale (from the original SSR).
-      // Trigger a loader-data refresh so the component renders with fresh
-      // server state, avoiding hydration mismatches after a _route.tsx edit.
-      const hmrRefresh = (window as any).__FURIN_HMR_REFRESH__;
+      // Prepare fresh loader data, then publish it with the new module in the
+      // same React commit. If the router effect is not installed yet, reconcile
+      // the module directly; this branch only occurs during initial boot.
+      const hmrRefresh = (window as unknown as {
+        __FURIN_HMR_REFRESH__?: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }).__FURIN_HMR_REFRESH__;
       if (hmrRefresh) {
-        requestAnimationFrame(() => hmrRefresh());
+        await hmrRefresh(() => existingRoot.render(app), true);
+      } else {
+        existingRoot.render(app);
       }
     } else {
       // First load — the root layout owns the server-rendered document.

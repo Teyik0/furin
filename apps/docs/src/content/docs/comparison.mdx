@@ -152,7 +152,7 @@ Choosing a React meta-framework is not about picking the "best" one — it is ab
 | **Missed-event catch-up** | Application responsibility | Application/query-library responsibility | Ordered cursor journal + SSE wake-up |
 | **Optional backend isolation** | Deployment/runtime dependent | Environment code is build-time separated | Independent side-effect-free package subpaths |
 
-Next.js has the broadest integrated cache revalidation API. TanStack Start emphasizes typed same-origin Server Functions and deliberate client-cache integration. Furin keeps standard HTTP routes as the public mutation contract and adds an optional durable replay/change journal around them. The recommended production topology is PostgreSQL for correctness, with Redis only as an optional low-latency notifier.
+Next.js has the broadest integrated cache revalidation API. TanStack Start emphasizes typed same-origin Server Functions and deliberate client-cache integration. Furin keeps standard HTTP routes as the public mutation contract and adds an optional durable replay/change journal around them. The recommended production topology uses PostgreSQL for both durability and native `LISTEN/NOTIFY` wake-ups, with Redis remaining an optional independent notifier.
 
 Furin adopts the immediately useful local-first behavior described in the [Linear performance analysis](https://performance.dev/how-is-linear-so-fast-a-technical-breakdown): `useSync()` applies optimistic state synchronously, SSE carries only a cursor, and catch-up is coalesced. It deliberately does not pretend that a server journal is a browser database. IndexedDB outbox, offline mutation replay, and conflict resolution remain a separate opt-in project.
 

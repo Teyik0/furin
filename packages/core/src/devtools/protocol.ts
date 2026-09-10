@@ -5,6 +5,7 @@ export type DevtoolsConnectionState = "connected" | "connecting" | "disconnected
 export type DevtoolsFullReloadReason =
   | "development-error-recovered"
   | "hmr-connection-recovered"
+  | "hmr-runtime-unavailable"
   | "native-hmr-boundary-missing"
   | "unknown-native-hmr-reason";
 export type DevtoolsHmrClientPhase = "after-update" | "before-update" | "paint";
@@ -356,6 +357,7 @@ export function isDevtoolsBrowserEventInput(value: unknown): value is DevtoolsBr
       [
         "development-error-recovered",
         "hmr-connection-recovered",
+        "hmr-runtime-unavailable",
         "native-hmr-boundary-missing",
         "unknown-native-hmr-reason",
       ].includes(String(property(value, "reason")))

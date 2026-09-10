@@ -5,11 +5,10 @@ import {
 } from "../../../src/client/router/sync-catch-up.ts";
 
 describe("createSyncCatchUp", () => {
-  test("initializes at the current cursor then applies every paginated change", async () => {
+  test("starts at cursor zero and applies every paginated change", async () => {
     const requestedAfter: Array<string | undefined> = [];
     const invalidations: string[][] = [];
     const pages = [
-      { changes: [], cursor: "2", hasMore: false, reset: false },
       {
         changes: [{ cursor: "3", invalidations: ["/board"] }],
         cursor: "3",
@@ -35,10 +34,9 @@ describe("createSyncCatchUp", () => {
       onInvalidations: (entries) => invalidations.push([...entries]),
     });
 
-    await sync.initialize();
     await sync.catchUp();
 
-    expect(requestedAfter).toEqual([undefined, "2", "3"]);
+    expect(requestedAfter).toEqual(["0", "3"]);
     expect(invalidations).toEqual([["/board"], ["/sidebar:layout"]]);
     expect(sync.cursor()).toBe("4");
   });
@@ -64,6 +62,27 @@ describe("createSyncCatchUp", () => {
     expect(requestedAfter).toEqual(["0"]);
     expect(invalidations).toEqual(["/:layout"]);
     expect(sync.cursor()).toBe("8");
+  });
+
+  test("starts from a cursor supplied by the sync stream", async () => {
+    const requestedAfter: Array<string | undefined> = [];
+    const sync = createSyncCatchUp({
+      fetchPage: (after) => {
+        requestedAfter.push(after);
+        return Promise.resolve({
+          changes: [],
+          cursor: "12",
+          hasMore: false,
+          reset: false,
+        });
+      },
+      onInvalidations: () => undefined,
+    });
+
+    sync.seed("12");
+    await sync.catchUp();
+
+    expect(requestedAfter).toEqual(["12"]);
   });
 });
 

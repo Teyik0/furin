@@ -58,6 +58,10 @@ export interface SyncAdapter {
   beginMutation: (input: BeginMutationInput) => Promise<BeginMutationResult>;
   completeMutation: (input: CompleteMutationInput) => Promise<CompleteMutationResult>;
   currentCursor: () => Promise<string>;
+  /**
+   * Identifies a notification channel published transactionally by completeMutation.
+   */
+  readonly notificationChannel?: string;
   readChanges: (input: ReadChangesInput) => Promise<ChangePage>;
   renewMutation: (lease: MutationLease) => Promise<"lost" | "renewed">;
   readonly scope: "distributed" | "host-local" | "process-local";
@@ -68,7 +72,16 @@ export interface SyncSubscription {
 }
 
 export interface SyncNotifier {
+  /**
+   * Matches a SyncAdapter channel when durable completion already publishes the wake-up.
+   */
+  readonly notificationChannel?: string;
   publish: (cursor: string) => Promise<void>;
+  /**
+   * Declares that the notifier independently recovers missed wake-ups, so the
+   * SSE coordinator does not need its compatibility safety poll.
+   */
+  readonly recovery?: "self";
   subscribe: (listener: (cursor: string) => void) => Promise<SyncSubscription>;
 }
 

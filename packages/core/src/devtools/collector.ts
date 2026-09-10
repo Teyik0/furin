@@ -329,6 +329,8 @@ async function start(): Promise<void> {
     let reason: DevtoolsFullReloadReason = "unknown-native-hmr-reason";
     if (detail.reason === "hmr-connection-recovered") {
       reason = "hmr-connection-recovered";
+    } else if (detail.reason === "hmr-runtime-unavailable") {
+      reason = "hmr-runtime-unavailable";
     } else if (detail.reason === "native-hmr-boundary-missing") {
       reason = "native-hmr-boundary-missing";
     } else if (detail.reason === "development-error-recovered") {

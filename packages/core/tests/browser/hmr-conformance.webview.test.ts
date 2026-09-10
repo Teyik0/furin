@@ -182,6 +182,27 @@ function importedRouteComponentSource(version: string, includeSecondHook: boolea
   ].join("\n");
 }
 
+function importedLoaderPageSource(): string {
+  return [
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { FeaturePage, loadData } from "../components/LoaderFeature";',
+    'import { route as rootRoute } from "./root";',
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    "  .loader(loadData)",
+    "  .page(FeaturePage);",
+  ].join("\n");
+}
+
+function importedLoaderSource(version: string): string {
+  return [
+    `export function loadData() { return { message: "loader-${version}" }; }`,
+    "export function FeaturePage({ data }: { data: { message: string } }) {",
+    `  return <main data-version="${version}"><output data-testid="loader">{data.message}</output></main>;`,
+    "}",
+  ].join("\n");
+}
+
 function mixedExportPageSource(): string {
   return importedChildPageSource("../components/MixedChild")
     .replace(
@@ -419,6 +440,51 @@ function loaderPageSource(version: string, loaderThrows: boolean): string {
     '  .config({ layout: rootRoute, mode: "ssr" })',
     loader,
     "  .page(LoaderPage);",
+  ].join("\n");
+}
+
+function componentOnlyLoaderPageSource(version: string): string {
+  return loaderPageSource(version, false).replace(
+    `message: "loader-${version}"`,
+    'message: "loader-stable"'
+  );
+}
+
+function routeContractPageSource(version: "after" | "before"): string {
+  const isBefore = version === "before";
+  const schema = isBefore ? "t.Number()" : "t.String()";
+  const config = isBefore
+    ? '.config({ layout: rootRoute, mode: "ssr",'
+    : '.config({ layout: rootRoute, mode: "isr", revalidate: 60,';
+  return [
+    'import { useState } from "react";',
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { t } from "elysia";',
+    'import { route as rootRoute } from "../root";',
+    "",
+    "function ContractPage({ summary }: { summary: string }) {",
+    "  const [count, setCount] = useState(0);",
+    "  return (",
+    `    <main data-version="${version}">`,
+    '      <output data-testid="loader">{summary}</output>',
+    '      <output data-testid="count">{count}</output>',
+    '      <button data-testid="increment" onClick={() => setCount((value) => value + 1)}>',
+    "        Increment",
+    "      </button>",
+    "    </main>",
+    "  );",
+    "}",
+    "",
+    "export const route = defineRoute()",
+    `  ${config}`,
+    `    params: t.Object({ id: ${schema} }),`,
+    `    query: t.Object({ page: ${schema} }),`,
+    `    tags: ["${version}"],`,
+    "  })",
+    "  .loader(({ params, query }) => ({",
+    `    summary: "${version}:" + typeof params.id + ":" + typeof query.page,`,
+    "  }))",
+    "  .page(({ data }) => <ContractPage summary={data.summary} />);",
   ].join("\n");
 }
 
@@ -883,6 +949,33 @@ async function waitForElementText(
     if (Date.now() - startedAt >= 15_000) {
       throw new Error(
         `Timed out waiting for ${selector} to contain ${expectedText}; latest value was ${String(latestText)}`
+      );
+    }
+    await Bun.sleep(50);
+  }
+}
+
+async function waitForRouteConfig(
+  view: InstanceType<typeof Bun.WebView>,
+  pattern: string,
+  expectedMode: string,
+  expectedTag: string
+): Promise<void> {
+  const startedAt = Date.now();
+  let latestConfig: unknown;
+  for (;;) {
+    latestConfig = await view.evaluate(`fetch("/_furin/devtools/snapshot")
+      .then((response) => response.json())
+      .then((snapshot) => {
+        const route = snapshot.routes.find((candidate) => candidate.pattern === ${JSON.stringify(pattern)});
+        return route ? route.mode + ":" + route.tags.join(",") : null;
+      })`);
+    if (latestConfig === `${expectedMode}:${expectedTag}`) {
+      return;
+    }
+    if (Date.now() - startedAt >= 15_000) {
+      throw new Error(
+        `Timed out waiting for ${pattern} config ${expectedMode}:${expectedTag}; latest value was ${String(latestConfig)}`
       );
     }
     await Bun.sleep(50);
@@ -1798,6 +1891,16 @@ browserTest(
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-combined-v1");
     await harness.view.click('[data-testid="increment"]');
     const before = await readSnapshot(harness.view);
+    await harness.view.evaluate(`(() => {
+      window.__furinAtomicMismatches = [];
+      new MutationObserver(() => {
+        const version = document.querySelector("main")?.getAttribute("data-version");
+        const loader = document.querySelector('[data-testid="loader"]')?.textContent;
+        if (version && loader && version.replace("combined-", "loader-combined-") !== loader) {
+          window.__furinAtomicMismatches.push(version + ":" + loader);
+        }
+      }).observe(document.body, { attributes: true, characterData: true, subtree: true });
+    })()`);
 
     writeAppFile(harness.app.path, "src/pages/index.tsx", loaderPageSource("combined-v2", false));
 
@@ -1805,6 +1908,105 @@ browserTest(
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-combined-v2");
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(before.documentId);
+    expect((await harness.view.evaluate("window.__furinAtomicMismatches")) as string[]).toEqual([]);
+  },
+  30_000
+);
+
+browserTest(
+  "a component-only edit keeps loader data without refetching",
+  async () => {
+    const harness = await createBrowserHarness(
+      componentOnlyLoaderPageSource("component-v1"),
+      [],
+      false
+    );
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-stable");
+    await harness.view.evaluate("performance.clearResourceTimings()");
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      componentOnlyLoaderPageSource("component-v2")
+    );
+
+    await waitForVersion(harness.view, "component-v2");
+    await Bun.sleep(300);
+    expect(
+      (await harness.view.evaluate(`
+        performance.getEntriesByType("resource")
+          .filter((entry) => entry.name.includes("/_furin/data"))
+          .length
+      `)) as number
+    ).toBe(0);
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-stable");
+  },
+  30_000
+);
+
+browserTest(
+  "an imported component and loader edit refreshes both atomically",
+  async () => {
+    const harness = await createBrowserHarness(
+      importedLoaderPageSource(),
+      [
+        {
+          contents: importedLoaderSource("imported-loader-v1"),
+          relativePath: "src/components/LoaderFeature.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-imported-loader-v1");
+    writeAppFile(
+      harness.app.path,
+      "src/components/LoaderFeature.tsx",
+      importedLoaderSource("imported-loader-v2")
+    );
+
+    await waitForVersion(harness.view, "imported-loader-v2");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-imported-loader-v2");
+  },
+  30_000
+);
+
+browserTest(
+  "route schema, loader, and config edits converge without restarting",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("contract-home", false),
+      [
+        {
+          contents: routeContractPageSource("before"),
+          relativePath: "src/pages/items/[id].tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/items/42?page=1`);
+    await waitForVersion(harness.view, "before");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "before:number:number");
+    await waitForRouteConfig(harness.view, "/items/:id", "ssr", "before");
+
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    const serverPid = harness.server.pid;
+    await harness.view.click('[data-testid="increment"]');
+
+    writeAppFile(harness.app.path, "src/pages/items/[id].tsx", routeContractPageSource("after"));
+
+    const after = await waitForVersion(harness.view, "after");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "after:string:string");
+    await waitForRouteConfig(harness.view, "/items/:id", "isr", "after");
+    expect(after.count).toBe("1");
+    expect(after.documentId).toBe(documentId);
+    expect(harness.server.pid).toBe(serverPid);
   },
   30_000
 );
@@ -1859,6 +2061,47 @@ browserTest(
     ).toBe("loader-race-fast");
     expect(afterFast.count).toBe("1");
     expect(afterFast.documentId).toBe(documentId);
+  },
+  45_000
+);
+
+browserTest(
+  "a component-only edit supersedes an older component without dropping its data refresh",
+  async () => {
+    const harness = await createBrowserHarness(loaderPageSource("supersede-v1", false), [], false);
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-v1");
+    await harness.view.evaluate(`(() => {
+      window.__furinHmrDataRequests = 0;
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (...args) => {
+        if (String(args[0]).includes("/_furin/data")) {
+          window.__furinHmrDataRequests += 1;
+        }
+        return originalFetch(...args);
+      };
+    })()`);
+    const slowSource = slowLoaderPageSource("supersede-slow", 1200);
+    writeAppFile(harness.app.path, "src/pages/index.tsx", slowSource);
+    const requestStartedAt = Date.now();
+    while (((await harness.view.evaluate("window.__furinHmrDataRequests ?? 0")) as number) === 0) {
+      if (Date.now() - requestStartedAt >= 15_000) {
+        throw new Error("Timed out waiting for the slow HMR loader request");
+      }
+      await Bun.sleep(10);
+    }
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      slowSource.replace('data-version="supersede-slow"', 'data-version="supersede-latest"')
+    );
+
+    await waitForVersion(harness.view, "supersede-latest");
+    await Bun.sleep(1400);
+
+    expect((await readSnapshot(harness.view)).version).toBe("supersede-latest");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-slow");
   },
   45_000
 );

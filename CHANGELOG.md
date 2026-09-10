@@ -8,9 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Breaking
 - **Strict route builder contract** — `defineRoute()` now exposes only `.config()` before `loader`/`page`/`layout` become reachable, and `.config()` requires `layout: <route>` and `mode` at minimum. The types-only parent reference is renamed from `parent` to `layout` and the overload matrix collapses from 8 signatures to 4 (one per schema shape); omitting `layout` keeps the route parentless. A new `defineRootRoute()` (the `createRootRoute` analogue) covers `pages/root.tsx` with `.config({ mode })` and no layout.
+- **Explicit distributed sync notifier** — production runtimes using a distributed `SyncAdapter` must now provide a `SyncNotifier`; use the native PostgreSQL or Redis notifier, or opt into `PollingSyncNotifier` as a compatibility fallback.
 
 ### Added
 - **HMR development control room** — `furin dev` now prints the application and dedicated `/_furin/devtools` URLs, with `--open-devtools` for explicit browser launch. The standalone dashboard traces watcher, client/server build, socket, apply, and next-paint phases; identifies invalidating and rebuilt modules; retains full-reload reasons and per-tab HMR/sync state; and reports server memory plus Furin graph size. The in-app UI is reduced to a compact status launcher, while strict same-origin telemetry, path redaction, and build-time isolation keep diagnostics local and out of production bundles.
+- **Native PostgreSQL sync notifications** — `postgresSyncNotifier()` uses Bun `SQL.listen()` / `SQL.notify()` with namespace-isolated channels, transactional post-commit delivery, listener teardown, and durable cursor recovery after reconnects.
 - **Elysia route builder** — legacy route definitions are replaced by a typed `defineRoute()` builder with schema-shaped overloads, `defineRootRoute()` for the root layout, and `Link` props gaining typed `params?: RouteParamsOf<To>` derived from the route's params schema (schema numbers accept both `42` and `"42"`).
 - **TanStack-style layout auto-fix** — the dev topology watcher verifies every route file's `.config` against the file-system tree and rewrites missing or misplaced `layout` references (plus a default `mode: "ssr"`), inserting the import when needed. Idempotent by construction and safe: content edits never retrigger the watcher.
 - **Hot-added routes served without restart** — the topology watcher rebuilds the native renderer in place (route matcher swap) and the global NOT_FOUND handler consults the fresh renderer, so hot-added routes are served (~250 ms) and hot-removed routes 404 without restarting the dev server.
@@ -24,6 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Documentation for the strict builder** — snippets declare complete `.config({ layout, mode })` with copy-paste-compilable imports, `defineRootRoute()` for root layouts, and prose updated from `config({ parent })` to `config({ layout })`.
 
 ### Fixed
+- **Single sync startup catch-up** — browser sync seeds its cursor from the stream's initial frame before issuing one `/changes` read, avoiding both the redundant pre-stream request and replay of retained history.
+- **Atomic component/data HMR** — component-only edits preserve the current loader snapshot without a refetch, while edits to route data stages prepare fresh data before React publishes the updated component, preventing transient new-code/old-data renders.
 - **React Doctor diagnostics** — all 25 warnings resolved: PostgreSQL migration uses `sql.file()` instead of `sql.unsafe(string)`; weather API fetches check `res.ok` before reading the body; `Promise.all` on independent PostgreSQL stream queries and several single-pass loops / cached lookups (perf); targeted CSS transitions instead of `transition-all` across examples and the scaffolder template.
 - **React Doctor pre-commit gate runs offline** — the supply-chain (Socket.dev) and score network calls no longer hang commits on blocked networks; the full networked scan belongs to CI or manual runs.
 

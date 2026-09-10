@@ -25,7 +25,7 @@ interface StreamState {
     ReturnType<typeof setInterval> | undefined
   >;
   cursor: string | undefined;
-  safetyPoll: ReturnType<typeof setInterval>;
+  safetyPoll: ReturnType<typeof setInterval> | undefined;
   subscription: SyncSubscription;
 }
 
@@ -77,16 +77,22 @@ async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamSt
   const state = {} as StreamState;
   state.clients = new Map();
   state.cursor = await runtime.adapter.currentCursor();
-  state.safetyPoll = setInterval(() => {
-    runtime.adapter
-      .currentCursor()
-      .then((cursor) => notifyState(state, cursor))
-      .catch(() => undefined);
-  }, SAFETY_POLL_INTERVAL_MS);
-  state.safetyPoll.unref?.();
+  let subscriptionFailed = false;
   state.subscription = await runtime.notifier
     .subscribe((cursor) => notifyState(state, cursor))
-    .catch(() => noOpSubscription);
+    .catch(() => {
+      subscriptionFailed = true;
+      return noOpSubscription;
+    });
+  if (runtime.notifier.recovery !== "self" || subscriptionFailed) {
+    state.safetyPoll = setInterval(() => {
+      runtime.adapter
+        .currentCursor()
+        .then((cursor) => notifyState(state, cursor))
+        .catch(() => undefined);
+    }, SAFETY_POLL_INTERVAL_MS);
+    state.safetyPoll.unref?.();
+  }
   resolvedStates.add(state);
   return state;
 }
@@ -177,6 +183,9 @@ export function createSyncStreamPlugin(options: FurinSyncOptions) {
         start(controller) {
           controllerRef = controller;
           controller.enqueue(encoder.encode(": connected\nretry: 3000\n\n"));
+          if (state.cursor !== undefined) {
+            controller.enqueue(encodeSseCursor(state.cursor));
+          }
           state.clients.set(controller, undefined);
           heartbeat = setInterval(() => {
             if (controller.desiredSize === null || controller.desiredSize <= 0) {
@@ -208,7 +217,9 @@ export function createSyncStreamPlugin(options: FurinSyncOptions) {
 export function __resetSyncState(): void {
   for (const state of resolvedStates) {
     state.subscription.unsubscribe().catch(() => undefined);
-    clearInterval(state.safetyPoll);
+    if (state.safetyPoll) {
+      clearInterval(state.safetyPoll);
+    }
     for (const client of state.clients.keys()) {
       closeClient(state, client);
     }

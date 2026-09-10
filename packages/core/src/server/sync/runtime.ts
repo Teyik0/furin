@@ -15,7 +15,19 @@ export function resolveSyncRuntime(options: SyncRuntimeOptions): ResolvedSyncRun
     throw new Error("[furin] Production sync cannot use a process-local SyncAdapter.");
   }
   if (options.notifier) {
+    if (
+      options.adapter.notificationChannel !== undefined &&
+      options.notifier.notificationChannel !== undefined &&
+      options.adapter.notificationChannel !== options.notifier.notificationChannel
+    ) {
+      throw new Error("[furin] SyncAdapter and SyncNotifier notification channels do not match.");
+    }
     return { adapter: options.adapter, notifier: options.notifier };
+  }
+  if (!IS_DEV && options.adapter.scope === "distributed") {
+    throw new Error(
+      "[furin] Distributed production sync requires an explicit SyncNotifier. Configure the adapter notifier or pass PollingSyncNotifier as a compatibility fallback."
+    );
   }
   const existing = pollingNotifiers.get(options.adapter);
   if (existing) {

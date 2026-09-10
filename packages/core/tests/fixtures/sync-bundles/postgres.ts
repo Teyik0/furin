@@ -1,3 +1,6 @@
-import { postgresSyncAdapter } from "../../../dist/server/sync/postgres/index.js";
+import {
+  postgresSyncAdapter,
+  postgresSyncNotifier,
+} from "../../../dist/server/sync/postgres/index.js";
 
-console.log(postgresSyncAdapter);
+console.log(postgresSyncAdapter, postgresSyncNotifier);
