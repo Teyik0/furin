@@ -101,6 +101,12 @@ test("DevGraph clears stale source errors before a new transform", () => {
     line: 8,
   });
 
+  expect(graph.sourceError("Unexpected token", "C:/app/component.tsx")).toEqual({
+    column: 4,
+    file: "C:/app/component.tsx",
+    line: 8,
+  });
+
   graph.clearSourceErrors("C:/app/component.tsx");
 
   expect(graph.sourceError("Unexpected token", "C:/app/component.tsx")).toBeUndefined();
