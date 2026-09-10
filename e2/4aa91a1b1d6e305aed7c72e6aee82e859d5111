@@ -1,0 +1,79 @@
+CHANGELOG.md
+  s_2a4069bf188ef3::t_93aa309102b87a 11,15,29-30
+apps/docs/src/content/docs/api-routes.mdx
+  s_2a4069bf188ef3::t_e7677b4f5b7c8a 134,158-161,164,166-167,180-182,185,187,189-190,195-196,201,203,205
+apps/docs/src/content/docs/comparison.mdx
+  s_2a4069bf188ef3::t_f8a5136dd910da 155
+apps/docs/src/content/docs/configuration.mdx
+  s_2a4069bf188ef3::t_17310ecc162956 251,255
+apps/docs/src/content/docs/deployment.mdx
+  s_2a4069bf188ef3::t_abb39a009dd3dc 198-201,208,211-217,225-239,257
+apps/docs/src/content/docs/routing.mdx
+  s_2a4069bf188ef3::t_58f42c283cbc89 135-145
+packages/core/src/build/hydrate.ts
+  s_2a4069bf188ef3::t_82495c541fc98d 463-465,467-486,488-494,496-498,500,505-507,512,516-524,526-528
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_fe0f77266effca 57-85,148-151,253,259,318-328,450-458,461-462,476,525-528,562,595-604,609,613,629-631,635-665,674,744,937-943,945,947-948,951,956,968
+packages/core/src/client/router/sync-catch-up.ts
+  s_2a4069bf188ef3::t_e54c645d1f2669 22,107-108
+packages/core/src/devtools/collector.ts
+  s_2a4069bf188ef3::t_84695f3feb71c7 332-333
+packages/core/src/devtools/protocol.ts
+  s_2a4069bf188ef3::t_12c9f695fe1c61 8,360
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_0f091a0e66b0ee 16-24,200-514,860-871,877-881,889-898
+packages/core/src/server/sync/adapter.ts
+  s_2a4069bf188ef3::t_e54b4b13022818 61-64,75-78,80-84
+packages/core/src/server/sync/notifier.ts
+  s_2a4069bf188ef3::t_40d80adf4b8033 8
+packages/core/src/server/sync/plugin.ts
+  s_2a4069bf188ef3::t_54898c506ffe60 243-246
+packages/core/src/server/sync/postgres/index.ts
+  s_2a4069bf188ef3::t_0d912f81853666 14-15,21-22,50-61,80,89,242-244,259-260,320-407
+packages/core/src/server/sync/runtime.ts
+  s_2a4069bf188ef3::t_e488e5327fc632 18-24,27-31
+packages/core/src/server/sync/stream.ts
+  s_2a4069bf188ef3::t_edbc40fa8923ab 28,80,83-95,186-188,220-222
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_9f27ca28bef3bd 185-205,446-490,958-984,1894-1903,1911-2009,2068-2108
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_2a4069bf188ef3::t_b885bf5c717b19 479-487,523
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_2a4069bf188ef3::t_1bf0c796ec405f 49-281
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_2a4069bf188ef3::t_306524b7504143 14,81,123-124
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_2a4069bf188ef3::t_06abfa1607509b 83-97,182-184,186,199-201,203,210-226,229-242,379-476
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_2a4069bf188ef3::t_b49e8e89f7f89e 1,3-6,13-26,78-115,332-389
+packages/core/tests/client/sync/adapters/postgres-sync-notifier.test.ts
+  s_2a4069bf188ef3::t_3ff222acde58bf 1-187
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_2a4069bf188ef3::t_fd90287a3dade1 168-198,208,233-234,241,254,280,283,290,293,297,331-338,346
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_2a4069bf188ef3::t_59bc20b8665f35 8,39,66-86
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_2a4069bf188ef3::t_f65f308154416d 58,60-93,95
+packages/core/tests/client/sync/sync.test.ts
+  s_2a4069bf188ef3::t_90fb07e2d15ace 83,99,106-110,127,601-602,646-647,657-662,675,684-725,727
+packages/core/tests/dev/hmr/dev-route-typegen-watch.integration.test.ts
+  s_2a4069bf188ef3::t_ebb3ed5f294c84 1-166
+packages/core/tests/fixtures/sync-bundles/postgres.ts
+  s_2a4069bf188ef3::t_37731e48f7b281 1-4,6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e24aa91a1b1d6e305aed7c72e6aee82e859d5111",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
