@@ -110,10 +110,14 @@ packages/core/src/client/dev-error-overlay.ts
   s_2a4069bf188ef3::t_e3f07ad37ffdd1 97-98
   s_2a4069bf188ef3::t_e7c0e56e8206c9 91-92
   s_2a4069bf188ef3::t_52a1f79ed45b22 148-151
+  s_2a4069bf188ef3::t_2a8017635e97ec 6,15-16,24-25,30,74-78,99,102,105,111-112,115,117-118,135-136,140,156-157,164,166,171,176-177,181-185
 packages/core/src/shared/browser-events.ts
   s_2a4069bf188ef3::t_4fb6f3d3baaa4b 1-28
 packages/core/tests/client/sync/sync.test.ts
   s_2a4069bf188ef3::t_5d3d8b95f77eb7 555-557,563-576,581,583-597
+  s_2a4069bf188ef3::t_93ddb154f3b351 23-27,600,612-613,622,624-629,636,664-667,669-670
+  s_2a4069bf188ef3::t_9740ece630bece 83
+  s_2a4069bf188ef3::t_2a8017635e97ec 558-562,577-580,582
 packages/core/src/server/dev/diagnostics.ts
   s_2a4069bf188ef3::t_1172198a0d6ffb 74,77-81
   s_2a4069bf188ef3::t_52a1f79ed45b22 50-53,98-102
@@ -135,6 +139,8 @@ packages/core/src/client/router/provider.tsx
   s_2a4069bf188ef3::t_f7e00936a7e625 7
   s_2a4069bf188ef3::t_8f45fb9cdae0ed 843
   s_2a4069bf188ef3::t_02cfe0cd502e89 796,841-842,850,853-856,862
+  s_2a4069bf188ef3::t_9740ece630bece 226,285-290,412,428,542,565-567,571
+  s_2a4069bf188ef3::t_8835c6c5f8bfe3 846
 packages/core/src/server/devtools/instrumentation.ts
   s_2a4069bf188ef3::t_79d7085fd38197 72
   s_2a4069bf188ef3::t_3681e0a5e9c213 71
@@ -186,12 +192,15 @@ packages/core/src/server/dev/plugin.ts
   s_2a4069bf188ef3::t_cb33bcff82fac8 9,59-60,62-65,67-73,84
 CHANGELOG.md
   s_2a4069bf188ef3::t_cf32bf4d1cb5a3 11,29
+  s_2a4069bf188ef3::t_8835c6c5f8bfe3 30-31
 packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
   s_2a4069bf188ef3::t_3681e0a5e9c213 176
 packages/core/tests/client/sync/router-provider-sync.test.tsx
   s_2a4069bf188ef3::t_517f087a15470c 22,24-28,30-31,33-34,37-39,41-45,126,134-137,144,178,209,216,257,260,266,310,318
   s_2a4069bf188ef3::t_be46ef286aa8eb 106
   s_2a4069bf188ef3::t_38df9a9c016eaa 226
+  s_2a4069bf188ef3::t_93ddb154f3b351 148,155,166,170,212-214,222,312
+  s_2a4069bf188ef3::t_2a8017635e97ec 187
 apps/docs/src/content/docs/dev-hmr.mdx
   s_2a4069bf188ef3::t_5b70ded4f5ecac 398
 packages/core/tests/client/sync/sync-runtime.test.ts
@@ -235,6 +244,7 @@ packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
   s_2a4069bf188ef3::t_304efa2499f0fb 38,98,236
   s_2a4069bf188ef3::t_261084afd6ee00 127,135,329-347
   s_2a4069bf188ef3::t_7f3b2a17c95841 27,33,42,44-45
+  s_2a4069bf188ef3::t_2a8017635e97ec 2-3,5-8,10,34-35,39,105-114,116-122,124-126,128-134,136-138,140-144,146-149,151-161,163-168,170-173,175-176,178-180,182-184,186-192,199-204,206-211,213,257,298-299,312,318-322,328,394-398,425,441
 packages/core/tests/runtime/plugin/furinjs.test.ts
   s_2a4069bf188ef3::t_cbfed141f018cb 541-543,549
 packages/core/src/server/sync/config.ts
@@ -310,6 +320,7 @@ packages/core/src/server/sync/stream.ts
   s_2a4069bf188ef3::t_f36d0d4a9de74e 99-100
   s_2a4069bf188ef3::t_ba49494d93a1db 149,154,168-169
   s_2a4069bf188ef3::t_9cc8073e1b76fc 20-21,27-28,30,37,39,44-45,72,74-75,77-78,81-84,86-92,96,101-102,106-107,109-110,181
+  s_2a4069bf188ef3::t_8835c6c5f8bfe3 48,93-95
 scripts/compare-performance-reports.ts
   s_d53042d344584f::t_b6f71ae037163f 144
 packages/core/src/server/dev/transform-failure.ts
