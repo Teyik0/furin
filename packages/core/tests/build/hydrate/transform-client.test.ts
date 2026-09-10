@@ -159,6 +159,38 @@ export const route = defineRoute().page(memo(function Page() {
     expect(route.code).toContain('value: ["useState{[count](0)}"]');
   });
 
+  test("recognizes a React default imported through a named specifier", () => {
+    const route = transformForClient(
+      `import { default as React, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute().page(React.memo(function Page() {
+  const [count] = useState(0);
+  return <output>{count}</output>;
+}));`,
+      "/app/pages/index.tsx"
+    );
+
+    expect(route.code).toContain('value: ["useState{[count](0)}"]');
+  });
+
+  test.each(["forwardRef", "memo"])(
+    "collects hooks from a named route component passed to %s",
+    (wrapper) => {
+      const route = transformForClient(
+        `import { ${wrapper}, useState } from "react";
+import { defineRoute } from "@teyik0/furin";
+function Page() {
+  const [count] = useState(0);
+  return <output>{count}</output>;
+}
+export const route = defineRoute().page(${wrapper}(Page));`,
+        "/app/pages/index.tsx"
+      );
+
+      expect(route.code).toContain('value: ["useState{[count](0)}"]');
+    }
+  );
+
   test("resolves the route component binding in module scope", () => {
     const route = transformForClient(
       `import { useEffect } from "react";

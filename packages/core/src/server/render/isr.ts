@@ -114,7 +114,7 @@ async function renderISRNon200(
     notFoundError,
   } = prepared;
   const fallbackProps: Record<string, unknown> = { ...componentProps };
-  if (errorDigest && errorMessage) {
+  if (errorDigest !== undefined && errorMessage !== undefined) {
     fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
   }
   if (status === 404) {
@@ -156,7 +156,7 @@ async function renderISRNon200(
     };
     fallbackProps.__furinStatus = 500;
   }
-  if (!fallbackProps.__furinError && errorDigest && errorMessage) {
+  if (!fallbackProps.__furinError && errorDigest !== undefined && errorMessage !== undefined) {
     fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
   }
 

@@ -333,7 +333,8 @@ function collectReactWrapperBindings(program: Program): ReactWrapperBindings {
         bindings.members.add(local);
       } else if (
         specifier.type === "ImportDefaultSpecifier" ||
-        specifier.type === "ImportNamespaceSpecifier"
+        specifier.type === "ImportNamespaceSpecifier" ||
+        (specifier.type === "ImportSpecifier" && imported === "default")
       ) {
         bindings.namespaces.add(local);
       }
@@ -343,11 +344,15 @@ function collectReactWrapperBindings(program: Program): ReactWrapperBindings {
 }
 
 function wrappedComponentFunction(
+  program: Program,
   expression: AstNode,
   bindings: ReactWrapperBindings
 ): AstNode | null {
   if (expression.type === "ArrowFunctionExpression" || expression.type === "FunctionExpression") {
     return expression;
+  }
+  if (expression.type === "Identifier" && typeof expression.name === "string") {
+    return localFunction(program, expression.name);
   }
   if (expression.type !== "CallExpression") {
     return null;
@@ -373,7 +378,7 @@ function wrappedComponentFunction(
   }
   const args = expression.arguments;
   const wrapped = Array.isArray(args) ? asAstNode(args[0]) : null;
-  return wrapped ? wrappedComponentFunction(wrapped, bindings) : null;
+  return wrapped ? wrappedComponentFunction(program, wrapped, bindings) : null;
 }
 
 function importedMemberBinding(program: Program, expression: AstNode): string | null {
@@ -462,6 +467,7 @@ function collectClientHookSignature(
     return null;
   }
   const wrappedComponent = wrappedComponentFunction(
+    program,
     componentExpression,
     collectReactWrapperBindings(program)
   );

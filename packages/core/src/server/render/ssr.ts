@@ -138,7 +138,7 @@ function serializedErrorPayload(
   message: string | undefined,
   status: number
 ): { digest: string; message: string; status: number } | undefined {
-  return digest && message ? { digest, message, status } : undefined;
+  return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
 }
 
 function hasDocumentMarkers(html: string): boolean {

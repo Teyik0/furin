@@ -461,6 +461,31 @@ describe("renderSSR — digest", () => {
     expect(body).toContain('"message":"Something went wrong"');
   });
 
+  test("__FURIN_DATA__ preserves an explicitly empty public error message", async () => {
+    const routeWithError = createTestRoute({
+      component: () => createElement("div", null, "Blog"),
+      error: BlogError,
+      loader: undefined,
+      pattern: "/blog",
+    });
+
+    const response = await renderSSR(
+      routeWithError,
+      createMockLoaderContext({ path: "/blog" }),
+      createTestRoot(RootError),
+      {
+        error: new Error("private"),
+        headers: {},
+        message: "",
+        status: 500,
+        type: "error",
+      }
+    );
+    const body = await response.text();
+
+    expect(body).toContain('"message":""');
+  });
+
   test("server logs the digest alongside the rendered error", async () => {
     evlogSetMock.mockClear();
     const routeWithError = createTestRoute({

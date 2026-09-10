@@ -133,7 +133,18 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
     expect(locationSpy.set).not.toHaveBeenCalled();
   });
 
-  test("an initial server error preserves the serialized safe message", async () => {
+  test.each([
+    [
+      "a partial initial server error uses a safe fallback message",
+      { digest: "abc1234567", status: 500 },
+      "Something went wrong",
+    ],
+    [
+      "an initial server error preserves its serialized safe message",
+      { digest: "abc1234567", message: "Safe serialized message", status: 500 },
+      "Safe serialized message",
+    ],
+  ] as const)("%s", async (_name, initialError, expectedMessage) => {
     const pageRoute = { __type: "FURIN_ROUTE" as const };
     const route: ClientRoute = {
       load: async () => ({
@@ -162,11 +173,7 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
           defaultPreloadStaleTime: 30_000,
           initialData: {},
           initialDigest: "abc1234567",
-          initialError: {
-            digest: "abc1234567",
-            message: "Something went wrong",
-            status: 500,
-          },
+          initialError,
           initialMatch,
           initialNotFound: undefined,
           prefetchCacheSize: 50,
@@ -177,7 +184,7 @@ describe("buildRouterTree — error boundary fallback navigation", () => {
     });
 
     expect(container.querySelector('[data-testid="initial-error-message"]')?.textContent).toBe(
-      "Something went wrong"
+      expectedMessage
     );
   });
 });
