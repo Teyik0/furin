@@ -95,6 +95,37 @@ test("the dev topology watcher observes transitive route dependencies", async ()
   }
 });
 
+test("the dev topology watcher can refresh before the next polling interval", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-eager-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  const routePath = join(pagesDir, "index.ts");
+  writeFileSync(routePath, "export const route = 1;\n");
+
+  let touchedRouteFiles = 0;
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+    },
+    onTopologyChange: () => undefined,
+    pollIntervalMs: 60_000,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
+
+    await watcher.refresh();
+
+    expect(touchedRouteFiles).toBe(1);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
 test.serial("the dev topology watcher reports a route error and keeps polling", async () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-error-watch-"));
   const pagesDir = join(projectRoot, "src/pages");

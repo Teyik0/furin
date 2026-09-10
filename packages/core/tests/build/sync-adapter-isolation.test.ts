@@ -220,12 +220,10 @@ function installPackedPackage(directory: string, name: string, archive: string):
 }
 
 function canResolvePackage(directory: string, specifier: string): boolean {
-  return (
-    Bun.spawnSync({
-      cmd: ["bun", "-e", `import.meta.resolve(${JSON.stringify(specifier)})`],
-      cwd: directory,
-      stderr: "pipe",
-      stdout: "pipe",
-    }).exitCode === 0
-  );
+  try {
+    Bun.resolveSync(specifier, directory);
+    return true;
+  } catch {
+    return false;
+  }
 }

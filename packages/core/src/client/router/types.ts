@@ -10,6 +10,7 @@ import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
+import type { FurinServerErrorPayload } from "../server-error.ts";
 
 /** Exact public projection of the generated Elysia route map. */
 export type RouteManifest = RouteMap;
@@ -214,6 +215,8 @@ export interface RouterProviderProps {
    * fallback UI surfaces the id a user would find in server logs.
    */
   initialDigest: string | undefined;
+  /** Server loader error serialized into the initial SSR document. */
+  initialError?: Omit<FurinServerErrorPayload, "message"> & { message?: string };
   /**
    * The route matched at hydration time. `null` is a valid value ONLY when
    * `initialNotFound` is also provided.
@@ -241,7 +244,7 @@ export interface RouterState {
   /**
    * Set when the server's NDJSON payload carried an `__furinError` sentinel.
    */
-  error?: { digest: string; message: string; status: number };
+  error?: FurinServerErrorPayload;
   /** The canonical href after server-side redirects (e.g. query-default redirect). */
   finalHref?: string;
   head?: HeadOptions;

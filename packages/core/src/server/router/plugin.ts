@@ -33,6 +33,10 @@ import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts
 
 const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 
+type DataResolvedRoutesSource =
+  | ResolvedRoutesSource
+  | ((request: Request) => Promise<ResolvedRoute[]>);
+
 interface DataRouteParamsInput {
   [key: string]: unknown;
 }
@@ -96,17 +100,7 @@ async function createLoaderDataResponse(
     });
   }
   if (result.type === "error") {
-    const serialized = await toCrossJSONAsync({
-      __furinError: {
-        digest: computeErrorDigest(result.error),
-        message: result.message,
-        status: result.status,
-      },
-    });
-    return new Response(`${JSON.stringify(serialized)}\n`, {
-      headers: { "content-type": "application/x-ndjson" },
-      status: result.status,
-    });
+    return createRouteDataErrorResponse(result.error, result.message, result.status);
   }
 
   const syncDataWithTitle = withResolvedHead(route, result.syncData);
@@ -132,6 +126,24 @@ async function createLoaderDataResponse(
       ...result.headers,
       "content-type": "application/x-furin-route",
     },
+  });
+}
+
+async function createRouteDataErrorResponse(
+  error: unknown,
+  message: string,
+  status: number
+): Promise<Response> {
+  const serialized = await toCrossJSONAsync({
+    __furinError: {
+      digest: computeErrorDigest(error),
+      message,
+      status,
+    },
+  });
+  return new Response(`${JSON.stringify(serialized)}\n`, {
+    headers: { "content-type": "application/x-ndjson" },
+    status,
   });
 }
 
@@ -244,9 +256,9 @@ export function renderResolvedRoute(
  *   - `__furinNotFound`    — not-found payload
  *   - `__furinRedirect`    — logical path after a server-side redirect
  */
-export function createDataEndpoint(routesSource: ResolvedRoutesSource): AnyElysia {
+export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyElysia {
   const plugin = new Elysia();
-  let matchedRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+  let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
 
   plugin.get(
@@ -271,7 +283,14 @@ export function createDataEndpoint(routesSource: ResolvedRoutesSource): AnyElysi
       const wideEventLog = useLogger();
       wideEventLog.set({ path: rawPath });
 
-      const currentRoutes = typeof routesSource === "function" ? routesSource() : routesSource;
+      let currentRoutes: ResolvedRoute[];
+      try {
+        currentRoutes =
+          typeof routesSource === "function" ? await routesSource(ctx.request) : routesSource;
+      } catch (error) {
+        wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
+        return createRouteDataErrorResponse(error, "Something went wrong", 500);
+      }
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
         matchRoute = buildRouteMatcher(matchedRoutes);

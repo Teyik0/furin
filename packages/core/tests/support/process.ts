@@ -15,6 +15,7 @@ export interface RunningCli {
   getStderr: () => string;
   getStdout: () => string;
   kill: () => void;
+  pid: number;
 }
 
 export function runCli(
@@ -117,5 +118,6 @@ export function startProcess(
     kill: () => {
       proc.kill();
     },
+    pid: proc.pid,
   };
 }

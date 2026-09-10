@@ -161,6 +161,23 @@ import { route as __furin_root_route } from "${resolvedRootLayout}";
 
 ${loggerSetup}
 
+if (import.meta.hot) {
+  const connectionState = ((window as unknown as {
+    __FURIN_HMR_CONNECTION__?: { disconnected: boolean; installed: boolean };
+  }).__FURIN_HMR_CONNECTION__ ??= { disconnected: false, installed: false });
+  if (!connectionState.installed) {
+    import.meta.hot.on("bun:ws:disconnect", () => {
+      connectionState.disconnected = true;
+    });
+    import.meta.hot.on("bun:ws:connect", () => {
+      if (connectionState.disconnected) {
+        window.location.reload();
+      }
+    });
+    connectionState.installed = true;
+  }
+}
+
 const hotComponentRegistry = ((window as unknown as {
   __FURIN_HOT_COMPONENTS__?: HotComponentRegistry;
 }).__FURIN_HOT_COMPONENTS__ ??= new Map());
@@ -313,6 +330,7 @@ if (__deferred && __deferred._chunks) {
       initialMatch: match,
       initialData: { ...loaderData, ...deferredData },
       initialDigest: loaderData.__furinError?.digest,
+      initialError: loaderData.__furinError,
       initialNotFound: isNotFound ? (loaderData.__furinNotFound ?? loaderData) : undefined,${routerProviderDefaults}
     } as any);
   } else if (loaderData.__furinStatus === 404) {
@@ -330,6 +348,7 @@ if (__deferred && __deferred._chunks) {
       initialMatch: null,
       initialData: cleanData,
       initialDigest: loaderData.__furinError?.digest,
+      initialError: loaderData.__furinError,
       initialNotFound: loaderData.__furinNotFound ?? {},${routerProviderDefaults}
     } as any);
   } else {

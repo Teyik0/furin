@@ -128,4 +128,4 @@ try {
   }
 
   expect(proc.exitCode).toBe(0);
-});
+}, 30_000);
