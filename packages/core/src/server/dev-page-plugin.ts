@@ -354,6 +354,9 @@ function rethrowWithSourcePath(error: unknown, filePath: string): never {
     line: typeof position?.line === "number" ? position.line : null,
   };
   const sourced = new Error(message, { cause: error });
+  if (error instanceof Error && error.stack) {
+    sourced.stack = error.stack;
+  }
   Reflect.set(sourced, "furinPosition", sourcePosition);
   for (const graph of developmentGraphs()) {
     graph.recordSourceError(message, sourcePosition);

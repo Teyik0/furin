@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, extname } from "node:path";
 import type { FurinRouteDispatcher } from "../../define-route.ts";
@@ -29,6 +30,7 @@ export interface DevelopmentRouteSnapshot {
 interface DevEventBase {
   id: number;
   revision: number;
+  serverId: string;
   version: typeof DEV_ERROR_PROTOCOL_VERSION;
 }
 
@@ -62,6 +64,10 @@ type DevModuleImporter<Module> = (specifier: string) => Promise<Module>;
 
 const EVENT_LIMIT = 100;
 
+function normalizeModulePath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
 export function resolveDevSourceImports(
   source: string,
   path: string,
@@ -71,7 +77,7 @@ export function resolveDevSourceImports(
   const transpiler = new Bun.Transpiler({ loader });
   for (const imported of transpiler.scanImports(source)) {
     try {
-      const resolved = Bun.resolveSync(imported.path, dirname(path));
+      const resolved = normalizeModulePath(Bun.resolveSync(imported.path, dirname(path)));
       if (!resolved.includes("/node_modules/")) {
         imports.push(resolved);
       }
@@ -120,6 +126,7 @@ export class DevGraph<Snapshot> {
   readonly #modulePaths = new Set<string>();
   readonly #moduleRevisions = new Map<string, DevModuleRevision>();
   readonly #sourceErrors = new Map<string, Map<string, DevSourcePosition>>();
+  readonly #serverId = randomUUID();
   #eventSequence = 0;
   #revision = 0;
   #snapshot: Snapshot;
@@ -156,7 +163,7 @@ export class DevGraph<Snapshot> {
   }
 
   diagnoseTransformError(entryPath: string, message: string): DevSourcePosition | undefined {
-    const pending = [entryPath];
+    const pending = [normalizeModulePath(entryPath)];
     const visited = new Set<string>();
     while (pending.length > 0) {
       const path = pending.shift();
@@ -192,39 +199,44 @@ export class DevGraph<Snapshot> {
     sourceVersion: string,
     importModule: DevModuleImporter<Module>
   ): Promise<Module> {
-    this.#modulePaths.add(path);
+    const modulePath = normalizeModulePath(path);
+    this.#modulePaths.add(modulePath);
     const importer = importModule as DevModuleImporter<unknown>;
     let cache = this.#moduleCaches.get(importer);
     if (!cache) {
       cache = new Map();
       this.#moduleCaches.set(importer, cache);
     }
-    const cached = cache.get(path);
+    const cached = cache.get(modulePath);
     if (cached?.sourceVersion === sourceVersion) {
       return cached.module as Promise<Module>;
     }
 
     const entry: DevModuleCacheEntry = {
-      module: importModule(`${path}?furin-server&t=${sourceVersion}`),
+      module: importModule(`${modulePath}?furin-server&t=${sourceVersion}`),
       sourceVersion,
     };
-    cache.set(path, entry);
+    cache.set(modulePath, entry);
     try {
       return (await entry.module) as Module;
     } catch (error) {
-      if (cache.get(path) === entry) {
-        cache.delete(path);
+      if (cache.get(modulePath) === entry) {
+        cache.delete(modulePath);
       }
       throw error;
     }
   }
 
   importChain(from: string, to: string): string[] {
-    if (from === to) {
-      return [from];
+    const normalizedFrom = normalizeModulePath(from);
+    const normalizedTo = normalizeModulePath(to);
+    if (normalizedFrom === normalizedTo) {
+      return [normalizedFrom];
     }
-    const pending: Array<{ chain: string[]; path: string }> = [{ chain: [from], path: from }];
-    const visited = new Set([from]);
+    const pending: Array<{ chain: string[]; path: string }> = [
+      { chain: [normalizedFrom], path: normalizedFrom },
+    ];
+    const visited = new Set([normalizedFrom]);
     while (pending.length > 0) {
       const current = pending.shift();
       if (!current) {
@@ -232,7 +244,7 @@ export class DevGraph<Snapshot> {
       }
       for (const dependency of this.#dependencies.get(current.path) ?? []) {
         const chain = [...current.chain, dependency];
-        if (dependency === to) {
+        if (dependency === normalizedTo) {
           return chain;
         }
         if (!visited.has(dependency)) {
@@ -241,15 +253,22 @@ export class DevGraph<Snapshot> {
         }
       }
     }
-    return [from];
+    return [normalizedFrom];
   }
 
   publishError(error: DevErrorPayload): Extract<DevGraphEvent, { type: "error" }> {
+    const latest = this.#events.at(-1);
+    if (latest?.type === "error" && JSON.stringify(latest.error) === JSON.stringify(error)) {
+      return latest;
+    }
     return this.#publish({ error, type: "error" }) as Extract<DevGraphEvent, { type: "error" }>;
   }
 
   recordImports(importer: string, imports: string[]): void {
-    this.#dependencies.set(importer, new Set(imports));
+    this.#dependencies.set(
+      normalizeModulePath(importer),
+      new Set(imports.map(normalizeModulePath))
+    );
   }
 
   recordSourceError(message: string, position: DevSourcePosition): void {
@@ -258,7 +277,8 @@ export class DevGraph<Snapshot> {
       positions = new Map();
       this.#sourceErrors.set(message, positions);
     }
-    positions.set(position.file, position);
+    const file = normalizeModulePath(position.file);
+    positions.set(file, { ...position, file });
   }
 
   sourceError(message: string, entryPath: string): DevSourcePosition | undefined {
@@ -278,13 +298,14 @@ export class DevGraph<Snapshot> {
   }
 
   sourceVersion(path: string): string {
-    const fingerprint = this.#sourceFingerprint(path, new Set());
-    const current = this.#moduleRevisions.get(path);
+    const modulePath = normalizeModulePath(path);
+    const fingerprint = this.#sourceFingerprint(modulePath, new Set());
+    const current = this.#moduleRevisions.get(modulePath);
     if (current?.fingerprint === fingerprint) {
       return String(current.revision);
     }
     const revision = (current?.revision ?? 0) + 1;
-    this.#moduleRevisions.set(path, { fingerprint, revision });
+    this.#moduleRevisions.set(modulePath, { fingerprint, revision });
     return String(revision);
   }
 
@@ -317,10 +338,11 @@ export class DevGraph<Snapshot> {
 
   subscribe(
     after: number,
+    serverId: string | undefined,
     listener: (event: DevGraphEvent) => void
   ): { replay: DevGraphEvent[]; unsubscribe: () => void } {
     this.#listeners.add(listener);
-    const cursor = after > this.#eventSequence ? 0 : after;
+    const cursor = serverId === this.#serverId ? after : 0;
     return {
       replay: this.#events.filter((event) => event.id > cursor),
       unsubscribe: () => {
@@ -335,6 +357,7 @@ export class DevGraph<Snapshot> {
       ...event,
       id: this.#eventSequence,
       revision: this.#revision,
+      serverId: this.#serverId,
       version: DEV_ERROR_PROTOCOL_VERSION,
     } as DevGraphEvent;
     this.#events.push(complete);

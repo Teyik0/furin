@@ -12,18 +12,27 @@ const state = {
 };
 const cursorKey = `__furin_dev_error_cursor__:${state.basePath}`;
 
-function storedEventId() {
-  const parsed = Number.parseInt(sessionStorage.getItem(cursorKey) || "0", 10);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+function storedCursor() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(cursorKey) || "{}");
+    return {
+      id: Number.isSafeInteger(parsed.id) && parsed.id >= 0 ? parsed.id : 0,
+      serverId: typeof parsed.serverId === "string" ? parsed.serverId : null,
+    };
+  } catch {
+    return { id: 0, serverId: null };
+  }
 }
 
-function rememberEventId(id) {
-  sessionStorage.setItem(cursorKey, String(id));
+function rememberEvent(event) {
+  sessionStorage.setItem(cursorKey, JSON.stringify({ id: event.id, serverId: event.serverId }));
 }
 
 let currentEvent = state.event;
-let latestEventId = Math.max(currentEvent?.id ?? 0, storedEventId());
+const cursor = storedCursor();
+let latestEventId = currentEvent?.id ?? cursor.id;
 let latestRevision = currentEvent?.revision ?? 0;
+let latestServerId = currentEvent?.serverId ?? cursor.serverId;
 let host;
 let root;
 
@@ -183,6 +192,7 @@ function renderHydrationError(value) {
     },
     id: latestEventId,
     revision: latestRevision,
+    serverId: latestServerId ?? "client",
     type: "error",
     version: 1,
   });
@@ -191,7 +201,7 @@ function renderHydrationError(value) {
 function connect() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${protocol}//${window.location.host}${state.basePath}/_furin/dev/errors?after=${latestEventId}`
+    `${protocol}//${window.location.host}${state.basePath}/_furin/dev/errors?after=${latestEventId}&server=${encodeURIComponent(latestServerId ?? "")}`
   );
   socket.addEventListener("message", (message) => {
     const event = JSON.parse(String(message.data));
@@ -199,8 +209,9 @@ function connect() {
       return;
     }
     latestEventId = event.id;
-    rememberEventId(latestEventId);
     latestRevision = event.revision;
+    latestServerId = event.serverId;
+    rememberEvent(event);
     if (event.type === "ready" && currentEvent && event.revision > currentEvent.revision) {
       window.location.reload();
       return;

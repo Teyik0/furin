@@ -44,6 +44,11 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
     "/app/component.tsx",
     "/app/helper.ts",
   ]);
+  graph.recordImports("C:\\app\\page.tsx", ["C:\\app\\component.tsx"]);
+  expect(graph.importChain("C:/app/page.tsx", "C:/app/component.tsx")).toEqual([
+    "C:/app/page.tsx",
+    "C:/app/component.tsx",
+  ]);
 
   graph.publishError({
     cause: "dependency failed",
@@ -64,6 +69,27 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
     modules: 1,
     revision: 1,
   });
+});
+
+test("DevGraph does not republish an unchanged unresolved error", () => {
+  const graph = new DevGraph<null>(null);
+  const error = {
+    cause: null,
+    column: null,
+    file: "src/pages/index.tsx",
+    importChain: ["src/pages/index.tsx"],
+    line: null,
+    message: "broken",
+    phase: "transform" as const,
+    route: "/",
+    stack: null,
+  };
+
+  const first = graph.publishError(error);
+  const duplicate = graph.publishError(error);
+
+  expect(duplicate).toBe(first);
+  expect(graph.events).toHaveLength(1);
 });
 
 test("DevGraph versions an entry when a transitive dependency changes", () => {
@@ -90,10 +116,10 @@ test("DevGraph versions an entry when a transitive dependency changes", () => {
 test("DevGraph listeners cannot interrupt a snapshot commit", () => {
   const graph = new DevGraph({ value: "initial" });
   let received = false;
-  graph.subscribe(0, () => {
+  graph.subscribe(0, undefined, () => {
     throw new Error("socket closed");
   });
-  graph.subscribe(0, () => {
+  graph.subscribe(0, undefined, () => {
     received = true;
   });
 

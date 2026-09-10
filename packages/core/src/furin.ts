@@ -684,7 +684,6 @@ export async function furin({
             phase: "import",
             route: "*",
           });
-          console.error("[furin] Failed to compile development routes", error);
           throw error;
         }
       });

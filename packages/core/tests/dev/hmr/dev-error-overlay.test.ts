@@ -82,8 +82,20 @@ test("dev error WebSocket replays errors and publishes successful revisions", as
 });
 
 test("a cursor from a restarted dev graph replays its current events", () => {
-  const graph = new DevGraph<null>(null);
-  graph.publishError({
+  const previousGraph = new DevGraph<null>(null);
+  const previousEvent = previousGraph.publishError({
+    cause: null,
+    column: null,
+    file: "src/pages/index.tsx",
+    importChain: ["src/pages/index.tsx"],
+    line: null,
+    message: "broken before restart",
+    phase: "import",
+    route: "/",
+    stack: null,
+  });
+  const restartedGraph = new DevGraph<null>(null);
+  restartedGraph.publishError({
     cause: null,
     column: null,
     file: "src/pages/index.tsx",
@@ -95,7 +107,11 @@ test("a cursor from a restarted dev graph replays its current events", () => {
     stack: null,
   });
 
-  const subscription = graph.subscribe(42, () => undefined);
+  const subscription = restartedGraph.subscribe(
+    previousEvent.id,
+    previousEvent.serverId,
+    () => undefined
+  );
 
   expect(subscription.replay).toHaveLength(1);
   expect(subscription.replay[0]?.type).toBe("error");
@@ -113,5 +129,6 @@ test("the overlay client captures hydration failures", async () => {
   expect(source).toContain('"furin:hydrate-error"');
   expect(source).toContain('phase: "hydrate"');
   expect(source).toContain("sessionStorage");
+  expect(source).toContain("serverId");
   expect(source).not.toContain('window.addEventListener("unhandledrejection"');
 });

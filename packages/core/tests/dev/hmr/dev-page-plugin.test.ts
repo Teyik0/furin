@@ -39,6 +39,25 @@ test("development SSR selects the server isomorphic implementation", () => {
   expect(result).not.toContain("createIsomorphicFn");
 });
 
+test("development transform errors preserve their original stack", () => {
+  try {
+    transformDevSource(
+      `
+        import { createIsomorphicFn } from "@teyik0/furin";
+        const builder = createIsomorphicFn();
+        export const getValue = builder.server(() => "server-value");
+      `,
+      "/app/src/shared.ts",
+      { rewriteBareImports: false, rewriteRelativeImports: false }
+    );
+    throw new Error("Expected the transform to fail");
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).stack).toContain("transform-isomorphic.ts");
+    expect((error as Error).stack).not.toContain("rethrowWithSourcePath");
+  }
+});
+
 describe("toImportSpecifier", () => {
   test("normalizes a native absolute path for cross-platform imports", () => {
     const specifier = toImportSpecifier("C:\\project\\src\\page.tsx");

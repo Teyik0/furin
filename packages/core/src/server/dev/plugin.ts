@@ -67,7 +67,7 @@ export function createDevErrorPlugin<Snapshot>(graph: DevGraph<Snapshot>): AnyEl
       },
       open(ws) {
         const cursor = eventCursor(ws.data.query.after);
-        const subscription = graph.subscribe(cursor, (event) => {
+        const subscription = graph.subscribe(cursor, ws.data.query.server, (event) => {
           ws.send(JSON.stringify(event));
         });
         subscriptions.set(ws.raw, subscription.unsubscribe);
