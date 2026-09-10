@@ -1,0 +1,44 @@
+packages/core/src/client/dev-error-overlay.js
+  h_a2cbd1b0e3ae6e 13-23,25,202
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 13,643-649,688,741
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 290-291,310-312,328-330,336-338,346
+packages/core/src/server/cache/dev-loader.ts
+  h_a2cbd1b0e3ae6e 98,108-110
+packages/core/src/server/dev-page-plugin.ts
+  h_a2cbd1b0e3ae6e 61,339,346-364,366-370,372,387
+packages/core/src/server/dev/error.ts
+  h_a2cbd1b0e3ae6e 24,134
+packages/core/src/server/dev/graph.ts
+  h_a2cbd1b0e3ae6e 65-69,122,173,256-261,264-273,281,291-308,323,325,345-349
+packages/core/src/server/render/ppr-route.ts
+  h_a2cbd1b0e3ae6e 7,90
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 187-190
+packages/core/src/server/router/hmr.ts
+  h_a2cbd1b0e3ae6e 241-246
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  h_a2cbd1b0e3ae6e 84-104,115-116
+packages/core/tests/dev/hmr/dev-error-payload.test.ts
+  h_a2cbd1b0e3ae6e 2-3,33-67
+packages/core/tests/dev/hmr/dev-error-pipeline.integration.test.ts
+  h_a2cbd1b0e3ae6e 44-55,101-119,206-209,215-219,221-224,235-238
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  h_a2cbd1b0e3ae6e 2-4,68-103
+packages/core/tests/routing/cache/cache-headers.test.ts
+  h_a2cbd1b0e3ae6e 68-71
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  h_a2cbd1b0e3ae6e 106,109-111,119-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e2eecc73ae2b13f369a57ac8317c74fed7034252",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
