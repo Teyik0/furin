@@ -54,6 +54,31 @@ function getHistoryStateObject(): object {
   return value !== null && typeof value === "object" ? value : {};
 }
 
+interface PendingUserNavigationRef {
+  current: Promise<void> | null;
+}
+
+function beginUserNavigation(ref: PendingUserNavigationRef): () => void {
+  let resolveNavigation: () => void = () => undefined;
+  const navigation = new Promise<void>((resolve) => {
+    resolveNavigation = resolve;
+  });
+  ref.current = navigation;
+  return () => {
+    if (ref.current === navigation) {
+      ref.current = null;
+    }
+    resolveNavigation();
+  };
+}
+
+async function waitForUserNavigation(ref: PendingUserNavigationRef): Promise<void> {
+  while (ref.current) {
+    // biome-ignore lint/performance/noAwaitInLoops: superseded user navigations must settle in sequence before HMR may refresh the final URL
+    await ref.current;
+  }
+}
+
 export function setPrefetchCacheEntry(
   cache: Map<string, CacheEntry>,
   href: string,
@@ -118,6 +143,7 @@ export function RouterProvider({
   const navVersion = useRef(0);
   /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
   const hmrVersion = useRef(0);
+  const pendingUserNavigation = useRef<Promise<void> | null>(null);
   /**
    * AbortController for the current navigation. Cancelled when a newer
    * navigation starts so any in-flight `parseDeferredNdjson` releases its
@@ -427,6 +453,8 @@ export function RouterProvider({
         | undefined
     ) {
       const logicalHref = normalizeHref(rawLogicalHref);
+      const finishUserNavigation =
+        opts?.hmrRefresh === true ? undefined : beginUserNavigation(pendingUserNavigation);
       navVersion.current += 1;
       const myVersion = navVersion.current;
       navAbortRef.current?.abort();
@@ -526,6 +554,7 @@ export function RouterProvider({
           pendingScrollRef.current = { href: physicalEffective, type: "reset" };
         }
       } finally {
+        finishUserNavigation?.();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
         }
@@ -605,6 +634,10 @@ export function RouterProvider({
         hmrVersion.current += 1;
         const myHmrVersion = hmrVersion.current;
         if (dataChanged !== false) {
+          await waitForUserNavigation(pendingUserNavigation);
+          if (hmrVersion.current !== myHmrVersion) {
+            return;
+          }
           await refresh({
             beforeCommit,
             hmrRefresh: true,
@@ -623,6 +656,7 @@ export function RouterProvider({
   }, [refresh]);
 
   const handlePopState = useCallback(() => {
+    const finishUserNavigation = beginUserNavigation(pendingUserNavigation);
     const destKey = getHistoryKey(history.state);
     const logicalPath = normalizeHref(toLogical(window.location.pathname, basePath));
     const logicalHref = logicalPath + window.location.search;
@@ -692,6 +726,7 @@ export function RouterProvider({
           window.scrollTo({ behavior: "instant", top: 0 });
         }
       } finally {
+        finishUserNavigation();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
         }

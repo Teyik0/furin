@@ -80,6 +80,21 @@ async function flushReactUpdates(): Promise<void> {
   });
 }
 
+function waitFor(condition: () => boolean): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      if (condition()) {
+        clearInterval(interval);
+        resolve();
+      } else if (Date.now() - startedAt > 2000) {
+        clearInterval(interval);
+        reject(new Error("Timed out waiting for navigation"));
+      }
+    }, 10);
+  });
+}
+
 /** Returns a single-line NDJSON response (CrossJSON-serialised) for the /_furin/data endpoint. */
 function makeNdjsonResponse(data: Record<string, unknown>): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
@@ -312,19 +327,6 @@ describe("RouterProvider click interception", () => {
 
   test("superseding a Link navigation does not leak an AbortError", async () => {
     const errorLog = spyOn(log, "error");
-    const waitFor = (condition: () => boolean) =>
-      new Promise<void>((resolve, reject) => {
-        const startedAt = Date.now();
-        const interval = setInterval(() => {
-          if (condition()) {
-            clearInterval(interval);
-            resolve();
-          } else if (Date.now() - startedAt > 2000) {
-            clearInterval(interval);
-            reject(new Error("Timed out waiting for navigation"));
-          }
-        }, 10);
-      });
 
     try {
       abortFirstPageBRequest = true;
@@ -373,9 +375,44 @@ describe("RouterProvider click interception", () => {
     ).__FURIN_HMR_REFRESH__;
     await act(() => hmrRefresh(() => undefined, false));
     resolvePageBRequest?.(makeNdjsonResponse({ message: "page-b" }));
-    await flushReactUpdates();
+    await waitFor(() => window.location.pathname === "/page-b");
 
     expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("data-changing HMR waits for a pending Link navigation", async () => {
+    deferPageBRequest = true;
+    const routes = [makeRoute("/page-a", "/page-b"), makeRoute("/page-b", "/page-a")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a", undefined);
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(pageBRequests).toBe(1);
+
+    let hmrCommitted = false;
+    const hmrRefresh = (
+      window as unknown as {
+        __FURIN_HMR_REFRESH__: (
+          beforeCommit: (() => void) | undefined,
+          dataChanged: boolean
+        ) => Promise<void>;
+      }
+    ).__FURIN_HMR_REFRESH__;
+    const hmrPromise = hmrRefresh(() => {
+      hmrCommitted = true;
+    }, true);
+    await Promise.resolve();
+    expect(hmrCommitted).toBe(false);
+
+    deferPageBRequest = false;
+    resolvePageBRequest?.(makeNdjsonResponse({ message: "page-b" }));
+    await waitFor(() => window.location.pathname === "/page-b");
+    await act(() => hmrPromise);
+
+    expect(window.location.pathname).toBe("/page-b");
+    expect(pageBRequests).toBe(2);
+    expect(hmrCommitted).toBe(true);
   });
 
   /** Clicks `anchor` with a trailing document-level listener (registered after

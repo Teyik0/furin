@@ -14,6 +14,13 @@ const REACT_COMPONENT_WRAPPERS = new Set(["forwardRef", "memo"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
+const TYPESCRIPT_EXPRESSION_WRAPPERS = new Set([
+  "TSAsExpression",
+  "TSInstantiationExpression",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
+  "TSTypeAssertion",
+]);
 
 interface TransformResult {
   code: string;
@@ -300,23 +307,47 @@ function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
   return false;
 }
 
-function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
-  const parent = ancestors.at(-1);
-  if (
+function nodeContains(container: unknown, node: AstNode): boolean {
+  const containerNode = asAstNode(container);
+  return Boolean(
+    containerNode && containerNode.start <= node.start && node.end <= containerNode.end
+  );
+}
+
+function isTypePosition(node: AstNode, ancestors: AstNode[]): boolean {
+  return ancestors.some((ancestor) => {
+    if (!ancestor.type.startsWith("TS")) {
+      return false;
+    }
+    if (TYPESCRIPT_EXPRESSION_WRAPPERS.has(ancestor.type)) {
+      return !nodeContains(ancestor.expression, node);
+    }
+    return true;
+  });
+}
+
+function isNonReferenceKey(node: AstNode, parent: AstNode | undefined): boolean {
+  return Boolean(
     parent &&
-    ((parent.type === "MemberExpression" && parent.computed !== true && parent.property === node) ||
-      (parent.type === "Property" &&
+      ((parent.type === "MemberExpression" &&
         parent.computed !== true &&
-        parent.shorthand !== true &&
-        parent.key === node) ||
-      ((parent.type === "MethodDefinition" || parent.type === "PropertyDefinition") &&
-        parent.computed !== true &&
-        parent.key === node) ||
-      ((parent.type === "LabeledStatement" ||
-        parent.type === "BreakStatement" ||
-        parent.type === "ContinueStatement") &&
-        parent.label === node))
-  ) {
+        parent.property === node) ||
+        (parent.type === "Property" &&
+          parent.computed !== true &&
+          parent.shorthand !== true &&
+          parent.key === node) ||
+        ((parent.type === "MethodDefinition" || parent.type === "PropertyDefinition") &&
+          parent.computed !== true &&
+          parent.key === node) ||
+        ((parent.type === "LabeledStatement" ||
+          parent.type === "BreakStatement" ||
+          parent.type === "ContinueStatement") &&
+          parent.label === node))
+  );
+}
+
+function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
+  if (isTypePosition(node, ancestors) || isNonReferenceKey(node, ancestors.at(-1))) {
     return false;
   }
   for (const ancestor of ancestors) {

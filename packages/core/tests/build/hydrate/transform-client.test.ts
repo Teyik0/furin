@@ -221,6 +221,24 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
   });
 
+  test("ignores imported identifiers used only in TypeScript type positions", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import type { LoaderData } from "./loader-types";
+function loadData(value: LoaderData): LoaderData {
+  const data: LoaderData = value as LoaderData;
+  return data;
+}
+function Page({ data }: { data: LoaderData }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).not.toContain('const previousDataSignature = "external:');
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";
