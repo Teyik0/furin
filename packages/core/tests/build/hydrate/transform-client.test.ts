@@ -46,6 +46,239 @@ export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
     expect(result.code).not.toContain("useServerValue");
   });
 
+  test("keeps the HMR data signature stable for component-only edits", () => {
+    const transform = (componentMessage: string, loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function Page({ data }) {
+  return <output>${componentMessage}: {data.message}</output>;
+}
+export const route = defineRoute()
+  .loader(() => ({ message: "${loaderMessage}" }))
+  .page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string => {
+      const value = code.match(/const previousDataSignature = "([^"]+)"/u)?.[1];
+      if (!value) {
+        throw new Error("Expected an emitted HMR data signature");
+      }
+      return value;
+    };
+
+    const initial = signature(transform("component-v1", "loader-v1"));
+    expect(signature(transform("component-v2", "loader-v1"))).toBe(initial);
+    expect(signature(transform("component-v2", "loader-v2"))).not.toBe(initial);
+  });
+
+  test("changes the HMR data signature when a referenced loader helper changes", () => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function loadData() {
+  return { message: "${loaderMessage}" };
+}
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
+  test("changes the HMR data signature when an isomorphic server branch changes", () => {
+    const transform = (serverMessage: string) =>
+      transformForClient(
+        `import { createIsomorphicFn, defineRoute } from "@teyik0/furin";
+const loadMessage = createIsomorphicFn()
+  .server(() => "${serverMessage}")
+  .client(() => "client");
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute()
+  .loader(() => ({ message: loadMessage() }))
+  .page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("server-v2"))).not.toBe(signature(transform("server-v1")));
+  });
+
+  test.each([
+    [
+      "class",
+      (message: string) =>
+        `class Loader { static load() { return { message: "${message}" }; } }
+const loadData = Loader.load;`,
+    ],
+    [
+      "destructured binding",
+      (message: string) =>
+        `const { loadData } = { loadData: () => ({ message: "${message}" }) };`,
+    ],
+    [
+      "named default export",
+      (message: string) =>
+        `export default function loadData() { return { message: "${message}" }; }`,
+    ],
+  ])("tracks a module-scope %s used by a loader", (_name, helperSource) => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+${helperSource(loaderMessage)}
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
+  test("ignores non-reference and shadowed identifiers in loader dependencies", () => {
+    const transform = (componentMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+const message = "${componentMessage}";
+const value = "${componentMessage}";
+const helper = "${componentMessage}";
+function loadData() {
+  const helper = "loader";
+  return { message: ({ value: "stable" }).value + helper };
+}
+function Page() {
+  return <output>{message + value}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("component-v2"))).toBe(signature(transform("component-v1")));
+  });
+
+  test("conservatively refreshes data when a loader depends on an imported binding", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "./loader";
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+    expect(result.code).toContain('previousDataSignature.startsWith("external:")');
+  });
+
+  test("rechecks imports when config and loader share a local dependency", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "./loader";
+const shared = () => loadData();
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute()
+  .config({ query: shared })
+  .loader(shared)
+  .page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+  });
+
+  test("tracks dependencies referenced by a destructuring default", () => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function fallbackLoader() {
+  return { message: "${loaderMessage}" };
+}
+const { loadData = fallbackLoader } = {};
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
+  test("ignores imported identifiers used only in TypeScript type positions", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import type { LoaderData } from "./loader-types";
+function loadData(value: LoaderData): LoaderData {
+  const data: LoaderData = value as LoaderData;
+  return data;
+}
+function Page({ data }: { data: LoaderData }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).not.toContain('const previousDataSignature = "external:');
+  });
+
+  test("tracks runtime defaults inside TypeScript parameter properties", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { importedDefault } from "./loader";
+class LoaderInput {
+  constructor(public value = importedDefault()) {}
+}
+function loadData() {
+  return { message: new LoaderInput().value };
+}
+function Page({ data }: { data: { message: string } }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+  });
+
+  test("tracks imported decorators on TypeScript parameter properties", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { importedDecorator } from "./loader";
+class LoaderInput {
+  constructor(@importedDecorator public value: string) {}
+}
+function loadData() {
+  return { message: new LoaderInput("value").value };
+}
+function Page({ data }: { data: { message: string } }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";
