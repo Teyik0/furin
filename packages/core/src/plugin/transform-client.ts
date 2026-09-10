@@ -3,7 +3,7 @@ import { walk } from "yuku-ast";
 import type { ImportDeclaration, Program } from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
+import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
@@ -189,41 +189,181 @@ function removeChainedServerCalls(
   return transformed;
 }
 
-function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
-  const serverStages: Array<{ source: string; start: number }> = [];
-  const declarations = new Map<string, AstNode>();
-  for (const statement of program.body as unknown as AstNode[]) {
-    const declaration =
-      statement.type === "ExportNamedDeclaration" ? asAstNode(statement.declaration) : statement;
-    if (declaration?.type === "FunctionDeclaration") {
-      const identifier = asAstNode(declaration.id);
-      if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
-        declarations.set(identifier.name, declaration);
-      }
-    } else if (
-      declaration?.type === "VariableDeclaration" &&
-      Array.isArray(declaration.declarations)
-    ) {
-      for (const item of declaration.declarations as AstNode[]) {
-        const identifier = asAstNode(item.id);
-        if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
-          declarations.set(identifier.name, item);
-        }
-      }
+function collectBindingNames(pattern: unknown, names: string[]): void {
+  const node = asAstNode(pattern);
+  if (!node) {
+    return;
+  }
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    names.push(node.name);
+    return;
+  }
+  if (node.type === "AssignmentPattern") {
+    collectBindingNames(node.left, names);
+    return;
+  }
+  if (node.type === "RestElement") {
+    collectBindingNames(node.argument, names);
+    return;
+  }
+  if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    for (const element of node.elements) {
+      collectBindingNames(element, names);
+    }
+    return;
+  }
+  if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    for (const property of node.properties) {
+      const propertyNode = asAstNode(property);
+      collectBindingNames(
+        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument,
+        names
+      );
     }
   }
+}
+
+function collectDeclarationBindings(
+  declaration: AstNode | null,
+  declarations: Map<string, AstNode>
+): void {
+  if (declaration?.type === "FunctionDeclaration" || declaration?.type === "ClassDeclaration") {
+    const identifier = asAstNode(declaration.id);
+    if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
+      declarations.set(identifier.name, declaration);
+    }
+    return;
+  }
+  if (declaration?.type !== "VariableDeclaration" || !Array.isArray(declaration.declarations)) {
+    return;
+  }
+  for (const item of declaration.declarations as AstNode[]) {
+    const names: string[] = [];
+    collectBindingNames(item.id, names);
+    for (const name of names) {
+      declarations.set(name, item);
+    }
+  }
+}
+
+function collectModuleBindings(program: Program): {
+  declarations: Map<string, AstNode>;
+  imports: Set<string>;
+} {
+  const declarations = new Map<string, AstNode>();
+  const imports = new Set<string>();
+  for (const statement of program.body as unknown as AstNode[]) {
+    if (statement.type === "ImportDeclaration" && Array.isArray(statement.specifiers)) {
+      for (const specifier of statement.specifiers as AstNode[]) {
+        const local = localName(specifier);
+        if (local) {
+          imports.add(local);
+        }
+      }
+      continue;
+    }
+    const declaration =
+      statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration"
+        ? asAstNode(statement.declaration)
+        : statement;
+    collectDeclarationBindings(declaration, declarations);
+  }
+  return { declarations, imports };
+}
+
+function isInside(node: AstNode, value: unknown): boolean {
+  const container = asAstNode(value);
+  return Boolean(container && container.start <= node.start && node.end <= container.end);
+}
+
+function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
+  const parent = ancestors.at(-1);
+  if (
+    parent &&
+    ((parent.type === "MemberExpression" && parent.computed !== true && parent.property === node) ||
+      (parent.type === "Property" &&
+        parent.computed !== true &&
+        parent.shorthand !== true &&
+        parent.key === node) ||
+      ((parent.type === "MethodDefinition" || parent.type === "PropertyDefinition") &&
+        parent.computed !== true &&
+        parent.key === node) ||
+      ((parent.type === "LabeledStatement" ||
+        parent.type === "BreakStatement" ||
+        parent.type === "ContinueStatement") &&
+        parent.label === node))
+  ) {
+    return false;
+  }
+  for (const ancestor of ancestors) {
+    if (
+      (ancestor.type === "VariableDeclarator" && isInside(node, ancestor.id)) ||
+      ((ancestor.type === "FunctionDeclaration" ||
+        ancestor.type === "FunctionExpression" ||
+        ancestor.type === "ArrowFunctionExpression") &&
+        (isInside(node, ancestor.id) ||
+          (Array.isArray(ancestor.params) &&
+            ancestor.params.some((parameter) => isInside(node, parameter))))) ||
+      (ancestor.type === "ClassDeclaration" && isInside(node, ancestor.id)) ||
+      (ancestor.type === "CatchClause" && isInside(node, ancestor.param))
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function walkWithAncestors(
+  value: unknown,
+  ancestors: AstNode[],
+  visitor: (node: AstNode, ancestors: AstNode[]) => void
+): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      walkWithAncestors(entry, ancestors, visitor);
+    }
+    return;
+  }
+  const node = asAstNode(value);
+  if (!node) {
+    return;
+  }
+  visitor(node, ancestors);
+  const nextAncestors = [...ancestors, node];
+  for (const [key, child] of Object.entries(node)) {
+    if (key !== "type" && key !== "start" && key !== "end" && key !== "comments") {
+      walkWithAncestors(child, nextAncestors, visitor);
+    }
+  }
+}
+
+function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
+  const serverStages: Array<{ source: string; start: number }> = [];
+  const moduleBindings = collectModuleBindings(program);
   const dependencies = new Map<number, AstNode>();
-  const collectDependencies = (node: AstNode): void => {
-    walkAST(node, (child) => {
-      if (child.type !== "Identifier" || typeof child.name !== "string") {
+  let hasUnresolvedImport = false;
+  const collectDependencies = (node: AstNode, trackImports: boolean): void => {
+    walkWithAncestors(node, [], (child, ancestors) => {
+      if (
+        child.type !== "Identifier" ||
+        typeof child.name !== "string" ||
+        !isReferenceIdentifier(child, ancestors) ||
+        hasShadowingDeclaration(child.name, ancestors)
+      ) {
         return;
       }
-      const declaration = declarations.get(child.name);
-      if (!(declaration && !dependencies.has(declaration.start))) {
+      const declaration = moduleBindings.declarations.get(child.name);
+      if (!declaration) {
+        if (trackImports && moduleBindings.imports.has(child.name)) {
+          hasUnresolvedImport = true;
+        }
+        return;
+      }
+      if (dependencies.has(declaration.start)) {
         return;
       }
       dependencies.set(declaration.start, declaration);
-      collectDependencies(declaration);
+      collectDependencies(declaration, trackImports);
     });
   };
 
@@ -259,7 +399,7 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
         for (const argument of call.arguments) {
           const argumentNode = asAstNode(argument);
           if (argumentNode) {
-            collectDependencies(argumentNode);
+            collectDependencies(argumentNode, property.name !== "config");
           }
         }
       }
@@ -276,7 +416,8 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
     .sort((left, right) => left.start - right.start)
     .map((entry) => entry.source)
     .join("\n");
-  return new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
+  const hash = new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
+  return hasUnresolvedImport ? `external:${hash}` : hash;
 }
 
 function calledHookName(call: AstNode): string | null {
@@ -604,7 +745,6 @@ export function transformForClient(code: string, filename: string): TransformRes
 
   let source = new MagicString(clientSource);
   const routeBindings = collectDefineRouteBindings(program);
-  const hmrDataSignature = createHmrDataSignature(clientSource, program, routeBindings);
   const removedRouteCode = removeChainedServerCalls(source, program, routeBindings);
   const removedServerCode = isomorphicResult.transformed || removedRouteCode;
   if (removedServerCode) {
@@ -625,6 +765,18 @@ export function transformForClient(code: string, filename: string): TransformRes
     hookSignature = [];
   }
   if (routeBindings.size > 0 && hookSignature !== null) {
+    const originalParse = parseSource(code, lang);
+    const originalError = originalParse.diagnostics.find(
+      (diagnostic) => diagnostic.severity === "error"
+    );
+    if (originalError) {
+      throw new Error(`Failed to parse ${filename}: ${originalError.message}`);
+    }
+    const hmrDataSignature = createHmrDataSignature(
+      code,
+      originalParse.program,
+      collectDefineRouteBindings(originalParse.program)
+    );
     const signatureValue = Array.isArray(hookSignature)
       ? JSON.stringify(hookSignature)
       : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';
@@ -642,9 +794,15 @@ if (import.meta.hot && route?.component) {
   import.meta.hot.accept((updatedModule) => {
     const updatedRoute = updatedModule?.route;
     if (updatedRoute?.component) {
+      const updatedDataSignature = Reflect.get(
+        updatedRoute,
+        Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)})
+      );
       const dataChanged =
-        Reflect.get(updatedRoute, Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)})) !==
-        previousDataSignature;
+        previousDataSignature.startsWith("external:") ||
+        typeof updatedDataSignature !== "string" ||
+        updatedDataSignature.startsWith("external:") ||
+        updatedDataSignature !== previousDataSignature;
       window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component, dataChanged);
     }
   });

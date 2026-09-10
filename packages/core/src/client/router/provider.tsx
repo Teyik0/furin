@@ -598,8 +598,12 @@ export function RouterProvider({
           await refresh({ beforeCommit, hmrRefresh: true });
           return;
         }
+        navVersion.current += 1;
+        navAbortRef.current?.abort();
+        navAbortRef.current = null;
         beforeCommit?.();
         setState((current) => ({ ...current }));
+        setIsNavigating(false);
       };
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook

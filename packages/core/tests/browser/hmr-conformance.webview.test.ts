@@ -182,6 +182,27 @@ function importedRouteComponentSource(version: string, includeSecondHook: boolea
   ].join("\n");
 }
 
+function importedLoaderPageSource(): string {
+  return [
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { FeaturePage, loadData } from "../components/LoaderFeature";',
+    'import { route as rootRoute } from "./root";',
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    "  .loader(loadData)",
+    "  .page(FeaturePage);",
+  ].join("\n");
+}
+
+function importedLoaderSource(version: string): string {
+  return [
+    `export function loadData() { return { message: "loader-${version}" }; }`,
+    "export function FeaturePage({ data }: { data: { message: string } }) {",
+    `  return <main data-version="${version}"><output data-testid="loader">{data.message}</output></main>;`,
+    "}",
+  ].join("\n");
+}
+
 function mixedExportPageSource(): string {
   return importedChildPageSource("../components/MixedChild")
     .replace(
@@ -1834,6 +1855,34 @@ browserTest(
 );
 
 browserTest(
+  "an imported component and loader edit refreshes both atomically",
+  async () => {
+    const harness = await createBrowserHarness(
+      importedLoaderPageSource(),
+      [
+        {
+          contents: importedLoaderSource("imported-loader-v1"),
+          relativePath: "src/components/LoaderFeature.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-imported-loader-v1");
+    writeAppFile(
+      harness.app.path,
+      "src/components/LoaderFeature.tsx",
+      importedLoaderSource("imported-loader-v2")
+    );
+
+    await waitForVersion(harness.view, "imported-loader-v2");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-imported-loader-v2");
+  },
+  30_000
+);
+
+browserTest(
   "a rapid save burst converges on the latest edit",
   async () => {
     const harness = await createBrowserHarness(pageSource("burst-v1", false), [], false);
@@ -1883,6 +1932,31 @@ browserTest(
     ).toBe("loader-race-fast");
     expect(afterFast.count).toBe("1");
     expect(afterFast.documentId).toBe(documentId);
+  },
+  45_000
+);
+
+browserTest(
+  "a component-only edit supersedes an older slow loader refresh",
+  async () => {
+    const harness = await createBrowserHarness(loaderPageSource("supersede-v1", false), [], false);
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-v1");
+    const slowSource = slowLoaderPageSource("supersede-slow", 1200);
+    writeAppFile(harness.app.path, "src/pages/index.tsx", slowSource);
+    await Bun.sleep(150);
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      slowSource.replace('data-version="supersede-slow"', 'data-version="supersede-latest"')
+    );
+
+    await waitForVersion(harness.view, "supersede-latest");
+    await Bun.sleep(1400);
+
+    expect((await readSnapshot(harness.view)).version).toBe("supersede-latest");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-supersede-v1");
   },
   45_000
 );

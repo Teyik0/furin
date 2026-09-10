@@ -90,6 +90,99 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
   });
 
+  test("changes the HMR data signature when an isomorphic server branch changes", () => {
+    const transform = (serverMessage: string) =>
+      transformForClient(
+        `import { createIsomorphicFn, defineRoute } from "@teyik0/furin";
+const loadMessage = createIsomorphicFn()
+  .server(() => "${serverMessage}")
+  .client(() => "client");
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute()
+  .loader(() => ({ message: loadMessage() }))
+  .page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("server-v2"))).not.toBe(signature(transform("server-v1")));
+  });
+
+  test.each([
+    [
+      "class",
+      (message: string) =>
+        `class Loader { static load() { return { message: "${message}" }; } }
+const loadData = Loader.load;`,
+    ],
+    [
+      "destructured binding",
+      (message: string) =>
+        `const { loadData } = { loadData: () => ({ message: "${message}" }) };`,
+    ],
+    [
+      "named default export",
+      (message: string) =>
+        `export default function loadData() { return { message: "${message}" }; }`,
+    ],
+  ])("tracks a module-scope %s used by a loader", (_name, helperSource) => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+${helperSource(loaderMessage)}
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
+  test("ignores non-reference and shadowed identifiers in loader dependencies", () => {
+    const transform = (componentMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+const message = "${componentMessage}";
+const value = "${componentMessage}";
+const helper = "${componentMessage}";
+function loadData() {
+  const helper = "loader";
+  return { message: ({ value: "stable" }).value + helper };
+}
+function Page() {
+  return <output>{message + value}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("component-v2"))).toBe(signature(transform("component-v1")));
+  });
+
+  test("conservatively refreshes data when a loader depends on an imported binding", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "./loader";
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+    expect(result.code).toContain('previousDataSignature.startsWith("external:")');
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";
