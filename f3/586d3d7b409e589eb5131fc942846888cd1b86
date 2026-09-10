@@ -1,0 +1,91 @@
+packages/core/src/cli/index.ts
+  s_2a4069bf188ef3::t_6eca86e8fbdd35 23-82,134-195,316,320-324
+packages/core/src/devtools/protocol.ts
+  s_2a4069bf188ef3::t_9a268c992a750d 1,4-10,42-86,88,95-96,104-105,112-113,122-123,130-131,137-230,247-249,251,253-262,270,274-538
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_ed2db40261a6c0::t_cf0506bf12e9c9 1-66
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_2a4069bf188ef3::t_c5ca8090474268 73
+apps/docs/package.json
+  s_2a4069bf188ef3::t_f8ca87cf167de9 11
+apps/docs/src/content/docs/cli.mdx
+  s_2a4069bf188ef3::t_8c6291cefe6753 3-29,156,166,168,173
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_2a4069bf188ef3::t_08973896ed9c5a 313,315,317-322,332-334,336
+apps/docs/src/server.ts
+  s_2a4069bf188ef3::t_7679370f24f193 79
+examples/task-manager/package.json
+  s_2a4069bf188ef3::t_9efc216f08dbb2 11
+examples/weather/package.json
+  s_2a4069bf188ef3::t_1d8a01157315d9 8
+packages/core/src/build/hydrate.ts
+  s_ed2db40261a6c0::t_8d11e107dd30fc 166-175,177-228,231-238,242-256,258,260-267,478-488
+packages/core/src/client/dev-error-overlay.js
+  s_ed2db40261a6c0::t_12471d15f02990 205-236,256
+packages/core/src/devtools/collector.ts
+  s_2a4069bf188ef3::t_d387ccac5eb3d3 1-13,15,17-52,56-61,64-65,72-83,87-89,92-93,96-98,100,103-106,108-109,112-117,120-133,137,139,147-149,158-207,212-213,218-219,221-234,237-244,247,249-253,257-264,276-279,281-283,286-311,314-322,324-326,328-335,337-346,348-367,369,371-373,376-378,381-385,387-388,391-393,399-406,408-432,434,441-460,466-476
+packages/core/src/devtools/dashboard.css
+  s_ed2db40261a6c0::t_b821419a1d4492 1-906
+packages/core/src/devtools/dashboard.tsx
+  s_2a4069bf188ef3::t_b265e10f4c0f92 1-943
+packages/core/src/furin.ts
+  s_2a4069bf188ef3::t_02333cdec96f33 2,601-603,645-659,661-695,748-833,846-847,858,864,871-872
+packages/core/src/plugin/index.ts
+  s_2a4069bf188ef3::t_d4f3601e3daca2 1-4,13-20,51-85,108-119
+packages/core/src/plugin/routes.ts
+  s_ed2db40261a6c0::t_b61e76feccdaa9 60-65,67-71,76,83-84,326-331,336,343,405-410,455,478,485-486
+packages/core/src/server/dev/graph.ts
+  s_8b7160ea230673::t_1f3a2a98c59bcf 52,56,150-157,159,163
+packages/core/src/server/devtools/hub.ts
+  s_2a4069bf188ef3::t_ee8f1b62dc3a69 56-64
+packages/core/src/server/devtools/plugin.ts
+  s_2a4069bf188ef3::t_e69e541d8a016c 1-2,6,10,19,22-27,29-31,33,36-37,120-152,156-165,180-221,228-255,261-295,403-404,416-426
+packages/core/tests/build/dev-command.test.ts
+  s_2a4069bf188ef3::t_ead9690a45e03b 1-154
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_2a4069bf188ef3::t_5369d98d026074 504-515
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  s_2a4069bf188ef3::t_9809a5a3af2385 134
+packages/core/tests/runtime/devtools/build-observer.test.ts
+  s_2a4069bf188ef3::t_258b35a9815c4d 1-20
+packages/core/tests/runtime/devtools/devtools-build.test.ts
+  s_2a4069bf188ef3::t_e25b32babd0e7e 1-18
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_2a4069bf188ef3::t_2fbbed697b9b50 17-37,41-56,58-62,66,71-77,82-84,86-87,89,94,100,102-103,106-108,110,115-116,136,139-142,146,149-150,159,161-172,175,178-191,193,196-197,200,202,204-222,224-261,263-287,290-291
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_2a4069bf188ef3::t_96abef5e265471 95,133,135-137,140-237
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_ed2db40261a6c0::t_35820385eaed56 217-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f3586d3d7b409e589eb5131fc942846888cd1b86",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_8b7160ea230673": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d71-646e-7393-b1e0-5c21e69fe3a7",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ed2db40261a6c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d20-171e-77b0-9c39-8b30f9aefcfb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

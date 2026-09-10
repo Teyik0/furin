@@ -1,0 +1,25 @@
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_e1755ab315492d 17-23,323-325
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_6ba3fe22213f7e 2069,2104
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_2a4069bf188ef3::t_51c698508fc3b1 242-261
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_56e0544323b112 61-64,150,641-650,653-660
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4f748113db997867d62cec009f5e4f12bba9c3bb",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
