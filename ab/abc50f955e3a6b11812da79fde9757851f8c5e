@@ -1,0 +1,68 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  h_a2cbd1b0e3ae6e 29,33,55,67,140-151,160,167,171,173,175,177,181,183,191-194
+apps/docs/src/content/docs/error-handling.mdx
+  h_a2cbd1b0e3ae6e 49-54
+packages/core/src/build/hydrate.ts
+  h_a2cbd1b0e3ae6e 392
+packages/core/src/build/shared.ts
+  h_a2cbd1b0e3ae6e 5,60
+packages/core/src/client/dev-error-overlay.js
+  h_a2cbd1b0e3ae6e 1-213
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 11-13,473-483,487,646-648,667-686,708-717,737-738,740-744,746-757,775-776,778,787,824
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 1-10,32-33,60,65-66,68,72,274,283-287,291,317-318,322,325,331,335-336,345-404,414,418-424,432,434-435,437,441,443-444,449-455
+packages/core/src/server/cache/dev-loader.ts
+  h_a2cbd1b0e3ae6e 4,10,92-110,138,144,148,154,183,220,284,288
+packages/core/src/server/dev-page-plugin.ts
+  h_a2cbd1b0e3ae6e 60-61,64,338-388,399,401-412,414-417
+packages/core/src/server/dev/error.ts
+  h_a2cbd1b0e3ae6e 1-148
+packages/core/src/server/dev/graph.ts
+  h_a2cbd1b0e3ae6e 1-366
+packages/core/src/server/dev/plugin.ts
+  h_a2cbd1b0e3ae6e 1-79
+packages/core/src/server/devtools/instrumentation.ts
+  h_a2cbd1b0e3ae6e 13,50-53,57,68-72,76-77
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 20,187
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 206-208
+packages/core/src/server/router/hmr.ts
+  h_a2cbd1b0e3ae6e 17-20,27,43,48,215-256,316,326,329-332,335-338,340-343,370,373,375,390,416,419,436
+packages/core/src/server/router/patterns.ts
+  h_a2cbd1b0e3ae6e 18-21,25
+packages/core/src/server/router/source-version.ts
+  h_a2cbd1b0e3ae6e 1,4,8
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  h_a2cbd1b0e3ae6e 482-489
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  h_a2cbd1b0e3ae6e 1-95
+packages/core/tests/dev/hmr/dev-error-payload.test.ts
+  h_a2cbd1b0e3ae6e 1-31
+packages/core/tests/dev/hmr/dev-error-pipeline.integration.test.ts
+  h_a2cbd1b0e3ae6e 1-210
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  h_a2cbd1b0e3ae6e 1-64
+packages/core/tests/rendering/document/document-root.test.tsx
+  h_a2cbd1b0e3ae6e 128,144-146,175,186-187,207-208,228-229
+packages/core/tests/rendering/templates/render-template.test.ts
+  h_a2cbd1b0e3ae6e 80,90,102-104,112-113
+packages/core/tests/routing/cache/cache-headers.test.ts
+  h_a2cbd1b0e3ae6e 52-55,58-69
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  h_a2cbd1b0e3ae6e 347-394
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  h_a2cbd1b0e3ae6e 68-71,74,98-99,105,108-109,115-116,118-119,125-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ababc50f955e3a6b11812da79fde9757851f8c5e",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
