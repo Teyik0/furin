@@ -913,7 +913,7 @@ async function waitForDevErrorOverlayRemoved(
 async function waitForProxyWebSocketCount(proxy: HmrProxy, expectedCount: number): Promise<void> {
   const startedAt = Date.now();
   for (;;) {
-    if (proxy.webSocketCount() >= expectedCount) {
+    if (proxy.webSocketCount("/_bun/hmr") >= expectedCount) {
       return;
     }
     if (Date.now() - startedAt >= 20_000) {
@@ -2442,7 +2442,7 @@ browserTest(
     const closedCount = harness.webSocketClosed.length;
     const handshakeCount = harness.webSocketHandshakes.length;
 
-    expect(harness.proxy?.dropWebSockets()).toBeGreaterThanOrEqual(1);
+    expect(harness.proxy?.dropWebSockets("/_bun/hmr")).toBe(1);
     await waitForWebSocketClosedCount(harness, closedCount + 1);
     writeAppFile(harness.app.path, "src/pages/index.tsx", pageSource("socket-offline", false));
 
@@ -2483,7 +2483,7 @@ browserTest(
       )) as string;
       const connectionCount = harness.webSocketUrls.length;
 
-      expect(harness.proxy.dropWebSockets()).toBeGreaterThanOrEqual(2);
+      expect(harness.proxy.dropWebSockets("/_bun/hmr")).toBe(2);
       writeAppFile(harness.app.path, "src/pages/index.tsx", pageSource(`tabs-v${drop + 1}`, false));
       await waitForWebSocketConnectionCount(harness, connectionCount + 1);
 
