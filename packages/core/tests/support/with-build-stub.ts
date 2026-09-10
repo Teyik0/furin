@@ -94,6 +94,7 @@ export function withBuildStub<T>(
 
     return Promise.resolve({
       logs: [],
+      metafile: config.metafile ? { inputs: {}, outputs: {} } : undefined,
       outputs,
       success: true,
     } as unknown as Bun.BuildOutput);
