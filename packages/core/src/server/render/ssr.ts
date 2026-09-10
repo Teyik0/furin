@@ -203,6 +203,9 @@ export async function renderElementWithShellFallback(
     const stream = await renderToReadableStream(element);
     return { shellError: undefined, stream: await requireDocumentStream(stream) };
   } catch (error) {
+    if (IS_DEV) {
+      throw error;
+    }
     const digest = computeErrorDigest(error);
     try {
       const stream = await renderToReadableStream(

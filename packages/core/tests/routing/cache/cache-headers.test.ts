@@ -49,7 +49,23 @@ let cacheControl = response.headers.get("cache-control") ?? "";
 for (const directive of ["must-revalidate", "max-age=0", "public", "s-maxage=", "stale-while-revalidate"]) {
   assert(cacheControl.includes(directive), "ISR Cache-Control should include " + directive);
 }
+assert(
+  cacheControl.includes("stale-while-revalidate=60"),
+  "ISR Cache-Control should use the route revalidate value"
+);
 assertEqual(response.headers.get("cache-tag"), "/isr-page", "ISR cache-tag should match path");
+
+{
+  __resetCacheState();
+  const { root, route } = await getRoute("/isr-page");
+  route.page.revalidate = 17;
+  const app = new Elysia().use(createRoutePlugin(route, root, undefined));
+  const configured = await app.handle(new Request("http://localhost/isr-page"));
+  assert(
+    (configured.headers.get("cache-control") ?? "").includes("stale-while-revalidate=17"),
+    "ISR Cache-Control should preserve a non-default route revalidate value"
+  );
+}
 
 response = await routeResponse("/isr-page", "testbuild");
 const etag = response.headers.get("etag");

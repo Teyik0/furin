@@ -344,6 +344,54 @@ test.serial("native routes preserve deferred renderer streaming", async () => {
   expect(html).toContain("window.__FURIN_ROUTE_FRAME_STREAM__.push");
 });
 
+test.serial("furin() dev serves public files before the application 404", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  writeAppFile(app.path, "public/health.txt", "public-health");
+  writeAppFile(app.path, "public/favicon.ico", "favicon");
+  writeAppFile(
+    app.path,
+    "src/pages/root.tsx",
+    [
+      'import { defineRootRoute } from "@teyik0/furin";',
+      "export const route = defineRootRoute()",
+      '  .config({ mode: "ssr" })',
+      '  .loader(() => { throw new Error("404 must not run root loaders"); })',
+      "  .layout(({ children }) => <html><body>{children}</body></html>);",
+    ].join("\n")
+  );
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = await createTestApp({ pagesDir });
+  const publicResponse = await instance.handle(new Request("http://furin/public/health.txt"));
+  const faviconResponse = await instance.handle(new Request("http://furin/favicon.ico"));
+  const notFoundResponse = await instance.handle(new Request("http://furin/unknown"));
+
+  expect(publicResponse.status).toBe(200);
+  expect(await publicResponse.text()).toBe("public-health");
+  expect(faviconResponse.status).toBe(200);
+  expect(await faviconResponse.text()).toBe("favicon");
+  expect(notFoundResponse.status).toBe(404);
+  expect(await notFoundResponse.text()).toContain("404 — NOT FOUND");
+});
+
+test.serial("furin() dev serves public files and 404s under a prefix", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  writeAppFile(app.path, "public/health.txt", "admin-public-health");
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = await createTestApp({ pagesDir, prefix: "/admin" });
+  const publicResponse = await instance.handle(new Request("http://furin/admin/public/health.txt"));
+  const notFoundResponse = await instance.handle(new Request("http://furin/admin/unknown"));
+
+  expect(publicResponse.status).toBe(200);
+  expect(await publicResponse.text()).toBe("admin-public-health");
+  expect(notFoundResponse.status).toBe(404);
+});
+
 test.serial("furin() excludes internal DevTools requests from logging", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);

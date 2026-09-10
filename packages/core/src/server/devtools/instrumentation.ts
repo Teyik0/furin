@@ -10,6 +10,7 @@ import {
 } from "./request-context.ts";
 
 const CLIENT_PATH = "/_furin/devtools/client.js";
+const ERROR_OVERLAY_CLIENT_PATH = "/_furin/dev/error-overlay.js";
 
 type EventInput<T extends DevtoolsServerEventInput["type"]> = Omit<
   Extract<DevtoolsServerEventInput, { type: T }>,
@@ -46,12 +47,14 @@ export function runWithRequestInstrumentation<T>(request: Request, fn: () => T):
 }
 
 export function shouldInstrumentRequest(pathname: string, prefix: string): boolean {
-  const internalPath = `${prefix}/_furin/devtools`;
-  return pathname !== internalPath && !pathname.startsWith(`${internalPath}/`);
+  const internalPaths = [`${prefix}/_furin/dev`, `${prefix}/_furin/devtools`];
+  return internalPaths.every(
+    (internalPath) => pathname !== internalPath && !pathname.startsWith(`${internalPath}/`)
+  );
 }
 
 export function instrumentationLoggerExclusions(prefix: string): string[] {
-  return [`${prefix}/_furin/devtools/**`];
+  return [`${prefix}/_furin/dev/**`, `${prefix}/_furin/devtools/**`];
 }
 
 export function createInstrumentationPlugin(
@@ -62,11 +65,14 @@ export function createInstrumentationPlugin(
 }
 
 export function injectInstrumentationClient(html: string, prefix: string): string {
-  const script = `<script type="module" src="${prefix}${CLIENT_PATH}"></script>`;
-  if (html.includes(script)) {
+  const scripts = [
+    `<script type="module" src="${prefix}${ERROR_OVERLAY_CLIENT_PATH}"></script>`,
+    `<script type="module" src="${prefix}${CLIENT_PATH}"></script>`,
+  ].filter((script) => !html.includes(script));
+  if (scripts.length === 0) {
     return html;
   }
   return html.includes("</head>")
-    ? html.replace("</head>", `${script}</head>`)
-    : `${script}${html}`;
+    ? html.replace("</head>", `${scripts.join("")}</head>`)
+    : `${scripts.join("")}${html}`;
 }

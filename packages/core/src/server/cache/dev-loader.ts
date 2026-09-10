@@ -1,18 +1,13 @@
 import { statSync } from "node:fs";
 import { relative } from "node:path";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry";
+import { devGraph } from "../dev/graph.ts";
 import {
   currentInstrumentationRequest,
   emitCacheInvalidated,
   emitCacheAccess as emitInstrumentationCacheAccess,
 } from "../devtools/instrumentation.ts";
-import {
-  allStateBuckets,
-  currentInstance,
-  type FurinInstance,
-  instanceSlot,
-  withInstance,
-} from "../instance.ts";
+import { allStateBuckets, currentInstance, type FurinInstance, withInstance } from "../instance.ts";
 import { registerCacheInvalidator } from "./registry";
 import { createRouteCache, type RevalidateType } from "./route-cache";
 
@@ -94,20 +89,25 @@ function createDevLoaderCache(name: string, index: Map<string, Set<string>>) {
   });
 }
 
-// Per-instance dev loader caches + source-dependency index — two furin
-// instances in one dev process must not invalidate each other's loader data.
-const instanceDevLoaderState = instanceSlot((instance): DevLoaderState => {
-  const sourceFileToCacheKeys = new Map<string, Set<string>>();
-  const isrCache = createDevLoaderCache("render:dev-isr-loader", sourceFileToCacheKeys);
-  const ssgCache = createDevLoaderCache("render:dev-ssg-loader", sourceFileToCacheKeys);
-  registerCacheInvalidator(isrCache, instance);
-  registerCacheInvalidator(ssgCache, instance);
-  return {
-    isr: { cache: isrCache, kind: "isr" },
-    sourceFileToCacheKeys,
-    ssg: { cache: ssgCache, kind: "ssg" },
-  };
-});
+const DEV_LOADER_STATE = Symbol.for("@teyik0/furin/dev-loader-state");
+
+// Per-instance dev loader caches + source-dependency index are owned by the
+// instance's DevGraph so module revisions and loader data share one lifetime.
+function instanceDevLoaderState(instance: FurinInstance | undefined): DevLoaderState {
+  const target = instance ?? currentInstance();
+  return devGraph(target).state(DEV_LOADER_STATE, () => {
+    const sourceFileToCacheKeys = new Map<string, Set<string>>();
+    const isrCache = createDevLoaderCache("render:dev-isr-loader", sourceFileToCacheKeys);
+    const ssgCache = createDevLoaderCache("render:dev-ssg-loader", sourceFileToCacheKeys);
+    registerCacheInvalidator(isrCache, target);
+    registerCacheInvalidator(ssgCache, target);
+    return {
+      isr: { cache: isrCache, kind: "isr" },
+      sourceFileToCacheKeys,
+      ssg: { cache: ssgCache, kind: "ssg" },
+    };
+  });
+}
 
 function emitCacheAccess(
   cache: "isr-loader" | "ssg-loader",
@@ -135,23 +135,23 @@ function emitCacheAccess(
 }
 
 export function getDevISRLoaderCache(key: string): DevLoaderCacheEntry | undefined {
-  const entry = instanceDevLoaderState().isr.cache.get(key);
+  const entry = instanceDevLoaderState(undefined).isr.cache.get(key);
   emitCacheAccess("isr-loader", key, entry);
   return entry;
 }
 
 export function setDevISRLoaderCache(key: string, entry: DevLoaderCacheEntry): void {
-  instanceDevLoaderState().isr.cache.set(key, entry);
+  instanceDevLoaderState(undefined).isr.cache.set(key, entry);
 }
 
 export function getDevSSGLoaderCache(key: string): DevLoaderCacheEntry | undefined {
-  const entry = instanceDevLoaderState().ssg.cache.get(key);
+  const entry = instanceDevLoaderState(undefined).ssg.cache.get(key);
   emitCacheAccess("ssg-loader", key, entry);
   return entry;
 }
 
 export function setDevSSGLoaderCache(key: string, entry: DevLoaderCacheEntry): void {
-  instanceDevLoaderState().ssg.cache.set(key, entry);
+  instanceDevLoaderState(undefined).ssg.cache.set(key, entry);
 }
 
 export function urlPathFromCacheKey(key: string): string | null {
@@ -180,7 +180,7 @@ export function invalidateDevLoaderCacheByPath(
   path: string,
   type: RevalidateType
 ): InvalidateOutcome {
-  const state = instanceDevLoaderState();
+  const state = instanceDevLoaderState(undefined);
   const cleared: string[] = [];
   let isr = 0;
   let ssg = 0;
@@ -217,7 +217,7 @@ export function invalidateDevLoaderCacheByPath(
 }
 
 export function invalidateDevLoaderCacheBySource(filePath: string): InvalidateOutcome {
-  const state = instanceDevLoaderState();
+  const state = instanceDevLoaderState(undefined);
   const keys = state.sourceFileToCacheKeys.get(filePath);
   if (!keys || keys.size === 0) {
     return { cleared: [], isr: 0, ssg: 0 };
@@ -281,11 +281,11 @@ export function isDevLoaderCacheValid(entry: DevLoaderCacheEntry): boolean {
 }
 
 export function getAllDevISRLoaderEntries(): [string, DevLoaderCacheEntry][] {
-  return [...instanceDevLoaderState().isr.cache.entries()];
+  return [...instanceDevLoaderState(undefined).isr.cache.entries()];
 }
 
 export function getAllDevSSGLoaderEntries(): [string, DevLoaderCacheEntry][] {
-  return [...instanceDevLoaderState().ssg.cache.entries()];
+  return [...instanceDevLoaderState(undefined).ssg.cache.entries()];
 }
 
 /** @internal — clears dev loader caches for `instance` (default: current). */

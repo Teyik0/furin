@@ -1,5 +1,13 @@
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  existsSync,
+  type FSWatcher,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  watch,
+} from "node:fs";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { type AnyElysia, Elysia } from "elysia";
 import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.ts";
@@ -21,6 +29,8 @@ const ROUTE_CONVENTIONS = new Set(["error", "not-found", "root"]);
 const DEV_ROUTES_APPS_SYMBOL = Symbol.for("@teyik0/furin/dev-routes-apps");
 const DEV_ROUTE_WATCHERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watchers");
 const DEV_ROUTES_FILE_FILTER = /[\\/]routes\.ts\?instance=[^&]+$/;
+const DEV_ROUTE_RECONCILE_DELAY_MS = 25;
+const DEV_ROUTE_RETRY_DELAY_MS = 100;
 
 const devInstancesBySpecifier = new Map<string, RouteInstanceSpec>();
 let devRoutesPluginRegistered = false;
@@ -47,16 +57,19 @@ export interface DevRouteTopologyWatcher {
 export interface DevRouteTopologyWatcherOptions {
   instance: RouteInstanceSpec;
   onRouteFilesTouched?: () => Promise<void> | void;
+  onSourceError?: (error: unknown, sourcePath: string) => void;
   onTopologyChange: () => Promise<void> | void;
-  pollIntervalMs: number;
 }
 
 interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
+  closed: boolean;
+  dirty: boolean;
   pending: boolean;
+  reconcileTimer: ReturnType<typeof setTimeout> | undefined;
   refreshing: boolean;
   routeFilesSignature: string;
   source: string;
-  timer: ReturnType<typeof setInterval>;
+  watchers: FSWatcher[];
 }
 
 function instanceKey(instance: RouteInstanceSpec): string {
@@ -258,7 +271,7 @@ function routeTopologySource(instance: RouteInstanceSpec): string {
   return `${JSON.stringify(paths)}\n`;
 }
 
-function routeFilesSignature(instance: RouteInstanceSpec): string {
+function routeDependencyPaths(instance: RouteInstanceSpec): string[] {
   const dependencyPaths = new Set<string>();
   for (const sourcePath of routeSnapshotSourcePaths(instance)) {
     const cached = routeModuleCache().get(sourcePath);
@@ -267,11 +280,15 @@ function routeFilesSignature(instance: RouteInstanceSpec): string {
       dependencyPaths.add(dependency.path);
     }
   }
-  return [...dependencyPaths]
+  return [...dependencyPaths].toSorted((left, right) => left.localeCompare(right));
+}
+
+function routeFilesSignature(instance: RouteInstanceSpec): string {
+  return routeDependencyPaths(instance)
     .toSorted((left, right) => left.localeCompare(right))
     .map((path) => {
       try {
-        return `${path}:${statSync(path).mtimeMs}`;
+        return `${path}:${Bun.hash(readFileSync(path))}`;
       } catch {
         return `${path}:missing`;
       }
@@ -297,25 +314,91 @@ async function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promis
   state.refreshing = true;
   try {
     state.pending = false;
+    const { dirty } = state;
+    state.dirty = false;
     const source = routeTopologySource(state.instance);
     if (source === state.source) {
       const signature = routeFilesSignature(state.instance);
-      if (signature !== state.routeFilesSignature) {
+      if (dirty || signature !== state.routeFilesSignature) {
         await state.onRouteFilesTouched?.();
         state.routeFilesSignature = routeFilesSignature(state.instance);
+        replaceSourceWatchers(state);
       }
     } else {
       await state.onTopologyChange();
       state.source = routeTopologySource(state.instance);
       state.routeFilesSignature = routeFilesSignature(state.instance);
+      replaceSourceWatchers(state);
     }
   } catch (error) {
     console.error("[furin] Failed to refresh route topology", error);
+    state.dirty = true;
+    scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
   } finally {
     state.refreshing = false;
     if (state.pending) {
       await refreshRouteTopology(state);
     }
+  }
+}
+
+function scheduleRouteTopologyRefresh(state: DevRouteTopologyWatcherState, delay: number): void {
+  if (state.closed || state.reconcileTimer !== undefined) {
+    return;
+  }
+  state.reconcileTimer = setTimeout(() => {
+    state.reconcileTimer = undefined;
+    refreshRouteTopology(state).catch((error) => {
+      console.error("[furin] Failed to reconcile route topology", error);
+    });
+  }, delay);
+  state.reconcileTimer.unref();
+}
+
+function reportChangedSourceError(
+  state: DevRouteTopologyWatcherState,
+  directory: string,
+  filename: string | Buffer | null
+): void {
+  if (filename === null) {
+    return;
+  }
+  const sourcePath = resolve(directory, String(filename));
+  if (!(ROUTE_EXTENSION.test(sourcePath) && existsSync(sourcePath))) {
+    return;
+  }
+  try {
+    const source = readFileSync(sourcePath, "utf8");
+    const loader = detectLoaderFromPath(sourcePath);
+    new Bun.Transpiler({ loader }).transformSync(source, loader);
+  } catch (error) {
+    state.onSourceError?.(error, sourcePath);
+  }
+}
+
+function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
+  for (const watcher of state.watchers) {
+    watcher.close();
+  }
+  state.watchers = [];
+  const pagesDir = resolve(state.instance.pagesDir);
+  const directories = new Set(
+    routeDependencyPaths(state.instance)
+      .filter((path) => !(path === pagesDir || path.startsWith(`${pagesDir}${sep}`)))
+      .map((path) => dirname(path))
+  );
+  const watchDirectory = (directory: string, recursive: boolean): void => {
+    const watcher = watch(directory, { recursive }, (_, filename) => {
+      state.dirty = true;
+      reportChangedSourceError(state, directory, filename);
+      scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
+    });
+    watcher.unref();
+    state.watchers.push(watcher);
+  };
+  watchDirectory(pagesDir, true);
+  for (const directory of directories) {
+    watchDirectory(directory, false);
   }
 }
 
@@ -328,10 +411,17 @@ export function registerDevRouteTopologyWatcher(
   if (existing) {
     existing.instance = options.instance;
     existing.onRouteFilesTouched = options.onRouteFilesTouched;
+    existing.onSourceError = options.onSourceError;
     existing.onTopologyChange = options.onTopologyChange;
     return {
       close: () => {
-        clearInterval(existing.timer);
+        existing.closed = true;
+        if (existing.reconcileTimer !== undefined) {
+          clearTimeout(existing.reconcileTimer);
+        }
+        for (const watcher of existing.watchers) {
+          watcher.close();
+        }
         watchers.delete(watcherKey);
       },
     };
@@ -339,26 +429,30 @@ export function registerDevRouteTopologyWatcher(
 
   const source = routeTopologySource(options.instance);
   const routeFilesSignatureValue = routeFilesSignature(options.instance);
-  let state: DevRouteTopologyWatcherState;
-  const timer = setInterval(() => {
-    refreshRouteTopology(state).catch((error) => {
-      console.error("[furin] Failed to poll route topology", error);
-    });
-  }, options.pollIntervalMs);
-  timer.unref();
-  state = {
+  const state: DevRouteTopologyWatcherState = {
     ...options,
+    closed: false,
+    dirty: false,
     pending: false,
+    reconcileTimer: undefined,
     refreshing: false,
     routeFilesSignature: routeFilesSignatureValue,
     source,
-    timer,
+    watchers: [],
   };
+  replaceSourceWatchers(state);
+  scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
   watchers.set(watcherKey, state);
 
   return {
     close: () => {
-      clearInterval(timer);
+      state.closed = true;
+      if (state.reconcileTimer !== undefined) {
+        clearTimeout(state.reconcileTimer);
+      }
+      for (const watcher of state.watchers) {
+        watcher.close();
+      }
       watchers.delete(watcherKey);
     },
   };

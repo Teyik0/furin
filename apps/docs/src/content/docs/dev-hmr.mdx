@@ -26,11 +26,11 @@ When the browser requests a page for the first time (or after a hard refresh), t
 
 ```ts
 const pageMod = await import(
-  `/pages/board/[boardId]/index.tsx?furin-server&t=${Date.now()}`
+  `/pages/board/[boardId]/index.tsx?furin-server&t=${moduleRevision}`
 );
 ```
 
-The `?t=<timestamp>` suffix ensures Bun creates a new module identity and reads the file from disk instead of using a cached version.
+The `?t=<module-revision>` suffix ensures Bun creates a new module identity after an edit while reusing the same imported module between requests.
 
 ### 2. Virtual namespace pipeline (dev-page-plugin)
 
@@ -52,7 +52,7 @@ import { route } from "../_route";
 Bun resolves this through its normal ESM cache — **it does not get cache-busted by the page module's `?t=` suffix**. To pick up layout edits, `handleDevRequest` calls `refreshLayoutChain()`:
 
 1. Derive intermediate `_route.tsx` paths from the page file path
-2. Re-import each one with `?furin-server&t=<timestamp>` cache-busting
+2. Re-import each one with its current `?furin-server&t=<module-revision>`
 3. Patch `layout` and `loader` on the existing `RuntimeRoute` objects in the chain
 
 ### 4. Run loaders and render
@@ -64,7 +64,7 @@ renderSSR({ ...route, page, routeChain: refreshedChain }, ctx, currentRoot)
 - Execute loaders (DB queries, API calls, file system reads — server-side only)
 - Build the React element tree with the fresh layout components
 - Stream-render to HTML via `renderToReadableStream`
-- Fetch `/_bun_hmr_entry` for the dev template (fresh on each request — chunk hashes change when the client bundle rebuilds)
+- Fetch `/_bun_hmr_entry` for the dev template (cached for at most one second)
 - Assemble: `<head>` + SSR HTML + `<script id="__FURIN_DATA__">{loaderData}</script>`
 
 ### 5. Browser hydrates
@@ -137,6 +137,18 @@ There is no hydration mismatch because the client never attempts to `hydrateRoot
 
 ---
 
+## Development Error Overlay
+
+Development failures are sent to Furin's browser overlay with their phase (`transform`, `import`, `loader`, `render`, or `hydrate`), route, cause, source position, stack, and local import chain.
+
+- **Retry route** reloads the current URL manually.
+- A successful graph revision reloads the page automatically, so the overlay disappears after the source is fixed.
+- Transform and import failures are streamed over `/_furin/dev/errors`; hydration failures are captured in the browser.
+
+Production behavior does not change: route error boundaries and sanitized digests remain the public error contract.
+
+---
+
 ## Why Intermediate Layouts Need Re-Importing
 
 Page modules statically import their parent `_route.tsx` files:
@@ -145,30 +157,30 @@ Page modules statically import their parent `_route.tsx` files:
 import { route } from "../_route";
 ```
 
-Bun resolves this import through its ESM cache. When the page module is re-imported with `?furin-server&t=<now>`, the page itself is fresh, but **its static imports are not** — they resolve to the cached startup version.
+Bun resolves this import through its ESM cache. When the page module is re-imported with a new module revision, the page itself is fresh, but **its static imports are not** — they resolve to the cached startup version.
 
 This means after editing `board/_route.tsx`:
 
 - The **client bundle** contains the new layout (Bun HMR rebuilt it)
 - The **server** would render with the old layout (cached `_route.tsx`) without additional work
 
-`refreshLayoutChain()` fixes this by explicitly re-importing every intermediate `_route.tsx` with `?furin-server&t=<timestamp>` cache-busting and patching `layout` / `loader` on the existing `RuntimeRoute` objects.
+`refreshLayoutChain()` fixes this by explicitly re-importing every intermediate `_route.tsx` with its current module revision and patching `layout` / `loader` on the existing `RuntimeRoute` objects.
 
 ---
 
-## Why The Timestamp Matters
+## Why Module Revisions Matter
 
-Bun caches modules by `(namespace, path)`. Without the `?t=<timestamp>` suffix, the first import of a page would stay frozen in the server cache.
+Bun caches modules by `(namespace, path)`. Without the `?t=<module-revision>` suffix, the first import of a page would stay frozen in the server cache.
 
-After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. The timestamp forces a distinct cache key per request, so the server always reloads the page source from disk.
+After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. `DevGraph` increments a module's revision only when its source version changes, then caches the resulting import promise. Requests no longer allocate timestamp-based module identities.
 
-The timestamp cache-busts the **page module**, but static imports inside that module (like `import { route } from "../_route"`) still resolve through Bun's normal ESM cache. That is why `refreshLayoutChain` applies an additional cache-busting layer for intermediate layout files.
+The revision cache-busts the **page module**, but static imports inside that module (like `import { route } from "../_route"`) still resolve through Bun's normal ESM cache. That is why `refreshLayoutChain` applies the same revision rule to intermediate layout files.
 
 ---
 
-## Why The Template Is Never Cached
+## Why The Template Cache Is Short-Lived
 
-`/_bun_hmr_entry` is fetched fresh for every SSR request. When the client bundle rebuilds, chunk hashes change. If SSR reused an older HTML template, it could reference chunks that no longer exist, which causes `404` requests and reload loops in the browser.
+`/_bun_hmr_entry` is cached for at most one second. When the client bundle rebuilds, chunk hashes change; the short TTL prevents SSR from retaining obsolete chunk references while avoiding a template fetch for every request.
 
 ---
 
@@ -176,9 +188,10 @@ The timestamp cache-busts the **page module**, but static imports inside that mo
 
 | File | Role |
 | --- | --- |
-| `src/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
-| `src/router.ts` | Avoids eager page imports during scanning, imports pages with `?furin-server&t=<now>`, reloads `root.tsx` fresh, and re-imports intermediate layouts via `refreshLayoutChain` |
-| `src/render/template.ts` | `getDevTemplate()` fetches `/_bun_hmr_entry` without caching |
+| `src/server/dev/graph.ts` | Atomic route snapshot, import graph, monotonic module revisions, import and loader-cache state, HMR error events, and metrics |
+| `src/server/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
+| `src/server/router/hmr.ts` | Reloads `root.tsx`, pages, and layouts through `DevGraph`, then labels loader and render failures |
+| `src/server/render/template.ts` | Keeps the `/_bun_hmr_entry` template on a one-second cache |
 | `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry, handles `hydrateRoot` vs `root.render` for HMR, and exposes `__FURIN_HMR_REFRESH__` |
 | `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
 

@@ -57,9 +57,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
+import { publishDevError } from "./dev/error.ts";
+import { developmentGraphs } from "./dev/graph.ts";
 import { routeModuleSourceVersion } from "./router/source-version.ts";
 
-// Matches ?furin-server with an optional &t=<ms> cache-buster.
+// Matches ?furin-server with an optional &t=<module-revision> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
@@ -333,6 +335,57 @@ function shouldSkipWorkspaceTransform(filePath: string): boolean {
   return normalized.includes("/.furin/");
 }
 
+function recordDevImports(source: string, filePath: string): void {
+  const imports: string[] = [];
+  const scanner = new Bun.Transpiler({ loader: getSourceLoader(filePath) ?? "tsx" });
+  for (const imported of scanner.scanImports(source)) {
+    try {
+      const resolved = toImportSpecifier(Bun.resolveSync(imported.path, dirname(filePath)));
+      if (!resolved.includes("/node_modules/")) {
+        imports.push(resolved);
+      }
+    } catch {
+      // A missing import is reported by Bun's loader; retain the valid graph edges.
+    }
+  }
+  for (const graph of developmentGraphs()) {
+    graph.recordImports(toImportSpecifier(filePath), imports);
+  }
+}
+
+function rethrowWithSourcePath(error: unknown, filePath: string): never {
+  if (typeof error === "object" && error !== null && "position" in error) {
+    const { position } = error as {
+      position?: { column?: unknown; line?: unknown };
+    };
+    const message =
+      "message" in error && typeof error.message === "string" ? error.message : String(error);
+    const sourcePosition = {
+      column: typeof position?.column === "number" ? position.column : null,
+      file: filePath,
+      line: typeof position?.line === "number" ? position.line : null,
+    };
+    const sourced = new Error(message, { cause: error });
+    Reflect.set(sourced, "furinPosition", sourcePosition);
+    for (const graph of developmentGraphs()) {
+      graph.recordSourceError(message, sourcePosition);
+      const route = graph.snapshot?.routes.find((candidate) =>
+        graph.importChain(candidate.path, filePath).includes(filePath)
+      );
+      if (!route && graph.snapshot?.root.path !== filePath) {
+        continue;
+      }
+      publishDevError(graph, sourced, {
+        entryPath: route?.path ?? filePath,
+        phase: "transform",
+        route: route?.pattern ?? "*",
+      });
+    }
+    throw sourced;
+  }
+  throw error;
+}
+
 export function transformDevSource(
   raw: string,
   filePath: string,
@@ -343,21 +396,26 @@ export function transformDevSource(
     throw new Error(`[furin] Unsupported source loader for ${filePath}`);
   }
 
+  recordDevImports(raw, filePath);
   const dir = dirname(filePath);
-  const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
-  const sourceForTranspile = options.rewriteRelativeImports
-    ? rewriteRelativeImportsWithVersion(serverSource, dir, true)
-    : serverSource;
-  const transpiler = new Bun.Transpiler({ loader });
-  const transpiled = transpiler.transformSync(sourceForTranspile, loader);
+  try {
+    const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
+    const sourceForTranspile = options.rewriteRelativeImports
+      ? rewriteRelativeImportsWithVersion(serverSource, dir, true)
+      : serverSource;
+    const transpiler = new Bun.Transpiler({ loader });
+    const transpiled = transpiler.transformSync(sourceForTranspile, loader);
 
-  let result = transpiled;
-  if (options.rewriteBareImports) {
-    result = rewriteBareImports(serverSource, result, dir);
+    let result = transpiled;
+    if (options.rewriteBareImports) {
+      result = rewriteBareImports(serverSource, result, dir);
+    }
+
+    result = rewriteSingletonImports(result);
+    return injectJsxHelperImports(result);
+  } catch (error) {
+    return rethrowWithSourcePath(error, filePath);
   }
-
-  result = rewriteSingletonImports(result);
-  return injectJsxHelperImports(result);
 }
 
 export function registerDevPagePlugin(): void {
