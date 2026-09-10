@@ -458,7 +458,9 @@ describe("RouterProvider click interception", () => {
     await waitFor(() => pageARequests === 1);
     await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
     await waitFor(() => window.location.pathname === "/page-b");
-    await staleHmr.catch(() => {});
+    await staleHmr.catch(() => {
+      // The Link navigation intentionally aborts this stale HMR request.
+    });
 
     let retryCommitted = false;
     await act(() =>
