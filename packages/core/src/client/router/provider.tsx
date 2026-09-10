@@ -650,12 +650,16 @@ export function RouterProvider({
         if (hmrVersion.current !== myHmrVersion) {
           return;
         }
+        let didCommit = false;
         await refresh({
-          beforeCommit,
+          beforeCommit: () => {
+            didCommit = true;
+            beforeCommit?.();
+          },
           hmrRefresh: true,
           shouldCommit: () => hmrVersion.current === myHmrVersion,
         });
-        if (hmrVersion.current === myHmrVersion) {
+        if (didCommit && hmrVersion.current === myHmrVersion) {
           hmrState.current.dataInvalidated = false;
         }
       };

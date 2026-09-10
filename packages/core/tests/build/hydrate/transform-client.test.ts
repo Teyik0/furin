@@ -259,6 +259,26 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(result.code).toContain('const previousDataSignature = "external:');
   });
 
+  test("tracks imported decorators on TypeScript parameter properties", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { importedDecorator } from "./loader";
+class LoaderInput {
+  constructor(@importedDecorator public value: string) {}
+}
+function loadData() {
+  return { message: new LoaderInput("value").value };
+}
+function Page({ data }: { data: { message: string } }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+
+    expect(result.code).toContain('const previousDataSignature = "external:');
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";

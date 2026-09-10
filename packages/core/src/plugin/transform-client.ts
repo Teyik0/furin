@@ -15,12 +15,12 @@ const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader"
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
 const TYPESCRIPT_RUNTIME_WRAPPERS = new Map([
-  ["TSAsExpression", "expression"],
-  ["TSInstantiationExpression", "expression"],
-  ["TSNonNullExpression", "expression"],
-  ["TSParameterProperty", "parameter"],
-  ["TSSatisfiesExpression", "expression"],
-  ["TSTypeAssertion", "expression"],
+  ["TSAsExpression", ["expression"]],
+  ["TSInstantiationExpression", ["expression"]],
+  ["TSNonNullExpression", ["expression"]],
+  ["TSParameterProperty", ["decorators", "parameter"]],
+  ["TSSatisfiesExpression", ["expression"]],
+  ["TSTypeAssertion", ["expression"]],
 ]);
 
 interface TransformResult {
@@ -309,6 +309,9 @@ function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
 }
 
 function nodeContains(container: unknown, node: AstNode): boolean {
+  if (Array.isArray(container)) {
+    return container.some((entry) => nodeContains(entry, node));
+  }
   const containerNode = asAstNode(container);
   return Boolean(
     containerNode && containerNode.start <= node.start && node.end <= containerNode.end
@@ -320,9 +323,9 @@ function isTypePosition(node: AstNode, ancestors: AstNode[]): boolean {
     if (!ancestor.type.startsWith("TS")) {
       return false;
     }
-    const runtimeChild = TYPESCRIPT_RUNTIME_WRAPPERS.get(ancestor.type);
-    if (runtimeChild) {
-      return !nodeContains(ancestor[runtimeChild], node);
+    const runtimeChildren = TYPESCRIPT_RUNTIME_WRAPPERS.get(ancestor.type);
+    if (runtimeChildren) {
+      return !runtimeChildren.some((key) => nodeContains(ancestor[key], node));
     }
     return true;
   });
