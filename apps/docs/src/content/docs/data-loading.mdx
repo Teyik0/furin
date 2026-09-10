@@ -46,7 +46,7 @@ export const route = defineRoute()
   .page(({ data }) => <Settings value={data.settings} user={data.user} />);
 ```
 
-If the child does not read a parent field, its work stays parallel. Layout results are merged from root to leaf and the page result is applied last. Reusing a key with a compatible type overwrites the parent value; development logs a collision, so prefer unique field names.
+If the child does not read a parent field, its work stays parallel. Layout results are merged from root to leaf and the page result is applied last. Reusing a key overwrites the parent value; development logs a collision, so prefer unique field names.
 
 ## Loader Context
 

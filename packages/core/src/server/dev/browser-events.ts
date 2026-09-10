@@ -1,6 +1,6 @@
 import { BROWSER_EVENT_PROTOCOL_VERSION } from "../../shared/browser-events.ts";
 import type { BrowserEventSource } from "../browser-events/types.ts";
-import { subscribeDevtoolsEventsAfter } from "../devtools/hub.ts";
+import { devtoolsEventsSnapshot, subscribeDevtoolsEventsAfter } from "../devtools/hub.ts";
 import type { FurinInstance } from "../instance.ts";
 import type { DevDiagnosticStore } from "./diagnostics.ts";
 
@@ -30,8 +30,9 @@ export function createDevelopmentBrowserEventSources(
     },
     {
       subscribe(listener) {
+        const cursor = devtoolsEventsSnapshot(instance).lastEventId;
         const subscription = subscribeDevtoolsEventsAfter(
-          0,
+          cursor,
           (event) =>
             listener({
               channel: "devtools",

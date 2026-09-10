@@ -61,9 +61,9 @@ order:
    a reload loop.
 4. Import the generated HTML as a Bun `HTMLBundle` and mount it at the instance's
    `/_bun_hmr_entry` path.
-5. Start a per-instance route watcher. It polls authored route files and their
-   dependencies every 100 ms, serializing refreshes so requests cannot observe a
-   partially replaced route snapshot.
+5. Start a per-instance route watcher. It watches authored route files and their
+   dependencies and reconciles refreshes after a short debounce, serializing
+   refreshes so requests cannot observe a partially replaced route snapshot.
 6. Mount the data, diagnostics, DevTools, sync, public asset, and not-found
    handlers around the generated Elysia route tree.
 

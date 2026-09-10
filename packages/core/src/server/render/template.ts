@@ -69,6 +69,15 @@ function moduleAssetsFromTemplate(template: string): {
       entryModule = src;
     }
   }
+  const browserEventsIndex = frameworkModules.findIndex((src) =>
+    src.endsWith("/_furin/events/client.js")
+  );
+  if (browserEventsIndex > 0) {
+    const [browserEventsModule] = frameworkModules.splice(browserEventsIndex, 1);
+    if (browserEventsModule !== undefined) {
+      frameworkModules.unshift(browserEventsModule);
+    }
+  }
   return { entryModule, frameworkModules };
 }
 

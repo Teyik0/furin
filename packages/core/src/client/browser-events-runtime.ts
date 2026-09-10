@@ -1,12 +1,14 @@
 import type { BrowserEventChannel, BrowserEventEnvelope } from "../shared/browser-events.ts";
 
 type BrowserEventListener = (event: BrowserEventEnvelope) => void;
+type BrowserEventConnectionStatus = "connected" | "connecting" | "reconnecting";
 
 interface BrowserEventRuntime {
   subscribe: (
     channel: BrowserEventChannel,
     listener: BrowserEventListener
   ) => () => boolean | undefined;
+  subscribeStatus: (listener: (status: BrowserEventConnectionStatus) => void) => () => boolean;
 }
 
 interface BrowserEventCandidate {
@@ -69,6 +71,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
     diagnostic: new Set<BrowserEventListener>(),
     sync: new Set<BrowserEventListener>(),
   };
+  const statusListeners = new Set<(status: BrowserEventConnectionStatus) => void>();
   const buffered: { [K in BrowserEventChannel]: BrowserEventEnvelope[] } = {
     devtools: [],
     diagnostic: [],
@@ -77,7 +80,18 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
   let reconnectAttempt = 0;
   let reconnectTimer: number | undefined;
   let socket: WebSocket | undefined;
+  let status: BrowserEventConnectionStatus = "connecting";
   let suspended = false;
+
+  const updateStatus = (next: BrowserEventConnectionStatus): void => {
+    if (status === next) {
+      return;
+    }
+    status = next;
+    for (const listener of statusListeners) {
+      listener(status);
+    }
+  };
 
   const buffer = (event: BrowserEventEnvelope): void => {
     const events = buffered[event.channel];
@@ -89,8 +103,11 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
   };
 
   const dispatch = (event: BrowserEventEnvelope): void => {
-    buffer(event);
-    for (const listener of listeners[event.channel]) {
+    const channelListeners = listeners[event.channel];
+    if (event.channel !== "devtools" || channelListeners.size === 0) {
+      buffer(event);
+    }
+    for (const listener of channelListeners) {
       listener(event);
     }
   };
@@ -107,6 +124,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
     socket = connection;
     connection.addEventListener("open", () => {
       reconnectAttempt = 0;
+      updateStatus("connected");
     });
     connection.addEventListener("message", (message) => {
       if (typeof message.data !== "string") {
@@ -129,6 +147,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
       if (suspended || reconnectTimer !== undefined) {
         return;
       }
+      updateStatus("reconnecting");
       const baseDelay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
       const delay = Math.min(
         Math.round(baseDelay * (0.8 + Math.random() * 0.4)),
@@ -168,6 +187,11 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
         listener(event);
       }
       return () => channelListeners.delete(listener);
+    },
+    subscribeStatus(listener) {
+      statusListeners.add(listener);
+      listener(status);
+      return () => statusListeners.delete(listener);
     },
   };
 }

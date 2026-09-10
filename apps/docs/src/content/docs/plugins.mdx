@@ -59,6 +59,8 @@ plugins = ["@teyik0/furin/strip-plugin", "./src/lib/mdx-plugin.ts"]
 
 ```ts
 // src/server.ts
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
 import mdxPlugin from "./lib/mdx-plugin";
 
 Bun.plugin(mdxPlugin);

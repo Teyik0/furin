@@ -90,7 +90,7 @@ export const getPostsApi = createIsomorphicFn()
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(async ({ request }) => {
-    const result = await getPostsApi().api.posts.get({
+    const result = await getPostsApi().api.posts.index.get({
       headers: request.headers,
     });
     if (result.error) throw result.error.value;

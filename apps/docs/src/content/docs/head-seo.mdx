@@ -28,7 +28,7 @@ export const route = defineRoute()
   .page(({ data }) => <Article post={data.post} />);
 ```
 
-`head()` does not receive `requestData`. Metadata for cached routes must remain public and deterministic; request-private values belong in the rendered body.
+Metadata for cached routes should remain public and deterministic. Although head props include `requestData`, prefer values that remain valid across cache hits and put request-private values in the rendered body.
 
 ## Descriptor Reference
 

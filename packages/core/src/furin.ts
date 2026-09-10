@@ -9,7 +9,7 @@ import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-rout
 import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
-import type { DevelopmentRouteSnapshot } from "./server/dev/graph.ts";
+import type { DevelopmentRouteSnapshot, DevGraph } from "./server/dev/graph.ts";
 import {
   createInstrumentationPlugin,
   instrumentationLoggerExclusions,
@@ -59,6 +59,30 @@ export type CacheTag = keyof FurinCacheTags extends never ? string : keyof Furin
 
 function createProductionBrowserEventsPlugin(sync: FurinSyncOption | undefined): AnyElysia {
   return sync ? createBrowserEventsPlugin({ sync }) : new Elysia();
+}
+
+function repairedDevelopmentRoutes(
+  snapshot: DevelopmentRouteSnapshot,
+  changedSources: readonly string[],
+  graph: DevGraph<DevelopmentRouteSnapshot | null>
+): { patterns: ReadonlySet<string>; root: boolean } {
+  const patterns = new Set<string>();
+  for (const route of snapshot.routes) {
+    if (
+      changedSources.some(
+        (sourcePath) => route.path === sourcePath || graph.dependsOn(route.path, sourcePath)
+      )
+    ) {
+      patterns.add(route.pattern);
+    }
+  }
+  return {
+    patterns,
+    root: changedSources.some(
+      (sourcePath) =>
+        snapshot.root.path === sourcePath || graph.dependsOn(snapshot.root.path, sourcePath)
+    ),
+  };
 }
 
 import { clientDirNameForPrefix } from "./shared/prefix.ts";
@@ -668,18 +692,22 @@ export async function furin({
     };
     writeCurrentDevFiles(initialSnapshot);
     graph.commit(initialSnapshot);
-    const refreshDevelopmentRoutes = (): Promise<void> =>
+    const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
       withInstance(instance, async () => {
         invalidateStampedRouteModules();
         try {
+          const previousSnapshot = currentSnapshot();
+          const repaired = repairedDevelopmentRoutes(previousSnapshot, changedSources, graph);
           const next = await loadDevelopmentRoutes(resolvedPagesDir);
           const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
           writeCurrentDevFiles(nextSnapshot);
           graph.commit(nextSnapshot);
           const diagnostics = devDiagnosticStore(instance);
-          diagnostics.markReady("*");
-          for (const route of nextSnapshot.routes) {
-            if (diagnostics.markReady(route.pattern)) {
+          if (repaired.root) {
+            diagnostics.markReady("*");
+          }
+          for (const pattern of repaired.patterns) {
+            if (diagnostics.markReady(pattern)) {
               break;
             }
           }
@@ -709,9 +737,9 @@ export async function furin({
       .onStart(() => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
-          onRouteFilesTouched: async () => {
+          onRouteFilesTouched: async (sourcePaths) => {
             applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
+            await refreshDevelopmentRoutes(sourcePaths);
           },
           onSourceError: (error, sourcePath) => {
             const route = currentSnapshot().routes.find((candidate) =>
@@ -725,14 +753,14 @@ export async function furin({
               })
             );
           },
-          onTopologyChange: async () => {
+          onTopologyChange: async (sourcePaths) => {
             // Bun --hot cannot be triggered from generated artifacts (its
             // watch graph is the entry's static imports), so topology changes
             // are served by swapping the dispatcher's route matcher. Hot-added
             // routes then resolve through the NOT_FOUND fallback below;
             // removed routes 404 through the renderer's miss path.
             applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
+            await refreshDevelopmentRoutes(sourcePaths);
           },
         });
       })
@@ -773,7 +801,7 @@ export async function furin({
           sync: sync || undefined,
         })
       )
-      .use(createDevDiagnosticPlugin(devDiagnosticStore(instance)))
+      .use(createDevDiagnosticPlugin(devDiagnosticStore(instance), instance))
       .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath))
       .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
       .use(

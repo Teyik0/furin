@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: integration polling waits for the dev server
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { realpathSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { DevDiagnosticEvent } from "../../../src/shared/dev-diagnostics.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
@@ -41,9 +43,18 @@ async function openDiagnosticSocket(port: number): Promise<DiagnosticSocket> {
   const socket = new WebSocket(`ws://localhost:${port}/_furin/events`);
   const events: DevDiagnosticEvent[] = [];
   const waiters = new Set<{
+    reject: (error: Error) => void;
     resolve: (event: DevDiagnosticEvent) => void;
     type: DevDiagnosticEvent["type"];
   }>();
+  const rejectWaiters = (message: string): void => {
+    for (const waiter of waiters) {
+      waiter.reject(new Error(message));
+    }
+    waiters.clear();
+  };
+  socket.addEventListener("close", () => rejectWaiters("Diagnostic socket closed"));
+  socket.addEventListener("error", () => rejectWaiters("Diagnostic socket failed"));
   socket.addEventListener("message", (message) => {
     const envelope = JSON.parse(String(message.data)) as DiagnosticEnvelope;
     if (envelope.channel !== "diagnostic") {
@@ -84,6 +95,7 @@ async function openDiagnosticSocket(port: number): Promise<DiagnosticSocket> {
       return new Promise((resolve, reject) => {
         let timeout: ReturnType<typeof setTimeout>;
         const waiter = {
+          reject,
           resolve(event: DevDiagnosticEvent) {
             clearTimeout(timeout);
             resolve(event);
@@ -286,12 +298,37 @@ throw new Error("recovery exploded");`
   }, 30_000);
 
   test("accepts a browser render diagnostic from the overlay client", async () => {
+    const componentPath = join(app.path, "src/components/client-card.tsx");
+    writeAppFile(
+      app.path,
+      "src/components/client-card.tsx",
+      "export function ClientCard() { return <aside>Client card</aside>; }"
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { ClientCard } from "../components/client-card.tsx";',
+        'import { route as rootRoute } from "./root";',
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <ClientCard />);",
+      ].join("\n")
+    );
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const page = await fetch(`http://localhost:${port}/`);
+      if (page.ok && (await page.text()).includes("Client card")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
     const response = await fetch(`http://localhost:${port}/_furin/dev/client-errors`, {
       body: JSON.stringify({
         message: "client render exploded",
         phase: "client-render",
         route: "/",
-        stack: "Error: client render exploded",
+        stack: `Error: client render exploded\n    at ClientCard (${pathToFileURL(realpathSync(componentPath)).href}:1:1)`,
       }),
       headers: { "content-type": "application/json" },
       method: "POST",
@@ -302,6 +339,8 @@ throw new Error("recovery exploded");`
     expect(event.type).toBe("error");
     expect(event.diagnostic.phase).toBe("client-render");
     expect(event.diagnostic.message).toBe("client render exploded");
+    expect(event.diagnostic.importChain[0]).toContain("src/pages/index.tsx");
+    expect(event.diagnostic.importChain[1]).toContain("src/components/client-card.tsx");
   });
 
   test("a loader failure reports its phase and cause", async () => {

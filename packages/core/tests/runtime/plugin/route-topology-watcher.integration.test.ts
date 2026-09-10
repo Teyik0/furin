@@ -22,12 +22,14 @@ test("the dev topology watcher reloads only when the route set changes", async (
   writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
 
   const topologies: string[][] = [];
+  const touchedSources: string[][] = [];
   let touchedRouteFiles = 0;
   const instance = { pagesDir, prefix: "" };
   const watcher = registerDevRouteTopologyWatcher({
     instance,
-    onRouteFilesTouched: () => {
+    onRouteFilesTouched: (sourcePaths) => {
       touchedRouteFiles += 1;
+      touchedSources.push([...sourcePaths]);
     },
     onTopologyChange: () => {
       const paths = routeSourcePaths(instance).map((path) => path.replace(`${pagesDir}/`, ""));
@@ -39,6 +41,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
     writeFileSync(join(pagesDir, "index.ts"), "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     expect(topologies).toHaveLength(0);
+    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts"));
 
     await Bun.sleep(80);
     expect(touchedRouteFiles).toBe(1);

@@ -69,11 +69,16 @@ test("browser event socket sends the current durable sync cursor", async () => {
 });
 
 test("browser event socket remains available when notifier subscription fails", async () => {
+  let cursor = "7";
+  const recoveringAdapter: SyncAdapter = {
+    ...adapter,
+    currentCursor: () => Promise.resolve(cursor),
+  };
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
         sync: {
-          adapter,
+          adapter: recoveringAdapter,
           notifier: {
             publish: () => Promise.resolve(),
             subscribe: () => Promise.reject(new Error("notifier unavailable")),
@@ -89,20 +94,28 @@ test("browser event socket remains available when notifier subscription fails", 
   }
 
   try {
-    const event = await new Promise<string>((resolve, reject) => {
+    const events = await new Promise<string[]>((resolve, reject) => {
       const socket = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
+      const received: string[] = [];
       const timeout = setTimeout(
-        () => reject(new Error("Timed out waiting for sync cursor")),
+        () => reject(new Error("Timed out waiting for recovered sync cursor")),
         2000
       );
       socket.addEventListener("message", (message) => {
-        clearTimeout(timeout);
-        socket.close();
-        resolve(String(message.data));
+        const serialized = String(message.data);
+        received.push(serialized);
+        const event = JSON.parse(serialized) as { data?: { cursor?: string } };
+        if (event.data?.cursor === "7") {
+          cursor = "8";
+        } else if (event.data?.cursor === "8") {
+          clearTimeout(timeout);
+          socket.close();
+          resolve(received);
+        }
       });
     });
 
-    expect(JSON.parse(event)).toMatchObject({ channel: "sync", data: { cursor: "7" } });
+    expect(events.map((event) => JSON.parse(event).data.cursor)).toEqual(["7", "8"]);
   } finally {
     await app.stop();
   }

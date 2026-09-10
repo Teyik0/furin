@@ -33,7 +33,7 @@ test("dev error response embeds diagnostics and the shared browser event client"
 
 test("the overlay client captures hydration and client-render failures", async () => {
   const store = new DevDiagnosticStore();
-  const app = new Elysia().use(createDevDiagnosticPlugin(store));
+  const app = new Elysia().use(createDevDiagnosticPlugin(store, undefined));
 
   const response = await app.handle(new Request("http://localhost/_furin/dev/overlay.js"));
   const source = await response.text();
@@ -47,7 +47,7 @@ test("the overlay client captures hydration and client-render failures", async (
 });
 
 test("invalid browser diagnostics are rejected", async () => {
-  const app = new Elysia().use(createDevDiagnosticPlugin(new DevDiagnosticStore()));
+  const app = new Elysia().use(createDevDiagnosticPlugin(new DevDiagnosticStore(), undefined));
   const response = await app.handle(
     new Request("http://localhost/_furin/dev/client-errors", {
       body: JSON.stringify({ message: "missing phase" }),

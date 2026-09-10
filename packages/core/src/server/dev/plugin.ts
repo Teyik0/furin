@@ -1,6 +1,7 @@
 import { type AnyElysia, Elysia } from "elysia";
 import type { DevDiagnosticEvent } from "../../shared/dev-diagnostics.ts";
 import { browserEventsClientScript } from "../browser-events/plugin.ts";
+import type { FurinInstance } from "../instance.ts";
 import {
   type ClientErrorReport,
   type DevDiagnosticStore,
@@ -19,10 +20,22 @@ async function clientSource(): Promise<string> {
   if (overlayClientSource !== undefined) {
     return overlayClientSource;
   }
-  const path = new URL("../../client/dev-error-overlay.ts", import.meta.url);
-  const source = await Bun.file(path).text();
-  overlayClientSource = new Bun.Transpiler({ loader: "ts" }).transformSync(source, "ts");
-  return overlayClientSource;
+  const candidates = [
+    new URL("../../client/dev-error-overlay.ts", import.meta.url),
+    new URL("./client/dev-error-overlay.ts", import.meta.url),
+  ];
+  const sources = await Promise.all(
+    candidates.map(async (path) => {
+      const file = Bun.file(path);
+      return (await file.exists()) ? await file.text() : undefined;
+    })
+  );
+  const source = sources.find((candidate) => candidate !== undefined);
+  if (source !== undefined) {
+    overlayClientSource = new Bun.Transpiler({ loader: "ts" }).transformSync(source, "ts");
+    return overlayClientSource;
+  }
+  throw new Error("Furin development overlay source is missing from the package.");
 }
 
 function clientErrorReport(value: unknown): ClientErrorReport | undefined {
@@ -56,7 +69,10 @@ function serializeForHtml(value: EmbeddedDiagnosticState): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 
-export function createDevDiagnosticPlugin(store: DevDiagnosticStore): AnyElysia {
+export function createDevDiagnosticPlugin(
+  store: DevDiagnosticStore,
+  instance: FurinInstance | undefined
+): AnyElysia {
   return new Elysia({ name: "furin-dev-diagnostics" })
     .get("/_furin/dev/overlay.js", async ({ request, server }) => {
       const forbidden = forbiddenDevelopmentRequest(request, server);
@@ -80,7 +96,7 @@ export function createDevDiagnosticPlugin(store: DevDiagnosticStore): AnyElysia 
       if (!report) {
         return new Response("Invalid client diagnostic", { status: 400 });
       }
-      return await publishClientDiagnostic(store, report, new URL(request.url).origin);
+      return await publishClientDiagnostic(store, report, new URL(request.url).origin, instance);
     });
 }
 

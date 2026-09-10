@@ -1,5 +1,5 @@
 const ELEMENT_NAME = "furin-devtools";
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const MAX_BROWSER_EVENTS = 200;
 const RUNTIME_KEY = Symbol.for("furin.devtools.runtime");
 const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
@@ -229,29 +229,41 @@ function installSyncObserver(sync, browserEvents) {
     return () => undefined;
   }
   const path = assetUrl("/_furin/events");
-  browserState.syncStatus = "connecting";
-  pushBounded(browserState.syncEvents, {
-    cursor: null,
-    timestamp: Date.now(),
-    type: "connecting",
-    url: path,
-  });
-  notifyBrowserState();
-  return browserEvents.subscribe("sync", (event) => {
-    const cursor =
-      isObject(event?.data) && typeof event.data.cursor === "string" ? event.data.cursor : null;
-    if (cursor === null) {
-      return;
+  const cleanups = [];
+  cleanups.push(
+    browserEvents.subscribeStatus((status) => {
+      browserState.syncStatus = status;
+      pushBounded(browserState.syncEvents, {
+        cursor: null,
+        timestamp: Date.now(),
+        type: status,
+        url: path,
+      });
+      notifyBrowserState();
+    })
+  );
+  cleanups.push(
+    browserEvents.subscribe("sync", (event) => {
+      const cursor =
+        isObject(event?.data) && typeof event.data.cursor === "string" ? event.data.cursor : null;
+      if (cursor === null) {
+        return;
+      }
+      browserState.syncStatus = "connected";
+      pushBounded(browserState.syncEvents, {
+        cursor,
+        timestamp: Date.now(),
+        type: "cursor",
+        url: path,
+      });
+      notifyBrowserState();
+    })
+  );
+  return () => {
+    for (const cleanup of cleanups) {
+      cleanup();
     }
-    browserState.syncStatus = "connected";
-    pushBounded(browserState.syncEvents, {
-      cursor,
-      timestamp: Date.now(),
-      type: "cursor",
-      url: path,
-    });
-    notifyBrowserState();
-  });
+  };
 }
 
 function refreshBundleEntries() {
@@ -814,9 +826,6 @@ async function start() {
     if (!browserEvents || typeof browserEvents.subscribe !== "function") {
       throw new Error("Furin browser event transport is unavailable");
     }
-    cleanups.push(installFetchObserver());
-    cleanups.push(installSyncObserver(snapshot.sync, browserEvents));
-    cleanups.push(installResourceObserver());
     if (!customElements.get(ELEMENT_NAME)) {
       customElements.define(ELEMENT_NAME, FurinDevtoolsElement);
     }
@@ -826,6 +835,9 @@ async function start() {
       cleanups.push(() => element.remove());
     }
     element.setSnapshot(snapshot);
+    cleanups.push(installFetchObserver());
+    cleanups.push(installSyncObserver(snapshot.sync, browserEvents));
+    cleanups.push(installResourceObserver());
     cleanups.push(installKeyboardShortcut());
     cleanups.push(
       browserEvents.subscribe("devtools", (event) => {

@@ -20,6 +20,7 @@ interface BrowserEventRuntime {
     channel: BrowserEventEnvelope["channel"],
     listener: (event: BrowserEventEnvelope) => void
   ) => () => void;
+  subscribeStatus: (listener: (status: string) => void) => () => void;
 }
 
 class TestWebSocket extends EventTarget {
@@ -70,6 +71,8 @@ test.serial("browser event consumers share one multiplexed connection", async ()
     expect(runtime).toBeDefined();
 
     const received: BrowserEventEnvelope[] = [];
+    const statuses: string[] = [];
+    runtime?.subscribeStatus((status) => statuses.push(status));
     runtime?.subscribe("sync", (event) => received.push(event));
     runtime?.subscribe("diagnostic", (event) => received.push(event));
     runtime?.subscribe("devtools", (event) => received.push(event));
@@ -81,13 +84,15 @@ test.serial("browser event consumers share one multiplexed connection", async ()
 
     expect(received).toEqual([{ channel: "sync", data: { cursor: "42" }, version: 1 }]);
     expect(socket?.url).toBe("ws://localhost:3000/_furin/events");
+    expect(statuses).toEqual(["connecting", "connected"]);
 
     const replayed: BrowserEventEnvelope[] = [];
     runtime?.subscribe("sync", (event) => replayed.push(event));
     expect(replayed).toEqual([{ channel: "sync", data: { cursor: "42" }, version: 1 }]);
 
     socket?.serverClose();
-    await Bun.sleep(350);
+    expect(statuses.at(-1)).toBe("reconnecting");
+    await Bun.sleep(1000);
     expect(TestWebSocket.instances).toHaveLength(2);
   } finally {
     window.dispatchEvent(new window.Event("pagehide"));

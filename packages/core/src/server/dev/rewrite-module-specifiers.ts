@@ -12,7 +12,7 @@ interface RewriteModuleSpecifiersInput {
   versioned: boolean;
 }
 
-const SCRIPT_PATH_RE = /\.[cm]?[jt]sx?$/;
+const DEV_SOURCE_PATH_RE = /\.(?:jsx?|tsx?)$/;
 const MODULE_SPECIFIER_NODES = new Set([
   "ExportAllDeclaration",
   "ExportNamedDeclaration",
@@ -45,7 +45,7 @@ function relativeSpecifier(node: AstNode): AstNode | undefined {
 function resolvedSpecifier(specifier: string, directory: string, versioned: boolean): string {
   const path = versioned ? Bun.resolveSync(specifier, directory) : resolve(directory, specifier);
   const normalized = path.replaceAll("\\", "/");
-  return versioned && SCRIPT_PATH_RE.test(normalized)
+  return versioned && DEV_SOURCE_PATH_RE.test(normalized)
     ? `${normalized}?furin-server&t=${routeModuleSourceVersion(normalized)}`
     : normalized;
 }

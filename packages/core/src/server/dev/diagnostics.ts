@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEV_DIAGNOSTIC_PROTOCOL_VERSION,
   type DevDiagnostic,
@@ -8,6 +10,7 @@ import {
   type DevSourceLocation,
 } from "../../shared/dev-diagnostics.ts";
 import { type FurinInstance, instanceSlot } from "../instance.ts";
+import { buildRouteMatcher } from "../router/patterns.ts";
 import { devGraph } from "./graph.ts";
 import { symbolicateStack } from "./symbolicate.ts";
 
@@ -47,6 +50,25 @@ function displayPath(path: string): string {
   return projected.startsWith("../") ? path : projected;
 }
 
+function sourceFilePath(file: string): string {
+  if (!file.startsWith("file://")) {
+    return file;
+  }
+  try {
+    return fileURLToPath(file);
+  } catch {
+    return file;
+  }
+}
+
+function canonicalSourcePath(path: string): string {
+  try {
+    return realpathSync(path).replaceAll("\\", "/");
+  } catch {
+    return path.replaceAll("\\", "/");
+  }
+}
+
 function stackLocation(
   stack: string | undefined,
   entryPath: string
@@ -60,10 +82,10 @@ function stackLocation(
     if (!(match?.[1] && match[2] && match[3])) {
       continue;
     }
-    const file = match[1].replace(DEV_PAGE_PREFIX_RE, "").replace(QUERY_RE, "");
+    const file = sourceFilePath(match[1].replace(DEV_PAGE_PREFIX_RE, "").replace(QUERY_RE, ""));
     locations.push({
       column: Number.parseInt(match[3], 10),
-      file: file.startsWith("file://") ? file.slice("file://".length) : file,
+      file,
       line: Number.parseInt(match[2], 10),
     });
   }
@@ -87,7 +109,7 @@ function explicitLocation(error: unknown, entryPath: string): DevSourceLocation 
     file:
       typeof position.file === "string" &&
       (isAbsolute(position.file) || position.file.startsWith("file://"))
-        ? position.file
+        ? sourceFilePath(position.file)
         : entryPath,
     line: position.line,
   };
@@ -123,6 +145,10 @@ export class DevDiagnosticStore {
   #eventId = 0;
   #revision = 0;
 
+  constructor() {
+    this.#publish({ type: "ready" });
+  }
+
   get revision(): number {
     return this.#revision;
   }
@@ -137,6 +163,12 @@ export class DevDiagnosticStore {
   }
 
   publish(diagnostic: DevDiagnostic): Extract<DevDiagnosticEvent, { type: "error" }> {
+    if (
+      this.#activeError &&
+      JSON.stringify(this.#activeError.diagnostic) === JSON.stringify(diagnostic)
+    ) {
+      return this.#activeError;
+    }
     const event = this.#publish({ diagnostic, type: "error" }) as Extract<
       DevDiagnosticEvent,
       { type: "error" }
@@ -208,18 +240,35 @@ export function publishDevDiagnostic(
 export async function publishClientDiagnostic(
   store: DevDiagnosticStore,
   report: ClientErrorReport,
-  origin: string
+  origin: string,
+  instance: FurinInstance | undefined
 ): Promise<Extract<DevDiagnosticEvent, { type: "error" }>> {
   const symbolicated = await symbolicateStack({ origin, stack: report.stack });
   const location = symbolicated.location
-    ? { ...symbolicated.location, file: displayPath(symbolicated.location.file) }
+    ? {
+        ...symbolicated.location,
+        file: displayPath(sourceFilePath(symbolicated.location.file)),
+      }
     : undefined;
-  const importChain = devGraph(undefined)
-    .importChain(process.cwd(), symbolicated.location?.file ?? process.cwd())
-    .map(displayPath);
+  const graph = devGraph(instance);
+  const { snapshot } = graph;
+  const routeEntry = snapshot
+    ? buildRouteMatcher(snapshot.routes)(report.route)?.route.path
+    : undefined;
+  const sourceFile = symbolicated.location
+    ? canonicalSourcePath(sourceFilePath(symbolicated.location.file))
+    : routeEntry;
+  let importChain: readonly string[] = [];
+  if (routeEntry && sourceFile) {
+    importChain = graph.importChain(canonicalSourcePath(routeEntry), sourceFile).map(displayPath);
+  } else if (sourceFile) {
+    importChain = [displayPath(sourceFile)];
+  }
   let displayedImportChain: readonly string[] = [];
   if (importChain.length > 1) {
-    displayedImportChain = importChain.slice(1);
+    displayedImportChain = importChain;
+  } else if (routeEntry && location) {
+    displayedImportChain = [displayPath(routeEntry), location.file];
   } else if (location) {
     displayedImportChain = [location.file];
   }

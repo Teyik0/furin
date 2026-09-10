@@ -44,6 +44,15 @@ describe.serial("render/template", () => {
     expect(assets.frameworkModules).toEqual(["/_furin/dev/overlay.js"]);
   });
 
+  test("orders the browser event runtime before its framework consumers", () => {
+    const assets = documentAssetsFromTemplate(
+      '<script data-furin-framework-module="" type="module" src="/_furin/dev/overlay.js"></script>' +
+        '<script data-furin-framework-module="" type="module" src="/_furin/events/client.js"></script>'
+    );
+
+    expect(assets.frameworkModules).toEqual(["/_furin/events/client.js", "/_furin/dev/overlay.js"]);
+  });
+
   test("getProductionTemplate returns null until a template path is set", () => {
     expect(getProductionTemplate()).toBeNull();
   });

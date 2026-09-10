@@ -22,7 +22,7 @@ furin build [options]
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
-| `--compile` | `server` or `embed` | `bun.compile` | Produce a Bun executable |
+| `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
 | `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
 
 `--compile` without a value means `server`; `--compile=embed` is also accepted.

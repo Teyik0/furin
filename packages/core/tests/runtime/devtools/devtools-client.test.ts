@@ -14,6 +14,8 @@ class TestBrowserEventRuntime {
     TestBrowserEventEnvelope["channel"],
     Set<(event: TestBrowserEventEnvelope) => void>
   >();
+  readonly statusListeners = new Set<(status: string) => void>();
+  status = "connected";
 
   emit(data: unknown): void {
     this.emitChannel("devtools", data);
@@ -33,6 +35,19 @@ class TestBrowserEventRuntime {
     listeners.add(listener);
     this.listeners.set(channel, listeners);
     return () => listeners.delete(listener);
+  }
+
+  subscribeStatus(listener: (status: string) => void): () => void {
+    this.statusListeners.add(listener);
+    listener(this.status);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  updateStatus(status: string): void {
+    this.status = status;
+    for (const listener of this.statusListeners) {
+      listener(status);
+    }
   }
 }
 
@@ -72,7 +87,7 @@ test.serial(
           lastEventId: 0,
           routes: [],
           sync: { changesPath: null, enabled: false },
-          version: 1,
+          version: 2,
         })
       )) as unknown as typeof window.fetch;
     performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
@@ -153,7 +168,7 @@ test.serial("native DevTools observes sync on the shared browser event transport
         lastEventId: 0,
         routes: [],
         sync: { changesPath: "/_furin/sync/changes", enabled: true },
-        version: 1,
+        version: 2,
       })
     )) as unknown as typeof window.fetch;
   performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
@@ -161,14 +176,18 @@ test.serial("native DevTools observes sync on the shared browser event transport
   try {
     await import(`../../../src/devtools/devtools-element.js?sync=${Date.now()}`);
     await waitForDom(() => document.querySelector("furin-devtools") !== null, undefined);
-    browserEvents.emitChannel("sync", { cursor: "42" });
 
     const root = document.querySelector("furin-devtools")?.shadowRoot;
     root?.querySelector<HTMLButtonElement>('[data-action="toggle"]')?.click();
     root?.querySelector<HTMLButtonElement>('[data-tab="sync"]')?.click();
 
+    expect(root?.querySelector("main")?.textContent).toContain("connected");
+    browserEvents.emitChannel("sync", { cursor: "42" });
+
     expect(root?.querySelector("main")?.textContent).toContain("42");
     expect(root?.querySelector("main")?.textContent).toContain("connected");
+    browserEvents.updateStatus("reconnecting");
+    expect(root?.querySelector("main")?.textContent).toContain("reconnecting");
   } finally {
     cleanupDevtoolsRuntime();
     await uninstallDom();
@@ -210,7 +229,7 @@ test.serial("native DevTools only correlates the exact same-origin data endpoint
         lastEventId: 0,
         routes: [],
         sync: { changesPath: null, enabled: false },
-        version: 1,
+        version: 2,
       })
     );
   }) as typeof window.fetch;
@@ -252,7 +271,7 @@ test.serial(
           lastEventId: 0,
           routes: [],
           sync: { changesPath: null, enabled: false },
-          version: 1,
+          version: 2,
         })
       )) as unknown as typeof window.fetch;
     const unavailableBrowserEvents = {
@@ -288,7 +307,7 @@ test.serial("native DevTools rejects malformed snapshots and browser events", as
     lastEventId: 0,
     routes: [],
     sync: { changesPath: null, enabled: false },
-    version: 1,
+    version: 2,
   };
   window.fetch = (() => Promise.resolve(Response.json(snapshot))) as unknown as typeof window.fetch;
   performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
@@ -306,7 +325,7 @@ test.serial("native DevTools rejects malformed snapshots and browser events", as
       requestId: "request",
       timestamp: Date.now(),
       type: "cache.access",
-      version: 1,
+      version: 2,
     });
 
     const root = document.querySelector("furin-devtools")?.shadowRoot;

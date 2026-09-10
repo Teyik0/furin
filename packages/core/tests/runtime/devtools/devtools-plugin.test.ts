@@ -80,7 +80,7 @@ describe("native DevTools plugin", () => {
     const serialized = JSON.stringify(snapshot);
 
     expect(response.status).toBe(200);
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.version).toBe(2);
     expect(snapshot.routes).toEqual([
       {
         file: "src/pages/blog/[slug].tsx",

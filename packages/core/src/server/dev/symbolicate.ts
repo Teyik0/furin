@@ -19,6 +19,8 @@ interface SymbolicatedStack {
 const STACK_FRAME_RE =
   /^\s*at\s+(?:(.*?)\s+\()?((?:https?:\/\/|file:\/\/|bun:\/\/).+):(\d+):(\d+)\)?$/;
 const SOURCE_MAP_RE = /\/\/[#@]\s*sourceMappingURL=([^\s]+)/;
+const BUN_ROOT_CHUNK_RE = /^\/chunk-[^/]+\.js$/;
+const SOURCE_MAP_CACHE_LIMIT = 100;
 const sourceMaps = new Map<string, Promise<TraceMap | undefined>>();
 
 function parseGeneratedFrames(stack: string | undefined): readonly GeneratedFrame[] {
@@ -73,7 +75,10 @@ async function loadSourceMap(url: URL, origin: string): Promise<TraceMap | undef
 
 function sourceMapFor(generatedUrl: string, origin: string): Promise<TraceMap | undefined> {
   const url = new URL(generatedUrl);
-  if (url.origin !== origin || !url.pathname.includes("/_bun/")) {
+  if (
+    url.origin !== origin ||
+    !(url.pathname.includes("/_bun/") || BUN_ROOT_CHUNK_RE.test(url.pathname))
+  ) {
     return Promise.resolve(undefined);
   }
   const registered = sourceMaps.get(url.href);
@@ -81,6 +86,12 @@ function sourceMapFor(generatedUrl: string, origin: string): Promise<TraceMap | 
     return registered;
   }
   const pending = loadSourceMap(url, origin).catch(() => undefined);
+  if (sourceMaps.size >= SOURCE_MAP_CACHE_LIMIT) {
+    const oldest = sourceMaps.keys().next().value;
+    if (oldest !== undefined) {
+      sourceMaps.delete(oldest);
+    }
+  }
   sourceMaps.set(url.href, pending);
   return pending;
 }

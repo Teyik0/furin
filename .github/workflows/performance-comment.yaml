@@ -9,6 +9,10 @@ permissions:
   actions: read
   pull-requests: write
 
+concurrency:
+  group: performance-comment-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: true
+
 jobs:
   comment:
     name: Update performance results comment
@@ -19,7 +23,6 @@ jobs:
 
     steps:
       - name: Download performance report
-        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -50,9 +53,11 @@ jobs:
               return;
             }
 
-            const report = fs.existsSync(reportPath)
-              ? fs.readFileSync(reportPath, "utf8").trim()
-              : `${marker}\n## Furin performance budgets\n\nThe performance report was not produced.`;
+            if (!fs.existsSync(reportPath)) {
+              core.setFailed("The downloaded artifact does not contain budgets.md.");
+              return;
+            }
+            const report = fs.readFileSync(reportPath, "utf8").trim();
             const body = `${report}\n\n[View performance workflow run](${runUrl})\n`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               ...context.repo,
@@ -64,6 +69,15 @@ jobs:
                 comment.user?.login === "github-actions[bot]" &&
                 comment.body?.includes(marker)
             );
+
+            const { data: latestPullRequest } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: pullRequest.number,
+            });
+            if (latestPullRequest.head.sha !== workflowRun.head_sha) {
+              core.info("Skipping a performance report superseded before publication.");
+              return;
+            }
 
             if (existing) {
               await github.rest.issues.updateComment({

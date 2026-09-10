@@ -36,15 +36,27 @@ function openSyncSocket(baseUrl: string): {
 } {
   const socket = new WebSocket(`${baseUrl.replace("http", "ws")}/_furin/events`);
   const queued: SyncEnvelope[] = [];
-  const waiting: Array<(event: SyncEnvelope) => void> = [];
+  const waiting = new Set<{
+    reject: (error: Error) => void;
+    resolve: (event: SyncEnvelope) => void;
+  }>();
+  const rejectWaiting = (message: string): void => {
+    for (const waiter of waiting) {
+      waiter.reject(new Error(message));
+    }
+    waiting.clear();
+  };
+  socket.addEventListener("close", () => rejectWaiting("Browser events closed"));
+  socket.addEventListener("error", () => rejectWaiting("Browser events failed"));
   socket.addEventListener("message", (message) => {
     const event = JSON.parse(String(message.data)) as SyncEnvelope;
     if (event.channel !== "sync") {
       return;
     }
-    const resolve = waiting.shift();
-    if (resolve) {
-      resolve(event);
+    const waiter = waiting.values().next().value;
+    if (waiter) {
+      waiting.delete(waiter);
+      waiter.resolve(event);
     } else {
       queued.push(event);
     }
@@ -56,12 +68,12 @@ function openSyncSocket(baseUrl: string): {
       if (event) {
         return Promise.resolve(event);
       }
+      if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+        return Promise.reject(new Error("Browser events closed"));
+      }
       return withTimeout(
         new Promise<SyncEnvelope>((resolve, reject) => {
-          waiting.push(resolve);
-          socket.addEventListener("error", () => reject(new Error("Browser events failed")), {
-            once: true,
-          });
+          waiting.add({ reject, resolve });
         }),
         "the sync browser event",
         EVENT_TIMEOUT_MS

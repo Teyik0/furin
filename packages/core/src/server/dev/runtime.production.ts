@@ -1,6 +1,6 @@
 import { type AnyElysia, Elysia } from "elysia";
 
-export function createDevDiagnosticPlugin(_store: undefined): AnyElysia {
+export function createDevDiagnosticPlugin(_store: undefined, _instance: unknown): AnyElysia {
   return new Elysia();
 }
 

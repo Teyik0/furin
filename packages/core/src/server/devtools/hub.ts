@@ -22,11 +22,11 @@ export function devtoolsInstanceId(): string {
   return Bun.hash(`${instance.prefix}\0${instance.pagesDir}`).toString(16);
 }
 
-export function devtoolsEventsSnapshot(): {
+export function devtoolsEventsSnapshot(instance?: FurinInstance): {
   events: DevtoolsServerEvent[];
   lastEventId: number;
 } {
-  const hub = instanceDevtoolsHub();
+  const hub = instanceDevtoolsHub(instance);
   return { events: [...hub.events], lastEventId: hub.sequence };
 }
 
