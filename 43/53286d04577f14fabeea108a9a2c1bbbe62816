@@ -1,0 +1,42 @@
+packages/core/src/client/router/provider.tsx
+  s_71818baed60430::t_86bf4943033f24 41,46
+  s_71818baed60430::t_b2bdf912d85446 127
+  s_71818baed60430::t_d5a8d459164085 97
+  s_71818baed60430::t_bf78f9974676dd 42-45,47-48
+examples/task-manager/src/components/ui/kanban.tsx
+  s_71818baed60430::t_4655220b650601 15-40
+packages/core/src/client/router/search/index.ts
+  s_71818baed60430::t_568402ce891d65 79
+  s_71818baed60430::t_ae80fcf3a551ed 2
+  s_71818baed60430::t_d46bd692e9ba01 52
+packages/core/src/build/ssg-cache.ts
+  s_71818baed60430::t_e47b4d127e2599 16-18,20,25
+  s_71818baed60430::t_2aaa9c6147df6b 19,21-24,29-36,39
+apps/docs/src/components/hero-section.tsx
+  s_71818baed60430::t_53d7e0139b9827 32
+packages/core/src/client/link.tsx
+  s_71818baed60430::t_a7ddbd47e4f65b 21-28
+packages/core/src/adapter/static.ts
+  s_71818baed60430::t_5a68d3d20b8bfd 189
+  s_71818baed60430::t_637612e71e843b 187
+  s_71818baed60430::t_087d743898baa7 190,201,203
+packages/core/src/build/route-types.ts
+  s_71818baed60430::t_5a763fa7740d83 121
+  s_71818baed60430::t_052eda62fd8079 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4353286d04577f14fabeea108a9a2c1bbbe62816",
+  "prompts": {},
+  "sessions": {
+    "s_71818baed60430": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_13b19485dffeJYw4AD4CkEixc7",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

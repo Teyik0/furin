@@ -1,0 +1,53 @@
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_134d8def1194c6::t_6134e91205c076 289-305
+  s_134d8def1194c6::t_82c3322b9fc1f2 313-317,319-323
+  s_134d8def1194c6::t_2c91952e98f399 318,589
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_134d8def1194c6::t_b04ab52ca09082 263-265,271,284,323-324
+  s_134d8def1194c6::t_18c3b44294caf4 109-125,139-145,151
+  s_134d8def1194c6::t_daafddb7b58ca4 5,294-322
+  s_134d8def1194c6::t_a2f7c7e67a147b 38
+  s_134d8def1194c6::t_c92b8997480735 285
+  s_134d8def1194c6::t_b4bf8f910e89cf 146-150
+  s_134d8def1194c6::t_86debaa8d87ff5 152
+packages/core/src/plugin/transform-client.ts
+  s_134d8def1194c6::t_2c91952e98f399 354
+packages/core/src/plugin/index.ts
+  s_134d8def1194c6::t_0e7b27694e06ff 1,7,56,69
+packages/core/src/server/lang-detect.ts
+  s_134d8def1194c6::t_0e7b27694e06ff 19-23
+packages/core/src/build/client.ts
+  s_134d8def1194c6::t_0e7b27694e06ff 5,12,65,86
+packages/core/src/plugin/transform-isomorphic.ts
+  s_134d8def1194c6::t_062c7c5cbdb190 397-399
+  s_134d8def1194c6::t_2c91952e98f399 384
+  s_134d8def1194c6::t_93fd3eaad320a7 257-258,260-265,271,277,315-316,326-331,364-366
+  s_134d8def1194c6::t_2abdfb825540f2 238,333-335
+  s_134d8def1194c6::t_0e7b27694e06ff 4-8,15,396,401
+packages/core/src/plugin/dead-code-elimination.ts
+  s_134d8def1194c6::t_f2769092cd04dd 183-184,191
+  s_134d8def1194c6::t_987064ac51c8bb 98-107
+  s_134d8def1194c6::t_ad458aaaabc7bb 185-187
+  s_134d8def1194c6::t_2c91952e98f399 147-151,162-167,188-190,192-195
+  s_134d8def1194c6::t_e035c0a61f9958 108-109
+packages/core/src/plugin/binding-scope.ts
+  s_134d8def1194c6::t_77d00a12d42447 130-148,155-156
+packages/core/src/adapter/package.ts
+  s_134d8def1194c6::t_a33584ea0e2fd4 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "dc5893edffb6338012a9d6d341676a99c6b02dc6",
+  "prompts": {},
+  "sessions": {
+    "s_134d8def1194c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f990f-4cd7-7a01-bd9e-20c2f04494ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

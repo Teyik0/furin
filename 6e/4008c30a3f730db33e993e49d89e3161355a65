@@ -1,0 +1,67 @@
+packages/core/src/server/render/ssr.ts
+  s_290636e8db1283::t_2e4c5086bbb4f9 12
+packages/core/tests/render-element-boundaries.test.tsx
+  s_290636e8db1283::t_e30c1bdb8c9fa1 20
+packages/core/src/client/router/spa-response.ts
+  s_290636e8db1283::t_3b4a204c675a6a 4
+packages/core/tests/router/e2e-inline-layout.test.ts
+  s_290636e8db1283::t_ebca8d7fd0bfff 5
+packages/core/src/server/render/element.tsx
+  s_290636e8db1283::t_a16c0f4f0cdb52 31
+  s_290636e8db1283::t_c23d12fce9abe2 41
+packages/core/src/client/default-screens.tsx
+  s_290636e8db1283::t_349d138f109115 20-22
+packages/core/tests/link-boundaries.test.tsx
+  s_290636e8db1283::t_2e4c5086bbb4f9 20
+packages/core/src/server/router/discovery.ts
+  s_290636e8db1283::t_b88b9306218979 13
+packages/core/tests/router/hydration-order.test.ts
+  s_290636e8db1283::t_ebca8d7fd0bfff 5
+packages/core/tests/router/validation.test.ts
+  s_290636e8db1283::t_ebca8d7fd0bfff 11
+packages/core/src/server/render/ssg.ts
+  s_290636e8db1283::t_b88b9306218979 1
+packages/core/src/server/router/hmr.ts
+  s_290636e8db1283::t_b88b9306218979 4
+packages/core/tests/link.test.tsx
+  s_290636e8db1283::t_2e4c5086bbb4f9 6
+packages/core/src/adapter/static.ts
+  s_290636e8db1283::t_b88b9306218979 12
+apps/docs/src/lib/rehype-shiki.ts
+  s_290636e8db1283::t_db664bf7e742cc 25
+packages/core/tests/render-boundaries.test.tsx
+  s_290636e8db1283::t_e30c1bdb8c9fa1 24-25
+packages/core/tests/router/route-chain-layouts.test.ts
+  s_290636e8db1283::t_ebca8d7fd0bfff 8
+packages/core/src/server/render/isr.ts
+  s_290636e8db1283::t_2e4c5086bbb4f9 3
+examples/task-manager/tests/boards-invalidation.test.ts
+  s_290636e8db1283::t_092303c2af24e9 3
+packages/core/src/client/boundaries.tsx
+  s_290636e8db1283::t_662b3d4d0a15ec 2-4,6
+  s_290636e8db1283::t_01cdc1741b9585 187-259
+packages/core/src/shared/utils/index.ts
+  s_290636e8db1283::t_b88b9306218979 1
+packages/core/tests/render-digest.test.ts
+  s_290636e8db1283::t_e30c1bdb8c9fa1 7
+packages/core/tests/types.test.tsx
+  s_290636e8db1283::t_2e4c5086bbb4f9 18-22
+packages/core/src/client/router/boundary-tree.tsx
+  s_290636e8db1283::t_0a553e3544817b 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6e4008c30a3f730db33e993e49d89e3161355a65",
+  "prompts": {},
+  "sessions": {
+    "s_290636e8db1283": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d07d4866-69ee-44da-a26b-979df6369d04",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

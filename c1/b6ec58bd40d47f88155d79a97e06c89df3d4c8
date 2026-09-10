@@ -1,0 +1,90 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 53-56
+.github/workflows/hmr-soak.yaml
+  h_a2cbd1b0e3ae6e 1-41
+apps/docs/package.json
+  h_a2cbd1b0e3ae6e 33
+apps/docs/src/content/docs/dev-hmr.mdx
+  h_a2cbd1b0e3ae6e 138-142,267-308
+apps/scaffolder/package.json
+  h_a2cbd1b0e3ae6e 26
+bun.lock
+  h_a2cbd1b0e3ae6e 13,36,62,79,111,119,122-124,153-158,167,185,189,191,251,253,323,329,335,367,373,385,389,391,393,399-401,403,405,407,409,411,413,415,417,419,421,423-429,671,673,675,677,679,749,751,753,761,803,839-841,843,845,847,849,851,853,855,857,859,861,863,865,867,883,889,901,905,909,915,923,939,961,963,965,1001,1009,1017,1027,1029,1041,1063,1099,1103,1111,1113,1121,1123,1183,1223,1227-1228,1241,1245,1297-1298,1355-1356,1433,1435,1451,1455,1503,1581-1583,1641,1643,1657,1663,1675,1693,1715,1729,1731,1739,1749,1751,1753,1759-1762,1787,1789,1807-1808,1813-1817,1945-1947,1949,1951,1953,1955,1957,1959,1961,1963,1965,1967,1969,1971,1973,1975,1977,1979,1981,1983,1985,1987,1989,1991,1993,1995,1997
+examples/task-manager/e2e/task-manager.e2e.ts
+  h_a2cbd1b0e3ae6e 101,108
+examples/task-manager/package.json
+  h_a2cbd1b0e3ae6e 28
+package.json
+  h_a2cbd1b0e3ae6e 36
+packages/core/package.json
+  h_a2cbd1b0e3ae6e 3,137-138,144,147-149
+packages/core/src/build/hydrate.ts
+  h_a2cbd1b0e3ae6e 164-180,333,351
+packages/core/src/client/hmr.ts
+  h_a2cbd1b0e3ae6e 1,3-4,7,9,15-27,47-51,56,58-59
+packages/core/src/client/router/provider.tsx
+  h_a2cbd1b0e3ae6e 81,96-101,106,198-199,220-226,381,400,411,426,477-479,541,545-549,570,598,630-632,903,935
+packages/core/src/client/router/types.ts
+  h_a2cbd1b0e3ae6e 13,218-219,247
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 768-775
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 55,70,310,399-421,444,456,476
+packages/core/src/plugin/transform-client.ts
+  h_a2cbd1b0e3ae6e 13,15,191-499,521-538,540-544
+packages/core/src/server/render/element.tsx
+  h_a2cbd1b0e3ae6e 89-105,130
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 107-116,118-120,132,135,153-157,160-161,251,253,260
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 40,93-94,132,136-143,211,222,226,229-230,233,235,239,242-243,246,299,306,312,317,320,384,390,399,401,404,409,450,473,475,487-491,773-779,796,798,804,808,815-817
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 36-39,103,132-149,259,261,286-293
+packages/core/tests/README.md
+  h_a2cbd1b0e3ae6e 83-93,106
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  h_a2cbd1b0e3ae6e 1-2202
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  h_a2cbd1b0e3ae6e 496-503
+packages/core/tests/build/hydrate/transform-client.test.ts
+  h_a2cbd1b0e3ae6e 31-228,284-296
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  h_a2cbd1b0e3ae6e 223-228
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  h_a2cbd1b0e3ae6e 4-11,14-15,44-47,78-79,135-189
+packages/core/tests/client/hmr-component.test.ts
+  h_a2cbd1b0e3ae6e 2-3,24,37
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  h_a2cbd1b0e3ae6e 117
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  h_a2cbd1b0e3ae6e 194-212
+packages/core/tests/rendering/errors/render-error.test.ts
+  h_a2cbd1b0e3ae6e 461-486
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  h_a2cbd1b0e3ae6e 158
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  h_a2cbd1b0e3ae6e 333
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  h_a2cbd1b0e3ae6e 1,8,200-302
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  h_a2cbd1b0e3ae6e 132-161
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  h_a2cbd1b0e3ae6e 131
+packages/core/tests/support/hmr-proxy.test.ts
+  h_a2cbd1b0e3ae6e 1-65
+packages/core/tests/support/hmr-proxy.ts
+  h_a2cbd1b0e3ae6e 1-77
+packages/core/tests/support/process.ts
+  h_a2cbd1b0e3ae6e 18,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1b6ec58bd40d47f88155d79a97e06c89df3d4c8",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

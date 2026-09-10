@@ -1,0 +1,47 @@
+packages/core/tests/router/route-plugin.test.ts
+  8a988c28418985c7 16-21,45
+examples/simple/src/components/comments-section.tsx
+  8a988c28418985c7 95-101,103,114,128-132
+examples/simple/src/api/auth.ts
+  8a988c28418985c7 33
+packages/core/src/furin.ts
+  8a988c28418985c7 170,172,175,177-178,239-245
+examples/simple/src/content/docs/layouts.mdx
+  8a988c28418985c7 75,92-94
+packages/core/src/build/hydrate.ts
+  8a988c28418985c7 67-78
+packages/core/src/router.ts
+  8a988c28418985c7 150-153
+packages/core/src/render/shell.ts
+  8a988c28418985c7 135
+doc/dev-hmr.md
+  8a988c28418985c7 5,15,30
+packages/core/tests/router/route-chain-layouts.test.ts
+  8a988c28418985c7 14-19
+examples/simple/.env.example
+  8a988c28418985c7 1
+packages/core/src/build/client.ts
+  8a988c28418985c7 120
+examples/simple/src/lib/rehype-shiki.ts
+  8a988c28418985c7 45-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "9cb68c9ccc7ffd45bee37cfaa0b9268e4d674104",
+  "prompts": {
+    "8a988c28418985c7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa09f04d-885b-4fc0-80e6-d7d00fbfeb72",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 102,
+      "total_deletions": 37,
+      "accepted_lines": 83,
+      "overriden_lines": 3
+    }
+  }
+}

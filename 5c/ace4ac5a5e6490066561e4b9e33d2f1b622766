@@ -1,0 +1,31 @@
+packages/core/src/render/loaders.ts
+  cdf2504c697884d8 18-25,27
+README.md
+  cdf2504c697884d8 311-387,539,549,552
+examples/simple/src/pages/dashboard/posts/route.tsx
+  cdf2504c697884d8 7-9,11-12
+examples/simple/src/pages/blog/[slug].tsx
+  cdf2504c697884d8 13,17-20,76
+packages/core/src/client.ts
+  cdf2504c697884d8 195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "5cace4ac5a5e6490066561e4b9e33d2f1b622766",
+  "prompts": {
+    "cdf2504c697884d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee34f3cf-4240-4f95-a665-7781024e38af",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 122,
+      "total_deletions": 20,
+      "accepted_lines": 111,
+      "overriden_lines": 1
+    }
+  }
+}

@@ -1,0 +1,87 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_ed2db40261a6c0::t_c03cf32276b535 29,33,55,67,145-156,165,172,176,178,180,182,186,188,196-199
+apps/docs/src/content/docs/error-handling.mdx
+  s_ed2db40261a6c0::t_a3a03b56385f30 49-54
+apps/docs/src/content/docs/routing.mdx
+  s_ed2db40261a6c0::t_87e3e41f01ce00 135-145
+examples/task-manager/tests/board-card.test.tsx
+  s_ed2db40261a6c0::t_93e0f2e0b4416d 11,40-51,55-58,66
+packages/core/src/build/hydrate.ts
+  s_ed2db40261a6c0::t_cda23a846fa531 425
+packages/core/src/build/shared.ts
+  s_ed2db40261a6c0::t_2a355ae0dde3ee 5,60
+packages/core/src/client/dev-error-overlay.js
+  s_ed2db40261a6c0::t_91abfab9dde79b 1-241
+packages/core/src/furin.ts
+  s_ed2db40261a6c0::t_56f61c454078e5 11-13,473-483,487,642-651,670-689,711-720,742-746,765-766,773,784,821
+packages/core/src/plugin/routes.ts
+  s_ed2db40261a6c0::t_20ea5284aca569 1-10,32-33,61,66-67,69,73,275,284-288,291-292,312-313,317,320-322,328-330,334-395,400-402,410,431,435-441,450,452-453,455,459,461-462,467-473
+packages/core/src/server/cache/dev-loader.ts
+  s_ed2db40261a6c0::t_255206a33fc059 4,10,92-111,139,145,149,155,184,221,285,289
+packages/core/src/server/dev-page-plugin.ts
+  s_ed2db40261a6c0::t_6ed1d260e7b11d 60-61,64,338-377,388-390,392-404,406-409
+packages/core/src/server/dev/error.ts
+  s_ed2db40261a6c0::t_73ca63a8deb592 1-148
+packages/core/src/server/dev/graph.ts
+  s_ed2db40261a6c0::t_9c096ec1a3247e 1-438
+packages/core/src/server/dev/plugin.ts
+  s_ed2db40261a6c0::t_8c71d1ed4a28d9 1-79
+packages/core/src/server/devtools/instrumentation.ts
+  s_ed2db40261a6c0::t_13145bfea6c9e6 13,50-53,57,68-72,76-77
+packages/core/src/server/render/isr.ts
+  s_ed2db40261a6c0::t_a62a1660398b95 20,203
+packages/core/src/server/render/ppr-route.ts
+  s_ed2db40261a6c0::t_90c7f26f923d3b 7,90
+packages/core/src/server/render/ssr.ts
+  s_ed2db40261a6c0::t_e6360a573746c0 198-201,217-219
+packages/core/src/server/router/hmr.ts
+  s_ed2db40261a6c0::t_684fa19cc88afe 17-20,27,43,48,215-262,322,332,335-338,341-344,346-349,376,379,381,396,422,425,442
+packages/core/src/server/router/patterns.ts
+  s_ed2db40261a6c0::t_1907d01de568af 18-21,25
+packages/core/src/server/router/source-version.ts
+  s_ed2db40261a6c0::t_00384186930ca4 1,4,8
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_ed2db40261a6c0::t_89d8252b581dfa 453-490,840-865,958-984,1682,1690,1692-1696,1977-2013
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_ed2db40261a6c0::t_3cb6c5cad782b5 490-497
+packages/core/tests/client/sync/sync-client.test.tsx
+  s_ed2db40261a6c0::t_46b2ec2a9c1866 2,30,40,61,71
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  s_ed2db40261a6c0::t_33a1b28a6c660a 1-136
+packages/core/tests/dev/hmr/dev-error-payload.test.ts
+  s_ed2db40261a6c0::t_7c0d272ad624e3 1-67
+packages/core/tests/dev/hmr/dev-error-pipeline.integration.test.ts
+  s_ed2db40261a6c0::t_b6535e271b61e6 1-246
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  s_ed2db40261a6c0::t_d7f9d56421899d 1-149
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_ed2db40261a6c0::t_800bae15d9d3dc 42-60
+packages/core/tests/dev/hmr/dev-route-typegen-watch.integration.test.ts
+  s_ed2db40261a6c0::t_4d52efcadc3cc4 1-166
+packages/core/tests/rendering/document/document-root.test.tsx
+  s_ed2db40261a6c0::t_660f42d23a6d17 128,144-146,175,186-187,207-208,228-229
+packages/core/tests/rendering/templates/render-template.test.ts
+  s_ed2db40261a6c0::t_0483ad34e5bbaf 80,90,102-104,112-113
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_ed2db40261a6c0::t_66a5523f49dce1 52-55,58-73
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_ed2db40261a6c0::t_522567441a9b3f 451-498
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_ed2db40261a6c0::t_4deea7fc722790 68-71,74,98-99,105,112-114,120-122,124-125,132-133,139,143,150-153,155,161-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "76008aea6a57770730d55a8e556a3d84c17f1129",
+  "prompts": {},
+  "sessions": {
+    "s_ed2db40261a6c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d20-171e-77b0-9c39-8b30f9aefcfb",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

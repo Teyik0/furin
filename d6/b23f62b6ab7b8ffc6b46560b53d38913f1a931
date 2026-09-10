@@ -1,0 +1,14 @@
+examples/task-manager/tests/board-card.test.tsx
+  h_a2cbd1b0e3ae6e 11,40-51,55-58,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d6b23f62b6ab7b8ffc6b46560b53d38913f1a931",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+packages/core/src/build/hydrate.ts
+  d85976e26e923cbf 119-129,135,140,145-164,166-173,175-178,180-181,183-186,188-189,191
+packages/core/src/render/boundaries.tsx
+  848295e6dbed8f51 4,7-8,12,22-27,47-52,69-73,76-79,89-98,102,110-118,121
+packages/core/tests/render-boundaries.test.tsx
+  848295e6dbed8f51 27,30,44,47,55,58-67,69-70,75,91-93,276-279,285
+packages/core/tests/render-error.test.ts
+  848295e6dbed8f51 123,152,210,242,261,272-278
+packages/core/src/render/digest.ts
+  848295e6dbed8f51 21-33
+packages/core/src/render/default-screens.tsx
+  848295e6dbed8f51 1-163,165-170,172-177,179,183-187,189-255,257-267,269,271-284,286-292,294,296-299
+  8ec26648d0953b0f 256,285
+packages/core/tests/furinjs-not-found.test.ts
+  9bd14491318a4a08 17-18,126-145
+  848295e6dbed8f51 51-57,74,76-110,124
+CLAUDE.md
+  848295e6dbed8f51 1,10
+packages/core/src/link.tsx
+  848295e6dbed8f51 17,502
+  d85976e26e923cbf 353-371,832,840-844,847-848,861-867,1228-1253
+  9bd14491318a4a08 9,382-392,400-409,513-516,520,523,868-884,897-925,981,1053,1140,1222-1227
+packages/core/src/furin.ts
+  848295e6dbed8f51 249-256,302-304
+  9bd14491318a4a08 257,259,305,307
+packages/core/src/render/index.ts
+  9bd14491318a4a08 397-415,417-437,449-452
+packages/core/tests/link.test.tsx
+  9bd14491318a4a08 752-754,834,836,841-844,846-847,857,859
+packages/core/tests/render-not-found.test.ts
+  848295e6dbed8f51 151
+packages/core/src/render/element.tsx
+  848295e6dbed8f51 7,81-82,93-94
+examples/task-manager/furin-env.d.ts
+  d85976e26e923cbf 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "b7bf53adbc8722c14641539597620dd5b95d3210",
+  "prompts": {
+    "085375d1be15a84f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d39da1c1-5b9b-435d-ad73-2b1d8391555b",
+        "model": "<synthetic>"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 20,
+      "overriden_lines": 2
+    },
+    "848295e6dbed8f51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "17a5e16b-3f19-4fcd-bbd1-9b09131d9731",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1627,
+      "total_deletions": 1237,
+      "accepted_lines": 448,
+      "overriden_lines": 11
+    },
+    "8ec26648d0953b0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "130d9fcd-3dbd-49fb-afab-a7b919016d2b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 1078,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "9bd14491318a4a08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7a51333-ef27-47a5-b525-39c39509653b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1262,
+      "total_deletions": 46,
+      "accepted_lines": 167,
+      "overriden_lines": 0
+    },
+    "d85976e26e923cbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b1bb953-83db-4b69-a1d9-c1f9037b0f87",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 1120,
+      "accepted_lines": 115,
+      "overriden_lines": 0
+    }
+  }
+}

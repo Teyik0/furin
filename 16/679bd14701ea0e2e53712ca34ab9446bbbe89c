@@ -1,0 +1,36 @@
+packages/core/tests/hydrate-entry.test.ts
+  3ea8e82d35023957 65-68,94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "16679bd14701ea0e2e53712ca34ab9446bbbe89c",
+  "prompts": {
+    "3ea8e82d35023957": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97dd438f-192b-457b-b549-255b7f913593",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 365,
+      "total_deletions": 4,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "4c8081d4486a016a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "773b038d-714d-47fd-8769-03674157e377",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 2
+    }
+  }
+}
