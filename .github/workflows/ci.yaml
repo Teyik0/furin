@@ -75,3 +75,130 @@ jobs:
         working-directory: packages/core
         if: github.event_name == 'pull_request'
         run: bunx pkg-pr-new publish
+
+  performance:
+    name: Performance budgets
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache bun
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.4.2-${{ hashFiles('bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Build PR performance report
+        run: bun scripts/build-performance-report.ts "$GITHUB_WORKSPACE" "$RUNNER_TEMP/furin-performance/head.json"
+
+      - name: Check baseline support
+        id: baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git grep --quiet -- '--analyze' "$BASE_SHA" -- packages/core/src/cli/index.ts; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build baseline performance report
+        if: steps.baseline.outputs.available == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/furin-base" "$BASE_SHA"
+          bun scripts/build-performance-report.ts "$RUNNER_TEMP/furin-base" "$RUNNER_TEMP/furin-performance/base.json"
+
+      - name: Enforce performance budgets
+        if: steps.baseline.outputs.available == 'true'
+        run: |
+          set +e
+          bun scripts/compare-performance-reports.ts \
+            "$RUNNER_TEMP/furin-performance/base.json" \
+            "$RUNNER_TEMP/furin-performance/head.json" \
+            "$RUNNER_TEMP/furin-performance/budgets.md"
+          comparison_status=$?
+          set -e
+          cat "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$comparison_status"
+
+      - name: Bootstrap performance baseline
+        if: steps.baseline.outputs.available != 'true'
+        run: |
+          {
+            echo "## Furin performance budgets"
+            echo
+            echo "The target branch cannot produce a compatible metafile yet. This PR establishes the baseline; comparisons become blocking once it lands."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install benchmark tools
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2
+        with:
+          tool: hyperfine,oha
+
+      - name: Collect runtime diagnostics
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/furin-performance/profiles"
+          hyperfine \
+            --export-json "$RUNNER_TEMP/furin-performance/startup.json" \
+            --runs 10 \
+            --style basic \
+            --warmup 2 \
+            "bun scripts/probe-server-startup.ts examples/weather/.furin/build/bun/server" \
+            | tee "$RUNNER_TEMP/furin-performance/startup.txt"
+
+          bun run --cwd examples/weather furin build --target bun
+          client_asset="$(find examples/weather/.furin/build/bun/client -maxdepth 1 -name '*.js' -print -quit)"
+          client_url="http://127.0.0.1:32110/_client/$(basename "$client_asset")"
+          BUN_OPTIONS="--cpu-prof-md --cpu-prof-dir=$RUNNER_TEMP/furin-performance/profiles --heap-prof-md --heap-prof-dir=$RUNNER_TEMP/furin-performance/profiles" \
+            PORT=32110 \
+            bun -e 'setTimeout(() => process.exit(0), 10_000); await import("./examples/weather/.furin/build/bun/server.js");' \
+            > "$RUNNER_TEMP/furin-performance/server.log" 2>&1 &
+          server_pid=$!
+
+          ready=false
+          for attempt in $(seq 1 200); do
+            if curl --silent --output /dev/null "$client_url"; then
+              ready=true
+              break
+            fi
+            sleep 0.05
+          done
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/furin-performance/server.log"
+            exit 1
+          fi
+
+          oha --json -z 5s -c 20 "$client_url" > "$RUNNER_TEMP/furin-performance/load.json"
+          wait "$server_pid"
+
+          {
+            echo
+            echo "## Runtime diagnostics"
+            echo
+            echo "Startup and load profiles are informational while runner variance is being established."
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/furin-performance/startup.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload performance artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: furin-performance
+          path: ${{ runner.temp }}/furin-performance

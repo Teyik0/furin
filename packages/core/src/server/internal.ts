@@ -8,8 +8,8 @@ import { __clearInstanceRegistry } from "./instance.ts";
 // to resolve modules and assets from the binary instead of the filesystem.
 
 export interface EmbeddedAppData {
-  assets: Record<string, string>;
-  template: string;
+  clientDir: string;
+  publicDir?: string;
 }
 
 export interface CompileContextRoute {

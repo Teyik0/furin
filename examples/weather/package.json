@@ -7,7 +7,7 @@
     "build": "furin build --target bun --compile embed",
     "dev": "bun --hot src/server.ts",
     "fix": "ultracite fix",
-    "measure:client": "furin build --target bun && bun ../../scripts/measure-client-bundle.ts .furin/build/bun/client/index.html",
+    "measure:client": "furin build --target bun --analyze && bun ../../scripts/measure-client-bundle.ts .furin/build/analysis/bun-client.json .furin/build/bun/client",
     "start": "./.furin/build/bun/server",
     "tscheck": "tsc --noEmit"
   },

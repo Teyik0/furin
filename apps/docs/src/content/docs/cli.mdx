@@ -20,6 +20,7 @@ bunx furin build [options]
 | `--pagesDir` | `string` | from config | Override pages directory |
 | `--config` | `string` | `furin.config.ts` | Config file path |
 | `--compile` | `"server" \| "embed"` | from config | Compile to native binary |
+| `--analyze` | `boolean` | `false` | Write complete client metafiles under `.furin/build/analysis/` |
 
 ### Examples
 
@@ -27,8 +28,9 @@ bunx furin build [options]
 # Default Bun target
 bunx furin build
 
-# Static export for GitHub Pages
+# Static export and local preview
 bunx furin build --target static
+bunx furin preview
 
 # Self-contained binary
 bunx furin build --compile embed
@@ -39,7 +41,12 @@ bunx furin build --target all
 
 # Custom config
 bunx furin build --config ./furin.production.config.ts
+
+# Emit a Bun metafile containing entrypoints, lazy chunks, and source contributions
+bunx furin build --target bun --analyze
 ```
+
+The metafile describes emitted bytes and the import graph, so it can identify initial assets, lazy chunks, and the source files contributing to each output. It does not measure startup time, request throughput, CPU usage, or heap usage; those require runtime benchmarks and profiles.
 
 ### Target details
 
@@ -76,10 +83,30 @@ Pre-renders every SSG-compatible route to HTML files.
 ```
 
 SSR and ISR routes cause a build error by default (use `static.onSSR: "skip"` to omit them).
+Loader redirects are exported as portable HTML redirect pages.
 
 #### `node`, `vercel`, `cloudflare`
 
 Planned targets. Config types exist but builders are not yet wired.
+
+---
+
+## `furin preview`
+
+Serve the output of `furin build --target static` locally:
+
+```bash
+bunx furin preview [options]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dir` | `string` | `static.outDir` or `"dist"` | Static export directory |
+| `--basePath` | `string` | `static.basePath` or `""` | Deployment base path |
+| `--port` | `number` | `3000` | Listening port |
+| `--config` | `string` | `furin.config.ts` | Config file path |
+
+The preview server uses Bun's native directory route for immutable `_client` assets, including ETag, conditional requests, and byte ranges. HTML routing and the generated `404.html` fallback remain under Furin's control.
 
 ---
 

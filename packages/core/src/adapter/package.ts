@@ -7,6 +7,7 @@ import { buildEntrySource } from "../build/entry-template.ts";
 import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import { buildSSGCacheSnapshot } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, PackageTargetBuildManifest } from "../build/types.ts";
+import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { createRoutesPlugin, routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
@@ -50,10 +51,13 @@ export async function buildPackageTarget(
   const { entryChunk, cssChunks } = await buildClient(routes, {
     basePath: prefix,
     clientLogging: options.clientLogging ?? false,
+    metafilePath: options.analyze ? join(buildRoot, "analysis", "package-client.json") : undefined,
+    optimizeImports: options.optimizeImports,
     outDir: targetDir,
     pagesDir,
     plugins: options.plugins,
     publicPath: `${prefix}/_client/`,
+    reactCompiler: options.reactCompiler,
     rootLayout: root.path,
   });
 
@@ -138,10 +142,11 @@ export async function buildPackageTarget(
     mode: "register",
   });
   const registerEntry = join(targetDir, "register.ts");
-  writeFileSync(registerEntry, registerSource);
+  const register = createVirtualBuildEntry(registerEntry, registerSource, "ts");
 
   const result = await runBunBuild({
-    entrypoints: [registerEntry],
+    entrypoints: [register.entrypoint],
+    files: register.files,
     minify: false,
     naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
     outdir: targetDir,
@@ -150,6 +155,7 @@ export async function buildPackageTarget(
     // the package's own page sources get bundled in.
     packages: "external",
     plugins: [
+      register.plugin,
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: [app], target: "server" }),
     ],
@@ -159,9 +165,6 @@ export async function buildPackageTarget(
   if (!result.success) {
     throw new AggregateError(result.logs, "[furin] package register build failed");
   }
-  rmSync(registerEntry, { force: true });
-  rmSync(join(targetDir, "_hydrate.tsx"), { force: true });
-
   // 2. index.js — the factory the host mounts. The baked relative pagesDir
   // keeps monorepo dev working; in a published package the compile context is
   // resolved by prefix instead.

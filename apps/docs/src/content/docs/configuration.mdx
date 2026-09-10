@@ -12,6 +12,8 @@ export default defineConfig({
   pagesDir: "src/pages",
   serverEntry: "src/server.ts",
   clientLogging: false,
+  reactCompiler: true,
+  optimizeImports: ["example-library"],
   targets: ["bun"],
   plugins: [tailwind],
   bun: {
@@ -72,6 +74,40 @@ export default defineConfig({
   clientLogging: true,
 });
 ```
+
+---
+
+## `reactCompiler`
+
+**Type:** `boolean`
+**Default:** `true`
+
+Enables Bun's native Rust React Compiler for production client bundles. Furin uses Bun's `reactCompiler` build option directly; it does not add Babel to the build pipeline.
+
+Set `reactCompiler: false` only when diagnosing a compiler incompatibility:
+
+```ts
+export default defineConfig({
+  reactCompiler: false,
+});
+```
+
+---
+
+## `optimizeImports`
+
+**Type:** `string[]`
+**Default:** `undefined`
+
+Passes package names to Bun's `optimizeImports` build option. Bun can then avoid parsing unused named re-exports from those packages' pure barrel files:
+
+```ts
+export default defineConfig({
+  optimizeImports: ["antd", "@mui/material"],
+});
+```
+
+Bun already applies this optimization automatically to packages declaring `"sideEffects": false`. Only list packages that expose pure named re-export barrels but do not declare that metadata. Furin does not maintain a hidden package allowlist.
 
 ---
 

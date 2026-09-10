@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
@@ -9,8 +9,19 @@ import { runBunBuild } from "./bun-build.ts";
 import { generateHydrateEntry } from "./hydrate";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
+import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+
+function resolveClientModuleSpecifiers(code: string): string {
+  return code
+    .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
+    .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
+    .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
+    .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
+    .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
+    .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
+}
 
 export interface BuildClientResult {
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
@@ -45,6 +56,9 @@ export async function buildClient(
     basePath,
     clientLogging,
     clientDirName,
+    metafilePath,
+    optimizeImports,
+    reactCompiler,
     pagesDir,
   }: BuildClientOptions
 ): Promise<BuildClientResult> {
@@ -60,12 +74,14 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootLayout, basePath, clientLogging);
+  const hydrateCode = resolveClientModuleSpecifiers(
+    generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
+  );
   const hydratePath = join(
     outDir,
     dirName === "client" ? "_hydrate.tsx" : `_hydrate-${dirName}.tsx`
   );
-  writeFileSync(hydratePath, hydrateCode);
+  const hydrateEntry = createVirtualBuildEntry(hydratePath, hydrateCode, "tsx");
 
   console.log("[furin] Building production client bundle…");
 
@@ -83,13 +99,7 @@ export async function buildClient(
         // transformForClient now emits TS/TSX directly (no pre-transpile),
         // so JSX → React handling is delegated to Bun.build's loader, which
         // applies the project tsconfig's automatic runtime by default.
-        const transformed = result.code
-          .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
-          .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-          .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
-          .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
-          .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
-          .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
+        const transformed = resolveClientModuleSpecifiers(result.code);
 
         return {
           contents: transformed,
@@ -104,25 +114,32 @@ export async function buildClient(
     // with code-splitting incorrectly references a leaf chunk in the output
     // index.html instead of the actual entry chunk, preventing React from
     // mounting. We write index.html ourselves after the build.
-    entrypoints: [hydratePath],
+    entrypoints: [hydrateEntry.entrypoint],
+    files: hydrateEntry.files,
     outdir: clientDir,
     target: "browser",
     format: "esm",
     splitting: true,
+    optimizeImports,
+    reactCompiler: reactCompiler ?? true,
+    reactCompilerOutputMode: "client",
     minify: true,
     sourcemap: "none",
+    metafile: metafilePath !== undefined,
     // Hash the entry point name so it gets immutable caching like chunks.
     // Without this, _hydrate.js keeps the same name across builds and browsers
     // serve stale versions that reference old chunk hashes → dynamic import 404.
     naming: {
-      entry: "[dir]/[name]-[hash].[ext]",
+      entry: "[name]-[hash].[ext]",
       chunk: "[name]-[hash].[ext]",
     },
     // Absolute public path so SSR template asset URLs resolve on any route.
     // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
     publicPath,
-    // User plugins run before the internal transform so they pre-process files first
+    // Resolve the in-memory entry first. User plugins still run before Furin's
+    // transforms for every imported application module.
     plugins: [
+      hydrateEntry.plugin,
       ...(plugins ?? []),
       ...(pagesDir
         ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
@@ -141,6 +158,14 @@ export async function buildClient(
   };
 
   const result = await runBunBuild(clientBuildConfig);
+  if (metafilePath !== undefined) {
+    if (result.metafile === undefined) {
+      throw new Error("[furin] client build did not produce the requested metafile");
+    }
+    mkdirSync(dirname(metafilePath), { recursive: true });
+    writeFileSync(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
+    console.log(`[furin] Client metafile: ${metafilePath}`);
+  }
   for (const output of result.outputs) {
     console.log(`[furin]   ${output.path} (${(output.size / 1024).toFixed(1)} KB)`);
   }

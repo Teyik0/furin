@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Elysia from "elysia";
 import type { FurinOptions } from "../../../src/furin";
@@ -529,7 +529,9 @@ test.serial(
     process.chdir(app.path);
 
     const context = await createBuiltRouteContext(app.path);
-    const templatePath = join(app.path, "native-template.html");
+    const clientDir = join(app.path, "native-client");
+    mkdirSync(clientDir, { recursive: true });
+    const templatePath = join(clientDir, "index.html");
     writeFileSync(
       templatePath,
       '<html><head><!--furin-head--></head><body><div id="root"><!--ssr-outlet--></div></body></html>'
@@ -544,7 +546,7 @@ test.serial(
     });
     __setCompileContext({
       ...context,
-      embedded: { assets: {}, template: templatePath },
+      embedded: { clientDir },
       nativeRoutes,
       routes: context.routes.map((route) =>
         route.pattern === "/" ? { ...route, mode: "ssr" } : route
@@ -565,21 +567,24 @@ test.serial("furin() serves embedded assets in production", async () => {
   __setDevMode(false);
   process.chdir(app.path);
 
-  const templatePath = join(app.path, "fake-template.html");
-  writeFileSync(templatePath, "<html><head></head><body><!--ssr-outlet--></body></html>");
-  const clientAssetPath = join(app.path, "client.js");
-  const publicAssetPath = join(app.path, "logo.png");
+  const clientDir = join(app.path, "embedded-client");
+  const publicDir = join(app.path, "embedded-public");
+  mkdirSync(clientDir);
+  mkdirSync(publicDir);
+  writeFileSync(
+    join(clientDir, "index.html"),
+    "<html><head></head><body><!--ssr-outlet--></body></html>"
+  );
+  const clientAssetPath = join(clientDir, "app.js");
+  const publicAssetPath = join(publicDir, "logo.png");
   writeFileSync(clientAssetPath, "console.log('client');");
   writeFileSync(publicAssetPath, "logo");
 
   __setCompileContext({
     ...(await createBuiltRouteContext(app.path)),
     embedded: {
-      assets: {
-        "/_client/app.js": clientAssetPath,
-        "/public/logo.png": publicAssetPath,
-      },
-      template: templatePath,
+      clientDir,
+      publicDir,
     },
   });
 

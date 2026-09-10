@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: static build emits routes in sequence to keep output deterministic
 import { cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { toCrossJSONAsync } from "seroval";
 import { buildClient } from "../build/client.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, StaticTargetBuildManifest } from "../build/types.ts";
+import { toLogical } from "../client/router/link-utils.ts";
 import type { StaticExportConfig } from "../config.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
@@ -22,6 +24,13 @@ const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 
 /** Strips all trailing slashes from a string. */
 const TRAILING_SLASHES_RE = /\/+$/;
+
+const STATIC_RENDER_ORIGIN = "http://localhost";
+
+interface StaticRedirectLocation {
+  html: string;
+  spa: string | null;
+}
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
@@ -51,6 +60,55 @@ function pathToOutputFile(urlPath: string, outDir: string, fileName: string): st
 
 function sortRouteList(routes: string[]): string[] {
   return routes.toSorted((a, b) => (a < b ? -1 : Number(a > b)));
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function resolveStaticRedirectLocation(
+  location: string,
+  basePath: string,
+  sourcePath: string
+): StaticRedirectLocation {
+  const sourceUrl = new URL(sourcePath, STATIC_RENDER_ORIGIN);
+  const targetUrl = new URL(location, sourceUrl);
+  if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
+    throw new Error(
+      `[furin] static: redirect from "${sourcePath}" uses unsupported protocol "${targetUrl.protocol}".`
+    );
+  }
+  if (targetUrl.origin !== sourceUrl.origin) {
+    return { html: targetUrl.href, spa: null };
+  }
+
+  const suffix = `${targetUrl.search}${targetUrl.hash}`;
+  const spa = `${toLogical(targetUrl.pathname, basePath)}${suffix}`;
+  if (
+    basePath === "" ||
+    targetUrl.pathname === basePath ||
+    targetUrl.pathname.startsWith(`${basePath}/`)
+  ) {
+    return { html: `${targetUrl.pathname}${suffix}`, spa };
+  }
+  const pathname = targetUrl.pathname === "/" ? `${basePath}/` : `${basePath}${targetUrl.pathname}`;
+  return { html: `${pathname}${suffix}`, spa };
+}
+
+function createStaticRedirectHtml(location: string): string {
+  const escapedLocation = escapeHtmlAttribute(location);
+  return (
+    "<!doctype html>\n" +
+    '<meta charset="utf-8">\n' +
+    `<meta http-equiv="refresh" content="0;url=${escapedLocation}">\n` +
+    `<link rel="canonical" href="${escapedLocation}">\n` +
+    "<title>Redirecting…</title>\n" +
+    `<a href="${escapedLocation}">Redirecting…</a>\n`
+  );
 }
 
 function assertNoStaticExportSkips(onSSR: "error" | "skip", skippedRoutes: string[]): void {
@@ -108,8 +166,24 @@ async function prerenderAndWrite(
     );
 
     if (entry instanceof Response) {
-      console.warn(
-        `[furin] static: route "${route.pattern}" loader returned a redirect — skipping.`
+      const location = entry.headers.get("location");
+      if (entry.status < 300 || entry.status >= 400 || location === null) {
+        throw new Error(
+          `[furin] static: route "${route.pattern}" returned a response that cannot be exported.`
+        );
+      }
+      const staticLocation = resolveStaticRedirectLocation(location, basePath, urlPath);
+      ensureDir(dirname(htmlOutputFile));
+      writeFileSync(htmlOutputFile, createStaticRedirectHtml(staticLocation.html));
+      if (staticLocation.spa !== null) {
+        const serializedRedirect = await toCrossJSONAsync({
+          __furinRedirect: staticLocation.spa,
+        });
+        writeFileSync(dataOutputFile, `${JSON.stringify(serializedRedirect)}\n`);
+      }
+      renderedRoutes.push(urlPath);
+      console.log(
+        `[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)} (redirects to ${staticLocation.html})`
       );
       return;
     }
@@ -388,10 +462,13 @@ export async function buildStaticTarget(
   const { entryChunk, cssChunks } = await buildClient(ssgRoutes, {
     basePath,
     clientLogging: Boolean(options.clientLogging),
+    metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
+    optimizeImports: options.optimizeImports,
     outDir: targetDir,
     pagesDir: dirname(root.path),
     plugins: options.plugins,
     publicPath,
+    reactCompiler: options.reactCompiler,
     rootLayout: root.path,
   });
 

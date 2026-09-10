@@ -129,12 +129,13 @@ test.serial(
     const app = rememberTmpApp(createTmpApp("cli-app"));
     __setDevMode(false);
     process.chdir(app.path);
-    const templatePath = join(app.path, "template.html");
-    writeFileSync(templatePath, "<html><body><!--app-html--></body></html>");
+    const clientDir = join(app.path, "embedded-client");
+    mkdirSync(clientDir);
+    writeFileSync(join(clientDir, "index.html"), "<html><body><!--app-html--></body></html>");
     __setCompileContext({
       ...(await createCompileContext(app.path)),
       clientLogging: true,
-      embedded: { assets: {}, template: templatePath },
+      embedded: { clientDir },
     });
 
     const instance = await createTestApp({
@@ -353,7 +354,9 @@ test.serial("furin() production rejects embedded context without HTML template",
   __setDevMode(false);
   process.chdir(app.path);
 
-  await setCompileContext(app.path, { assets: {}, template: "" });
+  const clientDir = join(app.path, "embedded-client");
+  mkdirSync(clientDir);
+  await setCompileContext(app.path, { clientDir });
 
   await expect(furin({ pagesDir: join(app.path, "src/pages") })).rejects.toThrow("HTML template");
 });
@@ -363,19 +366,19 @@ test.serial("furin() production serves embedded client and public assets", async
   __setDevMode(false);
   process.chdir(app.path);
 
-  const templatePath = join(app.path, "template.html");
-  const clientAsset = join(app.path, "client.js");
-  const publicAsset = join(app.path, "logo.png");
-  writeFileSync(templatePath, "<html><!--ssr-outlet--></html>");
+  const clientDir = join(app.path, "embedded-client");
+  const publicDir = join(app.path, "embedded-public");
+  mkdirSync(clientDir);
+  mkdirSync(publicDir);
+  const clientAsset = join(clientDir, "app.js");
+  const publicAsset = join(publicDir, "logo.png");
+  writeFileSync(join(clientDir, "index.html"), "<html><!--ssr-outlet--></html>");
   writeFileSync(clientAsset, "console.log('client');");
   writeFileSync(publicAsset, "logo");
 
   await setCompileContext(app.path, {
-    assets: {
-      "/_client/app.js": clientAsset,
-      "/public/logo.png": publicAsset,
-    },
-    template: templatePath,
+    clientDir,
+    publicDir,
   });
 
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
