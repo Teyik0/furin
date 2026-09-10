@@ -8,8 +8,7 @@ import {
 installDom();
 resetDomState();
 
-const { createElement } = await import("react");
-const { flushSync } = await import("react-dom");
+const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
 
 setupDomTests();
@@ -37,25 +36,26 @@ test("deletes a board with an idempotent Eden request", async () => {
   const root = createRoot(container);
   document.body.appendChild(container);
 
-  flushSync(() => {
-    root.render(
-      createElement(BoardCard, {
-        board: {
-          createdAt: "2026-06-26T00:00:00.000Z",
-          formattedCreatedAt: "Jun 26, 2026",
-          id: "board-1",
-          name: "Test board",
-        },
-      })
-    );
-  });
-
   try {
+    await act(() =>
+      root.render(
+        createElement(BoardCard, {
+          board: {
+            createdAt: "2026-06-26T00:00:00.000Z",
+            formattedCreatedAt: "Jun 26, 2026",
+            id: "board-1",
+            name: "Test board",
+          },
+        })
+      )
+    );
     const deleteButton = container.querySelector<HTMLButtonElement>('button[title="Delete board"]');
     expect(deleteButton).not.toBeNull();
 
-    deleteButton?.click();
-    await Promise.resolve();
+    await act(async () => {
+      deleteButton?.click();
+      await Promise.resolve();
+    });
 
     expect(deleteCalls).toHaveLength(1);
     expect(deleteCalls[0]?.[0]).toBeUndefined();
@@ -63,7 +63,7 @@ test("deletes a board with an idempotent Eden request", async () => {
       headers: { "Idempotency-Key": expect.any(String) },
     });
   } finally {
-    flushSync(() => root.unmount());
+    await act(() => root.unmount());
     container.remove();
   }
 });
