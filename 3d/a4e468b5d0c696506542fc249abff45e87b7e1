@@ -1,0 +1,24 @@
+packages/core/src/client/dev-error-overlay.js
+  h_a2cbd1b0e3ae6e 215-219
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 713
+packages/core/src/server/dev-page-plugin.ts
+  h_a2cbd1b0e3ae6e 364
+packages/core/src/server/dev/graph.ts
+  h_a2cbd1b0e3ae6e 259-263,295
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  h_a2cbd1b0e3ae6e 133
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  h_a2cbd1b0e3ae6e 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3da4e468b5d0c696506542fc249abff45e87b7e1",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
