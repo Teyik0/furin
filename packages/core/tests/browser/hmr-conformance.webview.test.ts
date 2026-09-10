@@ -422,6 +422,44 @@ function loaderPageSource(version: string, loaderThrows: boolean): string {
   ].join("\n");
 }
 
+function routeContractPageSource(version: "after" | "before"): string {
+  const isBefore = version === "before";
+  const schema = isBefore ? "t.Number()" : "t.String()";
+  const config = isBefore
+    ? '.config({ layout: rootRoute, mode: "ssr",'
+    : '.config({ layout: rootRoute, mode: "isr", revalidate: 60,';
+  return [
+    'import { useState } from "react";',
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { t } from "elysia";',
+    'import { route as rootRoute } from "../root";',
+    "",
+    "function ContractPage({ summary }: { summary: string }) {",
+    "  const [count, setCount] = useState(0);",
+    "  return (",
+    `    <main data-version="${version}">`,
+    '      <output data-testid="loader">{summary}</output>',
+    '      <output data-testid="count">{count}</output>',
+    '      <button data-testid="increment" onClick={() => setCount((value) => value + 1)}>',
+    "        Increment",
+    "      </button>",
+    "    </main>",
+    "  );",
+    "}",
+    "",
+    "export const route = defineRoute()",
+    `  ${config}`,
+    `    params: t.Object({ id: ${schema} }),`,
+    `    query: t.Object({ page: ${schema} }),`,
+    `    tags: ["${version}"],`,
+    "  })",
+    "  .loader(({ params, query }) => ({",
+    `    summary: "${version}:" + typeof params.id + ":" + typeof query.page,`,
+    "  }))",
+    "  .page(({ data }) => <ContractPage summary={data.summary} />);",
+  ].join("\n");
+}
+
 function slowLoaderPageSource(version: string, delayMs: number): string {
   return loaderPageSource(version, false).replace(
     `  .loader(() => ({ message: "loader-${version}" }))`,
@@ -883,6 +921,33 @@ async function waitForElementText(
     if (Date.now() - startedAt >= 15_000) {
       throw new Error(
         `Timed out waiting for ${selector} to contain ${expectedText}; latest value was ${String(latestText)}`
+      );
+    }
+    await Bun.sleep(50);
+  }
+}
+
+async function waitForRouteConfig(
+  view: InstanceType<typeof Bun.WebView>,
+  pattern: string,
+  expectedMode: string,
+  expectedTag: string
+): Promise<void> {
+  const startedAt = Date.now();
+  let latestConfig: unknown;
+  for (;;) {
+    latestConfig = await view.evaluate(`fetch("/_furin/devtools/snapshot")
+      .then((response) => response.json())
+      .then((snapshot) => {
+        const route = snapshot.routes.find((candidate) => candidate.pattern === ${JSON.stringify(pattern)});
+        return route ? route.mode + ":" + route.tags.join(",") : null;
+      })`);
+    if (latestConfig === `${expectedMode}:${expectedTag}`) {
+      return;
+    }
+    if (Date.now() - startedAt >= 15_000) {
+      throw new Error(
+        `Timed out waiting for ${pattern} config ${expectedMode}:${expectedTag}; latest value was ${String(latestConfig)}`
       );
     }
     await Bun.sleep(50);
@@ -1805,6 +1870,43 @@ browserTest(
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-combined-v2");
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(before.documentId);
+  },
+  30_000
+);
+
+browserTest(
+  "route schema, loader, and config edits converge without restarting",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("contract-home", false),
+      [
+        {
+          contents: routeContractPageSource("before"),
+          relativePath: "src/pages/items/[id].tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/items/42?page=1`);
+    await waitForVersion(harness.view, "before");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "before:number:number");
+    await waitForRouteConfig(harness.view, "/items/:id", "ssr", "before");
+
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    const serverPid = harness.server.pid;
+    await harness.view.click('[data-testid="increment"]');
+
+    writeAppFile(harness.app.path, "src/pages/items/[id].tsx", routeContractPageSource("after"));
+
+    const after = await waitForVersion(harness.view, "after");
+    await waitForElementText(harness.view, '[data-testid="loader"]', "after:string:string");
+    await waitForRouteConfig(harness.view, "/items/:id", "isr", "after");
+    expect(after.count).toBe("1");
+    expect(after.documentId).toBe(documentId);
+    expect(harness.server.pid).toBe(serverPid);
   },
   30_000
 );
