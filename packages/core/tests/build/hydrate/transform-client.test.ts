@@ -46,6 +46,50 @@ export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
     expect(result.code).not.toContain("useServerValue");
   });
 
+  test("keeps the HMR data signature stable for component-only edits", () => {
+    const transform = (componentMessage: string, loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function Page({ data }) {
+  return <output>${componentMessage}: {data.message}</output>;
+}
+export const route = defineRoute()
+  .loader(() => ({ message: "${loaderMessage}" }))
+  .page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string => {
+      const value = code.match(/const previousDataSignature = "([^"]+)"/u)?.[1];
+      if (!value) {
+        throw new Error("Expected an emitted HMR data signature");
+      }
+      return value;
+    };
+
+    const initial = signature(transform("component-v1", "loader-v1"));
+    expect(signature(transform("component-v2", "loader-v1"))).toBe(initial);
+    expect(signature(transform("component-v2", "loader-v2"))).not.toBe(initial);
+  });
+
+  test("changes the HMR data signature when a referenced loader helper changes", () => {
+    const transform = (loaderMessage: string) =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+function loadData() {
+  return { message: "${loaderMessage}" };
+}
+function Page({ data }) {
+  return <output>{data.message}</output>;
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+        "route.tsx"
+      ).code;
+    const signature = (code: string): string =>
+      code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
+  });
+
   test("limits the hook signature to the route component", () => {
     const result = transformForClient(
       `import { useEffect, useMemo, useState } from "react";

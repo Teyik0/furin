@@ -217,12 +217,13 @@ export function RouterProvider({
 
         // ── NDJSON data endpoint + JS chunk load (parallel) ──────────────────
         const dataEndpoint = buildDataEndpoint(basePath, logicalHref, staticMode);
+        const loadedModule = hmrRefresh ? Promise.resolve(undefined) : match.load();
         const [res, loadedMod] = await Promise.all([
           fetch(dataEndpoint, {
             headers: hmrRefresh ? { "x-furin-hmr-refresh": "1" } : undefined,
             signal,
           }),
-          match.load(),
+          loadedModule,
         ]);
 
         // Stale-deploy detection: force a full page reload to pick up the new bundle.
@@ -281,12 +282,17 @@ export function RouterProvider({
 
         const title = typeof __furinTitle === "string" ? __furinTitle : "";
 
-        const loadedMatch: LoadedClientRoute = {
-          ...match,
-          component: loadedMod.default.component,
-          pageRoute: loadedMod.default._route,
-          segmentBoundaries: loadedMod.segmentBoundaries ?? match.segmentBoundaries,
-        };
+        const loadedMatch: LoadedClientRoute | null = loadedMod
+          ? {
+              ...match,
+              component: loadedMod.default.component,
+              pageRoute: loadedMod.default._route,
+              segmentBoundaries: loadedMod.segmentBoundaries ?? match.segmentBoundaries,
+            }
+          : currentMatchRef.current;
+        if (!loadedMatch) {
+          return null;
+        }
 
         // Loader threw a non-redirect Response (or an Error).
         if (__furinError) {
@@ -408,7 +414,14 @@ export function RouterProvider({
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — redirect follow, history management, and scroll handling require this depth
     async function navigateTo(
       rawLogicalHref: string,
-      opts: { hmrRefresh?: boolean; replace?: boolean; resetScroll?: boolean } | undefined
+      opts:
+        | {
+            beforeCommit?: () => void;
+            hmrRefresh?: boolean;
+            replace?: boolean;
+            resetScroll?: boolean;
+          }
+        | undefined
     ) {
       const logicalHref = normalizeHref(rawLogicalHref);
       navVersion.current += 1;
@@ -473,6 +486,7 @@ export function RouterProvider({
           newState = redirectState;
         }
 
+        opts?.beforeCommit?.();
         currentMatchRef.current = newState.match;
         if (!newState.error) {
           setBoundaryResetVersion((version) => version + 1);
@@ -538,11 +552,20 @@ export function RouterProvider({
   }, [searchStore, searchSnapshot]);
 
   const refresh = useCallback(
-    async (opts: { hmrRefresh?: boolean; resetScroll?: boolean } | undefined) => {
+    async (
+      opts:
+        | {
+            beforeCommit?: () => void;
+            hmrRefresh?: boolean;
+            resetScroll?: boolean;
+          }
+        | undefined
+    ) => {
       const logicalPath = toLogical(window.location.pathname, basePath);
       const logicalHref = logicalPath + window.location.search;
       invalidatePrefetch(logicalHref, "page");
       await navigate(logicalHref, {
+        beforeCommit: opts?.beforeCommit,
         hmrRefresh: opts?.hmrRefresh,
         replace: true,
         resetScroll: opts?.resetScroll ?? false,
@@ -561,13 +584,23 @@ export function RouterProvider({
     [refresh]
   );
 
-  // Expose refresh() to the HMR handler in _hydrate.tsx so that after a hot
-  // reload of a loader-bearing route the client re-fetches fresh data instead
-  // of rendering with stale initialData from the initial SSR payload.
+  // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
+  // callback swaps the hot component only after fresh data is ready and just
+  // before setState publishes the complete router snapshot.
   useEffect(() => {
     if (typeof window !== "undefined") {
       // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
-      (window as any).__FURIN_HMR_REFRESH__ = () => refresh({ hmrRefresh: true });
+      (window as any).__FURIN_HMR_REFRESH__ = async (
+        beforeCommit: (() => void) | undefined,
+        dataChanged: boolean | undefined
+      ) => {
+        if (dataChanged !== false) {
+          await refresh({ beforeCommit, hmrRefresh: true });
+          return;
+        }
+        beforeCommit?.();
+        setState((current) => ({ ...current }));
+      };
       return () => {
         // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
         (window as any).__FURIN_HMR_REFRESH__ = undefined;

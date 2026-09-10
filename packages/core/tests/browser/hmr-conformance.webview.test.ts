@@ -422,6 +422,13 @@ function loaderPageSource(version: string, loaderThrows: boolean): string {
   ].join("\n");
 }
 
+function componentOnlyLoaderPageSource(version: string): string {
+  return loaderPageSource(version, false).replace(
+    `message: "loader-${version}"`,
+    'message: "loader-stable"'
+  );
+}
+
 function slowLoaderPageSource(version: string, delayMs: number): string {
   return loaderPageSource(version, false).replace(
     `  .loader(() => ({ message: "loader-${version}" }))`,
@@ -1771,6 +1778,16 @@ browserTest(
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-combined-v1");
     await harness.view.click('[data-testid="increment"]');
     const before = await readSnapshot(harness.view);
+    await harness.view.evaluate(`(() => {
+      window.__furinAtomicMismatches = [];
+      new MutationObserver(() => {
+        const version = document.querySelector("main")?.getAttribute("data-version");
+        const loader = document.querySelector('[data-testid="loader"]')?.textContent;
+        if (version && loader && version.replace("combined-", "loader-combined-") !== loader) {
+          window.__furinAtomicMismatches.push(version + ":" + loader);
+        }
+      }).observe(document.body, { attributes: true, characterData: true, subtree: true });
+    })()`);
 
     writeAppFile(harness.app.path, "src/pages/index.tsx", loaderPageSource("combined-v2", false));
 
@@ -1778,6 +1795,40 @@ browserTest(
     await waitForElementText(harness.view, '[data-testid="loader"]', "loader-combined-v2");
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(before.documentId);
+    expect((await harness.view.evaluate("window.__furinAtomicMismatches")) as string[]).toEqual([]);
+  },
+  30_000
+);
+
+browserTest(
+  "a component-only edit keeps loader data without refetching",
+  async () => {
+    const harness = await createBrowserHarness(
+      componentOnlyLoaderPageSource("component-v1"),
+      [],
+      false
+    );
+    activeHarness = harness;
+
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-stable");
+    await harness.view.evaluate("performance.clearResourceTimings()");
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      componentOnlyLoaderPageSource("component-v2")
+    );
+
+    await waitForVersion(harness.view, "component-v2");
+    await Bun.sleep(300);
+    expect(
+      (await harness.view.evaluate(`
+        performance.getEntriesByType("resource")
+          .filter((entry) => entry.name.includes("/_furin/data"))
+          .length
+      `)) as number
+    ).toBe(0);
+    await waitForElementText(harness.view, '[data-testid="loader"]', "loader-stable");
   },
   30_000
 );

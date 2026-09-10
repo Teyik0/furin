@@ -23,6 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Documentation for the strict builder** — snippets declare complete `.config({ layout, mode })` with copy-paste-compilable imports, `defineRootRoute()` for root layouts, and prose updated from `config({ parent })` to `config({ layout })`.
 
 ### Fixed
+- **Atomic component/data HMR** — component-only edits preserve the current loader snapshot without a refetch, while edits to route data stages prepare fresh data before React publishes the updated component, preventing transient new-code/old-data renders.
 - **React Doctor diagnostics** — all 25 warnings resolved: PostgreSQL migration uses `sql.file()` instead of `sql.unsafe(string)`; weather API fetches check `res.ok` before reading the body; `Promise.all` on independent PostgreSQL stream queries and several single-pass loops / cached lookups (perf); targeted CSS transitions instead of `transition-all` across examples and the scaffolder template.
 - **React Doctor pre-commit gate runs offline** — the supply-chain (Socket.dev) and score network calls no longer hang commits on blocked networks; the full networked scan belongs to CI or manual runs.
 

@@ -3,7 +3,7 @@ import { walk } from "yuku-ast";
 import type { ImportDeclaration, Program } from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
+import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
@@ -13,6 +13,7 @@ const FURIN_SERVER_MODULES = new Set(["@teyik0/furin", "furin"]);
 const REACT_COMPONENT_WRAPPERS = new Set(["forwardRef", "memo"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
+const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
 
 interface TransformResult {
   code: string;
@@ -186,6 +187,96 @@ function removeChainedServerCalls(
     },
   });
   return transformed;
+}
+
+function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
+  const serverStages: Array<{ source: string; start: number }> = [];
+  const declarations = new Map<string, AstNode>();
+  for (const statement of program.body as unknown as AstNode[]) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? asAstNode(statement.declaration) : statement;
+    if (declaration?.type === "FunctionDeclaration") {
+      const identifier = asAstNode(declaration.id);
+      if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
+        declarations.set(identifier.name, declaration);
+      }
+    } else if (
+      declaration?.type === "VariableDeclaration" &&
+      Array.isArray(declaration.declarations)
+    ) {
+      for (const item of declaration.declarations as AstNode[]) {
+        const identifier = asAstNode(item.id);
+        if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
+          declarations.set(identifier.name, item);
+        }
+      }
+    }
+  }
+  const dependencies = new Map<number, AstNode>();
+  const collectDependencies = (node: AstNode): void => {
+    walkAST(node, (child) => {
+      if (child.type !== "Identifier" || typeof child.name !== "string") {
+        return;
+      }
+      const declaration = declarations.get(child.name);
+      if (!(declaration && !dependencies.has(declaration.start))) {
+        return;
+      }
+      dependencies.set(declaration.start, declaration);
+      collectDependencies(declaration);
+    });
+  };
+
+  walk(program, {
+    CallExpression(call, context) {
+      const callee = asAstNode(call.callee);
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.computed === true ||
+        !callee.property ||
+        typeof callee.property !== "object"
+      ) {
+        return;
+      }
+      const property = callee.property as AstNode;
+      if (
+        property.type !== "Identifier" ||
+        typeof property.name !== "string" ||
+        !SERVER_ONLY_METHODS.has(property.name) ||
+        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors() as AstNode[])
+      ) {
+        return;
+      }
+      const object = asAstNode(callee.object);
+      if (!object) {
+        return;
+      }
+      serverStages.push({
+        source: code.slice(object.end, call.end),
+        start: call.start,
+      });
+      if (Array.isArray(call.arguments)) {
+        for (const argument of call.arguments) {
+          const argumentNode = asAstNode(argument);
+          if (argumentNode) {
+            collectDependencies(argumentNode);
+          }
+        }
+      }
+    },
+  });
+
+  const dataSource = [
+    ...serverStages,
+    ...[...dependencies.values()].map((dependency) => ({
+      source: code.slice(dependency.start, dependency.end),
+      start: dependency.start,
+    })),
+  ]
+    .sort((left, right) => left.start - right.start)
+    .map((entry) => entry.source)
+    .join("\n");
+  return new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
 }
 
 function calledHookName(call: AstNode): string | null {
@@ -513,6 +604,7 @@ export function transformForClient(code: string, filename: string): TransformRes
 
   let source = new MagicString(clientSource);
   const routeBindings = collectDefineRouteBindings(program);
+  const hmrDataSignature = createHmrDataSignature(clientSource, program, routeBindings);
   const removedRouteCode = removeChainedServerCalls(source, program, routeBindings);
   const removedServerCode = isomorphicResult.transformed || removedRouteCode;
   if (removedServerCode) {
@@ -538,6 +630,11 @@ export function transformForClient(code: string, filename: string): TransformRes
       : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';
     source.append(`
 if (import.meta.hot && route?.component) {
+  const previousDataSignature = ${JSON.stringify(hmrDataSignature)};
+  Object.defineProperty(route, Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)}), {
+    configurable: true,
+    value: previousDataSignature,
+  });
   Object.defineProperty(route.component, Symbol.for("furin.hmr.hook-signature"), {
     configurable: true,
     value: ${signatureValue},
@@ -545,7 +642,10 @@ if (import.meta.hot && route?.component) {
   import.meta.hot.accept((updatedModule) => {
     const updatedRoute = updatedModule?.route;
     if (updatedRoute?.component) {
-      window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component);
+      const dataChanged =
+        Reflect.get(updatedRoute, Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)})) !==
+        previousDataSignature;
+      window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component, dataChanged);
     }
   });
 }
