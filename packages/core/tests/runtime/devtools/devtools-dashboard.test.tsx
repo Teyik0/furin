@@ -4,14 +4,14 @@ import { act } from "react";
 import type { DevtoolsServerEvent, DevtoolsSnapshot } from "../../../src/devtools/protocol.ts";
 import { installDom, uninstallDom } from "../../support/dom.ts";
 
-class DashboardEventSource extends EventTarget {
-  constructor(_url: string | URL) {
-    super();
-  }
-
-  close(): void {
-    // The test stream owns no external resources.
-  }
+function installDashboardBrowserEvents(): void {
+  Reflect.set(window, Symbol.for("furin.browser-events.runtime"), {
+    subscribe: () => () => undefined,
+    subscribeStatus: (listener: (status: string) => void) => {
+      listener("connected");
+      return () => undefined;
+    },
+  });
 }
 
 function validSnapshot(): DevtoolsSnapshot {
@@ -25,7 +25,7 @@ function validSnapshot(): DevtoolsSnapshot {
       graph: { edges: 0, modules: 0, revision: 0 },
       memory: { heapBytes: 1024, rssBytes: 2048 },
     },
-    sync: { enabled: false, streamPath: null },
+    sync: { changesPath: null, enabled: false },
     version: 2,
   };
 }
@@ -53,7 +53,7 @@ test.serial("the dashboard recovers when its initial snapshot request fails", as
       ? Promise.reject(new Error("server restarting"))
       : Promise.resolve(Response.json(validSnapshot()));
   }) as unknown as typeof fetch;
-  window.EventSource = DashboardEventSource as unknown as typeof EventSource;
+  installDashboardBrowserEvents();
   const element = document.createElement("div");
   document.body.append(element);
   const { mountDevtoolsDashboard } = await import(
@@ -77,37 +77,40 @@ test.serial("the dashboard recovers when its initial snapshot request fails", as
   }
 });
 
-test.serial("snapshot refresh preserves newer events already delivered over SSE", async () => {
-  installDom();
-  try {
-    const { mergeDevtoolsSnapshotEvents } = await import("../../../src/devtools/dashboard.tsx");
-    const serverEvent = {
-      id: 1,
-      instanceId: "dashboard-test",
-      revision: 1,
-      timestamp: 1,
-      type: "dev.ready",
-      version: 2,
-    } satisfies DevtoolsServerEvent;
-    const liveEvent = {
-      ...serverEvent,
-      id: 2,
-      revision: 2,
-      timestamp: 2,
-    } satisfies DevtoolsServerEvent;
-    const snapshot = {
-      ...validSnapshot(),
-      events: [serverEvent],
-      lastEventId: 1,
-    } as DevtoolsSnapshot;
+test.serial(
+  "snapshot refresh preserves newer events delivered by the shared transport",
+  async () => {
+    installDom();
+    try {
+      const { mergeDevtoolsSnapshotEvents } = await import("../../../src/devtools/dashboard.tsx");
+      const serverEvent = {
+        id: 1,
+        instanceId: "dashboard-test",
+        revision: 1,
+        timestamp: 1,
+        type: "dev.ready",
+        version: 2,
+      } satisfies DevtoolsServerEvent;
+      const liveEvent = {
+        ...serverEvent,
+        id: 2,
+        revision: 2,
+        timestamp: 2,
+      } satisfies DevtoolsServerEvent;
+      const snapshot = {
+        ...validSnapshot(),
+        events: [serverEvent],
+        lastEventId: 1,
+      } as DevtoolsSnapshot;
 
-    expect(mergeDevtoolsSnapshotEvents([liveEvent], snapshot).map((event) => event.id)).toEqual([
-      1, 2,
-    ]);
-  } finally {
-    await uninstallDom();
+      expect(mergeDevtoolsSnapshotEvents([liveEvent], snapshot).map((event) => event.id)).toEqual([
+        1, 2,
+      ]);
+    } finally {
+      await uninstallDom();
+    }
   }
-});
+);
 
 test.serial("snapshot refresh keeps only the newest resources for each browser", async () => {
   installDom();

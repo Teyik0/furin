@@ -1,6 +1,7 @@
 // biome-ignore-all lint/correctness/useJsxKeyInIterable: table cells receive stable column keys in DataTable
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { subscribeBrowserEvent, subscribeBrowserEventStatus } from "../client/browser-events.ts";
 import {
   type DevtoolsCacheEntry,
   type DevtoolsRoute,
@@ -10,7 +11,6 @@ import {
   isDevtoolsSnapshot,
 } from "./protocol.ts";
 
-const EVENT_NAME = "furin.devtools";
 const MAX_EVENTS = 1000;
 const TRAILING_SLASH = /\/$/;
 
@@ -163,6 +163,18 @@ export function mergeDevtoolsSnapshotEvents(
     .slice(-MAX_EVENTS);
 }
 
+async function requestDevtoolsSnapshot(): Promise<DevtoolsSnapshot> {
+  const response = await fetch(`${basePath()}/snapshot`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Snapshot request failed with HTTP ${response.status}.`);
+  }
+  const candidate: unknown = await response.json();
+  if (!isDevtoolsSnapshot(candidate)) {
+    throw new Error("The development server returned an incompatible snapshot.");
+  }
+  return candidate;
+}
+
 function useDevtools(): {
   connected: boolean;
   connectionError: string | null;
@@ -176,64 +188,72 @@ function useDevtools(): {
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    const response = await fetch(`${basePath()}/snapshot`, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Snapshot request failed with HTTP ${response.status}.`);
-    }
-    const candidate: unknown = await response.json();
-    if (!isDevtoolsSnapshot(candidate)) {
-      return;
-    }
+    const candidate = await requestDevtoolsSnapshot();
     setSnapshot(candidate);
     setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate));
   }, []);
 
   useEffect(() => {
     let disposed = false;
-    let source: EventSource | null = null;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let snapshotInstanceId: string | null = null;
+    let unsubscribeEvents: (() => void) | null = null;
+    let unsubscribeStatus: (() => void) | null = null;
+    const subscribe = (): boolean => {
+      if (unsubscribeEvents !== null && unsubscribeStatus !== null) {
+        return true;
+      }
+      unsubscribeStatus =
+        subscribeBrowserEventStatus((status) => {
+          if (!disposed) {
+            setConnected(status === "connected");
+          }
+        }) ?? null;
+      unsubscribeEvents =
+        subscribeBrowserEvent("devtools", ({ data: next }) => {
+          if (
+            disposed ||
+            !isDevtoolsServerEvent(next) ||
+            (snapshotInstanceId !== null && next.instanceId !== snapshotInstanceId)
+          ) {
+            return;
+          }
+          setEvents((current) => {
+            if (current.some((item) => item.id === next.id)) {
+              return current;
+            }
+            const retained =
+              next.type === "browser.resources"
+                ? current.filter(
+                    (item) => item.type !== "browser.resources" || item.clientId !== next.clientId
+                  )
+                : current;
+            return [...retained, next].slice(-MAX_EVENTS);
+          });
+        }) ?? null;
+      if (unsubscribeEvents !== null && unsubscribeStatus !== null) {
+        return true;
+      }
+      unsubscribeEvents?.();
+      unsubscribeStatus?.();
+      unsubscribeEvents = null;
+      unsubscribeStatus = null;
+      return false;
+    };
     const connect = async (): Promise<void> => {
       try {
-        const response = await fetch(`${basePath()}/snapshot`, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`Snapshot request failed with HTTP ${response.status}.`);
+        if (!subscribe()) {
+          throw new Error("The development event transport is not ready.");
         }
-        const candidate: unknown = await response.json();
-        if (!isDevtoolsSnapshot(candidate)) {
-          throw new Error("The development server returned an incompatible snapshot.");
-        }
+        const candidate = await requestDevtoolsSnapshot();
         if (disposed) {
           return;
         }
         setConnectionError(null);
+        snapshotInstanceId = candidate.instance.id;
         setSnapshot(candidate);
-        setEvents(candidate.events);
-        source = new EventSource(`${basePath()}/events?after=${candidate.lastEventId}`);
-        source.addEventListener("open", () => setConnected(true));
-        source.addEventListener("error", () => setConnected(false));
-        source.addEventListener(EVENT_NAME, (event) => {
-          try {
-            const next: unknown = JSON.parse((event as MessageEvent<string>).data);
-            if (!isDevtoolsServerEvent(next) || next.instanceId !== candidate.instance.id) {
-              return;
-            }
-            setEvents((current) => {
-              if (current.some((item) => item.id === next.id)) {
-                return current;
-              }
-              const retained =
-                next.type === "browser.resources"
-                  ? current.filter(
-                      (item) => item.type !== "browser.resources" || item.clientId !== next.clientId
-                    )
-                  : current;
-              return [...retained, next].slice(-MAX_EVENTS);
-            });
-          } catch {
-            // Ignore malformed diagnostics without taking down the dashboard.
-          }
-        });
+        setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate));
         refreshTimer = setInterval(() => {
           if (document.visibilityState === "visible") {
             refresh().catch(() => undefined);
@@ -252,7 +272,8 @@ function useDevtools(): {
     connect().catch(() => undefined);
     return () => {
       disposed = true;
-      source?.close();
+      unsubscribeEvents?.();
+      unsubscribeStatus?.();
       if (refreshTimer !== null) {
         clearInterval(refreshTimer);
       }

@@ -32,13 +32,7 @@ function themeReducer(_state: Theme, action: "toggle" | Theme): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, dispatch] = useReducer(themeReducer, "dark");
-
-  // Read persisted theme once on mount — replaces the two-effect chain
-  useEffect(() => {
-    const stored = readStoredTheme();
-    dispatch(stored);
-  }, []);
+  const [theme, dispatch] = useReducer(themeReducer, "dark", readStoredTheme);
 
   // shadcn best practice: apply theme class on <html> so Radix portals
   // (dropdowns, dialogs, tooltips…) inherit the correct color scheme.

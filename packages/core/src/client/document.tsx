@@ -5,6 +5,7 @@ export interface DocumentAssets {
   buildId: string | undefined;
   entryModule: string | undefined;
   faviconHref: string | undefined;
+  frameworkModules: readonly string[];
   staticMode: boolean;
   stylesheets: readonly string[];
 }
@@ -71,13 +72,6 @@ export function HeadContent(): ReactNode {
     <>
       <meta charSet="utf-8" data-furin-head="" />
       <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-      <script
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: static framework bootstrap with no user-controlled input.
-        dangerouslySetInnerHTML={{
-          __html:
-            'try{var __t=localStorage.getItem("furin-theme");document.documentElement.classList.add(__t==="light"?"light":"dark")}catch(e){document.documentElement.classList.add("dark")}',
-        }}
-      />
       {state.assets.buildId ? <meta content={state.assets.buildId} name="furin-build-id" /> : null}
       {state.assets.staticMode ? <meta content="static" name="furin-mode" /> : null}
       {state.assets.faviconHref ? <link href={state.assets.faviconHref} rel="icon" /> : null}
@@ -142,6 +136,9 @@ export function Scripts(): ReactNode {
         id="__FURIN_HEAD__"
         type="application/json"
       />
+      {state.assets.frameworkModules.map((src) => (
+        <script crossOrigin="" data-furin-framework-module="" key={src} src={src} type="module" />
+      ))}
       {state.assets.entryModule === undefined ? null : (
         <script crossOrigin="" data-furin-entry="" src={state.assets.entryModule} type="module" />
       )}

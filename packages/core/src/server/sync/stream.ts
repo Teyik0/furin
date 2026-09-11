@@ -9,74 +9,43 @@ export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
 
 const DEFAULT_CHANGE_LIMIT = 100;
 const MAX_CHANGE_LIMIT = 500;
-const MAX_STREAM_CLIENTS = 100;
 const MAX_CURSOR_LENGTH = 128;
 const SAFETY_POLL_INTERVAL_MS = IS_DEV ? 250 : 15_000;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
-const defaultStreamPath = "/_furin/sync";
-const encoder = new TextEncoder();
+const defaultSyncPath = "/_furin/sync";
 const noOpSubscription: SyncSubscription = {
   unsubscribe: () => Promise.resolve(),
 };
 
-interface StreamState {
-  clients: Map<
-    ReadableStreamDefaultController<Uint8Array>,
-    ReturnType<typeof setInterval> | undefined
-  >;
-  cursor: string | undefined;
+interface SyncCursorState {
+  cursor: string;
+  listeners: Set<(cursor: string) => void>;
   safetyPoll: ReturnType<typeof setInterval> | undefined;
   subscription: SyncSubscription;
 }
 
-const streams = new Map<SyncAdapter, Promise<StreamState>>();
-const resolvedStates = new Set<StreamState>();
+const cursorStates = new Map<SyncAdapter, Promise<SyncCursorState>>();
+const resolvedStates = new Set<SyncCursorState>();
 
-function encodeSseCursor(cursor: string): Uint8Array {
-  return encoder.encode(
-    `id: ${cursor}\nevent: furin.sync\nretry: 3000\ndata: ${JSON.stringify({ cursor })}\n\n`
-  );
-}
-
-function closeClient(
-  state: StreamState,
-  client: ReadableStreamDefaultController<Uint8Array>
-): void {
-  const heartbeat = state.clients.get(client);
-  state.clients.delete(client);
-  if (heartbeat) {
-    clearInterval(heartbeat);
-  }
-  try {
-    client.close();
-  } catch {
-    // already closed
-  }
-}
-
-function notifyState(state: StreamState, cursor: string): void {
+function notifyState(state: SyncCursorState, cursor: string): void {
   if (state.cursor === cursor) {
     return;
   }
   state.cursor = cursor;
-  const chunk = encodeSseCursor(cursor);
-  for (const client of state.clients.keys()) {
-    if (client.desiredSize === null || client.desiredSize <= 0) {
-      closeClient(state, client);
-      continue;
-    }
+  for (const listener of state.listeners) {
     try {
-      client.enqueue(chunk);
+      listener(cursor);
     } catch {
-      closeClient(state, client);
+      // One disconnected browser must not prevent delivery to other tabs.
     }
   }
 }
 
-async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamState> {
-  const state = {} as StreamState;
-  state.clients = new Map();
+async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCursorState> {
+  const state = {} as SyncCursorState;
   state.cursor = await runtime.adapter.currentCursor();
+  state.listeners = new Set();
+  state.safetyPoll = undefined;
   let subscriptionFailed = false;
   state.subscription = await runtime.notifier
     .subscribe((cursor) => notifyState(state, cursor))
@@ -97,16 +66,48 @@ async function createStreamState(runtime: ResolvedSyncRuntime): Promise<StreamSt
   return state;
 }
 
-function getStreamState(runtime: ResolvedSyncRuntime): Promise<StreamState> {
-  const existing = streams.get(runtime.adapter);
+export async function subscribeSyncCursor(
+  options: FurinSyncOptions,
+  listener: (cursor: string) => void
+): Promise<{ unsubscribe: () => void }> {
+  const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
+  const statePromise = getCursorState(runtime);
+  const state = await statePromise;
+  state.listeners.add(listener);
+  listener(state.cursor);
+  let subscribed = true;
+  return {
+    unsubscribe: () => {
+      if (!subscribed) {
+        return;
+      }
+      subscribed = false;
+      state.listeners.delete(listener);
+      if (state.listeners.size > 0) {
+        return;
+      }
+      if (cursorStates.get(runtime.adapter) === statePromise) {
+        cursorStates.delete(runtime.adapter);
+      }
+      resolvedStates.delete(state);
+      if (state.safetyPoll) {
+        clearInterval(state.safetyPoll);
+      }
+      state.subscription.unsubscribe().catch(() => undefined);
+    },
+  };
+}
+
+function getCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCursorState> {
+  const existing = cursorStates.get(runtime.adapter);
   if (existing) {
     return existing;
   }
-  const state = createStreamState(runtime);
-  streams.set(runtime.adapter, state);
+  const state = createCursorState(runtime);
+  cursorStates.set(runtime.adapter, state);
   state.catch(() => {
-    if (streams.get(runtime.adapter) === state) {
-      streams.delete(runtime.adapter);
+    if (cursorStates.get(runtime.adapter) === state) {
+      cursorStates.delete(runtime.adapter);
     }
   });
   return state;
@@ -145,11 +146,12 @@ function clientInvalidations(change: SyncChange): string[] {
   return [...entries];
 }
 
-export function createSyncStreamPlugin(options: FurinSyncOptions) {
-  const streamPath = options.streamPath ?? defaultStreamPath;
+export function createSyncChangesPlugin(options: FurinSyncOptions) {
+  const syncPath = options.path ?? defaultSyncPath;
   const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
-  return new Elysia({ name: `furin-sync-stream-${streamPath}` })
-    .get(`${streamPath}/changes`, async ({ request, set }) => {
+  return new Elysia({ name: `furin-sync-changes-${syncPath}` }).get(
+    `${syncPath}/changes`,
+    async ({ request, set }) => {
       set.headers["cache-control"] = "no-store";
       const query = parseChangeQuery(request);
       if ("error" in query) {
@@ -163,54 +165,8 @@ export function createSyncStreamPlugin(options: FurinSyncOptions) {
           invalidations: clientInvalidations(change),
         })),
       };
-    })
-    .get(streamPath, async () => {
-      const state = await getStreamState(runtime);
-      if (state.clients.size >= MAX_STREAM_CLIENTS) {
-        return Response.json({ code: "FURIN_SYNC_STREAM_CAPACITY" }, { status: 503 });
-      }
-      let controllerRef: ReadableStreamDefaultController<Uint8Array> | undefined;
-      let heartbeat: ReturnType<typeof setInterval> | undefined;
-      const stream = new ReadableStream<Uint8Array>({
-        cancel() {
-          if (controllerRef) {
-            closeClient(state, controllerRef);
-          }
-          if (heartbeat) {
-            clearInterval(heartbeat);
-          }
-        },
-        start(controller) {
-          controllerRef = controller;
-          controller.enqueue(encoder.encode(": connected\nretry: 3000\n\n"));
-          if (state.cursor !== undefined) {
-            controller.enqueue(encodeSseCursor(state.cursor));
-          }
-          state.clients.set(controller, undefined);
-          heartbeat = setInterval(() => {
-            if (controller.desiredSize === null || controller.desiredSize <= 0) {
-              closeClient(state, controller);
-              return;
-            }
-            try {
-              controller.enqueue(encoder.encode(": heartbeat\n\n"));
-            } catch {
-              closeClient(state, controller);
-            }
-          }, 15_000);
-          heartbeat.unref?.();
-          state.clients.set(controller, heartbeat);
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          "cache-control": "no-cache, no-transform",
-          connection: "keep-alive",
-          "content-type": "text/event-stream; charset=utf-8",
-        },
-      });
-    });
+    }
+  );
 }
 
 /** @internal — closes process-local stream state between tests. */
@@ -220,10 +176,8 @@ export function __resetSyncState(): void {
     if (state.safetyPoll) {
       clearInterval(state.safetyPoll);
     }
-    for (const client of state.clients.keys()) {
-      closeClient(state, client);
-    }
+    state.listeners.clear();
   }
-  streams.clear();
+  cursorStates.clear();
   resolvedStates.clear();
 }

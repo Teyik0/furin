@@ -58,20 +58,21 @@ export interface DevRouteTopologyWatcher {
 export interface DevRouteTopologyWatcherOptions {
   instance: RouteInstanceSpec;
   onRouteFilesTouched?: (
-    sourcePaths: string[],
+    sourcePaths: readonly string[],
     detectedAt: number,
     cycleId: string | null
   ) => Promise<void> | void;
   onSourceChange?: (sourcePath: string, detectedAt: number) => string;
   onSourceError?: (error: unknown, sourcePath: string) => void;
   onTopologyChange: (
-    sourcePaths: string[],
+    sourcePaths: readonly string[],
     detectedAt: number,
     cycleId: string | null
   ) => Promise<void> | void;
 }
 
 interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
+  changedSources: Set<string>;
   closed: boolean;
   cycleId: string | null;
   dirty: boolean;
@@ -81,7 +82,6 @@ interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   routeFilesSignature: string;
   source: string;
   touchedAt: number | null;
-  touchedSourcePaths: Set<string>;
   watchers: FSWatcher[];
 }
 
@@ -301,12 +301,30 @@ function routeFilesSignature(instance: RouteInstanceSpec): string {
     .map((path) => {
       try {
         const stats = statSync(path, { bigint: true });
-        return `${path}:${stats.mtimeNs}:${stats.size}`;
+        return `${path}\0${stats.mtimeNs}:${stats.size}`;
       } catch {
-        return `${path}:missing`;
+        return `${path}\0missing`;
       }
     })
     .join("\n");
+}
+
+function changedSignaturePaths(previous: string, next: string): string[] {
+  const entries = (signature: string): Map<string, string> =>
+    new Map(
+      signature
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const separator = line.indexOf("\0");
+          return [line.slice(0, separator), line.slice(separator + 1)];
+        })
+    );
+  const previousEntries = entries(previous);
+  const nextEntries = entries(next);
+  return [...new Set([...previousEntries.keys(), ...nextEntries.keys()])].filter(
+    (path) => previousEntries.get(path) !== nextEntries.get(path)
+  );
 }
 
 function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
@@ -319,28 +337,44 @@ function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
   return watchers;
 }
 
+function watcherChangedSources(state: DevRouteTopologyWatcherState): Set<string> {
+  const existing = Reflect.get(state, "changedSources");
+  if (existing instanceof Set) {
+    return existing as Set<string>;
+  }
+  const changedSources = new Set<string>();
+  state.changedSources = changedSources;
+  return changedSources;
+}
+
 async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Promise<void> {
-  const { dirty } = state;
+  const pendingChangedSources = watcherChangedSources(state);
+  let changedSources = [...pendingChangedSources];
+  pendingChangedSources.clear();
   const { cycleId } = state;
   const touchedAt = state.touchedAt ?? Date.now();
-  const touchedSourcePaths = [...state.touchedSourcePaths];
-  state.dirty = false;
   state.cycleId = null;
   state.touchedAt = null;
-  state.touchedSourcePaths.clear();
   try {
+    state.dirty = false;
     const source = routeTopologySource(state.instance);
     if (source === state.source) {
       const signature = routeFilesSignature(state.instance);
-      if (dirty || signature !== state.routeFilesSignature) {
-        await state.onRouteFilesTouched?.(touchedSourcePaths, touchedAt, cycleId);
+      if (signature !== state.routeFilesSignature) {
+        changedSources = [
+          ...new Set([
+            ...changedSources,
+            ...changedSignaturePaths(state.routeFilesSignature, signature),
+          ]),
+        ];
+        await state.onRouteFilesTouched?.(changedSources, touchedAt, cycleId);
         state.routeFilesSignature = routeFilesSignature(state.instance);
         if (!state.closed) {
           replaceSourceWatchers(state);
         }
       }
     } else {
-      await state.onTopologyChange(touchedSourcePaths, touchedAt, cycleId);
+      await state.onTopologyChange(changedSources, touchedAt, cycleId);
       state.source = routeTopologySource(state.instance);
       state.routeFilesSignature = routeFilesSignature(state.instance);
       if (!state.closed) {
@@ -352,8 +386,8 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
     state.dirty = true;
     state.cycleId ??= cycleId;
     state.touchedAt = state.touchedAt === null ? touchedAt : Math.min(state.touchedAt, touchedAt);
-    for (const sourcePath of touchedSourcePaths) {
-      state.touchedSourcePaths.add(sourcePath);
+    for (const sourcePath of changedSources) {
+      pendingChangedSources.add(sourcePath);
     }
     scheduleRouteTopologyRefresh(state, DEV_ROUTE_RETRY_DELAY_MS);
   }
@@ -394,34 +428,47 @@ function reportChangedSourceError(
 }
 
 function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
-  for (const watcher of state.watchers) {
-    watcher.close();
-  }
-  state.watchers = [];
+  const previousWatchers = state.watchers;
+  const nextWatchers: FSWatcher[] = [];
   const pagesDir = resolve(state.instance.pagesDir);
-  const directories = new Set(
-    routeDependencyPaths(state.instance)
-      .filter((path) => !(path === pagesDir || path.startsWith(`${pagesDir}${sep}`)))
-      .map((path) => dirname(path))
-  );
+  const directories = new Set<string>();
+  for (const path of routeDependencyPaths(state.instance)) {
+    if (!(path === pagesDir || path.startsWith(`${pagesDir}${sep}`))) {
+      directories.add(dirname(path));
+    }
+  }
   const watchDirectory = (directory: string, recursive: boolean): void => {
     const watcher = watch(directory, { recursive }, (_, filename) => {
+      if (!state.watchers.includes(watcher)) {
+        return;
+      }
       state.dirty = true;
       state.touchedAt ??= Date.now();
       if (filename !== null) {
         const sourcePath = resolve(directory, String(filename));
-        state.touchedSourcePaths.add(sourcePath);
+        watcherChangedSources(state).add(sourcePath);
         state.cycleId ??= state.onSourceChange?.(sourcePath, state.touchedAt) ?? null;
       }
       reportChangedSourceError(state, directory, filename);
       scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
     });
     watcher.unref();
-    state.watchers.push(watcher);
+    nextWatchers.push(watcher);
   };
-  watchDirectory(pagesDir, true);
-  for (const directory of directories) {
-    watchDirectory(directory, false);
+  try {
+    watchDirectory(pagesDir, true);
+    for (const directory of directories) {
+      watchDirectory(directory, false);
+    }
+  } catch (error) {
+    for (const watcher of nextWatchers) {
+      watcher.close();
+    }
+    throw error;
+  }
+  state.watchers = nextWatchers;
+  for (const watcher of previousWatchers) {
+    watcher.close();
   }
 }
 
@@ -455,11 +502,13 @@ export function registerDevRouteTopologyWatcher(
   const watchers = devRouteTopologyWatchers();
   const existing = watchers.get(watcherKey);
   if (existing) {
+    existing.cycleId ??= null;
     existing.instance = options.instance;
     existing.onRouteFilesTouched = options.onRouteFilesTouched;
     existing.onSourceChange = options.onSourceChange;
     existing.onSourceError = options.onSourceError;
     existing.onTopologyChange = options.onTopologyChange;
+    existing.touchedAt ??= null;
     return {
       close: () => {
         existing.closed = true;
@@ -479,6 +528,7 @@ export function registerDevRouteTopologyWatcher(
   const routeFilesSignatureValue = routeFilesSignature(options.instance);
   const state: DevRouteTopologyWatcherState = {
     ...options,
+    changedSources: new Set(),
     closed: false,
     cycleId: null,
     dirty: false,
@@ -488,7 +538,6 @@ export function registerDevRouteTopologyWatcher(
     routeFilesSignature: routeFilesSignatureValue,
     source,
     touchedAt: null,
-    touchedSourcePaths: new Set(),
     watchers: [],
   };
   replaceSourceWatchers(state);

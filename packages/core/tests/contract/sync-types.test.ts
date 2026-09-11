@@ -31,11 +31,11 @@ function createSyncTypeContractApp(options: SyncRuntimeOptions) {
 }
 
 test("sync entrypoints require an explicit runtime", () => {
-  type StreamOptions = Parameters<SyncModule["createSyncStreamPlugin"]>[0];
+  type ChangesOptions = Parameters<SyncModule["createSyncChangesPlugin"]>[0];
   type PluginOptions = Parameters<SyncModule["furinSync"]>[0];
   type FurinOptions = NonNullable<Parameters<FurinModule["furin"]>[0]>;
 
-  expectTypeOf<StreamOptions>().toExtend<SyncRuntimeOptions>();
+  expectTypeOf<ChangesOptions>().toExtend<SyncRuntimeOptions>();
   expectTypeOf<PluginOptions>().toEqualTypeOf<SyncRuntimeOptions>();
   expectTypeOf<Parameters<SyncModule["furinSync"]>>().toEqualTypeOf<
     [options: SyncRuntimeOptions]

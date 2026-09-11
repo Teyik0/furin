@@ -6,6 +6,21 @@ import { type HmrProxy, startHmrProxy } from "./hmr-proxy.ts";
 let proxy: HmrProxy | undefined;
 let upstream: Server | undefined;
 
+async function waitForWebSocketCount(
+  currentProxy: HmrProxy,
+  pathname: string,
+  expectedCount: number
+): Promise<void> {
+  const startedAt = Date.now();
+  while (currentProxy.webSocketCount(pathname) !== expectedCount) {
+    if (Date.now() - startedAt >= 1000) {
+      throw new Error(`Timed out waiting for ${expectedCount} WebSocket connection(s)`);
+    }
+    // biome-ignore lint/performance/noAwaitInLoops: poll the proxy's asynchronous socket registry
+    await Bun.sleep(10);
+  }
+}
+
 afterEach(() => {
   proxy?.close();
   proxy = undefined;
@@ -62,4 +77,34 @@ test("closes the client when the upstream connection fails", async () => {
       throw new Error("Timed out waiting for the proxy to close the client");
     }),
   ]);
+});
+
+test("drops only WebSockets matching the requested endpoint", async () => {
+  const upstreamPort = await getFreePort();
+  const proxyPort = await getFreePort();
+  upstream = createServer((socket) => {
+    socket.on("data", () => undefined);
+  });
+  upstream.listen(upstreamPort, "127.0.0.1");
+  await new Promise<void>((resolve) => upstream?.once("listening", resolve));
+  proxy = await startHmrProxy(proxyPort, upstreamPort);
+
+  const hmrClient = connect({ host: "127.0.0.1", port: proxyPort });
+  const eventClient = connect({ host: "127.0.0.1", port: proxyPort });
+  hmrClient.on("error", () => undefined);
+  eventClient.on("error", () => undefined);
+  await Promise.all([
+    new Promise<void>((resolve) => hmrClient.once("connect", resolve)),
+    new Promise<void>((resolve) => eventClient.once("connect", resolve)),
+  ]);
+  hmrClient.write("GET /_bun/hmr HTTP/1.1\r\nUpgrade: websocket\r\n\r\n");
+  eventClient.write("GET /_furin/events HTTP/1.1\r\nUpgrade: websocket\r\n\r\n");
+  await waitForWebSocketCount(proxy, "/_bun/hmr", 1);
+  await waitForWebSocketCount(proxy, "/_furin/events", 1);
+
+  expect(proxy.dropWebSockets("/_bun/hmr")).toBe(1);
+  await waitForWebSocketCount(proxy, "/_bun/hmr", 0);
+  expect(proxy.webSocketCount("/_furin/events")).toBe(1);
+
+  eventClient.destroy();
 });

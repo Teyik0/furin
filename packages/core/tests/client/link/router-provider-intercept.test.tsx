@@ -325,6 +325,7 @@ describe("RouterProvider click interception", () => {
         buildId: undefined,
         entryModule: undefined,
         faviconHref: undefined,
+        frameworkModules: [],
         staticMode: false,
         stylesheets: [],
       },

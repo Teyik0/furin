@@ -90,7 +90,6 @@ interface ErrorBoundaryState {
  * Must be a class: React error catching (`getDerivedStateFromError`,
  * `componentDidCatch`) has no function-component equivalent.
  */
-// biome-ignore lint/style/useReactFunctionComponents: React error boundaries require a class component.
 export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   override state: ErrorBoundaryState = {
     digest: null,
@@ -106,6 +105,16 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
       digest: getServerDigest(error) ?? computeErrorDigest(error),
       error: normalizeCaughtError(error),
     };
+  }
+
+  override componentDidCatch(error: Error): void {
+    if (import.meta.hot && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("furin:client-error", {
+          detail: { error, phase: "client-render" },
+        })
+      );
+    }
   }
 
   override componentDidUpdate(prevProps: ErrorBoundaryProps) {

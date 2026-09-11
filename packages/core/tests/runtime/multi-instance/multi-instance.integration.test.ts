@@ -1,7 +1,7 @@
 /**
  * Multi-instance composition — two `furin()` apps mounted into one parent
  * Elysia under different prefixes. Covers route prefixing, per-instance state
- * isolation (revalidation headers, sync stream injection), the prefix
+ * isolation (revalidation headers, sync path injection), the prefix
  * collision guard, per-instance 404s, and the data endpoint under a prefix.
  */
 import { expect, test } from "bun:test";

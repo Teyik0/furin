@@ -19,47 +19,30 @@ interface RenderedRouter {
   root: Root;
 }
 
-type SyncEventListener = (event: Event) => void;
+const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
 
-class FakeEventSource {
-  static latest: FakeEventSource | undefined;
+interface SyncBrowserEvent {
+  channel: "sync";
+  data: { cursor: string };
+  version: 1;
+}
 
-  listeners = new Map<string, SyncEventListener>();
-  readyState = 0;
-  url: string;
+class FakeBrowserEvents {
+  listener: ((event: SyncBrowserEvent) => void) | undefined;
 
-  constructor(url: string | URL) {
-    this.url = String(url);
-    FakeEventSource.latest = this;
+  emit(cursor: string): void {
+    this.listener?.({ channel: "sync", data: { cursor }, version: 1 });
   }
 
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
-    if (typeof listener === "function") {
-      this.listeners.set(type, listener as SyncEventListener);
+  subscribe(channel: string, listener: (event: SyncBrowserEvent) => void): () => void {
+    if (channel === "sync") {
+      this.listener = listener;
     }
-  }
-
-  close(): void {
-    this.readyState = 2;
-    FakeEventSource.latest = undefined;
-  }
-
-  emit(type: string, data: string): void {
-    const listener = this.listeners.get(type);
-    if (listener) {
-      listener(new MessageEvent(type, { data }));
-    }
-  }
-
-  open(): void {
-    this.readyState = 1;
-    this.listeners.get("open")?.(new Event("open"));
-  }
-
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
-    if (typeof listener === "function" && this.listeners.get(type) === listener) {
-      this.listeners.delete(type);
-    }
+    return () => {
+      if (this.listener === listener) {
+        this.listener = undefined;
+      }
+    };
   }
 }
 
@@ -120,7 +103,7 @@ async function renderRouter(
         prefetchCacheSize: 50,
         root: null,
         routes: [route],
-        syncStream: "/_furin/sync",
+        syncPath: "/_furin/sync",
       })
     );
     await Promise.resolve();
@@ -140,39 +123,36 @@ async function renderRouter(
 
 describe("RouterProvider sync refresh", () => {
   let currentCleanup: (() => void) | undefined;
-  let originalEventSource: typeof EventSource | undefined;
+  let browserEvents: FakeBrowserEvents;
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
     installDom();
     resetDomState();
     window.history.replaceState(null, "", "/board");
-    originalEventSource = globalThis.EventSource;
     originalFetch = globalThis.fetch;
-    FakeEventSource.latest = undefined;
-    globalThis.EventSource = FakeEventSource as unknown as typeof EventSource;
+    browserEvents = new FakeBrowserEvents();
+    (globalThis as typeof globalThis & { [key: symbol]: FakeBrowserEvents })[
+      BROWSER_EVENTS_RUNTIME_KEY
+    ] = browserEvents;
   });
 
   afterEach(async () => {
     currentCleanup?.();
     currentCleanup = undefined;
     globalThis.fetch = originalFetch;
-    if (originalEventSource === undefined) {
-      Reflect.deleteProperty(globalThis, "EventSource");
-    } else {
-      globalThis.EventSource = originalEventSource;
-    }
+    Reflect.deleteProperty(globalThis, BROWSER_EVENTS_RUNTIME_KEY);
     await uninstallDom();
   });
 
-  test("performs one initial catch-up read from the stream cursor notification", async () => {
+  test("performs one initial catch-up read from the WebSocket cursor", async () => {
     const requested: string[] = [];
     globalThis.fetch = mock((input: RequestInfo | URL) => {
       const url = new URL(input.toString(), window.location.origin);
       if (url.pathname === "/_furin/sync/changes") {
         requested.push(url.searchParams.get("after") ?? "initial");
         return Promise.resolve(
-          Response.json({ changes: [], cursor: "0", hasMore: false, reset: false })
+          Response.json({ changes: [], cursor: "12", hasMore: false, reset: false })
         );
       }
       return Promise.resolve(new Response(null, { status: 404 }));
@@ -183,12 +163,11 @@ describe("RouterProvider sync refresh", () => {
     const { cleanup } = await renderRouter(route, initialMatch);
     currentCleanup = cleanup;
 
-    await waitForDom(() => FakeEventSource.latest !== undefined, { timeoutMs: 2000 });
+    await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
     expect(requested).toEqual([]);
 
     await act(async () => {
-      FakeEventSource.latest?.open();
-      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "12" }));
+      browserEvents.emit("12");
       await Promise.resolve();
     });
 
@@ -196,53 +175,7 @@ describe("RouterProvider sync refresh", () => {
     expect(requested).toEqual(["12"]);
   });
 
-  test("refreshes the current page after an SSE sync event catches up through /changes", async () => {
-    const requested = {
-      changes: [] as string[],
-      data: 0,
-    };
-    globalThis.fetch = mock((input: RequestInfo | URL) => {
-      const url = new URL(input.toString(), window.location.origin);
-      if (url.pathname === "/_furin/sync/changes") {
-        requested.changes.push(url.searchParams.get("after") ?? "initial");
-        const hasEvent = requested.changes.length >= 1;
-        return Promise.resolve(
-          Response.json({
-            changes: hasEvent ? [{ cursor: "1", invalidations: ["/board"] }] : [],
-            cursor: hasEvent ? "1" : "0",
-            hasMore: false,
-            reset: false,
-          })
-        );
-      }
-      if (url.pathname === "/_furin/data") {
-        requested.data += 1;
-        return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
-      }
-      return Promise.resolve(new Response(null, { status: 404 }));
-    }) as unknown as typeof globalThis.fetch;
-
-    const route = makeRoute("/board");
-    const initialMatch = await loadInitialMatch(route);
-    const { cleanup, container } = await renderRouter(route, initialMatch);
-    currentCleanup = cleanup;
-
-    await waitForDom(() => FakeEventSource.latest !== undefined, { timeoutMs: 2000 });
-
-    await act(async () => {
-      FakeEventSource.latest?.open();
-      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
-      await Promise.resolve();
-    });
-
-    await waitForDom(() => container.textContent === "fresh", { timeoutMs: 2000 });
-
-    expect(FakeEventSource.latest?.url).toBe("/_furin/sync");
-    expect(requested.changes).toEqual(["0"]);
-    expect(requested.data).toBe(1);
-  });
-
-  test("catches up when the sync stream reconnects without a notification", async () => {
+  test("refreshes the current page after a sync event catches up through /changes", async () => {
     const requested = {
       changes: [] as string[],
       data: 0,
@@ -273,17 +206,64 @@ describe("RouterProvider sync refresh", () => {
     const { cleanup, container } = await renderRouter(route, initialMatch);
     currentCleanup = cleanup;
 
-    await waitForDom(() => FakeEventSource.latest !== undefined, { timeoutMs: 2000 });
+    await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
 
     await act(async () => {
-      FakeEventSource.latest?.open();
-      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
+      browserEvents.emit("0");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      browserEvents.emit("1");
+      await Promise.resolve();
+    });
+
+    await waitForDom(() => container.textContent === "fresh", { timeoutMs: 2000 });
+
+    expect(requested.changes).toEqual(["0", "0"]);
+    expect(requested.data).toBe(1);
+  });
+
+  test("catches up when browser events reconnect without a new mutation", async () => {
+    const requested = {
+      changes: [] as string[],
+      data: 0,
+    };
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      const url = new URL(input.toString(), window.location.origin);
+      if (url.pathname === "/_furin/sync/changes") {
+        requested.changes.push(url.searchParams.get("after") ?? "initial");
+        const hasEvent = requested.changes.length >= 2;
+        return Promise.resolve(
+          Response.json({
+            changes: hasEvent ? [{ cursor: "1", invalidations: ["/board"] }] : [],
+            cursor: hasEvent ? "1" : "0",
+            hasMore: false,
+            reset: false,
+          })
+        );
+      }
+      if (url.pathname === "/_furin/data") {
+        requested.data += 1;
+        return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    }) as unknown as typeof globalThis.fetch;
+
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    const { cleanup, container } = await renderRouter(route, initialMatch);
+    currentCleanup = cleanup;
+
+    await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
+
+    await act(async () => {
+      browserEvents.emit("0");
       await Promise.resolve();
     });
     expect(requested.changes).toEqual(["0"]);
 
     await act(async () => {
-      FakeEventSource.latest?.open();
+      browserEvents.emit("1");
       await Promise.resolve();
     });
 
@@ -327,17 +307,15 @@ describe("RouterProvider sync refresh", () => {
     const { cleanup, container } = await renderRouter(route, initialMatch);
     currentCleanup = cleanup;
 
-    await waitForDom(() => FakeEventSource.latest !== undefined, { timeoutMs: 2000 });
-    expect(requested.changes).toEqual([]);
+    await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      FakeEventSource.latest?.open();
-      FakeEventSource.latest?.emit("furin.sync", JSON.stringify({ cursor: "0" }));
+      browserEvents.emit("0");
       await Promise.resolve();
     });
     expect(requested.changes).toEqual(["0"]);
 
     await act(async () => {
-      FakeEventSource.latest?.open();
+      browserEvents.emit("1");
       await Promise.resolve();
     });
 

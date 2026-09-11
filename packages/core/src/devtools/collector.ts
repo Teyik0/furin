@@ -1,3 +1,4 @@
+import { subscribeBrowserEvent, subscribeBrowserEventStatus } from "../client/browser-events.ts";
 import {
   type DevtoolsBrowserEventInput,
   type DevtoolsBrowserEventPayload,
@@ -12,7 +13,6 @@ import {
 } from "./protocol.ts";
 
 const ELEMENT_NAME = "furin-devtools-launcher";
-const DEVTOOLS_EVENT = "furin.devtools";
 const HMR_EVENT = "furin:hmr";
 const RUNTIME_KEY = Symbol.for("furin.devtools.runtime");
 
@@ -33,7 +33,6 @@ interface HmrRuntimeEvent {
 
 interface CollectorRuntime {
   cleanup: (() => void) | null;
-  eventSource: typeof EventSource;
   fetch: typeof fetch;
 }
 
@@ -52,7 +51,6 @@ function runtimeState(): CollectorRuntime {
   }
   const state: CollectorRuntime = {
     cleanup: null,
-    eventSource: window.EventSource,
     fetch: window.fetch,
   };
   Reflect.set(window, RUNTIME_KEY, state);
@@ -61,7 +59,6 @@ function runtimeState(): CollectorRuntime {
 
 const runtime = runtimeState();
 const nativeFetch = runtime.fetch;
-const NativeEventSource = runtime.eventSource;
 
 function assetUrl(path: string): string {
   const source = new URL(import.meta.url);
@@ -201,7 +198,7 @@ function installKeyboardShortcut(): () => void {
 }
 
 function installSyncObserver(sync: DevtoolsSyncSnapshot, send: SendBrowserEvent): () => void {
-  if (!(sync.enabled && sync.streamPath)) {
+  if (!sync.enabled) {
     send(
       {
         cursor: null,
@@ -212,86 +209,32 @@ function installSyncObserver(sync: DevtoolsSyncSnapshot, send: SendBrowserEvent)
     );
     return () => undefined;
   }
-  const syncUrl = new URL(assetUrl(sync.streamPath), window.location.href);
-  class ObservedEventSource extends NativeEventSource {
-    constructor(url: string | URL, eventSourceInitDict?: EventSourceInit) {
-      super(url, eventSourceInitDict);
-      const absolute = new URL(String(url), window.location.href);
-      if (absolute.origin !== syncUrl.origin || absolute.pathname !== syncUrl.pathname) {
-        return;
-      }
-      send(
-        {
-          cursor: null,
-          state: "connecting",
-          type: "sync.connection.changed",
-        },
-        false
-      );
-      this.addEventListener("open", () => {
-        send(
-          {
-            cursor: null,
-            state: "connected",
-            type: "sync.connection.changed",
-          },
-          false
-        );
-      });
-      this.addEventListener("error", () => {
-        send(
-          {
-            cursor: null,
-            state: "reconnecting",
-            type: "sync.connection.changed",
-          },
-          false
-        );
-      });
-      this.addEventListener("furin.sync", (event) => {
-        let cursor: string | null = null;
-        try {
-          const payload: unknown = JSON.parse((event as MessageEvent<string>).data);
-          if (payload !== null && typeof payload === "object") {
-            const candidate = Reflect.get(payload, "cursor");
-            cursor = typeof candidate === "string" ? candidate : null;
-          }
-        } catch {
-          cursor = null;
-        }
-        send(
-          {
-            cursor,
-            state: "connected",
-            type: "sync.connection.changed",
-          },
-          false
-        );
-      });
-    }
+
+  const cleanups: Array<() => void> = [];
+  const unsubscribeStatus = subscribeBrowserEventStatus((state) => {
+    send({ cursor: null, state, type: "sync.connection.changed" }, false);
+  });
+  if (unsubscribeStatus) {
+    cleanups.push(unsubscribeStatus);
   }
-  window.EventSource = ObservedEventSource;
+  const unsubscribeSync = subscribeBrowserEvent("sync", ({ data }) => {
+    send(
+      {
+        cursor: data.cursor,
+        state: "connected",
+        type: "sync.connection.changed",
+      },
+      false
+    );
+  });
+  if (unsubscribeSync) {
+    cleanups.push(unsubscribeSync);
+  }
   return () => {
-    if (window.EventSource === ObservedEventSource) {
-      window.EventSource = NativeEventSource;
+    for (const cleanup of cleanups.reverse()) {
+      cleanup();
     }
   };
-}
-
-function documentSyncSnapshot(): DevtoolsSyncSnapshot {
-  const syncElement = document.getElementById("__FURIN_SYNC__");
-  try {
-    const value: unknown = JSON.parse(syncElement?.textContent ?? "{}");
-    if (value !== null && typeof value === "object") {
-      const streamPath = Reflect.get(value, "stream");
-      if (typeof streamPath === "string") {
-        return { enabled: true, streamPath };
-      }
-    }
-  } catch {
-    // The server snapshot remains the authoritative validation boundary.
-  }
-  return { enabled: false, streamPath: null };
 }
 
 async function start(): Promise<void> {
@@ -325,10 +268,6 @@ async function start(): Promise<void> {
       })
       .catch(() => undefined);
   };
-  const hadActiveRuntime = runtime.cleanup !== null;
-  if (!hadActiveRuntime) {
-    cleanups.push(installSyncObserver(documentSyncSnapshot(), send));
-  }
   let snapshot: DevtoolsSnapshot;
   try {
     const response = await nativeFetch.call(window, assetUrl("/_furin/devtools/snapshot"));
@@ -348,9 +287,7 @@ async function start(): Promise<void> {
   }
 
   runtime.cleanup?.();
-  if (hadActiveRuntime) {
-    cleanups.push(installSyncObserver(snapshot.sync, send));
-  }
+  cleanups.push(installSyncObserver(snapshot.sync, send));
   const pendingCycles: Array<{ cycleId: string; detectedAt: number }> = [];
   let pendingBeforeUpdate:
     | {
@@ -503,38 +440,36 @@ async function start(): Promise<void> {
       cleanups.push(() => observer.disconnect());
     }
 
-    const source = new NativeEventSource(
-      `${assetUrl("/_furin/devtools/events")}?after=${snapshot.lastEventId}`
-    );
-    cleanups.push(() => source.close());
-    source.addEventListener(DEVTOOLS_EVENT, (event) => {
-      try {
-        const payload: unknown = JSON.parse((event as MessageEvent<string>).data);
-        if (!isDevtoolsServerEvent(payload) || payload.instanceId !== snapshot.instance.id) {
+    const unsubscribeDevtools = subscribeBrowserEvent("devtools", ({ data: payload }) => {
+      if (
+        !isDevtoolsServerEvent(payload) ||
+        payload.instanceId !== snapshot.instance.id ||
+        payload.id <= snapshot.lastEventId
+      ) {
+        return;
+      }
+      if (payload.type === "hmr.cycle.started" && payload.detectedAt > lastCompletedAt) {
+        if (
+          updateInProgress &&
+          currentCycleId === null &&
+          payload.detectedAt <= updateStartedEpoch + 10
+        ) {
+          currentCycleId = payload.cycleId;
+          flushBeforeUpdate();
           return;
         }
-        if (payload.type === "hmr.cycle.started" && payload.detectedAt > lastCompletedAt) {
-          if (
-            updateInProgress &&
-            currentCycleId === null &&
-            payload.detectedAt <= updateStartedEpoch + 10
-          ) {
-            currentCycleId = payload.cycleId;
-            flushBeforeUpdate();
-            return;
-          }
-          pendingCycles.push({
-            cycleId: payload.cycleId,
-            detectedAt: payload.detectedAt,
-          });
-          if (pendingCycles.length > 50) {
-            pendingCycles.shift();
-          }
+        pendingCycles.push({
+          cycleId: payload.cycleId,
+          detectedAt: payload.detectedAt,
+        });
+        if (pendingCycles.length > 50) {
+          pendingCycles.shift();
         }
-      } catch {
-        // A malformed development event must never affect the application.
       }
     });
+    if (unsubscribeDevtools) {
+      cleanups.push(unsubscribeDevtools);
+    }
 
     runtime.cleanup = () => {
       if (pendingBeforeUpdate) {

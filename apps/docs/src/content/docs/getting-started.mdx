@@ -1,67 +1,84 @@
 # Getting Started
 
-Furin is a React meta-framework built on Elysia and Bun. It gives you file-based routing, SSR, SSG, ISR, nested layouts, and typed route data without a separate frontend toolchain.
+Create a Furin application with Bun:
 
-## Create A Project
-
-```bash
+```sh
 bun create furin@latest my-app
 cd my-app
-bun dev
+bun run dev
 ```
 
-For the shadcn/ui starter:
+The interactive scaffolder offers two templates:
 
-```bash
-bun create furin@latest my-app --template full
-cd my-app
-bun dev
+| Template | Includes |
+|---|---|
+| `simple` | Tailwind CSS and an Elysia API route |
+| `full` | The simple stack plus shadcn/ui components |
+
+Choose one without a prompt when scripting:
+
+```sh
+bun create furin@latest my-app --template simple --yes
 ```
 
-## Available Templates
+## Project Structure
 
-- `simple` — Tailwind CSS + `/api/hello` route + SSR page loader (default)
-- `full` — everything in `simple` plus shadcn/ui components (`button`, `card`, `input`)
-
-## Project Shape
+Both templates produce the same framework shape:
 
 ```text
 my-app/
+├── public/
+│   └── favicon.ico
 ├── src/
-│   ├── pages/
-│   │   ├── root.tsx
-│   │   └── index.tsx
 │   ├── api/
+│   │   └── hello.ts
+│   ├── pages/
+│   │   ├── globals.css
+│   │   ├── index.tsx
+│   │   └── root.tsx
 │   └── server.ts
-├── furin.config.ts
 ├── bunfig.toml
-└── package.json
+├── furin.config.ts
+├── furin-env.d.ts
+└── tsconfig.json
 ```
 
-## First Server
+- `src/server.ts` composes the Elysia application.
+- `src/pages/root.tsx` owns the HTML document shared by every page.
+- `src/pages/index.tsx` maps to `/`.
+- `furin.config.ts` controls production builds.
+- `bunfig.toml` registers the client-side Bun plugins used by development.
+- `furin-env.d.ts` is generated from the route tree and should not be edited manually.
+
+## The Server
+
+Furin is an Elysia plugin, so pages and APIs compose through `.use()`:
 
 ```ts
 // src/server.ts
-import { Elysia } from "elysia"
-import { furin } from "@teyik0/furin"
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { api } from "./api/hello";
 
-const app = new Elysia()
+new Elysia()
   .use(await furin({ pagesDir: "./src/pages" }))
-  .listen(3000)
-
-export type App = typeof app
+  .use(api)
+  .listen(3000);
 ```
 
-## Root Layout
+Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes).
 
-Every app needs `src/pages/root.tsx`. It owns the complete document. `<HeadContent />` renders framework assets and route metadata; `<Scripts />` renders the hydration bootstrap and must stay inside `<body>`.
+## The Root Document
+
+Every pages directory needs `root.tsx`. It must render a complete document containing `<HeadContent />` and `<Scripts />`:
 
 ```tsx
 // src/pages/root.tsx
-import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+import "./globals.css";
 
 export const route = defineRootRoute()
-  .config({ mode: "ssr" })
+  .config({ mode: "ssg" })
   .layout(({ children }) => (
     <html lang="en">
       <head>
@@ -72,48 +89,43 @@ export const route = defineRootRoute()
         <Scripts />
       </body>
     </html>
-  ))
+  ));
 ```
 
-## First Page
+`<HeadContent />` renders framework assets and the matched page's metadata. `<Scripts />` serializes route state and loads the browser entry.
+
+## Your First Page
+
+Every non-root route references its parent layout explicitly:
 
 ```tsx
 // src/pages/index.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "./root"
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .page(() => <h1>Hello Furin</h1>)
+  .config({ layout: rootRoute, mode: "ssg" })
+  .head(() => ({ meta: [{ title: "Home" }] }))
+  .page(() => <h1>Hello, Furin</h1>);
 ```
 
-## Development
+During development, Furin verifies that `layout` matches the filesystem hierarchy and can repair missing or misplaced imports. Treat the generated correction as the canonical shape rather than fighting the route tree.
 
-```bash
+## Development And Production
+
+```sh
+# Bun dev server with React Fast Refresh
 bun run dev
+
+# Check formatting and types, then build
+bun run fix
+bun run tscheck
+bun run build
+
+# Run the built Bun server
+bun run start
 ```
 
-The docs app and starters run Bun directly in development, so backend and frontend stay in the same process.
+The scaffold's `dev` script starts `src/server.ts` with Bun hot reloading. If you add, remove, or move a page, the route manifest and `furin-env.d.ts` are refreshed automatically.
 
-You can also create empty route files and let development mode scaffold the smallest valid builder:
-
-- `pages/root.tsx` becomes an SSR root layout.
-- `pages/**/_route.tsx` becomes an SSR layout linked to its nearest ancestor layout.
-- Any other route file, except the special `error.tsx` and `not-found.tsx` conventions, becomes an SSG page linked to its nearest ancestor layout.
-
-Non-empty helper files stay untouched. A route file must export exactly one builder as
-`export const route`, and its terminal must match its filename: `_route` uses `.layout()`, while
-normal route files use `.page()`. Ambiguous layouts and contradictory rendering options fail at
-boot and are reported again by the development watcher with the file path and required action.
-
-## What To Learn Next
-
-- [File-Based Routing](/docs/routing) for page and layout conventions
-- [Data Loading](/docs/data-loading) for server loaders and typed schemas
-- [Rendering Modes](/docs/rendering) for SSR, SSG, ISR, and `staticParams`
-- [Deferred Data](/docs/defer) for streaming slow loader data with `defer()` and `<Await>`
-- [Error Handling](/docs/error-handling) for `error.tsx`, `not-found.tsx`, and `notFound()`
-- [Caching](/docs/caching) for `revalidatePath`, CDN purging, and stale-deploy detection
-- [Link & Navigation](/docs/link-navigation) for typed `<Link>` and prefetching
-- [Logging](/docs/logging) for structured request logging with evlog
-- [Deployment](/docs/deployment) for the current Bun-only production build flow
+Next, read [File-Based Routing](/docs/routing), then [Data Loading](/docs/data-loading).

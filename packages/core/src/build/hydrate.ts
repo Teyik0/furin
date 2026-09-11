@@ -144,7 +144,7 @@ export function generateHydrateEntry(
     : "const log = { error() {}, info() {} };";
 
   // RouterProvider receives basePath so navigate() / Link push physical paths.
-  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: ${basePathLiteral},\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncStream,`;
+  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: ${basePathLiteral},\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
 
   const resolvedRootLayout = rootLayout.replace(/\\/g, "/");
   const rootComponentKey = JSON.stringify(`root:${resolvedRootLayout}`);
@@ -301,10 +301,13 @@ const dataEl = document.getElementById("__FURIN_DATA__");
 let loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
 const syncEl = document.getElementById("__FURIN_SYNC__");
 const syncConfig = syncEl ? JSON.parse(syncEl.textContent || "{}") : {};
-const syncStream = typeof syncConfig.stream === "string" ? syncConfig.stream : undefined;
+const syncPath = typeof syncConfig.path === "string" ? syncConfig.path : undefined;
 const headEl = document.getElementById("__FURIN_HEAD__");
 const head = headEl ? JSON.parse(headEl.textContent || "{}") : {};
 const entryEl = document.querySelector("script[data-furin-entry][src]") as HTMLScriptElement | null;
+const frameworkModules = Array.from(
+  document.querySelectorAll("script[data-furin-framework-module][src]")
+).map((script) => script.getAttribute("src") ?? "").filter(Boolean);
 const buildId = document.querySelector('meta[name="furin-build-id"]')?.getAttribute("content") ?? undefined;
 const faviconHref = document.querySelector('link[rel="icon"]')?.getAttribute("href") ?? undefined;
 const documentState: DocumentState = {
@@ -312,6 +315,7 @@ const documentState: DocumentState = {
     buildId,
     entryModule: entryEl?.getAttribute("src") ?? undefined,
     faviconHref,
+    frameworkModules,
     staticMode: document.querySelector('meta[name="furin-mode"][content="static"]') !== null,
     stylesheets: Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
       .map((link) => link.getAttribute("href") ?? "")
@@ -540,7 +544,9 @@ if (__deferred && __deferred._chunks) {
   log.info({ action: "hydrate_complete", pathname });
 })().catch((err: unknown) => {
   log.error({ action: "hydrate_failed", pathname, error: String(err) });
-  window.dispatchEvent(new CustomEvent("furin:hydrate-error", { detail: err }));
+  window.dispatchEvent(
+    new CustomEvent("furin:client-error", { detail: { error: err, phase: "hydrate" } })
+  );
 });
 `;
 }

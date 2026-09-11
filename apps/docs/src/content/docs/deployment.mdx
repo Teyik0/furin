@@ -1,291 +1,115 @@
 # Deployment
 
-Furin supports two deployment strategies: a **Bun build** (live server with SSR/ISR support) and a **static export** (pre-rendered HTML files, no server required).
+Furin currently ships four Bun-native production shapes: a bundled server, a compiled server with assets on disk, a self-contained executable, and a pure static export. A fifth `package` output is for composing a page tree into another Elysia application.
 
-## Static Export — GitHub Pages
+## Choose An Output
 
-The static export pre-renders all SSG routes to `dist/path/index.html` files and generates a `404.html` SPA shell so that client-side navigation keeps working on GitHub Pages.
+| Requirement | Recommended output |
+|---|---|
+| SSR, ISR, APIs, or Sync in a normal Bun environment | Bun server bundle |
+| Small operational artifact with assets mounted beside it | Compiled `server` |
+| One distributable executable | Compiled `embed` |
+| Only SSG pages and no request runtime | Static export |
+| Publish a Furin app for another Elysia host | Package target |
 
-### Configuration
+Node.js, Vercel, and Cloudflare build targets are named in the CLI schema but are not implemented. Their commands fail rather than producing partial output.
 
-Add a `static` block to `furin.config.ts`:
+## Bun Server Bundle
+
+```sh
+furin build --target bun
+bun .furin/build/bun/server.js
+```
+
+The target directory contains `server.js`, one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
+
+Deploy the whole `.furin/build/bun` directory. `server.js` resolves client assets beside itself; `FURIN_CLIENT_DIR` can override the root instance's directory when a platform mounts assets elsewhere.
+
+## Compiled Executables
+
+```sh
+# Executable plus client/public directories
+furin build --target bun --compile server
+
+# Framework and public assets embedded in the executable
+furin build --target bun --compile embed
+```
+
+Both commands write `.furin/build/bun/server`. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
+
+Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
+
+## Static Export
 
 ```ts
 // furin.config.ts
 import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
-  plugins: [...],
   static: {
-    basePath: "/my-repo",  // GitHub repository name, no trailing slash
-    outDir: "dist",         // output directory (default: "dist")
-    onSSR: "error",         // "error" (default) | "skip"
+    basePath: "/my-site",
+    outDir: "dist",
+    onSSR: "error",
   },
 });
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `basePath` | `string` | `""` | Path prefix for GitHub Pages (e.g. `"/furin"` when the site lives at `user.github.io/furin/`) |
-| `outDir` | `string` | `"dist"` | Output directory |
-| `onSSR` | `"error" \| "skip"` | `"error"` | Behavior when an SSR route is encountered: hard error or warn + silent skip |
-
-### Build Command
-
-<CodeTabs>
-<CodeTab title="package.json">
-```json
-{
-  "scripts": {
-    "build:static": "furin build --target static"
-  }
-}
+```sh
+furin build --target static
+furin preview
 ```
-</CodeTab>
-<CodeTab title="Terminal">
-```bash
-bunx furin build --target static
-```
-</CodeTab>
-</CodeTabs>
 
-### Output Layout
+The output contains:
 
 ```text
 dist/
-├── index.html              ← route "/"
-├── blog/
-│   └── hello-world/
-│       └── index.html      ← route "/blog/hello-world"
-├── 404.html                ← SPA shell (GitHub Pages fallback)
-└── _client/
-    ├── _hydrate.js
-    └── _hydrate.css
-```
-
-### SSR / ISR Routes
-
-The static export does not support SSR or ISR routes — they require a live server.
-
-- **`onSSR: "error"` (default)** — the build fails and lists all non-exportable routes. Recommended to prevent silent production gaps.
-- **`onSSR: "skip"`** — SSR/ISR routes are skipped with a warning. Useful when some pages are served through a separate mechanism.
-
-```bash
-# Example error output with onSSR: "error"
-✗ Static export failed: the following routes cannot be statically exported:
-  - /dashboard (mode=ssr)
-  - /feed      (mode=isr)
-Set onSSR: "skip" in furin.config.ts to skip them instead.
-```
-
-### Deploying to GitHub Pages
-
-Add a workflow file at `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to GitHub Pages
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.13
-      - run: bun install
-      - run: bun run build:static
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - id: deploy
-        uses: actions/deploy-pages@v4
-```
-
-> **Tip:** the generated `404.html` is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client-side router take over.
-
----
-
-## Bun Build (Live Server)
-
-Use the Furin CLI through your package script or directly:
-
-<CodeTabs>
-<CodeTab title="package.json">
-```json
-{
-  "scripts": {
-    "build": "bunx furin build --target bun"
-  }
-}
-```
-</CodeTab>
-<CodeTab title="Terminal">
-```bash
-bunx furin build --target bun
-```
-</CodeTab>
-</CodeTabs>
-
-### Output Layout
-
-The Bun build writes to `.furin/build/bun`:
-
-```text
-.furin/build/bun/
-├── client/
+├── index.html
+├── __furin_data.ndjson
+├── docs/
 │   └── index.html
-├── public/
-├── server.js
-└── manifest.json
+├── _client/
+├── public assets...
+└── 404.html
 ```
 
-### Compiled Binaries
+Each rendered path also receives a route-data file so SPA navigation works without a runtime `/_furin/data` endpoint. Redirect loaders become portable HTML redirect pages.
 
-If you pass `--compile server`, Furin writes a server binary and keeps the built client assets on disk.
+Static export supports only SSG routes and rejects `requestLoader()`. Dynamic SSG routes require `staticParams()`. Keep `onSSR: "error"` unless another deployment deliberately owns the skipped SSR/ISR URLs.
 
-```bash
-bunx furin build --target bun --compile server
-```
+Set `basePath` only when the host serves the site below a subpath. It updates asset URLs and client navigation; it is not the same setting as the runtime `furin({ prefix })` used by a Bun server.
 
-If you pass `--compile embed`, Furin writes a self-contained server binary and removes the built client directory from the target output because the assets are embedded.
-
-```bash
-bunx furin build --target bun --compile embed
-```
-
-### Production Runtime
-
-For disk-based builds:
-
-- `server.js` reads client assets from `client/` next to the server bundle
-- `public/` is copied into `.furin/build/bun/public`
-- `FURIN_CLIENT_DIR` can override the client asset directory at runtime
-
-```bash
-FURIN_CLIENT_DIR=/absolute/path/to/client bun ./.furin/build/bun/server.js
-```
-
-### Multi-replica sync
-
-Sync always requires an explicit runtime shared by `furinSync(sync)` and `furin({ sync })`. Production rejects process-local adapters, including SQLite `:memory:`. Configure one durable namespace shared by every replica. PostgreSQL is the recommended default because mutation completion and the change journal commit in one transaction.
-
-For a durable single-host deployment, `@teyik0/furin/sync/sqlite` can share the application's `bun:sqlite` database. Enable WAL and a busy timeout, run `migrateSqliteSync(database)`, and pass the same adapter instance to both plugins. Its `host-local` scope coordinates processes sharing one local file but does not support replicas on different hosts or a network filesystem. The task-manager example is the executable reference.
+## Packaged Apps
 
 ```sh
-bun add @teyik0/furin
-bunx --package @teyik0/furin furin-sync-postgres-migrate
+furin build --target package --pagesDir ./src/admin --prefix /admin
 ```
 
-Set `FURIN_SYNC_POSTGRES_URL` in the server environment before running the command. The idempotent schema bootstrap at `@teyik0/furin/sync/postgres/migration.sql` creates only the `furin_sync` schema and is safe to run through your existing migration system. It is not a versioned migration history and is never applied implicitly at application startup.
+This produces an Elysia plugin factory rather than a bootable server. See [Multi-Instance & Packaged Apps](/docs/multi-instance) for host composition and current executable limitations.
 
-Construct the adapter on the server and pass the same runtime object to the mutation and page plugins. Keep the namespace stable across every replica:
+## Environment Variables
 
-```ts
-import { SQL } from "bun"
-import { Elysia } from "elysia"
-import { furin, furinSync } from "@teyik0/furin"
-import {
-  postgresSyncAdapter,
-  postgresSyncNotifier,
-} from "@teyik0/furin/sync/postgres"
+Server secrets stay in `process.env` and are read only by server code. Do not expose secrets through the browser build.
 
-const databaseUrl = process.env.FURIN_SYNC_POSTGRES_URL
-if (databaseUrl === undefined) {
-  throw new Error("FURIN_SYNC_POSTGRES_URL is required")
-}
-const namespace = "task-manager"
-const postgres = {
-  namespace,
-  sql: new SQL(databaseUrl),
-}
-const adapter = postgresSyncAdapter(postgres)
-const sync = {
-  adapter,
-  notifier: postgresSyncNotifier(postgres),
-  principal: ({ request }) => requireUser(request).id,
-}
-
-new Elysia()
-  .use(furinSync(sync))
-  .use(await furin({ pagesDir: "./src/pages", sync }))
-  .listen(3000)
-```
-
-This setup uses a namespace-isolated PostgreSQL channel and performs no periodic cursor polling while its listener is healthy. The adapter queues `NOTIFY` in its durable completion transaction, so PostgreSQL delivers the wake-up only after commit. Bun automatically reconnects and restores `LISTEN`; Furin then reads the durable cursor so the journal covers notifications missed during the disconnect. If the initial subscription fails, Furin restores its safety poll instead of caching a dead stream.
-
-If PostgreSQL notifications are unavailable, choose the compatibility poller explicitly:
-
-```ts
-import { PollingSyncNotifier } from "@teyik0/furin/sync"
-
-const sync = {
-  adapter,
-  notifier: new PollingSyncNotifier(adapter, 250),
-  principal: ({ request }) => requireUser(request).id,
-}
-```
-
-When Redis is already part of the deployment, its independent notifier can replace the native PostgreSQL notifier:
-
-```ts
-import { RedisClient } from "bun"
-import { redisSyncNotifier } from "@teyik0/furin/sync/redis"
-
-const redisUrl = process.env.FURIN_SYNC_REDIS_URL
-if (redisUrl === undefined) {
-  throw new Error("FURIN_SYNC_REDIS_URL is required")
-}
-const client = new RedisClient(redisUrl)
-const sync = {
-  adapter,
-  notifier: redisSyncNotifier({ client, namespace }),
-  principal: ({ request }) => requireUser(request).id,
-}
-```
-
-Redis is not a correctness dependency in this hybrid: a later wake-up or SSE reconnect catches clients up from the PostgreSQL journal after a missed notification. Furin retains a low-frequency safety poll for notifiers that do not declare their own missed-notification recovery.
-
-Use a stable, application-specific `namespace` in every replica. Changing it creates a separate replay and change history. Keep database and Redis URLs in server-only environment variables; adapters are backend-only and never belong in route components or the browser entry.
-
----
-
-## Planned Targets
-
-The config surface already names `node`, `vercel`, and `cloudflare`, but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in `packages/core/src/build/index.ts`.
-
-## Public Environment Variables
-
-Prefix client-visible variables with `FURIN_PUBLIC_` and expose them through Bun:
+Client-visible values must match the Bun full-stack allowlist used during development:
 
 ```toml
 [serve.static]
 env = "FURIN_PUBLIC_*"
 ```
 
-```bash
-FURIN_PUBLIC_API_URL=https://api.example.com
-```
+Treat every `FURIN_PUBLIC_*` value as public, because it may be compiled into browser code.
 
-## Giscus In The Docs App
+## Caches And Replicas
 
-The docs app can render Giscus comments from GitHub Discussions by setting these public values:
+SSG/ISR HTML caches are in-process. A CDN can cache their public responses, but on-demand invalidation must evict both the origin entry and the CDN entry. Multiple replicas need an application-level origin-coordination strategy; the Sync journal distributes browser invalidations but is not a shared HTML cache.
 
-```bash
-FURIN_PUBLIC_GISCUS_REPO=teyik0/furin
-FURIN_PUBLIC_GISCUS_REPO_ID=...
-FURIN_PUBLIC_GISCUS_CATEGORY=General
-FURIN_PUBLIC_GISCUS_CATEGORY_ID=...
-```
+For Sync, use file-backed SQLite only on one host. For replicas on separate hosts, PostgreSQL with its native `LISTEN/NOTIFY` notifier is the recommended default; Redis remains available as either the durable adapter or an independent notifier. Keep one stable namespace and run the required schema bootstrap before starting traffic. See [Sync & Invalidations](/docs/sync).
 
-That keeps comments out of your application database.
+## Production Checklist
+
+- Run type-checks and tests before the build.
+- Deploy the exact server and asset directories listed by the manifest.
+- Keep `NODE_ENV=production` behavior and server-only secrets consistent across replicas.
+- Configure health checks on an explicit Elysia API route.
+- Decide whether CDN invalidation is required before enabling long shared-cache lifetimes.
+- Roll back code and matching assets together; the build ID protects browsers from mixed deployments, not the origin from an incomplete rollout.

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
+import { subscribeBrowserEvent } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
@@ -115,7 +116,7 @@ export function RouterProvider({
   defaultPreloadDelay,
   defaultPreloadStaleTime,
   prefetchCacheSize,
-  syncStream,
+  syncPath,
 }: RouterProviderProps): React.ReactElement {
   const initialDocumentState = useDocumentState();
   // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
@@ -882,14 +883,14 @@ export function RouterProvider({
   // Listen for sync cursor notifications and recover changes over HTTP.
   // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
-    if (!syncStream || typeof window === "undefined" || typeof EventSource === "undefined") {
+    if (!syncPath || typeof window === "undefined") {
       return;
     }
 
-    const streamUrl = syncStream.startsWith("/")
-      ? `${basePath}${syncStream}`
-      : `${basePath}/${syncStream}`;
-    let source: EventSource | undefined;
+    const changesUrl = syncPath.startsWith("/")
+      ? `${basePath}${syncPath}`
+      : `${basePath}/${syncPath}`;
+    let unsubscribe: (() => void) | undefined;
     let disposed = false;
     const applyInvalidations = (entries: readonly string[]) => {
       if (disposed) {
@@ -912,7 +913,7 @@ export function RouterProvider({
     };
     const catchUp = createSyncCatchUp({
       fetchPage: async (after) => {
-        const url = new URL(`${streamUrl}/changes`, window.location.origin);
+        const url = new URL(`${changesUrl}/changes`, window.location.origin);
         if (after !== undefined) {
           url.searchParams.set("after", after);
         }
@@ -934,45 +935,30 @@ export function RouterProvider({
         }
       });
     };
-    let opened = false;
-    const onOpen = () => {
-      if (opened) {
-        recover();
-      }
-      opened = true;
-    };
-    const onSync = (event: MessageEvent) => {
-      let cursor: string;
-      try {
-        const { cursor: parsedCursor } = JSON.parse(event.data) as { cursor?: unknown };
-        if (typeof parsedCursor !== "string") {
-          throw new Error("Missing sync cursor");
-        }
-        cursor = parsedCursor;
-      } catch {
-        log.warn({ action: "sync_invalid_event", event: "furin.sync" });
+    const onSync = (event: { data: { cursor: string } }) => {
+      if (typeof event.data.cursor !== "string") {
+        log.warn({ action: "sync_invalid_event", event: "browser-events.sync" });
         return;
       }
-      catchUp.seed(cursor);
+      catchUp.seed(event.data.cursor);
       recover();
     };
     const connect = () => {
-      if (disposed || source) {
+      if (disposed || unsubscribe) {
         return;
       }
-      source = new EventSource(streamUrl);
-      source.addEventListener("open", onOpen);
-      source.addEventListener("furin.sync", onSync);
+      unsubscribe = subscribeBrowserEvent("sync", onSync);
+      if (!unsubscribe) {
+        log.warn({ action: "sync_transport_unavailable" });
+      }
     };
 
     connect();
     return () => {
       disposed = true;
-      source?.removeEventListener("open", onOpen);
-      source?.removeEventListener("furin.sync", onSync);
-      source?.close();
+      unsubscribe?.();
     };
-  }, [syncStream, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh]);
+  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh]);
 
   let pageElement: React.ReactNode;
   if (state.notFound || !state.match) {

@@ -28,142 +28,94 @@ The command uses `serverEntry` from `furin.config.ts`, or `src/server.ts` when i
 
 No browser is opened unless `--open-devtools` is explicitly provided.
 
----
+```sh
+furin help
+furin dev
+furin build
+furin preview
+```
+
+The generated project already exposes these through `bun run build`, `bun run start`, and `bun run dev`.
 
 ## `furin build`
 
-Build the app for production.
-
-```bash
-bunx furin build [options]
+```sh
+furin build [options]
 ```
 
-### Options
+| Flag | Value | Default | Meaning |
+|---|---|---|---|
+| `--target` | `bun`, `static`, `package`, `node`, `vercel`, `cloudflare`, or `all` | `bun` | Select output |
+| `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
+| `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
+| `--config` | Path | Auto-discovered | Use another config file |
+| `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
+| `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--target` | `"bun" \| "static" \| "node" \| "vercel" \| "cloudflare" \| "all"` | `"bun"` | Build target |
-| `--pagesDir` | `string` | from config | Override pages directory |
-| `--config` | `string` | `furin.config.ts` | Config file path |
-| `--compile` | `"server" \| "embed"` | from config | Compile to native binary |
-| `--analyze` | `boolean` | `false` | Write complete client metafiles under `.furin/build/analysis/` |
+`--compile` without a value means `server`; `--compile=embed` is also accepted.
 
-### Examples
+```sh
+# Bundled Bun server
+furin build --target bun
 
-```bash
-# Default Bun target
-bunx furin build
+# Executable plus assets on disk
+furin build --target bun --compile server
 
-# Static export and local preview
-bunx furin build --target static
-bunx furin preview
+# One self-contained executable
+furin build --target bun --compile embed
 
-# Self-contained binary
-bunx furin build --compile embed
-bunx furin build --compile=embed
+# Pure static output
+furin build --target static
 
-# Multiple targets
-bunx furin build --target all
+# Publishable Furin/Elysia plugin
+furin build --target package --pagesDir ./src/admin --prefix /admin
 
-# Custom config
-bunx furin build --config ./furin.production.config.ts
-
-# Emit a Bun metafile containing entrypoints, lazy chunks, and source contributions
-bunx furin build --target bun --analyze
+# Bun and static outputs
+furin build --target all
 ```
 
-The metafile describes emitted bytes and the import graph, so it can identify initial assets, lazy chunks, and the source files contributing to each output. It does not measure startup time, request throughput, CPU usage, or heap usage; those require runtime benchmarks and profiles.
+`all` currently means the implemented deploy targets `bun` and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
 
-### Target details
+### Target Status
 
-#### `bun` (default)
+| Target | Status | Main output |
+|---|---|---|
+| `bun` | Implemented | `.furin/build/bun` |
+| `static` | Implemented | `static.outDir`, default `dist` |
+| `package` | Implemented | `.furin/build/package` |
+| `node` | Planned; command fails | None |
+| `vercel` | Planned; command fails | None |
+| `cloudflare` | Planned; command fails | None |
 
-Produces a server bundle and client assets under `.furin/build/bun/`.
+Every successful build writes `.furin/build/manifest.json`. It records route modes, app prefixes, output paths, build IDs, and target-specific metadata.
 
-```
-.furin/build/bun/
-├── server.js          # Server entry
-└── client/
-    ├── _hydrate-*.js  # Hydration bundle (content-hashed)
-    └── index-*.js     # Page chunks (content-hashed)
-```
+### Analyze Output
 
-Run with:
-
-```bash
-bun .furin/build/bun/server.js
-```
-
-#### `static`
-
-Pre-renders every SSG-compatible route to HTML files.
-
-```
-.furin/build/static/
-└── dist/
-    ├── index.html
-    ├── blog/
-    │   └── hello-world/
-    │       └── index.html
-    └── 404.html
-```
-
-SSR and ISR routes cause a build error by default (use `static.onSSR: "skip"` to omit them).
-Loader redirects are exported as portable HTML redirect pages.
-
-#### `node`, `vercel`, `cloudflare`
-
-Planned targets. Config types exist but builders are not yet wired.
-
----
+`--analyze` writes Bun metafiles for client builds. They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
 
 ## `furin preview`
 
-Serve the output of `furin build --target static` locally:
+Serve a completed static export locally:
 
-```bash
-bunx furin preview [options]
+```sh
+furin preview [options]
 ```
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--dir` | `string` | `static.outDir` or `"dist"` | Static export directory |
-| `--basePath` | `string` | `static.basePath` or `""` | Deployment base path |
-| `--port` | `number` | `3000` | Listening port |
-| `--config` | `string` | `furin.config.ts` | Config file path |
+| Flag | Default | Meaning |
+|---|---|---|
+| `--dir` | `static.outDir` or `dist` | Directory to serve |
+| `--basePath` | `static.basePath` or `""` | Hosting prefix to simulate |
+| `--port` | `3000` | Local TCP port |
+| `--config` | Auto-discovered | Alternate config file |
 
-The preview server uses Bun's native directory route for immutable `_client` assets, including ETag, conditional requests, and byte ranges. HTML routing and the generated `404.html` fallback remain under Furin's control.
-
----
-
-## `furin help`
-
-Show usage information.
-
-```bash
-bunx furin help
+```sh
+furin build --target static
+furin preview --port 4173
 ```
 
----
+Preview handles clean HTML routes and the generated `404.html` fallback. It is a validation server, not a production application runtime.
 
-## Package scripts
-
-The recommended `package.json` setup:
-
-```json
-{
-  "scripts": {
-    "dev": "furin dev",
-    "build": "furin build",
-    "build:static": "furin build --target static",
-    "start": "bun .furin/build/bun/server.js"
-  }
-}
-```
-
----
-
-## Development runtime
+## Development
 
 `furin dev` remains a small supervisor around Bun rather than replacing the application's Elysia entrypoint. This preserves custom plugins, middleware, and `.listen()` configuration while giving you:
 
@@ -172,4 +124,10 @@ The recommended `package.json` setup:
 - File-system-based routing updates
 - the dedicated Furin DevTools dashboard
 
-See [Dev Mode HMR](/docs/dev-hmr) for the full internals.
+The direct Bun command remains supported:
+
+```sh
+bun --hot src/server.ts
+```
+
+Route discovery, generated types, React Fast Refresh, server re-imports, diagnostics, and DevTools are activated by `furin()` in development. See [Dev Mode HMR](/docs/dev-hmr) for the full internals.

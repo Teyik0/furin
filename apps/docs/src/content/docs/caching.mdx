@@ -1,336 +1,115 @@
 # Caching
 
-Furin exposes three render modes — **SSG**, **ISR**, and **SSR** — each with a distinct caching strategy that works correctly in every deployment scenario: embedded binary, self-hosted (with or without a CDN), Vercel, and Cloudflare Workers.
+Furin caches complete public route results according to the route's explicit rendering mode. Route caches are in-process and scoped to each mounted Furin instance; CDN caching is a separate layer controlled by response headers and an optional purge callback.
 
-## Render modes at a glance
+## Cache Contract By Mode
 
-| Mode | When used | Cached? | Cache location |
-|------|-----------|---------|----------------|
-| **SSG** | No loader, or explicit `mode: "ssg"` | ✅ forever | Server in-memory + CDN |
-| **ISR** | Loader + `revalidate > 0` | ✅ for N seconds | Server in-memory + CDN |
-| **SSR** | Loader, no `revalidate` | ❌ never | — |
+| Response | `Cache-Control` | `ETag` |
+|---|---|---|
+| SSR | `no-store, no-cache, must-revalidate` | None |
+| SSG | `public, max-age=0, must-revalidate, s-maxage=31536000` | Build ID plus cache timestamp |
+| Fresh ISR | `public, max-age=0, must-revalidate, s-maxage=N, stale-while-revalidate=N` | Build ID plus generation timestamp |
+| Stale ISR | Same, with `s-maxage=0` | Existing ISR ETag |
+| Cached route with `requestLoader()` | `private, no-store` | None |
+| `/_client/*` assets | `public, max-age=31536000, immutable` | Not required; filenames are content-hashed |
 
-```ts
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
+Browsers revalidate cached HTML, while a shared cache may use `s-maxage`. When `If-None-Match` matches a current SSG or ISR entry, Furin returns `304` without the body.
 
-// SSG — static at startup
+SSG and ISR responses also expose `Cache-Tag` with the concrete resolved path. This is metadata for an upstream cache; it does not make an arbitrary CDN purge itself.
+
+## ISR Lifecycle
+
+For `mode: "isr"`, `revalidate` is seconds:
+
+```tsx
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
-  .page(() => <HomePage />)
-
-// ISR — regenerate every 60 s
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
-  .loader(async () => ({ posts: await fetchPosts() }))
-  .page(({ data: { posts } }) => <BlogList posts={posts} />)
-
-// SSR — fresh on every request
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async () => ({ user: await fetchUser() }))
-  .page(({ data: { user } }) => <Profile user={user} />)
+  .config({
+    layout: rootRoute,
+    mode: "isr",
+    revalidate: 60,
+    tags: ["posts"],
+  })
+  .loader(async () => ({ posts: await db.posts.findMany() }))
+  .page(({ data }) => <PostList posts={data.posts} />);
 ```
 
----
+1. A miss renders and caches only a healthy `200` result.
+2. A fresh hit returns the stored HTML.
+3. The first stale hit returns the old HTML and starts background regeneration.
+4. Other stale hits reuse the same in-flight regeneration.
+5. Success replaces the entry atomically; failure retains the last good entry.
 
-## Cache-Control headers
+ISR cache keys include the request search string. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
 
-Furin's caching model is designed so that **browsers always validate**, while **CDNs can cache and serve stale**. This is achieved with a combination of directives:
-
-### Why `must-revalidate` + `max-age=0`?
-
-Without `must-revalidate`, modern browsers implement [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861) `stale-while-revalidate`. This means:
-
-> A browser that received an ISR page with `stale-while-revalidate=60` will happily **serve the cached page** for 60 extra seconds after it expires — silently, with no server request.
-
-This is fine behind a CDN (that's the point), but undesirable when self-hosting: users would see stale pages for up to 60 s beyond the `revalidate` window.
-
-The fix: `must-revalidate` is an **override** for `stale-while-revalidate` on browsers ([RFC 7234 §5.2.2.7](https://www.rfc-editor.org/rfc/rfc7234#section-5.2.2.7)):
-
-- `must-revalidate` + `max-age=0` → browser sends a conditional request every time
-- `s-maxage` → CDN uses this value (browsers ignore it per RFC 7234)
-
-The result: browsers always go to the network, CDNs serve stale and refresh in the background.
-
-### Headers by mode
-
-| Mode | `Cache-Control` | `ETag` | Behaviour |
-|------|----------------|--------|-----------|
-| **SSG** | `public, max-age=0, must-revalidate, s-maxage=31536000` | `"buildId:cachedAt"` | Browser: conditional GET. CDN: 1 year. |
-| **ISR (fresh)** | `public, max-age=0, must-revalidate, s-maxage=N, stale-while-revalidate=N` | `"buildId:generatedAt"` | Browser: conditional GET. CDN: SWR. |
-| **ISR (stale)** | `public, max-age=0, must-revalidate, s-maxage=0, stale-while-revalidate=N` | `"buildId:generatedAt"` | Browser: conditional GET. CDN: BG refresh. |
-| **SSR** | `no-store, no-cache, must-revalidate` | — | Never cached anywhere. |
-| **`/_client/*`** | `public, max-age=31536000, immutable` | — | Content-hashed — permanent cache. |
-
-### ETags and conditional requests
-
-Every ISR and SSG response includes an **ETag** header. When the browser sends the same ETag back in `If-None-Match`, Furin returns `304 Not Modified` with no body — this is near-instant (~0 ms) and transfers zero data.
-
-ETag format:
-- ISR: `"buildId:generatedAt"` — changes when the ISR entry is refreshed
-- SSG: `"buildId:cachedAt"` — changes after `revalidatePath()` forces a re-render
-
----
-
-## `revalidatePath(path, type)`
-
-Force invalidation of one or more server-side cache entries on demand. Typical use cases: publishing a CMS entry, processing a webhook, or handling a form submission.
+## Invalidate A Path
 
 ```ts
 import { revalidatePath } from "@teyik0/furin";
 
-// Exact match — invalidate a single page (ISR + SSG)
-revalidatePath("/blog/my-post", "page");
-
-// Prefix match — invalidate /blog + all nested routes
+revalidatePath("/blog/hello", "page");
 revalidatePath("/blog", "layout");
 ```
 
-**Parameters:**
+`page` evicts the exact pathname. `layout` evicts the path and its descendants. The function returns whether an origin entry was deleted, queues an `X-Furin-Revalidate` signal for the current response, and invokes the configured CDN purger asynchronously.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `path` | `string` | — | The URL path to invalidate |
-| `type` | `"page" \| "layout"` | — | `"page"` = exact match; `"layout"` = prefix match |
+Logical paths are unprefixed. `revalidatePath()` intentionally checks every mounted Furin instance; physical CDN purge paths include each instance prefix.
 
-**Returns:** `boolean` — `true` if at least one cache entry was removed.
+## Invalidate Tags
 
-**Example — webhook handler:**
-
-```ts
-// src/pages/api/webhook.ts
-import { revalidatePath } from "@teyik0/furin";
-import Elysia from "elysia";
-
-export const api = new Elysia().post("/api/webhook", async ({ body, headers }) => {
-  // Verify signature ...
-  const event = body as { slug: string };
-
-  revalidatePath(`/blog/${event.slug}`, "page");
-  // Next request to /blog/my-post will be a cache miss → fresh render
-
-  return { ok: true };
-});
-```
-
-After `revalidatePath()` is called:
-1. The in-memory cache entry is deleted immediately
-2. The path is queued in `pendingInvalidations`
-3. On the _next response_ sent by the server (any route), the `X-Furin-Revalidate` header is emitted
-4. The browser's prefetch cache is busted automatically
-5. If a CDN purger is registered, it is called asynchronously
-
----
-
-## Cache tags
-
-Cache tags let loaders describe the data they depend on, then let mutation routes invalidate those groups without hard-coding every path.
+Declare data dependencies in route config:
 
 ```tsx
-// src/pages/blog/index.tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["posts"] })
-  .loader(async () => ({ posts: await db.posts.findMany() }))
-  .page(({ data: { posts } }) => <BlogList posts={posts} />)
+.config({
+  layout: rootRoute,
+  mode: "isr",
+  revalidate: 300,
+  tags: ["posts", "homepage"],
+})
 ```
 
-```ts
-// src/api/posts.ts
-import { furinSync } from "@teyik0/furin";
-import { Elysia, t } from "elysia";
-import { sync } from "../sync";
-
-export const postsApi = new Elysia()
-  .use(furinSync(sync))
-  .post(
-    "/posts",
-    async ({ body }) => db.posts.create(body),
-    {
-      body: t.Object({ title: t.String() }),
-      sync: { invalidate: { tags: ["posts"] } },
-    }
-  );
-```
-
-The `sync` route option is provided by the `furinSync(sync)` macro. Install the macro on the same Elysia plugin that declares the routes. Mutations are synchronized by default; use `sync: false` only for non-replayable effects.
-
-`furinSync()` requires an `Idempotency-Key` header for every synced mutation, replays successful responses for duplicate requests, and appends successful invalidations to its change log. The sync replay layer only accepts small bounded responses: serialized bodies are capped at 1 MB, and returned `Response` objects must include a valid `Content-Length`. This makes idempotency and multi-tab refresh part of the default mutation contract instead of per-route boilerplate.
-
-If you only need response-header invalidation without live broadcast, the lower-level `furinInvalidate()` macro still provides the `invalidate` route option.
-
-When `furin-env.d.ts` is generated, Furin also augments `FurinCacheTags`, so mutation routes get autocomplete and type-checking for known tags:
-
-```ts
-declare module "@teyik0/furin" {
-  interface FurinCacheTags {
-    posts: "posts";
-  }
-}
-```
-
-You can also invalidate tags manually:
+Then invalidate the concrete cached paths registered under those tags:
 
 ```ts
 import { revalidateTag } from "@teyik0/furin";
 
 revalidateTag("posts");
+revalidateTag(["posts", "homepage"]);
 ```
 
-Tags are registered against concrete cached paths when ISR/SSG entries are written. Dynamic routes such as `/blog/:slug` therefore invalidate only the concrete paths that have actually been cached.
+Tag invalidation spans mounted instances but evicts only paths registered by each owning instance. Generated route types augment `FurinCacheTags`, providing autocomplete for tags discovered in route config.
 
----
+Prefer tags when a mutation changes shared data used by several pages. Prefer paths when the changed URL is already known. This keeps invalidation precise instead of clearing the entire route cache.
 
-## Live sync and `X-Furin-Revalidate`
+## Browser Prefetch Invalidation
 
-When `revalidatePath()` is called in a handler, Furin automatically appends a response header to tell the client which prefetch cache entries are stale:
+Furin mutation helpers add a response header such as:
 
+```text
+X-Furin-Revalidate: /blog/hello,/blog:layout
 ```
-X-Furin-Revalidate: /blog/my-post,/blog:layout
-```
 
-The client-side router (`RouterProvider`) intercepts **all** `window.fetch` calls. When it sees this header it busts the corresponding prefetch cache entries, ensuring the next SPA navigation fetches fresh HTML from the server instead of using a stale prefetch.
+The generated router observes same-page browser `fetch()` responses, evicts matching prefetch entries, and refreshes the active route when it is affected. `applyRevalidateHeader()` is exported from `@teyik0/furin/link` for a custom integration, but application code normally does not need to call it.
 
-When `furin({ sync })` receives the shared runtime, Furin mounts `/_furin/sync` and injects the stream configuration into the page HTML. SSE emits lightweight `furin.sync` cursor notifications. The client reads missed changes from `/_furin/sync/changes`, invalidates prefetched HTML in order, and refreshes the active route when it depends on the changed path or tag.
+For other tabs and devices, configure [Sync & Invalidations](/docs/sync). Sync distributes invalidation events; it does not turn the process-local HTML cache into a shared cache.
 
-The runtime is explicit in every environment. SQLite `:memory:` is available for development and tests but rejected in production; file-backed SQLite is durable on one host. PostgreSQL completion atomically stores the replay response, advances the cursor, and records invalidations in one transaction. Lease acquisition, the application handler, and domain writes happen separately. Redis provides the equivalent completion contract with Lua and Redis Streams. SSE and `SyncNotifier` remain best-effort wake-ups, while `/_furin/sync/changes` is the durable recovery path.
+## CDN Purging
 
-This sync journal coordinates mutation replay and browser invalidation; it is not an ISR page-cache backend. Page caches remain process-local. Multi-replica deployments therefore need cross-replica origin-cache invalidation or a shared page cache for cached HTML, in addition to CDN purging. Purging only the CDN can let another replica repopulate it with stale HTML from that replica's local cache.
-
----
-
-## Stale-deploy detection
-
-Each production build has a **build ID** — a 12-hex-char hash derived from the client assets plus server-rendered build inputs. It is:
-
-- Injected into `index.html` as `<meta name="furin-build-id" content="abc123ef0011">`
-- Emitted on every production response as `X-Furin-Build-ID: abc123ef0011`
-
-When the user navigates with the SPA router:
-
-1. The client fetches the new page HTML
-2. It compares `X-Furin-Build-ID` from the response with the meta tag value loaded at startup
-3. If they differ → the app bundle has changed → the router triggers a **full-page reload** instead of an SPA transition
-
-This prevents users who load the old JS bundle from trying to mount components from a newer server-rendered page.
-
----
-
-## CDN purging with `setCachePurger`
-
-For self-hosted deployments behind a CDN, register a purge callback at server startup. Furin calls it **fire-and-forget** whenever `revalidatePath()` is invoked.
+Register one process-wide callback at server startup when a CDN needs explicit invalidation:
 
 ```ts
-// src/server.ts
-import Elysia from "elysia";
-import { furin, setCachePurger } from "@teyik0/furin";
-
-// Register CDN purger once at startup
-setCachePurger(async (paths) => {
-  await fetch("https://api.example-cdn.com/purge", {
-    method: "POST",
-    headers: { "CDN-Token": process.env.CDN_TOKEN! },
-    body: JSON.stringify({ paths }),
-  });
-});
-
-new Elysia()
-  .use(await furin())
-  .listen(3000);
-```
-
-The purger is **never** called in development mode. Errors are caught and logged to `console.error` without blocking the HTTP response.
-
-### Future edge adapters
-
-The `setCachePurger` extension point is the foundation for upcoming platform adapters:
-
-<CodeTabs>
-<CodeTab title="Vercel (future)">
-```ts
-// vercelAdapter() registers the purger automatically
-import { vercelAdapter } from "@teyik0/furin/adapters/vercel";
+import { setCachePurger } from "@teyik0/furin";
 
 setCachePurger(async (paths) => {
-  await fetch("https://api.vercel.com/v1/edge-cache/purge", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` },
-    body: JSON.stringify({ urls: paths.map((p) => `${process.env.VERCEL_URL}${p}`) }),
-  });
-});
-```
-</CodeTab>
-<CodeTab title="Cloudflare Workers (future)">
-```ts
-// cfAdapter() registers the purger automatically
-setCachePurger(async (paths) => {
-  for (const p of paths) {
-    await caches.default.delete(new Request(`${process.env.CF_ORIGIN}${p}`));
-  }
-});
-```
-</CodeTab>
-</CodeTabs>
-
----
-
-## `Cache-Tag` header
-
-Every ISR and SSG response includes a `Cache-Tag` header set to the resolved path:
-
-```
-Cache-Tag: /blog/my-post
-```
-
-This is the foundation for **tag-based CDN purging** — when `revalidatePath("/blog/my-post")` is called, the CDN purger can use the tag to purge only that URL's cached responses, without knowing the exact URL variants (query strings, etc.).
-
----
-
-## Deployment scenarios
-
-### Self-hosted (no CDN)
-
-Browsers send a conditional `GET` with `If-None-Match` on every navigation. If the content hasn't changed, Furin responds with `304` instantly. `must-revalidate` ensures no stale content is ever served silently.
-
-### Behind a CDN
-
-CDN uses `s-maxage` for its own TTL. When the TTL expires, it fetches fresh HTML from Furin. You can also force-purge by calling `revalidatePath()` + `setCachePurger()`.
-
-### Embedded binary (`compile: "embed"`)
-
-All client assets are bundled into the binary. The `/_client/*` routes are served from memory with `immutable` caching. The in-memory ISR/SSG cache is populated at startup via `warmSSGCache`.
-
----
-
-## `applyRevalidateHeader` (client utility)
-
-For custom integrations where you make fetch calls manually and want to propagate revalidations:
-
-```ts
-import { applyRevalidateHeader } from "@teyik0/furin/link";
-
-const res = await fetch("/api/publish");
-applyRevalidateHeader(res.headers, (path, type) => {
-  // called for each path in X-Furin-Revalidate
-  console.log("invalidate", path, type);
+  await cdn.purge(paths);
 });
 ```
 
-This is the same function used internally by `RouterProvider`'s `window.fetch` interceptor.
+Furin batches and deduplicates physical paths for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
 
----
+An origin cache and a CDN cache must both be coherent. In a multi-replica deployment, each replica currently owns its own page cache. Purging only the CDN can allow another replica to repopulate it with stale HTML. Use a deployment strategy that coordinates origin invalidation or routes cached pages consistently until a shared page-cache adapter exists.
 
-## Client-side auto-refresh
+## Deploy Changes
 
-`RouterProvider` intercepts **all** `window.fetch` calls. When any response includes `X-Furin-Revalidate` and the current page is targeted, the router can automatically re-fetch the current page — even for non-navigation fetches like form submissions or API calls.
+Production responses include `X-Furin-Build-ID`; the initial document includes the matching meta value. If an SPA navigation reaches a different build, the client reloads the document instead of mixing old browser modules with new server output.
 
-This is controlled by the `autoRefresh` prop (default `true`):
-
-```tsx
-<RouterProvider autoRefresh={true} />
-```
-
-Set to `false` to opt out and call `router.refresh()` manually instead.
+This build check protects code/data compatibility. It does not replace rolling-deployment coordination for origin caches or sync adapters.

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Furin reads `furin.config.ts` (or `.js` / `.mjs`) at the project root. Every field is optional — the framework works out of the box with zero config.
+Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file.
 
 ```ts
 // furin.config.ts
@@ -13,247 +13,133 @@ export default defineConfig({
   serverEntry: "src/server.ts",
   clientLogging: false,
   reactCompiler: true,
-  optimizeImports: ["example-library"],
-  targets: ["bun"],
-  plugins: [tailwind],
-  bun: {
-    compile: "embed",
+  plugins: [{ ...tailwind, buildOnly: true }],
+  bun: { compile: "embed" },
+});
+```
+
+CLI flags override the corresponding file settings. Paths are resolved from the CLI working directory, then `pagesDir` and `serverEntry` are resolved relative to `rootDir`.
+
+## Build Fields
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `rootDir` | `string` | Current directory | Project root for build paths |
+| `pagesDir` | `string` | `src/pages` | Pages directory for one root-mounted app |
+| `serverEntry` | `string` | `src/server.ts` | Elysia entry for server builds |
+| `apps` | `{ pagesDir; prefix? }[]` | Auto-detected | Explicit multi-instance build inputs |
+| `clientLogging` | `boolean` | `false` | Include the browser evlog HTTP drain |
+| `reactCompiler` | `boolean` | `true` | Enable Bun's React compiler in client builds |
+| `optimizeImports` | `string[]` | Bun defaults | Extra package barrels for Bun import optimization |
+| `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
+| `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
+| `static` | `StaticExportConfig` | See below | Configure pure static output |
+| `targets` | `BuildTarget[]` | None | Reserved schema field; the current CLI selects targets with `--target` |
+
+`apps` takes precedence over `pagesDir` and server-entry scanning. When neither is configured, a server build statically scans literal `furin({ pagesDir, prefix })` calls in `src/server.ts`, then falls back to `src/pages`.
+
+```ts
+export default defineConfig({
+  apps: [
+    { pagesDir: "./src/pages" },
+    { pagesDir: "./src/admin", prefix: "/admin" },
+  ],
+});
+```
+
+Use `apps` when mount values come from variables or factories that static scanning cannot resolve.
+
+## Client Logging
+
+```ts
+export default defineConfig({ clientLogging: true });
+```
+
+This includes `evlog/http` in the generated browser entry and sends browser events to the prefixed `/_furin/ingest` endpoint. Server request logging is configured separately through `furin({ logger })`. See [Logging](/docs/logging).
+
+## React Compiler And Import Optimization
+
+```ts
+export default defineConfig({
+  reactCompiler: true,
+  optimizeImports: ["legacy-ui-library"],
+});
+```
+
+Bun's React compiler is enabled by default; disable it only to isolate a compiler incompatibility. Bun already optimizes packages declaring `sideEffects: false`, so list only additional pure barrel packages under `optimizeImports`.
+
+## Plugins
+
+```ts
+import type { FurinPlugin } from "@teyik0/furin/config";
+
+const assetPlugin: FurinPlugin = {
+  name: "asset-plugin",
+  buildOnly: true,
+  setup(build) {
+    // Register Bun build hooks.
   },
+};
+```
+
+Production registers non-`buildOnly` plugins while importing routes, then forwards every plugin to the relevant Bun builds. Development client plugins live in `bunfig.toml`; server-side route imports may also require `Bun.plugin()`. See [Plugins](/docs/plugins).
+
+## Bun Executables
+
+```ts
+export default defineConfig({ bun: { compile: "server" } });
+```
+
+| Value | Output |
+|---|---|
+| Omitted | Bundled `server.js` with assets on disk |
+| `server` | Native executable with client/public assets on disk |
+| `embed` | Native executable with framework client/public assets embedded |
+
+The CLI `--compile` flag wins over this field.
+
+## Static Export
+
+```ts
+export default defineConfig({
   static: {
-    basePath: "/my-app",
+    basePath: "/docs",
     outDir: "dist",
     onSSR: "error",
   },
 });
 ```
 
----
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `basePath` | `string` | `""` | Hosting subpath, starting with `/` and without a trailing slash |
+| `outDir` | `string` | `dist` | Static output directory |
+| `onSSR` | `"error" \| "skip"` | `error` | Fail on SSR/ISR routes or omit them with warnings |
 
-## `rootDir`
+Static export also rejects `requestLoader()` and dynamic SSG pages without `staticParams()` when `onSSR` is `error`.
 
-**Type:** `string`  
-**Default:** `"."`
+## Runtime `furin()` Options
 
-Project root directory. All relative paths in the config (e.g. `pagesDir`, `serverEntry`) are resolved from here.
-
----
-
-## `pagesDir`
-
-**Type:** `string`  
-**Default:** `"src/pages"`
-
-Directory containing your page files. Furin scans this directory recursively and turns every `.tsx` file into a route.
-
----
-
-## `serverEntry`
-
-**Type:** `string`  
-**Default:** `"src/server.ts"`
-
-Path to the server entrypoint that creates the Elysia instance. Required for `bun` target builds. Not needed for `static` builds.
-
----
-
-## `clientLogging`
-
-**Type:** `boolean`
-**Default:** `false`
-
-Inject the browser-side evlog logger into the generated hydration entry. Server-side request logging is unaffected by this option.
-
-When disabled, Furin keeps `evlog` and `evlog/http` out of the browser bundle and uses a no-op logger for internal client events. Enable it when you want SPA navigation and custom browser events to be batched to `/_furin/ingest` and re-emitted server-side as `service: "furin:browser"`.
-
-Enabling it adds about 10 KB gzipped to the client bundle.
+Runtime options live beside Elysia composition, not in the build config:
 
 ```ts
-import { defineConfig } from "@teyik0/furin/config";
-
-export default defineConfig({
+await furin({
+  pagesDir: "./src/pages",
+  prefix: "/admin",
+  clientDir: "./custom-client",
   clientLogging: true,
+  logger: { exclude: ["/health"] },
+  sync,
 });
 ```
 
----
-
-## `reactCompiler`
-
-**Type:** `boolean`
-**Default:** `true`
-
-Enables Bun's native Rust React Compiler for production client bundles. Furin uses Bun's `reactCompiler` build option directly; it does not add Babel to the build pipeline.
-
-Set `reactCompiler: false` only when diagnosing a compiler incompatibility:
-
-```ts
-export default defineConfig({
-  reactCompiler: false,
-});
-```
-
----
-
-## `optimizeImports`
-
-**Type:** `string[]`
-**Default:** `undefined`
-
-Passes package names to Bun's `optimizeImports` build option. Bun can then avoid parsing unused named re-exports from those packages' pure barrel files:
-
-```ts
-export default defineConfig({
-  optimizeImports: ["antd", "@mui/material"],
-});
-```
-
-Bun already applies this optimization automatically to packages declaring `"sideEffects": false`. Only list packages that expose pure named re-export barrels but do not declare that metadata. Furin does not maintain a hidden package allowlist.
-
----
-
-## `targets`
-
-**Type:** `Array<"bun" | "node" | "vercel" | "cloudflare" | "static">`  
-**Default:** `["bun"]`
-
-Build targets to produce. Only `"bun"` and `"static"` are fully implemented today. `"node"`, `"vercel"`, and `"cloudflare"` are planned.
-
-| Target | Output | Use case |
-|--------|--------|----------|
-| `bun` | Server bundle + client assets | Self-hosted Bun runtime |
-| `static` | Pre-rendered HTML directory | GitHub Pages, Netlify, CDN |
-
-You can also pass `"all"` to the CLI (`--target all`) to build every target defined in the config.
-
----
-
-## `plugins`
-
-**Type:** `BunPlugin[]`
-
-Bun plugins passed to the client bundler. Useful for Tailwind CSS, MDX, or any custom transform.
-
-```ts
-import { defineConfig } from "@teyik0/furin/config";
-import tailwind from "bun-plugin-tailwind";
-
-export default defineConfig({
-  plugins: [tailwind],
-});
-```
-
-### `buildOnly` flag
-
-Plugins can be marked `buildOnly: true` to skip runtime registration. Useful for build-time-only transforms like Tailwind.
-
-```ts
-import type { FurinPlugin } from "@teyik0/furin/config";
-
-const myPlugin: FurinPlugin = {
-  name: "my-plugin",
-  setup() { /* ... */ },
-  buildOnly: true,
-};
-```
-
----
-
-## `bun.compile`
-
-**Type:** `"server" | "embed"`  
-**Default:** `undefined` (no compilation)
-
-Compile the server to a native Bun binary.
-
-| Mode | Behaviour |
-|------|-----------|
-| `"server"` | Binary + `client/` directory on disk |
-| `"embed"` | Self-contained binary with all assets in memory |
-
-```bash
-# CLI override
-bunx furin build --compile embed
-```
-
----
-
-## `static`
-
-Configuration for the `static` build target.
-
-### `static.basePath`
-
-**Type:** `string`  
-**Default:** `""`
-
-Sub-path prefix for static deployments (e.g. `"/my-app"` for `user.github.io/my-app`). Must start with `/` and have no trailing slash.
-
-### `static.outDir`
-
-**Type:** `string`  
-**Default:** `"dist"`
-
-Output directory for the static export.
-
-### `static.onSSR`
-
-**Type:** `"error" | "skip"`  
-**Default:** `"error"`
-
-Behaviour when SSR or ISR routes are encountered during a static build:
-- `"error"` — Throw at build time with the list of incompatible routes.
-- `"skip"` — Emit a warning and omit those routes from the output.
-
----
-
-## Dev plugins (`bunfig.toml`)
-
-Dev-only plugins are configured in `bunfig.toml`, not `furin.config.ts`:
-
-```toml
-[serve.static]
-plugins = ["bun-plugin-tailwind", "@teyik0/furin/strip-plugin"]
-env = "FURIN_PUBLIC_*"
-```
-
-See the [Plugins](/docs/plugins) page for more details.
-
----
-
-## Runtime `furin()` options
-
-The Elysia plugin also accepts runtime options in `src/server.ts`. These options affect how Furin is mounted in the application server, so they live next to your API plugin order rather than in `furin.config.ts`.
-
-```ts
-import { furin } from "@teyik0/furin";
-import { Elysia } from "elysia";
-import { api } from "./api";
-import { sync } from "./sync";
-
-new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", sync }))
-  .use(api)
-  .listen(3000);
-```
-
-### `sync`
-
-**Type:** `{ adapter: SyncAdapter; principal: (ctx: Context) => string | Promise<string>; notifier?: SyncNotifier; streamPath?: string } | false`
-
-Enable Furin's built-in sync transport with an explicit runtime. Omit the option or pass `false` to disable the page-side transport. Furin mounts SSE at `/_furin/sync`, exposes cursor catch-up at `/_furin/sync/changes`, and injects the client runtime automatically. API mutations using `furinSync()` are synchronized by default and may opt out per route with `sync: false`.
-
-`principal` is mandatory and must return the authenticated application identity. Furin calls it after upstream authentication hooks; replay keys are isolated by this value. Never derive it from an unverified cookie or header.
-
-Synced mutations stay regular API routes. There are no server actions, generated mutation names, collections, or React wrapper providers required.
-
-The runtime is mandatory whenever sync is enabled. SQLite `:memory:` is process-local and intended for development or tests; production rejects it. File-backed SQLite is valid for one machine, while multi-host replicas require a distributed adapter such as PostgreSQL, Redis, or a custom durable `SyncAdapter`. Use the same runtime object with `furinSync(sync)` and `furin({ sync })`; this keeps mutation reservation, replay, SSE, and catch-up on one namespace.
-
-The notifier may be omitted for local adapters and during development, where Furin polls the adapter cursor. Distributed adapters require an explicit notifier in production so replicas cannot silently generate continuous polling traffic. Notifications are only wake-ups: ordered recovery always reads `adapter.readChanges()`, including after a disconnect or lost notification. Use `postgresSyncNotifier()` for a zero-poll PostgreSQL deployment, or pass `new PollingSyncNotifier(adapter, intervalMs)` as an explicit compatibility fallback.
-
-The adapters are isolated, tree-shakable subpaths of `@teyik0/furin`:
-
-- `@teyik0/furin/sync/postgres` — recommended durable adapter plus native PostgreSQL `LISTEN/NOTIFY`, using `Bun.SQL`.
-- `@teyik0/furin/sync/redis` — durable Redis Streams adapter plus an independent Redis notifier using Bun's native `RedisClient`.
-- `@teyik0/furin/sync/sqlite` — process-local in memory or host-local on disk using `bun:sqlite`.
-
-Importing one subpath does not pull the other backends into the bundle.
+| Field | Purpose |
+|---|---|
+| `pagesDir` | Runtime pages identity; defaults to `src/pages` |
+| `prefix` | Mount pages, framework endpoints, public assets, and client assets below a path |
+| `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
+| `clientLogging` | Enable browser logging for this runtime/build context |
+| `logger` | evlog Elysia options plus global sampling |
+| `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
+
+Keep the same `pagesDir` and `prefix` between the build and runtime mount. See [Multi-Instance](/docs/multi-instance) and [Sync & Invalidations](/docs/sync).

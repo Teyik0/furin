@@ -36,8 +36,8 @@ export interface DevtoolsInstance {
 }
 
 export interface DevtoolsSyncSnapshot {
+  changesPath: string | null;
   enabled: boolean;
-  streamPath: string | null;
 }
 
 export interface DevtoolsRuntimeSnapshot {
@@ -507,7 +507,7 @@ export function isDevtoolsSnapshot(value: unknown): value is DevtoolsSnapshot {
     typeof property(instance, "prefix") === "string" &&
     isObject(sync) &&
     typeof property(sync, "enabled") === "boolean" &&
-    isNullableString(property(sync, "streamPath")) &&
+    isNullableString(property(sync, "changesPath")) &&
     isRuntimeSnapshot(property(value, "runtime")) &&
     Array.isArray(events) &&
     events.every(isDevtoolsServerEvent) &&

@@ -10,7 +10,6 @@ import {
 } from "./request-context.ts";
 
 const CLIENT_PATH = "/_furin/devtools/client.js";
-const ERROR_OVERLAY_CLIENT_PATH = "/_furin/dev/error-overlay.js";
 
 type EventInput<T extends DevtoolsServerEventInput["type"]> = Omit<
   Extract<DevtoolsServerEventInput, { type: T }>,
@@ -47,32 +46,33 @@ export function runWithRequestInstrumentation<T>(request: Request, fn: () => T):
 }
 
 export function shouldInstrumentRequest(pathname: string, prefix: string): boolean {
-  const internalPaths = [`${prefix}/_furin/dev`, `${prefix}/_furin/devtools`];
+  const internalPaths = [
+    `${prefix}/_furin/dev`,
+    `${prefix}/_furin/devtools`,
+    `${prefix}/_furin/events`,
+  ];
   return internalPaths.every(
     (internalPath) => pathname !== internalPath && !pathname.startsWith(`${internalPath}/`)
   );
 }
 
 export function instrumentationLoggerExclusions(prefix: string): string[] {
-  return [`${prefix}/_furin/dev/**`, `${prefix}/_furin/devtools/**`];
+  return [`${prefix}/_furin/dev/**`, `${prefix}/_furin/devtools/**`, `${prefix}/_furin/events/**`];
 }
 
 export function createInstrumentationPlugin(
   routes: ResolvedRoutesSource,
-  syncStreamPath: string | undefined
+  syncPath: string | undefined
 ): AnyElysia {
-  return createDevtoolsPlugin(routes, syncStreamPath);
+  return createDevtoolsPlugin(routes, syncPath);
 }
 
 export function injectInstrumentationClient(html: string, prefix: string): string {
-  const scripts = [
-    `<script type="module" src="${prefix}${ERROR_OVERLAY_CLIENT_PATH}"></script>`,
-    `<script type="module" src="${prefix}${CLIENT_PATH}"></script>`,
-  ].filter((script) => !html.includes(script));
-  if (scripts.length === 0) {
+  const script = `<script data-furin-framework-module="" type="module" src="${prefix}${CLIENT_PATH}"></script>`;
+  if (html.includes(script)) {
     return html;
   }
   return html.includes("</head>")
-    ? html.replace("</head>", `${scripts.join("")}</head>`)
-    : `${scripts.join("")}${html}`;
+    ? html.replace("</head>", `${script}</head>`)
+    : `${script}${html}`;
 }

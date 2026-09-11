@@ -54,23 +54,11 @@ describe("native DevTools plugin", () => {
     expect(local.status).toBe(200);
   });
 
-  test("limits concurrent event streams and releases capacity on cancel", async () => {
+  test("does not retain the legacy DevTools SSE route", async () => {
     const app = new Elysia().use(createDevtoolsPlugin([], undefined));
-    const streams = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        app.handle(new Request("http://localhost/_furin/devtools/events"))
-      )
-    );
+    const response = await app.handle(new Request("http://localhost/_furin/devtools/events"));
 
-    const rejected = await app.handle(new Request("http://localhost/_furin/devtools/events"));
-    expect(rejected.status).toBe(429);
-
-    await streams[0]?.body?.cancel();
-    const replacement = await app.handle(new Request("http://localhost/_furin/devtools/events"));
-    expect(replacement.status).toBe(200);
-
-    await replacement.body?.cancel();
-    await Promise.all(streams.slice(1).map((stream) => stream.body?.cancel()));
+    expect(response.status).toBe(404);
   });
 
   test("exposes a strict route snapshot without loader values or absolute paths", async () => {
@@ -143,6 +131,7 @@ describe("native DevTools plugin", () => {
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(html).toContain("<title>Furin DevTools</title>");
+    expect(html).toContain("/_furin/events/client.js");
     expect(html).toContain("/_furin/devtools/dashboard.js");
     expect(html).toContain("/_furin/devtools/dashboard.css");
   });
@@ -401,33 +390,5 @@ describe("native DevTools plugin", () => {
       resetState();
       await Promise.resolve();
     }
-  });
-
-  test("streams live events after the requested sequence", async () => {
-    const app = new Elysia().use(createDevtoolsPlugin([], undefined));
-    const cursor = devtoolsEventsSnapshot().lastEventId;
-    const response = await app.handle(
-      new Request(`http://localhost/_furin/devtools/events?after=${cursor}`)
-    );
-    const reader = response.body?.getReader();
-    expect(reader).toBeDefined();
-
-    const connected = await reader?.read();
-    expect(new TextDecoder().decode(connected?.value)).toContain(": connected");
-
-    appendDevtoolsEvent({
-      method: "GET",
-      operationId: null,
-      path: "/live",
-      requestId: "request-live",
-      timestamp: Date.now(),
-      type: "request.started",
-    });
-    const event = await reader?.read();
-    const payload = new TextDecoder().decode(event?.value);
-
-    expect(payload).toContain("event: furin.devtools");
-    expect(payload).toContain('"path":"/live"');
-    await reader?.cancel();
   });
 });

@@ -59,9 +59,10 @@ import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts"
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
 import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
-import { routeModuleSourceVersion } from "./router/source-version.ts";
+import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
+import { DevTransformFailure } from "./dev/transform-failure.ts";
 
-// Matches ?furin-server with an optional &t=<module-revision> cache-buster.
+// Matches ?furin-server with an optional &t=<ms> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
@@ -206,45 +207,24 @@ export function injectJsxHelperImports(transpiled: string): string {
   return `${lines.join("\n")}\n${transpiled}`;
 }
 
-/**
- * Matches relative specifiers in all ESM import / re-export forms:
- *
- *   import { foo }   from "./bar"        ← named import
- *   import foo       from "../baz"       ← default import
- *   import           "./side-effect"     ← side-effect import
- *   export { x }     from "./mod"        ← re-export
- *   export *         from "./mod"        ← namespace re-export
- *   import type { T } from "./types"     ← type import (harmless to rewrite)
- */
-const RELATIVE_SPECIFIER_RE = /(?:from|import)\s+["'](\.\.?\/[^"']+)["']/g;
-
 /** @internal exported for testing */
 export function rewriteRelativeImports(source: string, dir: string): string {
-  return rewriteRelativeImportsWithVersion(source, dir, false);
+  return rewriteModuleSpecifiers({
+    code: source,
+    filePath: resolve(dir, "__furin_entry.tsx"),
+    versioned: false,
+  });
 }
 
 function rewriteRelativeImportsWithVersion(
   source: string,
-  dir: string,
+  filePath: string,
   versioned: boolean
 ): string {
-  return source.replace(RELATIVE_SPECIFIER_RE, (match, relPath, offset) => {
-    // Skip matches that appear on a comment line (// ...)
-    const lineStart = source.lastIndexOf("\n", offset - 1) + 1;
-    const linePrefix = source.slice(lineStart, offset).trimStart();
-    if (linePrefix.startsWith("//") || linePrefix.startsWith("*")) {
-      return match;
-    }
-    let absPath = toImportSpecifier(resolve(dir, relPath));
-    if (versioned) {
-      absPath = toImportSpecifier(Bun.resolveSync(relPath, dir));
-    }
-    const specifier =
-      versioned && getSourceLoader(absPath) !== null
-        ? `${absPath}?furin-server&t=${routeModuleSourceVersion(absPath)}`
-        : absPath;
-    const keyword = match.startsWith("import") ? "import" : "from";
-    return `${keyword} ${JSON.stringify(specifier)}`;
+  return rewriteModuleSpecifiers({
+    code: source,
+    filePath,
+    versioned,
   });
 }
 
@@ -388,19 +368,18 @@ export function transformDevSource(
   for (const graph of developmentGraphs()) {
     graph.clearSourceErrors(filePath);
   }
-  const dir = dirname(filePath);
   try {
     recordDevImports(raw, filePath);
     const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
     const sourceForTranspile = options.rewriteRelativeImports
-      ? rewriteRelativeImportsWithVersion(serverSource, dir, true)
+      ? rewriteRelativeImportsWithVersion(serverSource, filePath, true)
       : serverSource;
     const transpiler = new Bun.Transpiler({ loader });
     const transpiled = transpiler.transformSync(sourceForTranspile, loader);
 
     let result = transpiled;
     if (options.rewriteBareImports) {
-      result = rewriteBareImports(serverSource, result, dir);
+      result = rewriteBareImports(serverSource, result, dirname(filePath));
     }
 
     result = rewriteSingletonImports(result);
@@ -461,10 +440,15 @@ export function registerDevPagePlugin(): void {
           };
         }
 
-        const contents = transformDevSource(raw, args.path, {
-          rewriteBareImports: false,
-          rewriteRelativeImports: false,
-        });
+        let contents: string;
+        try {
+          contents = transformDevSource(raw, args.path, {
+            rewriteBareImports: false,
+            rewriteRelativeImports: false,
+          });
+        } catch (error) {
+          throw new DevTransformFailure(error, { cause: error });
+        }
 
         return {
           contents,
@@ -510,10 +494,15 @@ export function registerDevPagePlugin(): void {
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
         const raw = await Bun.file(filePath).text();
-        const contents = transformDevSource(raw, filePath, {
-          rewriteBareImports: true,
-          rewriteRelativeImports: true,
-        });
+        let contents: string;
+        try {
+          contents = transformDevSource(raw, filePath, {
+            rewriteBareImports: true,
+            rewriteRelativeImports: true,
+          });
+        } catch (error) {
+          throw new DevTransformFailure(error, { cause: error });
+        }
 
         return {
           contents,

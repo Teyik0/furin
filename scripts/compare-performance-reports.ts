@@ -141,6 +141,7 @@ function formatDelta(bytes: number): string {
 
 export function formatPerformanceComparison(comparison: PerformanceComparison): string {
   const lines = [
+    "<!-- furin-performance-report -->",
     "## Furin performance budgets",
     "",
     "| Metric | Base | PR | Delta | Allowed regression | Result |",
