@@ -8,12 +8,12 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "dev": "furin dev --port 3002",
+    "dev": "bun --hot src/server.ts",
     "fix": "ultracite fix",
     "start": "./.furin/build/bun/server",
-    "test": "bun test --isolate --bail --timeout 30000 && bun run test:e2e",
+    "test": "bun test --parallel --isolate --bail && bun run test:e2e",
     "test:dev": "bun test --changed --parallel --isolate --bail",
-    "test:e2e": "bun test --bail --timeout 30000 ./e2e/task-manager.e2e.ts",
+    "test:e2e": "bun test --bail ./e2e/task-manager.e2e.ts",
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
