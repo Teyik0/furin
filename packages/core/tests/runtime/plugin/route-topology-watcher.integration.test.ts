@@ -177,6 +177,9 @@ test.serial(
     const watcher = registerDevRouteTopologyWatcher({
       instance: { pagesDir, prefix: "" },
       onRouteFilesTouched: (sourcePaths, detectedAt, cycleId) => {
+        if (!sourcePaths.includes(routePath)) {
+          return;
+        }
         attempts += 1;
         metadata.push({ cycleId, detectedAt, sourcePaths });
         if (attempts === 1) {
