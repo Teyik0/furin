@@ -70,7 +70,8 @@ export interface PackageTargetBuildManifest {
 export type AnyTargetManifest =
   | TargetBuildManifest
   | StaticTargetBuildManifest
-  | PackageTargetBuildManifest;
+  | PackageTargetBuildManifest
+  | VercelTargetBuildManifest;
 
 /** One mounted app in a multi-instance build. */
 export interface BuildAppSpec {
@@ -123,6 +124,16 @@ export interface StaticTargetBuildManifest {
   outDir: string;
   renderedRoutes: string[];
   skippedRoutes: string[];
+}
+
+/** Build manifest entry produced by the Vercel Build Output API adapter. */
+export interface VercelTargetBuildManifest {
+  buildId: string;
+  generatedAt: string;
+  isrRoutes: string[];
+  outputDir: string;
+  serverPath: string;
+  ssgRoutes: string[];
 }
 
 export interface BuildAppResult {

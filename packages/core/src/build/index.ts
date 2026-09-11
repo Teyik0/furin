@@ -1,9 +1,11 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: build phases run in sequence because later phases consume prior artifacts
 import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildBunTarget, type BunTargetApp } from "../adapter/bun";
+import { buildBunTarget } from "../adapter/bun";
 import { buildPackageTarget } from "../adapter/package";
+import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
+import { buildVercelTarget } from "../adapter/vercel";
 import { BUILD_TARGETS, type BuildTarget, type FurinPlugin } from "../config";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
@@ -25,11 +27,12 @@ export type {
   BuildManifest,
   BuildRouteManifestEntry,
   TargetBuildManifest,
+  VercelTargetBuildManifest,
 } from "./types";
 
 // "package" is intentionally excluded from `--target all` — it is an
 // alternative packaging of ONE app, not an additional deploy target.
-const IMPLEMENTED_TARGETS = ["bun", "static"] as const satisfies BuildTarget[];
+const IMPLEMENTED_TARGETS = ["bun", "vercel", "static"] as const satisfies BuildTarget[];
 export const BUILD_OUTPUT_DIR = ".furin/build";
 let isomorphicRuntimePluginRegistered = false;
 
@@ -147,13 +150,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
         });
 
   // scanPages throws if root.tsx is missing, so root is always defined per app.
-  const apps: BunTargetApp[] = [];
+  const apps: RuntimeTargetApp[] = [];
   for (const spec of appSpecs) {
     const { root, routes } = await scanPages(spec.pagesDir);
     apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
   }
   // The root-mounted app drives single-app manifest fields and the static target.
-  const primaryApp = (apps.find((app) => app.prefix === "") ?? apps[0]) as BunTargetApp;
+  const primaryApp = (apps.find((app) => app.prefix === "") ?? apps[0]) as RuntimeTargetApp;
 
   ensureDir(buildRoot);
 
@@ -215,8 +218,19 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
           options
         );
         break;
-      case "node":
       case "vercel":
+        if (!serverEntry) {
+          throw new Error("[furin] `--target vercel` requires a server entry point.");
+        }
+        manifest.targets.vercel = await buildVercelTarget(
+          apps,
+          rootDir,
+          buildRoot,
+          serverEntry,
+          options
+        );
+        break;
+      case "node":
       case "cloudflare":
         throw new Error(
           `[furin] \`--target ${target}\` is planned but not implemented yet in this branch.`

@@ -1,5 +1,6 @@
 import type { AnyElysia } from "elysia";
 import type { SsgCacheEntry } from "./cache/index.ts";
+import { waitForPendingISRRevalidations as waitForPendingISR } from "./cache/isr.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
@@ -44,7 +45,15 @@ export interface CompileContext {
     }
   >;
   routes: CompileContextRoute[];
+  /** False when a deployment platform serves client/public assets before Elysia. */
+  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
+  /** Production HTML template embedded by filesystem-free deployment adapters. */
+  templateHtml?: string;
+}
+
+export function waitForPendingISRRevalidations(): Promise<void> {
+  return waitForPendingISR();
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory

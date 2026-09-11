@@ -23,7 +23,16 @@ const app = new Elysia()
       sync: taskManagerSync,
     })
   )
-  .use(api)
-  .listen(port);
+  .use(api);
 
-console.log(`Task Manager running at http://localhost:${app.server?.port}`);
+export function startServer() {
+  app.listen(port);
+  console.log(`Task Manager running at http://localhost:${app.server?.port}`);
+  return app;
+}
+
+if (import.meta.main) {
+  startServer();
+}
+
+export default app;

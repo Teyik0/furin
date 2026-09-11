@@ -8,7 +8,16 @@ const app = new Elysia()
   .get("/api/weather", ({ query }) => getWeather(query.city), {
     query: t.Object({ city: t.String({ default: "Paris" }) }),
   })
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .listen(port);
+  .use(await furin({ pagesDir: "./src/pages" }));
 
-console.log(`Weather app running at http://localhost:${app.server?.port}`);
+export function startServer() {
+  app.listen(port);
+  console.log(`Weather app running at http://localhost:${app.server?.port}`);
+  return app;
+}
+
+if (import.meta.main) {
+  startServer();
+}
+
+export default app;
