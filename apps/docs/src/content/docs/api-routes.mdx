@@ -1,310 +1,126 @@
 # API Routes
 
-Furin pages and Elysia API routes run in the same server process. There is no separate frontend dev server and no proxy layer required.
+Furin pages and Elysia APIs run in the same application. There is no frontend proxy layer: define ordinary Elysia plugins, then compose them with the Furin plugin.
 
 ## Define An API Plugin
 
 ```ts
-// src/api/index.ts
-import { Elysia, t } from "elysia"
+// src/api/posts.ts
+import { Elysia, t } from "elysia";
 
-export const api = new Elysia({ prefix: "/api" })
-  .get("/posts", async () => {
-    return db.getAllPosts()
-  })
+export const postsApi = new Elysia({ prefix: "/api/posts" })
+  .get("/", () => db.posts.findMany())
   .post(
-    "/posts",
-    async ({ body }) => {
-      return db.createPost(body)
-    },
+    "/",
+    ({ body }) => db.posts.create(body),
     {
       body: t.Object({
-        title: t.String(),
+        title: t.String({ minLength: 1 }),
         content: t.String(),
       }),
     }
-  )
+  );
 ```
-
-## Mount It After Furin
-
-Create the runtime once and share it with the page and API plugins. SQLite memory is convenient for local development and tests:
-
-```ts
-// src/sync.ts
-import { Database } from "bun:sqlite"
-import {
-  migrateSqliteSync,
-  sqliteSyncAdapter,
-} from "@teyik0/furin/sync/sqlite"
-import { requireUser } from "./auth.ts"
-
-const database = new Database(":memory:")
-migrateSqliteSync(database)
-
-export const sync = {
-  adapter: sqliteSyncAdapter({ database, namespace: "my-app" }),
-  principal: ({ request }) => requireUser(request).id,
-}
-```
-
-Production rejects this process-local database. Use a file-backed SQLite database on one host or a distributed adapter for multiple replicas.
 
 ```ts
 // src/server.ts
-import { Elysia } from "elysia"
-import { furin } from "@teyik0/furin"
-import { api } from "./api/index.ts"
-import { sync } from "./sync.ts"
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { postsApi } from "./api/posts";
 
-const app = new Elysia()
-  .use(await furin({ pagesDir: "./src/pages", sync }))
-  .use(api)
-  .listen(3000)
+export const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(postsApi)
+  .listen(3000);
 
-export type App = typeof app
+export type App = typeof app;
 ```
 
-Elysia instance order matters. Mount Furin first so it can install the page runtime and the opinionated sync stream, then mount your regular API plugins.
+Continue chaining Elysia instances so route types remain intact. Elysia plugins are isolated by default: an API plugin must explicitly `.use()` the auth, database, logging, macro, or model dependencies required by its own routes.
 
-## Sync Mutations
-
-Use `furinSync(sync)` in the same Elysia plugin that declares mutation routes. Every non-GET/HEAD/OPTIONS route is synchronized by default: Furin requires an idempotency key, stores successful responses for replay, and publishes any resulting cache invalidations. The runtime is always explicit and must be shared with `furin({ sync })`.
+## Middleware, Guards, And Scope
 
 ```ts
-import { furinSync } from "@teyik0/furin"
-import { Elysia, t } from "elysia"
-import { sync } from "../sync.ts"
+import { Elysia } from "elysia";
+import { jwt } from "@elysiajs/jwt";
 
-export const api = new Elysia({ prefix: "/api" })
-  .use(furinSync(sync))
-  .post(
-    "/posts",
-    async ({ body }) => {
-      return db.posts.create(body)
-    },
-    {
-      body: t.Object({ title: t.String() }),
-      sync: { invalidate: { tags: ["posts"] } },
-    }
-  )
-```
-
-There are no mutation names, collections, or client wrappers to configure. The API route is the stable contract, Eden Treaty keeps the client typed, and the optional `sync` object only declares cache invalidations.
-
-Tags come from page and route metadata:
-
-```tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["posts"] })
-  .loader(async () => ({ posts: await db.posts.findMany() }))
-  .page(({ data: { posts } }) => <PostsPage posts={posts} />)
-```
-
-Path-based invalidation is also available when a mutation targets a known URL:
-
-```ts
-{
-  sync: { invalidate: { path: "/blog", type: "layout" } }
-}
-```
-
-Every synced mutation must send an `Idempotency-Key` header. Furin enforces this at runtime so retries, double-clicks, and mobile clients all use the same contract:
-
-```tsx
-await api.api.posts.post(
-  { title },
-  {
-    headers: {
-      "Idempotency-Key": crypto.randomUUID(),
-    },
-  }
-)
-```
-
-Repeating the same request with the same key returns the original response without executing the handler again. Reusing a key with a different payload returns `409`. The sync replay layer only accepts small bounded responses: serialized bodies are capped at 1 MB, and returned `Response` objects must include a valid `Content-Length`. Disable synchronization for payments, uploads, streams, downloads, or other non-replayable effects:
-
-```ts
-.post("/payments", createPayment, { sync: false })
-```
-
-The sync stream endpoint is internal and opinionated: `/_furin/sync`. SSE announces the current cursor when the stream opens and every later cursor change; the client recovers ordered invalidations through `/_furin/sync/changes`. Passing the explicit runtime to `furin({ sync })` injects the client configuration automatically, so you do not need a React provider or application wrapper.
-
-### Production adapters
-
-All adapters ship as isolated subpaths of the main package. Install Furin once:
-
-```sh
-bun add @teyik0/furin
-```
-
-Before configuring the PostgreSQL adapter, apply its bundled idempotent schema bootstrap.
-It is not a versioned migration history. You can run the package CLI directly or apply
-`@teyik0/furin/sync/postgres/migration.sql` through your existing migration system:
-
-```sh
-FURIN_SYNC_POSTGRES_URL=postgres://... bunx --package @teyik0/furin furin-sync-postgres-migrate
-```
-
-PostgreSQL is the recommended source of truth for most multi-replica applications. Pass the same runtime to the mutation plugin and the Furin page plugin:
-
-```ts
-import { SQL } from "bun"
-import { Elysia } from "elysia"
-import { furin, furinSync } from "@teyik0/furin"
-import {
-  postgresSyncAdapter,
-  postgresSyncNotifier,
-} from "@teyik0/furin/sync/postgres"
-
-const sql = new SQL(databaseUrl) // read from server-only configuration
-const postgres = { namespace: "task-manager", sql }
-const sync = {
-  adapter: postgresSyncAdapter(postgres),
-  notifier: postgresSyncNotifier(postgres),
-  principal: ({ request }) => requireUser(request).id,
-}
-
-new Elysia()
-  .use(furinSync(sync))
-  .use(await furin({ pagesDir: "./src/pages", sync }))
-  .post("/api/cards", updateCard, {
-    sync: { invalidate: { tags: ["cards"] } },
-  })
-  .listen(3000)
-```
-
-The PostgreSQL notifier uses Bun's native `SQL.listen()` and `SQL.notify()` support. Its channel is derived from the namespace, and the adapter queues `NOTIFY` in the same transaction as durable completion so it is delivered only after commit. The listener reconnect callback reads the durable cursor to recover notifications missed while disconnected. No periodic cursor polling runs while the listener is healthy; a failed initial subscription restores the safety poll.
-
-Distributed production adapters require an explicit notifier. If `LISTEN/NOTIFY` is unavailable through an intermediary such as an incompatible connection pooler, opt into the polling fallback:
-
-```ts
-import { PollingSyncNotifier } from "@teyik0/furin/sync"
-
-const adapter = postgresSyncAdapter(postgres)
-const sync = {
-  adapter,
-  notifier: new PollingSyncNotifier(adapter, 250),
-  principal: ({ request }) => requireUser(request).id,
-}
-```
-
-An independent `redisSyncNotifier()` remains available when Redis is already part of the deployment.
-
-| Deployment | Choice |
-|---|---|
-| Local development or one disposable process | SQLite `:memory:` |
-| Durable deployment on one host | SQLite adapter |
-| Multi-replica with an application PostgreSQL database | PostgreSQL adapter + PostgreSQL notifier (recommended) |
-| Redis is already the durable sync source | Redis adapter |
-| PostgreSQL durability with an existing Redis bus | PostgreSQL adapter + Redis notifier |
-
-The notifier only sends a small cursor and is best-effort. The durable adapter owns response replay and ordered catch-up, so a missed PostgreSQL, Redis, or SSE notification does not lose changes. Completion atomically stores the replay response and its invalidations. This is not a claim of exactly-once execution for arbitrary domain writes: Furin cannot put an external API call or an application database transaction inside the adapter transaction.
-
-The main package declares `sideEffects: false`, and each adapter has an independent entrypoint. SQLite, PostgreSQL, and Redis remain isolated from one another and no backend is present in the browser bundle. The task-manager example uses file-backed SQLite for its application data and sync journal. SQLite `:memory:` is process-local and development-only; file-backed SQLite is `host-local`. Use PostgreSQL or Redis instead when replicas run on separate hosts. IndexedDB outbox/offline replay is tracked separately and is not part of this server contract.
-
-For client-side mutations with a body, `useSync()` is the optional ergonomic layer. It keeps the Eden Treaty route as the source of truth, adds the mandatory `Idempotency-Key`, and gives you one place to attach optimistic updates:
-
-```tsx
-import { useSync } from "@teyik0/furin/client"
-
-const updateCard = useSync(api.api.cards({ cardId }).patch, {
-  optimistic: ({ input }) => patchCardLocally(cardId, input),
-})
-
-await updateCard({ title: "Renamed" })
-```
-
-`optimistic` runs synchronously before the mutation starts. The network confirms or rolls back the update in the background; it does not gate the initial UI response.
-
-## Auto-Invalidate Only
-
-If you only want response-header invalidation without live SSE broadcast or idempotency enforcement, use the lower-level `furinInvalidate()` macro:
-
-```ts
-import { furinInvalidate } from "@teyik0/furin"
-import { Elysia, t } from "elysia"
-
-export const api = new Elysia({ prefix: "/api" })
-  .use(furinInvalidate())
-  .post("/posts", ({ body }) => db.posts.create(body), {
-    body: t.Object({ title: t.String() }),
-    invalidate: { tags: ["posts"] },
-  })
-```
-
-## Isomorphic Eden Client
-
-`createIsomorphicFn()` exposes one typed Eden client while keeping the transport environment-specific. The server branch passes the Elysia instance directly to Treaty, so loaders execute the handler in-process without an HTTP request to localhost. The browser branch uses the current origin over HTTP.
-
-```ts
-// src/lib/api.ts
-import { treaty } from "@elysiajs/eden"
-import { createIsomorphicFn } from "@teyik0/furin"
-import { api as serverApi, type Api } from "../api/index.ts"
-
-export const getApi = createIsomorphicFn()
-  .server(() => treaty(serverApi))
-  .client(() => treaty<Api>(window.location.origin))
-```
-
-Furin loaders remain server-only during SSR, SSG, ISR, and client navigation. The same accessor can therefore be used in a loader and an interactive component without shipping the Elysia application to the browser:
-
-```tsx
-// src/pages/blog/index.tsx
-import { defineRoute } from "@teyik0/furin"
-import { getApi } from "@/lib/api"
-import { route as parentRoute } from "./_route"
-
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
-  .loader(async () => {
-    const { data, error } = await getApi().api.posts.get()
-    if (error) throw error.value
-    return { posts: data }
-  })
-  .page(({ data: { posts } }) => <PostList posts={posts} />)
-```
-
-The Elysia instance passed to `treaty(serverApi)` must contain the guards, auth hooks, logging, and sync plugins required by its routes. Parent hooks mounted only on a different outer Elysia instance are not implicitly included.
-
-Direct Eden execution also does not automatically inherit the incoming Furin request headers or cookies. Forward them when an endpoint depends on request identity:
-
-```ts
-loader: async ({ request }) => {
-  const { data, error } = await getApi().api.account.get({
-    headers: request.headers,
-  })
-  if (error) throw error.value
-  return { account: data }
-}
-```
-
-`createIsomorphicFn()` only selects the environment and transport. Cache invalidation and live synchronization remain declared independently through `sync`, tags, or paths.
-
-## Middleware And Guards
-
-Use normal Elysia plugins, guards, and lifecycle hooks for auth, logging, rate limiting, or anything else:
-
-```ts
-import { Elysia } from "elysia"
-import { jwt } from "@elysiajs/jwt"
-
-export const api = new Elysia({ prefix: "/api" })
+export const accountApi = new Elysia({ prefix: "/api/account" })
   .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .guard(
     {
-      beforeHandle: async ({ cookie, jwt, set }) => {
-        const user = await jwt.verify(cookie.auth.value)
-        if (!user) {
-          set.status = 401
-          return "Unauthorized"
-        }
+      beforeHandle: async ({ cookie, jwt, status }) => {
+        const user = await jwt.verify(cookie.auth?.value);
+        if (!user) return status(401, "Unauthorized");
       },
     },
-    (app) => app.get("/me", ({ cookie, jwt }) => jwt.verify(cookie.auth.value))
-  )
+    (app) => app.get("/me", ({ cookie, jwt }) => jwt.verify(cookie.auth?.value))
+  );
 ```
+
+Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `scoped`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
+
+## Typed Browser Client
+
+Eden Treaty can derive a client from the exported Elysia type:
+
+```ts
+// src/lib/api.ts
+import { treaty } from "@elysiajs/eden";
+import type { App } from "../server";
+
+export const api = treaty<App>(window.location.origin);
+```
+
+For a module imported by both server loaders and browser components, use `createIsomorphicFn()` so loaders call Elysia in-process and the browser uses HTTP:
+
+```ts
+// src/lib/posts-api.ts
+import { treaty } from "@elysiajs/eden";
+import { createIsomorphicFn } from "@teyik0/furin";
+import { postsApi } from "../api/posts";
+
+export type PostsApi = typeof postsApi;
+
+export const getPostsApi = createIsomorphicFn()
+  .server(() => treaty(postsApi))
+  .client(() => treaty<PostsApi>(window.location.origin));
+```
+
+```tsx
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ request }) => {
+    const result = await getPostsApi().api.posts.index.get({
+      headers: request.headers,
+    });
+    if (result.error) throw result.error.value;
+    return { posts: result.data };
+  })
+  .page(({ data }) => <PostList posts={data.posts} />);
+```
+
+The server Treaty client contains only the hooks and dependencies composed into `postsApi`; hooks on an unrelated outer instance are not inherited. Direct execution also does not automatically forward the incoming page request, so pass headers or cookies when identity matters.
+
+## Invalidation After A Mutation
+
+For same-response cache invalidation without idempotent replay or cross-client events, install `furinInvalidate()` before declaring the mutation:
+
+```ts
+import { furinInvalidate } from "@teyik0/furin";
+import { Elysia, t } from "elysia";
+
+export const postsApi = new Elysia({ prefix: "/api/posts" })
+  .use(furinInvalidate())
+  .post("/", ({ body }) => db.posts.create(body), {
+    body: t.Object({ title: t.String() }),
+    invalidate: { tags: ["posts"] },
+  });
+```
+
+Successful responses invalidate the origin cache and carry `X-Furin-Revalidate`, allowing the initiating tab to evict prefetched data and refresh an affected page.
+
+If mutations can be retried, or other tabs and replicas must learn about invalidations, use the stronger [Sync & Invalidations](/docs/sync) contract instead.
+
+## Ownership Recommendation
+
+Keep APIs as independent Elysia plugins and let page loaders call a shared service layer or an in-process Eden client. Do not hide API behavior inside page files: explicit plugin boundaries preserve Elysia's inference, lifecycle scope, and testability.

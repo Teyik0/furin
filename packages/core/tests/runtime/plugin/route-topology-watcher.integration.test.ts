@@ -22,12 +22,14 @@ test("the dev topology watcher reloads only when the route set changes", async (
   writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
 
   const topologies: string[][] = [];
+  const touchedSources: string[][] = [];
   let touchedRouteFiles = 0;
   const instance = { pagesDir, prefix: "" };
   const watcher = registerDevRouteTopologyWatcher({
     instance,
-    onRouteFilesTouched: () => {
+    onRouteFilesTouched: (sourcePaths) => {
       touchedRouteFiles += 1;
+      touchedSources.push([...sourcePaths]);
     },
     onTopologyChange: () => {
       const paths = routeSourcePaths(instance).map((path) => path.replace(`${pagesDir}/`, ""));
@@ -39,6 +41,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
     writeFileSync(join(pagesDir, "index.ts"), "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     expect(topologies).toHaveLength(0);
+    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts"));
 
     await Bun.sleep(80);
     expect(touchedRouteFiles).toBe(1);
@@ -153,6 +156,40 @@ test("the dev topology watcher can refresh before the filesystem debounce", asyn
     await watcher.refresh();
 
     expect(touchedRouteFiles).toBe(1);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher migrates state retained across a soft reload", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-legacy-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    const registry = Reflect.get(globalThis, Symbol.for("@teyik0/furin/dev-route-watchers"));
+    if (!(registry instanceof Map)) {
+      throw new Error("Expected the global development watcher registry");
+    }
+    const states = [...registry.values()] as Array<{
+      changedSources?: Set<string>;
+      instance?: { pagesDir?: string };
+    }>;
+    const state = states.find((candidate) => candidate.instance?.pagesDir === pagesDir);
+    if (!state) {
+      throw new Error("Expected retained development watcher state");
+    }
+    Reflect.deleteProperty(state, "changedSources");
+
+    await watcher.refresh();
+
+    expect(state.changedSources).toBeInstanceOf(Set);
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });

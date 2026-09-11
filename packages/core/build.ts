@@ -68,12 +68,14 @@ await $`cp src/env.d.ts dist/env.d.ts`;
 // without this, clean builds where tsc is
 // skipped would fail.
 mkdirSync(`${import.meta.dir}/dist/build`, { recursive: true });
+mkdirSync(`${import.meta.dir}/dist/client`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/render`, { recursive: true });
 mkdirSync(`${import.meta.dir}/dist/server/sync/postgres`, { recursive: true });
 
 // Copy template source files that the adapter reads at runtime.
 await $`cp src/build/compile-entry.ts dist/build/compile-entry.ts`;
 await $`cp src/build/entry-template.ts dist/build/entry-template.ts`;
+await $`cp src/client/dev-error-overlay.ts dist/client/dev-error-overlay.ts`;
 await $`cp src/server/render/index.ts dist/server/render/index.ts`;
 await $`cp src/server/render/shell.ts dist/server/render/shell.ts`;
 await $`cp src/server/sync/postgres/migration.sql dist/server/sync/postgres/migration.sql`;

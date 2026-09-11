@@ -66,17 +66,31 @@ test.serial("native DevTools records correlated development requests", async () 
 
 test.serial("native DevTools does not record its own transport requests", async () => {
   __setDevMode(true);
-  const app = await createTestApp(false);
+  const app = (await createTestApp(false)).listen(0);
+  const port = app.server?.port;
+  if (port === undefined) {
+    throw new Error("Expected DevTools transport test server to listen");
+  }
+  const origin = `http://127.0.0.1:${port}`;
 
-  const initial = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));
-  const before = await initial.json();
-  await app.handle(new Request("http://localhost/_furin/devtools/client.js"));
-  const stream = await app.handle(new Request("http://localhost/_furin/devtools/events"));
-  await stream.body?.cancel();
-  const final = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));
-  const after = await final.json();
+  try {
+    const before = await (await fetch(`${origin}/_furin/devtools/snapshot`)).json();
+    await new Promise<void>((resolve, reject) => {
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
+      socket.addEventListener("open", () => {
+        socket.addEventListener("close", () => resolve(), { once: true });
+        socket.close();
+      });
+      socket.addEventListener("error", () => reject(new Error("Browser events failed")), {
+        once: true,
+      });
+    });
+    const after = await (await fetch(`${origin}/_furin/devtools/snapshot`)).json();
 
-  expect(after.events).toEqual(before.events);
+    expect(after.events).toEqual(before.events);
+  } finally {
+    await app.stop();
+  }
 });
 
 test.serial("native DevTools records loader timings without loader values", async () => {

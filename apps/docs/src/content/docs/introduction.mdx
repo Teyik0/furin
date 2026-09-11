@@ -1,44 +1,57 @@
-# Documentation
+# Furin Documentation
 
-Furin is a React meta-framework on top of Elysia and Bun. It gives you file-based routing, nested layouts, SSR, SSG, ISR, typed loaders, and typed navigation without adding a second frontend toolchain.
+Furin is a React meta-framework built on Bun and Elysia. It adds file-based pages, nested layouts, typed server loaders, SPA navigation, SSR, SSG, and ISR without putting a second application server or a Vite proxy beside your Elysia app.
 
-## What You Get
+```ts
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
 
-- File-based routing from `src/pages`
-- Route-level `loader`, `params`, and `query` typing through `defineRoute()`
-- One typestate chain ending in `page()` or `layout()`
-- Bun-native development flow with Fast Refresh and SSR kept in sync
-- A single process for pages and API routes
-- Built-in API mutation sync with SSE, cache invalidation, and idempotency
-
-## Quick Start
-
-```bash
-bun create furin@latest my-app
-cd my-app
-bun dev
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .get("/api/health", () => ({ ok: true }))
+  .listen(3000);
 ```
+
+## The Mental Model
+
+A Furin application has three layers:
+
+1. **Elysia owns HTTP.** Authentication, API routes, WebSockets, middleware, and lifecycle hooks remain regular Elysia plugins.
+2. **The file tree owns pages.** Files in `src/pages` define URLs, layouts, loading, metadata, and rendering modes.
+3. **Bun owns development and builds.** The dev server uses Bun's full-stack HTML bundler and React Fast Refresh; production builds use Bun's bundler or static exporter.
+
+A page declares its contract in one chain:
+
+```tsx
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async ({ log }) => {
+    log.set({ feature: "home" });
+    return { message: "Hello from the server" };
+  })
+  .head(({ data }) => ({ meta: [{ title: data.message }] }))
+  .page(({ data }) => <h1>{data.message}</h1>);
+```
+
+`config()` is mandatory. The builder then carries layout data, route params, validated search state, loader output, and `requestLoader()` output into the next stage.
+
+## What Furin Is Good At
+
+- Bun and Elysia are deliberate platform choices.
+- Pages and APIs should share one process and one origin.
+- Route-level rendering should be explicit rather than inferred from component usage.
+- Runtime validation and TypeScript inference should come from the same TypeBox schemas.
+- Teams want static pages, request-rendered pages, and incrementally regenerated pages in one route model.
+
+Furin is currently an alpha framework and supports Bun only. The implemented production outputs are a Bun server, Bun executable, self-contained executable, static export, and packaged Furin app. Node.js, Vercel, and Cloudflare targets are declared but not implemented yet.
 
 ## Start Here
 
-- [Getting Started](/docs/getting-started) for project setup and your first page
-- [File-Based Routing](/docs/routing) for page/layout conventions
-- [Data Loading](/docs/data-loading) for typed loaders and schemas
-- [Rendering Modes](/docs/rendering) for SSR, SSG, and ISR
-- [Deployment](/docs/deployment) for the current Bun build pipeline
-
-## How The API Is Split
-
-Use one `defineRoute()` chain for the complete route contract:
-
-- required `config()` with `layout` and `mode`; `revalidate`, `params`, `query`, and `staticParams` are optional
-- optional `requestLoader()` for request-private data
-- optional `loader()` for public route data
-- optional `head()` after `loader()`
-- terminal `page()` or `layout()`
-
-The `pages/root.tsx` chain uses `defineRootRoute()` and omits `layout` because it has no parent.
-
-## Current Status
-
-The core build target implemented in this branch is Bun. Other targets may already exist in config types, but if the docs mention them they should be treated as planned until the corresponding builder lands in the core.
+- [Getting Started](/docs/getting-started) creates and runs an application.
+- [File-Based Routing](/docs/routing) explains the route tree and generated types.
+- [Data Loading](/docs/data-loading) covers public and request-private data.
+- [Rendering Modes](/docs/rendering) helps choose SSR, SSG, or ISR.
+- [Comparison](/docs/comparison) gives a candid Next.js and TanStack Start comparison.

@@ -70,7 +70,7 @@ export function instrumentationLoggerExclusions(_prefix: string): string[] {
 
 export function createInstrumentationPlugin(
   _routes: ResolvedRoutesSource,
-  _syncStreamPath: string | undefined
+  _syncPath: string | undefined
 ): AnyElysia {
   return new Elysia({ name: "furin-production-instrumentation" });
 }

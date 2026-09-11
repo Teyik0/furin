@@ -1,147 +1,105 @@
 # Head & SEO
 
-Furin's `head()` API lets you control `<head>` content per page and route. It runs on the server during SSR/SSG/ISR and is re-evaluated during SPA navigation so the document title and meta tags stay correct.
-
----
-
-## Basic usage
-
-Define `head()` on a page or route:
+`head()` derives document metadata from validated params, search state, and public loader data. Furin renders it during SSR, SSG, and ISR, then replaces the route-owned head descriptors during SPA navigation.
 
 ```tsx
-// src/pages/blog/[slug].tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
-  .head(({ data: { post } }) => ({
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    params: t.Object({ slug: t.String() }),
+  })
+  .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
+  .head(({ data, params }) => ({
     meta: [
-      { title: post.title },
-      { name: "description", content: post.excerpt },
+      { title: data.post.title },
+      { name: "description", content: data.post.excerpt },
+      { property: "og:title", content: data.post.title },
+      { property: "og:type", content: "article" },
+    ],
+    links: [
+      { rel: "canonical", href: `https://example.com/blog/${params.slug}` },
     ],
   }))
-  .page(({ data: { post } }) => <article>{post.title}</article>)
+  .page(({ data }) => <Article post={data.post} />);
 ```
 
-The `head()` function receives the same props as the page component (loader data, params, query).
+Metadata for cached routes should remain public and deterministic. Although head props include `requestData`, prefer values that remain valid across cache hits and put request-private values in the rendered body.
 
----
+## Descriptor Reference
 
-## `MetaDescriptor`
-
-The `meta` array accepts the following descriptor shapes:
-
-### Title
+### Metadata
 
 ```ts
-{ title: "My Page" }
+head: () => ({
+  meta: [
+    { title: "Page title" },
+    { charSet: "utf-8" },
+    { name: "description", content: "Page summary" },
+    { property: "og:image", content: "https://example.com/cover.png" },
+    { httpEquiv: "refresh", content: "30" },
+    { tagName: "meta", "data-custom": "value" },
+  ],
+});
 ```
 
-Renders `<title>My Page</title>`.
+`<HeadContent />` already emits UTF-8 charset and viewport descriptors. Add them manually only when you intentionally need another value.
 
-### Charset
-
-```ts
-{ charSet: "utf-8" }
-```
-
-Renders `<meta charset="utf-8" />`.
-
-### Standard meta tag
-
-```ts
-{ name: "description", content: "A great page" }
-```
-
-Renders `<meta name="description" content="A great page" />`.
-
-### Open Graph / Twitter Cards
-
-```ts
-{ property: "og:title", content: "My Page" }
-```
-
-Renders `<meta property="og:title" content="My Page" />`.
-
-### HTTP equiv
-
-```ts
-{ httpEquiv: "refresh", content: "30" }
-```
-
-Renders `<meta http-equiv="refresh" content="30" />`.
-
-### JSON-LD
-
-```ts
-{ "script:ld+json": {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: "My Page",
-  }}
-```
-
-Renders `<script type="application/ld+json">{...}</script>` with safe JSON encoding.
-
-### Custom tags
-
-```ts
-{ tagName: "meta", "data-custom": "value" }
-```
-
-Renders `<meta data-custom="value" />`.
-
----
-
-## Links
-
-Add `<link>` tags for stylesheets, canonical URLs, favicons, or preload hints:
+### Links
 
 ```ts
 head: () => ({
   links: [
-    { rel: "canonical", href: "https://example.com/blog/my-post" },
-    { rel: "stylesheet", href: "/custom.css" },
-    { rel: "icon", href: "/favicon.ico" },
+    { rel: "canonical", href: "https://example.com/docs" },
+    { rel: "preload", href: "/public/hero.webp", as: "image" },
   ],
 });
 ```
 
----
+Application CSS should normally be imported from route or component code so Bun can include it in the asset graph. Use `links` for external stylesheets or resource hints.
 
-## Inline scripts and styles
+### JSON-LD
 
-You can inject inline scripts and styles. **Security warning:** `children` is injected as raw HTML — never pass user-controlled or loader-derived data without sanitisation.
+```ts
+head: ({ data }) => ({
+  meta: [
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: data.post.title,
+      },
+    },
+  ],
+});
+```
+
+Furin serializes the object as escaped JSON inside `application/ld+json`.
+
+### Inline Scripts And Styles
 
 ```ts
 head: () => ({
-  scripts: [
-    { type: "module", children: `console.log("page loaded");` },
-  ],
-  styles: [
-    { children: `body { background: #fafafa; }` },
-  ],
+  scripts: [{ type: "module", children: `console.log("loaded")` }],
+  styles: [{ children: ".announcement { color: tomato; }" }],
 });
 ```
 
----
+`children` is raw HTML. Never interpolate user-controlled or unsanitized loader data. Route head scripts are document metadata, not a reliable SPA analytics lifecycle; track navigations from client code instead.
 
-## SPA navigation
+## Root Requirement
 
-During client-side navigation, Furin extracts the new `head()` result, updates `document.title`, and re-renders the `<head>` content. This ensures:
-
-- Title changes reflect in the browser tab
-- Meta tags update for social sharing previews
-- Analytics scripts fire correctly
+The root layout must expose the head insertion point:
 
 ```tsx
-// src/pages/root.tsx
-import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
 
 export const route = defineRootRoute()
-  .config({ mode: "ssr" })
+  .config({ mode: "ssg" })
   .layout(({ children }) => (
     <html lang="en">
       <head>
@@ -152,41 +110,7 @@ export const route = defineRootRoute()
         <Scripts />
       </body>
     </html>
-  ))
+  ));
 ```
 
----
-
-## SEO checklist
-
-A complete SEO setup for a blog post:
-
-```tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
-  .head(({ data: { post } }) => ({
-    meta: [
-      { title: post.title },
-      { name: "description", content: post.excerpt },
-      { property: "og:title", content: post.title },
-      { property: "og:description", content: post.excerpt },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: `https://example.com/blog/${post.slug}` },
-      { name: "twitter:card", content: "summary_large_image" },
-      { "script:ld+json": {
-          "@context": "https://schema.org",
-          "@type": "BlogPosting",
-          headline: post.title,
-          datePublished: post.publishedAt,
-        }},
-    ],
-    links: [
-      { rel: "canonical", href: `https://example.com/blog/${post.slug}` },
-    ],
-  }))
-  .page(({ data: { post } }) => <Article post={post} />)
-```
+Keep one title and one canonical URL in a page's final descriptor set. Furin preserves declaration order and does not deduplicate competing metadata for you.

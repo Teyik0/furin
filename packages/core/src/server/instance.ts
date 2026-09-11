@@ -20,8 +20,8 @@ export interface FurinInstance {
   registrationEpoch: number;
   /** Generic per-instance state bag backing `instanceSlot()`. */
   readonly state: Map<symbol, unknown>;
-  /** Logical sync stream path (unprefixed) injected into HTML, or undefined. */
-  syncStreamPath: string | undefined;
+  /** Logical durable sync path (unprefixed) injected into HTML, or undefined. */
+  syncPath: string | undefined;
 }
 
 interface RequestScope {
@@ -50,7 +50,7 @@ export function createInstance(prefix: string, pagesDir: string): FurinInstance 
     prefix,
     registrationEpoch: 0,
     state: new Map(),
-    syncStreamPath: undefined,
+    syncPath: undefined,
   };
 }
 

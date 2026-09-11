@@ -40,9 +40,12 @@ const config: KnipConfig = {
       entry: ["src/server/sync/postgres/migrate.ts", "tests/**/*.{ts,tsx}"],
       ignore: [
         "src/server/cache/dev-loader.ts",
+        "src/server/dev-page-plugin.production.ts",
+        "src/server/dev/runtime.production.ts",
         "src/server/devtools/instrumentation.production.ts",
         "src/server/internal.ts",
         "src/server/render/template.ts",
+        "src/server/router/hmr.production.ts",
         "src/server/sync/stream.ts",
       ],
       ignoreDependencies: ["expect-type"],

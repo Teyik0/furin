@@ -1,219 +1,304 @@
-# Dev Mode HMR
+# Development HMR Internals
 
-Furin's development flow separates server-side rendering from the browser bundle so edits stay fast while SSR still reflects fresh code on the next request.
+Furin development mode is one Bun process, but it is not one module graph.
+Bun owns the browser bundle and HMR transport. Furin owns the extra work needed
+to keep server rendering, route data, route topology, and diagnostics consistent
+with that browser graph.
 
-The implementation has two goals:
+This page documents the internal contract. Application code does not call any
+of the functions or endpoints described here.
 
-1. Keep ordinary page edits on the fast React Fast Refresh path.
-2. Keep SSR and the browser bundle on a single React and router runtime, even after Bun hot reloads part of the server graph.
+## Architecture at a glance
 
-## Two Different Paths
+Four loops run together during development:
 
-Furin handles HMR differently depending on whether the user is **loading the page for the first time** or **already viewing it**.
-
-| Scenario | What happens | Server work | Client work |
-|---|---|---|---|
-| **Path 1: First Load** | User navigates to `/board/6ahsjwio` (or hard refreshes) | Full SSR: import page, re-import layouts, run loaders, render HTML | `hydrateRoot()` using `__FURIN_DATA__` |
-| **Path 2: Live HMR Update** | User is already on `/board/6ahsjwio`, edits `_route.tsx` | None initially; later: re-run loaders for JSON data fetch | React Fast Refresh patches component, then re-fetch loader data via `/_furin/data` |
-
----
-
-## Path 1: First Load — Full SSR + Hydration
-
-When the browser requests a page for the first time (or after a hard refresh), the server performs a complete render:
-
-### 1. Server imports the page module fresh
-
-```ts
-const pageMod = await import(
-  `/pages/board/[boardId]/index.tsx?furin-server&t=${moduleRevision}`
-);
+```text
+source edit
+  ├─ Bun browser graph ──────> hot module ──────> React reconciliation
+  ├─ Furin SSR graph ────────> versioned import -> next SSR/data request
+  ├─ route/data coherence ───> rescan + invalidate -> fresh loader result
+  └─ diagnostics ────────────> error/ready event -> development overlay
 ```
 
-The `?t=<module-revision>` suffix ensures Bun creates a new module identity after an edit while reusing the same imported module between requests.
+They meet at two generated files in `.furin/`:
 
-### 2. Virtual namespace pipeline (dev-page-plugin)
+- `_hydrate.tsx` contains the client route table, hydration entry, stable hot
+  component registry, loader refresh hook, and HMR connection recovery.
+- `index.html` is Bun's HTML entry. Furin mounts its `HTMLBundle` at
+  `/_bun_hmr_entry`, under the instance prefix when one exists.
 
-Bun's plugin system intercepts the `?furin-server` suffix:
+Bun scans the HTML entry, bundles its scripts and styles, and supplies the
+browser WebSocket and `import.meta.hot` runtime. Furin does not implement a
+second HMR transport.
 
-- **onResolve**: strips `?furin-server` and routes the module through the `furin-dev-page` virtual namespace, preserving the `?t=` cache-buster
-- **onLoad**: reads the file from disk, transpiles it, rewrites relative imports to absolute paths, resolves bare imports from the page directory, rewrites React singletons to canonical paths, and injects JSX helper imports
+## Architecture decision
 
-This pipeline runs for the page module **and** for `root.tsx`.
+Furin deliberately keeps a hybrid boundary: use Bun for browser invalidation and
+implement framework-specific coherence inside Furin.
 
-### 3. Layout re-import (refreshLayoutChain)
+| Option | Benefit | Cost | Decision |
+| --- | --- | --- | --- |
+| Bun HMR plus Furin coherence | One process and one browser bundler; preserves React state while keeping SSR and loaders fresh | Furin must maintain versioned server imports, route rescanning, and diagnostics | **Selected** |
+| Full-page reload after every edit | Smallest implementation | Loses local state and hides invalidation bugs | Rejected |
+| Vite or Rsbuild development server | Mature HMR graph, plugin lifecycle, and error handling | Introduces a second development architecture and weakens the Bun-only design | Rejected |
+| Bun HMR alone | No framework orchestration | Browser code can move ahead of SSR modules, loaders, and the route snapshot | Insufficient |
 
-The page module statically imports its parent `_route.tsx`:
+The recommended direction is to keep the Bun-native boundary and harden it with
+observable conformance tests. Next.js owns a deeper integrated compiler graph,
+while TanStack Start delegates development HMR to Vite or Rsbuild. Copying either
+approach would trade away Furin's defining single-process constraint rather than
+improve it incrementally.
 
-```tsx
-import { route } from "../_route";
+## Startup
+
+Running the application with `bun --hot` initializes development mode in this
+order:
+
+1. Register the `furin-dev-page-loader` runtime plugin.
+2. Scan `pagesDir` and build the initial root, route, and Elysia snapshots.
+3. Generate `.furin/_hydrate.tsx`, `.furin/index.html`, and route types. Files are
+   rewritten only when their content changed, so generated output does not cause
+   a reload loop.
+4. Import the generated HTML as a Bun `HTMLBundle` and mount it at the instance's
+   `/_bun_hmr_entry` path.
+5. Start a per-instance route watcher. It watches authored route files and their
+   dependencies and reconciles refreshes after a short debounce, serializing
+   refreshes so requests cannot observe a partially replaced route snapshot.
+6. Mount the data, diagnostics, DevTools, sync, public asset, and not-found
+   handlers around the generated Elysia route tree.
+
+Route modules are not eagerly imported into the ordinary server watcher graph.
+They are loaded through a virtual namespace on demand, so editing a page can use
+browser HMR without restarting the whole server module graph.
+
+## Server rendering stays fresh
+
+### One identity per source revision
+
+Every dev request resolves `root.tsx` and the matched page through a versioned
+specifier:
+
+```text
+/absolute/path/to/page.tsx?furin-server&t=<source-version>
 ```
 
-Bun resolves this through its normal ESM cache — **it does not get cache-busted by the page module's `?t=` suffix**. To pick up layout edits, `handleDevRequest` calls `refreshLayoutChain()`:
+`<source-version>` is derived from the file's nanosecond modification time,
+size, and an explicit generation counter. It is not `Date.now()` and it does not
+change for every request.
 
-1. Derive intermediate `_route.tsx` paths from the page file path
-2. Re-import each one with its current `?furin-server&t=<module-revision>`
-3. Patch `layout` and `loader` on the existing `RuntimeRoute` objects in the chain
+Furin caches the import promise by source path and version. Concurrent requests
+for the same revision share one evaluation; a new edit gets a new module
+identity. This avoids both stale SSR code and unbounded, request-proportional ESM
+registry growth.
 
-### 4. Run loaders and render
+Relative imports inside a versioned module are resolved to absolute paths. Local
+JavaScript and TypeScript dependencies receive their own source version, so an
+edited helper cannot remain stale behind a fresh page module. Failed imports are
+removed from the cache and can recover on the next edit.
 
-```ts
-renderSSR({ ...route, page, routeChain: refreshedChain }, ctx, currentRoot)
-```
+### Virtual server transform
 
-- Execute loaders (DB queries, API calls, file system reads — server-side only)
-- Build the React element tree with the fresh layout components
-- Stream-render to HTML via `renderToReadableStream`
-- Fetch `/_bun_hmr_entry` for the dev template (cached for at most one second)
-- Assemble: `<head>` + SSR HTML + `<script id="__FURIN_DATA__">{loaderData}</script>`
+The `furin-dev-page` namespace has no filesystem directory from which Bun can
+resolve relative imports. Its loader therefore performs the complete transform
+before returning JavaScript:
 
-### 5. Browser hydrates
+1. Record application imports in the development module graph.
+2. Select the server side of isomorphic functions.
+3. Rewrite relative imports to absolute, versioned specifiers.
+4. Transpile TypeScript and JSX with `Bun.Transpiler`.
+5. Resolve bare imports from the authored module's directory.
+6. Canonicalize React and React DOM imports.
+7. Inject the JSX runtime helpers emitted by the transpiler.
 
-```ts
-hydrateRoot(rootEl, <RouterProvider routes={routes} initialMatch={match} initialData={loaderData} />);
-```
+Transform failures retain a distinct `transform` diagnostic phase instead of
+being reported as generic import failures.
 
-React attaches event listeners and state management to the existing server-rendered DOM. The client does **not** re-run loaders during hydration — it uses the data embedded in `__FURIN_DATA__`.
+### Root and nested layouts
 
----
+A fresh page import does not guarantee that a statically imported parent layout
+has a fresh identity. Before rendering, `refreshLayoutChain()` imports each
+existing intermediate `_route` module with the same versioning rule and patches
+the matching runtime chain entry.
 
-## Path 2: Live HMR Update
+Directories without `_route` files do not consume a chain position. The root is
+loaded separately, then its current layout and loader references replace the
+root entry captured by the nested chain.
 
-When you edit a file while the browser is already showing that route, the flow is entirely client-driven after the initial HMR push:
+Furin finally rebuilds the `ResolvedRoute` from the current page and route chain.
+Changing `mode`, adding or removing a loader, changing `revalidate`, or changing
+cache tags therefore takes effect without a manual restart. Structural fields
+such as the URL pattern and convention boundaries come from the topology
+snapshot and change through the watcher instead.
 
-### 1. Bun HMR pushes the new client chunk
+### Render and document assets
 
-Bun's dev bundler (tracking `/_bun_hmr_entry` and its imports) detects the file change, rebuilds the client bundle, and sends the updated chunk to the browser via WebSocket — typically within ~20ms.
+After the route is rebuilt, Furin runs the applicable loaders and renders the
+current React tree. The SSR document receives the latest loader payload and the
+assets parsed from `/_bun_hmr_entry`.
 
-### 2. React Fast Refresh patches the component
+The development HTML template and parsed asset metadata use a one-second cache.
+This bounds internal fetch and parsing work while allowing Bun's content-addressed
+entry and stylesheet URLs to converge quickly after a rebuild. Furin tracks the
+main client entry separately from framework modules such as the error overlay,
+so a React-rendered `<Scripts />` element restores both classes of scripts.
 
-React's Fast Refresh runtime swaps the old component definition for the new one **in-place**, preserving as much local state as possible.
+## A live browser update
 
-### 3. `_hydrate.tsx` re-renders (does not re-hydrate)
+Route modules receive a client transform before Bun bundles them. The transform:
 
-The `_hydrate.tsx` entry checks whether a React root already exists:
+- removes server-only builder stages such as `loader`, `requestLoader`, `head`,
+  `params`, `query`, and `staticParams`;
+- records the route component's hook-call signature;
+- wraps imported route components so they participate in React refresh; and
+- installs a self-accepting `import.meta.hot.accept()` callback.
 
-```ts
-if (window.__FURIN_ROOT__) {
-  // Already mounted — reconciliation, NOT hydration
-  window.__FURIN_ROOT__.render(<RouterProvider ... />);
-}
-```
+When Bun delivers an updated route module, the callback forwards the new
+component to `window.__FURIN_HMR_UPDATE__`.
 
-Because the DOM is already managed by React, calling `root.render()` triggers a **reconciliation** — React compares the new virtual tree against the existing DOM and applies minimal updates.
+### Stable component identities
 
-### 4. `hmrRefresh()` re-fetches loader data
+The generated hydrate entry keeps a registry on
+`window.__FURIN_HOT_COMPONENTS__`. Each page, layout, and root has a stable
+wrapper keyed by role and source path. An edit replaces the implementation
+behind that wrapper rather than replacing the wrapper itself.
 
-The initial render after Fast Refresh still uses `initialData` from the original SSR payload. To get fresh server state, `_hydrate.tsx` triggers `window.__FURIN_HMR_REFRESH__()`:
+If the hook signature is unchanged, React can preserve compatible local state.
+If the signature changes, Furin replaces the inner boundary and React remounts
+that component. Rebuilding the route table removes obsolete registry entries
+without replacing surviving entries.
 
-```ts
-const hmrRefresh = window.__FURIN_HMR_REFRESH__;
-if (hmrRefresh) {
-  requestAnimationFrame(() => hmrRefresh());
-}
-```
+### Reconcile, then refresh data
 
-`hmrRefresh()` performs a **client-side navigation** with `replace: true`:
+The initial document calls `hydrateRoot(document, app)`. The React root is kept
+on `window.__FURIN_ROOT__`, the object that survives Bun module re-evaluation.
+Subsequent updates call `root.render(app)`; they reconcile an already-owned DOM
+and never attempt to hydrate it a second time.
 
-```ts
-navigate(currentLogicalPath, { replace: true });
-```
+After the component update, Furin schedules `window.__FURIN_HMR_REFRESH__` on the
+next animation frame. The router:
 
-This does **not** trigger a full-page reload. Instead:
+1. invalidates the current page's prefetch entry;
+2. requests fresh route data with `x-furin-hmr-refresh: 1`;
+3. asks the topology watcher to refresh before resolving that data request;
+4. reruns or retrieves loaders according to the current route mode; and
+5. replaces the current router state without adding a history entry or resetting
+   scroll.
 
-1. The client router fetches `/_furin/data?path=/board/6ahsjwio`
-2. The server receives the data request (not an HTML request), runs the loaders, and returns a **JSON payload**
-3. The client router updates its internal state with the new data
-4. React re-renders the component tree with the fresh loader output
+Navigation versions and abort signals prevent an older, slower loader response
+from overwriting a newer refresh. Code and data still arrive as two updates, so
+a loader-backed component can briefly render its new code with the previous
+payload before the data request converges.
 
-### 5. Result
+### Transport recovery
 
-The page is updated **twice** in quick succession:
+Ordinary accepted edits do not reload the document. If Bun's native HMR
+WebSocket disconnects and later reconnects, Furin performs one page reload to
+restore a known-good module graph. This intentionally sacrifices local state
+only after a transport outage.
 
-1. **First update** (~20ms): React Fast Refresh patches the component code; the layout may look different but still uses old data
-2. **Second update** (~50-200ms): `hmrRefresh()` completes; the component now renders with both **new code** and **fresh data**
+## Route topology changes
 
-There is no hydration mismatch because the client never attempts to `hydrateRoot` against stale DOM — it reconciles the existing DOM with the new code, then refreshes the data.
+The generated Elysia tree is static, but its renderers dispatch through a
+replaceable development snapshot. The topology watcher distinguishes two cases:
 
-If the native Bun HMR WebSocket disconnects and later reconnects, Furin performs
-one automatic page reload. This intentionally trades local component state for
-a known-good client module graph after a transport outage. Ordinary edits do
-not take this path and continue to preserve compatible React state.
+- An existing route or dependency changed: invalidate server module identities,
+  reload the route snapshot, and regenerate client files if their content
+  changed.
+- A route or convention appeared or disappeared: rescan the filesystem, replace
+  the matcher and renderer snapshot, and regenerate the client route table.
 
----
+This makes hot addition and removal work for pages, `error` files, and
+`not-found` files. A newly added path reaches the refreshed renderer through the
+Elysia not-found fallback; a removed active page resolves to the current
+not-found boundary.
 
-## Development Error Overlay
+Route config auto-fix runs before each snapshot refresh. Because generated files
+are content-diffed and watcher signatures are resynchronized after a rewrite,
+the fix cannot create its own update loop.
 
-Development failures are sent to Furin's browser overlay with their phase (`transform`, `import`, `loader`, `render`, or `hydrate`), route, cause, source position, stack, and local import chain.
+## Loader and render-mode coherence
 
-- **Retry route** reloads the current URL manually.
-- A successful graph revision reloads the page automatically, so the overlay disappears after the source is fixed.
-- Transform and import failures are streamed over `/_furin/dev/errors`; hydration failures are captured in the browser.
+Development SSR treats each render mode deliberately:
 
-Production behavior does not change: route error boundaries and sanitized digests remain the public error contract.
+| Mode | Loader behavior | HTML behavior |
+| --- | --- | --- |
+| SSR | Run the current loader chain for every request | Render from current source |
+| SSG | Cache synchronous loader data until a tracked source changes | Re-render HTML for every request |
+| ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first | Re-render HTML for every request |
 
----
+Only loader output is cached in development. HTML is always assembled again so
+the response can carry current code, document assets, and framework scripts.
+Deferred promises are not reused from an SSG or ISR cache hit.
 
-## Why Intermediate Layouts Need Re-Importing
+Each cache entry records the page, root, and existing intermediate layouts that
+can affect it. A source re-evaluation invalidates only entries indexed by that
+file. The validity check also compares dependency modification times, so a
+rename or deletion fails conservatively instead of serving stale data.
 
-Page modules statically import their parent `_route.tsx` files:
+Changing the route mode is safe because the mode is recomputed from the freshly
+adapted route before selecting the SSR, SSG, or ISR path.
 
-```tsx
-import { route } from "../_route";
-```
+## Development diagnostics and recovery
 
-Bun resolves this import through its ESM cache. When the page module is re-imported with a new module revision, the page itself is fresh, but **its static imports are not** — they resolve to the cached startup version.
+Furin has a framework-level diagnostic pipeline in addition to Bun's bundler
+errors. It covers failures that occur after a module was delivered or while a
+request is executing.
 
-This means after editing `board/_route.tsx`:
-
-- The **client bundle** contains the new layout (Bun HMR rebuilt it)
-- The **server** would render with the old layout (cached `_route.tsx`) without additional work
-
-`refreshLayoutChain()` fixes this by explicitly re-importing every intermediate `_route.tsx` with its current module revision and patching `layout` / `loader` on the existing `RuntimeRoute` objects.
-
----
-
-## Why Module Revisions Matter
-
-Bun caches modules by `(namespace, path)`. Without the `?t=<module-revision>` suffix, the first import of a page would stay frozen in the server cache.
-
-After a file edit, the browser would receive fresh HMR code while SSR would still render the stale page module. That mismatch leads directly to hydration errors. `DevGraph` increments a module's revision only when its source version changes, then caches the resulting import promise. Requests no longer allocate timestamp-based module identities.
-
-The revision cache-busts the **page module**, but static imports inside that module (like `import { route } from "../_route"`) still resolve through Bun's normal ESM cache. That is why `refreshLayoutChain` applies the same revision rule to intermediate layout files.
-
----
-
-## Why The Template Cache Is Short-Lived
-
-`/_bun_hmr_entry` is cached for at most one second. When the client bundle rebuilds, chunk hashes change; the short TTL prevents SSR from retaining obsolete chunk references while avoiding a template fetch for every request.
-
----
-
-## Internal Pieces
-
-| File | Role |
+| Phase | Origin |
 | --- | --- |
-| `src/server/dev/graph.ts` | Atomic route snapshot, import graph, monotonic module revisions, import and loader-cache state, HMR error events, and metrics |
-| `src/server/dev-page-plugin.ts` | Virtual namespace loader for SSR pages, React singleton rewriting, JSX helper injection, and selective workspace transforms in dev |
-| `src/server/router/hmr.ts` | Reloads `root.tsx`, pages, and layouts through `DevGraph`, then labels loader and render failures |
-| `src/server/render/template.ts` | Keeps the `/_bun_hmr_entry` template on a one-second cache |
-| `src/build/hydrate.ts` | Generates the `_hydrate.tsx` client entry, handles `hydrateRoot` vs `root.render` for HMR, and exposes `__FURIN_HMR_REFRESH__` |
-| `src/plugin/index.ts` | Removes `loader`, `params`, and `query` from client bundles |
+| `transform` | Furin's server transform or parser |
+| `import` | Route evaluation or a transitive application import |
+| `loader` | Root, layout, or page loader execution |
+| `render` | Server React render |
+| `hydrate` | Initial browser hydration |
+| `client-render` | React render after the browser owns the document |
 
----
+Server failures become a structured diagnostic and a `500` document containing
+the overlay bootstrap. Client hydration and render failures dispatch a
+`furin:client-error` event; the overlay posts the report back to the server for
+source-map symbolication.
 
-## Why React Must Stay Singleton
+The diagnostic contains the phase, route, message, cause, source location,
+application import chain, and stack. The import chain comes from the module graph
+recorded during transforms. Client frames are mapped through same-origin Bun
+source maps, and framework or dependency frames are classified as internal.
 
-The most fragile part of Bun dev mode is not route matching. It is module identity.
+The browser receives a small versioned diagnostic channel over Furin's shared
+`/_furin/events` WebSocket:
 
-React hooks only work when every module in the render graph shares the same React dispatcher object. If `react-dom/server` uses one React instance and a hot-reloaded page or layout imports a different one, hook calls fail with errors such as:
+- `furin.error` shows or replaces the active overlay;
+- `furin.ready` clears a warm overlay after a successful route revision;
+- a cold `500` page reloads automatically after recovery; and
+- a changed server id also reloads, because event cursors from the previous
+  process no longer describe the current graph.
 
-- `Invalid hook call`
-- `resolveDispatcher().useState === null`
+The store retains the latest active error and a bounded event history, allowing
+a newly opened tab or a reconnecting socket to recover its state. Sync,
+diagnostics, and DevTools share this one connection instead of occupying three
+long-lived HTTP response slots per tab.
 
-That can happen in development when Bun re-evaluates part of the module graph and the same package is reached through different logical import paths.
+The internal endpoints live under the instance prefix:
 
-Furin avoids that by rewriting:
+```text
+/_furin/dev/overlay.js
+/_furin/dev/client-errors
+/_furin/events
+/_furin/events/client.js
+```
+
+They accept loopback and same-origin development requests only. Production keeps
+the diagnostic plugin out of the server graph and resolves the remaining
+development boundaries to inert implementations before bundling.
+
+## Module identity invariants
+
+### React is a server singleton
+
+Every SSR module must observe the same React dispatcher used by
+`react-dom/server`. A second React identity causes `Invalid hook call` or a null
+hook dispatcher after hot reload.
+
+Furin canonicalizes these imports to resolved on-disk paths:
 
 - `react`
 - `react/jsx-runtime`
@@ -222,110 +307,118 @@ Furin avoids that by rewriting:
 - `react-dom/server`
 - `react-dom/client`
 
-to the same resolved on-disk paths during dev SSR loading.
+Workspace modules that remain in Bun's normal server graph receive the same
+singleton rewrite, not only virtual page modules.
 
----
+### The client router is a singleton
 
-## Why The Client Router Must Also Stay Singleton
+The generated hydrate entry and application code must import `RouterProvider`
+and `Link` through the same package identity. Otherwise two `RouterContext`
+objects can exist: the provider writes one while links read the other and fall
+back to document navigation.
 
-There is a second singleton requirement on the browser side: `RouterProvider` and `Link` must come from the same `@teyik0/furin/link` module instance.
+The hydrate entry therefore imports router APIs through
+`@teyik0/furin/link`, never through an absolute internal source path.
 
-If the client entry imports `RouterProvider` through one path and application code imports `Link` through another, Bun can bundle two copies of `link.tsx`. That creates two different `RouterContext` objects:
+## Multi-instance isolation
 
-- the provider writes to one context
-- the link reads from the other
+Every mounted Furin instance has its own prefix, generated `.furin` directory,
+route snapshot, route watcher, template cache, loader caches, diagnostics store,
+and internal endpoints. A hot update or invalidation in one prefixed application
+must not affect a sibling instance.
 
-When that happens, SPA navigation silently falls back to full-page reloads because `Link` behaves as if there were no router provider.
+The root instance alone writes the shared `furin-env.d.ts`; prefixed instances
+use their own client entry without competing for that file.
 
-That is why the hydrate entry imports `RouterProvider` from `@teyik0/furin/link` instead of an absolute file path.
+## Observable edit behavior
 
----
+| Edit | Expected result |
+| --- | --- |
+| Page component | Preserve compatible React state; render the latest implementation |
+| Hook order or signature | Remount the affected component; keep unaffected parents mounted |
+| Root or nested layout | Patch the stable component and refresh the server route chain |
+| Loader, mode, or `revalidate` | Refresh route data using the newly rebuilt route definition |
+| Imported local module or re-export | Propagate through the browser graph and use a versioned SSR dependency |
+| Route or convention add/remove | Replace route snapshots and regenerate the client table without a manual restart |
+| CSS or `@import` dependency | Let Bun update styles while React state remains mounted |
+| Server entry, API, or runtime internals | Let `bun --hot` re-evaluate the affected server graph |
+| HMR transport reconnect | Reload once to recover a known-good graph |
 
-## Edit Matrix
+## Known limitations
 
-| What changed | `--hot` restart | Client HMR | Typical time |
-|---|---|---|---|
-| `pages/*.tsx` component | No | Yes, React Fast Refresh | ~20ms |
-| `pages/root.tsx` root layout | No full server restart, but SSR re-imports it fresh on the next request | Yes | ~20-600ms depending on rebundle |
-| `server.ts` or `api/` | Yes | No | ~600ms |
-| local components used only by page SSR | No full server restart | Yes | Varies |
-| core runtime files (`src/link.tsx`, router internals, etc.) | Yes, they are in the server graph | Usually yes | ~600ms |
+The current Bun-backed pipeline has executable `test.todo` specifications for:
 
----
+- editing a dynamic import before its first execution;
+- creating a previously missing import;
+- restoring a deleted imported component;
+- pruning a stylesheet after its component import is removed; and
+- CSS Module class mapping imports in Bun's full-stack development bundle.
 
-## Practical Outcome
+Furin does not hide these cases behind a global reload because that would make
+the passing Fast Refresh cases lose state and would conceal graph invalidation
+regressions.
 
-This setup gives Furin two useful properties in development:
+Loader-backed edits are not atomic: code can render once with the previous data
+before the refresh resolves. Large-project cold start, warm start, memory, and
+edit-to-paint performance also need published reproducible benchmarks before
+making comparative speed claims.
 
-- ordinary page edits stay on the fast React Fast Refresh path
-- SSR re-imports pages, layouts, and root from fresh disk source on every request
-- React hooks remain stable across hot reload boundaries
-- client-side navigation stays on SPA transitions instead of degrading into full reloads
-- template URLs stay aligned with the latest client rebundle
-- live HMR updates seamlessly pick up layout changes and fresh loader data without hydration mismatches
+## Verification
 
-## Browser Conformance Tests
+The HMR suite treats browser-visible behavior as the public contract.
+Run these commands from `packages/core`:
 
-`bun run test:webview` runs the real-browser HMR suite with `Bun.WebView` and a
-Chrome backend. Its behavioral baseline follows the public acceptance suites in
-[Next.js React Refresh](https://github.com/vercel/next.js/tree/canary/test/development/acceptance-app)
-and [Vite HMR](https://github.com/vitejs/vite/tree/main/playground/hmr), adapted
-to Furin's route and loader model rather than their private HMR APIs.
+- `bun run test:webview` runs the real-browser conformance tier with
+  `Bun.WebView` and Chrome.
+- `FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
+  runs the known-gap specifications from `packages/core`.
+- `bun run test:hmr:soak` runs the endurance tier with 2,000 edits by default.
+  `FURIN_HMR_SOAK_EDITS=<count>` selects a shorter local run.
 
-The standard tier covers:
+The suite covers state preservation and remounting, re-exports, cycles, loaded
+dynamic imports, layouts, syntax and runtime recovery, the diagnostic overlay,
+CSS, rapid edits, stale loader responses, route topology, SSR/SSG/ISR, deferred
+data, composite RSC, prefixed instances, multiple tabs, reconnections,
+edit-to-paint, and memory behavior.
 
-- compatible state preservation and hook-signature remounts
-- imported children, root and nested layouts, re-exports, mixed exports, cycles,
-  loaded dynamic imports, and component moves
-- syntax, render, loader, cold-SSR, and successive-error recovery
-- global CSS, invalid-CSS recovery, `@import` dependencies, CSS removal, and CSS Modules
-- simultaneous component/loader edits, rapid save bursts, stale loader-response rejection,
-  and edit-to-paint measurement
-- live route addition/removal, prefixed multi-instance isolation, two browser tabs,
-  repeated WebSocket reconnections, SSR/SSG/ISR, deferred data, and composite RSC
+## Internal ownership map
 
-Known gaps in the Bun-backed development pipeline remain as executable
-`test.todo` specifications. The standard CI tier skips them because their current
-result depends on file-watcher timing; run
-`FURIN_WEBVIEW_TESTS=1 bun test --todo tests/browser/hmr-conformance.webview.test.ts`
-from `packages/core` when reviewing and promoting one of these behaviors. They
-currently cover:
+| File | Responsibility |
+| --- | --- |
+| `src/build/hydrate.ts` | Generate the client route table, stable hot registry, root reuse, data refresh, and reconnect handling |
+| `src/plugin/transform-client.ts` | Remove server-only route stages, derive hook signatures, and inject route accept boundaries |
+| `src/client/hmr.ts` | Preserve component identities and remount boundaries when hook signatures change |
+| `src/client/router/provider.tsx` | Perform HMR data refreshes and reject stale navigations |
+| `src/server/dev-page-plugin.ts` | Load versioned SSR modules, transform source, rewrite imports, and preserve React singletons |
+| `src/server/router/source-version.ts` | Compute source revisions and advance the explicit generation |
+| `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, run render modes, and publish server diagnostics |
+| `src/server/cache/dev-loader.ts` | Cache loader output and invalidate it by route dependencies |
+| `src/plugin/routes.ts` | Generate Elysia route trees and watch route topology |
+| `src/server/render/template.ts` | Read current Bun document assets and inject framework clients |
+| `src/server/dev/graph.ts` | Own route snapshots, module revisions, dependency chains, and development cache state |
+| `src/server/dev/diagnostics.ts` | Classify, store, replay, and symbolicate diagnostics |
+| `src/server/dev/plugin.ts` | Expose the overlay client, client-report endpoint, and cold-error response |
+| `src/server/browser-events/plugin.ts` | Multiplex sync, diagnostics, and DevTools over one versioned WebSocket |
+| `src/client/dev-error-overlay.ts` | Render diagnostics and coordinate recovery in the browser |
 
-- editing a dynamic import before its first execution serves the old module
-- creating a previously missing import, or restoring a deleted imported component,
-  does not invalidate the browser graph
-- removing a CSS import does not prune its injected stylesheet
-- CSS Module value imports are undefined in Bun's full-stack development bundle
+## Upstream references
 
-These TODOs mean the suite is a parity gate, not a claim that parity has already
-been reached. A global reload on every update would hide the gaps but
-would also discard state for the working Fast Refresh cases, so Furin does not use
-that fallback.
+- [Bun full-stack development server](https://bun.com/docs/bundler/fullstack)
+- [Bun hot reloading and `import.meta.hot`](https://bun.com/docs/bundler/hot-reloading)
+- [Next.js Fast Refresh](https://nextjs.org/docs/architecture/fast-refresh)
+- [TanStack Start architecture](https://tanstack.com/start/latest/docs/framework/react/overview)
+- [Vite HMR API](https://vite.dev/guide/api-hmr)
 
-`bun run test:hmr:soak` runs the opt-in endurance tier: 2,000 edits by default,
-with periodic Chrome heap and server RSS samples. Use
-`FURIN_HMR_SOAK_EDITS=<count>` only for a shorter local smoke run.
+Furin follows the same observable Fast Refresh goals as Next.js and the same
+self-accepting module model exposed by Bun and Vite, but its SSR versioning,
+loader refresh, topology watcher, and diagnostic protocol are Furin-specific.
 
----
+## Related development tooling
 
-## Furin DevTools
+Furin DevTools is mounted automatically in development and reports route,
+request, loader, cache, payload, asset, and sync telemetry. It is adjacent to
+HMR but not part of the invalidation protocol: diagnostics answer "why did this
+revision fail?", while DevTools answers "what did the successful request do?".
 
-Furin mounts its browser DevTools automatically in development. There is no component, provider, import, or configuration option to add: the launcher appears in the bottom-left corner of every page served by `bun run dev`.
-
-The panel includes:
-
-- an overview of requests, loader activity, cache hit rate, and transferred bytes
-- discovered routes, source files, rendering modes, loaders, and cache tags
-- correlated loader timings and returned field names
-- current ISR/SSG loader cache metadata, hit/miss/stale decisions, and invalidations
-- the application's actual sync `EventSource` state and cursors
-- browser Resource Timing measurements for transferred, encoded, and decoded assets
-- serialized RSC and route-data wire sizes
-
-Loader and cache values are never sent to the browser. DevTools only receives names, timings, sizes, status, and project-relative source paths.
-
-Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>.</kbd> to hide the launcher and panel. The same shortcut restores them. This preference is local to the current Furin instance and does not stop event collection.
-
-The internal snapshot, event stream, and client asset live under `/_furin/devtools/*` (or the mounted app prefix). They are development-only implementation details. Production builds resolve the instrumentation boundary to an empty implementation before Bun traverses the server graph, so the routes, event hub, request context, client asset, and their marker strings are absent from application bundles and compiled binaries.
-
-For security, the internal endpoints accept loopback hosts and same-origin browser requests only. They are not available when the development server is opened through a remote host or proxy.
+DevTools endpoints live under `/_furin/devtools/*`, are scoped by instance, and
+are excluded from production together with their instrumentation implementation.

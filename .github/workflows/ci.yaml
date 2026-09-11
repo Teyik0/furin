@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Cache bun
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -84,12 +84,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Cache bun
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.4.2-${{ hashFiles('bun.lock') }}
@@ -138,10 +138,11 @@ jobs:
         if: steps.baseline.outputs.available != 'true'
         run: |
           {
+            echo '<!-- furin-performance-report -->'
             echo "## Furin performance budgets"
             echo
             echo "The target branch cannot produce a compatible metafile yet. This PR establishes the baseline; comparisons become blocking once it lands."
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install benchmark tools
         uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2

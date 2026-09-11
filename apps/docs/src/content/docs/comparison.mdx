@@ -1,283 +1,123 @@
 # Next.js vs TanStack Start vs Furin
 
-Choosing a React meta-framework is not about picking the "best" one — it is about picking the one whose trade-offs match your constraints. This page compares Next.js (App Router), TanStack Start, and Furin across every dimension that matters for production decisions.
+Choose these frameworks by architecture and constraints, not by a universal performance ranking. Next.js offers the broadest integrated React platform, TanStack Start is router-first and deeply type-safe, and Furin is the compact Bun/Elysia option.
 
-> **Disclaimers**
->
-> - **Next.js** = App Router (stable), not Pages Router.
-> - **TanStack Start** = 1.x stable (released May 2026). The official TanStack site still labels it "RC" in some nav elements, but the npm packages and GitHub releases are on stable 1.x semver. Server functions are stable; RSC is experimental and excluded.
-> - **Furin** = latest stable. Where a feature is planned but not shipped, we say so explicitly.
-> - This comparison is maintained by the Furin team. We flag our own limitations with ⚠️ and our advantages with 💡 so you can verify independently.
+> **Reviewed September 10, 2026.** Next.js here means the current App Router. TanStack Start's official docs still label it Release Candidate. Furin refers to the `0.4` alpha line in this repository.
 
----
+## At A Glance
 
-## At a glance
-
-| | **Next.js** | **TanStack Start** | **Furin** |
+| | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **Runtime** | Node.js | Node.js | **Bun** |
-| **HTTP server** | Custom (Node) | Vite (dev) / H3 + srvx (prod) | **Elysia** |
-| **Bundler** | Turbopack / webpack | Vite | **Bun.build** |
-| **Process model** | Separate dev server + client bundler | Vite (dev) / H3 via srvx (prod) | **Single process** |
-| **SSG** | ✅ | ✅ | ✅ |
-| **ISR** | ✅ | ❌ | ✅ |
-| **SSR** | ✅ | ✅ | ✅ |
-| **Streaming** | ✅ | ✅ | ✅ |
-| **Deferred data streaming** | ❌ | ✅ (`defer` + `<Await>`) | ✅ (`defer()` + `<Await>`) |
-| **RSC** | ✅ | ⚠️ Experimental | ✅ Composite RSC |
-| **PPR** | ✅ Cache Components | ❌ | ✅ (`requestLoader` + Suspense) |
-| **Binary compile** | ❌ | ❌ | ✅ |
-| **ISR in dev** | ❌ | ❌ | ⚠️ Partial (loader cache, no background revalidation, deferred Promises not cached) |
+| Maturity | Stable, widely deployed | Release Candidate | Alpha |
+| Primary runtime | Node.js and supported platform runtimes | Adapter-dependent | Bun only |
+| Dev/build engine | Turbopack by default | Vite or Rsbuild | Bun full-stack dev server and bundler |
+| HTTP model | Next.js runtime and Route Handlers | Start server routes/functions | Elysia plugins and routes |
+| Routing center | App Router and React Server Components | TanStack Router | File routes compiled into Elysia |
+| Rendering | App Router static/dynamic/streaming model | Full-document SSR and prerendering | Explicit SSR, SSG, or ISR per route |
+| Best fit | Full React platform and ecosystem | Router/search/data type safety | Bun/Elysia teams wanting one process |
 
----
+No neutral benchmark currently compares the same application, route graph, machine, and edit sequence across all three. Furin should not claim a speed winner until those reproducible results exist.
 
-## Architecture & Runtime
+## Development Architecture
+
+### Next.js
+
+Next.js owns an integrated compiler and runtime graph. Turbopack is the default development and build engine, supports Fast Refresh, performs lazy work, and can persist compiler artifacts. The developer runs one framework server even though the framework manages several execution environments.
+
+### TanStack Start
+
+TanStack Start builds on TanStack Router and delegates bundling and HMR to Vite or Rsbuild. That gives it mature plugin ecosystems, established React Fast Refresh integrations, and a public invalidation lifecycle.
+
+### Furin
+
+Furin runs Elysia HTTP handling, API plugins, SSR, route discovery, and Bun's browser bundler in one Bun process and on one origin. Client and server still have different module graphs and transforms; the accurate promise is **one runtime and one process**, not one identical graph.
+
+Furin adds framework-specific coherence around Bun HMR: versioned SSR imports, live route topology, loader invalidation, stable React boundaries, an error overlay, and route/cache DevTools. See [Development HMR Internals](/docs/dev-hmr).
+
+## HMR And Diagnostics
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **Runtime target** | Node.js 18+ | Node.js 18+ | **Bun only** |
-| **HTTP framework** | Custom server (minimal abstraction over Node `http`) | Vite (dev) / H3 (prod, via UnJS) | **Elysia** (typed, chainable, WinterCG) |
-| **Process model (dev)** | 2 processes: Next.js dev server + Turbopack client bundler | 1 process: Vite dev server with SSR middleware | **1 process**: Bun serves HTTP + bundles client via `Bun.build` + plugin pipeline |
-| **Process model (prod)** | 1 process (custom server) or serverless | 1 process (H3/srvx) or serverless | **1 process** (Elysia plugin) or compiled binary |
-| **WinterCG compliance** | Partial (uses Node APIs) | Partial (H3 adapts via srvx) | **Native** (Elysia is WinterCG-native) |
-| **API routes colocation** | ✅ Route handlers in `app/api` | ✅ File-based API routes (H3 server functions) | ✅ Elysia plugins colocated with pages |
-| **WebSocket / SSE** | Custom implementation | Via H3 event handlers (crossws) | **Native Elysia** (`.ws()`, SSE via `ReadableStream`) |
+| React state | Mature Fast Refresh rules | React Fast Refresh through Vite/Rsbuild | Preserved for compatible page/layout edits covered by browser tests |
+| Server edits | Integrated Server Component refresh | Toolchain/server-function integration | Fresh versioned SSR imports and route-data refresh |
+| Route add/remove | Integrated App Router graph | Generated file-route tree | Live filesystem rescan and generated route refresh |
+| Error UI | Mature framework overlay | Mature toolchain overlay | Phase-aware overlay for transform, import, loader, render, hydration, and client render |
+| Persistent graph cache | Turbopack filesystem cache | Toolchain dependency caches | No comparable cross-restart cache yet |
+| Current gaps | Framework-specific edge cases | Depends on Vite/Rsbuild integration | Five executable TODOs around unloaded dynamic imports, missing/restored imports, CSS pruning, and CSS Module values |
 
-> 💡 **Furin advantage** — Single-process dev eliminates the "two servers out of sync" class of bugs. HMR, SSR, and API routes share the same Bun runtime and module graph.
->
-> ⚠️ **Furin limitation** — Bun-only means you cannot deploy to standard Node.js containers without switching runtimes. Docker with `oven/bun` is the recommended path.
+Furin's real-browser suite covers pages, layouts, re-exports, cycles, rapid edits, stale loader rejection, route topology, multiple tabs, reconnects, SSR/SSG/ISR, deferred data, composite server markup, and overlay recovery. Its main architectural compromise is that code and refreshed loader data arrive as two updates, so a component may briefly see the previous payload.
 
----
-
-## Build System
+## Routing And Types
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **Build tool** | Turbopack (dev) / webpack (prod) | Vite | **Bun.build** |
-| **Compilation to binary** | ❌ | ❌ | ✅ (`compile: "embed"`) |
-| **Output directory** | `.next/` | `.output/` or `.tanstack-start/` | `dist/bun/` |
-| **Client assets** | Hashed chunks in `.next/static` | Hashed chunks in `dist/client` | Hashed chunks in `dist/bun/client` |
-| **Plugin API** | Turbopack plugins (unstable) / webpack | Vite plugins (Rollup-compatible) | **Bun plugins** (native + JS API) |
-| **Tree-shaking** | ✅ (webpack) / ⚠️ Turbopack WIP | ✅ (Rollup) | ✅ (Bun bundler) |
-| **Minification** | SWC | Esbuild / Rollup terser | **Bun built-in** |
-| **Source maps** | ✅ | ✅ | ✅ (linked) |
-| **CSS handling** | PostCSS / Tailwind via `postcss.config.js` | PostCSS / Tailwind via Vite | **Tailwind v4 via `bun-plugin-tailwind`** |
-| **Build time (cold)** | Medium | Fast | **Fast** |
-| **Static export** | ✅ `output: "export"` | ✅ | ✅ |
-| **Multi-target builds** | ❌ (Vercel-centric) | ⚠️ Adapter-based | ✅ (`bun`, `static`, planned: `vercel`, `cloudflare`) |
+| Route definition | Files and special App Router conventions | Generated or code-based route tree | Files plus explicit `defineRoute()` chain |
+| Typed destinations | Optional generated typed routes | Strong typed `to`, params, and search | Generated autocomplete; known paths infer params/search, with a string escape hatch |
+| Search state | Application-defined parsing | First-class validated search state | TypeBox runtime schemas plus `useSearch()` |
+| Loader inference | Generated route props and component conventions | Route tree and loader APIs | Parent loader promises flow through the route builder |
+| Advanced routing | Groups, parallel routes, intercepting routes | Rich router composition | Nested layouts and catch-alls; no parallel/intercepting route conventions |
 
-> 💡 **Furin advantage** — `compile: "embed"` produces a single self-contained binary with all assets baked in. This is unique among React meta-frameworks and ideal for CLI tools, desktop apps, or air-gapped deployments.
->
-> ⚠️ **Furin limitation** — The Bun bundler ecosystem is younger than Vite/Rollup. Some advanced transforms may require writing a custom `BunPlugin`.
+TanStack Start is the strongest fit when typed search state and router composition are the center of the application. Furin is strongest when the same TypeBox/Elysia model should validate both page inputs and HTTP APIs. Next.js provides more routing conventions and generated route-aware types than a simple “string routes” description suggests.
 
----
+## Data And Mutations
 
-## Render Modes
+### Next.js
 
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **SSR** | ✅ | ✅ | ✅ |
-| **SSG** | ✅ | ✅ | ✅ |
-| **ISR** | ✅ (`revalidate`, `revalidatePath`) | ❌ (caching via `staleTime` + TanStack Query only) | ✅ (`revalidate` on route, `revalidatePath()`) |
-| **Streaming SSR** | ✅ (React 18 `renderToReadableStream`) | ✅ | ✅ (React 18 `renderToReadableStream`) |
-| **RSC (React Server Components)** | ✅ | ⚠️ Experimental | ✅ Composite RSC |
-| **PPR (Partial Prerendering)** | ✅ Cache Components | ❌ | ✅ (`requestLoader` + Suspense) |
-| **Server Actions** | ✅ | ✅ (`createServerFn()`) | ❌ |
-| **Suspense boundaries** | ✅ | ✅ | ✅ |
-| **Error boundaries** | ✅ (`error.js`) | ✅ (React ErrorBoundary) | ✅ (`error.tsx` per segment) |
-| **Not-found handling** | ✅ (`not-found.js`) | ✅ (route fallback) | ✅ (`not-found.tsx` per segment) |
+The App Router centers React Server Components, `fetch`, Cache Components, Server Actions, and Route Handlers. Its caching system can operate at several layers and supports time- and tag/path-based revalidation.
 
-> 💡 **Furin advantage** — ISR is implemented with `stale-while-revalidate` semantics, ETags, and `Cache-Tag` headers out of the box. No platform-specific adapter required.
->
-> ⚠️ **Furin limitation** — Furin's composite RSC model is explicit: server-owned markup is returned by a loader and client interactivity enters through typed slots. Unlike Next.js App Router, components are not server components by default and Furin does not provide Server Actions.
->
-> 💡 **Furin note** — `defer()` is supported on SSR routes. For SSG and ISR personalization, use `requestLoader` below an explicit Suspense boundary.
+### TanStack Start
 
----
+Route loaders coordinate navigation data, while Server Functions and TanStack Query provide typed server calls and client cache workflows. It is a natural choice when an application already standardizes on the TanStack data stack.
 
-## Dev DX (Developer Experience)
+### Furin
+
+Public loaders are server-only and serialized into page responses. Layout loaders start in parallel and expose ancestor fields as promises. `requestLoader()` isolates cookies/headers from cached public data; `defer()` streams selected SSR fields.
+
+Mutations remain ordinary Elysia routes, usually called through Eden Treaty. Furin Sync optionally adds idempotent replay and an ordered invalidation journal. It does not introduce Server Actions or pretend that external domain writes are automatically atomic.
+
+## Caching And Deployment
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| **HMR speed** | Fast (Turbopack) | Fast (Vite) | **Fast** (Bun HMR + plugin pipeline) |
-| **SSR during HMR** | ✅ | ✅ | ✅ |
-| **ISR in dev** | ❌ (dev = SSR always) | ❌ | ⚠️ Partial (loader data is cached and skipped within the revalidate window; no background revalidation; deferred Promises are not preserved on cache hit) |
-| **Cache hit/miss visibility** | `NEXT_PRIVATE_DEBUG_CACHE=1` | Console logs | **Built-in logs** (`[furin] ISR miss` / `hit` / `stale`) |
-| **Startup time (`bun dev` / `next dev`)** | Medium | Fast | **Fast** (single process, no Vite server to boot) |
-| **Type-safe links** | ❌ (string-based `href`) | ✅ (`<Link to="/about">`) | ✅ (`<Link to="/about">` with autocomplete) |
-| **Typed params / query** | ⚠️ Zod manual | ✅ (`validateSearch`, `params`) | ✅ (`defineRoute().config({ params: t.Object(...) })`) |
-| **Error overlay** | ✅ (Turbopack) | ✅ (Vite) | ✅ (Bun runtime errors) |
-| **Source maps in dev** | ✅ | ✅ | ✅ |
-| **Log streaming** | `next-log` or custom | Custom | **evlog structured logging** (built-in) |
+| Static output | Built in | Prerendering support | SSG-only static exporter |
+| Incremental content | Framework caching and revalidation | Application/adapter strategy | Process-local ISR cache with time/path/tag invalidation |
+| Personalization | Dynamic APIs and component boundaries | Server functions/loaders | SSR or `requestLoader()` beside cached public data |
+| Main deployment story | Vercel and self-hosting | Adapter ecosystem | Bun server, Bun executable, static files |
+| Composable artifact | Framework/application deployment | Adapter-dependent | Packaged Furin app as an Elysia plugin |
 
-> 💡 **Furin advantage** — Built-in structured logs for every cache hit/miss/stale make debugging caching behavior straightforward in both dev and production.
->
-> ⚠️ **Furin limitation** — The dev error overlay is less polished than Turbopack or Vite. Stack traces are accurate but formatting is basic.
+Furin's current origin page cache is process-local. Sync can distribute browser invalidations, and `setCachePurger()` can purge an upstream CDN, but neither is a shared multi-replica HTML cache. Node.js, Vercel, and Cloudflare build targets remain planned.
 
----
+## React Server Components
 
-## Caching
+Next.js uses React Server Components as the App Router's core rendering model. TanStack Start documents RSC support separately from its standard full-document SSR path. Furin exposes an explicit composite server-markup transport as a loader value, with browser slots for interactivity.
 
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **Page cache (SSG)** | Filesystem (`.next/cache`) | In-memory or custom | **In-memory LRU** (`ssgCache`) |
-| **Page cache (ISR)** | Filesystem (`.next/cache`) | In-memory or custom | **In-memory LRU** (`isrCache`) |
-| **Data cache (loaders)** | ✅ (`fetch` cache, `unstable_cache`) | ⚠️ Manual (TanStack Query) | ❌ (loaders re-run on every background revalidation) |
-| **Cache persistence** | ✅ Filesystem | ❌ (in-memory only) | ❌ (in-memory only) |
-| **Cache invalidation by path** | ✅ (`revalidatePath`) | Manual | ✅ (`revalidatePath(path, "page")`) |
-| **Cache invalidation by layout** | ✅ (`revalidatePath(path, "layout")`) | Manual | ✅ (`revalidatePath(path, "layout")`) |
-| **Cache invalidation by tag** | ✅ (`revalidateTag`) | ❌ | ✅ (`revalidateTag`, `furinSync`, `furinInvalidate`) |
-| **ETags** | ❌ | ❌ | ✅ (`"buildId:timestamp"`) |
-| **Conditional requests (304)** | ❌ | ❌ | ✅ |
-| **CDN headers** | `s-maxage`, `stale-while-revalidate` | Manual | **`Cache-Tag`, `s-maxage`, `stale-while-revalidate`** |
-| **CDN purger hook** | Vercel-only | ❌ | ✅ (`setCachePurger()`) |
-| **Client prefetch cache** | Next.js router cache | TanStack Router cache | **RouterProvider prefetch cache** with auto-invalidation |
-| **Stale-deploy detection** | ❌ | ❌ | ✅ (`X-Furin-Build-ID` header) |
+Furin's API is intentionally narrower: it is not the Next.js RSC programming model and does not include React Server Functions or Server Actions.
 
-> 💡 **Furin advantage** — Built-in CDN semantics (`Cache-Tag`, `s-maxage`, `stale-while-revalidate`, `must-revalidate`) without platform lock-in. The `setCachePurger()` hook works with any CDN (Cloudflare, Fastly, custom).
->
-> ⚠️ **Furin limitation** — No data cache means ISR background revalidations re-run all loaders from scratch, even if the underlying data has not changed. Next.js `unstable_cache` can avoid this. A data cache layer is planned.
->
-> ⚠️ **Furin limitation** — In-memory cache is lost on process restart. For Docker deployments, this means every deploy or crash wipes the ISR cache. A filesystem-backed cache adapter is planned.
+## Recommendation
 
----
+Choose **Next.js** when:
 
-## Mutations & Multi-replica Sync
+- RSC, Server Actions, advanced App Router conventions, or the largest ecosystem are requirements.
+- You want the most mature integrated compiler, deployment, and troubleshooting story.
 
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **Mutation contract** | Server Actions or route handlers | Server Functions or server routes | Elysia HTTP routes + Eden Treaty |
-| **On-demand cache invalidation** | `revalidatePath`, `revalidateTag`, `updateTag` | Coordinate router/query cache in application code | `revalidatePath`, `revalidateTag`, path/tag invalidation rules |
-| **Durable idempotency journal** | Application responsibility | Application responsibility | SQLite, PostgreSQL, or Redis adapter |
-| **Missed-event catch-up** | Application responsibility | Application/query-library responsibility | Ordered cursor journal + SSE wake-up |
-| **Optional backend isolation** | Deployment/runtime dependent | Environment code is build-time separated | Independent side-effect-free package subpaths |
+Choose **TanStack Start** when:
 
-Next.js has the broadest integrated cache revalidation API. TanStack Start emphasizes typed same-origin Server Functions and deliberate client-cache integration. Furin keeps standard HTTP routes as the public mutation contract and adds an optional durable replay/change journal around them. The recommended production topology uses PostgreSQL for both durability and native `LISTEN/NOTIFY` wake-ups, with Redis remaining an optional independent notifier.
+- The router, typed search state, and TanStack Query are architectural foundations.
+- Vite/Rsbuild portability and their plugin ecosystems matter.
 
-Furin adopts the immediately useful local-first behavior described in the [Linear performance analysis](https://performance.dev/how-is-linear-so-fast-a-technical-breakdown): `useSync()` applies optimistic state synchronously, SSE carries only a cursor, and catch-up is coalesced. It deliberately does not pretend that a server journal is a browser database. IndexedDB outbox, offline mutation replay, and conflict resolution remain a separate opt-in project.
+Choose **Furin** when:
 
-Sources: [Next.js revalidation](https://nextjs.org/docs/app/getting-started/revalidating), [TanStack Start Server Functions](https://tanstack.com/start/latest/docs/framework/react/guide/server-functions), and [TanStack environment tree-shaking](https://tanstack.com/start/latest/docs/framework/react/guide/environment-functions).
+- Bun and Elysia are deliberate constraints.
+- Pages, APIs, SSR, and development updates should live in one compact process.
+- Explicit route rendering modes and Elysia/TypeBox inference fit the team's mental model.
+- Alpha maturity, Bun-only deployment, and the documented HMR/cache limitations are acceptable.
 
----
+The recommended direction for Furin is to keep the Bun-native architecture. Replacing it with Vite would close some HMR gaps quickly but create two development architectures and erase its clearest distinction. The higher-value path is stronger browser conformance, persistent graph performance work, and explicit shared-cache/deployment adapters.
 
-## Routing & Layouts
+Next.js has the broadest integrated cache revalidation API. TanStack Start emphasizes typed same-origin Server Functions and deliberate client-cache integration. Furin keeps standard HTTP routes as the public mutation contract and adds an optional durable replay/change journal around them. For multi-replica production, PostgreSQL is the recommended source of truth and native `LISTEN/NOTIFY` wake-up path; Redis remains an optional independent notifier.
 
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **File-based routing** | ✅ (`app/`) | ✅ (`src/routes/`) | ✅ (`src/pages/`) |
-| **Nested layouts** | ✅ (`layout.js`) | ✅ (`__layout.tsx`) | ✅ (`_route.tsx`) |
-| **Dynamic segments** | ✅ (`[id]`, `[...slug]`) | ✅ (`$id`, `$slug?`) | ✅ (`[id]`, `[...slug]`) |
-| **Catch-all routes** | ✅ (`[...slug]`) | ✅ (`$.tsx`) | ✅ (`[...slug]`) |
-| **Route groups** | ✅ (`(group)`) | ❌ | ❌ |
-| **Parallel routes** | ✅ (`@team`) | ❌ | ❌ |
-| **Intercepting routes** | ✅ (`(.)`, `(..)`) | ❌ | ❌ |
-| **API routes colocation** | ✅ (`route.js`) | ✅ (`api/`) | ✅ (Elysia plugins) |
-| **Loading UI** | ✅ (`loading.js`) | ❌ (manual Suspense) | ❌ (manual Suspense) |
+## Primary Sources
 
-> 💡 **Furin advantage** — Layouts are Elysia routes with loaders, so you get typed params/query and middleware at every nesting level. The `_route.tsx` file is both a layout and a route boundary (error + not-found).
->
-> ⚠️ **Furin limitation** — No route groups, parallel routes, or intercepting routes. These are App Router-specific advanced patterns. If you need them, Next.js is the better choice.
-
----
-
-## Data Loading
-
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **Route loaders** | ✅ (`async function Page()`) | ✅ (`Route.loader`) | ✅ (`defineRoute().loader()`) |
-| **Layout loaders** | ✅ (`async function Layout()`) | ✅ (`Route.loader`) | ✅ (`_route.tsx` loader) |
-| **Typed loader output** | ⚠️ (TypeScript inference, no runtime validation) | ✅ (Zod/Valibot via `validateSearch`) | ✅ (TypeBox via `params`/`query` on `defineRoute()`) |
-| **Data cache intermédiaire** | ✅ (`fetch` cache, `unstable_cache`) | ⚠️ (TanStack Query) | ❌ (planned) |
-| **Mutations (server actions)** | ✅ (`"use server"`) | ✅ (`createServerFn()`) | ❌ (use API routes) |
-| **Redirect from loader** | ✅ (`redirect()`) | ✅ (`throw redirect()`) | ✅ (`throw redirect()` or `ctx.redirect()`) |
-| **Not-found from loader** | ✅ (`notFound()`) | ✅ (`throw notFound()`) | ✅ (`notFound()`) |
-| **Error handling** | `error.js` boundaries | `ErrorBoundary` | `error.tsx` per segment |
-| **Streaming loader data** | ✅ (RSC streaming) | ✅ (`defer` + `<Await>`) | ✅ (`defer()` + `<Await>` + `<Suspense>`) |
-
-> 💡 **Furin advantage** — Loaders are standard async functions with TypeBox schemas for params/query. No magic conventions: what you see in `defineRoute()` is what gets validated at runtime.
->
-> ⚠️ **Furin limitation** — No server actions. Mutations must go through Elysia API routes (`/api/*`) or external endpoints. This is explicit but more verbose than Next.js `"use server"`.
-
----
-
-## Type Safety
-
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **Typed links (`href`)** | ❌ (strings) | ✅ (`to={"/about"}`) | ✅ (`to={"/about"}` with autocomplete) |
-| **Typed search params** | ❌ (manual) | ✅ (`validateSearch`) | ✅ (`query: t.Object(...)`) |
-| **Typed search read / update** | ❌ (manual `useSearchParams`) | ✅ (`useSearch`, `useSearchParams`) | ✅ (`const [search, setSearch] = useSearch("/products")`) |
-| **Typed route params** | ❌ (manual `params: Promise<{ id: string }>`) | ✅ (`params`) | ✅ (`params: t.Object(...)`) |
-| **Typed API routes** | ❌ (manual) | ⚠️ (TanStack Router types, no native E2E API inference) | ✅ (Elysia tRPC-like inference) |
-| **End-to-end type inference** | ❌ | ✅ (TanStack Query + Router) | ⚠️ (Router + client types, no Query equivalent) |
-| **Generated manifest** | ❌ | ✅ (`routeTree.gen.ts`) | ✅ (`furin-env.d.ts`) |
-
-> 💡 **Furin advantage** — `defineRoute()` is the single source of truth for params, query, and loader types. The generated `furin-env.d.ts` gives autocomplete on `<Link>` without any runtime overhead.
->
-> ⚠️ **Furin limitation** — No equivalent to TanStack Query for client-side data fetching. If you need complex client caching, deduplication, and background refetch, you must bring your own data library.
-
----
-
-## Deployment
-
-| Dimension | Next.js | TanStack Start | Furin |
-|---|---|---|---|
-| **Self-hosted (Docker)** | ✅ (`next start`) | ✅ (srvx/H3 server) | ✅ (`bun run server.ts` or compiled binary) |
-| **Static export** | ✅ (`output: "export"`) | ✅ | ✅ (`static` target) |
-| **Vercel (serverless)** | ✅ (native) | ✅ (via srvx adapters) | ❌ (planned) |
-| **Cloudflare Workers** | ⚠️ (edge runtime) | ✅ (official partner, native guide) | ❌ (planned) |
-| **AWS Lambda** | ⚠️ (adapter) | ✅ (via srvx/H3 adapters) | ❌ (planned) |
-| **Edge runtime** | ✅ (Edge API Routes) | ⚠️ (H3/srvx, adapter-based) | ⚠️ (Elysia is WinterCG, but no edge adapter yet) |
-| **Embedded binary** | ❌ | ❌ | ✅ (`compile: "embed"`) |
-| **Single-file deploy** | ❌ | ❌ | ✅ (compiled binary ~20-50 MB) |
-
-> 💡 **Furin advantage** — The compiled binary (`compile: "embed"`) is a unique deployment artifact. One file, no `node_modules`, no Docker image. Copy it to a server and run it. This is ideal for internal tools, offline environments, or simple VPS setups.
->
-> ⚠️ **Furin limitation** — Platform adapters (Vercel, Cloudflare) are not yet implemented. If you need serverless/edge deployment today, Next.js or TanStack Start are better choices.
-
----
-
-## When to choose which
-
-### Choose Furin if...
-
-- You are **already using Bun** and want to stay in a single runtime.
-- You want **one process** for dev and prod (no separate bundler + server).
-- You need an **embeddable binary** (CLI tools, desktop apps, air-gapped deployments).
-- You prefer **Elysia** as your HTTP framework (typed, chainable, fast).
-- You want **CDN-ready cache headers** without platform lock-in.
-
-### Choose Next.js if...
-
-- You deploy to **Vercel** (native integration, edge functions, analytics).
-- You need **React Server Components** (zero client JS for server-only UI).
-- You need **Server Actions** for mutations without API routes.
-- You use **advanced routing** (parallel routes, intercepting routes, route groups).
-- You need the **largest ecosystem** (plugins, examples, hiring pool).
-
-### Choose TanStack Start if...
-
-- You want a **library-first** approach (bring your own UI, styling, state).
-- You prefer **Vite** and the Rollup ecosystem.
-- You need **TanStack Router** features (nested routing, search param validation, breadcrumbs).
-- You want **TanStack Query** integration out of the box.
-- You prefer **H3/UnJS** for server primitives.
-
----
-
-## Summary table
-
-| You need... | Choose |
-|---|---|
-| RSC / Server Actions | **Next.js** |
-| Vercel edge / serverless | **Next.js** |
-| Embeddable binary | **Furin** |
-| Bun-native single process | **Furin** |
-| Vite + library-first | **TanStack Start** |
-| TanStack Query + Router | **TanStack Start** |
-| Maximum ecosystem maturity | **Next.js** |
-| Maximum transparency / no magic | **Furin** |
-
----
-
-*Last verified: May 9, 2026. Sources: Next.js 15 docs, TanStack Start 1.x stable docs, Furin source code, @tanstack/react-start GitHub (packages/react-start, start-server-core, start-plugin-core).*
+- Next.js: [project structure](https://nextjs.org/docs/app/getting-started/project-structure), [data fetching](https://nextjs.org/docs/app/getting-started/fetching-data), [linking and navigation](https://nextjs.org/docs/app/getting-started/linking-and-navigating), [Fast Refresh](https://nextjs.org/docs/architecture/fast-refresh), and [revalidation](https://nextjs.org/docs/app/getting-started/revalidating)
+- TanStack: [Start overview](https://tanstack.com/start/latest/docs/framework/react/overview), [file-based routing](https://tanstack.com/router/latest/docs/routing/file-based-routing), and [data loading](https://tanstack.com/router/latest/docs/guide/data-loading)
+- Runtime/tooling: [Elysia plugins and scope](https://elysiajs.com/essential/plugin), [Bun full-stack development](https://bun.com/docs/bundler/fullstack), and [Bun hot reloading](https://bun.com/docs/bundler/hot-reloading)

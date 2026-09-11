@@ -173,6 +173,7 @@ describe("furin-dev-page React singleton", () => {
                 buildId: undefined,
                 entryModule: undefined,
                 faviconHref: undefined,
+                frameworkModules: [],
                 staticMode: false,
                 stylesheets: [],
               },

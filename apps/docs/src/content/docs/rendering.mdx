@@ -1,67 +1,68 @@
 # Rendering Modes
 
-Rendering metadata belongs in `config()`. The same chain then declares loaders, head metadata, and its `page()` or `layout()` terminal.
+Every route chooses its rendering mode explicitly in `config()`. That decision controls when public loaders run, where their HTML is cached, and which request APIs are safe to use.
+
+| Mode | Public render | Best fit |
+|---|---|---|
+| `ssr` | Every request | Personalized or request-time pages; progressive streaming |
+| `ssg` | Pre-rendered and cached without a time limit | Stable public content |
+| `isr` | Cached, then regenerated after `revalidate` seconds | Public content that can be briefly stale |
 
 ## SSR
 
-SSR is the default mode.
-
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async ({ request }) => ({
-    user: await getSession(request),
-  }))
-  .page(({ data: { user } }) => <Dashboard user={user} />)
+  .loader(async ({ request }) => ({ user: await getSession(request) }))
+  .page(({ data }) => <Dashboard user={data.user} />);
 ```
 
-Use SSR for personalized pages and request-time data. SSR supports [deferred streaming](/docs/defer).
+SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. It is the only mode that supports public `defer()` streaming and direct request access in `loader()`.
 
 ## SSG
 
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssg" })
-  .page(() => <div>This page is pre-rendered</div>)
+  .loader(async () => ({ features: await getFeatures() }))
+  .page(({ data }) => <FeatureList items={data.features} />);
 ```
 
-Dynamic SSG params are also declared in `config()`.
+The Bun server stores SSG HTML and route data in the build snapshot or warms them at startup. A static build writes them as files. Public SSG loaders cannot read cookies, headers, the incoming request, or mutate response state.
+
+Dynamic SSG routes enumerate their buildable paths with `staticParams()`:
 
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { t } from "elysia"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({
     layout: rootRoute,
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
-    staticParams: async () => {
-      const slugs = await db.getAllSlugs()
-      return slugs.map((slug) => ({ slug }))
-    },
+    staticParams: async () =>
+      (await getPublishedSlugs()).map((slug) => ({ slug })),
   })
-  .loader(async ({ params }) => ({
-    post: await db.getPost(params.slug),
-  }))
-  .page(({ data: { post } }) => <Post post={post} />)
+  .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
+  .page(({ data }) => <Post value={data.post} />);
 ```
+
+A pure static export requires `staticParams()` for dynamic SSG routes. The Bun server can still render an uncached concrete SSG path on demand.
 
 ## ISR
 
-Pair `mode: "isr"` with `revalidate`.
-
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { t } from "elysia"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
   .config({
@@ -70,94 +71,45 @@ export const route = defineRoute()
     params: t.Object({ id: t.String() }),
     revalidate: 60,
   })
-  .loader(async ({ params }) => ({
-    product: await db.getProduct(params.id),
-  }))
-  .page(({ data: { product } }) => <ProductPage product={product} />)
+  .loader(async ({ params }) => ({ product: await getProduct(params.id) }))
+  .page(({ data }) => <Product value={data.product} />);
 ```
 
-## Personalized Cached Routes
+The first request renders and stores a healthy response. After 60 seconds, the next request may receive the stale entry while one background regeneration starts. Concurrent stale requests share that regeneration, and a failed regeneration keeps the last good entry.
 
-Keep cacheable data in `loader()` and request-specific data in `requestLoader()`.
+`staticParams()` is optional for ISR. When provided, it warms known paths; unknown paths remain renderable on demand.
+
+## Cached Public Data With Personalization
+
+SSG and ISR can cache public data while rendering a request-private section on each request:
 
 ```tsx
-import { defineRoute } from "@teyik0/furin"
-import { Suspense, use } from "react"
-import { route as rootRoute } from "../root"
+import { defineRoute } from "@teyik0/furin";
+import { Suspense, use } from "react";
+import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .config({ layout: rootRoute, mode: "isr", revalidate: 300 })
   .requestLoader(({ cookies }) => ({
-    user: getUser(cookies.get("session")),
+    account: getAccount(cookies.get("session")),
   }))
-  .loader(async () => ({
-    catalog: await getPublicCatalog(),
-  }))
-  .page(({ data: { catalog }, requestData }) => (
+  .loader(async () => ({ catalog: await getCatalog() }))
+  .page(({ data, requestData }) => (
     <>
-      <Catalog value={catalog} />
+      <Catalog value={data.catalog} />
       <Suspense fallback={<AccountSkeleton />}>
-        <Account value={use(requestData).user} />
+        <Account value={use(requestData).account} />
       </Suspense>
     </>
-  ))
+  ));
 ```
 
-The component receives `requestData` as a promise. Only public loader data enters the cached shell. Static export rejects `requestLoader()` because no request runtime exists.
+Furin caches the public loader result, not the personalized document. The final response is `private, no-store`. This pattern requires a Bun server and is rejected by pure static export.
 
-## Composite React Server Components
+## Composite Server Markup
 
-RSC is a loader value, not a rendering mode. Use the explicit composite API.
+React server-component transport is a loader value, not another route mode. `createCompositeComponent()` encodes server-rendered markup and `<CompositeComponent>` fills declared interactive slots in the browser. Use it when a server-only component tree materially reduces client code; use ordinary React components for the common case.
 
-```tsx
-import { defineRoute } from "@teyik0/furin"
-import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc"
-import { route as rootRoute } from "../root"
+Furin's composite API is intentionally narrower than the Next.js React Server Component model: it does not provide Server Actions, and mutations remain Elysia routes.
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
-  .loader(async () => ({
-    card: await createCompositeComponent<{
-      Action: React.ComponentType<{ productId: string }>
-    }>(({ Action }) => (
-      <article>
-        <Action productId="product-1" />
-      </article>
-    )),
-  }))
-  .page(({ data: { card } }) => (
-    <CompositeComponent
-      Action={({ productId }) => <button>Add {productId}</button>}
-      src={card}
-    />
-  ))
-```
-
-The server fragment is encoded as Flight. Client interactivity enters through children, component slots, or render props. Furin does not expose React Server Functions; mutations remain Elysia/Eden Treaty endpoints.
-
-## Head Metadata
-
-`head()` follows `loader()` and precedes the terminal.
-
-```tsx
-import { t } from "elysia"
-import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "../root"
-
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })
-  .loader(async ({ params }) => ({ post: await db.getPost(params.slug) }))
-  .head(({ data: { post } }) => ({
-    meta: [
-      { title: post.title },
-      { content: post.excerpt, name: "description" },
-    ],
-  }))
-  .page(({ data: { post } }) => <Post post={post} />)
-```
-
-| Mode | Configuration | Best for |
-| --- | --- | --- |
-| `ssr` | `config({ layout, mode: "ssr" })` | request-time and personalized data |
-| `ssg` | `config({ layout, mode: "ssg" })` | content that changes rarely |
-| `isr` | `config({ layout, mode: "isr", revalidate })` | cached pages refreshed periodically |
+Continue with [Caching](/docs/caching) for headers and on-demand invalidation.

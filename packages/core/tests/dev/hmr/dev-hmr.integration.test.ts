@@ -327,4 +327,35 @@ describe.serial("dev HMR", () => {
     expect(latestHmrShell).not.toBe(initialBundle);
     expect(refreshedHomeChunk).not.toBe(initialBundle);
   }, 20_000);
+
+  test("source examples containing relative imports remain inert during SSR", async () => {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        'const example = `import "./styles/globals.css"`;',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <main>{example}</main>);",
+      ].join("\n")
+    );
+
+    let response: Response | null = null;
+    let html = "";
+    for (let i = 0; i < 40; i += 1) {
+      response = await fetch(`http://localhost:${port}/`);
+      html = await response.text();
+      if (response.ok && html.includes("import &quot;./styles/globals.css&quot;")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(response?.status).toBe(200);
+    expect(html).toContain("import &quot;./styles/globals.css&quot;");
+  }, 15_000);
 });

@@ -231,11 +231,8 @@ export interface RouterProviderProps {
   prefetchCacheSize: number;
   root: RuntimeRoute | null;
   routes: ClientRoute[];
-  /**
-   * Optional internal SSE endpoint emitted by `furin({ sync })`.
-   * When present, RouterProvider listens for cross-client invalidations.
-   */
-  syncStream?: string | undefined;
+  /** Internal durable changes base path emitted by `furin({ sync })`. */
+  syncPath?: string | undefined;
 }
 
 /** @internal Router state held inside RouterProvider. Exported so CacheEntry can reference it. */

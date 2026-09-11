@@ -129,6 +129,7 @@ describe("FurinErrorBoundary", () => {
             buildId: undefined,
             entryModule: "/_client/hydrate.js",
             faviconHref: undefined,
+            frameworkModules: [],
             staticMode: false,
             stylesheets: [],
           },

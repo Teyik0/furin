@@ -3,7 +3,7 @@ import {
   type DevtoolsServerEvent,
   type DevtoolsServerEventInput,
 } from "../../devtools/protocol.ts";
-import { currentInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 
 const EVENT_LIMIT = 1000;
 
@@ -22,19 +22,20 @@ export function devtoolsInstanceId(): string {
   return Bun.hash(`${instance.prefix}\0${instance.pagesDir}`).toString(16);
 }
 
-export function devtoolsEventsSnapshot(): {
+export function devtoolsEventsSnapshot(instance?: FurinInstance): {
   events: DevtoolsServerEvent[];
   lastEventId: number;
 } {
-  const hub = instanceDevtoolsHub();
+  const hub = instanceDevtoolsHub(instance);
   return { events: [...hub.events], lastEventId: hub.sequence };
 }
 
 export function subscribeDevtoolsEventsAfter(
   cursor: number,
-  listener: (event: DevtoolsServerEvent) => void
+  listener: (event: DevtoolsServerEvent) => void,
+  instance?: FurinInstance
 ): { replay: DevtoolsServerEvent[]; unsubscribe: () => void } {
-  const hub = instanceDevtoolsHub();
+  const hub = instanceDevtoolsHub(instance);
   hub.listeners.add(listener);
   return {
     replay: hub.events.filter((event) => event.id > cursor),

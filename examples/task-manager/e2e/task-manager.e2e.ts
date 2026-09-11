@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 const SERVER_READY_TIMEOUT_MS = 10_000;
 const HTTP_TIMEOUT_MS = 5000;
-const SSE_TIMEOUT_MS = 2000;
+const EVENT_TIMEOUT_MS = 2000;
 const SERVER_URL_PATTERN = /Task Manager running at (http:\/\/localhost:\d+)/;
 
 interface CreatedBoard {
@@ -22,6 +22,72 @@ interface SyncChangesResponse {
   cursor: string;
   hasMore: boolean;
   reset: boolean;
+}
+
+interface SyncEnvelope {
+  channel: "sync";
+  data: { cursor: string };
+  version: 1;
+}
+
+function openSyncSocket(baseUrl: string): {
+  close: () => void;
+  next: () => Promise<SyncEnvelope>;
+} {
+  const socket = new WebSocket(`${baseUrl.replace("http", "ws")}/_furin/events`);
+  const queued: SyncEnvelope[] = [];
+  const waiting = new Set<{
+    reject: (error: Error) => void;
+    resolve: (event: SyncEnvelope) => void;
+  }>();
+  const rejectWaiting = (message: string): void => {
+    for (const waiter of waiting) {
+      waiter.reject(new Error(message));
+    }
+    waiting.clear();
+  };
+  socket.addEventListener("close", () => rejectWaiting("Browser events closed"));
+  socket.addEventListener("error", () => rejectWaiting("Browser events failed"));
+  socket.addEventListener("message", (message) => {
+    const event = JSON.parse(String(message.data)) as SyncEnvelope;
+    if (event.channel !== "sync") {
+      return;
+    }
+    const waiter = waiting.values().next().value;
+    if (waiter) {
+      waiting.delete(waiter);
+      waiter.resolve(event);
+    } else {
+      queued.push(event);
+    }
+  });
+  return {
+    close: () => socket.close(),
+    next: () => {
+      const event = queued.shift();
+      if (event) {
+        return Promise.resolve(event);
+      }
+      if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+        return Promise.reject(new Error("Browser events closed"));
+      }
+      let waiter:
+        | {
+            reject: (error: Error) => void;
+            resolve: (event: SyncEnvelope) => void;
+          }
+        | undefined;
+      const eventPromise = new Promise<SyncEnvelope>((resolve, reject) => {
+        waiter = { reject, resolve };
+        waiting.add(waiter);
+      });
+      return withTimeout(eventPromise, "the sync browser event", EVENT_TIMEOUT_MS).finally(() => {
+        if (waiter) {
+          waiting.delete(waiter);
+        }
+      });
+    },
+  };
 }
 
 function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: number): Promise<T> {
@@ -107,7 +173,7 @@ describe.serial("task-manager production E2E", () => {
     rmSync(workingDirectory, { force: true, recursive: true });
   }, 15_000);
 
-  test("a synced board mutation reaches SSE, the durable journal, and the invalidated ISR page", async () => {
+  test("a synced board mutation reaches two browser tabs, the durable journal, and the invalidated ISR page", async () => {
     const boardName = `E2E board ${crypto.randomUUID()}`;
     const idempotencyKey = crypto.randomUUID();
 
@@ -119,25 +185,13 @@ describe.serial("task-manager production E2E", () => {
     expect(initialPage.status).toBe(200);
     expect(await initialPage.text()).toContain("Task Manager");
 
-    const streamResponse = await withTimeout(
-      fetch(`${baseUrl}/_furin/sync`),
-      "the sync stream",
-      HTTP_TIMEOUT_MS
-    );
-    expect(streamResponse.status).toBe(200);
-    expect(streamResponse.headers.get("content-type")).toContain("text/event-stream");
-    if (!streamResponse.body) {
-      throw new Error("The sync stream has no response body.");
-    }
-    const streamReader = streamResponse.body.getReader();
+    const firstTab = openSyncSocket(baseUrl);
+    const secondTab = openSyncSocket(baseUrl);
 
     try {
-      const connected = await withTimeout(
-        streamReader.read(),
-        "the SSE connection event",
-        SSE_TIMEOUT_MS
-      );
-      expect(new TextDecoder().decode(connected.value)).toContain(": connected");
+      const initialCursors = await Promise.all([firstTab.next(), secondTab.next()]);
+      expect(initialCursors.map((event) => event.data.cursor)).toEqual(["0", "0"]);
+      const notifications = [firstTab.next(), secondTab.next()];
 
       const createBoard = () =>
         fetch(`${baseUrl}/api/boards`, {
@@ -160,14 +214,10 @@ describe.serial("task-manager production E2E", () => {
       const createdBoard = (await createResponse.json()) as CreatedBoard;
       expect(createdBoard).toMatchObject({ name: boardName });
 
-      const notification = await withTimeout(
-        streamReader.read(),
-        "the board sync notification",
-        SSE_TIMEOUT_MS
-      );
-      const notificationText = new TextDecoder().decode(notification.value);
-      expect(notificationText).toContain("event: furin.sync");
-      expect(notificationText).toContain('data: {"cursor":"1"}');
+      expect((await Promise.all(notifications)).map((event) => event.data.cursor)).toEqual([
+        "1",
+        "1",
+      ]);
 
       const changesResponse = await withTimeout(
         fetch(`${baseUrl}/_furin/sync/changes?after=0`),
@@ -208,7 +258,8 @@ describe.serial("task-manager production E2E", () => {
       expect(invalidatedPage.status).toBe(200);
       expect(await invalidatedPage.text()).toContain(boardName);
     } finally {
-      await streamReader.cancel();
+      firstTab.close();
+      secondTab.close();
     }
   });
 });

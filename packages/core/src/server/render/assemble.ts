@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: readable streams must be consumed sequentially
 import type { toCrossJSON } from "seroval";
-import { getSyncStreamPath } from "../sync/config.ts";
+import { getSyncPath } from "../sync/config.ts";
 import { safeJson } from "./shell";
 
 /**
@@ -158,12 +158,12 @@ export function buildRouteFrameCloseScript(): string {
 }
 
 export function buildSyncRuntimeScript(): string {
-  const syncStreamPath = getSyncStreamPath();
-  if (!syncStreamPath) {
+  const syncPath = getSyncPath();
+  if (!syncPath) {
     return "";
   }
 
-  return `<script id="__FURIN_SYNC__" type="application/json">${safeJson({ stream: syncStreamPath })}</script>`;
+  return `<script id="__FURIN_SYNC__" type="application/json">${safeJson({ path: syncPath })}</script>`;
 }
 
 export function injectSyncRuntimeScript(html: string): string {

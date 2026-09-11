@@ -1,114 +1,110 @@
-# Multi-Instance & Micro-Frontends
+# Multi-Instance & Packaged Apps
 
-A `furin()` call returns a standard Elysia plugin — and you can mount **several of them in one server**, each under its own `prefix`. Every mounted app is fully isolated: its own pages tree, client bundle, build ID, caches, sync stream, and 404 page.
+One Elysia server can mount several Furin page trees. Each instance has a unique prefix and owns its route graph, client assets, document template, build ID, render caches, framework endpoints, and not-found behavior.
 
 ```ts
-// src/server.ts
-import { Elysia } from "elysia"
-import { furin } from "@teyik0/furin"
-import { api } from "./api"
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
 
-const app = new Elysia()
-  .use(api)
-  .use(await furin({ pagesDir: "./src/pages" }))                    // → /
-  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))  // → /admin/*
-  .listen(3000)
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }))
+  .listen(3000);
 ```
 
-```
-src/
-  pages/                 ← root app        (prefix "")
-    root.tsx
-    index.tsx            → /
-    blog/[slug].tsx      → /blog/:slug
-  admin/                 ← admin app       (prefix "/admin")
-    root.tsx             ← its OWN layout, error and not-found boundaries
-    index.tsx            → /admin
-    users.tsx            → /admin/users
-  server.ts
+```text
+src/pages/index.tsx       → /
+src/pages/blog.tsx        → /blog
+src/admin/index.tsx       → /admin
+src/admin/users.tsx       → /admin/users
 ```
 
-## Prefixes
+## Prefix Rules
 
-- `prefix` defaults to `""` (root). It must start with `/` and have no trailing slash (`/admin`, `/admin/v2`).
-- Everything the app serves lives under it: pages, `/_furin/data`, `/_furin/sync`, optional `/_furin/ingest` browser-log intake, `/_client/*` assets, `/public/*`.
-- Mounting **two different apps on the same prefix throws** at startup — prefixes are the collision guard.
+- The root instance uses `""` or `/`.
+- A non-root prefix starts with `/` and has no trailing slash after normalization.
+- Two instances cannot claim the same prefix.
+- Prefixes that would produce the same client-directory slug are also rejected.
 
-## Write pages as if you were at the root
+Everything an instance owns is physically prefixed: pages, `/_furin/*` endpoints, `/_client/*`, `/public/*`, and the favicon.
 
-Inside a mounted app, paths are **logical** — the prefix is invisible:
+Inside the pages tree, URLs stay logical:
 
 ```tsx
 // src/admin/index.tsx
 <Link to="/users">Users</Link>
-// renders <a href="/admin/users">, SPA-fetches /admin/_furin/data?path=/users
 ```
 
-Each app's client bundle is built with its own `basePath`, so `Link`, prefetching, SPA navigation, the sync stream, and browser logging all resolve under the right mount automatically. Moving an app from `/admin` to `/back-office` is a one-line change in `server.ts` — pages don't change.
+The admin bundle renders `/admin/users` and sends route-data requests below `/admin`. Keep page code independent of its deployment prefix.
 
-To link **across** apps, use a plain absolute anchor (`<a href="/admin">`): the apps are separate bundles. Furin leaves the anchor to the browser for a full-document navigation, even when the current app declares a catch-all route.
+Use a plain anchor for navigation between separate Furin instances:
 
-## Isolation semantics
+```tsx
+<a href="/admin">Open admin</a>
+```
 
-| Concern | Behaviour |
+That intentionally loads the other document and browser bundle.
+
+## Isolation And Shared Operations
+
+| Concern | Behavior |
 |---|---|
-| Caches (SSG/ISR/dev loaders) | Per instance — same logical path in two apps never collides |
-| `revalidatePath(path)` | Invalidates that logical path in **every** mounted app (shared-data semantics) |
-| `revalidateTag(tag)` | Cross-app by design — a mutation on a shared API invalidates pages in any app using the tag |
-| Sync stream | Mounted at `{prefix}/_furin/sync`; adapter identity and namespace control journal isolation |
-| `x-furin-build-id` | Each app reports its own build ID |
-| 404 | Root app keeps the historical global handler (a parent `.onError` registered before `.use(furin)` still wins); prefixed apps render their own not-found via an instance catch-all |
+| SSG, ISR, PPR, and dev loader caches | Per instance |
+| Build ID and document template | Per instance |
+| Root/prefixed 404 handling | Per instance |
+| `revalidatePath()` | Applies the logical path across all mounted instances |
+| `revalidateTag()` | Finds tagged paths across instances, then evicts only from each owner |
+| Sync journal | Determined by the configured adapter and namespace |
+| CDN purge paths | Converted to physical prefixed URLs |
 
-## Building
+Cross-instance path and tag invalidation is deliberate for applications sharing data. If two apps use the same logical path for unrelated content, prefer distinct tags and avoid broad path invalidation.
 
-`furin build` statically scans `server.ts` and builds every detected `furin({ pagesDir, prefix })` call — one client bundle per app (`client/`, `client-admin/`, …) and a single server artifact (disk `server.js` or `--compile` binary, embed included).
+## Build Discovery
 
-If your mounts are dynamic (variables, imported factories), declare them explicitly instead:
+Furin can statically detect literal mounts in `server.ts`. Declare dynamic mounts explicitly when values come from variables or factories:
 
 ```ts
 // furin.config.ts
-import { defineConfig } from "@teyik0/furin/config"
+import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
   apps: [
     { pagesDir: "./src/pages" },
     { pagesDir: "./src/admin", prefix: "/admin" },
   ],
-})
+});
 ```
 
-`--target static` exports the root-mounted app only.
+The Bun target produces one client directory per app and one server artifact. Static export selects the root-mounted app only. In development, the root app owns the single generated `furin-env.d.ts`; cross-instance links are therefore intentionally not one combined typed SPA route map.
 
-## Packaged apps (micro-frontends)
+## Packaged Furin Apps
 
-An app can be developed in its **own package** and published as a prebuilt Elysia plugin:
+The `package` target builds one page tree as a publishable Elysia plugin:
 
-```bash
-# in the admin package
+```sh
 furin build --target package --pagesDir ./src/pages --prefix /admin
 ```
 
-This emits `.furin/build/package/`:
+`.furin/build/package` contains:
 
-- `client/` — content-hashed chunks + SSR template, built with `basePath: "/admin"`
-- `register.js` — a side-effect module that registers the app's compile context. Page modules are bundled in; **everything from node_modules (including `@teyik0/furin`) stays external**, so the host and the package share one furin runtime
-- `index.js` / `index.d.ts` — a `createFurinApp()` factory
+- `client/`: content-hashed browser assets and the document template;
+- `public/`: copied public assets when present;
+- `register.js`: bundled page modules and compile-context registration;
+- `index.js` and `index.d.ts`: the `createFurinApp()` factory.
 
-Ship that directory in your package (e.g. under an `./furin` export), then compose in the host:
+Dependencies stay external so the host and packaged app share one Furin runtime.
 
 ```ts
-import { createFurinApp as adminApp } from "@org/admin/furin"
+import { Elysia } from "elysia";
+import { createFurinApp as createAdminApp } from "@org/admin/furin";
+import { furin } from "@teyik0/furin";
 
 new Elysia()
   .use(await furin({ pagesDir: "./src/pages" }))
-  .use(await adminApp())
-  .listen(3000)
+  .use(await createAdminApp())
+  .listen(3000);
 ```
 
-In a monorepo the factory's baked `pagesDir` still points at real sources, so `bun --hot` dev keeps working (live scan + HMR). A published package without sources is production-only — its compile context is resolved by prefix.
+The factory bakes in `pagesDir`, `prefix`, and `clientDir`; the host may still pass logger or sync options. In a monorepo with sources present it supports live development. A published artifact without page sources is production-only.
 
-### Current limitations
-
-- In multi-instance dev, `furin-env.d.ts` (typed links) is generated by the **root** app only.
-- `--compile embed` of a host does not re-embed a packaged app's client assets — packaged apps serve them from disk (`clientDir`). Use disk-mode (`server.js`) hosts, or mount packaged apps behind a proxy for single-binary deploys.
-- Deploying apps as separate processes behind a reverse proxy also works: each app is built standalone with its prefix, and the gateway routes `/admin` to it — no code changes.
+`--compile embed` on the host does not currently re-embed a packaged app's client directory. Prefer a disk-mode host when composing packaged apps into one process.

@@ -8,12 +8,21 @@ import {
   buildStyleParts,
   escapeHtml,
   extractTitle,
+  generateIndexHtml,
+  generateProdIndexHtml,
   isMetaTag,
   renderAttrs,
   safeJson,
 } from "../../../src/server/render/shell.ts";
 
 describe("shell.tsx", () => {
+  test("generated framework templates do not impose an application theme", () => {
+    expect(generateIndexHtml()).not.toContain("furin-theme");
+    expect(generateProdIndexHtml("/app.js", [], undefined, undefined, false)).not.toContain(
+      "furin-theme"
+    );
+  });
+
   describe("safeJson", () => {
     test("escapes </script> — prevents script tag breakout", () => {
       expect(safeJson({ x: "</script><script>alert(1)</script>" })).toBe(

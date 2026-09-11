@@ -1,4 +1,4 @@
-export const DEVTOOLS_PROTOCOL_VERSION = 1 as const;
+export const DEVTOOLS_PROTOCOL_VERSION = 2 as const;
 
 export type DevtoolsRouteMode = "isr" | "ssg" | "ssr";
 
@@ -28,8 +28,8 @@ export interface DevtoolsInstance {
 }
 
 export interface DevtoolsSyncSnapshot {
+  changesPath: string | null;
   enabled: boolean;
-  streamPath: string | null;
 }
 
 export type DevtoolsServerEvent =

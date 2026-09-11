@@ -491,7 +491,7 @@ describe("generateHydrateEntry — HMR hardening", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
 
     expect(code).toContain(
-      'window.dispatchEvent(new CustomEvent("furin:hydrate-error", { detail: err }));'
+      'new CustomEvent("furin:client-error", { detail: { error: err, phase: "hydrate" } })'
     );
   });
 

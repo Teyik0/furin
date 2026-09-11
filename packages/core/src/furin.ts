@@ -6,11 +6,10 @@ import { type AnyElysia, Elysia, file } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
 import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
+import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
-import { publishDevError } from "./server/dev/error.ts";
-import { type DevelopmentRouteSnapshot, devGraph } from "./server/dev/graph.ts";
-import { createDevErrorPlugin } from "./server/dev/plugin.ts";
+import type { DevelopmentRouteSnapshot, DevGraph } from "./server/dev/graph.ts";
 import {
   createInstrumentationPlugin,
   instrumentationLoggerExclusions,
@@ -50,13 +49,41 @@ import {
 } from "./server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "./server/router/types.ts";
 import { IS_DEV } from "./server/runtime-env.ts";
-import { type FurinSyncOption, resolveSyncStreamPath } from "./server/sync/config.ts";
-import { createSyncStreamPlugin } from "./server/sync/stream.ts";
+import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
+import { createSyncChangesPlugin } from "./server/sync/stream.ts";
 
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmentable via furin-env.d.ts
 export interface FurinCacheTags {}
 
 export type CacheTag = keyof FurinCacheTags extends never ? string : keyof FurinCacheTags;
+
+function createProductionBrowserEventsPlugin(sync: FurinSyncOption | undefined): AnyElysia {
+  return sync ? createBrowserEventsPlugin({ sync }) : new Elysia();
+}
+
+function repairedDevelopmentRoutes(
+  snapshot: DevelopmentRouteSnapshot,
+  changedSources: readonly string[],
+  graph: DevGraph<DevelopmentRouteSnapshot | null>
+): { patterns: ReadonlySet<string>; root: boolean } {
+  const patterns = new Set<string>();
+  for (const route of snapshot.routes) {
+    if (
+      changedSources.some(
+        (sourcePath) => route.path === sourcePath || graph.dependsOn(route.path, sourcePath)
+      )
+    ) {
+      patterns.add(route.pattern);
+    }
+  }
+  return {
+    patterns,
+    root: changedSources.some(
+      (sourcePath) =>
+        snapshot.root.path === sourcePath || graph.dependsOn(snapshot.root.path, sourcePath)
+    ),
+  };
+}
 
 import { clientDirNameForPrefix } from "./shared/prefix.ts";
 
@@ -80,7 +107,6 @@ export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
 const MAX_BROWSER_INGEST_EVENTS = 100;
-
 function resolveClientDirFromArgv(prefix: string): string {
   const dirName = clientDirNameForPrefix(prefix);
   return (
@@ -270,7 +296,7 @@ async function readBrowserIngest(request: Request): Promise<BrowserIngestRead> {
 /** Evlog wide-event plugin + browser log ingest endpoint for one instance. */
 function createLoggerPlugin(
   prefix: string,
-  syncStreamPath: string | undefined,
+  syncPath: string | undefined,
   logger: EvlogElysiaOptions | undefined,
   clientLogging: boolean
 ): Elysia {
@@ -285,7 +311,7 @@ function createLoggerPlugin(
         `${prefix}/favicon.ico`,
         `${prefix}/_bun_hmr_entry/**`,
         ...instrumentationLoggerExclusions(prefix),
-        ...(syncStreamPath ? [`${prefix}${syncStreamPath}`] : []),
+        ...(syncPath ? [`${prefix}${syncPath}/**`] : []),
         // Note: /_furin/data is logged with the *logical* path rewritten by
         // createDataEndpoint via useLogger().set({ path }), so SPA navigations
         // appear as "GET /board/123 200" — same shape as a normal SSR nav.
@@ -470,21 +496,11 @@ function createDevelopmentRouteSnapshot(
   };
 }
 
-const NATIVE_ROUTE_RENDERERS = Symbol.for("@teyik0/furin/native-route-renderers");
-
-function nativeRouteRendererRegistry(): WeakMap<FurinInstance, FurinRouteDispatcher> {
-  const existing = Reflect.get(globalThis, NATIVE_ROUTE_RENDERERS);
-  if (existing instanceof WeakMap) {
-    return existing as WeakMap<FurinInstance, FurinRouteDispatcher>;
-  }
-  const renderers = new WeakMap<FurinInstance, FurinRouteDispatcher>();
-  Reflect.set(globalThis, NATIVE_ROUTE_RENDERERS, renderers);
-  return renderers;
-}
+const nativeRouteRenderers = new WeakMap<FurinInstance, FurinRouteDispatcher>();
 
 function dispatchNativeRoute(context: Parameters<FurinRouteDispatcher>[0]): unknown {
   const { pathname } = new URL(context.request.url);
-  const renderer = nativeRouteRendererRegistry().get(resolveInstanceByPath(pathname));
+  const renderer = nativeRouteRenderers.get(resolveInstanceByPath(pathname));
   if (!renderer) {
     throw new Error(`[furin] No route renderer is registered for ${JSON.stringify(pathname)}`);
   }
@@ -529,7 +545,7 @@ export interface FurinOptions {
   prefix?: string;
   /**
    * Configures Furin's sync event stream with the required adapter. The
-   * optional `streamPath` defaults to `/_furin/sync`. Omit this option or pass
+   * optional `path` defaults to `/_furin/sync`. Omit this option or pass
    * `false` to disable sync.
    */
   sync?: FurinSyncOption;
@@ -560,7 +576,7 @@ export async function furin({
   sync,
 }: FurinOptions = {}) {
   const prefix = normalizePrefix(rawPrefix);
-  const syncStreamPath = resolveSyncStreamPath(sync);
+  const syncPath = resolveSyncPath(sync);
   const elysiaLoggerOptions = initializeLogger(logger);
 
   const cwd = process.cwd();
@@ -571,7 +587,7 @@ export async function furin({
   const ctx = getCompileContext(paramPagesDir, prefix);
   const loggerPlugin = createLoggerPlugin(
     prefix,
-    syncStreamPath,
+    syncPath,
     elysiaLoggerOptions,
     clientLogging === true || ctx?.clientLogging === true
   );
@@ -588,7 +604,7 @@ export async function furin({
   const normalizedPagesDir = resolvedPagesDir.replaceAll("\\", "/");
   assertPrefixAvailable(prefix, normalizedPagesDir);
   const instance = createInstance(prefix, normalizedPagesDir);
-  instance.syncStreamPath = syncStreamPath;
+  instance.syncPath = syncPath;
 
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
   if (IS_DEV) {
@@ -597,6 +613,12 @@ export async function furin({
     const instanceSlug = prefix === "" ? "" : prefix.slice(1).replaceAll("/", "__");
     const furinDir = resolve(cwd, ".furin", instanceSlug);
     // Lazy import — build pipeline has native deps not available in compiled binaries
+    const { devDiagnosticStore, publishDevDiagnostic } = await import(
+      "./server/dev/diagnostics.ts"
+    );
+    const { devGraph } = await import("./server/dev/graph.ts");
+    const { createDevDiagnosticPlugin } = await import("./server/dev/plugin.ts");
+    const { createDevelopmentBrowserEventSources } = await import("./server/dev/browser-events.ts");
     const { registerDevPagePlugin } = await import("./server/dev-page-plugin.ts");
     registerDevPagePlugin();
     const {
@@ -648,7 +670,8 @@ export async function furin({
       return { nativeRoutesApp: furinShell, ...loaded };
     });
     const initialSnapshot = createDevelopmentRouteSnapshot(prefix, root, routes);
-    nativeRouteRendererRegistry().set(instance, (context) => graph.snapshot?.render(context));
+    const currentSnapshot = (): DevelopmentRouteSnapshot => graph.snapshot ?? initialSnapshot;
+    nativeRouteRenderers.set(instance, (context) => currentSnapshot().render(context));
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
     const writeCurrentDevFiles = (snapshot: DevelopmentRouteSnapshot): void => {
@@ -669,18 +692,28 @@ export async function furin({
     };
     writeCurrentDevFiles(initialSnapshot);
     graph.commit(initialSnapshot);
-    const refreshDevelopmentRoutes = (): Promise<void> =>
+    const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
       withInstance(instance, async () => {
         invalidateStampedRouteModules();
         try {
+          const previousSnapshot = currentSnapshot();
+          const repaired = repairedDevelopmentRoutes(previousSnapshot, changedSources, graph);
           const next = await loadDevelopmentRoutes(resolvedPagesDir);
           const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
           writeCurrentDevFiles(nextSnapshot);
           graph.commit(nextSnapshot);
+          const diagnostics = devDiagnosticStore(instance);
+          if (repaired.root) {
+            diagnostics.markReady("*");
+          }
+          for (const pattern of repaired.patterns) {
+            if (diagnostics.markReady(pattern)) {
+              break;
+            }
+          }
         } catch (error) {
-          const rootPath = join(resolvedPagesDir, "root.tsx");
-          publishDevError(graph, error, {
-            entryPath: rootPath,
+          publishDevDiagnostic(error, {
+            entryPath: join(resolvedPagesDir, "root.tsx"),
             phase: "import",
             route: "*",
           });
@@ -704,28 +737,30 @@ export async function furin({
       .onStart(() => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
-          onRouteFilesTouched: async () => {
+          onRouteFilesTouched: async (sourcePaths) => {
             applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
+            await refreshDevelopmentRoutes(sourcePaths);
           },
           onSourceError: (error, sourcePath) => {
-            const route = graph.snapshot?.routes.find((candidate) =>
+            const route = currentSnapshot().routes.find((candidate) =>
               graph.dependsOn(candidate.path, sourcePath)
             );
-            publishDevError(graph, error, {
-              entryPath: route?.path ?? sourcePath,
-              phase: "transform",
-              route: route?.pattern ?? "*",
-            });
+            withInstance(instance, () =>
+              publishDevDiagnostic(error, {
+                entryPath: route?.path ?? sourcePath,
+                phase: "transform",
+                route: route?.pattern ?? "*",
+              })
+            );
           },
-          onTopologyChange: async () => {
+          onTopologyChange: async (sourcePaths) => {
             // Bun --hot cannot be triggered from generated artifacts (its
             // watch graph is the entry's static imports), so topology changes
             // are served by swapping the dispatcher's route matcher. Hot-added
             // routes then resolve through the NOT_FOUND fallback below;
             // removed routes 404 through the renderer's miss path.
             applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes();
+            await refreshDevelopmentRoutes(sourcePaths);
           },
         });
       })
@@ -737,13 +772,11 @@ export async function furin({
       // bundle is also present in serve.routes once request hooks are installed.
       .use(await staticPlugin({ assets: furinDir, bunFullstack: true, prefix: "/_bun_hmr_entry" }))
       .use(loggerPlugin)
+      // Local scope (default) — a global hook would leak onto sibling furin
+      // instances mounted on the same parent app.
       .onError(async ({ code, request, server }) => {
         if (code === "NOT_FOUND") {
-          return await renderRootNotFound(
-            graph.snapshot?.root ?? root,
-            request,
-            server?.url.origin
-          );
+          return await renderRootNotFound(currentSnapshot().root, request, server?.url.origin);
         }
       })
       .onAfterHandle(({ set }) => {
@@ -762,15 +795,25 @@ export async function furin({
           ? file(join(publicDir, "favicon.ico"))
           : () => new Response(null, { status: 404 })
       )
-      .use(createDevErrorPlugin(graph))
-      .use(createInstrumentationPlugin(() => graph.snapshot?.routes ?? routes, syncStreamPath))
-      .use(sync ? createSyncStreamPlugin(sync) : new Elysia())
+      .use(
+        createBrowserEventsPlugin({
+          sources: createDevelopmentBrowserEventSources(instance, devDiagnosticStore(instance)),
+          sync: sync || undefined,
+        })
+      )
+      .use(
+        createDevDiagnosticPlugin(devDiagnosticStore(instance), instance, async () => {
+          await routeTopologyWatcher?.refresh();
+        })
+      )
+      .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath))
+      .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
       .use(
         createDataEndpoint(async (request) => {
           if (request.headers.get("x-furin-hmr-refresh") === "1") {
             await routeTopologyWatcher?.refresh();
           }
-          return graph.snapshot?.routes ?? routes;
+          return currentSnapshot().routes;
         })
       )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
@@ -781,7 +824,7 @@ export async function furin({
           // the root not-found page, so hot-added routes are served without
           // a restart. Instances outside this pathname's prefix are skipped.
           const { pathname } = new URL(notFoundContext.request.url);
-          if (!nativeRouteRendererRegistry().has(resolveInstanceByPath(pathname))) {
+          if (!nativeRouteRenderers.has(resolveInstanceByPath(pathname))) {
             return;
           }
           return await dispatchNativeRoute(
@@ -818,7 +861,7 @@ export async function furin({
     prodBuildId,
     searchRoutes
   );
-  nativeRouteRendererRegistry().set(instance, renderNativeRoute);
+  nativeRouteRenderers.set(instance, renderNativeRoute);
   instance.buildId = prodBuildId;
   // Init-time writes target THIS instance explicitly — with several mounted
   // apps there is no ambient request scope to resolve it from.
@@ -884,7 +927,8 @@ export async function furin({
         return app;
       })()
     )
-    .use(sync ? createSyncStreamPlugin(sync) : new Elysia())
+    .use(createProductionBrowserEventsPlugin(sync))
+    .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
     .use(createDataEndpoint(routes))
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)

@@ -147,6 +147,7 @@ describe("sync adapter bundle isolation", () => {
           entrypoints: [join(fixture, "entry.ts")],
           external: [
             "@elysiajs/static",
+            "@jridgewell/trace-mapping",
             "@yuku-toolchain/types",
             "elysia",
             "evlog",

@@ -97,7 +97,7 @@ export const route = defineRoute()
             <code className="rounded bg-white/6 px-1 py-0.5 font-mono text-violet-300">
               sync: {'{ invalidate: { tags: ["boards"] } }'}
             </code>{" "}
-            to immediately bust the cache and broadcast the update over SSE.
+            to immediately bust the cache and broadcast the update over browser events.
           </p>
         </div>
       </div>
