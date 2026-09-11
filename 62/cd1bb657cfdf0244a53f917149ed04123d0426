@@ -1,0 +1,45 @@
+apps/docs/src/content/docs/deployment.mdx
+  s_2a4069bf188ef3::t_2966d1f3569a52 3,119-208,333
+examples/weather/vercel.json
+  s_2a4069bf188ef3::t_b54b3bc0588753 1-7
+packages/core/src/adapter/package.ts
+  s_2a4069bf188ef3::t_47074c7e496751 3,40
+packages/core/src/adapter/runtime-build.ts
+  s_2a4069bf188ef3::t_d3013baa30effc 1-268
+examples/weather/.gitignore
+  s_2a4069bf188ef3::t_01074993dd7264 1
+examples/weather/package.json
+  s_2a4069bf188ef3::t_b2cb7fdf23a11d 8
+examples/weather/src/pages/index.tsx
+  s_2a4069bf188ef3::t_6df35667ca1879 4,14,16,18,20-28
+packages/core/src/adapter/bun.ts
+  s_2a4069bf188ef3::t_7567cca868b550 1-2,5,11,15,44,68,72-73
+packages/core/src/adapter/vercel.ts
+  s_2a4069bf188ef3::t_9aa199f1eedae9 1-477
+packages/core/src/build/index.ts
+  s_2a4069bf188ef3::t_c59f455d5749c0 4,6,8,30,35,153,159,222-233
+packages/core/src/furin.ts
+  s_2a4069bf188ef3::t_8af5b2dbfd1025 206-218,844,881-883
+packages/core/src/server/internal.ts
+  s_2a4069bf188ef3::t_8bc8e80eb31bc9 3,48-49,51-56
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_2a4069bf188ef3::t_aeaf7e19de50b1 1-302
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_2a4069bf188ef3::t_8d91d04a22c4ac 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "62cd1bb657cfdf0244a53f917149ed04123d0426",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
