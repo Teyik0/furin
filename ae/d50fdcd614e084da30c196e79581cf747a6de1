@@ -1,0 +1,20 @@
+apps/docs/package.json
+  h_a2cbd1b0e3ae6e 11
+examples/task-manager/package.json
+  h_a2cbd1b0e3ae6e 11,14,16
+examples/weather/package.json
+  h_a2cbd1b0e3ae6e 8
+packages/core/package.json
+  h_a2cbd1b0e3ae6e 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aed50fdcd614e084da30c196e79581cf747a6de1",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
