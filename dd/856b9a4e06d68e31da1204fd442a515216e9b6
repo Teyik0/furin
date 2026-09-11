@@ -1,0 +1,48 @@
+apps/docs/src/content/docs/configuration.mdx
+  h_a2cbd1b0e3ae6e 22-24,58,122,127,184-202
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 203-219
+bun.lock
+  h_a2cbd1b0e3ae6e 97
+examples/weather/furin.config.ts
+  h_a2cbd1b0e3ae6e 6-8
+examples/weather/package.json
+  h_a2cbd1b0e3ae6e 13,18
+examples/weather/src/api/weather.ts
+  h_a2cbd1b0e3ae6e 1-2,30-122,151,186-192,194-199,201-213,215-225,227-254
+examples/weather/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 18,22
+examples/weather/src/server.ts
+  h_a2cbd1b0e3ae6e 3,9-33
+examples/weather/tests/weather-cache.test.ts
+  h_a2cbd1b0e3ae6e 1-62
+packages/core/src/adapter/README.md
+  h_a2cbd1b0e3ae6e 26-29
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 328-334,337,422-424
+packages/core/src/build/types.ts
+  h_a2cbd1b0e3ae6e 1-5,122-123
+packages/core/src/cli/index.ts
+  h_a2cbd1b0e3ae6e 186
+packages/core/src/config.ts
+  h_a2cbd1b0e3ae6e 34-38,89-98
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 29,78,132-172
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 72-77,112,266,273-274,304-307
+packages/core/tests/build/config/cli-config.test.ts
+  h_a2cbd1b0e3ae6e 51-80
+packages/core/tests/runtime/plugin/data-endpoint-cache.test.tsx
+  h_a2cbd1b0e3ae6e 1-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dd856b9a4e06d68e31da1204fd442a515216e9b6",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
