@@ -200,7 +200,23 @@ bunx vercel deploy --prebuilt
 
 Dynamic SSG URLs returned by `staticParams()` receive individual build-time fallbacks. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
-The browser data endpoint `/_furin/data` remains dynamic so request cookies, headers, query parameters, redirects, and request loaders preserve the same behavior during SPA navigation.
+The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
+
+SSR payloads, request-specific loaders, deferred streams, redirects, not-found results, and errors are explicitly `private, no-store`.
+
+### Function region
+
+Functions run in `iad1` by default. Place compute close to the application's data source through `furin.config.ts`:
+
+```ts
+export default defineConfig({
+  vercel: {
+    regions: ["cdg1"],
+  },
+});
+```
+
+Region identifiers must use Vercel's lowercase region-code format, such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and malformed identifiers fail config validation.
 
 The executable reference is [`examples/weather`](https://github.com/teyik0/furin/tree/main/examples/weather).
 

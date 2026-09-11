@@ -94,6 +94,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@teyik0/furin": "workspace:*",
+        "@vercel/functions": "^3.9.7",
         "bun-plugin-tailwind": "^0.1.2",
         "elysia": "catalog:",
         "evlog": "catalog:",

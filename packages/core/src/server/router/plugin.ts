@@ -26,7 +26,7 @@ import { prerenderSSG } from "../render/ssg.ts";
 import { renderSSR } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
-import { buildRouteMatcher } from "./patterns.ts";
+import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import { parseDataEndpointPath, parseRouteParams, parseRouteQuery } from "./schemas.ts";
 import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
@@ -75,7 +75,7 @@ async function runDataEndpointLoaders(route: ResolvedRoute, ctx: Context): Promi
   return withRequestLoaderData(route, ctx, result);
 }
 
-async function createLoaderDataResponse(
+async function serializeLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
   requestUrl: string
@@ -127,6 +127,47 @@ async function createLoaderDataResponse(
       "content-type": "application/x-furin-route",
     },
   });
+}
+
+function navigationDataCacheControl(route: ResolvedRoute): string {
+  if (route.mode === "ssg") {
+    return "public, max-age=0, must-revalidate, s-maxage=31536000";
+  }
+  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
+  return `public, max-age=0, must-revalidate, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+}
+
+function applyNavigationDataCache(
+  response: Response,
+  result: LoaderResult,
+  route: ResolvedRoute,
+  requestUrl: string
+): Response {
+  const cacheable =
+    !IS_DEV &&
+    (route.mode === "ssg" || route.mode === "isr") &&
+    !hasRequestLoader(route) &&
+    result.type === "data" &&
+    result.deferredPromises === undefined;
+  if (!cacheable) {
+    response.headers.set("cache-control", "private, no-store");
+    response.headers.delete("cache-tag");
+    return response;
+  }
+
+  const { pathname } = new URL(requestUrl);
+  response.headers.set("cache-tag", pathname);
+  response.headers.set("cache-control", navigationDataCacheControl(route));
+  return response;
+}
+
+async function createLoaderDataResponse(
+  result: LoaderResult,
+  route: ResolvedRoute,
+  requestUrl: string
+): Promise<Response> {
+  const response = await serializeLoaderDataResponse(result, route, requestUrl);
+  return applyNavigationDataCache(response, result, route, requestUrl);
 }
 
 async function createRouteDataErrorResponse(

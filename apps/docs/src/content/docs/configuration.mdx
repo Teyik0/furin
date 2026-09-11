@@ -19,6 +19,9 @@ export default defineConfig({
   bun: {
     compile: "embed",
   },
+  vercel: {
+    regions: ["cdg1"],
+  },
   static: {
     basePath: "/my-app",
     outDir: "dist",
@@ -52,7 +55,7 @@ Directory containing your page files. Furin scans this directory recursively and
 **Type:** `string`  
 **Default:** `"src/server.ts"`
 
-Path to the server entrypoint that creates the Elysia instance. Required for `bun` target builds. Not needed for `static` builds.
+Path to the server entrypoint that creates the Elysia instance. Required for `bun` and `vercel` target builds. Not needed for `static` builds.
 
 ---
 
@@ -116,11 +119,12 @@ Bun already applies this optimization automatically to packages declaring `"side
 **Type:** `Array<"bun" | "node" | "vercel" | "cloudflare" | "static">`  
 **Default:** `["bun"]`
 
-Build targets to produce. Only `"bun"` and `"static"` are fully implemented today. `"node"`, `"vercel"`, and `"cloudflare"` are planned.
+Build targets to produce. `"bun"`, `"vercel"`, and `"static"` are fully implemented today. `"node"` and `"cloudflare"` are planned.
 
 | Target | Output | Use case |
 |--------|--------|----------|
 | `bun` | Server bundle + client assets | Self-hosted Bun runtime |
+| `vercel` | Build Output API v3 | Vercel Functions, CDN, SSG, and ISR |
 | `static` | Pre-rendered HTML directory | GitHub Pages, Netlify, CDN |
 
 You can also pass `"all"` to the CLI (`--target all`) to build every target defined in the config.
@@ -174,6 +178,25 @@ Compile the server to a native Bun binary.
 # CLI override
 bunx furin build --compile embed
 ```
+
+---
+
+## `vercel.regions`
+
+**Type:** `string[]`
+**Default:** Vercel project default (`iad1` for new projects)
+
+Compute regions written into the generated Vercel Function configuration. Place the Function close to its database or upstream data source:
+
+```ts
+export default defineConfig({
+  vercel: {
+    regions: ["cdg1"],
+  },
+});
+```
+
+The array must contain at least one unique Vercel region code. Malformed identifiers fail configuration loading.
 
 ---
 

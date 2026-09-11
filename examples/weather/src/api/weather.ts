@@ -1,3 +1,5 @@
+import { getCache } from "@vercel/functions";
+
 export interface GeoResult {
   country: string;
   latitude: number;
@@ -23,6 +25,99 @@ export interface WeatherResponse {
   country: string;
   current: CurrentWeather;
   daily: DailyForecast[];
+}
+
+interface ForecastResult {
+  current: CurrentWeather;
+  daily: DailyForecast[];
+}
+
+type WeatherCacheStatus = "hit" | "miss" | "skipped";
+
+export interface WeatherTiming {
+  forecast_cache: WeatherCacheStatus;
+  forecast_ms: number;
+  geocode_cache: Exclude<WeatherCacheStatus, "skipped">;
+  geocode_ms: number;
+  total_ms: number;
+}
+
+export interface WeatherLogger {
+  set: (fields: { weather: WeatherTiming }) => void;
+}
+
+const FORECAST_TTL_SECONDS = 300;
+const GEOCODE_TTL_SECONDS = 86_400;
+const weatherCache = getCache({ namespace: "furin-weather-v1" });
+
+function elapsedMs(startedAt: number): number {
+  return Math.round((performance.now() - startedAt) * 100) / 100;
+}
+
+function isGeoResult(value: unknown): value is GeoResult {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<GeoResult>;
+  return (
+    typeof candidate.country === "string" &&
+    typeof candidate.latitude === "number" &&
+    typeof candidate.longitude === "number" &&
+    typeof candidate.name === "string"
+  );
+}
+
+function isCurrentWeather(value: unknown): value is CurrentWeather {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<CurrentWeather>;
+  return (
+    typeof candidate.temperature === "number" &&
+    typeof candidate.weatherCode === "number" &&
+    typeof candidate.windSpeed === "number"
+  );
+}
+
+function isDailyForecast(value: unknown): value is DailyForecast {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<DailyForecast>;
+  return (
+    typeof candidate.date === "string" &&
+    typeof candidate.temperatureMax === "number" &&
+    typeof candidate.temperatureMin === "number" &&
+    typeof candidate.weatherCode === "number"
+  );
+}
+
+function isForecastResult(value: unknown): value is ForecastResult {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<ForecastResult>;
+  return (
+    isCurrentWeather(candidate.current) &&
+    Array.isArray(candidate.daily) &&
+    candidate.daily.every(isDailyForecast)
+  );
+}
+
+async function readCache(key: string): Promise<unknown | null> {
+  try {
+    return await weatherCache.get(key);
+  } catch {
+    return null;
+  }
+}
+
+async function writeCache(key: string, value: unknown, ttl: number): Promise<void> {
+  try {
+    await weatherCache.set(key, value, { name: key, ttl });
+  } catch {
+    // Cache availability must never become a weather-service dependency.
+  }
 }
 
 async function geocode(city: string): Promise<GeoResult | null> {
@@ -53,10 +148,7 @@ async function geocode(city: string): Promise<GeoResult | null> {
   };
 }
 
-async function fetchForecast(
-  lat: number,
-  lon: number
-): Promise<{ current: CurrentWeather; daily: DailyForecast[] }> {
+async function fetchForecast(lat: number, lon: number): Promise<ForecastResult> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) {
@@ -91,18 +183,73 @@ async function fetchForecast(
   };
 }
 
-export async function getWeather(city: string): Promise<WeatherResponse | null> {
-  const geo = await geocode(city);
-  if (!geo) {
-    return null;
+async function getCachedGeocode(
+  city: string
+): Promise<{ cache: "hit" | "miss"; value: GeoResult | null }> {
+  const key = `geocode:${city.trim().toLocaleLowerCase("en")}`;
+  const cached = await readCache(key);
+  if (isGeoResult(cached)) {
+    return { cache: "hit", value: cached };
   }
+  const value = await geocode(city);
+  if (value !== null) {
+    await writeCache(key, value, GEOCODE_TTL_SECONDS);
+  }
+  return { cache: "miss", value };
+}
 
-  const forecast = await fetchForecast(geo.latitude, geo.longitude);
+async function getCachedForecast(
+  latitude: number,
+  longitude: number
+): Promise<{ cache: "hit" | "miss"; value: ForecastResult }> {
+  const key = `forecast:${latitude}:${longitude}`;
+  const cached = await readCache(key);
+  if (isForecastResult(cached)) {
+    return { cache: "hit", value: cached };
+  }
+  const value = await fetchForecast(latitude, longitude);
+  await writeCache(key, value, FORECAST_TTL_SECONDS);
+  return { cache: "miss", value };
+}
 
-  return {
-    city: geo.name,
-    country: geo.country,
-    current: forecast.current,
-    daily: forecast.daily,
+export async function getWeather(
+  city: string,
+  logger: WeatherLogger
+): Promise<WeatherResponse | null> {
+  const startedAt = performance.now();
+  const timing: WeatherTiming = {
+    forecast_cache: "skipped",
+    forecast_ms: 0,
+    geocode_cache: "miss",
+    geocode_ms: 0,
+    total_ms: 0,
   };
+
+  try {
+    const geocodeStartedAt = performance.now();
+    const geocodeResult = await getCachedGeocode(city);
+    timing.geocode_cache = geocodeResult.cache;
+    timing.geocode_ms = elapsedMs(geocodeStartedAt);
+    if (geocodeResult.value === null) {
+      return null;
+    }
+
+    const forecastStartedAt = performance.now();
+    const forecastResult = await getCachedForecast(
+      geocodeResult.value.latitude,
+      geocodeResult.value.longitude
+    );
+    timing.forecast_cache = forecastResult.cache;
+    timing.forecast_ms = elapsedMs(forecastStartedAt);
+
+    return {
+      city: geocodeResult.value.name,
+      country: geocodeResult.value.country,
+      current: forecastResult.value.current,
+      daily: forecastResult.value.daily,
+    };
+  } finally {
+    timing.total_ms = elapsedMs(startedAt);
+    logger.set({ weather: timing });
+  }
 }
