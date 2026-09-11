@@ -141,6 +141,7 @@
   "dependencies": {
     "@elysiajs/static": "^1.4.10",
     "@sinclair/typebox": "0.34.52",
+    "@vercel/functions": "^3.9.7",
     "@yuku-toolchain/types": "0.9.5",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",

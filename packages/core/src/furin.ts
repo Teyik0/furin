@@ -203,6 +203,19 @@ async function setupProdTemplate(
   setProductionTemplatePath(templatePath, instance);
 }
 
+async function setupCompiledTemplate(
+  ctx: CompileContext,
+  embedded: EmbeddedAppData | undefined,
+  clientDir: string,
+  instance: FurinInstance
+): Promise<void> {
+  if (ctx.templateHtml === undefined) {
+    await setupProdTemplate(embedded, clientDir, instance);
+    return;
+  }
+  setProductionTemplateContent(ctx.templateHtml, instance);
+}
+
 /**
  * Shape of one browser-submitted log event. The named keys are the dangerous
  * ones stripped before `log.set` (prototype-pollution vectors, plus the
@@ -828,7 +841,7 @@ export async function furin({
 
   const embedded = ctx?.embedded;
   const clientDir = embedded?.clientDir ?? explicitClientDir ?? resolveClientDirFromArgv(prefix);
-  await setupProdTemplate(embedded, clientDir, instance);
+  await setupCompiledTemplate(ctx, embedded, clientDir, instance);
 
   const prodApp = new Elysia({
     name: instanceName,
@@ -865,6 +878,9 @@ export async function furin({
     })
     .use(
       await (async () => {
+        if (ctx.serveAssets === false) {
+          return new Elysia();
+        }
         const publicDir = embedded?.publicDir ?? join(dirname(clientDir), "public");
         const app = new Elysia();
         if (existsSync(publicDir)) {

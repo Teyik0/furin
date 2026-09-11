@@ -1,61 +1,18 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { runBunBuild } from "../build/bun-build.ts";
-import { buildClient } from "../build/client.ts";
 import { generateCompileEntry } from "../build/compile-entry.ts";
-import {
-  type BuildEntryOptions,
-  buildEntrySource,
-  type EntryAppContext,
-} from "../build/entry-template.ts";
+import { type BuildEntryOptions, buildEntrySource } from "../build/entry-template.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
-import { buildSSGCacheSnapshot } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry, type VirtualBuildEntry } from "../build/virtual-entry.ts";
 import type { BuildTarget } from "../config.ts";
-import { createRoutesPlugin, routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { buildRscGraph } from "../rsc/build/index.ts";
-import { ssgRouteCache } from "../server/cache/ssg.ts";
-import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { setProductionTemplateContent } from "../server/render/template.ts";
-import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
-
-// import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
-// through package exports, and is the Web-standard API. The main entry is
-// `src/furin.ts` (or `dist/furin.js`), so we strip two path segments to reach
-// the package root.
-const _pkgRoot = dirname(dirname(fileURLToPath(import.meta.resolve("@teyik0/furin"))));
-const _pkgSrcDir = existsSync(join(_pkgRoot, "src", "furin.ts"))
-  ? join(_pkgRoot, "src")
-  : join(_pkgRoot, "dist");
-// The published package always ships `src/` (see package.json "files"), and the
-// "bun" export condition resolves to the TypeScript sources, so the fingerprint
-// inputs are always the `.ts` files. Some of these inputs (e.g. entry-template)
-// are never emitted to `dist/` as `.js`, so detecting the extension off the dist
-// copy would point at files that don't exist and silently weaken the build ID.
-const _ext = ".ts";
-const BUILD_ID_INPUT_PATHS = [
-  `${_pkgSrcDir}/build/compile-entry${_ext}`,
-  `${_pkgSrcDir}/build/entry-template${_ext}`,
-  `${_pkgSrcDir}/plugin/routes${_ext}`,
-  `${_pkgSrcDir}/server/render/index${_ext}`,
-  `${_pkgSrcDir}/server/render/shell${_ext}`,
-];
-
-function compareCodeUnits(a: string, b: string): number {
-  if (a < b) {
-    return -1;
-  }
-  if (a > b) {
-    return 1;
-  }
-  return 0;
-}
+import { buildRuntimeAppsSequentially, type RuntimeTargetApp } from "./runtime-build.ts";
 
 function generateDiskEntry(options: BuildEntryOptions): VirtualBuildEntry {
   ensureDir(options.outDir);
@@ -66,101 +23,6 @@ function generateDiskEntry(options: BuildEntryOptions): VirtualBuildEntry {
   });
   const entryPath = join(options.outDir, "server.ts");
   return createVirtualBuildEntry(entryPath, source, "ts");
-}
-
-/**
- * Deterministic build-ID input covering everything that can change rendered
- * output: client chunks, route shape, route/root/error/not-found source
- * contents and the framework's own render pipeline sources. Shared with the
- * package target so packaged apps get the same stale-deploy detection —
- * SSR-only changes (loader/page code that never reaches the client bundle)
- * must still produce a new build ID.
- */
-export async function createBuildFingerprint(
-  entryChunk: string,
-  cssChunks: string[],
-  routes: ResolvedRoute[],
-  root: RootLayout,
-  serverEntry: string | null
-): Promise<string> {
-  const fingerprintPaths = new Set<string>([root.path, ...routes.map((route) => route.path)]);
-  if (serverEntry) {
-    fingerprintPaths.add(serverEntry);
-  }
-  if (root.errorPath) {
-    fingerprintPaths.add(root.errorPath);
-  }
-  if (root.notFoundPath) {
-    fingerprintPaths.add(root.notFoundPath);
-  }
-  for (const route of routes) {
-    for (const segment of route.segmentBoundaries) {
-      if (segment.errorPath) {
-        fingerprintPaths.add(segment.errorPath);
-      }
-      if (segment.notFoundPath) {
-        fingerprintPaths.add(segment.notFoundPath);
-      }
-    }
-  }
-  for (const path of BUILD_ID_INPUT_PATHS) {
-    if (!existsSync(path)) {
-      // A missing framework source file would silently produce an empty-string
-      // contribution to the fingerprint, making the build ID unreliable.
-      console.warn(
-        `[furin] Warning: build fingerprint input "${toPosixPath(path)}" is missing — ` +
-          "the generated build ID may not reflect all framework changes."
-      );
-    }
-    fingerprintPaths.add(path);
-  }
-
-  const fileParts = await Promise.all(
-    [...fingerprintPaths].toSorted().map(async (path) => {
-      const content = existsSync(path) ? await Bun.file(path).text() : "";
-      return `${toPosixPath(path)}:${content}`;
-    })
-  );
-
-  const routeParts = routes
-    .map((route) =>
-      JSON.stringify({ mode: route.mode, path: toPosixPath(route.path), pattern: route.pattern })
-    )
-    .sort(compareCodeUnits);
-
-  return [entryChunk, ...[...cssChunks].toSorted(), ...routeParts, ...fileParts].join("\n");
-}
-
-function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
-  const rootConventions =
-    root.errorPath || root.notFoundPath
-      ? {
-          errorPath: root.errorPath ? toPosixPath(root.errorPath) : undefined,
-          notFoundPath: root.notFoundPath ? toPosixPath(root.notFoundPath) : undefined,
-        }
-      : undefined;
-
-  const routeMetadata: NonNullable<EntryAppContext["routeMetadata"]> = {};
-  for (const route of routes) {
-    routeMetadata[toPosixPath(route.path)] = {
-      segmentBoundaries: route.segmentBoundaries.map((b) => ({
-        depth: b.depth,
-        errorPath: b.errorPath ? toPosixPath(b.errorPath) : undefined,
-        notFoundPath: b.notFoundPath ? toPosixPath(b.notFoundPath) : undefined,
-        path: toPosixPath(b.path),
-      })),
-    };
-  }
-
-  return { rootConventions, routeMetadata };
-}
-
-/** One mounted app's build input (root + routes scanned from its pagesDir). */
-export interface BunTargetApp {
-  pagesDir: string;
-  prefix: string;
-  root: RootLayout;
-  routes: ResolvedRoute[];
 }
 
 function collectEmbeddedAssets(
@@ -178,112 +40,8 @@ function collectEmbeddedAssets(
   return assets;
 }
 
-/** Builds one app's client bundle + compile context payload for the entry. */
-async function buildOneApp(
-  app: BunTargetApp,
-  targetDir: string,
-  serverEntry: string | null,
-  options: BuildAppOptions
-): Promise<{
-  buildId: string;
-  entryApp: BuildEntryOptions["apps"][number];
-}> {
-  const { prefix, root, routes } = app;
-  const clientDirName = clientDirNameForPrefix(prefix);
-  const label = prefix === "" ? "root app" : `app "${prefix}"`;
-
-  const { entryChunk, cssChunks } = await buildClient(routes, {
-    basePath: prefix,
-    clientDirName,
-    clientLogging: options.clientLogging ?? false,
-    metafilePath: options.analyze
-      ? join(dirname(targetDir), "analysis", `bun-${clientDirName}.json`)
-      : undefined,
-    optimizeImports: options.optimizeImports,
-    outDir: targetDir,
-    pagesDir: app.pagesDir,
-    plugins: options.plugins,
-    publicPath: `${prefix}/_client/`,
-    reactCompiler: options.reactCompiler,
-    rootLayout: root.path,
-  });
-
-  const buildFingerprint = await createBuildFingerprint(
-    `${prefix}\n${entryChunk}`,
-    cssChunks,
-    routes,
-    root,
-    serverEntry
-  );
-  const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
-  if (serverEntry) {
-    await buildRscGraph(routes, root, targetDir, buildId, options.plugins);
-  }
-
-  // Write index.html with the buildId meta tag injected so the client can
-  // detect stale deploys via X-Furin-Build-ID header comparison.
-  const clientDir = join(targetDir, clientDirName);
-  const indexHtml = generateProdIndexHtml(entryChunk, cssChunks, buildId, undefined, false);
-  writeFileSync(join(clientDir, "index.html"), indexHtml);
-
-  // The SSG snapshot renders through the (build-time) default state bucket:
-  // install this app's template, then clear the bucket's html caches so the
-  // previous app's prerenders can never leak into this snapshot. The mount
-  // prefix is passed explicitly — no instance scope exists at build time.
-  setProductionTemplateContent(indexHtml);
-  ssgRouteCache().clear();
-  const ssgCache = serverEntry
-    ? await buildSSGCacheSnapshot(routes, root, "http://localhost", prefix)
-    : undefined;
-
-  const { rootConventions, routeMetadata } = buildCompileMetadata(root, routes);
-  console.log(`[furin] Built ${label} (buildId ${buildId})`);
-
-  return {
-    buildId,
-    entryApp: {
-      buildId,
-      clientLogging: options.clientLogging ?? false,
-      embed: options.compile === "embed" ? { clientDir } : undefined,
-      modulePaths: routeSourcePaths({ pagesDir: app.pagesDir, prefix }),
-      nativeRoutes: routeModuleSpecifier(app),
-      prefix,
-      rootConventions,
-      rootPath: root.path,
-      routeMetadata,
-      routes: routes.map((r) => ({ mode: r.mode, path: r.path, pattern: r.pattern })),
-      ssgCache,
-    },
-  };
-}
-
-async function buildAppsSequentially(
-  apps: BunTargetApp[],
-  targetDir: string,
-  serverEntry: string | null,
-  options: BuildAppOptions
-): Promise<{
-  entryApps: BuildEntryOptions["apps"];
-  headlineBuildId: string;
-}> {
-  const entryApps: BuildEntryOptions["apps"] = [];
-  let headlineBuildId = "";
-
-  for (const app of apps) {
-    // biome-ignore lint/performance/noAwaitInLoops: each app installs a build-time template before SSG snapshotting, so this must remain ordered.
-    const built = await buildOneApp(app, targetDir, serverEntry, options);
-    entryApps.push(built.entryApp);
-    // The ROOT app's buildId is the manifest's headline id (back-compat).
-    if (app.prefix === "" || headlineBuildId === "") {
-      headlineBuildId = built.buildId;
-    }
-  }
-
-  return { entryApps, headlineBuildId };
-}
-
 export async function buildBunTarget(
-  apps: BunTargetApp[],
+  apps: RuntimeTargetApp[],
   rootDir: string,
   buildRoot: string,
   serverEntry: string | null,
@@ -307,11 +65,12 @@ export async function buildBunTarget(
   ensureDir(targetDir);
 
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
-  const { entryApps, headlineBuildId } = await buildAppsSequentially(
+  const { entryApps, headlineBuildId } = await buildRuntimeAppsSequentially(
     apps,
     targetDir,
     serverEntry,
-    options
+    options,
+    "bun"
   );
   targetManifest.buildId = headlineBuildId;
   if (serverEntry) {

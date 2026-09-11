@@ -1,7 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { t } from "elysia";
-import type { WeatherResponse } from "../api/weather";
+import { getWeather } from "../api/weather";
 import { CurrentWeatherCard } from "../components/current-weather-card";
 import { ForecastGrid } from "../components/forecast-grid";
 import { route as parentRoute } from "./root";
@@ -11,17 +11,22 @@ const POPULAR_CITIES = ["Paris", "Tokyo", "New York", "London", "Sydney", "Dubai
 export const route = defineRoute()
   .config({
     layout: parentRoute,
-    mode: "ssr",
+    mode: "isr",
     query: t.Object({ city: t.String({ default: "Paris" }) }),
+    revalidate: 300,
   })
-  .loader(async ({ query, request }) => {
+  .loader(async ({ query }) => {
     const { city } = query;
-    const url = new URL(`/api/weather?city=${encodeURIComponent(city)}`, request.url);
-    const res = await fetch(url);
-    if (!res.ok) {
-      return { city, error: `Weather API error (${res.status})`, weather: null };
+    let data: Awaited<ReturnType<typeof getWeather>>;
+    try {
+      data = await getWeather(city);
+    } catch (error) {
+      return {
+        city,
+        error: error instanceof Error ? error.message : "Weather API error",
+        weather: null,
+      };
     }
-    const data = (await res.json()) as WeatherResponse | null;
 
     if (!data) {
       return { city, error: `City not found: "${city}"`, weather: null };

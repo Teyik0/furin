@@ -44,7 +44,11 @@ export interface EntryAppContext {
     }
   >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
+  /** False when the deployment platform serves client/public assets itself. */
+  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
+  /** In-memory production document template for filesystem-free runtimes. */
+  templateHtml?: string;
 }
 
 export interface EntryTemplateOptions {
@@ -148,7 +152,11 @@ function buildAppContextBlock(
   const routeMetadataLine = app.routeMetadata
     ? `  routeMetadata: ${JSON.stringify(app.routeMetadata)},`
     : "";
+  const serveAssetsLine =
+    app.serveAssets === undefined ? "" : `  serveAssets: ${JSON.stringify(app.serveAssets)},`;
   const ssgCacheLine = app.ssgCache ? `  ssgCache: ${JSON.stringify(app.ssgCache)},` : "";
+  const templateHtmlLine =
+    app.templateHtml === undefined ? "" : `  templateHtml: ${JSON.stringify(app.templateHtml)},`;
 
   const contextLines = [
     "__setCompileContext({",
@@ -165,7 +173,9 @@ function buildAppContextBlock(
     ...routeEntries,
     "  ],",
     routeMetadataLine,
+    serveAssetsLine,
     ssgCacheLine,
+    templateHtmlLine,
     ...(app.extraContext ?? []),
     "});",
   ];
@@ -210,7 +220,18 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
     ...contextBlocks,
     "",
     ...(serverEntry
-      ? [`await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`, ""]
+      ? [
+          `const __serverModule = await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`,
+          "if (typeof __serverModule.startServer === \"function\") {",
+          "  await __serverModule.startServer();",
+          "} else {",
+          "  const __app = __serverModule.default;",
+          "  if (__app && typeof __app.listen === \"function\" && !__app.server) {",
+          "    __app.listen(Number(process.env.PORT ?? 3000));",
+          "  }",
+          "}",
+          "",
+        ]
       : []),
   ];
 

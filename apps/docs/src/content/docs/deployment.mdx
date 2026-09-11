@@ -1,6 +1,6 @@
 # Deployment
 
-Furin supports two deployment strategies: a **Bun build** (live server with SSR/ISR support) and a **static export** (pre-rendered HTML files, no server required).
+Furin supports three deployment strategies: a **Vercel Build Output** deployment, a **Bun build** (live server with SSR/ISR support), and a **static export** (pre-rendered HTML files, no server required).
 
 ## Static Export — GitHub Pages
 
@@ -113,6 +113,96 @@ jobs:
 ```
 
 > **Tip:** the generated `404.html` is an empty SPA shell. GitHub Pages serves it automatically for any unknown URL, which lets the client-side router take over.
+
+---
+
+## Vercel
+
+The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the Vercel Bun runtime, serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
+
+### Server entry
+
+Export the Elysia application as the default export. Guard `.listen()` with `import.meta.main` so the same entry runs locally without opening a TCP listener inside a Vercel Function:
+
+```ts
+import { furin } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+const app = new Elysia().use(
+  await furin({
+    pagesDir: "./src/pages",
+  })
+);
+
+export function startServer() {
+  return app.listen(3000);
+}
+
+if (import.meta.main) {
+  startServer();
+}
+
+export default app;
+```
+
+### Build
+
+```json
+{
+  "scripts": {
+    "build:vercel": "furin build --target vercel"
+  }
+}
+```
+
+The build writes a deployable artifact to `.vercel/output`:
+
+```text
+.vercel/output/
+├── config.json
+├── static/
+│   ├── _client/
+│   └── ...public assets
+└── functions/
+    ├── __server.func/
+    │   ├── index.js
+    │   └── .vc-config.json
+    ├── index-ssg.func -> __server.func
+    └── index-ssg.prerender-config.json
+```
+
+Add `vercel.json` when Vercel should run this target automatically:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run build:vercel",
+  "bunVersion": "1.4.x",
+  "framework": null,
+  "installCommand": "bun install --ignore-scripts"
+}
+```
+
+You can also build and deploy the prebuilt artifact yourself:
+
+```bash
+bun run build:vercel
+bunx vercel deploy --prebuilt
+```
+
+### Rendering and cache behavior
+
+| Furin mode | Vercel output |
+|------------|----------------|
+| `ssr` | Bun catch-all Function |
+| `ssg` | Prerender Function with `expiration: false` and a build-time HTML fallback when the URL is known |
+| `isr` | Prerender Function whose expiration matches the route's `revalidate` value |
+
+Dynamic SSG URLs returned by `staticParams()` receive individual build-time fallbacks. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
+
+The browser data endpoint `/_furin/data` remains dynamic so request cookies, headers, query parameters, redirects, and request loaders preserve the same behavior during SPA navigation.
+
+The executable reference is [`examples/weather`](https://github.com/teyik0/furin/tree/main/examples/weather).
 
 ---
 
@@ -240,7 +330,7 @@ Use a stable, application-specific `namespace` in every replica. Changing it cre
 
 ## Planned Targets
 
-The config surface already names `node`, `vercel`, and `cloudflare`, but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in `packages/core/src/build/index.ts`.
+The config surface already names `node` and `cloudflare`, but the current core build path throws for those targets. Treat them as planned, not available, until their builders land in `packages/core/src/build/index.ts`.
 
 ## Public Environment Variables
 

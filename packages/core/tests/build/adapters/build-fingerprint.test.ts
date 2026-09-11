@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 
-const { createBuildFingerprint } = await import("../../../src/adapter/bun.ts");
+const { createBuildFingerprint } = await import("../../../src/adapter/runtime-build.ts");
 
 describe("createBuildFingerprint", () => {
   test("includes the native routes plugin source", async () => {
