@@ -41,6 +41,8 @@ test("the overlay client captures hydration and client-render failures", async (
   expect(response.status).toBe(200);
   expect(source).toContain('"furin:client-error"');
   expect(source).toContain("reportClientError(detail)");
+  expect(source).toContain('"development-error-recovered"');
+  expect(source).toContain('new CustomEvent("furin:hmr"');
   expect(source).toContain("/_furin/dev/client-errors");
   expect(source).toContain("furin.browser-events.runtime");
   expect(source).not.toContain("/_furin/dev/errors");

@@ -1,3 +1,7 @@
+import {
+  nextDevtoolsBuildId,
+  publishDevtoolsClientBuild,
+} from "../server/devtools/build-observer.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
@@ -5,6 +9,14 @@ const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+
+interface ObservedBuild {
+  changedModules: Set<string>;
+  cycleId: string;
+  detectedAt: number;
+  rebuiltModules: Set<string>;
+  startedAt: number;
+}
 
 // Minimal browser stub for elysia — `t` is only used for schema definitions
 // in params/query, which the client never validates at runtime.
@@ -36,6 +48,41 @@ export default {};
 const plugin: Bun.BunPlugin = {
   name: "furin-strip-server",
   setup(build) {
+    let activeBuild: ObservedBuild | undefined;
+    let completedInitialBuild = false;
+    const sourceFingerprints = new Map<string, string>();
+
+    build.onStart(() => {
+      activeBuild = {
+        changedModules: new Set(),
+        cycleId: nextDevtoolsBuildId(),
+        detectedAt: Number.POSITIVE_INFINITY,
+        rebuiltModules: new Set(),
+        startedAt: Date.now(),
+      };
+    });
+    build.onEnd((result) => {
+      const observed = activeBuild;
+      activeBuild = undefined;
+      if (!observed) {
+        return;
+      }
+      if (completedInitialBuild) {
+        publishDevtoolsClientBuild({
+          changedModules: [...observed.changedModules],
+          cycleId: observed.cycleId,
+          detectedAt: Number.isFinite(observed.detectedAt)
+            ? observed.detectedAt
+            : observed.startedAt,
+          durationMs: Math.max(0, Date.now() - observed.startedAt),
+          rebuiltModules: [...observed.rebuiltModules],
+          startedAt: observed.startedAt,
+          status: result.success ? "fulfilled" : "rejected",
+        });
+      }
+      completedInitialBuild = true;
+    });
+
     // ── browser stubs ───────────────────────────────────────────────────────
     build.onResolve({ filter: ELYSIA_FILTER }, () => ({
       namespace: "furin-stubs",
@@ -58,7 +105,20 @@ const plugin: Bun.BunPlugin = {
         return;
       }
 
-      const source = await Bun.file(args.path).text();
+      const previousFingerprint = sourceFingerprints.get(args.path);
+      activeBuild?.rebuiltModules.add(args.path);
+      if (previousFingerprint !== undefined) {
+        activeBuild?.changedModules.add(args.path);
+      }
+      const sourceFile = Bun.file(args.path);
+      const source = await sourceFile.text();
+      const fingerprint = Bun.hash(source).toString(16);
+      sourceFingerprints.set(args.path, fingerprint);
+      if (previousFingerprint === fingerprint) {
+        activeBuild?.changedModules.delete(args.path);
+      } else if (previousFingerprint !== undefined && activeBuild) {
+        activeBuild.detectedAt = Math.min(activeBuild.detectedAt, sourceFile.lastModified);
+      }
 
       const result = transformForClient(source, args.path);
       // Output is TS/TSX (yuku parses directly, no pre-transpile). Bun's

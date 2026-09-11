@@ -62,6 +62,20 @@ let currentEvent = initialState?.event;
 let coldFailure = initialState !== undefined;
 let host: HTMLDivElement | undefined;
 
+function reportFullReload(): void {
+  window.dispatchEvent(
+    new CustomEvent("furin:hmr", {
+      detail: {
+        durationMs: null,
+        module: null,
+        phase: "full-reload",
+        reason: "development-error-recovered",
+        state: null,
+      },
+    })
+  );
+}
+
 function displayLocation(location: SourceLocation | undefined): string {
   return location
     ? `${location.file}:${location.line}:${location.column}`
@@ -126,6 +140,7 @@ function clear(ready: { revision: number; serverId: string }): void {
     return;
   }
   if (coldFailure || serverChanged) {
+    reportFullReload();
     window.location.reload();
     return;
   }

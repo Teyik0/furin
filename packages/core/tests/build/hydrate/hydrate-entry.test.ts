@@ -509,4 +509,17 @@ describe("generateHydrateEntry — HMR hardening", () => {
     expect(code).toContain('import.meta.hot.on("bun:ws:connect"');
     expect(code).toContain("window.location.reload();");
   });
+
+  test("publishes native HMR phase, connection, reload, and paint signals", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain('import.meta.hot.on("bun:beforeUpdate"');
+    expect(code).toContain('import.meta.hot.on("bun:afterUpdate"');
+    expect(code).toContain('import.meta.hot.on("bun:beforeFullReload"');
+    expect(code).toContain('new CustomEvent("furin:hmr"');
+    expect(code).toContain('phase: "paint"');
+    expect(code).toContain('reason: "native-hmr-boundary-missing"');
+    expect(code).toContain('reason: "hmr-connection-recovered"');
+    expect(code).toContain('reason: "hmr-runtime-unavailable"');
+  });
 });

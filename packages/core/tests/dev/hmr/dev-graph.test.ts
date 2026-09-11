@@ -66,9 +66,11 @@ test("DevGraph atomically versions snapshots, modules, state, and events", async
   expect(graph.events.map((event) => event.type)).toEqual(["ready", "error"]);
   expect(graph.events.every((event) => event.revision === 1)).toBe(true);
   expect(graph.metrics).toEqual({
+    edges: 3,
     events: 2,
     modules: 1,
     revision: 1,
+    trackedModules: 5,
   });
 });
 

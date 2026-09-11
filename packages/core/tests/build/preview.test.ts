@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startStaticPreview } from "../../src/cli/preview.ts";
-import { getTestPort } from "../support/http.ts";
+import { getTestPort, waitForHttp } from "../support/http.ts";
 import { startCli } from "../support/process.ts";
 
 const tempDirs: string[] = [];
@@ -129,12 +129,10 @@ describe("static preview", () => {
       { cwd: distDir },
     );
     try {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        if (cli.getStdout().includes("Local:")) {
-          break;
-        }
-        await Bun.sleep(10);
-      }
+      const response = await waitForHttp(`http://localhost:${port}/`, {
+        timeoutMs: 10_000,
+      });
+      await response.body?.cancel();
       expect(cli.getStdout()).toContain(`Local:  http://localhost:${port}/`);
       expect(cli.getStderr()).toBe("");
     } finally {
