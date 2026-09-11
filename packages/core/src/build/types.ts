@@ -1,4 +1,8 @@
-import type { BuildTarget, StaticExportConfig } from "../config";
+import type {
+  BuildTarget,
+  StaticExportConfig,
+  VercelDeploymentConfig,
+} from "../config";
 import type { ResolvedRoute } from "../server/router/types.ts";
 
 export interface BuildClientOptions {
@@ -115,6 +119,8 @@ export interface BuildAppOptions {
   /** Configuration for the `static` build target. */
   staticConfig?: StaticExportConfig;
   target: BuildTarget | "all";
+  /** Configuration for the Vercel build target. */
+  vercelConfig?: VercelDeploymentConfig;
 }
 
 /** Build manifest entry produced by the `static` adapter. */

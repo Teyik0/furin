@@ -31,6 +31,11 @@ export interface StaticExportConfig {
   outDir?: string;
 }
 
+export interface VercelDeploymentConfig {
+  /** Vercel compute regions, such as "cdg1" or "iad1". */
+  regions?: string[];
+}
+
 const buildTargetSchema = t.Union(BUILD_TARGETS.map((v) => t.Literal(v)));
 const compileTargetSchema = t.Union([t.Literal("server"), t.Literal("embed")]);
 
@@ -81,6 +86,16 @@ export const configSchema = t.Object({
     })
   ),
   targets: t.Optional(t.Array(buildTargetSchema)),
+  vercel: t.Optional(
+    t.Object({
+      regions: t.Optional(
+        t.Array(t.String({ pattern: "^[a-z]{3}[1-9][0-9]*$" }), {
+          minItems: 1,
+          uniqueItems: true,
+        })
+      ),
+    })
+  ),
   // plugins omitted : TypeBox can't validate Bun.BunPlugin[] (functions)
 });
 

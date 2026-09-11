@@ -23,3 +23,7 @@ The Vercel target emits Build Output API v3 directly to `.vercel/output`:
 
 The generated handler connects Furin cache invalidation to Vercel cache tags
 and keeps background ISR work alive with `waitUntil`.
+
+Successful `/_furin/data` responses for SSG/ISR routes share the document's
+cache tag and revalidation window. SSR, request-loader, deferred, and failed
+navigation responses remain `private, no-store`.

@@ -325,9 +325,16 @@ function exposeVercelCacheTag(response, request) {
   if (cacheTag === null) {
     return response;
   }
+  const requestPath = new URL(request.url).pathname;
+  const dataSuffix = "/_furin/data";
+  const prefix = requestPath.endsWith(dataSuffix)
+    ? requestPath.slice(0, -dataSuffix.length)
+    : null;
+  const physicalCacheTag =
+    prefix === null ? requestPath : cacheTag === "/" ? prefix || "/" : prefix + cacheTag;
   const headers = new Headers(response.headers);
   headers.delete("cache-tag");
-  headers.set("vercel-cache-tag", new URL(request.url).pathname);
+  headers.set("vercel-cache-tag", physicalCacheTag);
   return new Response(response.body, {
     headers,
     status: response.status,
@@ -412,6 +419,9 @@ export async function buildVercelTarget(
       {
         handler: "index.js",
         launcherType: "Nodejs",
+        ...(options.vercelConfig?.regions === undefined
+          ? {}
+          : { regions: options.vercelConfig.regions }),
         runtime: "bun1.4.x",
         shouldAddHelpers: false,
         supportsResponseStreaming: true,

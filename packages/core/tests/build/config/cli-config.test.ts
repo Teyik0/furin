@@ -48,6 +48,36 @@ describe("CLI config resolution", () => {
     expect(result.pagesDir).toBe(join(app.path, "src/custom-pages"));
   });
 
+  test("loadCliConfig preserves validated Vercel regions", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      [
+        'import { defineConfig } from "@teyik0/furin/config";',
+        'export default defineConfig({ vercel: { regions: ["cdg1", "fra1"] } });',
+      ].join("\n")
+    );
+
+    const result = await loadCliConfig(app.path);
+
+    expect(result.vercel?.regions).toEqual(["cdg1", "fra1"]);
+  });
+
+  test("loadCliConfig rejects malformed Vercel regions", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      [
+        'import { defineConfig } from "@teyik0/furin/config";',
+        'export default defineConfig({ vercel: { regions: ["paris"] } });',
+      ].join("\n")
+    );
+
+    await expect(loadCliConfig(app.path)).rejects.toThrow('path: /vercel/regions/0');
+  });
+
   // RED: plugins must survive TypeBox validation and be returned
   test("loadCliConfig preserves plugins array through TypeBox validation", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));

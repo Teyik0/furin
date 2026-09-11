@@ -10,10 +10,12 @@
     "fix": "ultracite fix",
     "measure:client": "furin build --target bun --analyze && bun ../../scripts/measure-client-bundle.ts .furin/build/analysis/bun-client.json .furin/build/bun/client",
     "start": "./.furin/build/bun/server",
+    "test": "bun test",
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
     "@teyik0/furin": "workspace:*",
+    "@vercel/functions": "^3.9.7",
     "bun-plugin-tailwind": "^0.1.2",
     "elysia": "catalog:",
     "evlog": "catalog:",

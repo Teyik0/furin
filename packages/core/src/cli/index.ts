@@ -183,6 +183,7 @@ if (command === "preview") {
     serverEntry: resolvedServerEntry,
     staticConfig: config.static,
     target: target as BuildTarget | "all",
+    vercelConfig: config.vercel,
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";

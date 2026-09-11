@@ -15,11 +15,11 @@ export const route = defineRoute()
     query: t.Object({ city: t.String({ default: "Paris" }) }),
     revalidate: 300,
   })
-  .loader(async ({ query }) => {
+  .loader(async ({ log, query }) => {
     const { city } = query;
     let data: Awaited<ReturnType<typeof getWeather>>;
     try {
-      data = await getWeather(city);
+      data = await getWeather(city, log);
     } catch (error) {
       return {
         city,

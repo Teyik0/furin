@@ -69,7 +69,12 @@ describe.serial("Vercel deployment adapter", () => {
       const buildConfigs: Bun.BuildConfig[] = [];
 
       const result = await withBuildStub(
-        () => buildApp({ rootDir: app.path, target: "vercel" }),
+        () =>
+          buildApp({
+            rootDir: app.path,
+            target: "vercel",
+            vercelConfig: { regions: ["cdg1"] },
+          }),
         (config) => {
           buildConfigs.push(config);
         }
@@ -104,6 +109,7 @@ describe.serial("Vercel deployment adapter", () => {
         handler: "index.js",
         launcherType: "Nodejs",
         runtime: "bun1.4.x",
+        regions: ["cdg1"],
         shouldAddHelpers: false,
         supportsResponseStreaming: true,
       });
@@ -257,12 +263,15 @@ describe.serial("Vercel deployment adapter", () => {
       const handler = (await import(${JSON.stringify(pathToFileURL(handlerPath).href)})).default;
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
       const ssg = await handler.fetch(new Request("http://furin.test/"));
+      const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
       const isr = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const invalidation = await handler.fetch(new Request("http://furin.test/api/revalidate", { method: "POST" }));
       await Promise.all(pending);
       console.log("__FURIN_RESULT__" + JSON.stringify({
         apiBody: await api.text(),
         apiStatus: api.status,
+        dataCacheControl: data.headers.get("cache-control"),
+        dataTag: data.headers.get("vercel-cache-tag"),
         invalidationBody: await invalidation.text(),
         isrBody: await isr.text(),
         isrTag: isr.headers.get("vercel-cache-tag"),
@@ -292,6 +301,10 @@ describe.serial("Vercel deployment adapter", () => {
     const result = JSON.parse(resultLine.slice("__FURIN_RESULT__".length));
     expect(result.apiStatus).toBe(200);
     expect(result.apiBody).toBe("ok");
+    expect(result.dataCacheControl).toBe(
+      "public, max-age=0, must-revalidate, s-maxage=31536000"
+    );
+    expect(result.dataTag).toBe("/");
     expect(result.invalidationBody).toBe("invalidated");
     expect(result.purged).toEqual([["/"]]);
     expect(result.ssgTag).toBe("/");
