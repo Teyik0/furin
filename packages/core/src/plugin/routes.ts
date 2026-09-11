@@ -384,7 +384,7 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
   } catch (error) {
     console.error("[furin] Failed to refresh route topology", error);
     state.dirty = true;
-    state.cycleId ??= cycleId;
+    state.cycleId = cycleId ?? state.cycleId;
     state.touchedAt = state.touchedAt === null ? touchedAt : Math.min(state.touchedAt, touchedAt);
     for (const sourcePath of changedSources) {
       pendingChangedSources.add(sourcePath);

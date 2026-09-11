@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import type { DevtoolsSnapshot } from "../../../src/devtools/protocol.ts";
 import { installDom, uninstallDom, waitForDom } from "../../support/dom.ts";
 
 const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
@@ -79,7 +80,7 @@ function installBrowserEventRuntime(): TestBrowserEventRuntime {
   return browserEvents;
 }
 
-function snapshot(): object {
+function snapshot(): DevtoolsSnapshot {
   return {
     caches: [],
     events: [],

@@ -105,12 +105,18 @@ async function buildBrowserEntry(filename: string): Promise<string> {
 }
 
 function buildClient(): Promise<string> {
-  clientSource ??= buildBrowserEntry("collector.ts");
+  clientSource ??= buildBrowserEntry("collector.ts").catch((error: unknown) => {
+    clientSource = undefined;
+    throw error;
+  });
   return clientSource;
 }
 
 function buildDashboard(): Promise<string> {
-  dashboardSource ??= buildClient().then(() => buildBrowserEntry("dashboard.tsx"));
+  dashboardSource ??= buildBrowserEntry("dashboard.tsx").catch((error: unknown) => {
+    dashboardSource = undefined;
+    throw error;
+  });
   return dashboardSource;
 }
 
