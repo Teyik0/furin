@@ -1,0 +1,23 @@
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  cb4f55fdf3cbc027 1,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0213167848f3d12e9f1ee7ceed8f7ded9c4eb773",
+  "prompts": {
+    "cb4f55fdf3cbc027": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2206f762dffevglY9D1XObSUxn",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 11,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

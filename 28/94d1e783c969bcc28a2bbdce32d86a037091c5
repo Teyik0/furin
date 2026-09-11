@@ -1,0 +1,21 @@
+examples/task-manager/package.json
+  s_2a4069bf188ef3::t_c7212f5a61ee5e 14
+packages/core/package.json
+  s_2a4069bf188ef3::t_aeda43edbc89ab 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2894d1e783c969bcc28a2bbdce32d86a037091c5",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

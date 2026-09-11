@@ -1,0 +1,296 @@
+packages/core/tests/link/router-provider-redirect-follow.test.tsx
+  s_0cb08487cf7c38::t_c573e94422b503 9,116-117,156,167
+packages/core/tests/render-cases.ts
+  s_d01b7f8f9148ff::t_334ed520325191 33,35,41,58,66-70,72,81,91,100,388-390,393-397,401-405,415-416,418-421
+  s_d01b7f8f9148ff::t_1d726458cc028c 17
+  s_d01b7f8f9148ff::t_b7046088e8ac63 1,20,34
+  s_d01b7f8f9148ff::t_fe9a910bb228b2 85
+packages/core/src/server/render/loaders.ts
+  s_d01b7f8f9148ff::t_88e4fce3fb8b0d 382-384,387,393-397,399
+packages/core/src/server/router/plugin.ts
+  s_d01b7f8f9148ff::t_b5c64b75d38b61 9,327
+  s_d01b7f8f9148ff::t_38ff28c6aea160 325,333,337-339
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  s_d01b7f8f9148ff::t_53ee7a20d4f27e 1,3,5-6,14-24,26-30,32-36,38,43-46,48-211,214
+  s_d01b7f8f9148ff::t_68a60896db0e51 41
+knip.config.ts
+  s_d01b7f8f9148ff::t_4f567bd1db3596 13
+  s_d01b7f8f9148ff::t_3bfce09d8a9795 37
+  s_d01b7f8f9148ff::t_8b29b201612f2a 38-44
+packages/core/tests/sync.test.ts
+  s_d01b7f8f9148ff::t_367084c1f504d1 247
+  s_d01b7f8f9148ff::t_669d61f653a41b 1-7,9-10,18-19,22,26-73,75-128,130-134,136-246,248-261,264-267,269-274,276-283,285-293,295-299,301-322,324-330,332
+  s_d01b7f8f9148ff::t_ec0f46aa05a2c9 8,11-16,129,263,275,284,294
+  s_d01b7f8f9148ff::t_2d8a7ff3a4050e 268
+tests/setup.ts
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 1-3
+packages/core/tests/helpers/with-build-stub.ts
+  s_d01b7f8f9148ff::t_568ccb133e9142 9-16
+  s_d01b7f8f9148ff::t_860149785e784a 19,57
+  s_0cb08487cf7c38::t_9705d9b66b55ce 8,17-18,20-22,24-43,60-61
+  s_0cb08487cf7c38::t_c384fdefe77db9 23,97
+packages/core/tests/sync-client.test.tsx
+  s_0cb08487cf7c38::t_0167b97349d239 6,80-81
+packages/core/src/rsc/build/environment.ts
+  s_d01b7f8f9148ff::t_9afe2a4a06fe32 1-2,18,26
+packages/core/src/adapter/bun.ts
+  s_d01b7f8f9148ff::t_e85a658fcad0f6 172-173,174
+  s_3d61c21275e7f4::t_979cc496ad057c 249-253
+packages/core/tests/router/route-plugin.test.ts
+  s_d01b7f8f9148ff::t_a17626747062d0 1-11,15,19-58,60,62-65,67-99,101-110,113-123
+packages/core/tests/router/cache-headers.test.ts
+  s_d01b7f8f9148ff::t_b348df14537c7d 1,3,5-6,8-11,13-14,16-20,22-26,28-30,32,37-42,44,46-52,54-57,59-60,62-73,75-83,85-90,92-118,120,122
+packages/core/src/rsc-server.tsx
+  s_d01b7f8f9148ff::t_77fbcb2ca9bf0b 7,41-44,61-68,70,72
+  s_d01b7f8f9148ff::t_d543749325fc5b 3-6,15-35,40
+packages/core/tests/furinjs.test.ts
+  s_d01b7f8f9148ff::t_81811b3af8b859 63
+  s_d01b7f8f9148ff::t_af7fefb3601ea4 1-11,15-22,26,31,41,43-47,49-50,53-62,64-100,102-103,105,107-140,142-159,161-201,203-207,209-217,219-221,224-226
+  s_d01b7f8f9148ff::t_42a6cb7e0ef941 208
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 2-4,6
+  s_d01b7f8f9148ff::t_eb55d9936ec082 5,14
+  s_0cb08487cf7c38::t_0bac18cde5fed9 8-9
+packages/core/tests/adapter-static.test.ts
+  s_d01b7f8f9148ff::t_44bae232a81dfe 264
+  s_d01b7f8f9148ff::t_2fc82fd846cce9 1,3-13,18,24-39,47-50,52-55,62,65-122,124-263,266-267,269-275,277
+  s_d01b7f8f9148ff::t_c033c9784fa6be 123
+  s_d01b7f8f9148ff::t_9f3c16faed0fa3 40
+  s_d01b7f8f9148ff::t_23f07e0308deb1 2,265
+  s_d01b7f8f9148ff::t_a0c0884c3822fc 42-43
+packages/core/src/server/render/assemble.ts
+  s_d01b7f8f9148ff::t_779ffdcb9e50e8 91-97,99-100
+packages/core/tests/router/schema-merge.test.ts
+  s_d01b7f8f9148ff::t_8db121d18e1fb7 26,187-193,195-198,200,202-210,212-239,241-248,251
+  s_d01b7f8f9148ff::t_8707e555314f02 20,22
+  s_d01b7f8f9148ff::t_3c963f065bc64e 21,24
+  s_d01b7f8f9148ff::t_33def21acf7571 201,211
+packages/core/src/server/render/ppr-route.ts
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 4
+  s_d01b7f8f9148ff::t_64ee9957518990 16,18-28,31-35,90-92,102
+packages/core/tests/deferred-endpoint.test.ts
+  s_d01b7f8f9148ff::t_c4ae206f06be9f 1,21,31
+  s_d01b7f8f9148ff::t_b18219fa803a2b 35
+packages/core/tests/request-scope-integration.test.ts
+  s_d01b7f8f9148ff::t_de425ec05584c3 1-11,15-16,20-22,24,27,36-80,82-83,85-86,88,90-91,93-119,122-123,125-127,130,132
+packages/core/src/shared/search-params.ts
+  s_d01b7f8f9148ff::t_892bd42ec21c58 111,117
+examples/task-manager/src/components/delete-board-button.tsx
+  s_d01b7f8f9148ff::t_2bcebddea45582 7,11-14,25-26,35
+packages/core/tests/furinjs-not-found.test.ts
+  s_d01b7f8f9148ff::t_70cb77f430f8fc 1-11,15-18,20,22,24,32,34-39,41-45,47-48,50-53,55-110,112-113,115-117,119-141,144-152,154
+packages/core/tests/router/use-search.test.tsx
+  s_0cb08487cf7c38::t_d581f0ac1db54d 14,78-79,157-158,222-223
+examples/task-manager/tests/rsc-page.test.tsx
+  s_d01b7f8f9148ff::t_9e98d0b2f3e2b5 19
+  s_d01b7f8f9148ff::t_b577c0f878b73b 1,14,18
+  s_d01b7f8f9148ff::t_b3418ef5801b1a 15-16
+  s_d01b7f8f9148ff::t_119d86a4cc2fcc 17
+packages/core/tests/router/route-chain-layouts.test.ts
+  s_d01b7f8f9148ff::t_9ed83bade3c91b 6-7
+packages/core/tests/helpers/run-cli.ts
+  s_0cb08487cf7c38::t_437ba4b37ebdc1 2,26-36,38-43
+  s_0cb08487cf7c38::t_3aed1899932bb0 78
+  s_0cb08487cf7c38::t_f4105031490c0f 25
+packages/core/tests/router/patterns.test.ts
+  s_d01b7f8f9148ff::t_09a271abcfcae0 7
+  s_d01b7f8f9148ff::t_1f0dc81b3d2266 8
+packages/core/tests/render-not-found.test.ts
+  s_0cb08487cf7c38::t_ba8d74065291d2 1,3,13,15-17,22-63,78,80,82-85,87-89,94,102-105,107-109,114,125-128,130-132,137,156-159,161-163,168
+packages/core/tests/error-boundary-navigation.test.tsx
+  s_0cb08487cf7c38::t_6115e804c43679 5,44-45,80
+packages/core/scripts/test.sh
+  s_d01b7f8f9148ff::t_cbed4c5683f71f 1-29
+packages/core/src/server/render/ssr.ts
+  s_d01b7f8f9148ff::t_3f625e642ce5fe 20-24,426-448
+  s_3d61c21275e7f4::t_979cc496ad057c 425
+packages/core/tests/build-embed.test.ts
+  s_0cb08487cf7c38::t_fd85acb6840fd3 24,28,34,37
+packages/core/tests/router/plugin.test.ts
+  s_d01b7f8f9148ff::t_1376fa270a8d8a 1-11,13-15,17,19-21,23,28-71,74-82,84
+packages/core/tests/link/build-data-endpoint.test.ts
+  s_0cb08487cf7c38::t_9c036532a58404 3,59-60,65,70
+packages/core/tests/router/route-dependencies.test.ts
+  s_d01b7f8f9148ff::t_5772db767a331a 11-12,14-15
+  s_d01b7f8f9148ff::t_07220db532f855 2,4,35
+  s_d01b7f8f9148ff::t_df268c0baa0a6e 1,3,6,8,10,16,18-34,36-41,43-54
+  s_d01b7f8f9148ff::t_5fbb9018b56a21 5
+  s_3d61c21275e7f4::t_979cc496ad057c 7,9,13,17,42,55
+packages/core/tests/router/e2e-inline-layout.test.ts
+  s_d01b7f8f9148ff::t_c7f608c23a79ee 3
+packages/core/tests/stream-to-string.test.ts
+  s_d01b7f8f9148ff::t_852753f8658c48 1-2,4-13,15-17,19-24,26-28,30-37,40-41
+  s_3d61c21275e7f4::t_979cc496ad057c 3,14,18,25,29,38-39,42-43
+packages/core/tests/link.test.tsx
+  s_d01b7f8f9148ff::t_e451ec35f78dce 284-286,317-319,324-326,334-336,349-351,368-370,377-379
+  s_d01b7f8f9148ff::t_8d6809c89fb1d3 165-167
+packages/core/tests/router/dev-loader-cache-primitives.test.ts
+  s_d01b7f8f9148ff::t_347140a1ff5770 20,22-26,28,30-31
+  s_d01b7f8f9148ff::t_3595db607af2b6 6
+  s_d01b7f8f9148ff::t_5fbb9018b56a21 5
+  s_d01b7f8f9148ff::t_4186ec41e8634d 1,3,19,21,27,29,33,45,49,51,54-114,116-118,120-126,128-149,151-170,172-193,195-212,214-215,217-222,225-233,235
+  s_d01b7f8f9148ff::t_0940f2301d62e4 7-8,11,15-16,35,38-41,47,50,52
+  s_3d61c21275e7f4::t_979cc496ad057c 2,4,9-10,12-14,17-18,32,34,36-37,42-44,46,48,53,115,119,127,150,171,194,213,216,223-224,234,236
+packages/core/tests/link/should-intercept-click.test.ts
+  s_0cb08487cf7c38::t_3259bcaf0cc24f 3,5,36,39-49
+packages/core/package.json
+  s_d01b7f8f9148ff::t_b86586c631a70b 113-114
+packages/core/src/shared/route-frame.ts
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 260-264
+  s_d01b7f8f9148ff::t_3b70f89526f43e 145-148,150-162,305-315,357,361-369,405,407
+  s_d01b7f8f9148ff::t_0c7e0170a9a902 223-227,239-242,244-248,253,255,268-271,277,412-415
+  s_d01b7f8f9148ff::t_e9a2db74c7d360 47-48,55,70,80,141-144,149,192
+  s_d01b7f8f9148ff::t_3aa0d98adfc938 406
+packages/core/tests/link/router-provider-intercept.test.tsx
+  s_0cb08487cf7c38::t_04b6c7ab70ff5d 9,116-117,166,173
+examples/task-manager/tests/create-board-form.test.tsx
+  s_0cb08487cf7c38::t_b4e6f9b4b7c4fc 8-9
+  s_d01b7f8f9148ff::t_a5b8a9b8a672d0 5,14
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 2-4,6
+packages/core/tests/router/scan-order.test.ts
+  s_d01b7f8f9148ff::t_cdbbadb9ff318d 5
+packages/core/tests/shell.test.ts
+  s_0cb08487cf7c38::t_1140267ff7d5ca 206
+  s_0cb08487cf7c38::t_3acec589208e38 172
+packages/core/tests/router/dev-route-rebuild.test.ts
+  s_d01b7f8f9148ff::t_d8c2a60744f9e3 1,3-14,18-19,21,30,41-95,98-106,108
+packages/core/tests/router/hydration-order.test.ts
+  s_d01b7f8f9148ff::t_36457622f6156c 3
+packages/core/tests/loaders.test.ts
+  s_d01b7f8f9148ff::t_0ccd710cac59a3 11,63-64,66,68,74-76,78,80-82,86-87,89,91
+  s_0cb08487cf7c38::t_edf1de905880bf 1,13,109
+  s_0cb08487cf7c38::t_b592de9d2ee142 108
+  s_d01b7f8f9148ff::t_43f4a9e8e0768a 34-48
+  s_d01b7f8f9148ff::t_cd229eebc23388 65,69-70,72-73,88,92-93,95-96
+  s_d01b7f8f9148ff::t_7524594b3b32b3 71,94,98,102,104
+  s_d01b7f8f9148ff::t_56f6644d480e84 67,90
+  s_d01b7f8f9148ff::t_7e4cbb24888bb4 15
+packages/core/tests/furinjs-runtime.test.ts
+  s_d01b7f8f9148ff::t_32512c0dd7faf3 1-11,16-24,31,36,47,51-52,56-60,78,80-121,123-148,150-176,178-182,184-187,189-192,194-196,198-239,242-244,246-249,251-254,256-276,278,281-283,285-288,290-330,333-351,354-362,364
+packages/core/tests/router/validation.test.ts
+  s_d01b7f8f9148ff::t_0d82dcee80e238 6
+packages/core/tests/not-found.test.ts
+  s_0cb08487cf7c38::t_051bfa0eccc817 2
+packages/core/tests/router/segment-boundaries.test.ts
+  s_d01b7f8f9148ff::t_be7a530248b693 13
+packages/core/tests/link/interactive.test.tsx
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 434
+  s_0cb08487cf7c38::t_019dd0567724af 446,1043
+  s_0cb08487cf7c38::t_b8fe5c365c9c26 127,189,361
+  s_0cb08487cf7c38::t_401018dc7a30a9 14,396-397,429-433,435,449
+  s_0cb08487cf7c38::t_b90d44d68f5986 173,204
+packages/core/src/rsc/codec.ts
+  s_d01b7f8f9148ff::t_d85379bde9470c 15
+packages/core/src/rsc.tsx
+  s_d01b7f8f9148ff::t_9e644189faaee9 15-22,55,57
+packages/core/tests/await.test.tsx
+  s_0cb08487cf7c38::t_77233f8e815645 7,111-112,154
+packages/core/tests/render-deferred-suspense.test.ts
+  s_d01b7f8f9148ff::t_23f07e0308deb1 2,117
+  s_d01b7f8f9148ff::t_74353fd4011d27 1,4-5,7,11-12,20-26,35,37,43,47,49-115,118-119,121-129
+  s_d01b7f8f9148ff::t_32aedf9006ea4a 40,42,44-46,48
+  s_d01b7f8f9148ff::t_44bae232a81dfe 116
+  s_d01b7f8f9148ff::t_b80039bc02d79e 3,6,8-10,19,27-34,36,38-39,120,130
+  s_d01b7f8f9148ff::t_888360e85654b9 13-18,41
+packages/core/tests/link/scroll-restoration.test.tsx
+  s_0cb08487cf7c38::t_01bb48070b5a4a 217-218,226-227,248-249,272-273,283-284,292-293,300-301
+  s_0cb08487cf7c38::t_6fa0d5726c6ffb 9,51-54,61-63,71,123-124,186,198,216,225,247,271,282,291,299
+packages/core/tests/data-endpoint-logging.test.ts
+  s_d01b7f8f9148ff::t_f19be1c569b71d 1-2,5-11,17,24,35-37,39,41,43-45,47,49-54,56-60,62-66,68-70,72-78,80,82
+  s_d01b7f8f9148ff::t_74845fdfc3db9f 3-4,67
+packages/core/tests/render-error.test.ts
+  s_0cb08487cf7c38::t_74754af7deeed1 239-242,245-246,251,276-277,279,282-283,288,310-311,313,316-317,322,329-332,336-337,342
+  s_0cb08487cf7c38::t_4a0ea50f18dff3 167-168,171-174,179,189-190,193-196,201,212-213,215,219-221,226
+  s_0cb08487cf7c38::t_b0cfa19b67b129 83-86,89-90,95,103-106,109-110,115
+  s_d01b7f8f9148ff::t_c202aef87e2363 64
+  s_0cb08487cf7c38::t_ce7861114f5e3c 126-129,132-133,138,146-149,153-154,159
+  s_0cb08487cf7c38::t_2774768a2c9f3e 65
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 29-32,87,107,130,150-151,169,191,214,243,280,314,333-334,371,398,419,447,469
+  s_0cb08487cf7c38::t_d46fd5bfa45f4b 3,17,19,21,23-27,33-63
+  s_0cb08487cf7c38::t_f86b61f41b26f8 367-370,373-374,379,394-395,397,400-401,406,415-418,421-422,427,432,443-446,449-450,455,465-468,471-472,477
+examples/task-manager/tests/board-card.test.tsx
+  s_0cb08487cf7c38::t_a55e3686da388a 8-9
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 2-4,6
+  s_d01b7f8f9148ff::t_f6e0a11bc15ae9 14
+  s_d01b7f8f9148ff::t_c9f7c9ff0c7b7b 5,15
+  s_0cb08487cf7c38::t_e6e048800a35d6 10-13
+apps/docs/src/content/docs/rendering.mdx
+  s_d01b7f8f9148ff::t_ffe75624847d67 45
+packages/core/tests/render-revalidate-background.test.ts
+  s_d01b7f8f9148ff::t_ce79f84716c9d5 4
+  s_d01b7f8f9148ff::t_01a38fa5edcefe 1,3,5-102,105-117
+  s_d01b7f8f9148ff::t_23f07e0308deb1 2,104
+  s_d01b7f8f9148ff::t_44bae232a81dfe 103
+packages/core/tests/helpers/dom.ts
+  s_0cb08487cf7c38::t_c8f459b07cce0a 1-3,5-29,32-57,60-68,72-97,100-129,132-174
+  s_0cb08487cf7c38::t_fed60f1bf9a4f4 30-31,58-59,69-71
+  s_0cb08487cf7c38::t_580616fcef19de 4,130-131
+  s_0cb08487cf7c38::t_322cdb00935303 98-99
+examples/task-manager/tests/board-page-sync.test.tsx
+  s_d01b7f8f9148ff::t_cb8454db2eff1b 2-4,6
+  s_d01b7f8f9148ff::t_197f4c549750f3 5,14
+  s_0cb08487cf7c38::t_24c704e6f36446 8-9
+packages/core/tests/render-root-not-found.test.ts
+  s_d01b7f8f9148ff::t_d6f564ae5666f9 3,6,8-10,64,74
+  s_d01b7f8f9148ff::t_23f07e0308deb1 2,61
+  s_d01b7f8f9148ff::t_01a38fa5edcefe 1,5,7,11-59,62-63,65-73
+  s_d01b7f8f9148ff::t_44bae232a81dfe 60
+  s_d01b7f8f9148ff::t_ce79f84716c9d5 4
+packages/core/src/build/hydrate.ts
+  s_d01b7f8f9148ff::t_7624d47f7d9f08 5-6
+packages/core/tests/rsc-build.test.ts
+  s_d01b7f8f9148ff::t_0ef0fc9d965647 54-57
+packages/core/tests/rsc.test.tsx
+  s_d01b7f8f9148ff::t_c3bddf78809ddd 1-11,16-26,28-141,165-198,200-201,204-210,212,214
+  s_d01b7f8f9148ff::t_a9b54f9a906213 15
+  s_d01b7f8f9148ff::t_fddf467a04616d 142-144,146-159,162-164
+  s_d01b7f8f9148ff::t_888f21a7f4baf4 145,160-161
+  s_d01b7f8f9148ff::t_ff7fd13fd63c31 199
+packages/core/tests/helpers/build-lock.ts
+  s_d01b7f8f9148ff::t_c3151c166f1cee 21
+  s_0cb08487cf7c38::t_3a0fa1f3e92ac9 1-20,22-45
+packages/core/tests/adapter-bun-client.test.ts
+  s_d01b7f8f9148ff::t_2467f71be9ffbb 89
+  s_d01b7f8f9148ff::t_504df19fd2fed5 2,7-11,96
+  s_d01b7f8f9148ff::t_eb040d35203299 1,3-5,13-17,19-30,34,36-59,61-86,90-95,97-98,100-102
+package.json
+  s_d01b7f8f9148ff::t_2613a5ed63939d 16
+packages/core/tests/router/error-scan.test.ts
+  s_d01b7f8f9148ff::t_084ff74a792979 3
+packages/core/tests/ppr.test.tsx
+  s_d01b7f8f9148ff::t_d0d48d67f94709 77-80,88
+packages/core/tests/router/not-found-scan.test.ts
+  s_d01b7f8f9148ff::t_f104b066f54fb2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "f8473f35e1227bad6fd69a831af0b30bad119179",
+  "prompts": {},
+  "sessions": {
+    "s_0cb08487cf7c38": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f42b1-8e8b-7b70-8e26-c560744755f1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3d61c21275e7f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55b8-84a9-7333-85c5-6c19607e3196",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d01b7f8f9148ff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4576-be06-7ee3-9a41-3df32e905a99",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

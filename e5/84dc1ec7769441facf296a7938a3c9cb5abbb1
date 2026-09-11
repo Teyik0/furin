@@ -1,0 +1,36 @@
+packages/core/src/server/dev/diagnostics.ts
+  s_2a4069bf188ef3::t_cec5f0e2a46a53 130-131,157-159
+packages/core/src/server/router/hmr.ts
+  s_2a4069bf188ef3::t_cec5f0e2a46a53 351,355
+  s_2a4069bf188ef3::t_58ac9c89a768f7 354
+packages/core/src/furin.ts
+  s_2a4069bf188ef3::t_e5862fb17cc674 679-685
+packages/core/src/client/dev-error-overlay.ts
+  s_2a4069bf188ef3::t_e5862fb17cc674 192-196
+packages/core/src/server/browser-events/plugin.ts
+  s_2a4069bf188ef3::t_cec5f0e2a46a53 16,78-84
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_2a4069bf188ef3::t_02f641e9b9cf4d 441-469
+packages/core/tests/dev/hmr/dev-diagnostic-store.test.ts
+  s_2a4069bf188ef3::t_0d6ea4c531db61 17,20,27-37
+  s_2a4069bf188ef3::t_0feb96c1f97f25 21-23
+packages/core/tests/runtime/browser-events/browser-events-plugin.test.ts
+  s_2a4069bf188ef3::t_0d6ea4c531db61 202-214,216-237
+  s_2a4069bf188ef3::t_1e1e95f878b1d2 215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e584dc1ec7769441facf296a7938a3c9cb5abbb1",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

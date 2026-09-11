@@ -1,0 +1,73 @@
+packages/core/tests/router/segment-boundaries.test.ts
+  085375d1be15a84f 1-101
+packages/core/src/error.ts
+  085375d1be15a84f 5,7-13,15-21
+packages/core/src/link.tsx
+  9d562869641abffa 341-350,363-369,391-487,489-544,734-773,792,838-840,843-851,862-878,1123-1144,1146-1155,1157-1163
+  085375d1be15a84f 13-15,274-289,298-304,488,545-598,603-604,622-631,633,641-642
+packages/core/tests/render-boundaries.test.tsx
+  085375d1be15a84f 1-214
+packages/core/tests/render-element-boundaries.test.tsx
+  085375d1be15a84f 1-223
+packages/core/src/render/boundaries.tsx
+  085375d1be15a84f 1-150
+packages/core/tests/render-digest.test.ts
+  085375d1be15a84f 1-53
+packages/core/src/render/index.ts
+  085375d1be15a84f 15,47-49,117,124-125,293-298,312,318-323,326,331-333,339-345,359
+  9d562869641abffa 53-59,118,122,154-164,346-357
+packages/core/src/render/digest.ts
+  085375d1be15a84f 1-26
+packages/core/tests/render-not-found.test.ts
+  9d562869641abffa 20-22,94-128
+packages/core/src/build/hydrate.ts
+  9d562869641abffa 136-137
+  085375d1be15a84f 27-43,50-71,73,77-82,101-102,108
+packages/core/tests/render-error.test.ts
+  085375d1be15a84f 4-6,9-13,277-455
+packages/core/tests/link.test.tsx
+  9d562869641abffa 18,20-21,23,28-29,722-940
+  085375d1be15a84f 163-165,173,184,199,209-211,219-221
+packages/core/src/render/element.tsx
+  085375d1be15a84f 5-36,46-58,60,68-71,98,112-115,118-119,122
+packages/core/tests/link-boundaries.test.tsx
+  085375d1be15a84f 1-88,90-102,104-119,121-134,136-152,154-168,170-248,250-266
+packages/core/src/router.ts
+  085375d1be15a84f 20-46,56-62,93-97,129-136,145-158,167,176-177,208-214,219,245,252-309,314,326,376-378
+packages/core/tests/hydrate-entry.test.ts
+  085375d1be15a84f 172-288
+  9d562869641abffa 31-36,289-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "9178f930d7d080cb79c3e484c0887978c7e4ace0",
+  "prompts": {
+    "085375d1be15a84f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d39da1c1-5b9b-435d-ad73-2b1d8391555b",
+        "model": "<synthetic>"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3250,
+      "total_deletions": 687,
+      "accepted_lines": 1755,
+      "overriden_lines": 7
+    },
+    "9d562869641abffa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7dbd03a5-f7f7-4dad-a91b-27cd2f297993",
+        "model": "<synthetic>"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1739,
+      "total_deletions": 2252,
+      "accepted_lines": 619,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,127 @@
+apps/docs/package.json
+  s_387e6298567a5e::t_51d10f9d737feb 23
+apps/docs/src/content/docs/defer.mdx
+  s_9fb9f4d2d83477::t_2b943e58ad4f47 140
+apps/docs/src/components/docs-toc.tsx
+  s_387e6298567a5e::t_f30721421603b2 1,11-23,26-28,30-33,57,91,107,187
+  s_387e6298567a5e::t_38e0ab6577390b 24-25
+apps/docs/src/lib/docs-search-client.ts
+  s_387e6298567a5e::t_588c86b1d20a04 1-128
+bun.lock
+  ai_agent 9-10,12-13,17,27,36,62,79,119,167,169,171,173,175,177,179,181,183,185,187,189,191,193,195,197,199,201,203,319,321,323,325,327,329,331,333,335,337,339,341,343,345,347,349,351,353,355,357,359,583-586,601,633,635,637,639,641,643,645,647,649,651,653,687,907,939,1079,1223,1271,1279,1291-1292,1303-1304,1359-1362,1416-1457
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_6f78daf515e3d1::t_21c74a91f6f5e7 130
+lefthook.yml
+  ai_agent 23,32
+packages/core/tests/deferred-hydration-race.test.ts
+  s_9fb9f4d2d83477::t_e3f8134c43572f 11
+  s_9fb9f4d2d83477::t_ad9712bfd23d6e 42,47
+  s_9fb9f4d2d83477::t_a4e1a973dad560 119,134,147,160,178,190
+packages/core/src/dev-page-plugin.ts
+  s_387e6298567a5e::t_05fe2b7cf2226e 284
+  s_387e6298567a5e::t_cf15778f86744f 122
+packages/core/src/render/assemble.ts
+  s_9fb9f4d2d83477::t_178bbeeb9642b9 17-18,24-26,29
+README.md
+  s_4a51ac933d29e0::t_cbeb6aec8092e3 33
+  s_4a51ac933d29e0::t_5fd461bd24eb53 1-4,6-12,14,31,35,37-42,47-50
+examples/task-manager/package.json
+  ai_agent 27
+examples/task-manager/src/pages/index.tsx
+  s_387e6298567a5e::t_d39a20e9edd09a 150
+packages/core/src/render/default-screens.tsx
+  s_387e6298567a5e::t_2cac41e29b5d58 277
+  s_387e6298567a5e::t_3178ce448de750 247
+packages/core/src/render/index.ts
+  s_9fb9f4d2d83477::t_30ed0f8960ad52 105-123
+  s_9fb9f4d2d83477::t_72946d347433ab 515-516
+  s_9fb9f4d2d83477::t_cd27f77a1482b2 512
+  s_9fb9f4d2d83477::t_c0ff632ed0846c 165
+  s_9fb9f4d2d83477::t_03ab356061e630 166
+apps/scaffolder/package.json
+  ai_agent 26
+examples/task-manager/src/components/ui/kanban.tsx
+  s_387e6298567a5e::t_4fac3fd19d04fc 105-107
+packages/core/src/await.tsx
+  s_387e6298567a5e::t_eac8b5df36c7be 153
+packages/core/tests/deferred-render.test.ts
+  s_9fb9f4d2d83477::t_ea87d3bae38e2f 11,15-24,28,35,40,45-46
+apps/docs/src/components/docs-search-dialog.tsx
+  s_387e6298567a5e::t_a9459657f3f461 248
+  s_387e6298567a5e::t_477322d2cbf8b2 1-2,15-20,23-24,26-28,30-31,33-39,41-43,45,48-49,51-58,60,63-64,67-113,116-134,136-157,166-194,201,212,222,243-247,252-254,256-259,261-266,269-271,274-277,279-282,287,313,315,324-332
+package.json
+  ai_agent 27-28,30-31,35
+packages/core/package.json
+  ai_agent 3,95
+.github/workflows/ci.yaml
+  ai_agent 8-11,20-21,53
+packages/core/README.md
+  s_4a51ac933d29e0::t_dff785efaaa183 1-4,6-12,14,31,33
+apps/docs/src/components/code-tabs.tsx
+  s_387e6298567a5e::t_fec4e2234f0c0e 70
+packages/core/tests/render.test.ts
+  s_9fb9f4d2d83477::t_f8bf170a31b780 41
+  s_9fb9f4d2d83477::t_db5e13da5f3972 816-828,830-832
+  s_9fb9f4d2d83477::t_83734effcd4517 829
+packages/core/src/plugin/transform-client.ts
+  s_387e6298567a5e::t_035c8cf478e55b 324
+packages/core/src/deferred-ndjson.ts
+  s_387e6298567a5e::t_06a12824cf2874 54
+apps/docs/src/components/docs-query-provider.tsx
+  s_387e6298567a5e::t_dc19e5e4e5e973 1-23
+apps/docs/src/pages/root.tsx
+  s_387e6298567a5e::t_ae05f1d9422b68 108-109
+  s_387e6298567a5e::t_bc3232e46f6268 31-33
+  s_387e6298567a5e::t_e4d68cfad5e9f2 5
+apps/docs/src/pages/index.tsx
+  s_387e6298567a5e::t_929f5ec1549276 226
+examples/weather/src/pages/index.tsx
+  s_387e6298567a5e::t_f3aafa56a64b20 41-43
+  s_387e6298567a5e::t_365f591127b676 1
+react-doctor.config.json
+  s_6f78daf515e3d1::t_45101fd1b7faa4 12
+.github/workflows/cd.yaml
+  ai_agent 21,30,50-54
+packages/core/src/build/hydrate.ts
+  s_9fb9f4d2d83477::t_bfc46bcd47e3ff 139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e0d44488a1bbc2ea9cec290a48e7fdebd8390c53",
+  "prompts": {},
+  "sessions": {
+    "s_387e6298567a5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d07a70b-b935-4141-97c7-db178fa30bf1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4a51ac933d29e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff1499df-1ba4-4e79-927d-1cfee28862f9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_6f78daf515e3d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d99de349-7f73-4973-ad7f-b9437ba5fd69",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_9fb9f4d2d83477": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07250b97-11ab-4bbf-87c3-8fc3ebedc5eb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

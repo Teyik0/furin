@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_2a4069bf188ef3::t_62c0d47648488a 30-36,325,336,361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e1efd6a5abc6645bea22456b462ea3d319d54203",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

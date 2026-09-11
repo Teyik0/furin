@@ -1,0 +1,37 @@
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_161cb79b75eeab::t_b1f4461e980784 191
+  s_161cb79b75eeab::t_1d796f43fe9581 131-138
+packages/core/src/router.ts
+  s_161cb79b75eeab::t_47e67a25f7f59e 1260-1264,1268,1273-1277,1286
+  s_161cb79b75eeab::t_a74f6e2af12673 1132-1152
+packages/core/tests/fixtures/pages/dynamic/specific.tsx
+  s_161cb79b75eeab::t_6e945f662e118b 1-11
+packages/core/tests/deferred-endpoint.test.ts
+  s_161cb79b75eeab::t_0c1e293f4c51ff 255-275
+  s_161cb79b75eeab::t_823111073b4f6a 173-179
+examples/task-manager/src/pages/index.tsx
+  s_161cb79b75eeab::t_6a248671629571 57
+  s_161cb79b75eeab::t_6475086e875aa2 150-156,170,175
+examples/weather/src/pages/index.tsx
+  s_161cb79b75eeab::t_aac1c5b76d35c0 54-61
+packages/core/src/render/loaders.ts
+  s_161cb79b75eeab::t_ac466cda643709 48-53,56-58,61
+packages/core/tests/error-boundary-navigation.test.tsx
+  s_161cb79b75eeab::t_b089c99663454d 46-49,52-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6c2a5560772a36c15b49fb0dfda4b932c343df3a",
+  "prompts": {},
+  "sessions": {
+    "s_161cb79b75eeab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a96f0117-e59d-4d2b-b3d7-61e741c1515b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+packages/core/src/furin.ts
+  s_2a4069bf188ef3::t_626570d93b1308 748,756,759,817-825,832
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_2a4069bf188ef3::t_3b403c934e112d 135-188,218-219,223-228,235-247,258,267,351
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_2a4069bf188ef3::t_df05e73dcf41bd 4,33-45,69,79-110
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_2a4069bf188ef3::t_4d736e6b3bc5f8 18-21,150-157
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_2a4069bf188ef3::t_8c8c5a177b145d 172-173,177,179,184,196-197
+doctor.config.ts
+  s_2a4069bf188ef3::t_fb44268663853b 79,82-85
+packages/core/src/cli/index.ts
+  s_2a4069bf188ef3::t_c17d007021b713 6,162-166,170-172,183
+packages/core/src/devtools/dashboard.tsx
+  s_2a4069bf188ef3::t_9c5592de4001b9 144-152,175,949-950
+packages/core/src/plugin/index.ts
+  s_2a4069bf188ef3::t_0681ad8065d6da 108-112,117-120
+packages/core/src/plugin/routes.ts
+  s_2a4069bf188ef3::t_6c1bf3a2c8afcb 323-330,353-357,589,930
+packages/core/src/server/devtools/plugin.ts
+  s_2a4069bf188ef3::t_cc1589eade559f 180-185,237
+packages/core/tests/build/dev-command.test.ts
+  s_2a4069bf188ef3::t_6a5d8adecf308c 56-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "17278e9faee75493f3614d5d4fb843e86ec27c63",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

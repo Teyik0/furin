@@ -1,0 +1,30 @@
+packages/core/src/server/router/plugin.ts
+  s_71818baed60430::t_1e64ba62787ccc 229
+  s_71818baed60430::t_2406e77de97a24 170-172
+packages/core/tests/deferred-endpoint.test.ts
+  s_71818baed60430::t_d6d4eb8b0cf519 581
+  s_71818baed60430::t_c7c272e4c13c36 583-584,597-598
+  s_71818baed60430::t_99df82909b263f 622
+  s_71818baed60430::t_15f974fafcc0c2 541-550,552-580,582,585-588,590-596,599-611,614-618,620-621,623
+  s_71818baed60430::t_e1c48a87e2c5f9 18,589,619
+  s_71818baed60430::t_0efd311c28a301 551
+  s_71818baed60430::t_74176910768d59 612-613
+packages/core/src/build/ssg-cache.ts
+  s_71818baed60430::t_ea5ea205343b8d 5,9-11,25-26,34,37-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "ff4ce5bec438f564a608c3c7acde8eb7d783b86e",
+  "prompts": {},
+  "sessions": {
+    "s_71818baed60430": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_13b19485dffeJYw4AD4CkEixc7",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

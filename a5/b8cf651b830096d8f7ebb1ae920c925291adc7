@@ -1,0 +1,29 @@
+packages/core/tests/auto-invalidate.test.ts
+  s_7e941f2bc779fa::t_df200c640bc66d 141-172
+  s_7e941f2bc779fa::t_4546b9f1221c84 173-200
+CHANGELOG.md
+  s_7e941f2bc779fa::t_61f29b58af3d09 17-19
+packages/core/src/render/loaders.ts
+  s_7e941f2bc779fa::t_8fe699ce66ad7f 162-190
+  s_7e941f2bc779fa::t_31e3273c560587 280-284
+packages/core/src/router.ts
+  s_7e941f2bc779fa::t_25302749da914b 1409-1420
+examples/task-manager/src/api/modules/boards/index.ts
+  s_7e941f2bc779fa::t_570c269330f99f 10-27,29-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a5b8cf651b830096d8f7ebb1ae920c925291adc7",
+  "prompts": {},
+  "sessions": {
+    "s_7e941f2bc779fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb9fedbf-89b7-45bf-b305-69c1d3858949",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": null
+    }
+  }
+}

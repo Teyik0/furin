@@ -1,0 +1,90 @@
+packages/core/src/build/hydrate.ts
+  63ea77f2021b28ec 128,135
+packages/core/src/dev-page-plugin.ts
+  63ea77f2021b28ec 55,92
+packages/core/src/render/loaders.ts
+  63ea77f2021b28ec 52,59-60,73,84-90,95
+  d1726c20271a8955 78-83
+apps/docs/src/components/docs-search-dialog.tsx
+  63ea77f2021b28ec 132,206-210,212-221,255-259,307-311,394-400
+  d1726c20271a8955 240-244
+  bbfd45393388d125 205,211
+packages/core/src/adapter/static.ts
+  d1726c20271a8955 2,36
+packages/core/src/build/client.ts
+  63ea77f2021b28ec 139-147
+packages/core/src/link.tsx
+  63ea77f2021b28ec 244-246,678,683-684,755-797,827-831,970-972,974-979
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "1ad1c9d022b6f551b0a07dd3be0115dbd8397e55",
+  "prompts": {
+    "48bedc88c51b386e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fe94b9d-d52f-419b-ab19-07d1f5713dd1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 12,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "4c8081d4486a016a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "773b038d-714d-47fd-8769-03674157e377",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "63ea77f2021b28ec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b5d94f59-ef8f-45c5-8b59-b71d657181c7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 148,
+      "total_deletions": 104,
+      "accepted_lines": 131,
+      "overriden_lines": 0
+    },
+    "bbfd45393388d125": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "63253117-6955-4d6d-9f23-aff7273fe70b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "d1726c20271a8955": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fc7636b-c5d1-4fad-9193-b1d5c9efab0d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 18,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}

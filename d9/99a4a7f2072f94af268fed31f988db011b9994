@@ -1,0 +1,55 @@
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_a0b245c73124cf 862
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_2a4069bf188ef3::t_bfc44d694f63bf 3-6,13-26,294-353
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_2a4069bf188ef3::t_0c5cecfa18a194 8,39
+packages/core/tests/client/sync/sync.test.ts
+  s_2a4069bf188ef3::t_e899ca3862be67 670-710
+CHANGELOG.md
+  s_2a4069bf188ef3::t_92576e30429165 11,14,28
+apps/docs/src/content/docs/api-routes.mdx
+  s_2a4069bf188ef3::t_6f63546021caad 158-161,164,166-167,180-182,185,187,189-190,195-196,201,203,205
+apps/docs/src/content/docs/comparison.mdx
+  s_2a4069bf188ef3::t_56adc7efcaf365 155
+apps/docs/src/content/docs/configuration.mdx
+  s_2a4069bf188ef3::t_dea3d403107875 251,255
+apps/docs/src/content/docs/deployment.mdx
+  s_2a4069bf188ef3::t_3d7338b773aea1 198-201,208,211-217,225-239,257
+packages/core/src/server/sync/adapter.ts
+  s_2a4069bf188ef3::t_91330a7dc6281d 72-76
+packages/core/src/server/sync/notifier.ts
+  s_2a4069bf188ef3::t_db91741d1d7403 8
+packages/core/src/server/sync/postgres/index.ts
+  s_2a4069bf188ef3::t_25cb8c9fe3c9b7 14-15,48-59,252-253,313-355
+packages/core/src/server/sync/runtime.ts
+  s_2a4069bf188ef3::t_9b8ecbc06e941b 20-24
+packages/core/src/server/sync/stream.ts
+  s_2a4069bf188ef3::t_908aaeaef332ca 28,80-88,213-215
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_2a4069bf188ef3::t_eda96161dce24b 14,81,123-124
+packages/core/tests/client/sync/adapters/postgres-sync-notifier.test.ts
+  s_2a4069bf188ef3::t_98833dbd5f69fe 1-110
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_2a4069bf188ef3::t_0e36088a2d8088 168-197,207,239,252,280,287,290,294,328-334,342
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_2a4069bf188ef3::t_975e4e8edef609 58,60-77,79
+packages/core/tests/fixtures/sync-bundles/postgres.ts
+  s_2a4069bf188ef3::t_b35c6c271e89b2 1-4,6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d999a4a7f2072f94af268fed31f988db011b9994",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

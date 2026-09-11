@@ -1,0 +1,46 @@
+packages/core/src/plugin/transform-client.ts
+  s_02b7aa3391cedc::t_76340c2739157d 8
+  s_02b7aa3391cedc::t_8d313319bf8497 50-53,345,350-355
+  s_02b7aa3391cedc::t_9feab386734523 2-7,9-10,36-40,59
+  s_02b7aa3391cedc::t_6206324254052e 197,202,231,306,308,338,358,384
+packages/core/tests/await.test.tsx
+  s_02b7aa3391cedc::t_da36f31a429956 3,124,141-142,147
+  s_02b7aa3391cedc::t_05dd26e69bc4b4 4,108-123,125-140,143-146,148-151
+examples/task-manager/src/api/modules/cards/service.ts
+  s_02b7aa3391cedc::t_c48b281a6f30c8 59
+  s_02b7aa3391cedc::t_efabf740b10a8e 1,9-10,65,72-74,85-152
+packages/core/tests/transform-client.test.ts
+  s_02b7aa3391cedc::t_793286fe3bb7f6 523-544
+examples/task-manager/tests/cards-reorder.test.ts
+  s_02b7aa3391cedc::t_34789895146bd9 2,30-32
+  s_02b7aa3391cedc::t_9ac8d2d07f07e8 1,3-29,33-69
+  s_02b7aa3391cedc::t_d22b0ee373eb7f 70
+packages/core/src/shared/utils/ast-walk.ts
+  s_02b7aa3391cedc::t_f5b8c14c910306 1-2,7,9,14-19,21,40-41,43-44
+  s_02b7aa3391cedc::t_7f95b64f0610b3 13,20
+packages/core/src/build/scan-server.ts
+  s_02b7aa3391cedc::t_20fa5e52c7ce45 4
+  s_02b7aa3391cedc::t_8d313319bf8497 63-65
+  s_02b7aa3391cedc::t_82af4483441c1f 2,32,39-40,42,67-68,72,74-75,80-94
+  s_02b7aa3391cedc::t_773dfa22740767 48-53
+packages/core/src/shared/await.tsx
+  s_02b7aa3391cedc::t_407eaf752ac6a6 1,37-40,43-51,165-166,169,171
+packages/core/tests/scan-server.test.ts
+  s_02b7aa3391cedc::t_793286fe3bb7f6 52-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2b4100c22ed1f1fac98a79f4fcaab1354c3e5a3e",
+  "prompts": {},
+  "sessions": {
+    "s_02b7aa3391cedc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb295-141a-7ff2-a536-386d07ee9ecf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

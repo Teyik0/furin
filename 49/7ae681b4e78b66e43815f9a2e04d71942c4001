@@ -1,0 +1,51 @@
+apps/docs/src/pages/docs/multi-instance.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/configuration.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/comparison.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/routing.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/index.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/logging.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/rendering.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/dev-hmr.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/getting-started.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/cli.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/layouts.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/plugins.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/data-loading.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/head-seo.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/deployment.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/link-navigation.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+apps/docs/src/pages/docs/caching.tsx
+  s_82ce7b9afee04d::t_943c6167bae03d 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "497ae681b4e78b66e43815f9a2e04d71942c4001",
+  "prompts": {},
+  "sessions": {
+    "s_82ce7b9afee04d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07dca-2c80-75a1-b189-c33e1281fe22",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

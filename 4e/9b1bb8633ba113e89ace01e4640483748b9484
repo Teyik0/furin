@@ -1,0 +1,21 @@
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_bc0225f3281626 17-23,310-330,332,334-350
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_2a4069bf188ef3::t_b2aa5bbc95234b 83-97,378-411,414-415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4e9b1bb8633ba113e89ace01e4640483748b9484",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

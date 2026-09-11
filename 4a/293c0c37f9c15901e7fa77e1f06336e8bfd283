@@ -1,0 +1,21 @@
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_8b7160ea230673::t_34af604a8ee566 186-223
+packages/core/src/client/router/provider.tsx
+  s_8b7160ea230673::t_eb61b4463ca42d 119-120,425,443,492-494,567,579,605-606,608-612
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4a293c0c37f9c15901e7fa77e1f06336e8bfd283",
+  "prompts": {},
+  "sessions": {
+    "s_8b7160ea230673": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d71-646e-7393-b1e0-5c21e69fe3a7",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

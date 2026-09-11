@@ -1,0 +1,133 @@
+examples/simple/src/pages/root.tsx
+  9d5f3873f99ccbc0 1-2,6,16,19,22,71,75
+packages/core/src/build/route-types.ts
+  9d5f3873f99ccbc0 54,58,72-74,76
+packages/core/src/plugin/index.ts
+  9d5f3873f99ccbc0 19,26,37,42,47,50,73
+packages/core/tests/router/validation.test.ts
+  9d5f3873f99ccbc0 15,20-22,30,35-36,41,47-48,57-58,65-66,73-74,82-83,97,138,151
+packages/core/src/utils.ts
+  9d5f3873f99ccbc0 3,8,12,17,58,65
+packages/core/src/build/server-routes-entry.ts
+  9d5f3873f99ccbc0 28
+packages/core/src/client.ts
+  9d5f3873f99ccbc0 100,114,130,140,151,184,214,222
+packages/core/tests/fixtures/cli-app/src/pages/root.tsx
+  9d5f3873f99ccbc0 1
+packages/core/package.json
+  9d5f3873f99ccbc0 2,9-11,13,17-19
+examples/simple/src/pages/blog/_route.tsx
+  9d5f3873f99ccbc0 2
+packages/core/src/cli/index.ts
+  9d5f3873f99ccbc0 75,78,90,93,95,105
+examples/simple/src/pages/index.tsx
+  9d5f3873f99ccbc0 1,75,87
+packages/core/src/plugin/transform-client.ts
+  9d5f3873f99ccbc0 285
+packages/core/tests/adapter-bun.test.ts
+  9d5f3873f99ccbc0 48,64,71,84,91
+examples/simple/bunfig.toml
+  9d5f3873f99ccbc0 2-3
+examples/simple/furin.config.ts
+  9d5f3873f99ccbc0 2,5
+packages/core/src/config.ts
+  9d5f3873f99ccbc0 25,29
+packages/core/tests/render-template.test.ts
+  9d5f3873f99ccbc0 22,37
+examples/simple/src/pages/blog/index.tsx
+  9d5f3873f99ccbc0 1
+packages/core/src/build/scan-server.ts
+  9d5f3873f99ccbc0 12,17,37
+packages/core/tests/route-types.test.ts
+  9d5f3873f99ccbc0 136,145-147
+packages/core/tests/build-cli.test.ts
+  9d5f3873f99ccbc0 36-38,48-49,74,83,128,147,155,166
+packages/core/build.ts
+  9d5f3873f99ccbc0 9,24
+packages/core/tests/types.test.tsx
+  9d5f3873f99ccbc0 14,337,340,346,350-355,359,363,368,372-375,386
+examples/simple/src/db.ts
+  9d5f3873f99ccbc0 94-95,97-98,100,113,118,120,136
+packages/core/src/build/hydrate.ts
+  9d5f3873f99ccbc0 32,48,71,104
+packages/core/src/link.tsx
+  9d5f3873f99ccbc0 16,20-22,30,255
+packages/core/tests/furin.test.ts
+  9d5f3873f99ccbc0 5,34,40,45-46,54,65,90,145,147-150,165,174,186
+packages/core/tests/furin-runtime.test.ts
+  9d5f3873f99ccbc0 6,16,57,59,75-76,84,87,93,97,100,115,128,158,170,179,189,195,200,216,243,255,278,280-283
+packages/core/tests/fixtures/cli-app/src/server.ts
+  9d5f3873f99ccbc0 8
+examples/simple/src/pages/dashboard/_route.tsx
+  9d5f3873f99ccbc0 1-2
+packages/core/src/render/assemble.ts
+  9d5f3873f99ccbc0 53
+packages/core/src/build/client.ts
+  9d5f3873f99ccbc0 45,48,66-69,76,96-97,106,109
+.gitignore
+  9d5f3873f99ccbc0 8
+packages/core/src/adapter/bun.ts
+  9d5f3873f99ccbc0 27-28,73,99
+package.json
+  9d5f3873f99ccbc0 2
+packages/core/src/cli/config.ts
+  9d5f3873f99ccbc0 5,10-12,15,42,49,56
+examples/simple/package.json
+  9d5f3873f99ccbc0 2,18
+packages/core/tests/link.test.tsx
+  9d5f3873f99ccbc0 19
+packages/core/src/build/index.ts
+  9d5f3873f99ccbc0 6,31,35,51,66,74,107,110
+packages/core/tests/render.test.ts
+  9d5f3873f99ccbc0 53,346,501
+packages/core/src/render/index.ts
+  9d5f3873f99ccbc0 92,160,265,273,310
+packages/core/tests/cli-config.test.ts
+  9d5f3873f99ccbc0 30,34,36,45,54,56-57,73,75-76
+packages/core/tests/scan-server.test.ts
+  9d5f3873f99ccbc0 4,20-21,24,26,29,35,38,41-42,46,55,57,60,69,72,75,81,84,86,89,95,102
+packages/core/src/router.ts
+  9d5f3873f99ccbc0 11-12,73,78-79,83,128-129,167-168,176-177
+examples/simple/src/server.ts
+  9d5f3873f99ccbc0 29,35
+packages/core/src/internal.ts
+  9d5f3873f99ccbc0 3
+examples/simple/src/pages/login.tsx
+  9d5f3873f99ccbc0 1
+packages/core/tests/build-embed.test.ts
+  9d5f3873f99ccbc0 40
+packages/core/src/furin.ts
+  9d5f3873f99ccbc0 23,101,115,124,168,177,181,189,193,196,206,209,221,244,246
+packages/core/tests/router/route-chain-layouts.test.ts
+  9d5f3873f99ccbc0 74-75,77,84-85,87,94-95,97,104-105,114-115,117,124-125,134-135,146-147,149,159,164
+examples/simple/src/pages/about.tsx
+  9d5f3873f99ccbc0 1
+packages/core/src/build/compile-entry.ts
+  9d5f3873f99ccbc0 31,57,88
+examples/simple/tsconfig.json
+  9d5f3873f99ccbc0 10
+examples/simple/src/pages/dashboard/posts/_route.tsx
+  9d5f3873f99ccbc0 1
+examples/simple/src/pages/dashboard/posts/new.tsx
+  9d5f3873f99ccbc0 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "0ee2c0efea6ca6d1172788751104744eb3119f18",
+  "prompts": {
+    "9d5f3873f99ccbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "adbd6447-a423-4885-babc-b09c699a8f79",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 339,
+      "total_deletions": 339,
+      "accepted_lines": 337,
+      "overriden_lines": 0
+    }
+  }
+}
