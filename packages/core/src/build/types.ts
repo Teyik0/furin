@@ -98,7 +98,7 @@ export interface BuildManifest {
 }
 
 export interface BuildAppOptions {
-  /** Emit Bun metafiles for client bundle analysis. */
+  /** Emit Bun metafiles for client and supported server bundle analysis. */
   analyze?: boolean;
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`

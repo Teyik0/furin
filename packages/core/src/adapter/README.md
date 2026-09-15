@@ -27,3 +27,9 @@ and keeps background ISR work alive with `waitUntil`.
 Successful `/_furin/data` responses for SSG/ISR routes share the document's
 cache tag and revalidation window. SSR, request-loader, deferred, and failed
 navigation responses remain `private, no-store`.
+
+The Vercel Function starts through a lightweight `index.js` bootstrap. Its
+first request logs a `vercel_cold_start` event and every dynamic response
+exposes `furin_module_init`, `furin_server_init`, and `furin_handler_wait`
+through `Server-Timing`. `--analyze` writes both Vercel client and server
+metafiles under `.furin/build/analysis`.

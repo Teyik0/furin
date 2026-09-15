@@ -203,7 +203,7 @@ BUILD OPTIONS
   --prefix    Mount prefix for the built app (e.g. /admin) — pairs with --pagesDir
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
-  --analyze   Write complete client bundle metafiles to .furin/build/analysis
+  --analyze   Write complete bundle metafiles to .furin/build/analysis
 
 PREVIEW OPTIONS
   --dir       Static export directory (default: static.outDir or dist)

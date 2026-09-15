@@ -71,6 +71,7 @@ describe.serial("Vercel deployment adapter", () => {
       const result = await withBuildStub(
         () =>
           buildApp({
+            analyze: true,
             rootDir: app.path,
             target: "vercel",
             vercelConfig: { regions: ["cdg1"] },
@@ -87,6 +88,7 @@ describe.serial("Vercel deployment adapter", () => {
       const functionConfig = JSON.parse(
         readFileSync(join(serverFunctionDir, ".vc-config.json"), "utf8")
       );
+      const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
       expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.2" });
@@ -113,6 +115,13 @@ describe.serial("Vercel deployment adapter", () => {
         shouldAddHelpers: false,
         supportsResponseStreaming: true,
       });
+      expect(bootstrap).toContain('import("./handler.js")');
+      expect(bootstrap).toContain("furin_module_init");
+      expect(bootstrap).toContain("furin_server_init");
+      expect(bootstrap).toContain('event: "vercel_cold_start"');
+      expect(
+        existsSync(join(app.path, ".furin/build/analysis/vercel-server.json"))
+      ).toBe(true);
       expect(existsSync(join(outputDir, "static/_client/_hydrate.js"))).toBe(true);
       expect(existsSync(join(outputDir, "static/.gitkeep"))).toBe(true);
       expect(lstatSync(join(functionsDir, "news-isr.func")).isSymbolicLink()).toBe(true);
@@ -148,7 +157,7 @@ describe.serial("Vercel deployment adapter", () => {
       );
 
       const serverBuild = buildConfigs.find((build) =>
-        build.entrypoints.some((entrypoint) => entrypoint.endsWith("_vercel-entry.ts"))
+        build.entrypoints.some((entrypoint) => entrypoint.endsWith("_vercel-handler.ts"))
       );
       const entrypoint = serverBuild?.entrypoints[0] as string;
       const source = serverBuild?.files?.[entrypoint] as string;
@@ -239,12 +248,26 @@ describe.serial("Vercel deployment adapter", () => {
 
   test("runs the generated Web Handler without opening a TCP listener", async () => {
     const app = createVercelApp();
-    await buildApp({ rootDir: app.path, target: "vercel" });
+    await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 
     const handlerPath = join(
       app.path,
       ".vercel/output/functions/__server.func/index.js"
     );
+    const serverMetafile = JSON.parse(
+      readFileSync(join(app.path, ".furin/build/analysis/vercel-server.json"), "utf8")
+    ) as { inputs: { [path: string]: unknown } };
+    const serverInputs = Object.keys(serverMetafile.inputs).filter(
+      (path) => !path.startsWith("furin-production-runtime-stub:")
+    );
+    expect(serverInputs.some((path) => path.endsWith("/build/hydrate.ts"))).toBe(false);
+    expect(
+      serverInputs.some((path) => path.endsWith("/plugin/route-config-autofix.ts"))
+    ).toBe(false);
+    expect(
+      serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))
+    ).toBe(false);
+    expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(false);
     const script = `
       const pending = [];
       const purged = [];
@@ -278,6 +301,7 @@ describe.serial("Vercel deployment adapter", () => {
         purged,
         ssgBody: await ssg.text(),
         ssgTag: ssg.headers.get("vercel-cache-tag"),
+        serverTiming: api.headers.get("server-timing"),
       }));
     `;
     const child = Bun.spawn([process.execPath, "-e", script], {
@@ -305,6 +329,8 @@ describe.serial("Vercel deployment adapter", () => {
       "public, max-age=0, must-revalidate, s-maxage=31536000"
     );
     expect(result.dataTag).toBe("/");
+    expect(result.serverTiming).toContain("furin_module_init;dur=");
+    expect(result.serverTiming).toContain("furin_server_init;dur=");
     expect(result.invalidationBody).toBe("invalidated");
     expect(result.purged).toEqual([["/"]]);
     expect(result.ssgTag).toBe("/");

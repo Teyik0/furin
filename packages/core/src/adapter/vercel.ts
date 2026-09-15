@@ -1,8 +1,17 @@
-import { cpSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
 import { buildEntrySource } from "../build/entry-template.ts";
+import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { SSGPrerender } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, VercelTargetBuildManifest } from "../build/types.ts";
@@ -19,9 +28,12 @@ import {
 
 const ISR_PATH_PARAM = "__furin_path";
 const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
+const ELYSIA_STATIC_IMPORT_RE = /^@elysiajs\/static$/;
+const MATCH_ALL_RE = /.*/;
 const REGEX_META_RE = /[.*+?^${}()|[\]\\]/;
 const UNSAFE_FUNCTION_PATH_RE = /[^a-zA-Z0-9_.[\]/-]/g;
 const VERCEL_FUNCTIONS_PATH = fileURLToPath(import.meta.resolve("@vercel/functions"));
+const VERCEL_RUNTIME_STUB_NAMESPACE = "furin-vercel-runtime-stub";
 
 interface VercelRoute {
   continue?: boolean;
@@ -55,6 +67,24 @@ interface PrerenderSpec {
   functionName: string;
   pattern: string;
   source: string;
+}
+
+function vercelRuntimePlugin(): Bun.BunPlugin {
+  return {
+    name: "furin-vercel-runtime",
+    setup(build) {
+      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, () => ({
+        namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
+        path: "@elysiajs/static",
+      }));
+      build.onLoad({ filter: MATCH_ALL_RE, namespace: VERCEL_RUNTIME_STUB_NAMESPACE }, () => ({
+        contents: `export function staticPlugin() {
+  throw new Error("[furin] The Vercel CDN owns production assets.");
+}`,
+        loader: "js",
+      }));
+    },
+  };
 }
 
 function frameworkVersion(): string {
@@ -282,6 +312,7 @@ async function createPrerenderSpecs(
 }
 
 function vercelEntrySource(builds: RuntimeAppBuild[], serverEntry: string): string {
+  const routeCount = builds.reduce((count, build) => count + build.entryApp.routes.length, 0);
   const contextSource = buildEntrySource({
     apps: builds.map(({ entryApp, indexHtml }) => ({
       ...entryApp,
@@ -303,11 +334,17 @@ setCachePurger(async (paths) => {
   await purge;
 });
 
+const serverInitStartedAt = performance.now();
 const serverModule = await import(${JSON.stringify(toPosixPath(serverEntry))});
 const app = serverModule.default;
 if (!app || typeof app.handle !== "function") {
   throw new TypeError("[furin] Vercel server entry must export the Elysia app as default.");
 }
+const initialization = Object.freeze({
+  app_count: ${builds.length},
+  route_count: ${routeCount},
+  server_init_ms: Math.round((performance.now() - serverInitStartedAt) * 100) / 100,
+});
 
 function restorePrerenderPath(request) {
   const url = new URL(request.url);
@@ -347,6 +384,72 @@ async function handle(request) {
   const response = await app.handle(restoredRequest);
   waitUntil(waitForPendingISRRevalidations());
   return exposeVercelCacheTag(response, restoredRequest);
+}
+
+export { initialization };
+export default { fetch: handle };
+`;
+}
+
+function vercelBootstrapSource(serverBundleBytes: number): string {
+  return `const moduleInitStartedAt = performance.now();
+const handlerPromise = import("./handler.js").then((handlerModule) => ({
+  handlerModule,
+  moduleInitMs: Math.round((performance.now() - moduleInitStartedAt) * 100) / 100,
+}));
+let firstRequest = true;
+
+function appendServerTiming(response, value) {
+  try {
+    response.headers.append("server-timing", value);
+    return response;
+  } catch {
+    if (response.status === 101) {
+      return response;
+    }
+    const headers = new Headers(response.headers);
+    headers.append("server-timing", value);
+    return new Response(response.body, {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
+    });
+  }
+}
+
+async function handle(request) {
+  const waitStartedAt = performance.now();
+  const ready = await handlerPromise;
+  const requestWaitMs = Math.round((performance.now() - waitStartedAt) * 100) / 100;
+  const isFirstRequest = firstRequest;
+  firstRequest = false;
+  const { initialization } = ready.handlerModule;
+
+  if (isFirstRequest) {
+    console.log(JSON.stringify({
+      environment: process.env.VERCEL_ENV ?? "production",
+      event: "vercel_cold_start",
+      furin: {
+        app_count: initialization.app_count,
+        module_init_ms: ready.moduleInitMs,
+        request_wait_ms: requestWaitMs,
+        route_count: initialization.route_count,
+        server_bundle_bytes: ${serverBundleBytes},
+        server_init_ms: initialization.server_init_ms,
+      },
+      level: "info",
+      region: process.env.VERCEL_REGION,
+      service: "furin",
+    }));
+  }
+
+  const response = await ready.handlerModule.default.fetch(request);
+  const serverTiming = [
+    \`furin_module_init;dur=\${ready.moduleInitMs}\`,
+    \`furin_server_init;dur=\${initialization.server_init_ms}\`,
+    \`furin_handler_wait;dur=\${requestWaitMs}\`,
+  ].join(", ");
+  return appendServerTiming(response, serverTiming);
 }
 
 export default { fetch: handle };
@@ -392,18 +495,21 @@ export async function buildVercelTarget(
     cpSync(publicDir, staticDir, { recursive: true });
   }
 
-  const entryPath = join(serverFunctionDir, "_vercel-entry.ts");
+  const entryPath = join(serverFunctionDir, "_vercel-handler.ts");
   const entry = createVirtualBuildEntry(entryPath, vercelEntrySource(builds, serverEntry), "ts");
-  await runBunBuild({
+  const serverBuild = await runBunBuild({
     define: { "process.env.NODE_ENV": JSON.stringify("production") },
     entrypoints: [entry.entrypoint],
     files: entry.files,
     format: "esm",
+    metafile: options.analyze,
     minify: true,
-    naming: { entry: "index.[ext]" },
+    naming: { entry: "handler.[ext]" },
     outdir: serverFunctionDir,
     plugins: [
       entry.plugin,
+      vercelRuntimePlugin(),
+      productionInstrumentationPlugin(),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),
@@ -412,6 +518,18 @@ export async function buildVercelTarget(
     sourcemap: "none",
     target: "bun",
   });
+  if (options.analyze) {
+    if (serverBuild.metafile === undefined) {
+      throw new Error("[furin] Vercel server build did not produce the requested metafile.");
+    }
+    const metafilePath = join(buildRoot, "analysis", "vercel-server.json");
+    ensureDir(dirname(metafilePath));
+    writeFileSync(metafilePath, `${JSON.stringify(serverBuild.metafile, null, 2)}\n`);
+    console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
+  }
+  const handlerPath = join(serverFunctionDir, "handler.js");
+  const serverBundleBytes = existsSync(handlerPath) ? statSync(handlerPath).size : 0;
+  writeFileSync(join(serverFunctionDir, "index.js"), vercelBootstrapSource(serverBundleBytes));
 
   writeFileSync(
     join(serverFunctionDir, ".vc-config.json"),

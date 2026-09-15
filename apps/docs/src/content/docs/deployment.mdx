@@ -142,6 +142,30 @@ export default defineConfig({
 
 Region identifiers must use Vercel's lowercase region-code format, such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and malformed identifiers fail config validation.
 
+### Cold-start diagnostics
+
+The generated Function uses a lightweight bootstrap in front of the application bundle. Dynamic responses expose:
+
+```text
+Server-Timing: furin_module_init;dur=104.74, furin_server_init;dur=12.8, furin_handler_wait;dur=0.1
+```
+
+| Metric | Meaning |
+|--------|---------|
+| `furin_module_init` | Parse and evaluate the complete server bundle |
+| `furin_server_init` | Import the user server entry and assemble the Elysia application |
+| `furin_handler_wait` | Time the request waited for module initialization |
+
+The first request handled by a Function instance also emits a structured `vercel_cold_start` event containing these timings, route/app counts, region, and raw server-bundle bytes.
+
+Use `--analyze` to inspect which modules contribute to the bundles:
+
+```bash
+bunx furin build --target vercel --analyze
+```
+
+This writes `vercel-client.json` and `vercel-server.json` under `.furin/build/analysis`.
+
 The executable reference is [`examples/weather`](https://github.com/teyik0/furin/tree/main/examples/weather).
 
 ## Static Export

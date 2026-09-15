@@ -6,6 +6,9 @@ import { getWeather } from "./api/weather";
 const port = Number(process.env.PORT ?? 3001);
 
 const app = new Elysia()
+  .get("/api/ping", () =>
+    Response.json({ framework: "furin" }, { headers: { "cache-control": "private, no-store" } })
+  )
   .get(
     "/api/weather",
     async ({ query, request, set }) => {
