@@ -1,5 +1,13 @@
 // biome-ignore-all lint/correctness/useJsxKeyInIterable: table cells receive stable column keys in DataTable
-import { type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import { subscribeBrowserEvent, subscribeBrowserEventStatus } from "../client/browser-events.ts";
 import {
@@ -143,11 +151,17 @@ function PageHeader({
 
 export function mergeDevtoolsSnapshotEvents(
   current: DevtoolsServerEvent[],
-  snapshot: DevtoolsSnapshot
+  snapshot: DevtoolsSnapshot,
+  currentInstanceId: string | null
 ): DevtoolsServerEvent[] {
+  if (currentInstanceId !== null && currentInstanceId !== snapshot.instance.id) {
+    return snapshot.events.slice(-MAX_EVENTS);
+  }
   const merged = [
     ...snapshot.events,
-    ...current.filter((event) => event.id > snapshot.lastEventId),
+    ...current.filter(
+      (event) => event.instanceId === snapshot.instance.id && event.id > snapshot.lastEventId
+    ),
   ];
   const latestResourceIds = new Map<string, number>();
   for (const event of merged) {
@@ -186,18 +200,22 @@ function useDevtools(): {
   const [events, setEvents] = useState<DevtoolsServerEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const snapshotInstanceId = useRef<string | null>(null);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    const candidate = await requestDevtoolsSnapshot();
+  const applySnapshot = useCallback((candidate: DevtoolsSnapshot): void => {
+    const currentInstanceId = snapshotInstanceId.current;
+    snapshotInstanceId.current = candidate.instance.id;
     setSnapshot(candidate);
-    setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate));
+    setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate, currentInstanceId));
   }, []);
+  const refresh = useCallback(async (): Promise<void> => {
+    applySnapshot(await requestDevtoolsSnapshot());
+  }, [applySnapshot]);
 
   useEffect(() => {
     let disposed = false;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let snapshotInstanceId: string | null = null;
     let unsubscribeEvents: (() => void) | null = null;
     let unsubscribeStatus: (() => void) | null = null;
     const subscribe = (): boolean => {
@@ -215,7 +233,7 @@ function useDevtools(): {
           if (
             disposed ||
             !isDevtoolsServerEvent(next) ||
-            (snapshotInstanceId !== null && next.instanceId !== snapshotInstanceId)
+            (snapshotInstanceId.current !== null && next.instanceId !== snapshotInstanceId.current)
           ) {
             return;
           }
@@ -251,9 +269,7 @@ function useDevtools(): {
           return;
         }
         setConnectionError(null);
-        snapshotInstanceId = candidate.instance.id;
-        setSnapshot(candidate);
-        setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate));
+        applySnapshot(candidate);
         refreshTimer = setInterval(() => {
           if (document.visibilityState === "visible") {
             refresh().catch(() => undefined);
@@ -281,7 +297,7 @@ function useDevtools(): {
         clearTimeout(retryTimer);
       }
     };
-  }, [refresh]);
+  }, [applySnapshot, refresh]);
 
   return { connected, connectionError, events, refresh, snapshot };
 }

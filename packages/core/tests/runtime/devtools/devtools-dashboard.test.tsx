@@ -103,9 +103,11 @@ test.serial(
         lastEventId: 1,
       } as DevtoolsSnapshot;
 
-      expect(mergeDevtoolsSnapshotEvents([liveEvent], snapshot).map((event) => event.id)).toEqual([
-        1, 2,
-      ]);
+      expect(
+        mergeDevtoolsSnapshotEvents([liveEvent], snapshot, "dashboard-test").map(
+          (event) => event.id
+        )
+      ).toEqual([1, 2]);
     } finally {
       await uninstallDom();
     }
@@ -134,9 +136,40 @@ test.serial("snapshot refresh keeps only the newest resources for each browser",
 
     const merged = mergeDevtoolsSnapshotEvents(
       [{ ...resourceEvent, clientTimestamp: 2, id: 2, timestamp: 2 }],
-      snapshot
+      snapshot,
+      "dashboard-test"
     );
     expect(merged.map((event) => event.id)).toEqual([2]);
+  } finally {
+    await uninstallDom();
+  }
+});
+
+test.serial("snapshot refresh drops events from a replaced DevTools instance", async () => {
+  installDom();
+  try {
+    const { mergeDevtoolsSnapshotEvents } = await import("../../../src/devtools/dashboard.tsx");
+    const oldEvent = {
+      id: 99,
+      instanceId: "old-instance",
+      revision: 1,
+      timestamp: 1,
+      type: "dev.ready",
+      version: 2,
+    } satisfies DevtoolsServerEvent;
+    const newEvent = {
+      ...oldEvent,
+      id: 1,
+      instanceId: "new-instance",
+    } satisfies DevtoolsServerEvent;
+    const snapshot = {
+      ...validSnapshot(),
+      events: [newEvent],
+      instance: { id: "new-instance", prefix: "" },
+      lastEventId: 1,
+    } satisfies DevtoolsSnapshot;
+
+    expect(mergeDevtoolsSnapshotEvents([oldEvent], snapshot, "old-instance")).toEqual([newEvent]);
   } finally {
     await uninstallDom();
   }
