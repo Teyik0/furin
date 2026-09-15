@@ -1,0 +1,66 @@
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 205-206,246
+apps/docs/src/server.ts
+  h_a2cbd1b0e3ae6e 79,82
+examples/weather/src/api/weather.ts
+  h_a2cbd1b0e3ae6e 127,230-232,242-244
+examples/weather/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 20
+examples/weather/src/server.ts
+  h_a2cbd1b0e3ae6e 20-25,27
+examples/weather/tests/weather-cache.test.ts
+  h_a2cbd1b0e3ae6e 61-81
+packages/core/src/adapter/README.md
+  h_a2cbd1b0e3ae6e 20-22,29-32
+packages/core/src/adapter/package.ts
+  h_a2cbd1b0e3ae6e 46,74-75,133
+packages/core/src/adapter/runtime-build.ts
+  h_a2cbd1b0e3ae6e 40-41,43-47,49-52,75-76,78-82,177,202-203,233,275-277
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 37,73-84,89-96,270-293,331-334,349-353,355-359,371-375,379-384,406-415,420-421,431,449-451,556-559,567,569-573
+packages/core/src/build/production-instrumentation.ts
+  h_a2cbd1b0e3ae6e 1,7-19,38-50
+packages/core/src/build/ssg-cache.ts
+  h_a2cbd1b0e3ae6e 44
+packages/core/src/rsc/build/index.ts
+  h_a2cbd1b0e3ae6e 26-30,32,41-48,61
+packages/core/src/server/cache/isr.ts
+  h_a2cbd1b0e3ae6e 101-106,111-113
+packages/core/src/server/external-prerender.ts
+  h_a2cbd1b0e3ae6e 1-5
+packages/core/src/server/internal.ts
+  h_a2cbd1b0e3ae6e 3-7,63-70
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 19,43,208,210,225,279-285,297-298,304-306
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 618,623-631,655
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 13,26,135,198-201,208
+packages/core/src/shared/compact-json.ts
+  h_a2cbd1b0e3ae6e 8-9,24-26,28,60,65-70,73
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 21,23,26,31,42-43,72-99,117,175-177,190-198,242,319-348,361,368,386-389,391-392,394,401,403-406,408-410,412,414,436-438,447,450-451,453-454
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  h_a2cbd1b0e3ae6e 23,76,87-114
+packages/core/tests/rendering/deferred/compact-loader-data.test.ts
+  h_a2cbd1b0e3ae6e 4,54-80
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  h_a2cbd1b0e3ae6e 61-75,93,97-105,107,110-112
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  h_a2cbd1b0e3ae6e 40-45,89-94,104-135
+packages/core/tests/routing/cache/cache-headers.test.ts
+  h_a2cbd1b0e3ae6e 49
+packages/core/tests/runtime/plugin/data-endpoint-cache.test.tsx
+  h_a2cbd1b0e3ae6e 84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3092414e112af8adcfe596f394c6225d6aa32d4f",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
