@@ -126,6 +126,8 @@ Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and IS
 
 The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
+Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
+
 SSR payloads, request-specific loaders, deferred streams, redirects, not-found results, and errors are explicitly `private, no-store`.
 
 ### Function region
@@ -165,7 +167,7 @@ Use `--analyze` to inspect which modules contribute to the bundles:
 bunx furin build --target vercel --analyze
 ```
 
-This writes `vercel-client.json` and `vercel-server.json` under `.furin/build/analysis`.
+This writes one client metafile per mounted app (for example, `vercel-client.json` for the root app and `vercel-client-admin.json` for `/admin`) plus the shared `vercel-server.json` under `.furin/build/analysis`.
 
 The executable reference is [`examples/weather`](https://github.com/teyik0/furin/tree/main/examples/weather).
 

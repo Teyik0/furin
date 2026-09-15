@@ -5,10 +5,8 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-interface CompactJsonEnvelope {
-  __furinJson: 1;
-  data: JsonObject;
-}
+const COMPACT_JSON_TAG = "__furin_json_v1__";
+type CompactJsonEnvelope = [typeof COMPACT_JSON_TAG, JsonObject];
 
 function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
@@ -23,8 +21,11 @@ function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue 
   seen.add(value);
 
   if (Array.isArray(value)) {
+    if (Reflect.ownKeys(value).length !== value.length + 1) {
+      return false;
+    }
     for (let index = 0; index < value.length; index += 1) {
-      if (!(index in value && isJsonValue(value[index], seen))) {
+      if (!(Object.hasOwn(value, index) && isJsonValue(value[index], seen))) {
         return false;
       }
     }
@@ -56,17 +57,18 @@ export function serializeCompactJsonLine(value: unknown): string | undefined {
   if (!isJsonObject(value)) {
     return;
   }
-  const envelope: CompactJsonEnvelope = { __furinJson: 1, data: value };
+  const envelope: CompactJsonEnvelope = [COMPACT_JSON_TAG, value];
   return `${JSON.stringify(envelope)}\n`;
 }
 
 export function parseCompactJsonLine(value: unknown): JsonObject | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    value[0] !== COMPACT_JSON_TAG ||
+    !isJsonObject(value[1])
+  ) {
     return;
   }
-  const envelope = value as { __furinJson?: unknown; data?: unknown };
-  if (envelope.__furinJson !== 1 || !isJsonObject(envelope.data)) {
-    return;
-  }
-  return envelope.data;
+  return value[1];
 }

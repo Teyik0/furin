@@ -37,8 +37,19 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry${_ext}`,
   `${_pkgSrcDir}/build/entry-template${_ext}`,
   `${_pkgSrcDir}/plugin/routes${_ext}`,
+  `${_pkgSrcDir}/server/render/document.tsx`,
+  `${_pkgSrcDir}/server/render/element.tsx`,
   `${_pkgSrcDir}/server/render/index${_ext}`,
+  `${_pkgSrcDir}/server/render/isr${_ext}`,
+  `${_pkgSrcDir}/server/render/loaders${_ext}`,
+  `${_pkgSrcDir}/server/render/not-found${_ext}`,
+  `${_pkgSrcDir}/server/render/ppr-route${_ext}`,
+  `${_pkgSrcDir}/server/render/route-frame-transport${_ext}`,
   `${_pkgSrcDir}/server/render/shell${_ext}`,
+  `${_pkgSrcDir}/server/render/ssr${_ext}`,
+  `${_pkgSrcDir}/shared/compact-json${_ext}`,
+  `${_pkgSrcDir}/shared/deferred-ndjson${_ext}`,
+  `${_pkgSrcDir}/shared/route-frame${_ext}`,
 ];
 
 function compareCodeUnits(a: string, b: string): number {
@@ -61,9 +72,14 @@ export async function createBuildFingerprint(
   cssChunks: string[],
   routes: ResolvedRoute[],
   root: RootLayout,
-  serverEntry: string | null
+  serverEntry: string | null,
+  routeSources: string[]
 ): Promise<string> {
-  const fingerprintPaths = new Set<string>([root.path, ...routes.map((route) => route.path)]);
+  const fingerprintPaths = new Set<string>([
+    root.path,
+    ...routes.map((route) => route.path),
+    ...routeSources,
+  ]);
   if (serverEntry) {
     fingerprintPaths.add(serverEntry);
   }
@@ -158,6 +174,7 @@ export async function buildRuntimeApp(
   targetName: "bun" | "vercel"
 ): Promise<RuntimeAppBuild> {
   const { prefix, root, routes } = app;
+  const modulePaths = routeSourcePaths(app);
   const clientDirName = clientDirNameForPrefix(prefix);
   const label = prefix === "" ? "root app" : `app "${prefix}"`;
 
@@ -182,12 +199,10 @@ export async function buildRuntimeApp(
     cssChunks,
     routes,
     root,
-    serverEntry
+    serverEntry,
+    modulePaths
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
-  if (serverEntry) {
-    await buildRscGraph(routes, root, targetDir, buildId, options.plugins);
-  }
 
   const clientDir = join(targetDir, clientDirName);
   const indexHtml = generateProdIndexHtml(entryChunk, cssChunks, buildId, undefined, false);
@@ -199,13 +214,7 @@ export async function buildRuntimeApp(
   let prerenders: RoutePrerender[] = [];
   if (serverEntry) {
     if (targetName === "vercel") {
-      ssgCache = {};
       prerenders = await buildRoutePrerenders(routes, root, "http://localhost", prefix);
-      for (const prerender of prerenders) {
-        if (prerender.route.mode === "ssg" && !(prerender.result instanceof Response)) {
-          ssgCache[prerender.path] = prerender.result;
-        }
-      }
     } else {
       ssgCache = await buildSSGCacheSnapshot(routes, root, "http://localhost", prefix);
     }
@@ -221,7 +230,7 @@ export async function buildRuntimeApp(
       buildId,
       clientLogging: options.clientLogging ?? false,
       embed: options.compile === "embed" ? { clientDir } : undefined,
-      modulePaths: routeSourcePaths({ pagesDir: app.pagesDir, prefix }),
+      modulePaths,
       nativeRoutes: routeModuleSpecifier(app),
       prefix,
       rootConventions,
@@ -262,6 +271,9 @@ export async function buildRuntimeAppsSequentially(
     if (app.prefix === "" || headlineBuildId === "") {
       headlineBuildId = built.buildId;
     }
+  }
+  if (serverEntry) {
+    await buildRscGraph(apps, targetDir, headlineBuildId, options.plugins);
   }
 
   return { builds, entryApps, headlineBuildId };

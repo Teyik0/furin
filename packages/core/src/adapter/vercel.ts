@@ -34,6 +34,7 @@ const REGEX_META_RE = /[.*+?^${}()|[\]\\]/;
 const UNSAFE_FUNCTION_PATH_RE = /[^a-zA-Z0-9_.[\]/-]/g;
 const VERCEL_FUNCTIONS_PATH = fileURLToPath(import.meta.resolve("@vercel/functions"));
 const VERCEL_RUNTIME_STUB_NAMESPACE = "furin-vercel-runtime-stub";
+const FURIN_RUNTIME_ROOT = dirname(import.meta.dir);
 
 interface VercelRoute {
   continue?: boolean;
@@ -69,14 +70,30 @@ interface PrerenderSpec {
   source: string;
 }
 
+function isFurinRuntimeImporter(importer: string): boolean {
+  if (importer === "") {
+    return false;
+  }
+  const fromRuntimeRoot = relative(FURIN_RUNTIME_ROOT, importer.split("?")[0] as string);
+  return (
+    fromRuntimeRoot !== ".." &&
+    !fromRuntimeRoot.startsWith("../") &&
+    !fromRuntimeRoot.startsWith("..\\")
+  );
+}
+
 function vercelRuntimePlugin(): Bun.BunPlugin {
   return {
     name: "furin-vercel-runtime",
     setup(build) {
-      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, () => ({
-        namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
-        path: "@elysiajs/static",
-      }));
+      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, ({ importer }) =>
+        isFurinRuntimeImporter(importer)
+          ? {
+              namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
+              path: "@elysiajs/static",
+            }
+          : undefined
+      );
       build.onLoad({ filter: MATCH_ALL_RE, namespace: VERCEL_RUNTIME_STUB_NAMESPACE }, () => ({
         contents: `export function staticPlugin() {
   throw new Error("[furin] The Vercel CDN owns production assets.");
@@ -250,6 +267,30 @@ function createFunctionAlias(
   symlinkSync(target, aliasPath, process.platform === "win32" ? "junction" : "dir");
 }
 
+function createExactPrerenderSpec(
+  prerender: RoutePrerender,
+  routePath: string
+): PrerenderSpec | undefined {
+  if (!DYNAMIC_SEGMENT_RE.test(prerender.route.pattern)) {
+    return;
+  }
+  const { mode } = prerender.route;
+  if (mode === "ssr") {
+    return;
+  }
+  const source = exactPathSource(routePath);
+  return {
+    config: {
+      expiration: mode === "ssg" ? false : (resolveRouteRevalidate(prerender.route.page) ?? 60),
+      passQuery: true,
+    },
+    exact: true,
+    functionName: functionNameForPath(routePath, mode),
+    pattern: routePath,
+    source,
+  };
+}
+
 async function createPrerenderSpecs(
   apps: RuntimeTargetApp[],
   builds: RuntimeAppBuild[],
@@ -287,16 +328,10 @@ async function createPrerenderSpecs(
       const routePath = physicalPath(app.prefix, prerender.path);
       const genericSource = routePatternSource(app.prefix, prerender.route.pattern);
       let spec = specs.get(genericSource) as PrerenderSpec;
-      if (DYNAMIC_SEGMENT_RE.test(prerender.route.pattern)) {
-        const source = exactPathSource(routePath);
-        spec = {
-          config: { expiration: false, passQuery: true },
-          exact: true,
-          functionName: functionNameForPath(routePath, "ssg"),
-          pattern: routePath,
-          source,
-        };
-        specs.set(source, spec);
+      const exactSpec = createExactPrerenderSpec(prerender, routePath);
+      if (exactSpec !== undefined) {
+        spec = exactSpec;
+        specs.set(exactSpec.source, exactSpec);
       }
       // biome-ignore lint/performance/noAwaitInLoops: each fallback may consume a unique redirect response body.
       await addPrerenderFallback(spec, routePath, prerender, functionsDir);
@@ -311,8 +346,17 @@ async function createPrerenderSpecs(
   });
 }
 
-function vercelEntrySource(builds: RuntimeAppBuild[], serverEntry: string): string {
+function vercelEntrySource(
+  builds: RuntimeAppBuild[],
+  prerenderSpecs: PrerenderSpec[],
+  serverEntry: string
+): string {
   const routeCount = builds.reduce((count, build) => count + build.entryApp.routes.length, 0);
+  const prerenderAliases = prerenderSpecs.map((spec) => [
+    `/${spec.functionName}`,
+    `^(?:${spec.source})$`,
+  ]);
+  const dataEndpointPaths = builds.map(({ entryApp }) => `${entryApp.prefix}/_furin/data`);
   const contextSource = buildEntrySource({
     apps: builds.map(({ entryApp, indexHtml }) => ({
       ...entryApp,
@@ -324,9 +368,19 @@ function vercelEntrySource(builds: RuntimeAppBuild[], serverEntry: string): stri
   });
   return `import { invalidateByTag, waitUntil } from ${JSON.stringify(VERCEL_FUNCTIONS_PATH)};
 import { setCachePurger } from "@teyik0/furin";
-import { waitForPendingISRRevalidations } from "@teyik0/furin/internal";
+import {
+  externalPrerenderHeader,
+  hasPendingISRRevalidations,
+  waitForPendingISRRevalidations,
+} from "@teyik0/furin/internal";
 
 ${contextSource}
+
+const EXTERNAL_PRERENDER_HEADER = externalPrerenderHeader();
+const prerenderAliases = new Map(
+  ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
+);
+const dataEndpointPaths = new Set(${JSON.stringify(dataEndpointPaths)});
 
 setCachePurger(async (paths) => {
   const purge = invalidateByTag(paths);
@@ -349,12 +403,22 @@ const initialization = Object.freeze({
 function restorePrerenderPath(request) {
   const url = new URL(request.url);
   const path = url.searchParams.get(${JSON.stringify(ISR_PATH_PARAM)});
-  if (path === null) {
+  const aliasPattern = prerenderAliases.get(url.pathname);
+  const headers = new Headers(request.headers);
+  headers.delete(EXTERNAL_PRERENDER_HEADER);
+  if (path === null || aliasPattern === undefined || !aliasPattern.test(path)) {
+    if (!request.headers.has(EXTERNAL_PRERENDER_HEADER)) {
+      return request;
+    }
+    return new Request(request, { headers });
+  }
+  if (!path.startsWith("/")) {
     return request;
   }
   url.pathname = path;
   url.searchParams.delete(${JSON.stringify(ISR_PATH_PARAM)});
-  return new Request(url, request);
+  headers.set(EXTERNAL_PRERENDER_HEADER, "1");
+  return new Request(url, { body: request.body, headers, method: request.method });
 }
 
 function exposeVercelCacheTag(response, request) {
@@ -364,7 +428,7 @@ function exposeVercelCacheTag(response, request) {
   }
   const requestPath = new URL(request.url).pathname;
   const dataSuffix = "/_furin/data";
-  const prefix = requestPath.endsWith(dataSuffix)
+  const prefix = dataEndpointPaths.has(requestPath)
     ? requestPath.slice(0, -dataSuffix.length)
     : null;
   const physicalCacheTag =
@@ -382,7 +446,9 @@ function exposeVercelCacheTag(response, request) {
 async function handle(request) {
   const restoredRequest = restorePrerenderPath(request);
   const response = await app.handle(restoredRequest);
-  waitUntil(waitForPendingISRRevalidations());
+  if (hasPendingISRRevalidations()) {
+    waitUntil(waitForPendingISRRevalidations());
+  }
   return exposeVercelCacheTag(response, restoredRequest);
 }
 
@@ -487,19 +553,24 @@ export async function buildVercelTarget(
     "vercel"
   );
 
+  const publicDir = join(rootDir, "public");
+  if (existsSync(publicDir)) {
+    cpSync(publicDir, staticDir, { recursive: true });
+  }
   for (let appIndex = 0; appIndex < apps.length; appIndex += 1) {
     const app = apps[appIndex] as RuntimeTargetApp;
     const build = builds[appIndex] as RuntimeAppBuild;
     const clientOutputDir = join(staticDir, app.prefix.slice(1), "_client");
     cpSync(build.clientDir, clientOutputDir, { recursive: true });
   }
-  const publicDir = join(rootDir, "public");
-  if (existsSync(publicDir)) {
-    cpSync(publicDir, staticDir, { recursive: true });
-  }
 
+  const prerenderSpecs = await createPrerenderSpecs(apps, builds, functionsDir);
   const entryPath = join(serverFunctionDir, "_vercel-handler.ts");
-  const entry = createVirtualBuildEntry(entryPath, vercelEntrySource(builds, serverEntry), "ts");
+  const entry = createVirtualBuildEntry(
+    entryPath,
+    vercelEntrySource(builds, prerenderSpecs, serverEntry),
+    "ts"
+  );
   const serverBuild = await runBunBuild({
     define: { "process.env.NODE_ENV": JSON.stringify("production") },
     entrypoints: [entry.entrypoint],
@@ -552,7 +623,6 @@ export async function buildVercelTarget(
     )}\n`
   );
 
-  const prerenderSpecs = await createPrerenderSpecs(apps, builds, functionsDir);
   for (const spec of prerenderSpecs) {
     createFunctionAlias(functionsDir, serverFunctionDir, spec.functionName);
     writeFileSync(

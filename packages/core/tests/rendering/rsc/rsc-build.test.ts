@@ -37,7 +37,12 @@ describe("RSC graph environment guards", () => {
     const rootEntry = join(root, "root.tsx");
     writeFileSync(rootEntry, "export default function Root() { return null; }");
 
-    await buildRscGraph([], { path: rootEntry, route: {} as never }, root, "test-build", undefined);
+    await buildRscGraph(
+      [{ root: { path: rootEntry, route: {} as never }, routes: [] }],
+      root,
+      "test-build",
+      undefined
+    );
 
     expect(existsSync(join(root, "server-codec.js"))).toBe(true);
     expect(readFileSync(join(root, "server-codec.js"), "utf8")).not.toContain(
@@ -81,7 +86,12 @@ describe("RSC graph environment guards", () => {
       `
     );
 
-    await buildRscGraph([], { path: rootEntry, route: {} as never }, root, "test-build", undefined);
+    await buildRscGraph(
+      [{ root: { path: rootEntry, route: {} as never }, routes: [] }],
+      root,
+      "test-build",
+      undefined
+    );
     const output = readdirSync(join(root, "rsc"))
       .filter((file) => file.endsWith(".js"))
       .map((file) => readFileSync(join(root, "rsc", file), "utf8"))
@@ -89,6 +99,38 @@ describe("RSC graph environment guards", () => {
 
     expect(output).toContain("RSC_SERVER_MARKER");
     expect(output).not.toContain("RSC_CLIENT_MARKER");
+  });
+
+  test("builds all mounted apps into one RSC graph", async () => {
+    const root = mkdtempSync(join(tmpdir(), "furin-rsc-multi-app-"));
+    paths.push(root);
+    const firstRoot = join(root, "first-root.tsx");
+    const secondRoot = join(root, "second-root.tsx");
+    writeFileSync(
+      firstRoot,
+      'export const firstMarker = "FIRST_RSC_APP"; export default function Root() { return null; }'
+    );
+    writeFileSync(
+      secondRoot,
+      'export const secondMarker = "SECOND_RSC_APP"; export default function Root() { return null; }'
+    );
+
+    await buildRscGraph(
+      [
+        { root: { path: firstRoot, route: {} as never }, routes: [] },
+        { root: { path: secondRoot, route: {} as never }, routes: [] },
+      ],
+      root,
+      "test-build",
+      undefined
+    );
+    const output = readdirSync(join(root, "rsc"))
+      .filter((file) => file.endsWith(".js"))
+      .map((file) => readFileSync(join(root, "rsc", file), "utf8"))
+      .join("\n");
+
+    expect(output).toContain("FIRST_RSC_APP");
+    expect(output).toContain("SECOND_RSC_APP");
   });
 
   test("uses an explicitly configured prebuilt Flight codec", () => {

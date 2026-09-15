@@ -10,6 +10,7 @@ import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
 } from "../devtools/instrumentation.ts";
+import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { handleISR } from "../render/isr.ts";
 import {
@@ -22,7 +23,7 @@ import {
 import { renderPprRoute } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { extractTitle } from "../render/shell.ts";
-import { prerenderSSG } from "../render/ssg.ts";
+import { prerenderRoute, prerenderSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
@@ -131,7 +132,7 @@ function navigationDataCacheControl(route: ResolvedRoute): string {
     return "public, max-age=0, must-revalidate, s-maxage=31536000";
   }
   const revalidate = resolveRouteRevalidate(route.page) ?? 60;
-  return `public, max-age=0, must-revalidate, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+  return `public, max-age=0, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
 }
 
 function applyNavigationDataCache(
@@ -194,14 +195,17 @@ async function handleSSGRequest(
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<unknown> {
   const { origin } = new URL(ctx.request.url);
-  const entry = await prerenderSSG(route, ctx.params ?? {}, root, origin, undefined, searchRoutes);
+  const params = ctx.params ?? {};
+  const entry = isExternalPrerenderRequest(ctx.request)
+    ? await prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes)
+    : await prerenderSSG(route, params, root, origin, undefined, searchRoutes);
 
   // Loader issued a redirect — forward it directly to the client.
   if (entry instanceof Response) {
     return entry;
   }
 
-  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const resolvedPath = resolvePath(route.pattern, params);
 
   // ETag: "buildId:cachedAt" — unique per render cycle, changes after revalidatePath
   const etag = buildId ? `"${buildId}:${entry.cachedAt}"` : null;

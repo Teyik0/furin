@@ -81,7 +81,7 @@ describe("navigation data cache contract", () => {
     const response = await fetchData(route);
 
     expect(response.headers.get("cache-control")).toBe(
-      "public, max-age=0, must-revalidate, s-maxage=75, stale-while-revalidate=75"
+      "public, max-age=0, s-maxage=75, stale-while-revalidate=75"
     );
     expect(response.headers.get("cache-tag")).toBe("/news");
   });

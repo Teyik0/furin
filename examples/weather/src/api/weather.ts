@@ -124,7 +124,7 @@ async function geocode(city: string): Promise<GeoResult | null> {
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en`;
   const res = await fetch(url);
   if (!res.ok) {
-    return null;
+    throw new Error(`Geocoding API error (${res.status})`);
   }
   const json = (await res.json()) as {
     results?: Array<{
@@ -227,9 +227,10 @@ export async function getWeather(
 
   try {
     const geocodeStartedAt = performance.now();
-    const geocodeResult = await getCachedGeocode(city);
+    const geocodeResult = await getCachedGeocode(city).finally(() => {
+      timing.geocode_ms = elapsedMs(geocodeStartedAt);
+    });
     timing.geocode_cache = geocodeResult.cache;
-    timing.geocode_ms = elapsedMs(geocodeStartedAt);
     if (geocodeResult.value === null) {
       return null;
     }
@@ -238,9 +239,10 @@ export async function getWeather(
     const forecastResult = await getCachedForecast(
       geocodeResult.value.latitude,
       geocodeResult.value.longitude
-    );
+    ).finally(() => {
+      timing.forecast_ms = elapsedMs(forecastStartedAt);
+    });
     timing.forecast_cache = forecastResult.cache;
-    timing.forecast_ms = elapsedMs(forecastStartedAt);
 
     return {
       city: geocodeResult.value.name,

@@ -16,6 +16,7 @@ import {
 import type { ISRCacheEntry } from "../cache/isr-ssg.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
 import { createLogger, useLogger } from "../context-logger.ts";
+import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance, withInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -39,7 +40,7 @@ import {
  */
 function isrCacheControl(isFresh: boolean, revalidate: number): string {
   const sMaxAge = isFresh ? revalidate : 0;
-  return `public, max-age=0, must-revalidate, s-maxage=${sMaxAge}, stale-while-revalidate=${revalidate}`;
+  return `public, max-age=0, s-maxage=${sMaxAge}, stale-while-revalidate=${revalidate}`;
 }
 
 /**
@@ -204,8 +205,9 @@ export async function handleISR(
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
   const cacheKey = pathWithRequestSearch(resolvedPath, ctx.request.url);
+  const externalPrerender = isExternalPrerenderRequest(ctx.request);
 
-  const cached = getISRCache(cacheKey);
+  const cached = externalPrerender ? undefined : getISRCache(cacheKey);
   if (cached) {
     return serveISRCacheHit(
       cached,
@@ -220,7 +222,7 @@ export async function handleISR(
     );
   }
 
-  const cacheGeneration = captureISRCacheGeneration(cacheKey);
+  const cacheGeneration = externalPrerender ? undefined : captureISRCacheGeneration(cacheKey);
   try {
     const renderStart = Date.now();
     const loaderResult = await runPublicLoaders(route, ctx);
@@ -274,11 +276,13 @@ export async function handleISR(
       },
     });
 
-    const cacheStored = setISRCacheIfGenerationUnchanged(
-      cacheKey,
-      { generatedAt, html, revalidate },
-      cacheGeneration
-    );
+    const cacheStored =
+      cacheGeneration !== undefined &&
+      setISRCacheIfGenerationUnchanged(
+        cacheKey,
+        { generatedAt, html, revalidate },
+        cacheGeneration
+      );
     if (cacheStored) {
       autoInvalidateRegistry.registerLoaderTags(cacheKey, route.tags);
     }
@@ -290,13 +294,16 @@ export async function handleISR(
       ctx.set.headers[key] = value;
     }
     ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-    ctx.set.headers["cache-control"] = cacheStored ? isrCacheControl(true, revalidate) : "no-store";
+    ctx.set.headers["cache-control"] =
+      externalPrerender || cacheStored ? isrCacheControl(true, revalidate) : "no-store";
     if (etag) {
       ctx.set.headers.etag = etag;
     }
     return html;
   } finally {
-    releaseISRCacheGeneration(cacheKey, cacheGeneration);
+    if (cacheGeneration !== undefined) {
+      releaseISRCacheGeneration(cacheKey, cacheGeneration);
+    }
   }
 }
 

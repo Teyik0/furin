@@ -1,6 +1,10 @@
 import type { AnyElysia } from "elysia";
 import type { SsgCacheEntry } from "./cache/index.ts";
-import { waitForPendingISRRevalidations as waitForPendingISR } from "./cache/isr.ts";
+import {
+  hasPendingISRRevalidations as hasPendingISR,
+  waitForPendingISRRevalidations as waitForPendingISR,
+} from "./cache/isr.ts";
+import { EXTERNAL_PRERENDER_HEADER } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
@@ -54,6 +58,14 @@ export interface CompileContext {
 
 export function waitForPendingISRRevalidations(): Promise<void> {
   return waitForPendingISR();
+}
+
+export function hasPendingISRRevalidations(): boolean {
+  return hasPendingISR();
+}
+
+export function externalPrerenderHeader(): string {
+  return EXTERNAL_PRERENDER_HEADER;
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory

@@ -41,7 +41,7 @@ export async function buildRoutePrerenders(
     if (route.mode === "ssr") {
       continue;
     }
-    if (route.mode === "isr" && hasRequestDependentInput(route, root)) {
+    if (hasRequestDependentInput(route, root)) {
       continue;
     }
 

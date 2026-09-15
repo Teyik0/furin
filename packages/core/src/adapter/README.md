@@ -17,13 +17,18 @@ The Vercel target emits Build Output API v3 directly to `.vercel/output`:
 - content-hashed browser assets and `public/` files under `static/`;
 - one bundled `bun1.4.x` Web Handler under `functions/__server.func`;
 - SSG Prerender Functions with build-time fallbacks and no timed expiration;
-- ISR Prerender Functions using each route's `revalidate` duration and a
-  build-time fallback when the route has no query or request loader;
+- ISR Prerender Functions using each route's `revalidate` duration and
+  build-time fallbacks for fixed URLs or `staticParams()` values when the route
+  tree has no query or request loader;
 - a filesystem-first route table with a server fallback for SSR, APIs, and
   `/_furin/data`.
 
 The generated handler connects Furin cache invalidation to Vercel cache tags
 and keeps background ISR work alive with `waitUntil`.
+
+Vercel Prerender Function invocations bypass Furin's process-local SSG/ISR
+cache. The CDN owns freshness and each regeneration returns newly rendered
+HTML; the in-memory cache remains exclusive to development and Bun targets.
 
 Successful `/_furin/data` responses for SSG/ISR routes share the document's
 cache tag and revalidation window. SSR, request-loader, deferred, and failed

@@ -18,14 +18,17 @@ function createVercelApp(): TmpApp {
     "src/server.ts",
     [
       'import { furin, revalidatePath } from "@teyik0/furin";',
+      'import { staticPlugin } from "@elysiajs/static";',
       'import { Elysia } from "elysia";',
+      'import { userHydrate } from "./build/hydrate";',
       "",
       "const app = new Elysia()",
-      '  .get("/api/health", () => "ok")',
+      '  .get("/api/health", () => userHydrate)',
       '  .post("/api/revalidate", () => {',
       '    revalidatePath("/", "page");',
       '    return "invalidated";',
       "  })",
+      '  .use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))',
       '  .use(await furin({ pagesDir: "./src/pages" }));',
       "",
       "if (import.meta.main) {",
@@ -36,6 +39,8 @@ function createVercelApp(): TmpApp {
       "",
     ].join("\n")
   );
+  writeAppFile(app.path, "src/build/hydrate.ts", 'export const userHydrate = "user hydrate";\n');
+  writeAppFile(app.path, "public/user.txt", "user static asset");
   writeAppFile(
     app.path,
     "src/pages/news.tsx",
@@ -64,6 +69,34 @@ function createVercelApp(): TmpApp {
       "",
     ].join("\n")
   );
+  writeAppFile(
+    app.path,
+    "src/pages/events/[slug].tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { t } from "elysia";',
+      'import { route as rootRoute } from "../root";',
+      "",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90, staticParams: () => [{ slug: "launch" }] })',
+      '  .page(({ params }) => <main>Event: {params.slug}</main>);',
+      "",
+    ].join("\n")
+  );
+  writeAppFile(
+    app.path,
+    "src/pages/offers.tsx",
+    [
+      'import { t } from "elysia";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg", query: t.Object({ coupon: t.Optional(t.String()) }) })',
+      '  .page(({ query }) => <main>Coupon: {query.coupon}</main>);',
+      "",
+    ].join("\n")
+  );
   return app;
 }
 
@@ -81,6 +114,7 @@ describe.serial("Vercel deployment adapter", () => {
   test("emits CDN assets, a Bun catch-all function, and native SSG/ISR prerenders", (done) => {
     async function runScenario(): Promise<void> {
       const app = createVercelApp();
+      writeAppFile(app.path, "public/_client/_hydrate.js", "public collision");
       const buildConfigs: Bun.BuildConfig[] = [];
 
       const result = await withBuildStub(
@@ -138,6 +172,9 @@ describe.serial("Vercel deployment adapter", () => {
         existsSync(join(app.path, ".furin/build/analysis/vercel-server.json"))
       ).toBe(true);
       expect(existsSync(join(outputDir, "static/_client/_hydrate.js"))).toBe(true);
+      expect(readFileSync(join(outputDir, "static/_client/_hydrate.js"), "utf8")).not.toBe(
+        "public collision"
+      );
       expect(existsSync(join(outputDir, "static/.gitkeep"))).toBe(true);
       expect(lstatSync(join(functionsDir, "news-isr.func")).isSymbolicLink()).toBe(true);
       const newsPrerender = JSON.parse(
@@ -150,6 +187,15 @@ describe.serial("Vercel deployment adapter", () => {
         readFileSync(join(functionsDir, "search-isr.prerender-config.json"), "utf8")
       );
       expect(searchPrerender.fallback).toBeUndefined();
+      const offersPrerender = JSON.parse(
+        readFileSync(join(functionsDir, "offers-ssg.prerender-config.json"), "utf8")
+      );
+      expect(offersPrerender.fallback).toBeUndefined();
+      const eventPrerender = JSON.parse(
+        readFileSync(join(functionsDir, "events/launch-isr.prerender-config.json"), "utf8")
+      );
+      expect(eventPrerender.expiration).toBe(90);
+      expect(eventPrerender.fallback).toBe("launch-isr.prerender-fallback.html");
       expect(
         JSON.parse(
           readFileSync(
@@ -193,7 +239,7 @@ describe.serial("Vercel deployment adapter", () => {
       if (!manifest || !("isrRoutes" in manifest)) {
         throw new TypeError("Expected the Vercel target manifest");
       }
-      expect(manifest.isrRoutes).toEqual(["/news", "/search"]);
+      expect(manifest.isrRoutes).toEqual(["/events/:slug", "/news", "/search"]);
       expect(manifest.outputDir).toBe(".vercel/output");
       expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world"]);
     }
@@ -270,6 +316,36 @@ describe.serial("Vercel deployment adapter", () => {
 
   test("runs the generated Web Handler without opening a TCP listener", async () => {
     const app = createVercelApp();
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "let renderCount = 0;",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssg" })',
+        "  .loader(() => ({ renderCount: ++renderCount }))",
+        '  .page(({ data }) => <main>SSG render {data.renderCount}</main>);',
+        "",
+      ].join("\n")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/news.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "let renderCount = 0;",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90 })',
+        "  .loader(() => ({ renderCount: ++renderCount }))",
+        '  .page(({ data }) => <main>ISR render {data.renderCount}</main>);',
+        "",
+      ].join("\n")
+    );
     await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 
     const handlerPath = join(
@@ -282,14 +358,14 @@ describe.serial("Vercel deployment adapter", () => {
     const serverInputs = Object.keys(serverMetafile.inputs).filter(
       (path) => !path.startsWith("furin-production-runtime-stub:")
     );
-    expect(serverInputs.some((path) => path.endsWith("/build/hydrate.ts"))).toBe(false);
+    expect(serverInputs.some((path) => path.endsWith("/src/build/hydrate.ts"))).toBe(true);
     expect(
       serverInputs.some((path) => path.endsWith("/plugin/route-config-autofix.ts"))
     ).toBe(false);
     expect(
       serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))
     ).toBe(false);
-    expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(false);
+    expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(true);
     const script = `
       const pending = [];
       const purged = [];
@@ -307,24 +383,35 @@ describe.serial("Vercel deployment adapter", () => {
       };
       const handler = (await import(${JSON.stringify(pathToFileURL(handlerPath).href)})).default;
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
-      const ssg = await handler.fetch(new Request("http://furin.test/"));
+      const userStatic = await handler.fetch(new Request("http://furin.test/user-static/user.txt"));
+      const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
+      const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
+      const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
-      const isr = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
+      const isrFirst = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
+      const isrSecond = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const invalidation = await handler.fetch(new Request("http://furin.test/api/revalidate", { method: "POST" }));
+      const pendingCount = pending.length;
       await Promise.all(pending);
       console.log("__FURIN_RESULT__" + JSON.stringify({
         apiBody: await api.text(),
         apiStatus: api.status,
         dataCacheControl: data.headers.get("cache-control"),
         dataTag: data.headers.get("vercel-cache-tag"),
+        injectedBody: await injected.text(),
         invalidationBody: await invalidation.text(),
-        isrBody: await isr.text(),
-        isrTag: isr.headers.get("vercel-cache-tag"),
+        isrFirstBody: await isrFirst.text(),
+        isrSecondBody: await isrSecond.text(),
+        isrTag: isrFirst.headers.get("vercel-cache-tag"),
+        pendingCount,
         purged,
-        ssgBody: await ssg.text(),
-        ssgTag: ssg.headers.get("vercel-cache-tag"),
+        ssgFirstBody: await ssgFirst.text(),
+        ssgSecondBody: await ssgSecond.text(),
+        ssgTag: ssgFirst.headers.get("vercel-cache-tag"),
         serverTiming: api.headers.get("server-timing"),
+        userStaticBody: await userStatic.text(),
       }));
+      process.exit(0);
     `;
     const child = Bun.spawn([process.execPath, "-e", script], {
       cwd: app.path,
@@ -346,7 +433,9 @@ describe.serial("Vercel deployment adapter", () => {
     }
     const result = JSON.parse(resultLine.slice("__FURIN_RESULT__".length));
     expect(result.apiStatus).toBe(200);
-    expect(result.apiBody).toBe("ok");
+    expect(result.apiBody).toBe("user hydrate");
+    expect(result.userStaticBody).toBe("user static asset");
+    expect(result.injectedBody).toBe("user hydrate");
     expect(result.dataCacheControl).toBe(
       "public, max-age=0, must-revalidate, s-maxage=31536000"
     );
@@ -355,10 +444,13 @@ describe.serial("Vercel deployment adapter", () => {
     expect(result.serverTiming).toContain("furin_server_init;dur=");
     expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
+    expect(result.pendingCount).toBe(1);
     expect(result.purged).toEqual([["/"]]);
     expect(result.ssgTag).toBe("/");
-    expect(result.ssgBody).toContain("Home page");
+    expect(result.ssgFirstBody).toContain('"renderCount":1');
+    expect(result.ssgSecondBody).toContain('"renderCount":2');
     expect(result.isrTag).toBe("/news");
-    expect(result.isrBody).toContain("News");
+    expect(result.isrFirstBody).toContain('"renderCount":1');
+    expect(result.isrSecondBody).toContain('"renderCount":2');
   });
 });

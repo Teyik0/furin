@@ -17,8 +17,14 @@ const app = new Elysia()
       let status = 500;
       try {
         const weather = await getWeather(query.city, log);
+        if (weather === null) {
+          status = 404;
+          set.status = status;
+          set.headers["cache-control"] = "private, no-store";
+          return { error: "City not found" };
+        }
         set.headers["cache-control"] =
-          "public, max-age=0, must-revalidate, s-maxage=300, stale-while-revalidate=300";
+          "public, max-age=0, s-maxage=300, stale-while-revalidate=300";
         set.headers["cache-tag"] = "/api/weather";
         status = 200;
         return weather;

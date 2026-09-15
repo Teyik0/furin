@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { toCrossJSONAsync } from "seroval";
 import { serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
+import { serializeCompactJsonLine } from "../../../src/shared/compact-json.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 
 describe("loader data transport", () => {
@@ -49,5 +50,32 @@ describe("loader data transport", () => {
     expect(Object.hasOwn(syncData, "missing")).toBe(true);
     expect(Number.isNaN(syncData.nan)).toBe(true);
     expect(Object.is(syncData.negativeZero, -0)).toBe(true);
+  });
+
+  test("does not confuse rich user data with the compact envelope", async () => {
+    const data = {
+      __furinJson: 1,
+      data: {
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    };
+
+    const payload = await serializeLoaderDataNdjson(data, undefined);
+    const { body } = new Response(payload);
+    if (body === null) {
+      throw new Error("Loader payload did not produce a response body");
+    }
+    const { syncData } = await parseDeferredNdjson(body, undefined);
+
+    expect(syncData).toEqual(data);
+    expect((syncData.data as { createdAt: unknown }).createdAt).toBeInstanceOf(Date);
+  });
+
+  test("rejects arrays with properties outside the JSON data model", async () => {
+    const items = [1, 2] as number[] & { label?: string };
+    items.label = "named property";
+
+    expect(serializeCompactJsonLine({ items })).toBeUndefined();
+    await Promise.resolve();
   });
 });

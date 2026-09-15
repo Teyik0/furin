@@ -615,12 +615,20 @@ async function pipeDocumentStream(
     }
     const chunk = decoder.decode(value, { stream: true });
     if (documentTail !== undefined) {
-      await writer.write(enc.encode(chunk));
+      documentTail += chunk;
       continue;
     }
 
     pending += chunk;
-    const bodyCloseIndex = pending.toLowerCase().lastIndexOf("</body>");
+    const scriptsEndIndex = scriptsMarkerEnd(pending);
+    const bodyCloseCandidate =
+      entryHandled || scriptsEndIndex !== undefined
+        ? pending.toLowerCase().lastIndexOf("</body>")
+        : -1;
+    const bodyCloseIndex =
+      scriptsEndIndex === undefined || bodyCloseCandidate > scriptsEndIndex
+        ? bodyCloseCandidate
+        : -1;
     if (bodyCloseIndex !== -1) {
       const beforeBody = pending.slice(0, bodyCloseIndex);
       const shell = entryHandled
@@ -632,7 +640,6 @@ async function pipeDocumentStream(
       continue;
     }
 
-    const scriptsEndIndex = scriptsMarkerEnd(pending);
     if (scriptsEndIndex !== undefined) {
       await writer.write(enc.encode(injectBeforeEntry(pending, beforeEntry, scriptsEndIndex)));
       entryHandled = true;
@@ -645,9 +652,7 @@ async function pipeDocumentStream(
     return;
   }
 
-  if (finalChunk) {
-    await writer.write(enc.encode(finalChunk));
-  }
+  documentTail += finalChunk;
   await writer.write(enc.encode((await beforeBodyClose()) + documentTail));
 }
 

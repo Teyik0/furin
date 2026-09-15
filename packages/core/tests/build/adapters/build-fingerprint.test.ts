@@ -20,7 +20,7 @@ describe("createBuildFingerprint", () => {
       const routesPluginPath = resolve(import.meta.dir, "../../../src/plugin/routes.ts");
       const routesPluginSource = await Bun.file(routesPluginPath).text();
 
-      const fingerprint = await createBuildFingerprint("entry.js", [], [], root, null);
+      const fingerprint = await createBuildFingerprint("entry.js", [], [], root, null, []);
 
       expect(fingerprint).toContain(
         `${routesPluginPath.replaceAll("\\", "/")}:${routesPluginSource}`
@@ -73,13 +73,41 @@ describe("createBuildFingerprint", () => {
         },
       ];
 
-      const fingerprint = await createBuildFingerprint("entry.js", [], routes, root, null);
+      const fingerprint = await createBuildFingerprint("entry.js", [], routes, root, null, []);
       const zRouteIndex = fingerprint.indexOf('"pattern":"/z"');
       const accentedRouteIndex = fingerprint.indexOf('"pattern":"/é"');
 
       expect(zRouteIndex).toBeGreaterThan(-1);
       expect(accentedRouteIndex).toBeGreaterThan(-1);
       expect(zRouteIndex).toBeLessThan(accentedRouteIndex);
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
+  test("includes server-only route modules", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-layout-"));
+
+    try {
+      const rootPath = join(appDir, "root.tsx");
+      const layoutPath = join(appDir, "_route.tsx");
+      writeFileSync(rootPath, "root");
+      writeFileSync(layoutPath, "server-only layout loader");
+      const root: RootLayout = {
+        path: rootPath,
+        route: { __type: "FURIN_ROUTE" },
+      };
+
+      const fingerprint = await createBuildFingerprint(
+        "entry.js",
+        [],
+        [],
+        root,
+        null,
+        [layoutPath]
+      );
+
+      expect(fingerprint).toContain("server-only layout loader");
     } finally {
       rmSync(appDir, { force: true, recursive: true });
     }

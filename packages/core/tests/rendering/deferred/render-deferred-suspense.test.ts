@@ -58,13 +58,21 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
         ...fixture.ssrRoute.page,
         component: (props: { [key: string]: unknown }) =>
           createElement(
-            Suspense,
-            { fallback: createElement("span", null, "loading") },
-            createElement(Await<unknown>, {
-              // biome-ignore lint/correctness/noChildrenProp: render-prop pattern — children is a function, not a ReactNode
-              children: (value: unknown) => createElement("span", null, String(value)),
-              resolve: props.slow as Promise<unknown>,
-            })
+            "div",
+            null,
+            createElement("script", {
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional raw-text regression fixture.
+              dangerouslySetInnerHTML: { __html: 'window.__bodyLiteral = "</body>";' },
+            }),
+            createElement(
+              Suspense,
+              { fallback: createElement("span", null, "loading") },
+              createElement(Await<unknown>, {
+                // biome-ignore lint/correctness/noChildrenProp: render-prop pattern — children is a function, not a ReactNode
+                children: (value: unknown) => createElement("span", null, String(value)),
+                resolve: props.slow as Promise<unknown>,
+              })
+            )
           ),
         loader: () => defer({ slow }),
       },
@@ -82,17 +90,26 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     }
     const timeout = "timeout" as const;
     const firstRead = reader.read();
-    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(100).then(() => timeout)]);
+    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(1000).then(() => timeout)]);
 
     resolveSlow?.("done");
     const first = firstOrTimeout === timeout ? await firstRead : firstOrTimeout;
-    // biome-ignore lint/performance/noAwaitInLoops: the response body must be drained sequentially.
-    while (!(await reader.read()).done) {
-      // Drain the stream so the deferred render can finish before asserting.
+    const decoder = new TextDecoder();
+    let html = decoder.decode(first.value, { stream: true });
+    for (;;) {
+      // biome-ignore lint/performance/noAwaitInLoops: the response body must be drained sequentially.
+      const next = await reader.read();
+      if (next.done) {
+        break;
+      }
+      html += decoder.decode(next.value, { stream: true });
     }
+    html += decoder.decode();
 
     expect(firstOrTimeout).not.toBe(timeout);
-    expect(new TextDecoder().decode(first.value)).toContain("loading");
+    expect(decoder.decode(first.value)).toContain("loading");
+    expect(html).toContain('window.__bodyLiteral = "</body>";');
+    expect(html.lastIndexOf("</body>")).toBeGreaterThan(html.indexOf("window.__bodyLiteral"));
   });
 
   test.serial("renderSSR streams deferred chunks in settlement order", async () => {

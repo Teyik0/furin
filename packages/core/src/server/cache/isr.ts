@@ -98,10 +98,19 @@ export function clearPendingISRRevalidations(instance?: FurinInstance): void {
   instanceIsrCache(instance).pendingRevalidations.clear();
 }
 
+export function hasPendingISRRevalidations(): boolean {
+  return allStateBuckets().some(
+    (instance) => instanceIsrCache(instance).pendingRevalidations.size > 0
+  );
+}
+
 export async function waitForPendingISRRevalidations(): Promise<void> {
   const pending = allStateBuckets().flatMap((instance) => [
     ...instanceIsrCache(instance).pendingRevalidations.values(),
   ]);
+  if (pending.length === 0) {
+    return;
+  }
   await Promise.allSettled(pending);
   await Bun.sleep(1);
 }

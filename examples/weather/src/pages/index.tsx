@@ -17,16 +17,7 @@ export const route = defineRoute()
   })
   .loader(async ({ log, query }) => {
     const { city } = query;
-    let data: Awaited<ReturnType<typeof getWeather>>;
-    try {
-      data = await getWeather(city, log);
-    } catch (error) {
-      return {
-        city,
-        error: error instanceof Error ? error.message : "Weather API error",
-        weather: null,
-      };
-    }
+    const data = await getWeather(city, log);
 
     if (!data) {
       return { city, error: `City not found: "${city}"`, weather: null };

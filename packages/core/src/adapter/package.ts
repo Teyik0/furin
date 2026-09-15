@@ -43,6 +43,7 @@ export async function buildPackageTarget(
   options: BuildAppOptions
 ): Promise<PackageTargetBuildManifest> {
   const { prefix, root, routes, pagesDir } = app;
+  const modulePaths = routeSourcePaths(app);
   const targetDir = join(buildRoot, "package");
 
   rmSync(targetDir, { force: true, recursive: true });
@@ -70,7 +71,8 @@ export async function buildPackageTarget(
     cssChunks,
     routes,
     root,
-    null
+    null,
+    modulePaths
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
 
@@ -128,7 +130,7 @@ export async function buildPackageTarget(
       {
         buildId,
         clientLogging: options.clientLogging ?? false,
-        modulePaths: routeSourcePaths({ pagesDir, prefix }),
+        modulePaths,
         nativeRoutes: routeModuleSpecifier(app),
         prefix,
         rootConventions,

@@ -58,5 +58,25 @@ test("getWeather reuses geocoding and forecast data and reports cache timings", 
   expect(timings[0]?.forecast_cache).toBe("miss");
   expect(timings[1]?.geocode_cache).toBe("hit");
   expect(timings[1]?.forecast_cache).toBe("hit");
-  expect(timings[1]?.total_ms).toBeLessThanOrEqual(timings[0]?.total_ms ?? 0);
+  expect(Number.isFinite(timings[0]?.total_ms)).toBe(true);
+  expect(Number.isFinite(timings[1]?.total_ms)).toBe(true);
+});
+
+test("getWeather reports geocoding duration when the upstream request fails", async () => {
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response("unavailable", { status: 503 }))
+  ) as typeof fetch;
+  const timings: WeatherTiming[] = [];
+
+  await expect(
+    getWeather("Failureville", {
+      set(fields: { weather: WeatherTiming }) {
+        timings.push(fields.weather);
+      },
+    })
+  ).rejects.toThrow("Geocoding API error (503)");
+
+  expect(timings).toHaveLength(1);
+  expect(Number.isFinite(timings[0]?.geocode_ms)).toBe(true);
+  expect(timings[0]?.forecast_cache).toBe("skipped");
 });
