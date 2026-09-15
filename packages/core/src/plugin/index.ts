@@ -9,6 +9,7 @@ const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+const DELETED_CLIENT_SOURCE = "export {};\n";
 
 interface ObservedBuild {
   changedModules: Set<string>;
@@ -111,7 +112,22 @@ const plugin: Bun.BunPlugin = {
         activeBuild?.changedModules.add(args.path);
       }
       const sourceFile = Bun.file(args.path);
-      const source = await sourceFile.text();
+      let source: string;
+      try {
+        source = await sourceFile.text();
+      } catch (error) {
+        if (!(error instanceof Error && Reflect.get(error, "code") === "ENOENT")) {
+          throw error;
+        }
+        sourceFingerprints.delete(args.path);
+        if (activeBuild) {
+          activeBuild.detectedAt = Math.min(activeBuild.detectedAt, Date.now());
+        }
+        return {
+          contents: DELETED_CLIENT_SOURCE,
+          loader: "js",
+        };
+      }
       const fingerprint = Bun.hash(source).toString(16);
       sourceFingerprints.set(args.path, fingerprint);
       if (previousFingerprint === fingerprint) {
