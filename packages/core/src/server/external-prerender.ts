@@ -1,5 +1,10 @@
-export const EXTERNAL_PRERENDER_HEADER = "x-furin-external-prerender";
+const externalPrerenderRequests = new WeakSet<Request>();
 
 export function isExternalPrerenderRequest(request: Request): boolean {
-  return request.headers.get(EXTERNAL_PRERENDER_HEADER) === "1";
+  return externalPrerenderRequests.has(request);
+}
+
+export function markExternalPrerenderRequest(request: Request): Request {
+  externalPrerenderRequests.add(request);
+  return request;
 }

@@ -369,14 +369,13 @@ function vercelEntrySource(
   return `import { invalidateByTag, waitUntil } from ${JSON.stringify(VERCEL_FUNCTIONS_PATH)};
 import { setCachePurger } from "@teyik0/furin";
 import {
-  externalPrerenderHeader,
   hasPendingISRRevalidations,
+  markExternalPrerenderRequest,
   waitForPendingISRRevalidations,
 } from "@teyik0/furin/internal";
 
 ${contextSource}
 
-const EXTERNAL_PRERENDER_HEADER = externalPrerenderHeader();
 const prerenderAliases = new Map(
   ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
 );
@@ -404,21 +403,15 @@ function restorePrerenderPath(request) {
   const url = new URL(request.url);
   const path = url.searchParams.get(${JSON.stringify(ISR_PATH_PARAM)});
   const aliasPattern = prerenderAliases.get(url.pathname);
-  const headers = new Headers(request.headers);
-  headers.delete(EXTERNAL_PRERENDER_HEADER);
   if (path === null || aliasPattern === undefined || !aliasPattern.test(path)) {
-    if (!request.headers.has(EXTERNAL_PRERENDER_HEADER)) {
-      return request;
-    }
-    return new Request(request, { headers });
+    return request;
   }
   if (!path.startsWith("/")) {
     return request;
   }
   url.pathname = path;
   url.searchParams.delete(${JSON.stringify(ISR_PATH_PARAM)});
-  headers.set(EXTERNAL_PRERENDER_HEADER, "1");
-  return new Request(url, { body: request.body, headers, method: request.method });
+  return markExternalPrerenderRequest(new Request(url, request));
 }
 
 function exposeVercelCacheTag(response, request) {

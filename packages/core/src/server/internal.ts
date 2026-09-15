@@ -4,7 +4,7 @@ import {
   hasPendingISRRevalidations as hasPendingISR,
   waitForPendingISRRevalidations as waitForPendingISR,
 } from "./cache/isr.ts";
-import { EXTERNAL_PRERENDER_HEADER } from "./external-prerender.ts";
+import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
@@ -64,8 +64,8 @@ export function hasPendingISRRevalidations(): boolean {
   return hasPendingISR();
 }
 
-export function externalPrerenderHeader(): string {
-  return EXTERNAL_PRERENDER_HEADER;
+export function markExternalPrerenderRequest(request: Request): Request {
+  return markExternalPrerender(request);
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
