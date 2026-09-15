@@ -10,6 +10,7 @@ const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 const DELETED_CLIENT_SOURCE = "export {};\n";
+const DELETED_CLIENT_FINGERPRINT = "deleted";
 
 interface ObservedBuild {
   changedModules: Set<string>;
@@ -17,6 +18,17 @@ interface ObservedBuild {
   detectedAt: number;
   rebuiltModules: Set<string>;
   startedAt: number;
+}
+
+async function readClientSource(path: string): Promise<string | undefined> {
+  try {
+    return await Bun.file(path).text();
+  } catch (error) {
+    if (error instanceof Error && Reflect.get(error, "code") === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
 }
 
 // Minimal browser stub for elysia — `t` is only used for schema definitions
@@ -112,15 +124,12 @@ const plugin: Bun.BunPlugin = {
         activeBuild?.changedModules.add(args.path);
       }
       const sourceFile = Bun.file(args.path);
-      let source: string;
-      try {
-        source = await sourceFile.text();
-      } catch (error) {
-        if (!(error instanceof Error && Reflect.get(error, "code") === "ENOENT")) {
-          throw error;
-        }
-        sourceFingerprints.delete(args.path);
-        if (activeBuild) {
+      const source = await readClientSource(args.path);
+      if (source === undefined) {
+        sourceFingerprints.set(args.path, DELETED_CLIENT_FINGERPRINT);
+        if (previousFingerprint === DELETED_CLIENT_FINGERPRINT) {
+          activeBuild?.changedModules.delete(args.path);
+        } else if (activeBuild) {
           activeBuild.detectedAt = Math.min(activeBuild.detectedAt, Date.now());
         }
         return {
