@@ -13,7 +13,7 @@ import { runBunBuild } from "../build/bun-build.ts";
 import { buildEntrySource } from "../build/entry-template.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
-import type { SSGPrerender } from "../build/ssg-cache.ts";
+import type { RoutePrerender } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, VercelTargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
@@ -197,17 +197,17 @@ function destinationForFunction(functionName: string): string {
   return `/${functionName}?${ISR_PATH_PARAM}=$${ISR_PATH_PARAM}`;
 }
 
-function hasRequestLoader(app: RuntimeTargetApp, prerender: SSGPrerender): boolean {
+function hasRequestLoader(app: RuntimeTargetApp, prerender: RoutePrerender): boolean {
   return (
     app.root.route.requestLoader !== undefined ||
     prerender.route.routeChain.some((route) => route.requestLoader !== undefined)
   );
 }
 
-async function addSsgFallback(
+async function addPrerenderFallback(
   spec: PrerenderSpec,
   physicalRoutePath: string,
-  prerender: SSGPrerender,
+  prerender: RoutePrerender,
   functionsDir: string
 ): Promise<void> {
   const fallback = `${basename(spec.functionName)}.prerender-fallback.html`;
@@ -280,7 +280,7 @@ async function createPrerenderSpecs(
   for (let appIndex = 0; appIndex < apps.length; appIndex += 1) {
     const app = apps[appIndex] as RuntimeTargetApp;
     const build = builds[appIndex] as RuntimeAppBuild;
-    for (const prerender of build.ssgPrerenders) {
+    for (const prerender of build.prerenders) {
       if (hasRequestLoader(app, prerender)) {
         continue;
       }
@@ -299,7 +299,7 @@ async function createPrerenderSpecs(
         specs.set(source, spec);
       }
       // biome-ignore lint/performance/noAwaitInLoops: each fallback may consume a unique redirect response body.
-      await addSsgFallback(spec, routePath, prerender, functionsDir);
+      await addPrerenderFallback(spec, routePath, prerender, functionsDir);
     }
   }
 
@@ -583,9 +583,9 @@ export async function buildVercelTarget(
 
   const ssgRoutes = builds
     .flatMap((build, index) =>
-      build.ssgPrerenders.map((prerender) =>
-        physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path)
-      )
+      build.prerenders
+        .filter((prerender) => prerender.route.mode === "ssg")
+        .map((prerender) => physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path))
     )
     .toSorted();
   const isrRoutes = apps

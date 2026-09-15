@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: NDJSON stream chunks must be read sequentially
 import type { SerovalNode } from "seroval";
 import { fromCrossJSON } from "seroval";
+import { parseCompactJsonLine } from "./compact-json.ts";
 import { isRouteFrameLine, parseRouteFrameLines } from "./route-frame.ts";
 
 /**
@@ -30,12 +31,13 @@ function makeAbortError(reason: unknown): Error {
 /**
  * Parses an NDJSON stream produced by `/_furin/data`.
  *
- * Protocol (v1 — single-line, all-resolved):
- *   Line 0 — `JSON.stringify(await toCrossJSONAsync(loaderData))`
+ * Single-line, all-resolved payloads use either a compact JSON envelope for
+ * ordinary JSON data or CrossJSON when richer JavaScript semantics must be
+ * preserved. Deferred and RSC payloads use Route Frames.
  *
- * The CrossJSON node is deserialised with `fromCrossJSON`. Values that are
- * Promises (seroval type 12) land in `deferredPromises`; everything else
- * lands in `syncData`.
+ * CrossJSON nodes are deserialised with `fromCrossJSON`. Values that are
+ * Promises (seroval type 12) land in `deferredPromises`; everything else lands
+ * in `syncData`.
  *
  * @param stream - A `ReadableStream<Uint8Array>` from `fetch().body`.
  * @param signal - AbortSignal that, when aborted, cancels the reader and
@@ -145,7 +147,19 @@ export async function parseDeferredNdjson(
     return { deferredPromises: result.deferredPromises, syncData: result.syncData };
   }
 
-  const node = JSON.parse(firstLine) as SerovalNode;
+  const parsed = JSON.parse(firstLine) as unknown;
+  const compactJson = parseCompactJsonLine(parsed);
+  if (compactJson !== undefined) {
+    cleanupAbortHandler();
+    try {
+      reader.releaseLock();
+    } catch {
+      /* already released */
+    }
+    return { deferredPromises: {}, syncData: compactJson };
+  }
+
+  const node = parsed as SerovalNode;
   const deserialized = fromCrossJSON(node, {}) as Record<string, unknown>;
 
   const syncData: Record<string, unknown> = {};

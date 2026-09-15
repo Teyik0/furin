@@ -239,7 +239,7 @@ describe("GET /_furin/data", () => {
     const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fquery-default"));
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("application/x-furin-route");
+    expect(res.headers.get("content-type")).toContain("application/x-ndjson");
 
     const { syncData } = await parseDeferredNdjson(
       res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
@@ -347,7 +347,7 @@ describe("GET /_furin/data", () => {
     const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("application/x-furin-route");
+    expect(res.headers.get("content-type")).toContain("application/x-ndjson");
 
     const { syncData, deferredPromises } = await parseDeferredNdjson(
       res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),

@@ -14,6 +14,7 @@ import {
 } from "../../client/router/search-store.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { HeadOptions } from "../../client.ts";
+import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
@@ -727,11 +728,11 @@ export async function serializeLoaderDataNdjson(
     ...syncData,
     ...(deferredPromises ?? {}),
   };
-  if (containsRscSource(payload) || deferredPromises !== undefined) {
-    const deferredEntries = Object.entries(deferredPromises ?? {});
+  const deferredEntries = Object.entries(deferredPromises ?? {});
+  if (containsRscSource(payload) || deferredEntries.length > 0) {
     let ndjson = serializeRouteFrames(
       syncData,
-      deferredEntries.length > 0 ? deferredEntries.map(([key]) => key) : undefined
+      deferredEntries.map(([key]) => key)
     );
     await Promise.all(
       deferredEntries.map(async ([key, promise], index) => {
@@ -739,6 +740,10 @@ export async function serializeLoaderDataNdjson(
       })
     );
     return ndjson;
+  }
+  const compactJson = serializeCompactJsonLine(payload);
+  if (compactJson !== undefined) {
+    return compactJson;
   }
   const serialized = await toCrossJSONAsync(payload);
   return `${JSON.stringify(serialized)}\n`;

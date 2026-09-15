@@ -120,11 +120,11 @@ bunx vercel deploy --prebuilt
 |------------|----------------|
 | `ssr` | Bun catch-all Function |
 | `ssg` | Prerender Function with `expiration: false` and a build-time HTML fallback when the URL is known |
-| `isr` | Prerender Function whose expiration matches the route's `revalidate` value |
+| `isr` | Prerender Function whose expiration matches `revalidate`, with a build-time fallback for request-independent URLs |
 
-Dynamic SSG URLs returned by `staticParams()` receive individual build-time fallbacks. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
+Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema or a `requestLoader` remain on-demand so a shared fallback cannot expose request-specific content. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
-The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
+The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
 SSR payloads, request-specific loaders, deferred streams, redirects, not-found results, and errors are explicitly `private, no-store`.
 
@@ -147,7 +147,7 @@ Region identifiers must use Vercel's lowercase region-code format, such as `cdg1
 The generated Function uses a lightweight bootstrap in front of the application bundle. Dynamic responses expose:
 
 ```text
-Server-Timing: furin_module_init;dur=104.74, furin_server_init;dur=12.8, furin_handler_wait;dur=0.1
+Server-Timing: furin_module_init;dur=104.74, furin_server_init;dur=12.8, furin_handler_wait;dur=0.1, furin_handler;dur=2.4
 ```
 
 | Metric | Meaning |
@@ -155,6 +155,7 @@ Server-Timing: furin_module_init;dur=104.74, furin_server_init;dur=12.8, furin_h
 | `furin_module_init` | Parse and evaluate the complete server bundle |
 | `furin_server_init` | Import the user server entry and assemble the Elysia application |
 | `furin_handler_wait` | Time the request waited for module initialization |
+| `furin_handler` | Time Furin spent creating the response after initialization |
 
 The first request handled by a Function instance also emits a structured `vercel_cold_start` event containing these timings, route/app counts, region, and raw server-bundle bytes.
 

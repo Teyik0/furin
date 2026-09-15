@@ -3,7 +3,7 @@ import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
-import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
+import { containsRscSource } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { useLogger } from "../context-logger.ts";
 import {
@@ -23,7 +23,7 @@ import { renderPprRoute } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { extractTitle } from "../render/shell.ts";
 import { prerenderSSG } from "../render/ssg.ts";
-import { renderSSR } from "../render/ssr.ts";
+import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
 import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
@@ -115,16 +115,13 @@ async function serializeLoaderDataResponse(
       }
     );
   }
-  const body = serializeRouteFrames(syncDataWithTitle, undefined);
-  emitSerializedPayload(
-    body,
-    containsRscSource(syncDataWithTitle) ? "rsc" : "route-data",
-    requestUrl
-  );
+  const hasRsc = containsRscSource(syncDataWithTitle);
+  const body = await serializeLoaderDataNdjson(syncDataWithTitle, undefined);
+  emitSerializedPayload(body, hasRsc ? "rsc" : "route-data", requestUrl);
   return new Response(body, {
     headers: {
       ...result.headers,
-      "content-type": "application/x-furin-route",
+      "content-type": hasRsc ? "application/x-furin-route" : "application/x-ndjson",
     },
   });
 }

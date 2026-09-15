@@ -49,6 +49,21 @@ function createVercelApp(): TmpApp {
       "",
     ].join("\n")
   );
+  writeAppFile(
+    app.path,
+    "src/pages/search.tsx",
+    [
+      'import { t } from "elysia";',
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
+      '  .loader(({ query }) => ({ q: query.q }))',
+      '  .page(({ data }) => <main>Search: {data.q}</main>);',
+      "",
+    ].join("\n")
+  );
   return app;
 }
 
@@ -125,9 +140,16 @@ describe.serial("Vercel deployment adapter", () => {
       expect(existsSync(join(outputDir, "static/_client/_hydrate.js"))).toBe(true);
       expect(existsSync(join(outputDir, "static/.gitkeep"))).toBe(true);
       expect(lstatSync(join(functionsDir, "news-isr.func")).isSymbolicLink()).toBe(true);
-      expect(
-        JSON.parse(readFileSync(join(functionsDir, "news-isr.prerender-config.json"), "utf8"))
-      ).toEqual({ expiration: 90, passQuery: true });
+      const newsPrerender = JSON.parse(
+        readFileSync(join(functionsDir, "news-isr.prerender-config.json"), "utf8")
+      );
+      expect(newsPrerender.expiration).toBe(90);
+      expect(newsPrerender.fallback).toBe("news-isr.prerender-fallback.html");
+      expect(readFileSync(join(functionsDir, newsPrerender.fallback), "utf8")).toContain("News");
+      const searchPrerender = JSON.parse(
+        readFileSync(join(functionsDir, "search-isr.prerender-config.json"), "utf8")
+      );
+      expect(searchPrerender.fallback).toBeUndefined();
       expect(
         JSON.parse(
           readFileSync(
@@ -171,7 +193,7 @@ describe.serial("Vercel deployment adapter", () => {
       if (!manifest || !("isrRoutes" in manifest)) {
         throw new TypeError("Expected the Vercel target manifest");
       }
-      expect(manifest.isrRoutes).toEqual(["/news"]);
+      expect(manifest.isrRoutes).toEqual(["/news", "/search"]);
       expect(manifest.outputDir).toBe(".vercel/output");
       expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world"]);
     }

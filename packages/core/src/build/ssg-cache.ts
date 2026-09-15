@@ -1,13 +1,13 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: SSG cache generation runs routes sequentially for deterministic cache output
 import type { SsgCacheEntry } from "../server/cache/index.ts";
 import { resolvePath } from "../server/render/assemble.ts";
-import { prerenderSSG } from "../server/render/index.ts";
+import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 
 export type SSGCacheSnapshot = Record<string, SsgCacheEntry>;
 
-export interface SSGPrerender {
+export interface RoutePrerender {
   path: string;
   result: SsgCacheEntry | Response;
   route: ResolvedRoute;
@@ -15,24 +15,33 @@ export interface SSGPrerender {
 
 const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 
+function hasRequestDependentInput(route: ResolvedRoute, root: RootLayout): boolean {
+  return [root.route, ...route.routeChain].some(
+    (routeConfig) =>
+      routeConfig.query !== undefined || routeConfig.requestLoader !== undefined
+  );
+}
+
 /**
- * Renders every SSG URL known at build time. Fixed routes are always known;
- * dynamic routes contribute the values returned by staticParams().
+ * Renders every selected route URL known at build time. Fixed routes are always
+ * known; dynamic routes contribute the values returned by staticParams(). ISR
+ * routes with query schemas or request loaders stay on-demand because their
+ * output can vary per request.
  */
-export async function buildSSGPrerenders(
+export async function buildRoutePrerenders(
   routes: ResolvedRoute[],
   root: RootLayout,
   origin: string,
-  // Build-time renders run OUTSIDE any instance scope (default bucket), so a
-  // prefixed app's mount prefix must be passed explicitly — otherwise the
-  // snapshot HTML bakes in basePath "" and prerendered <Link> hrefs lose it.
-  basePath?: string
-): Promise<SSGPrerender[]> {
-  const prerenders: SSGPrerender[] = [];
+  basePath: string
+): Promise<RoutePrerender[]> {
+  const prerenders: RoutePrerender[] = [];
   const searchRoutes = createSearchRouteMetadata(routes);
 
   for (const route of routes) {
-    if (route.mode !== "ssg") {
+    if (route.mode === "ssr") {
+      continue;
+    }
+    if (route.mode === "isr" && hasRequestDependentInput(route, root)) {
       continue;
     }
 
@@ -53,7 +62,18 @@ export async function buildSSGPrerenders(
 
     for (const params of paramSets) {
       const path = resolvePath(route.pattern, params);
-      const result = await prerenderSSG(route, params, root, origin, basePath, searchRoutes);
+      const result =
+        route.mode === "ssg"
+          ? await prerenderSSG(route, params, root, origin, basePath, searchRoutes)
+          : await prerenderRoute(
+              route,
+              params,
+              root,
+              origin,
+              "isr",
+              basePath,
+              searchRoutes
+            );
       prerenders.push({ path, result, route });
     }
   }

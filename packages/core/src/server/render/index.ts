@@ -11,7 +11,7 @@ export {
 } from "./loaders.ts";
 export { renderRootNotFound } from "./not-found.ts";
 
-export { prerenderSSG, warmSSGCache } from "./ssg.ts";
+export { prerenderRoute, prerenderSSG, warmSSGCache } from "./ssg.ts";
 export {
   assertDeferredModeAllowed,
   type PreparedRender,

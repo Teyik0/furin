@@ -5,10 +5,10 @@ import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
 import { toPosixPath } from "../build/shared.ts";
 import {
+  buildRoutePrerenders,
   buildSSGCacheSnapshot,
-  buildSSGPrerenders,
+  type RoutePrerender,
   type SSGCacheSnapshot,
-  type SSGPrerender,
 } from "../build/ssg-cache.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
@@ -146,7 +146,7 @@ export interface RuntimeAppBuild {
   clientDir: string;
   entryApp: BuildEntryOptions["apps"][number];
   indexHtml: string;
-  ssgPrerenders: SSGPrerender[];
+  prerenders: RoutePrerender[];
 }
 
 /** Builds one app's client bundle and compile-context payload. */
@@ -196,13 +196,13 @@ export async function buildRuntimeApp(
   setProductionTemplateContent(indexHtml);
   ssgRouteCache().clear();
   let ssgCache: SSGCacheSnapshot | undefined;
-  let ssgPrerenders: SSGPrerender[] = [];
+  let prerenders: RoutePrerender[] = [];
   if (serverEntry) {
     if (targetName === "vercel") {
       ssgCache = {};
-      ssgPrerenders = await buildSSGPrerenders(routes, root, "http://localhost", prefix);
-      for (const prerender of ssgPrerenders) {
-        if (!(prerender.result instanceof Response)) {
+      prerenders = await buildRoutePrerenders(routes, root, "http://localhost", prefix);
+      for (const prerender of prerenders) {
+        if (prerender.route.mode === "ssg" && !(prerender.result instanceof Response)) {
           ssgCache[prerender.path] = prerender.result;
         }
       }
@@ -235,7 +235,7 @@ export async function buildRuntimeApp(
       ssgCache,
     },
     indexHtml,
-    ssgPrerenders,
+    prerenders,
   };
 }
 
