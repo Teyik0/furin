@@ -1,9 +1,36 @@
 # CLI Reference
 
-The Furin CLI builds production artifacts and previews static exports. Development runs the application entry directly with Bun.
+Furin ships with a CLI for the Bun-powered development server, production builds, and static previews.
+
+---
+
+## `furin dev`
+
+Run the application's server entry with Bun hot reload:
+
+```bash
+bunx furin dev [options]
+```
+
+The command uses `serverEntry` from `furin.config.ts`, or `src/server.ts` when it is not configured. It sets `PORT`, starts the entry with `bun --hot`, and prints both local URLs:
+
+```text
+◆ Development server starting
+  Local:     http://localhost:3000/
+  DevTools:  http://localhost:3000/_furin/devtools
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--config` | `string` | `furin.config.ts` | Config file path |
+| `--port` | `number` | `PORT` or `3000` | Listening port exposed through `process.env.PORT` |
+| `--open-devtools` | `boolean` | `false` | Open the Furin DevTools dashboard once the server responds |
+
+No browser is opened unless `--open-devtools` is explicitly provided.
 
 ```sh
 furin help
+furin dev
 furin build
 furin preview
 ```
@@ -90,8 +117,17 @@ Preview handles clean HTML routes and the generated `404.html` fallback. It is a
 
 ## Development
 
+`furin dev` remains a small supervisor around Bun rather than replacing the application's Elysia entrypoint. This preserves custom plugins, middleware, and `.listen()` configuration while giving you:
+
+- React Fast Refresh
+- Server-side hot reload
+- File-system-based routing updates
+- the dedicated Furin DevTools dashboard
+
+The direct Bun command remains supported:
+
 ```sh
 bun --hot src/server.ts
 ```
 
-The scaffolder maps that command to `bun run dev`. Route discovery, generated types, React Fast Refresh, server re-imports, diagnostics, and DevTools are activated by `furin()` in development; there is no separate `furin dev` command.
+Route discovery, generated types, React Fast Refresh, server re-imports, diagnostics, and DevTools are activated by `furin()` in development. See [Dev Mode HMR](/docs/dev-hmr) for the full internals.

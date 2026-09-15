@@ -39,6 +39,20 @@ const DIAGNOSTIC_STATE_RE =
   /<script id="__FURIN_DEV_DIAGNOSTIC__" type="application\/json">(.+?)<\/script>/;
 const DIAGNOSTIC_EVENT_TIMEOUT_MS = 10_000;
 
+interface DevelopmentPageResponse {
+  html: string;
+  response: Response;
+}
+
+async function fetchDevelopmentPage(url: string): Promise<DevelopmentPageResponse | undefined> {
+  try {
+    const response = await fetch(url);
+    return { html: await response.text(), response };
+  } catch {
+    // Bun can briefly close the listener or response body while applying a hot update.
+  }
+}
+
 async function openDiagnosticSocket(port: number): Promise<DiagnosticSocket> {
   const socket = new WebSocket(`ws://localhost:${port}/_furin/events`);
   const events: DevDiagnosticEvent[] = [];
@@ -185,12 +199,8 @@ describe.serial("development diagnostics", () => {
     });
 
     for (let attempt = 0; attempt < 80; attempt += 1) {
-      try {
-        if ((await fetch(`http://localhost:${port}/`)).ok) {
-          return;
-        }
-      } catch {
-        // The server is still starting.
+      if ((await fetchDevelopmentPage(`http://localhost:${port}/`))?.response.ok) {
+        return;
       }
       await Bun.sleep(250);
     }
@@ -212,9 +222,10 @@ describe.serial("development diagnostics", () => {
     let response: Response | undefined;
     let html = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      response = await fetch(`http://localhost:${port}/`);
-      html = await response.text();
-      if (response.status === 500 && html.includes("__FURIN_DEV_DIAGNOSTIC__")) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      response = page?.response;
+      html = page?.html ?? "";
+      if (response?.status === 500 && html.includes("__FURIN_DEV_DIAGNOSTIC__")) {
         break;
       }
       await Bun.sleep(250);
@@ -251,9 +262,9 @@ describe.serial("development diagnostics", () => {
     writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Recovery baseline"));
     let baselineHtml = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const response = await fetch(`http://localhost:${port}/`);
-      baselineHtml = await response.text();
-      if (response.ok && baselineHtml.includes("Recovery baseline")) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      baselineHtml = page?.html ?? "";
+      if (page?.response.ok && baselineHtml.includes("Recovery baseline")) {
         break;
       }
       await Bun.sleep(250);
@@ -268,8 +279,8 @@ describe.serial("development diagnostics", () => {
 throw new Error("recovery exploded");`
     );
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const response = await fetch(`http://localhost:${port}/`);
-      if (response.status === 500) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      if (page?.response.status === 500) {
         break;
       }
       await Bun.sleep(250);
@@ -284,9 +295,9 @@ throw new Error("recovery exploded");`
     writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Healthy again"));
     let html = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const response = await fetch(`http://localhost:${port}/`);
-      html = await response.text();
-      if (response.ok && html.includes("Healthy again")) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      html = page?.html ?? "";
+      if (page?.response.ok && html.includes("Healthy again")) {
         break;
       }
       await Bun.sleep(250);
@@ -317,8 +328,8 @@ throw new Error("recovery exploded");`
       ].join("\n")
     );
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const page = await fetch(`http://localhost:${port}/`);
-      if (page.ok && (await page.text()).includes("Client card")) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      if (page?.response.ok && page.html.includes("Client card")) {
         break;
       }
       await Bun.sleep(250);
@@ -357,8 +368,8 @@ throw new Error("recovery exploded");`
       ].join("\n")
     );
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const page = await fetch(`http://localhost:${port}/blog/post-1`);
-      if (page.ok && (await page.text()).includes("Dynamic client page")) {
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/blog/post-1`);
+      if (page?.response.ok && page.html.includes("Dynamic client page")) {
         break;
       }
       await Bun.sleep(250);
@@ -385,8 +396,9 @@ throw new Error("recovery exploded");`
     let response: Response | undefined;
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      response = await fetch(`http://localhost:${port}/`);
-      const html = await response.text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      response = page?.response;
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -408,7 +420,8 @@ throw new Error("recovery exploded");`
 
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -430,8 +443,9 @@ throw new Error("recovery exploded");`
     let response: Response | undefined;
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      response = await fetch(`http://localhost:${port}/`);
-      const html = await response.text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      response = page?.response;
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -453,7 +467,8 @@ throw new Error("recovery exploded");`
 
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -477,7 +492,8 @@ throw new Error("recovery exploded");`
 
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -503,7 +519,8 @@ throw new Error("recovery exploded");`
 
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
@@ -537,7 +554,8 @@ throw new Error("recovery exploded");`
 
     let state: EmbeddedDiagnosticState | undefined;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const html = await (await fetch(`http://localhost:${port}/`)).text();
+      const page = await fetchDevelopmentPage(`http://localhost:${port}/`);
+      const html = page?.html ?? "";
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;

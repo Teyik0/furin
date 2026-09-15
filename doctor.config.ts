@@ -63,6 +63,27 @@ export default {
         rules: ["react-doctor/no-multi-comp"],
       },
       {
+        // The isolated DevTools client owns its fetch/SSE lifecycle. The effect
+        // returns cleanup for its EventSource, retry timeout and refresh interval,
+        // but React Doctor cannot follow the resources assigned by async connect().
+        files: ["src/devtools/dashboard.tsx"],
+        rules: [
+          "react-doctor/effect-needs-cleanup",
+          "react-doctor/no-fetch-in-effect",
+          "react-doctor/no-high-complexity-react-function",
+        ],
+      },
+      {
+        // These files generate source or reconcile watcher inputs; their ordered
+        // array passes are intentional and independent from React render work.
+        files: ["src/build/hydrate.ts"],
+        rules: ["react-doctor/js-combine-iterations", "react-doctor/js-tosorted-immutable"],
+      },
+      {
+        files: ["src/plugin/routes.ts"],
+        rules: ["react-doctor/js-combine-iterations"],
+      },
+      {
         files: ["src/pages/docs/*.tsx", "src/components/ui/button.tsx"],
         rules: ["react-doctor/only-export-components"],
       },

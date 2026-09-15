@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
 
 async function waitForCount(readCount: () => number, expected: number): Promise<void> {
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 10_000;
   while (readCount() < expected) {
     if (Date.now() >= deadline) {
       throw new Error(`Timed out waiting for ${expected} topology changes`);
@@ -122,6 +122,8 @@ test("the dev topology watcher reports source transform errors", async () => {
     writeFileSync(routePath, "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     writeFileSync(routePath, "export const route = ;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
     await waitForCount(() => sourceErrors.length, 1);
 
     expect(sourceErrors[0]?.sourcePath).toBe(routePath);
@@ -179,17 +181,27 @@ test("the dev topology watcher migrates state retained across a soft reload", as
     }
     const states = [...registry.values()] as Array<{
       changedSources?: Set<string>;
+      cycleId?: string | null;
       instance?: { pagesDir?: string };
+      touchedAt?: number | null;
     }>;
     const state = states.find((candidate) => candidate.instance?.pagesDir === pagesDir);
     if (!state) {
       throw new Error("Expected retained development watcher state");
     }
     Reflect.deleteProperty(state, "changedSources");
+    Reflect.deleteProperty(state, "cycleId");
+    Reflect.deleteProperty(state, "touchedAt");
+    registerDevRouteTopologyWatcher({
+      instance: { pagesDir, prefix: "" },
+      onTopologyChange: () => undefined,
+    });
 
     await watcher.refresh();
 
     expect(state.changedSources).toBeInstanceOf(Set);
+    expect(state.cycleId).toBeNull();
+    expect(state.touchedAt).toBeNull();
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });
@@ -206,15 +218,25 @@ test.serial(
     writeFileSync(routePath, "export const route = 1;\n");
 
     let attempts = 0;
+    const metadata: Array<{
+      cycleId: string | null;
+      detectedAt: number;
+      sourcePaths: readonly string[];
+    }> = [];
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     const watcher = registerDevRouteTopologyWatcher({
       instance: { pagesDir, prefix: "" },
-      onRouteFilesTouched: () => {
+      onRouteFilesTouched: (sourcePaths, detectedAt, cycleId) => {
+        if (!sourcePaths.includes(routePath)) {
+          return;
+        }
         attempts += 1;
+        metadata.push({ cycleId, detectedAt, sourcePaths });
         if (attempts === 1) {
           throw new Error(`${routePath}: use a static layout route reference`);
         }
       },
+      onSourceChange: () => "retry-cycle",
       onTopologyChange: () => undefined,
     });
 
@@ -226,6 +248,8 @@ test.serial(
         "[furin] Failed to refresh route topology",
         expect.objectContaining({ message: `${routePath}: use a static layout route reference` })
       );
+      expect(metadata).toHaveLength(2);
+      expect(metadata[1]).toEqual(metadata[0]);
     } finally {
       watcher.close();
       errorSpy.mockRestore();

@@ -420,5 +420,29 @@ request, loader, cache, payload, asset, and sync telemetry. It is adjacent to
 HMR but not part of the invalidation protocol: diagnostics answer "why did this
 revision fail?", while DevTools answers "what did the successful request do?".
 
-DevTools endpoints live under `/_furin/devtools/*`, are scoped by instance, and
-are excluded from production together with their instrumentation implementation.
+Furin serves a dedicated development control room at `/_furin/devtools` (or under the mounted app prefix). Run `furin dev` to print the application and dashboard URLs, or `furin dev --open-devtools` to open the dashboard explicitly when the server is ready.
+
+The application only receives a compact HMR status launcher. Clicking it opens the dashboard in a separate tab, so diagnostics remain visible across application navigation and full reloads.
+
+The dashboard includes:
+
+- HMR cycles with the invalidating source, server rebuilds, client modules observed by Bun's public plugin hooks, and watcher → build → socket → apply → next-paint timings
+- native Bun HMR connection state per application tab and retained full-reload reasons
+- server RSS, JavaScript heap usage, and Furin dependency-graph node/edge counts
+- completed requests, loader activity, cache hit rate, and transferred bytes
+- discovered routes, source files, rendering modes, loaders, and cache tags
+- correlated loader timings and returned field names
+- current ISR/SSG loader cache metadata, hit/miss/stale decisions, and invalidations
+- the application's shared browser-event transport state and sync cursors
+- browser Resource Timing measurements for transferred, encoded, and decoded assets
+- serialized RSC and route-data wire sizes
+
+Loader and cache values are never sent to the browser. DevTools only receives names, timings, sizes, status, and project-relative source paths.
+
+Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>.</kbd> from the application to open the dedicated dashboard.
+
+Bun does not expose its private incremental module graph or attach module/build identifiers to the public HMR events. Furin therefore reports client modules as **observed** plugin loads and uses its own watcher-backed cycle identifiers. Server rebuild and Furin graph measurements are exact; “next paint” is the next browser paint opportunity after the update, not a GPU compositor measurement.
+
+The internal snapshot, browser-event ingest, and assets live under `/_furin/devtools/*` (or the mounted app prefix). Server events share the versioned `/_furin/events` WebSocket with diagnostics and sync. These are development-only implementation details. Production builds resolve the instrumentation boundary to an empty implementation before Bun traverses the server graph, so the routes, event hub, request context, client assets, and their marker strings are absent from application bundles and compiled binaries.
+
+For security, the internal endpoints accept loopback hosts and same-origin browser requests only. They are not available when the development server is opened through a remote host or proxy.

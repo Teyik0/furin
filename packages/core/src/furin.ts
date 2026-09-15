@@ -1,15 +1,17 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysiajs/static";
 import { type AnyElysia, Elysia, file } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
 import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
+import type { DevtoolsServerEventInput } from "./devtools/protocol.ts";
 import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
-import type { DevelopmentRouteSnapshot, DevGraph } from "./server/dev/graph.ts";
+import type { DevelopmentRouteSnapshot, DevGraph, DevGraphEvent } from "./server/dev/graph.ts";
+import type { DevtoolsClientBuild } from "./server/devtools/build-observer.ts";
 import {
   createInstrumentationPlugin,
   instrumentationLoggerExclusions,
@@ -83,6 +85,74 @@ function repairedDevelopmentRoutes(
         snapshot.root.path === sourcePath || graph.dependsOn(snapshot.root.path, sourcePath)
     ),
   };
+}
+
+function relativeDevtoolsPath(cwd: string, path: string): string {
+  const sourcePath = isAbsolute(path) ? path : resolve(cwd, path);
+  const projected = relative(cwd, sourcePath).replaceAll("\\", "/");
+  return projected === ".." || projected.startsWith("../") ? basename(path) : projected;
+}
+
+function sanitizeDevtoolsText(
+  cwd: string,
+  value: string | null,
+  sourcePaths: string[]
+): string | null {
+  let sanitized = value?.replaceAll(cwd, ".").replaceAll(cwd.replaceAll("\\", "/"), ".") ?? null;
+  for (const sourcePath of sourcePaths.filter(isAbsolute)) {
+    sanitized = sanitized?.replaceAll(sourcePath, relativeDevtoolsPath(cwd, sourcePath)) ?? null;
+  }
+  return sanitized;
+}
+
+function devtoolsDiagnosticEvent(event: DevGraphEvent, cwd: string): DevtoolsServerEventInput {
+  if (event.type === "ready") {
+    return {
+      revision: event.revision,
+      timestamp: Date.now(),
+      type: "dev.ready",
+    };
+  }
+  const sourcePaths = [...(event.error.file ? [event.error.file] : []), ...event.error.importChain];
+  return {
+    error: {
+      ...event.error,
+      cause: sanitizeDevtoolsText(cwd, event.error.cause, sourcePaths),
+      file: event.error.file ? relativeDevtoolsPath(cwd, event.error.file) : null,
+      importChain: event.error.importChain.map((path) => relativeDevtoolsPath(cwd, path)),
+      message: sanitizeDevtoolsText(cwd, event.error.message, sourcePaths) ?? event.error.message,
+      stack: null,
+    },
+    revision: event.revision,
+    timestamp: Date.now(),
+    type: "dev.error",
+  };
+}
+
+function withAffectedDevtoolsClientBuild(
+  build: DevtoolsClientBuild,
+  belongsToInstance: (path: string) => boolean,
+  report: (build: DevtoolsClientBuild, changedModules: string[], rebuiltModules: string[]) => void
+): void {
+  const changedModules = build.changedModules.filter(belongsToInstance);
+  if (changedModules.length === 0) {
+    return;
+  }
+  report(build, changedModules, build.rebuiltModules.filter(belongsToInstance));
+}
+
+function subscribeDevtoolsGraph(
+  graph: DevGraph<DevelopmentRouteSnapshot | null>,
+  instance: FurinInstance,
+  cwd: string,
+  append: (event: DevtoolsServerEventInput) => unknown
+): { unsubscribe: () => void } {
+  const lastEvent = graph.events.at(-1);
+  return graph.subscribe(lastEvent?.id ?? 0, lastEvent?.serverId, (event) => {
+    withInstance(instance, () => {
+      append(devtoolsDiagnosticEvent(event, cwd));
+    });
+  });
 }
 
 import { clientDirNameForPrefix } from "./shared/prefix.ts";
@@ -620,6 +690,9 @@ export async function furin({
     const { createDevDiagnosticPlugin } = await import("./server/dev/plugin.ts");
     const { createDevelopmentBrowserEventSources } = await import("./server/dev/browser-events.ts");
     const { registerDevPagePlugin } = await import("./server/dev-page-plugin.ts");
+    const { nextDevtoolsBuildId, subscribeDevtoolsClientBuilds, takeDevtoolsPendingCycle } =
+      await import("./server/devtools/build-observer.ts");
+    const { appendDevtoolsEvent } = await import("./server/devtools/hub.ts");
     registerDevPagePlugin();
     const {
       registerDevRoutesPlugin,
@@ -661,7 +734,9 @@ export async function furin({
     };
     applyRouteConfigAutofix();
 
+    const toDevtoolsPath = (path: string): string => relativeDevtoolsPath(cwd, path);
     const graph = devGraph(instance);
+    const graphDiagnostics = subscribeDevtoolsGraph(graph, instance, cwd, appendDevtoolsEvent);
     const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
       const { furinShell } = (await import(routeModuleSpecifier(routeInstance))) as {
         furinShell: AnyElysia;
@@ -725,6 +800,98 @@ export async function furin({
     const publicExists = existsSync(publicDir);
     const hmrEntryPath = `${prefix}/_bun_hmr_entry`;
     let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
+    const normalizedDevPagesDir = resolvedPagesDir.replaceAll("\\", "/");
+    const pendingClientCycles: Array<{
+      cycleId: string;
+      detectedAt: number;
+      sourcePath: string;
+    }> = [];
+    const belongsToInstance = (path: string): boolean => {
+      const { snapshot } = graph;
+      const normalizedPath = path.replaceAll("\\", "/");
+      return (
+        path === snapshot?.root.path ||
+        normalizedPath.startsWith(`${normalizedDevPagesDir}/`) ||
+        snapshot?.routes.some((route) => graph.dependsOn(route.path, path)) === true
+      );
+    };
+    const unsubscribeClientBuilds = subscribeDevtoolsClientBuilds((build) => {
+      withAffectedDevtoolsClientBuild(
+        build,
+        belongsToInstance,
+        (affectedBuild, changedModules, rebuiltModules) => {
+          const matchedCycle = takeDevtoolsPendingCycle(pendingClientCycles, changedModules);
+          withInstance(instance, () => {
+            appendDevtoolsEvent({
+              ...affectedBuild,
+              changedModules: changedModules.map(toDevtoolsPath),
+              cycleId: matchedCycle?.cycleId ?? affectedBuild.cycleId,
+              detectedAt: matchedCycle?.detectedAt ?? affectedBuild.detectedAt,
+              rebuiltModules: rebuiltModules.map(toDevtoolsPath),
+              timestamp: Date.now(),
+              type: "hmr.build.finished",
+            });
+          });
+        }
+      );
+    });
+    const beginHmrCycle = (sourcePath: string, detectedAt: number): string => {
+      const cycleId = nextDevtoolsBuildId();
+      pendingClientCycles.push({ cycleId, detectedAt, sourcePath });
+      pendingClientCycles.splice(0, Math.max(0, pendingClientCycles.length - 50));
+      withInstance(instance, () => {
+        appendDevtoolsEvent({
+          changedModule: toDevtoolsPath(sourcePath),
+          cycleId,
+          detectedAt,
+          timestamp: Date.now(),
+          type: "hmr.cycle.started",
+        });
+      });
+      return cycleId;
+    };
+    const refreshAndReport = async (
+      sourcePaths: readonly string[],
+      detectedAt: number,
+      cycleId: string | null
+    ): Promise<void> => {
+      const correlatedCycleId =
+        cycleId ?? beginHmrCycle(sourcePaths[0] ?? resolvedPagesDir, detectedAt);
+      const startedAt = performance.now();
+      const startedAtEpoch = Date.now();
+      let status: "fulfilled" | "rejected" = "fulfilled";
+      applyRouteConfigAutofix();
+      try {
+        await refreshDevelopmentRoutes(sourcePaths);
+      } catch (error) {
+        status = "rejected";
+        throw error;
+      } finally {
+        const { snapshot } = graph;
+        const rebuiltModules = snapshot
+          ? [snapshot.root.path, ...snapshot.routes.map((route) => route.path)].filter(
+              (modulePath) =>
+                sourcePaths.some(
+                  (sourcePath) =>
+                    modulePath === sourcePath || graph.dependsOn(modulePath, sourcePath)
+                )
+            )
+          : [];
+        withInstance(instance, () => {
+          appendDevtoolsEvent({
+            changedModules: sourcePaths.map(toDevtoolsPath),
+            cycleId: correlatedCycleId,
+            detectedAt,
+            durationMs: performance.now() - startedAt,
+            rebuiltModules: rebuiltModules.map(toDevtoolsPath),
+            startedAt: startedAtEpoch,
+            status,
+            timestamp: Date.now(),
+            type: "hmr.server.finished",
+          });
+        });
+      }
+    };
 
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
     // physical when this plugin is merged into the parent app (child prefixes
@@ -737,10 +904,8 @@ export async function furin({
       .onStart(() => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
-          onRouteFilesTouched: async (sourcePaths) => {
-            applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes(sourcePaths);
-          },
+          onRouteFilesTouched: refreshAndReport,
+          onSourceChange: beginHmrCycle,
           onSourceError: (error, sourcePath) => {
             const route = currentSnapshot().routes.find((candidate) =>
               graph.dependsOn(candidate.path, sourcePath)
@@ -753,20 +918,21 @@ export async function furin({
               })
             );
           },
-          onTopologyChange: async (sourcePaths) => {
+          onTopologyChange: async (sourcePaths, detectedAt, cycleId) => {
             // Bun --hot cannot be triggered from generated artifacts (its
             // watch graph is the entry's static imports), so topology changes
             // are served by swapping the dispatcher's route matcher. Hot-added
             // routes then resolve through the NOT_FOUND fallback below;
             // removed routes 404 through the renderer's miss path.
-            applyRouteConfigAutofix();
-            await refreshDevelopmentRoutes(sourcePaths);
+            await refreshAndReport(sourcePaths, detectedAt, cycleId);
           },
         });
       })
       .onStop(() => {
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
+        graphDiagnostics.unsubscribe();
+        unsubscribeClientBuilds();
       })
       // Elysia 1.4.30 only preserves Bun's native HTMLBundle handler when the
       // bundle is also present in serve.routes once request hooks are installed.

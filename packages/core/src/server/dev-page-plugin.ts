@@ -70,6 +70,7 @@ export const WORKSPACE_SOURCE_FILTER =
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
+const DELETED_DEV_SOURCE = "export {};\n";
 
 let _pluginRegistered = false;
 
@@ -389,6 +390,17 @@ export function transformDevSource(
   }
 }
 
+async function readDevSource(filePath: string): Promise<string> {
+  try {
+    return await Bun.file(filePath).text();
+  } catch (error) {
+    if (error instanceof Error && Reflect.get(error, "code") === "ENOENT") {
+      return DELETED_DEV_SOURCE;
+    }
+    throw error;
+  }
+}
+
 export function registerDevPagePlugin(): void {
   if (_pluginRegistered) {
     return;
@@ -421,7 +433,7 @@ export function registerDevPagePlugin(): void {
        * keeping the files in Bun's watched graph for root.tsx HMR.
        */
       build.onLoad({ filter: WORKSPACE_SOURCE_FILTER }, async (args) => {
-        const raw = await Bun.file(args.path).text();
+        const raw = await readDevSource(args.path);
         const loader = getSourceLoader(args.path);
         if (!loader) {
           throw new Error(`[furin] Unsupported source loader for ${args.path}`);
@@ -493,7 +505,7 @@ export function registerDevPagePlugin(): void {
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
-        const raw = await Bun.file(filePath).text();
+        const raw = await readDevSource(filePath);
         let contents: string;
         try {
           contents = transformDevSource(raw, filePath, {
