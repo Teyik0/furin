@@ -5,6 +5,7 @@
  * Regression test for: "dispatcher is null" hook crash on HMR.
  */
 import { describe, expect, test } from "bun:test";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
@@ -20,11 +21,15 @@ const CORE_DIR = import.meta.dir.replace(/\/tests(?:\/.*)?$/, "");
 const TMP_DIR = join(CORE_DIR, ".tmp-tests", "react-singleton");
 
 describe("furin-dev-page React singleton", () => {
-  test("a deleted virtual page rejects without crashing the plugin loader", async () => {
-    const missingPath = join(TMP_DIR, `deleted-${Date.now()}.tsx`);
+  test("a deleted virtual page becomes a tombstone without crashing the plugin loader", () =>
+    withTmpPage(TMP_DIR, "export const route = { component: () => null };", async (pagePath) => {
+      const loaded = await import(`${pagePath}?furin-server&t=${Date.now()}`);
+      expect(loaded.route).toBeDefined();
+      rmSync(pagePath);
 
-    await expect(import(`${missingPath}?furin-server&t=${Date.now()}`)).rejects.toThrow();
-  });
+      const deleted = await import(`${pagePath}?furin-server&t=${Date.now() + 1}`);
+      expect(Object.keys(deleted)).toEqual([]);
+    }));
 
   test("useState from virtual namespace is the same reference as the main process useState", () =>
     withTmpPage(
