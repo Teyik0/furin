@@ -443,11 +443,14 @@ async function handle(request) {
     }));
   }
 
+  const handlerStartedAt = performance.now();
   const response = await ready.handlerModule.default.fetch(request);
+  const handlerMs = Math.round((performance.now() - handlerStartedAt) * 100) / 100;
   const serverTiming = [
     \`furin_module_init;dur=\${ready.moduleInitMs}\`,
     \`furin_server_init;dur=\${initialization.server_init_ms}\`,
     \`furin_handler_wait;dur=\${requestWaitMs}\`,
+    \`furin_handler;dur=\${handlerMs}\`,
   ].join(", ");
   return appendServerTiming(response, serverTiming);
 }

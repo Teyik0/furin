@@ -331,6 +331,7 @@ describe.serial("Vercel deployment adapter", () => {
     expect(result.dataTag).toBe("/");
     expect(result.serverTiming).toContain("furin_module_init;dur=");
     expect(result.serverTiming).toContain("furin_server_init;dur=");
+    expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
     expect(result.purged).toEqual([["/"]]);
     expect(result.ssgTag).toBe("/");

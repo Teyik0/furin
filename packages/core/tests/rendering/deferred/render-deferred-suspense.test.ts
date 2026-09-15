@@ -44,6 +44,57 @@ async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: Resol
 }
 
 describe.serial("renderSSR deferred Suspense scenarios", () => {
+  test.serial("renderSSR flushes the Suspense shell before deferred data settles", async () => {
+    __setDevMode(false);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const fixture = await getSsrFixtureRoute();
+    let resolveSlow: ((value: string) => void) | undefined;
+    const slow = new Promise<string>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const customRoute = asResolvedRoute({
+      ...fixture.ssrRoute,
+      page: {
+        ...fixture.ssrRoute.page,
+        component: (props: { [key: string]: unknown }) =>
+          createElement(
+            Suspense,
+            { fallback: createElement("span", null, "loading") },
+            createElement(Await<unknown>, {
+              // biome-ignore lint/correctness/noChildrenProp: render-prop pattern — children is a function, not a ReactNode
+              children: (value: unknown) => createElement("span", null, String(value)),
+              resolve: props.slow as Promise<unknown>,
+            })
+          ),
+        loader: () => defer({ slow }),
+      },
+    });
+
+    const response = await renderSSR(
+      customRoute,
+      createMockLoaderContext({ path: "/ssr-page" }),
+      fixture.root,
+      undefined
+    );
+    const reader = response.body?.getReader();
+    if (reader === undefined) {
+      throw new Error("SSR response did not contain a body");
+    }
+    const timeout = "timeout" as const;
+    const firstRead = reader.read();
+    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(100).then(() => timeout)]);
+
+    resolveSlow?.("done");
+    const first = firstOrTimeout === timeout ? await firstRead : firstOrTimeout;
+    // biome-ignore lint/performance/noAwaitInLoops: the response body must be drained sequentially.
+    while (!(await reader.read()).done) {
+      // Drain the stream so the deferred render can finish before asserting.
+    }
+
+    expect(firstOrTimeout).not.toBe(timeout);
+    expect(new TextDecoder().decode(first.value)).toContain("loading");
+  });
+
   test.serial("renderSSR streams deferred chunks in settlement order", async () => {
     __setDevMode(false);
     setProductionTemplateContent(TEST_TEMPLATE);

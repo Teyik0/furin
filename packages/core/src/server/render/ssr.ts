@@ -577,6 +577,24 @@ interface SsrTransportScripts {
   usesRouteFrames: boolean;
 }
 
+function injectBeforeEntry(html: string, injection: string, fallbackIndex: number): string {
+  const entryIndex = html.lastIndexOf("<script");
+  const insertionIndex =
+    entryIndex !== -1 && html.slice(entryIndex).includes('data-furin-entry=""')
+      ? entryIndex
+      : fallbackIndex;
+  return html.slice(0, insertionIndex) + injection + html.slice(insertionIndex);
+}
+
+function scriptsMarkerEnd(html: string): number | undefined {
+  const markerIndex = html.indexOf('data-furin-scripts=""');
+  if (markerIndex === -1) {
+    return;
+  }
+  const closeIndex = html.indexOf("</script>", markerIndex);
+  return closeIndex === -1 ? undefined : closeIndex + "</script>".length;
+}
+
 async function pipeDocumentStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   writer: WritableStreamDefaultWriter<Uint8Array>,
@@ -586,44 +604,50 @@ async function pipeDocumentStream(
 ): Promise<void> {
   const decoder = new TextDecoder();
   let pending = "";
+  let documentTail: string | undefined;
+  let entryHandled = false;
   for (;;) {
     // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
     const { done, value } = await reader.read();
     if (done) {
       break;
     }
-    pending += decoder.decode(value, { stream: true });
-    if (pending.length > 1024) {
-      await writer.write(enc.encode(pending.slice(0, -1024)));
-      pending = pending.slice(-1024);
+    const chunk = decoder.decode(value, { stream: true });
+    if (documentTail !== undefined) {
+      await writer.write(enc.encode(chunk));
+      continue;
+    }
+
+    pending += chunk;
+    const bodyCloseIndex = pending.toLowerCase().lastIndexOf("</body>");
+    if (bodyCloseIndex !== -1) {
+      const beforeBody = pending.slice(0, bodyCloseIndex);
+      const shell = entryHandled
+        ? beforeBody
+        : injectBeforeEntry(beforeBody, beforeEntry, beforeBody.length);
+      await writer.write(enc.encode(shell));
+      documentTail = pending.slice(bodyCloseIndex);
+      pending = "";
+      continue;
+    }
+
+    const scriptsEndIndex = scriptsMarkerEnd(pending);
+    if (scriptsEndIndex !== undefined) {
+      await writer.write(enc.encode(injectBeforeEntry(pending, beforeEntry, scriptsEndIndex)));
+      entryHandled = true;
+      pending = "";
     }
   }
-  pending += decoder.decode();
-
-  const entryIndex = pending.lastIndexOf("<script");
-  const entryIsInTail =
-    entryIndex !== -1 && pending.slice(entryIndex).includes('data-furin-entry=""');
-  const bodyCloseIndex = pending.toLowerCase().lastIndexOf("</body>");
-  if (bodyCloseIndex === -1) {
-    await writer.write(enc.encode(pending + beforeEntry + (await beforeBodyClose())));
+  const finalChunk = decoder.decode();
+  if (documentTail === undefined) {
+    await writer.write(enc.encode(pending + finalChunk + beforeEntry + (await beforeBodyClose())));
     return;
   }
 
-  let documentTail = pending;
-  if (beforeEntry && entryIsInTail) {
-    documentTail = pending.slice(0, entryIndex) + beforeEntry + pending.slice(entryIndex);
-  } else if (beforeEntry) {
-    documentTail = pending.slice(0, bodyCloseIndex) + beforeEntry + pending.slice(bodyCloseIndex);
+  if (finalChunk) {
+    await writer.write(enc.encode(finalChunk));
   }
-  const adjustedBodyCloseIndex = documentTail.toLowerCase().lastIndexOf("</body>");
-  const lateScripts = await beforeBodyClose();
-  await writer.write(
-    enc.encode(
-      documentTail.slice(0, adjustedBodyCloseIndex) +
-        lateScripts +
-        documentTail.slice(adjustedBodyCloseIndex)
-    )
-  );
+  await writer.write(enc.encode((await beforeBodyClose()) + documentTail));
 }
 
 function buildSsrTransportScripts(
