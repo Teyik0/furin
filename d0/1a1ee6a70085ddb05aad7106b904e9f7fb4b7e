@@ -1,0 +1,16 @@
+packages/core/src/server/dev-page-plugin.ts
+  h_a2cbd1b0e3ae6e 392-402,435-438,510-513
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  h_a2cbd1b0e3ae6e 23-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d01a1ee6a70085ddb05aad7106b904e9f7fb4b7e",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
