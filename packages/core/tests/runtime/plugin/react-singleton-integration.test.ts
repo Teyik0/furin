@@ -20,6 +20,12 @@ const CORE_DIR = import.meta.dir.replace(/\/tests(?:\/.*)?$/, "");
 const TMP_DIR = join(CORE_DIR, ".tmp-tests", "react-singleton");
 
 describe("furin-dev-page React singleton", () => {
+  test("a deleted virtual page rejects without crashing the plugin loader", async () => {
+    const missingPath = join(TMP_DIR, `deleted-${Date.now()}.tsx`);
+
+    await expect(import(`${missingPath}?furin-server&t=${Date.now()}`)).rejects.toThrow();
+  });
+
   test("useState from virtual namespace is the same reference as the main process useState", () =>
     withTmpPage(
       TMP_DIR,
