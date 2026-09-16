@@ -76,6 +76,120 @@ jobs:
         if: github.event_name == 'pull_request'
         run: bunx pkg-pr-new publish
 
+  vercel-benchmark:
+    name: Vercel framework benchmark
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Furin
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout benchmark
+        uses: actions/checkout@v7
+        with:
+          repository: Teyik0/furin-vercel-benchmarks
+          ref: da052573470d91caf84e191332516c40f027c899
+          path: .benchmark
+
+      - name: Cache bun
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-vercel-benchmark-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install Furin
+        run: bun install --frozen-lockfile
+
+      - name: Build and link Furin HEAD
+        working-directory: packages/core
+        run: |
+          bun run build
+          bun link
+
+      - name: Install benchmark
+        working-directory: .benchmark
+        run: bun install --frozen-lockfile
+
+      - name: Validate framework fixtures
+        working-directory: .benchmark
+        run: |
+          bun run link:furin
+          bun run build
+          bun run typecheck
+          bun test
+          bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-head.json"
+
+      - name: Check baseline support
+        id: benchmark-baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:packages/core/src/adapter/vercel.ts"; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build baseline benchmark
+        if: steps.benchmark-baseline.outputs.available == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/furin-benchmark-base" "$BASE_SHA"
+          cd "$RUNNER_TEMP/furin-benchmark-base"
+          bun install --frozen-lockfile
+          cd "$RUNNER_TEMP/furin-benchmark-base/packages/core"
+          bun run build
+          bun link
+          cd "$GITHUB_WORKSPACE/.benchmark"
+          bun install --frozen-lockfile --force
+          bun run link:furin
+          bun run --cwd apps/furin build
+          bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-base.json"
+
+      - name: Enforce benchmark budgets
+        if: steps.benchmark-baseline.outputs.available == 'true'
+        working-directory: .benchmark
+        run: |
+          set +e
+          bun scripts/compare-local-reports.ts \
+            "$RUNNER_TEMP/vercel-benchmark-base.json" \
+            "$RUNNER_TEMP/vercel-benchmark-head.json" \
+            "$RUNNER_TEMP/vercel-benchmark.md"
+          comparison_status=$?
+          set -e
+          cat "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$comparison_status"
+
+      - name: Bootstrap benchmark baseline
+        if: steps.benchmark-baseline.outputs.available != 'true'
+        run: |
+          {
+            echo "## Vercel framework benchmark"
+            echo
+            echo "The target branch does not contain the Vercel adapter yet. This PR establishes the external benchmark baseline."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: vercel-framework-benchmark
+          path: |
+            ${{ runner.temp }}/vercel-benchmark-head.json
+            ${{ runner.temp }}/vercel-benchmark-base.json
+            ${{ runner.temp }}/vercel-benchmark.md
+          if-no-files-found: ignore
+
   performance:
     name: Performance budgets
     if: github.event_name == 'pull_request'

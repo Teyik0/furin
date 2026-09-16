@@ -1,0 +1,91 @@
+name: Vercel Framework Benchmark
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: Deployment rounds per framework
+        required: false
+        default: "3"
+      warm_samples:
+        description: Warm samples per scenario and round
+        required: false
+        default: "5"
+
+permissions:
+  contents: read
+
+jobs:
+  live-vercel:
+    name: Live Vercel comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VERCEL_TEAM: ${{ vars.VERCEL_TEAM || 'teyik0-team' }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+    steps:
+      - name: Require Vercel credentials
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN is required for the live benchmark." >&2
+            exit 1
+          fi
+
+      - name: Checkout Furin
+        uses: actions/checkout@v7
+
+      - name: Checkout benchmark
+        uses: actions/checkout@v7
+        with:
+          repository: Teyik0/furin-vercel-benchmarks
+          ref: da052573470d91caf84e191332516c40f027c899
+          path: .benchmark
+
+      - name: Cache bun
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-live-vercel-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install Furin
+        run: bun install --frozen-lockfile
+
+      - name: Build and link Furin
+        working-directory: packages/core
+        run: |
+          bun run build
+          bun link
+
+      - name: Install benchmark
+        working-directory: .benchmark
+        run: |
+          bun install --frozen-lockfile
+          bun run link:furin
+          bunx playwright install --with-deps chromium
+
+      - name: Run live benchmark
+        working-directory: .benchmark
+        env:
+          BENCHMARK_ROUNDS: ${{ inputs.rounds || '3' }}
+          BENCHMARK_WARM_SAMPLES: ${{ inputs.warm_samples || '5' }}
+        run: |
+          bun run benchmark \
+            --rounds "$BENCHMARK_ROUNDS" \
+            --warm-samples "$BENCHMARK_WARM_SAMPLES"
+          latest_report="$(find reports -maxdepth 1 -name '*.md' -print | sort | sed -n '$p')"
+          cat "$latest_report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload live benchmark
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: live-vercel-benchmark
+          path: .benchmark/reports/
