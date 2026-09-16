@@ -1,0 +1,14 @@
+apps/docs/src/server.ts
+  h_a2cbd1b0e3ae6e 79-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cad98b374c4205d5ec063cfead446ff2ac5d2a12",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

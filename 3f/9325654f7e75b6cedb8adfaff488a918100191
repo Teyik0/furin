@@ -1,0 +1,21 @@
+packages/core/src/server/internal.ts
+  s_9b5c6c188e379a::t_4dd3d907bd9768 7-10,75-78
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_9b5c6c188e379a::t_371b06ed8d5021 233,235,239-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f9325654f7e75b6cedb8adfaff488a918100191",
+  "prompts": {},
+  "sessions": {
+    "s_9b5c6c188e379a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a8e8-a26a-7e00-b58e-2b3893226d2a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

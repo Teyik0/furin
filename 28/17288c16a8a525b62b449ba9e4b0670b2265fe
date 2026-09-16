@@ -1,0 +1,16 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 174-178,186,190
+.github/workflows/performance-comment.yaml
+  h_a2cbd1b0e3ae6e 18,23-40,43,47-48,51,54-58,63-66,77,82,86,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2817288c16a8a525b62b449ba9e4b0670b2265fe",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+.github/workflows/ci.yaml
+  s_9b5c6c188e379a::t_691986897a849c 79-192
+.github/workflows/vercel-benchmark.yaml
+  s_9b5c6c188e379a::t_161120e18b2c0e 1-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5d499a34783204cb4191d578bb7d4bdfe46bfb71",
+  "prompts": {},
+  "sessions": {
+    "s_9b5c6c188e379a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a8e8-a26a-7e00-b58e-2b3893226d2a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

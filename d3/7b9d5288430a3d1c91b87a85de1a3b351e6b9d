@@ -1,0 +1,14 @@
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  h_a2cbd1b0e3ae6e 42-49,196-197,219-221,258-260,275-276,291-293,324-325,364-365,392-393,415-416,438-439,461-462,486-487,513-514,548-549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d37b9d5288430a3d1c91b87a85de1a3b351e6b9d",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

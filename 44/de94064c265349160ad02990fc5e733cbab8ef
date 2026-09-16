@@ -1,0 +1,42 @@
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 123,125,127,150,158
+packages/core/src/adapter/README.md
+  h_a2cbd1b0e3ae6e 20-21,32-35,38-40
+packages/core/src/adapter/runtime-build.ts
+  h_a2cbd1b0e3ae6e 8,10,149,199,203-205,238
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 16,200,207,210,283,302,586-588
+packages/core/src/build/ssg-cache.ts
+  h_a2cbd1b0e3ae6e 4,10,18-24,26-29,31,35-37,41-44,65-76
+packages/core/src/server/render/index.ts
+  h_a2cbd1b0e3ae6e 14
+packages/core/src/server/render/ssg.ts
+  h_a2cbd1b0e3ae6e 11-41,62-64
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 17,731-732,735,744-747
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 6,26,118-120,124
+packages/core/src/shared/compact-json.ts
+  h_a2cbd1b0e3ae6e 1-72
+packages/core/src/shared/deferred-ndjson.ts
+  h_a2cbd1b0e3ae6e 4,34-36,38-40,150-162
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 52-66,143-152,196
+packages/core/tests/rendering/deferred/compact-loader-data.test.ts
+  h_a2cbd1b0e3ae6e 1-53
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  h_a2cbd1b0e3ae6e 242,350
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  h_a2cbd1b0e3ae6e 278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44de94064c265349160ad02990fc5e733cbab8ef",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
