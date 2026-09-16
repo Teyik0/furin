@@ -4,6 +4,10 @@ import {
   hasPendingISRRevalidations as hasPendingISR,
   waitForPendingISRRevalidations as waitForPendingISR,
 } from "./cache/isr.ts";
+import {
+  type RuntimeCacheProvider,
+  setRuntimeCacheProvider as setCacheProvider,
+} from "./cache/runtime-cache.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 
@@ -66,6 +70,10 @@ export function hasPendingISRRevalidations(): boolean {
 
 export function markExternalPrerenderRequest(request: Request): Request {
   return markExternalPrerender(request);
+}
+
+export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
+  setCacheProvider(provider);
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory

@@ -30,6 +30,10 @@ Vercel Prerender Function invocations bypass Furin's process-local SSG/ISR
 cache. The CDN owns freshness and each regeneration returns newly rendered
 HTML; the in-memory cache remains exclusive to development and Bun targets.
 
+The generated handler also installs Vercel Runtime Cache as the provider behind
+`@teyik0/furin/cache`. Application code keeps one portable cache API while
+development and Bun targets fall back to the in-memory provider.
+
 Successful `/_furin/data` responses for SSG/ISR routes share the document's
 cache tag and revalidation window. SSR, request-loader, deferred, and failed
 navigation responses remain `private, no-store`.

@@ -8,7 +8,7 @@ Furin caches complete public route results according to the route's explicit ren
 |---|---|---|
 | SSR | `no-store, no-cache, must-revalidate` | None |
 | SSG | `public, max-age=0, must-revalidate, s-maxage=31536000` | Build ID plus cache timestamp |
-| Fresh ISR | `public, max-age=0, must-revalidate, s-maxage=N, stale-while-revalidate=N` | Build ID plus generation timestamp |
+| Fresh ISR | `public, max-age=0, s-maxage=N, stale-while-revalidate=N` | Build ID plus generation timestamp |
 | Stale ISR | Same, with `s-maxage=0` | Existing ISR ETag |
 | Cached route with `requestLoader()` | `private, no-store` | None |
 | `/_client/*` assets | `public, max-age=31536000, immutable` | Not required; filenames are content-hashed |
@@ -40,6 +40,32 @@ export const route = defineRoute()
 5. Success replaces the entry atomically; failure retains the last good entry.
 
 ISR cache keys include the request search string. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
+
+## Runtime Data Cache
+
+Use the platform-neutral runtime cache for expensive API or database results that are shared outside one route:
+
+```ts
+import { getCache } from "@teyik0/furin/cache";
+
+const weatherCache = getCache({ namespace: "weather" });
+
+await weatherCache.set("forecast:bayonne", forecast, {
+  tags: ["weather"],
+  ttl: 300,
+});
+
+const cached = await weatherCache.get("forecast:bayonne");
+await weatherCache.expireTag("weather");
+```
+
+The application API stays the same on every target:
+
+- development and Bun deployments use Furin's process-local memory provider;
+- the Vercel adapter installs Vercel Runtime Cache automatically before the user server starts;
+- future deployment adapters can install their own provider without changing application imports.
+
+Cache handles resolve the active provider when an operation runs, not when the module is imported. This guarantees that top-level handles created by statically imported route modules still use the deployment provider.
 
 ## Invalidate A Path
 

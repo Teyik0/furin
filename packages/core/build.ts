@@ -32,6 +32,7 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cli/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/furin.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cache.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/routes.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc.tsx`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc-client.ts`] }),

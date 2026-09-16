@@ -230,10 +230,15 @@ describe.serial("Vercel deployment adapter", () => {
       const entrypoint = serverBuild?.entrypoints[0] as string;
       const source = serverBuild?.files?.[entrypoint] as string;
       expect(source).toContain("@vercel+functions");
+      expect(source).toContain("getCache as getVercelCache");
       expect(source).toContain("invalidateByTag");
+      expect(source).toContain("setRuntimeCacheProvider");
       expect(source).toContain("waitUntil");
       expect(source).toContain("serverModule.default");
       expect(source).toContain("app.handle(restoredRequest)");
+      expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
+        source.indexOf("const serverModule = await import")
+      );
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {

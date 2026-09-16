@@ -1,4 +1,4 @@
-import { getCache } from "@vercel/functions";
+import { getCache } from "@teyik0/furin/cache";
 
 export interface GeoResult {
   country: string;

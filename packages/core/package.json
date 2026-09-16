@@ -36,6 +36,11 @@
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
     },
+    "./cache": {
+      "types": "./dist/cache.d.ts",
+      "bun": "./src/cache.ts",
+      "import": "./dist/cache.js"
+    },
     "./routes": {
       "types": "./dist/routes.d.ts",
       "bun": "./src/routes.ts",
