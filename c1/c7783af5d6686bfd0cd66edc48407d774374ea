@@ -1,0 +1,22 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 82-83,92,100
+.github/workflows/vercel-benchmark.yaml
+  h_a2cbd1b0e3ae6e 30-31,80
+packages/core/src/server/cache/runtime-cache.ts
+  h_a2cbd1b0e3ae6e 37-44,81
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 584-585,589-591,639,665,674,924
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  h_a2cbd1b0e3ae6e 146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1c7783af5d6686bfd0cd66edc48407d774374ea",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
