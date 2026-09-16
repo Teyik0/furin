@@ -1,0 +1,18 @@
+.github/BENCHMARKS.md
+  h_a2cbd1b0e3ae6e 1-51
+.github/workflows/vercel-benchmark.yaml
+  h_a2cbd1b0e3ae6e 1-198
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  h_a2cbd1b0e3ae6e 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e33ef3f9c6c7b60824b429c539d87b29e3266e03",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
