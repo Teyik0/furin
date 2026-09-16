@@ -1,0 +1,20 @@
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 446,448,453
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 580-597,607-608,615-638,641-643,647-648,650
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 334
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  h_a2cbd1b0e3ae6e 47-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a64cc72ebcb3f4a14b83a36df0a441e68430ed25",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
