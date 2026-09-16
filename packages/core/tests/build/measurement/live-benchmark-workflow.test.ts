@@ -5,17 +5,29 @@ import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 
 interface WorkflowStep {
+  env?: {
+    BENCHMARK_ROUNDS?: string;
+    BENCHMARK_WARM_SAMPLES?: string;
+    VERCEL_TOKEN?: string;
+  };
+  id?: string;
+  if?: string;
   name: string;
   run?: string;
-  with?: { script?: string };
+  with?: { ref?: string; script?: string };
 }
 
 const workflow = Bun.YAML.parse(
   readFileSync(new URL("../../../../../.github/workflows/vercel-benchmark.yaml", import.meta.url), "utf8")
 ) as {
+  on: {
+    pull_request?: unknown;
+    schedule?: unknown;
+    workflow_dispatch?: unknown;
+  };
   jobs: {
-    "live-vercel": { steps: WorkflowStep[] };
-    comment?: { steps: WorkflowStep[] };
+    "live-vercel": { if?: string; outputs?: { supported?: string }; steps: WorkflowStep[] };
+    comment?: { if?: string; steps: WorkflowStep[] };
   };
 };
 const sha = "a".repeat(40);
@@ -46,7 +58,7 @@ async function publish(head: string, state: string, comments: Comment[]) {
   const created: { body: string; issue_number: number }[] = [];
   const updated: { body: string; comment_id: number }[] = [];
   await runInNewContext(`(async () => { ${actionScript("comment", "Publish live results")} })()`, {
-    context: { repo: { owner: "Teyik0", repo: "furin" }, sha },
+    context: { repo: { owner: "Teyik0", repo: "furin" }, sha: "merge-commit" },
     core: { info: () => undefined },
     github: {
       paginate: () => comments,
@@ -61,6 +73,7 @@ async function publish(head: string, state: string, comments: Comment[]) {
     },
     process: {
       env: {
+        MEASURED_SHA: sha,
         PR_NUMBER: "129",
         REPORT_PATH: "/report.md",
         RUN_URL: "https://github.com/Teyik0/furin/actions/runs/123",
@@ -102,29 +115,35 @@ test.each([
   expect(updated).toHaveLength(0);
 });
 
-test.each([
-  ["129", "Teyik0/furin", sha, "open", true],
-  ["129", "other/furin", sha, "open", false],
-  ["129", "Teyik0/furin", "outdated", "open", false],
-  ["129", "Teyik0/furin", sha, "closed", false],
-  ["invalid", "Teyik0/furin", sha, "open", false],
-])("checks PR %s, repository %s, head %s and state %s before deployment", async (
-  number, repository, head, state, accepted
-) => {
-  const failures: string[] = [];
-  await runInNewContext(`(async () => { ${actionScript("live-vercel", "Validate benchmark PR")} })()`, {
-    context: { repo: { owner: "Teyik0", repo: "furin" }, sha },
-    core: { setFailed: (message: string) => failures.push(message) },
-    github: {
-      rest: {
-        pulls: {
-          get: () => ({ data: { state, head: { sha: head, repo: { full_name: repository } } } }),
-        },
-      },
-    },
-    process: { env: { PR_NUMBER: number } },
+test("runs automatically for same-repository PRs without scheduled or manual dispatch", () => {
+  expect(workflow.on.pull_request).toBeDefined();
+  expect(workflow.on.schedule).toBeUndefined();
+  expect(workflow.on.workflow_dispatch).toBeUndefined();
+  expect(workflow.jobs["live-vercel"].if).toContain(
+    "github.event.pull_request.head.repo.full_name == github.repository"
+  );
+  expect(workflow.jobs.comment?.if).toContain(
+    "github.event.pull_request.head.repo.full_name == github.repository"
+  );
+  expect(workflow.jobs.comment?.if).toContain(
+    "needs.live-vercel.outputs.supported == 'true'"
+  );
+  expect(workflow.jobs["live-vercel"].outputs?.supported).toBe(
+    "${{ steps.adapter-support.outputs.available }}"
+  );
+  expect(
+    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Check adapter support")?.id
+  ).toBe("adapter-support");
+  expect(
+    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Checkout Furin")?.with?.ref
+  ).toBe("${{ github.event.pull_request.head.sha }}");
+  expect(
+    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Run live benchmark")?.env
+  ).toEqual({
+    BENCHMARK_ROUNDS: "3",
+    BENCHMARK_WARM_SAMPLES: "5",
+    VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}",
   });
-  expect(failures.length === 0).toBe(accepted);
 });
 
 test.each([0, 1, 2])("prepares a publishable report only for one completed run (%i reports)", async (count) => {
@@ -140,7 +159,7 @@ test.each([0, 1, 2])("prepares a publishable report only for one completed run (
     const summary = join(directory, "step-summary.md");
     const child = Bun.spawn(["bash", "-e", "-o", "pipefail", "-c", script as string], {
       cwd: directory,
-      env: { ...process.env, GITHUB_SHA: sha, GITHUB_STEP_SUMMARY: summary },
+      env: { ...process.env, GITHUB_STEP_SUMMARY: summary, MEASURED_SHA: sha },
       stderr: "pipe",
       stdout: "pipe",
     });

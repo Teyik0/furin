@@ -1,22 +1,8 @@
 name: Vercel Framework Benchmark
 
 on:
-  schedule:
-    - cron: "0 5 * * 1"
-  workflow_dispatch:
-    inputs:
-      pull_request:
-        description: Optional PR number (select its head branch above; trusted same-repository PRs only)
-        type: string
-        required: false
-      rounds:
-        description: Deployment rounds per framework
-        required: false
-        default: "3"
-      warm_samples:
-        description: Warm samples per scenario and round
-        required: false
-        default: "5"
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -29,37 +15,35 @@ concurrency:
 jobs:
   live-vercel:
     name: Live Vercel comparison
+    if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
-      pull-requests: read
+    outputs:
+      supported: ${{ steps.adapter-support.outputs.available }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      MEASURED_SHA: ${{ github.event.pull_request.head.sha }}
       VERCEL_TEAM: ${{ vars.VERCEL_TEAM || 'teyik0-team' }}
 
     steps:
-      - name: Validate benchmark PR
-        if: github.event_name == 'workflow_dispatch' && inputs.pull_request != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          PR_NUMBER: ${{ inputs.pull_request }}
+      - name: Checkout Furin
+        uses: actions/checkout@v7
         with:
-          script: |
-            if (!/^[1-9]\d*$/.test(process.env.PR_NUMBER)) {
-              core.setFailed("pull_request must be a positive PR number.");
-              return;
-            }
-            const { data: pull } = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: Number(process.env.PR_NUMBER),
-            });
-            if (pull.state !== "open" ||
-                pull.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}` ||
-                pull.head.sha !== context.sha) {
-              core.setFailed("Select the current head branch of an open, trusted same-repository PR.");
-            }
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Check adapter support
+        id: adapter-support
+        run: |
+          if [ -f packages/core/src/adapter/vercel.ts ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Require Vercel credentials
+        if: steps.adapter-support.outputs.available == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -68,13 +52,8 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout Furin
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
       - name: Checkout benchmark
+        if: steps.adapter-support.outputs.available == 'true'
         uses: actions/checkout@v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
@@ -83,26 +62,31 @@ jobs:
           persist-credentials: false
 
       - name: Cache bun
+        if: steps.adapter-support.outputs.available == 'true'
         uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-live-vercel-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
 
       - name: Setup bun
+        if: steps.adapter-support.outputs.available == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
 
       - name: Install Furin
+        if: steps.adapter-support.outputs.available == 'true'
         run: bun install --frozen-lockfile
 
       - name: Build and link Furin
+        if: steps.adapter-support.outputs.available == 'true'
         working-directory: packages/core
         run: |
           bun run build
           bun link
 
       - name: Install benchmark
+        if: steps.adapter-support.outputs.available == 'true'
         working-directory: .benchmark
         run: |
           bun install --frozen-lockfile
@@ -110,10 +94,11 @@ jobs:
           bunx playwright install --with-deps chromium
 
       - name: Run live benchmark
+        if: steps.adapter-support.outputs.available == 'true'
         working-directory: .benchmark
         env:
-          BENCHMARK_ROUNDS: ${{ inputs.rounds || '3' }}
-          BENCHMARK_WARM_SAMPLES: ${{ inputs.warm_samples || '5' }}
+          BENCHMARK_ROUNDS: "3"
+          BENCHMARK_WARM_SAMPLES: "5"
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           bun run benchmark \
@@ -121,16 +106,17 @@ jobs:
             --warm-samples "$BENCHMARK_WARM_SAMPLES"
 
       - name: Prepare live report
+        if: steps.adapter-support.outputs.available == 'true'
         working-directory: .benchmark
         run: |
           reports=(reports/[0-9]*.md)
           test "${#reports[@]}" -eq 1
           cp "${reports[0]}" reports/summary.md
           cat reports/summary.md >> "$GITHUB_STEP_SUMMARY"
-          printf '\nMeasured Furin commit: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf '\nMeasured Furin commit: `%s`\n' "$MEASURED_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload live benchmark
-        if: always()
+        if: always() && steps.adapter-support.outputs.available == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: live-vercel-benchmark
@@ -139,7 +125,10 @@ jobs:
   comment:
     name: Publish live benchmark comparison
     needs: live-vercel
-    if: github.event_name == 'workflow_dispatch' && inputs.pull_request != ''
+    if: >-
+      needs.live-vercel.result == 'success' &&
+      needs.live-vercel.outputs.supported == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -155,7 +144,8 @@ jobs:
       - name: Publish live results
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          PR_NUMBER: ${{ inputs.pull_request }}
+          MEASURED_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           REPORT_PATH: ${{ runner.temp }}/live-vercel-benchmark/summary.md
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
@@ -164,7 +154,8 @@ jobs:
             const marker = "<!-- furin-live-vercel-benchmark-report -->";
             const pullNumber = Number(process.env.PR_NUMBER);
             const report = fs.readFileSync(process.env.REPORT_PATH, "utf8").trim();
-            const body = `${marker}\n${report}\n\nMeasured Furin commit: \`${context.sha}\`\n\nInformational live measurements, not a deterministic performance budget.\n\n[View live benchmark run and raw measurements](${process.env.RUN_URL})\n`;
+            const measuredSha = process.env.MEASURED_SHA;
+            const body = `${marker}\n${report}\n\nMeasured Furin commit: \`${measuredSha}\`\n\nInformational live measurements, not a deterministic performance budget.\n\n[View live benchmark run and raw measurements](${process.env.RUN_URL})\n`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               ...context.repo,
               issue_number: pullNumber,
@@ -179,7 +170,7 @@ jobs:
               ...context.repo,
               pull_number: pullNumber,
             });
-            if (pull.state !== "open" || pull.head.sha !== context.sha) {
+            if (pull.state !== "open" || pull.head.sha !== measuredSha) {
               core.info("Skipping live results for a closed or updated PR.");
               return;
             }
