@@ -130,7 +130,10 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
   let deleted = false;
-  const purgedPaths = new Set<string>();
+  // External caches can associate entries directly with semantic tags. Keep
+  // those tags in the purge even when this process has never rendered (and
+  // therefore never registered) the matching paths.
+  const purgedPaths = new Set<string>(tagList);
   for (const instance of allInstances()) {
     let instanceDeleted = false;
     const instancePurgedPaths = new Set<string>();

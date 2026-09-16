@@ -17,7 +17,7 @@ function createVercelApp(): TmpApp {
     app.path,
     "src/server.ts",
     [
-      'import { furin, revalidatePath } from "@teyik0/furin";',
+      'import { furin, revalidatePath, revalidateTag } from "@teyik0/furin";',
       'import { staticPlugin } from "@elysiajs/static";',
       'import { Elysia } from "elysia";',
       'import { userHydrate } from "./build/hydrate";',
@@ -27,6 +27,10 @@ function createVercelApp(): TmpApp {
       '  .post("/api/revalidate", () => {',
       '    revalidatePath("/", "page");',
       '    return "invalidated";',
+      "  })",
+      '  .post("/api/revalidate-tag", () => {',
+      '    revalidateTag("news");',
+      '    return "tag invalidated";',
       "  })",
       '  .use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))',
       '  .use(await furin({ pagesDir: "./src/pages" }));',
@@ -49,7 +53,7 @@ function createVercelApp(): TmpApp {
       'import { route as rootRoute } from "./root";',
       "",
       "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90 })',
+      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news"] })',
       "  .page(() => <main>News</main>);",
       "",
     ].join("\n")
@@ -345,7 +349,7 @@ describe.serial("Vercel deployment adapter", () => {
         "",
         "let renderCount = 0;",
         "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90 })',
+        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news"] })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ data }) => <main>ISR render {data.renderCount}</main>);',
         "",
@@ -393,6 +397,7 @@ describe.serial("Vercel deployment adapter", () => {
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
+      const tagInvalidation = await handler.fetch(new Request("http://furin.test/api/revalidate-tag", { method: "POST" }));
       const isrFirst = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const isrSecond = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const invalidation = await handler.fetch(new Request("http://furin.test/api/revalidate", { method: "POST" }));
@@ -413,6 +418,7 @@ describe.serial("Vercel deployment adapter", () => {
         ssgFirstBody: await ssgFirst.text(),
         ssgSecondBody: await ssgSecond.text(),
         ssgTag: ssgFirst.headers.get("vercel-cache-tag"),
+        tagInvalidationBody: await tagInvalidation.text(),
         serverTiming: api.headers.get("server-timing"),
         userStaticBody: await userStatic.text(),
       }));
@@ -449,12 +455,13 @@ describe.serial("Vercel deployment adapter", () => {
     expect(result.serverTiming).toContain("furin_server_init;dur=");
     expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
-    expect(result.pendingCount).toBe(1);
-    expect(result.purged).toEqual([["/"]]);
+    expect(result.pendingCount).toBe(2);
+    expect(result.purged).toEqual([["news"], ["/"]]);
     expect(result.ssgTag).toBe("/");
     expect(result.ssgFirstBody).toContain('"renderCount":1');
     expect(result.ssgSecondBody).toContain('"renderCount":2');
-    expect(result.isrTag).toBe("/news");
+    expect(result.isrTag).toBe("/news,news");
+    expect(result.tagInvalidationBody).toBe("tag invalidated");
     expect(result.isrFirstBody).toContain('"renderCount":1');
     expect(result.isrSecondBody).toContain('"renderCount":2');
   });

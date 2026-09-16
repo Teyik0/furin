@@ -152,6 +152,10 @@ function physicalPath(prefix: string, path: string): string {
   return path === "/" ? prefix : `${prefix}${path}`;
 }
 
+function cacheTagHeader(path: string, tags: readonly string[] | undefined): string {
+  return [path, ...(tags ?? [])].join(",");
+}
+
 function routePatternSource(prefix: string, pattern: string): string {
   const path = physicalPath(prefix, pattern);
   let source = "";
@@ -251,7 +255,7 @@ async function addPrerenderFallback(
   spec.config.initialHeaders = {
     "content-type": contentType,
     ...(location === undefined ? {} : { location }),
-    "vercel-cache-tag": physicalRoutePath,
+    "vercel-cache-tag": cacheTagHeader(physicalRoutePath, prerender.route.tags),
   };
   spec.config.initialStatus = status;
 }
@@ -347,6 +351,7 @@ async function createPrerenderSpecs(
 }
 
 function vercelEntrySource(
+  apps: RuntimeTargetApp[],
   builds: RuntimeAppBuild[],
   prerenderSpecs: PrerenderSpec[],
   serverEntry: string
@@ -357,6 +362,13 @@ function vercelEntrySource(
     `^(?:${spec.source})$`,
   ]);
   const dataEndpointPaths = builds.map(({ entryApp }) => `${entryApp.prefix}/_furin/data`);
+  const cacheTagRules = apps.flatMap((app) =>
+    app.routes.flatMap((route) =>
+      route.tags && route.tags.length > 0
+        ? [[`^(?:${routePatternSource(app.prefix, route.pattern)})$`, route.tags]]
+        : []
+    )
+  );
   const contextSource = buildEntrySource({
     apps: builds.map(({ entryApp, indexHtml }) => ({
       ...entryApp,
@@ -385,6 +397,10 @@ const prerenderAliases = new Map(
   ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
 );
 const dataEndpointPaths = new Set(${JSON.stringify(dataEndpointPaths)});
+const cacheTagRules = ${JSON.stringify(cacheTagRules)}.map(([source, tags]) => [
+  new RegExp(source),
+  tags,
+]);
 
 setRuntimeCacheProvider({
   getCache: (options) => getVercelCache(options),
@@ -435,9 +451,11 @@ function exposeVercelCacheTag(response, request) {
     : null;
   const physicalCacheTag =
     prefix === null ? requestPath : cacheTag === "/" ? prefix || "/" : prefix + cacheTag;
+  const semanticTags =
+    cacheTagRules.find(([pattern]) => pattern.test(physicalCacheTag))?.[1] ?? [];
   const headers = new Headers(response.headers);
   headers.delete("cache-tag");
-  headers.set("vercel-cache-tag", physicalCacheTag);
+  headers.set("vercel-cache-tag", [physicalCacheTag, ...semanticTags].join(","));
   return new Response(response.body, {
     headers,
     status: response.status,
@@ -570,7 +588,7 @@ export async function buildVercelTarget(
   const entryPath = join(serverFunctionDir, "_vercel-handler.ts");
   const entry = createVirtualBuildEntry(
     entryPath,
-    vercelEntrySource(builds, prerenderSpecs, serverEntry),
+    vercelEntrySource(apps, builds, prerenderSpecs, serverEntry),
     "ts"
   );
   const serverBuild = await runBunBuild({
