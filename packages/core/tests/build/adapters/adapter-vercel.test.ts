@@ -29,7 +29,7 @@ function createVercelApp(): TmpApp {
       '    return "invalidated";',
       "  })",
       '  .post("/api/revalidate-tag", () => {',
-      '    revalidateTag("news");',
+      '    revalidateTag("news,world");',
       '    return "tag invalidated";',
       "  })",
       '  .use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))',
@@ -53,7 +53,7 @@ function createVercelApp(): TmpApp {
       'import { route as rootRoute } from "./root";',
       "",
       "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news"] })',
+      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
       "  .page(() => <main>News</main>);",
       "",
     ].join("\n")
@@ -186,6 +186,7 @@ describe.serial("Vercel deployment adapter", () => {
       );
       expect(newsPrerender.expiration).toBe(90);
       expect(newsPrerender.fallback).toBe("news-isr.prerender-fallback.html");
+      expect(newsPrerender.initialHeaders["vercel-cache-tag"]).toBe("/news,news%2Cworld");
       expect(readFileSync(join(functionsDir, newsPrerender.fallback), "utf8")).toContain("News");
       const searchPrerender = JSON.parse(
         readFileSync(join(functionsDir, "search-isr.prerender-config.json"), "utf8")
@@ -377,7 +378,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
         "",
         "let renderCount = 0;",
         "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news"] })',
+        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ data }) => <main>ISR render {data.renderCount}</main>);',
         "",
@@ -405,7 +406,7 @@ function User({ data }: { data: Promise<{ user: string }> }) {
   return <strong>{use(data).user}</strong>;
 }
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news"] })
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
   .page(({ data, requestData }) => <main>public:{data.count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
@@ -553,9 +554,9 @@ export const route = defineRoute()
     expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
     expect(result.pendingCount).toBe(2);
-    expect(result.purged).toEqual([["news"], ["/"]]);
-    expect(result.registeredTags).toContainEqual(["/news", "news"]);
-    expect(result.expiredTags).toEqual([["news"], ["/"]]);
+    expect(result.purged).toEqual([["news%2Cworld"], ["/"]]);
+    expect(result.registeredTags).toContainEqual(["/news", "news%2Cworld"]);
+    expect(result.expiredTags).toEqual([["news,world"], ["/"]]);
     expect(result.accountFirstBody).toContain("alice");
     expect(result.accountSecondBody).toContain("bob");
     expect(result.accountSecondBody).not.toContain("alice");
@@ -569,7 +570,7 @@ export const route = defineRoute()
     expect(result.ssgFirstBody).toContain('"renderCount":1');
     expect(result.ssgSecondBody).toContain('"renderCount":2');
     expect(result.offersBody).toContain("SALE");
-    expect(result.isrTag).toBe("/news,news");
+    expect(result.isrTag).toBe("/news,news%2Cworld");
     expect(result.tagInvalidationBody).toBe("tag invalidated");
     expect(result.isrFirstBody).toContain('"renderCount":1');
     expect(result.isrSecondBody).toContain('"renderCount":2');
