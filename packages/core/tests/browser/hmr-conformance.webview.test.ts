@@ -1415,9 +1415,9 @@ browserTest(
       "src/pages/index.tsx",
       importedChildPageSource("../components/NewChild")
     );
-    removeAppPath(harness.app.path, "src/components/OldChild.tsx");
 
     await waitForElementText(harness.view, '[data-testid="child-count"]', "move-v2:0");
+    removeAppPath(harness.app.path, "src/components/OldChild.tsx");
     const after = await readSnapshot(harness.view);
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(documentId);
