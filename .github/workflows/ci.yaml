@@ -171,6 +171,11 @@ jobs:
             "$RUNNER_TEMP/vercel-benchmark.md"
           comparison_status=$?
           set -e
+          {
+            echo '<!-- furin-vercel-benchmark-report -->'
+            cat "$RUNNER_TEMP/vercel-benchmark.md"
+          } > "$RUNNER_TEMP/vercel-benchmark-with-marker.md"
+          mv "$RUNNER_TEMP/vercel-benchmark-with-marker.md" "$RUNNER_TEMP/vercel-benchmark.md"
           cat "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
           exit "$comparison_status"
 
@@ -178,10 +183,11 @@ jobs:
         if: steps.benchmark-baseline.outputs.available != 'true'
         run: |
           {
+            echo '<!-- furin-vercel-benchmark-report -->'
             echo "## Vercel framework benchmark"
             echo
             echo "The target branch does not contain the Vercel adapter yet. This PR establishes the external benchmark baseline."
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload benchmark reports
         if: always()
