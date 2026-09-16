@@ -18,6 +18,7 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
+      pull-requests: read
     outputs:
       supported: ${{ steps.adapter-support.outputs.available }}
     runs-on: ubuntu-latest
@@ -42,8 +43,28 @@ jobs:
             echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Require Vercel credentials
+      - name: Validate current PR
+        id: pr-validation
         if: steps.adapter-support.outputs.available == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            const current = pull.state === "open" && pull.head.sha === process.env.MEASURED_SHA;
+            core.setOutput("current", String(current));
+            if (!current) {
+              core.setFailed("The PR was closed or updated while this benchmark was queued.");
+            }
+
+      - name: Require Vercel credentials
+        if: >-
+          steps.adapter-support.outputs.available == 'true' &&
+          steps.pr-validation.outputs.current == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -94,7 +115,9 @@ jobs:
           bunx playwright install --with-deps chromium
 
       - name: Run live benchmark
-        if: steps.adapter-support.outputs.available == 'true'
+        if: >-
+          steps.adapter-support.outputs.available == 'true' &&
+          steps.pr-validation.outputs.current == 'true'
         working-directory: .benchmark
         env:
           BENCHMARK_ROUNDS: "3"

@@ -26,7 +26,12 @@ const workflow = Bun.YAML.parse(
     workflow_dispatch?: unknown;
   };
   jobs: {
-    "live-vercel": { if?: string; outputs?: { supported?: string }; steps: WorkflowStep[] };
+    "live-vercel": {
+      if?: string;
+      outputs?: { supported?: string };
+      permissions?: { "pull-requests"?: string };
+      steps: WorkflowStep[];
+    };
     comment?: { if?: string; steps: WorkflowStep[] };
   };
 };
@@ -84,6 +89,28 @@ async function publish(head: string, state: string, comments: Comment[]) {
   return { created, updated };
 }
 
+async function validateCurrentPr(head: string, state: string) {
+  const failures: string[] = [];
+  const outputs: { name: string; value: string }[] = [];
+  await runInNewContext(
+    `(async () => { ${actionScript("live-vercel", "Validate current PR")} })()`,
+    {
+      context: { repo: { owner: "Teyik0", repo: "furin" } },
+      core: {
+        setFailed: (message: string) => failures.push(message),
+        setOutput: (name: string, value: string) => outputs.push({ name, value }),
+      },
+      github: {
+        rest: {
+          pulls: { get: () => ({ data: { state, head: { sha: head } } }) },
+        },
+      },
+      process: { env: { MEASURED_SHA: sha, PR_NUMBER: "129" } },
+    }
+  );
+  return { failures, outputs };
+}
+
 test("publishes the live framework table with the measured commit and run link", async () => {
   const { created } = await publish(sha, "open", []);
   expect(created).toHaveLength(1);
@@ -115,6 +142,16 @@ test.each([
   expect(updated).toHaveLength(0);
 });
 
+test.each([
+  [sha, "open", true],
+  ["outdated", "open", false],
+  [sha, "closed", false],
+])("validates current PR head %s and state %s before exposing secrets", async (head, state, current) => {
+  const result = await validateCurrentPr(head, state);
+  expect(result.failures.length === 0).toBe(current);
+  expect(result.outputs).toContainEqual({ name: "current", value: String(current) });
+});
+
 test("runs automatically for same-repository PRs without scheduled or manual dispatch", () => {
   expect(workflow.on.pull_request).toBeDefined();
   expect(workflow.on.schedule).toBeUndefined();
@@ -131,9 +168,15 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
   expect(workflow.jobs["live-vercel"].outputs?.supported).toBe(
     "${{ steps.adapter-support.outputs.available }}"
   );
+  expect(workflow.jobs["live-vercel"].permissions?.["pull-requests"]).toBe("read");
   expect(
     workflow.jobs["live-vercel"].steps.find((step) => step.name === "Check adapter support")?.id
   ).toBe("adapter-support");
+  for (const name of ["Require Vercel credentials", "Run live benchmark"]) {
+    expect(workflow.jobs["live-vercel"].steps.find((step) => step.name === name)?.if).toContain(
+      "steps.pr-validation.outputs.current == 'true'"
+    );
+  }
   expect(
     workflow.jobs["live-vercel"].steps.find((step) => step.name === "Checkout Furin")?.with?.ref
   ).toBe("${{ github.event.pull_request.head.sha }}");
