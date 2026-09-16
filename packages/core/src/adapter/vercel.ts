@@ -152,8 +152,12 @@ function physicalPath(prefix: string, path: string): string {
   return path === "/" ? prefix : `${prefix}${path}`;
 }
 
+function encodeCacheTag(value: string): string {
+  return value.replaceAll(",", "%2C");
+}
+
 function cacheTagHeader(path: string, tags: readonly string[] | undefined): string {
-  return [path, ...(tags ?? [])].join(",");
+  return [path, ...(tags ?? [])].map(encodeCacheTag).join(",");
 }
 
 function routePatternSource(prefix: string, pattern: string): string {
@@ -402,12 +406,16 @@ const cacheTagRules = ${JSON.stringify(cacheTagRules)}.map(([source, tags]) => [
   tags,
 ]);
 
+function encodeCacheTag(value) {
+  return value.replaceAll(",", "%2C");
+}
+
 setRuntimeCacheProvider({
   getCache: (options) => getVercelCache(options),
 });
 
 setCachePurger(async (paths) => {
-  const purge = invalidateByTag(paths);
+  const purge = invalidateByTag(paths.map(encodeCacheTag));
   waitUntil(purge);
   await purge;
 });
@@ -455,7 +463,10 @@ function exposeVercelCacheTag(response, request) {
     cacheTagRules.find(([pattern]) => pattern.test(physicalCacheTag))?.[1] ?? [];
   const headers = new Headers(response.headers);
   headers.delete("cache-tag");
-  headers.set("vercel-cache-tag", [physicalCacheTag, ...semanticTags].join(","));
+  headers.set(
+    "vercel-cache-tag",
+    [physicalCacheTag, ...semanticTags].map(encodeCacheTag).join(",")
+  );
   return new Response(response.body, {
     headers,
     status: response.status,
