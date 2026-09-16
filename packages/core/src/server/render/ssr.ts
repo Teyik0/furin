@@ -581,10 +581,14 @@ interface SsrTransportScripts {
 function injectAfterEntry(
   html: string,
   injection: string,
-  fallbackIndex: number
+  fallbackIndex: number,
+  hasEntryModule: boolean
 ): string | undefined {
   const entryMarkerIndex = html.indexOf('data-furin-entry=""');
   if (entryMarkerIndex === -1) {
+    if (hasEntryModule) {
+      return;
+    }
     return html.slice(0, fallbackIndex) + injection + html.slice(fallbackIndex);
   }
   const entryEndIndex = html.indexOf("</script>", entryMarkerIndex);
@@ -632,6 +636,7 @@ async function pipeDocumentStream(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   beforeEntry: string,
+  hasEntryModule: boolean,
   beforeBodyClose: () => Promise<string>
 ): Promise<void> {
   const decoder = new TextDecoder();
@@ -657,7 +662,7 @@ async function pipeDocumentStream(
       const beforeBody = pending.slice(0, bodyCloseIndex);
       const shell = entryHandled
         ? beforeBody
-        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length) ??
+        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length, hasEntryModule) ??
           beforeBody + beforeEntry);
       await writer.write(enc.encode(shell));
       documentTail = pending.slice(bodyCloseIndex);
@@ -666,7 +671,7 @@ async function pipeDocumentStream(
     }
 
     if (scriptsEndIndex !== undefined) {
-      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex);
+      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex, hasEntryModule);
       if (shell === undefined) {
         continue;
       }
@@ -916,6 +921,7 @@ export async function renderSSR(
       writer,
       enc,
       hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
+      assets.entryModule !== undefined,
       async () => {
         if (!hasDeferred) {
           return "";

@@ -143,7 +143,7 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     expect(fastIdx).toBeGreaterThan(-1);
     expect(slowIdx).toBeGreaterThan(-1);
     expect(fastIdx).toBeLessThan(slowIdx);
-    expect(html.indexOf("window.__FURIN_ROUTE_FRAME_STREAM__=")).toBeLessThan(
+    expect(html.indexOf("window.__FURIN_ROUTE_FRAME_STREAM__ =")).toBeGreaterThan(
       html.indexOf('data-furin-entry=""')
     );
     expect(html.lastIndexOf("window.__FURIN_ROUTE_FRAME_STREAM__.push(")).toBeLessThan(

@@ -24,10 +24,11 @@ jobs:
     timeout-minutes: 60
     env:
       VERCEL_TEAM: ${{ vars.VERCEL_TEAM || 'teyik0-team' }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
     steps:
       - name: Require Vercel credentials
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           if [ -z "$VERCEL_TOKEN" ]; then
             echo "VERCEL_TOKEN is required for the live benchmark." >&2
@@ -76,6 +77,7 @@ jobs:
         env:
           BENCHMARK_ROUNDS: ${{ inputs.rounds || '3' }}
           BENCHMARK_WARM_SAMPLES: ${{ inputs.warm_samples || '5' }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           bun run benchmark \
             --rounds "$BENCHMARK_ROUNDS" \

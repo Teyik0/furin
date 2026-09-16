@@ -34,6 +34,14 @@ const RUNTIME_CACHE_STATE = Symbol.for("@teyik0/furin/runtime-cache-state");
 
 function createMemoryProvider(): RuntimeCacheProvider {
   const namespaces = new Map<string, Map<string, MemoryEntry>>();
+  const deleteExpiredEntries = (entries: Map<string, MemoryEntry>): void => {
+    const now = Date.now();
+    for (const [key, entry] of entries) {
+      if (entry.expiresAt !== undefined && entry.expiresAt <= now) {
+        entries.delete(key);
+      }
+    }
+  };
   return {
     getCache(options) {
       const namespace = options?.namespace ?? "";
@@ -70,6 +78,7 @@ function createMemoryProvider(): RuntimeCacheProvider {
           return Promise.resolve(entry.value);
         },
         set(key, value, setOptions) {
+          deleteExpiredEntries(entries);
           entries.set(key, {
             expiresAt:
               setOptions?.ttl === undefined ? undefined : Date.now() + setOptions.ttl * 1000,
