@@ -2,6 +2,7 @@
 import type { SsgCacheEntry } from "../server/cache/index.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
+import { buildRouteMatcher } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 
@@ -36,6 +37,7 @@ export async function buildRoutePrerenders(
 ): Promise<RoutePrerender[]> {
   const prerenders: RoutePrerender[] = [];
   const searchRoutes = createSearchRouteMetadata(routes);
+  const matchRoute = buildRouteMatcher(routes);
 
   for (const route of routes) {
     if (route.mode === "ssr") {
@@ -62,6 +64,9 @@ export async function buildRoutePrerenders(
 
     for (const params of paramSets) {
       const path = resolvePath(route.pattern, params);
+      if (matchRoute(path)?.route !== route) {
+        continue;
+      }
       const result =
         route.mode === "ssg"
           ? await prerenderSSG(route, params, root, origin, basePath, searchRoutes)

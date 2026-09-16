@@ -1,14 +1,16 @@
 import type { Context } from "elysia";
+import { parseRouteFrameLines, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
 import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
+import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
-import { renderSSR } from "./ssr.ts";
+import { assertDeferredModeAllowed, renderSSR } from "./ssr.ts";
 
 interface CachedPprRoute {
   generatedAt: number;
@@ -91,16 +93,48 @@ async function buildPublicEntry(route: ResolvedRoute, ctx: Context): Promise<Cac
   };
 }
 
-export async function renderPprRoute(
+export async function runPprPublicLoaders(
   route: ResolvedRoute,
   ctx: Context,
-  root: RootLayout,
-  _buildId: string,
-  searchRoutes: SearchRouteMetadata[] | undefined
-): Promise<Response> {
+  buildId: string
+): Promise<LoaderResult> {
   const requestUrl = new URL(ctx.request.url);
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
   const cacheKey = `${route.mode}:${resolvedPath}${requestUrl.search}`;
+  if (hasExternalRuntimeCache()) {
+    const { prefix } = currentInstance();
+    const cache = getCache({ namespace: "furin-ppr-v1" });
+    const key = JSON.stringify([buildId, prefix, cacheKey]);
+    const stored = await cache.get(key);
+    if (typeof stored === "string") {
+      const { ndjson, headers } = JSON.parse(stored) as {
+        ndjson: string;
+        headers: Extract<LoaderResult, { type: "data" }>["headers"];
+      };
+      const lines = ndjson.trimEnd().split("\n");
+      const data = await parseRouteFrameLines(lines.shift() as string, () =>
+        Promise.resolve(lines.shift())
+      );
+      return {
+        deferredPromises: undefined,
+        headers,
+        syncData: data.syncData,
+        type: "data",
+      };
+    }
+    const result = await runPublicLoaders(route, ctx);
+    if (result.type === "data") {
+      assertDeferredModeAllowed(route, result.deferredPromises);
+      const ndjson = serializeRouteFrames(result.syncData, []);
+      // Expired public data is regenerated before this response, not in an
+      // untracked background task. Private requestData never enters this cache.
+      await cache.set(key, JSON.stringify({ headers: result.headers, ndjson }), {
+        tags: [prefix + resolvedPath, ...(route.tags ?? [])],
+        ttl: route.mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : undefined,
+      });
+    }
+    return result;
+  }
   const pprRoutes = getPprRoutes();
   let cached = pprRoutes.get(cacheKey);
   if (cached === undefined) {
@@ -115,7 +149,19 @@ export async function renderPprRoute(
       });
   }
 
-  const actualResult = withRequestLoaderData(route, ctx, cached.publicResult);
+  return cached.publicResult;
+}
+
+export async function renderPprRoute(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId: string,
+  searchRoutes: SearchRouteMetadata[] | undefined
+): Promise<Response> {
+  const publicResult = await runPprPublicLoaders(route, ctx, buildId);
+  const actualResult =
+    publicResult.type === "data" ? withRequestLoaderData(route, ctx, publicResult) : publicResult;
   const response = await renderSSR(route, ctx, root, actualResult, searchRoutes);
   response.headers.set("Cache-Control", "private, no-store");
   return response;

@@ -265,6 +265,34 @@ describe.serial("Vercel deployment adapter", () => {
     ).rejects.toThrow("must export the Elysia app as default");
   });
 
+  test("keeps SSR and personalized routes ahead of generic prerenders", (done) => {
+    async function runScenario() {
+    const app = createVercelApp();
+    for (const [name, mode] of [["private", "ssr"], ["hello-world", "ssr"], ["account", "isr"]] as const) {
+      writeAppFile(
+        app.path,
+        `src/pages/blog/${name}.tsx`,
+        `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" })
+  ${mode === "isr" ? '.requestLoader(({ cookies }) => ({ user: cookies.get("session") }))' : ""}
+  .page(() => <main>${name}</main>);`
+      );
+    }
+    await withBuildStub(() => buildApp({ rootDir: app.path, target: "vercel" }));
+    const output = join(app.path, ".vercel/output");
+    const config = JSON.parse(readFileSync(join(output, "config.json"), "utf8")) as {
+      routes: { src?: string; dest?: string }[];
+    };
+    for (const path of ["/blog/private", "/blog/hello-world", "/blog/account"]) {
+      const matched = config.routes.find((rule) => rule.src && new RegExp(`^${rule.src}$`).test(path));
+      expect(matched?.dest).toBe("/__server");
+    }
+    expect(existsSync(join(output, "functions/blog/account-isr.prerender-config.json"))).toBe(false);
+    }
+    runScenario().then(() => done(), done);
+  });
+
   test("keeps prefixed apps and their CDN assets isolated", (done) => {
     async function runScenario(): Promise<void> {
       const app = createVercelApp();
@@ -355,6 +383,33 @@ describe.serial("Vercel deployment adapter", () => {
         "",
       ].join("\n")
     );
+    writeAppFile(
+      app.path,
+      "src/pages/flight.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+import { renderServerComponent } from "@teyik0/furin/rsc";
+import { route as rootRoute } from "./root";
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
+  .page(({ data }) => <main>{data.article}</main>);`
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/account.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+import { Suspense, use } from "react";
+import { route as rootRoute } from "./root";
+let calls = 0;
+function User({ data }: { data: Promise<{ user: string }> }) {
+  return <strong>{use(data).user}</strong>;
+}
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news"] })
+  .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
+  .loader(() => ({ count: ++calls }))
+  .page(({ data, requestData }) => <main>public:{data.count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
+    );
     await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 
     const handlerPath = join(
@@ -378,8 +433,22 @@ describe.serial("Vercel deployment adapter", () => {
     const script = `
       const pending = [];
       const purged = [];
+      const registeredTags = [];
+      const expiredTags = [];
+      const cache = new Map();
       globalThis[Symbol.for("@vercel/request-context")] = {
         get: () => ({
+          addCacheTag: async (tags) => { registeredTags.push(tags); },
+          cache: {
+            get: async (key) => cache.get(key)?.value ?? null,
+            set: async (key, value, options) => { cache.set(key, { value, tags: options.tags }); },
+            expireTag: async (tags) => {
+              expiredTags.push(tags);
+              for (const [key, entry] of cache) {
+                if (entry.tags.some((tag) => tags.includes(tag))) cache.delete(key);
+              }
+            },
+          },
           purge: {
             invalidateByTag: async (tags) => {
               purged.push(tags);
@@ -391,19 +460,35 @@ describe.serial("Vercel deployment adapter", () => {
         }),
       };
       const handler = (await import(${JSON.stringify(pathToFileURL(handlerPath).href)})).default;
+      const flight = await handler.fetch(new Request("http://furin.test/flight"));
+      const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
       const userStatic = await handler.fetch(new Request("http://furin.test/user-static/user.txt"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
+      const offers = await handler.fetch(new Request("http://furin.test/offers-ssg?__furin_path=/offers&coupon=SALE"));
       const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
+      const accountFirst = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=alice" } }));
+      const accountFirstBody = await accountFirst.text();
+      const accountSecond = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=bob" } }));
+      const accountSecondBody = await accountSecond.text();
+      const accountData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/account"));
+      const { parseDeferredNdjson } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dir, "../../../src/shared/deferred-ndjson.ts")).href)});
+      const accountDataCount = (await parseDeferredNdjson(accountData.body, undefined)).syncData.count;
       const tagInvalidation = await handler.fetch(new Request("http://furin.test/api/revalidate-tag", { method: "POST" }));
+      await Promise.all(pending);
+      const accountAfterPurge = await handler.fetch(new Request("http://furin.test/account"));
+      const accountAfterPurgeBody = await accountAfterPurge.text();
       const isrFirst = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const isrSecond = await handler.fetch(new Request("http://furin.test/news-isr?__furin_path=/news"));
       const invalidation = await handler.fetch(new Request("http://furin.test/api/revalidate", { method: "POST" }));
       const pendingCount = pending.length;
       await Promise.all(pending);
       console.log("__FURIN_RESULT__" + JSON.stringify({
+        flightStatus: flight.status,
+        flightBody: await flight.text(),
+        flightDataStatus: flightData.status,
         apiBody: await api.text(),
         apiStatus: api.status,
         dataCacheControl: data.headers.get("cache-control"),
@@ -415,9 +500,18 @@ describe.serial("Vercel deployment adapter", () => {
         isrTag: isrFirst.headers.get("vercel-cache-tag"),
         pendingCount,
         purged,
+        registeredTags,
+        expiredTags,
+        accountFirstBody,
+        accountSecondBody,
+        accountAfterPurgeBody,
+        accountDataCount,
+        accountCacheControl: accountFirst.headers.get("cache-control"),
+        accountDataCacheControl: accountData.headers.get("cache-control"),
         ssgFirstBody: await ssgFirst.text(),
         ssgSecondBody: await ssgSecond.text(),
         ssgTag: ssgFirst.headers.get("vercel-cache-tag"),
+        offersBody: await offers.text(),
         tagInvalidationBody: await tagInvalidation.text(),
         serverTiming: api.headers.get("server-timing"),
         userStaticBody: await userStatic.text(),
@@ -443,6 +537,9 @@ describe.serial("Vercel deployment adapter", () => {
       throw new Error(`Generated handler did not report a result:\n${stdout}`);
     }
     const result = JSON.parse(resultLine.slice("__FURIN_RESULT__".length));
+    expect(result.flightStatus).toBe(200);
+    expect(result.flightBody).toContain("Flight article");
+    expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
     expect(result.apiBody).toBe("user hydrate");
     expect(result.userStaticBody).toBe("user static asset");
@@ -457,9 +554,21 @@ describe.serial("Vercel deployment adapter", () => {
     expect(result.invalidationBody).toBe("invalidated");
     expect(result.pendingCount).toBe(2);
     expect(result.purged).toEqual([["news"], ["/"]]);
+    expect(result.registeredTags).toContainEqual(["/news", "news"]);
+    expect(result.expiredTags).toEqual([["news"], ["/"]]);
+    expect(result.accountFirstBody).toContain("alice");
+    expect(result.accountSecondBody).toContain("bob");
+    expect(result.accountSecondBody).not.toContain("alice");
+    expect(result.accountFirstBody).toContain("public:<!-- -->1");
+    expect(result.accountSecondBody).toContain("public:<!-- -->1");
+    expect(result.accountDataCount).toBe(1);
+    expect(result.accountAfterPurgeBody).toContain("public:<!-- -->2");
+    expect(result.accountCacheControl).toBe("private, no-store");
+    expect(result.accountDataCacheControl).toBe("private, no-store");
     expect(result.ssgTag).toBe("/");
     expect(result.ssgFirstBody).toContain('"renderCount":1');
     expect(result.ssgSecondBody).toContain('"renderCount":2');
+    expect(result.offersBody).toContain("SALE");
     expect(result.isrTag).toBe("/news,news");
     expect(result.tagInvalidationBody).toBe("tag invalidated");
     expect(result.isrFirstBody).toContain('"renderCount":1');

@@ -121,12 +121,17 @@ bunx vercel deploy --prebuilt
 | `ssr` | Bun catch-all Function |
 | `ssg` | Prerender Function with `expiration: false` and a build-time HTML fallback when the URL is known |
 | `isr` | Prerender Function whose expiration matches `revalidate`, with a build-time fallback for request-independent URLs |
+| SSG/ISR with `requestLoader` (PPR) | Dynamic streaming Function; only public loader results use Runtime Cache |
 
 Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema or a `requestLoader` remain on-demand so a shared fallback cannot expose request-specific content. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
 The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
+
+PPR documents and navigation payloads remain `private, no-store`: the personalized document is never an ISR asset. Public loader results are serialized with the existing lossless route transport and shared through Vercel Runtime Cache, scoped by build, mount prefix, route mode, and query string. ISR public data expires after `revalidate` seconds and is regenerated before the next response, rather than in an untracked background task. Path and tag invalidation also expires the corresponding Runtime Cache entries. This preserves Furin's streaming PPR behavior; it does not emit a Next.js-style static HTML shell with a resumable dynamic continuation.
+
+The isolated Flight codec is included alongside the Function handler, so RSC rendering does not compile code or read framework sources at runtime.
 
 SSR payloads, request-specific loaders, deferred streams, redirects, not-found results, and errors are explicitly `private, no-store`.
 

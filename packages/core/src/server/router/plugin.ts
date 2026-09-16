@@ -11,6 +11,7 @@ import {
   emitPayloadSerialized,
 } from "../devtools/instrumentation.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
+import { currentInstance } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { handleISR } from "../render/isr.ts";
 import {
@@ -20,7 +21,7 @@ import {
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
-import { renderPprRoute } from "../render/ppr-route.ts";
+import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { extractTitle } from "../render/shell.ts";
 import { prerenderRoute, prerenderSSG } from "../render/ssg.ts";
@@ -69,7 +70,9 @@ async function runDataEndpointLoaders(route: ResolvedRoute, ctx: Context): Promi
     return runLoaders(route, ctx);
   }
 
-  const result = await runPublicLoaders(route, ctx);
+  const result = hasRequestLoader(route)
+    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId)
+    : await runPublicLoaders(route, ctx);
   if (result.type !== "data" || !hasRequestLoader(route)) {
     return result;
   }
@@ -197,7 +200,7 @@ async function handleSSGRequest(
   const { origin } = new URL(ctx.request.url);
   const params = ctx.params ?? {};
   const entry = isExternalPrerenderRequest(ctx.request)
-    ? await prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes)
+    ? await prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes, ctx)
     : await prerenderSSG(route, params, root, origin, undefined, searchRoutes);
 
   // Loader issued a redirect — forward it directly to the client.

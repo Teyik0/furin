@@ -126,6 +126,11 @@ export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
   runtimeCacheState().provider = provider;
 }
 
+export function hasExternalRuntimeCache(): boolean {
+  const state = runtimeCacheState();
+  return state.provider !== state.memoryProvider;
+}
+
 export function resetRuntimeCacheProvider(): void {
   const state = runtimeCacheState();
   state.provider = state.memoryProvider;

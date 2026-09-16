@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: SSG rendering writes route outputs in a deterministic sequence
+import type { Context } from "elysia";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { mapWithConcurrency } from "../../shared/utils/index.ts";
 import type { SsgCacheEntry } from "../cache/isr-ssg.ts";
@@ -15,7 +16,8 @@ export async function prerenderRoute(
   origin: string,
   mode: "ssg" | "isr",
   basePath: string | undefined,
-  searchRoutes: SearchRouteMetadata[] | undefined
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  requestContext?: Context
 ): Promise<SsgCacheEntry | Response> {
   const renderResult = await renderForPath(
     route,
@@ -24,7 +26,9 @@ export async function prerenderRoute(
     origin,
     mode,
     basePath,
-    searchRoutes
+    searchRoutes,
+    undefined,
+    requestContext
   );
   if (renderResult instanceof Response) {
     return renderResult;

@@ -70,6 +70,10 @@ export function withBuildStub<T>(
       writeFileSync(outfile, "#!/usr/bin/env bun\n");
     }
     const outputs: Array<{ kind: string; path: string; size: number }> = [];
+    if (config.naming === "server-codec.js" && typeof outdir === "string") {
+      mkdirSync(outdir, { recursive: true });
+      writeFileSync(join(outdir, "server-codec.js"), "export {};\n");
+    }
     const isFirstBuild = buildCallCount === 0;
     buildCallCount += 1;
     if (isFirstBuild && typeof outdir === "string") {

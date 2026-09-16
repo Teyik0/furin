@@ -513,7 +513,8 @@ export function renderForPath(
   mode: "ssg" | "isr",
   basePath?: string,
   searchRoutes?: SearchRouteMetadata[],
-  search?: string
+  search?: string,
+  requestContext?: Context
 ): Promise<RenderResult | Response> {
   return runInSyntheticRenderScope(
     async () => {
@@ -530,17 +531,19 @@ export function renderForPath(
           query[key] = [previous, value];
         }
       }
-      const ctx: Context = {
-        cookie: {},
-        headers: {},
-        params,
-        path: resolvedPath,
-        query,
-        redirect: (url: string, redirectStatus: number | undefined) =>
-          new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
-        request: new Request(requestUrl),
-        set: { headers: {} },
-      } as Context;
+      const ctx: Context =
+        requestContext ??
+        ({
+          cookie: {},
+          headers: {},
+          params,
+          path: resolvedPath,
+          query,
+          redirect: (url: string, redirectStatus: number | undefined) =>
+            new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
+          request: new Request(requestUrl),
+          set: { headers: {} },
+        } as Context);
 
       const loaderResult = await runPublicLoaders(route, ctx);
       const prepared = await prepareRender(
