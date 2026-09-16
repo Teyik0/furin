@@ -110,6 +110,7 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     expect(decoder.decode(first.value)).toContain("loading");
     expect(html).toContain('window.__bodyLiteral = "</body>";');
     expect(html.lastIndexOf("</body>")).toBeGreaterThan(html.indexOf("window.__bodyLiteral"));
+    expect(html.endsWith("</html>")).toBe(true);
   });
 
   test.serial("renderSSR streams deferred chunks in settlement order", async () => {

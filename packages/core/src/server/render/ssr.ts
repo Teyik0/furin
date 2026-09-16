@@ -578,12 +578,20 @@ interface SsrTransportScripts {
   usesRouteFrames: boolean;
 }
 
-function injectBeforeEntry(html: string, injection: string, fallbackIndex: number): string {
-  const entryIndex = html.lastIndexOf("<script");
-  const insertionIndex =
-    entryIndex !== -1 && html.slice(entryIndex).includes('data-furin-entry=""')
-      ? entryIndex
-      : fallbackIndex;
+function injectAfterEntry(
+  html: string,
+  injection: string,
+  fallbackIndex: number
+): string | undefined {
+  const entryMarkerIndex = html.indexOf('data-furin-entry=""');
+  if (entryMarkerIndex === -1) {
+    return html.slice(0, fallbackIndex) + injection + html.slice(fallbackIndex);
+  }
+  const entryEndIndex = html.indexOf("</script>", entryMarkerIndex);
+  if (entryEndIndex === -1) {
+    return;
+  }
+  const insertionIndex = entryEndIndex + "</script>".length;
   return html.slice(0, insertionIndex) + injection + html.slice(insertionIndex);
 }
 
@@ -594,6 +602,29 @@ function scriptsMarkerEnd(html: string): number | undefined {
   }
   const closeIndex = html.indexOf("</script>", markerIndex);
   return closeIndex === -1 ? undefined : closeIndex + "</script>".length;
+}
+
+function orderDocumentTail(documentTail: string, beforeBodyClose: string): string {
+  const htmlCloseEnd = documentTail.toLowerCase().indexOf("</html>");
+  if (htmlCloseEnd === -1) {
+    return beforeBodyClose + documentTail;
+  }
+  const closingEnd = htmlCloseEnd + "</html>".length;
+  const closingDocument = documentTail.slice(0, closingEnd);
+  const postDocumentChunks = documentTail.slice(closingEnd);
+  return postDocumentChunks + beforeBodyClose + closingDocument;
+}
+
+function documentBodyCloseIndex(
+  html: string,
+  scriptsEndIndex: number | undefined,
+  entryHandled: boolean
+): number {
+  if (!(entryHandled || scriptsEndIndex !== undefined)) {
+    return -1;
+  }
+  const candidate = html.toLowerCase().lastIndexOf("</body>");
+  return scriptsEndIndex === undefined || candidate > scriptsEndIndex ? candidate : -1;
 }
 
 async function pipeDocumentStream(
@@ -621,19 +652,13 @@ async function pipeDocumentStream(
 
     pending += chunk;
     const scriptsEndIndex = scriptsMarkerEnd(pending);
-    const bodyCloseCandidate =
-      entryHandled || scriptsEndIndex !== undefined
-        ? pending.toLowerCase().lastIndexOf("</body>")
-        : -1;
-    const bodyCloseIndex =
-      scriptsEndIndex === undefined || bodyCloseCandidate > scriptsEndIndex
-        ? bodyCloseCandidate
-        : -1;
+    const bodyCloseIndex = documentBodyCloseIndex(pending, scriptsEndIndex, entryHandled);
     if (bodyCloseIndex !== -1) {
       const beforeBody = pending.slice(0, bodyCloseIndex);
       const shell = entryHandled
         ? beforeBody
-        : injectBeforeEntry(beforeBody, beforeEntry, beforeBody.length);
+        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length) ??
+          beforeBody + beforeEntry);
       await writer.write(enc.encode(shell));
       documentTail = pending.slice(bodyCloseIndex);
       pending = "";
@@ -641,7 +666,11 @@ async function pipeDocumentStream(
     }
 
     if (scriptsEndIndex !== undefined) {
-      await writer.write(enc.encode(injectBeforeEntry(pending, beforeEntry, scriptsEndIndex)));
+      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex);
+      if (shell === undefined) {
+        continue;
+      }
+      await writer.write(enc.encode(shell));
       entryHandled = true;
       pending = "";
     }
@@ -653,7 +682,7 @@ async function pipeDocumentStream(
   }
 
   documentTail += finalChunk;
-  await writer.write(enc.encode((await beforeBodyClose()) + documentTail));
+  await writer.write(enc.encode(orderDocumentTail(documentTail, await beforeBodyClose())));
 }
 
 function buildSsrTransportScripts(
