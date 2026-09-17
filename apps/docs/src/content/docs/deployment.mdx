@@ -142,6 +142,8 @@ SSR payloads, request-specific loaders, deferred streams, redirects, not-found r
 Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source through `furin.config.ts`:
 
 ```ts
+import { defineConfig } from "@teyik0/furin/config";
+
 export default defineConfig({
   vercel: {
     regions: ["cdg1"],
