@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { toCrossJSONAsync } from "seroval";
 import { serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
 import { serializeCompactJsonLine } from "../../../src/shared/compact-json.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
@@ -36,7 +35,6 @@ describe("loader data transport", () => {
       })),
       title: "Benchmark",
     };
-    const crossJson = `${JSON.stringify(await toCrossJSONAsync(data))}\n`;
 
     const payload = await serializeLoaderDataNdjson(data, {});
     const { body } = new Response(payload);
@@ -46,7 +44,7 @@ describe("loader data transport", () => {
     const result = await parseDeferredNdjson(body, undefined);
 
     expect(result.syncData).toEqual(data);
-    expect(payload.length).toBeLessThan(crossJson.length / 2);
+    expect(serializeCompactJsonLine(data)).toBe(payload);
   });
 
   test("preserves rich values and shared references through CrossJSON", async () => {

@@ -39,6 +39,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
   const app = createTmpApp("cli-app");
   let port: number;
   let server: ReturnType<typeof startProcess>;
+  let stopping = false;
 
   // Root layout — minimal marker wrapper.
   writeAppFile(
@@ -94,6 +95,13 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       cwd: app.path,
       env: { PORT: String(port) },
     });
+    server.exitCode.then((code) => {
+      if (!stopping) {
+        console.error(
+          `Topology server exited (${code}).\n${server.getStdout()}\n${server.getStderr()}`
+        );
+      }
+    });
 
     const ready = await pollUntil(
       async () => {
@@ -113,6 +121,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
   }, 30_000);
 
   afterAll(() => {
+    stopping = true;
     server?.kill();
     app.cleanup();
   });

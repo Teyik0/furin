@@ -29,11 +29,13 @@ function dispatch(purger: CachePurger | undefined, keys: string[]): void {
   if (!purger || keys.length === 0) {
     return;
   }
-  purger(keys).catch(async (error: unknown) => {
-    const { createLogger } = await import("../context-logger.ts");
-    const logger = createLogger({});
-    logger.set({ furin: { action: "cdn_purge_failed", keys } });
-    logger.error(error instanceof Error ? error : new Error(String(error)));
-    logger.emit();
-  });
+  Promise.resolve()
+    .then(() => purger(keys))
+    .catch(async (error: unknown) => {
+      const { createLogger } = await import("../context-logger.ts");
+      const logger = createLogger({});
+      logger.set({ furin: { action: "cdn_purge_failed", keys } });
+      logger.error(error instanceof Error ? error : new Error(String(error)));
+      logger.emit();
+    });
 }

@@ -86,13 +86,13 @@ jobs:
 
     steps:
       - name: Checkout Furin
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout benchmark
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
           ref: bd8d295cd8466c20ed21d9636faefc61798e22af
@@ -100,13 +100,13 @@ jobs:
           persist-credentials: false
 
       - name: Cache bun
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-vercel-benchmark-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
 
       - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
 
@@ -212,7 +212,7 @@ jobs:
 
       - name: Upload benchmark reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: vercel-framework-benchmark
           path: |

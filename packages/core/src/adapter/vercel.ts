@@ -370,13 +370,16 @@ function vercelEntrySource(
     `^(?:${spec.source})$`,
   ]);
   const dataEndpointPaths = builds.map(({ entryApp }) => `${entryApp.prefix}/_furin/data`);
-  const cacheTagRules = apps.flatMap((app) =>
-    app.routes.flatMap((route) =>
-      route.tags && route.tags.length > 0
-        ? [[`^(?:${routePatternSource(app.prefix, route.pattern)})$`, route.tags]]
-        : []
+  const cacheTagRules = apps
+    .flatMap((app) =>
+      app.routes.map((route) => ({
+        pattern: physicalPath(app.prefix, route.pattern),
+        source: `^(?:${routePatternSource(app.prefix, route.pattern)})$`,
+        tags: route.tags ?? [],
+      }))
     )
-  );
+    .sort((left, right) => compareRouteSpecificity(right.pattern, left.pattern))
+    .map(({ source, tags }) => [source, tags]);
   const contextSource = buildEntrySource({
     apps: builds.map(({ entryApp, indexHtml }) => ({
       ...entryApp,

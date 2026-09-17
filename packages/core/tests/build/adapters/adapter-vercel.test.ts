@@ -372,6 +372,15 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
 
   test("runs the generated Web Handler without opening a TCP listener", async () => {
     const app = createVercelApp();
+    writeAppFile(app.path, "src/pages/blog/[slug].tsx",
+      readFileSync(join(app.path, "src/pages/blog/[slug].tsx"), "utf8")
+        .replace('mode: "ssg",', 'mode: "ssg", tags: ["generic"],'));
+    for (const name of ["tagged", "untagged"]) {
+      writeAppFile(app.path, `src/pages/blog/${name}.tsx`,
+        `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags: ${name === "tagged" ? '["specific"]' : "[]"} }).page(() => <main>${name}</main>);`);
+    }
     writeAppFile(
       app.path,
       "src/pages/index.tsx",
@@ -482,6 +491,8 @@ export const route = defineRoute()
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
       const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
+      const tagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/tagged"));
+      const untagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/untagged"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
@@ -509,6 +520,8 @@ export const route = defineRoute()
         flightDataStatus: flightData.status,
         apiBody: await api.text(),
         apiStatus: api.status,
+        tagged: tagged.headers.get("vercel-cache-tag"),
+        untagged: untagged.headers.get("vercel-cache-tag"),
         dataCacheControl: data.headers.get("cache-control"),
         dataTag: data.headers.get("vercel-cache-tag"),
         injectedBody: await injected.text(),
@@ -558,6 +571,8 @@ export const route = defineRoute()
     expect(result.flightBody).toContain("Flight article");
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
+    expect(result.tagged).toBe("/blog/tagged,specific");
+    expect(result.untagged).toBe("/blog/untagged");
     expect(result.apiBody).toBe("user hydrate");
     expect(result.injectedBody).toBe("user hydrate");
     expect(result.dataCacheControl).toBe(

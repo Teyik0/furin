@@ -164,6 +164,15 @@ describe("revalidateTag", () => {
 });
 
 describe("revalidatePath", () => {
+  test("does not propagate a synchronous purge failure", async () => {
+    registerInstance(createInstance("/admin", "/apps/admin"));
+    setCachePurger(() => {
+      throw new Error("Purge unavailable");
+    });
+    expect(() => revalidatePath("/x", "page")).not.toThrow();
+    await flushMicrotasks();
+  });
+
   test("purges the mounted app's PHYSICAL (prefixed) URL, not the logical path", async () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];
