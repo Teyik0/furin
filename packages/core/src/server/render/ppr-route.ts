@@ -5,6 +5,7 @@ import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-inval
 import { registerCacheInvalidator } from "../cache/registry.ts";
 import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
 import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
+import { useLogger } from "../context-logger.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -105,22 +106,36 @@ export async function runPprPublicLoaders(
     const { prefix } = currentInstance();
     const cache = getCache({ namespace: "furin-ppr-v1" });
     const key = JSON.stringify([buildId, prefix, cacheKey]);
-    const stored = await cache.get(key);
-    if (typeof stored === "string") {
-      const { ndjson, headers } = JSON.parse(stored) as {
-        ndjson: string;
-        headers: Extract<LoaderResult, { type: "data" }>["headers"];
-      };
-      const lines = ndjson.trimEnd().split("\n");
-      const data = await parseRouteFrameLines(lines.shift() as string, () =>
-        Promise.resolve(lines.shift())
-      );
-      return {
-        deferredPromises: undefined,
-        headers,
-        syncData: data.syncData,
-        type: "data",
-      };
+    try {
+      const stored = await cache.get(key);
+      if (typeof stored === "string") {
+        const { ndjson, headers } = JSON.parse(stored) as {
+          ndjson: string;
+          headers: Extract<LoaderResult, { type: "data" }>["headers"];
+        };
+        if (
+          typeof ndjson !== "string" ||
+          !headers ||
+          typeof headers !== "object" ||
+          Array.isArray(headers) ||
+          Object.values(headers).some((value) => typeof value !== "string")
+        ) {
+          throw new Error("Invalid PPR cache payload");
+        }
+        const lines = ndjson.trimEnd().split("\n");
+        const data = await parseRouteFrameLines(lines.shift() as string, () =>
+          Promise.resolve(lines.shift())
+        );
+        await data.completion;
+        return {
+          deferredPromises: undefined,
+          headers,
+          syncData: data.syncData,
+          type: "data",
+        };
+      }
+    } catch {
+      useLogger().warn("PPR runtime cache read failed; rendering fresh public data");
     }
     const result = await runPublicLoaders(route, ctx);
     if (result.type === "data") {
@@ -128,10 +143,14 @@ export async function runPprPublicLoaders(
       const ndjson = serializeRouteFrames(result.syncData, []);
       // Expired public data is regenerated before this response, not in an
       // untracked background task. Private requestData never enters this cache.
-      await cache.set(key, JSON.stringify({ headers: result.headers, ndjson }), {
-        tags: [prefix + resolvedPath, ...(route.tags ?? [])],
-        ttl: route.mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : undefined,
-      });
+      await cache
+        .set(key, JSON.stringify({ headers: result.headers, ndjson }), {
+          tags: [prefix + resolvedPath, ...(route.tags ?? [])],
+          ttl: route.mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : undefined,
+        })
+        .catch(() => {
+          useLogger().warn("PPR runtime cache write failed; serving the fresh result");
+        });
     }
     return result;
   }

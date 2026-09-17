@@ -16,7 +16,8 @@ The Vercel target emits Build Output API v3 directly to `.vercel/output`:
 
 - content-hashed browser assets and `public/` files under `static/`;
 - one bundled `bun1.4.x` Web Handler under `functions/__server.func`;
-- SSG Prerender Functions with build-time fallbacks and no timed expiration;
+- SSG Prerender Functions with no timed expiration and build-time fallbacks
+  for known URLs whose route tree has no query or request loader;
 - ISR Prerender Functions using each route's `revalidate` duration and
   build-time fallbacks for fixed URLs or `staticParams()` values when the route
   tree has no query or request loader;
@@ -33,6 +34,11 @@ HTML; the in-memory cache remains exclusive to development and Bun targets.
 The generated handler also installs Vercel Runtime Cache as the provider behind
 `@teyik0/furin/cache`. Application code keeps one portable cache API while
 development and Bun targets fall back to the in-memory provider.
+
+Application `@elysiajs/static` mounts are rejected during Vercel builds: their
+runtime filesystem mappings are not deployable CDN mappings. Place static files
+under `public/` instead. Personalized PPR pages use a dynamic Function and share
+only public loader results through Runtime Cache.
 
 Successful `/_furin/data` responses for SSG/ISR routes share the document's
 cache tag and revalidation window. SSR, request-loader, deferred, and failed

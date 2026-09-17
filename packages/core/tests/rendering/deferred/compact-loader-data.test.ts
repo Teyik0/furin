@@ -5,6 +5,28 @@ import { serializeCompactJsonLine } from "../../../src/shared/compact-json.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 
 describe("loader data transport", () => {
+  test("rejects accessors without evaluating them in objects or arrays", async () => {
+    let calls = 0;
+    const object = Object.defineProperty({}, "value", {
+      enumerable: true,
+      get() {
+        calls += 1;
+        return calls;
+      },
+    });
+    const array = Object.defineProperty([0], "0", {
+      enumerable: true,
+      get() {
+        calls += 1;
+        return calls;
+      },
+    });
+    expect(serializeCompactJsonLine({ object })).toBeUndefined();
+    expect(serializeCompactJsonLine({ array })).toBeUndefined();
+    expect(calls).toBe(0);
+    await Promise.resolve();
+  });
+
   test("round-trips ordinary JSON without CrossJSON overhead", async () => {
     const data = {
       items: Array.from({ length: 40 }, (_, id) => ({

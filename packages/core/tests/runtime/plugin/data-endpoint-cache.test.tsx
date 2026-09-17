@@ -6,6 +6,7 @@ import { collectRouteTags } from "../../../src/server/router/discovery.ts";
 import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const originalDevMode = IS_DEV;
@@ -37,7 +38,9 @@ function resolveRoute(
 function fetchData(route: ResolvedRoute): Promise<Response> {
   const app = new Elysia().use(createDataEndpoint([route]));
   return app.handle(
-    new Request(`http://localhost/_furin/data?path=${encodeURIComponent(route.pattern)}`)
+    new Request(`http://localhost/_furin/data?path=${encodeURIComponent(route.pattern)}`, {
+      headers: { cookie: "session=alice" },
+    })
   );
 }
 
@@ -98,6 +101,13 @@ describe("navigation data cache contract", () => {
 
     const response = await fetchData(route);
 
+    expect(response.status).toBe(200);
+    if (response.body === null) {
+      throw new Error("Missing navigation payload");
+    }
+    const payload = await parseDeferredNdjson(response.body, undefined);
+    expect(payload.syncData.value).toBe("public");
+    expect(await payload.deferredPromises.requestData).toEqual({ user: "alice" });
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("cache-tag")).toBeNull();
   });

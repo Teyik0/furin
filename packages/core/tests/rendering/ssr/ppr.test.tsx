@@ -73,6 +73,35 @@ afterAll(async () => {
 });
 
 describe("partial prerendering", () => {
+  for (const failure of ["unavailable", "invalid-json", "invalid-payload"]) {
+    test(`serves PPR when the deployment cache is ${failure}`, async () => {
+      setRuntimeCacheProvider({
+        getCache() {
+          return {
+            delete: () => Promise.resolve(),
+            expireTag: () => Promise.resolve(),
+            get: () =>
+              failure === "unavailable"
+                ? Promise.reject(new Error("Cache unavailable"))
+                : Promise.resolve(failure === "invalid-json" ? "{" : '{"ndjson":5,"headers":null}'),
+            set: () => Promise.reject(new Error("Cache write unavailable")),
+          };
+        },
+      });
+      const resolved = resolveRoute(
+        defineRoute()
+          .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+          .requestLoader(() => ({ user: "alice" }))
+          .loader(() => ({ catalog: "Fresh catalog" }))
+          .page(({ data }) => <main>{data.catalog}</main>)
+      );
+      const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+      const response = await app.handle(new Request("http://localhost/account"));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("Fresh catalog");
+    });
+  }
+
   test("shares only serialized public data through the deployment provider", async () => {
     const values = new Map<string, unknown>();
     const writes: { key: string; tags?: string[]; ttl?: number }[] = [];

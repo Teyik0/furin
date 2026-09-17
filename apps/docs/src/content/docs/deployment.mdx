@@ -44,6 +44,8 @@ Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, 
 
 The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the Vercel Bun runtime, serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
 
+Application `@elysiajs/static` mounts are not supported by this target and fail the build rather than deploying a missing runtime directory. Place files under `public/` to serve them through the CDN.
+
 ### Server entry
 
 Export the Elysia application as the default export. Guard `.listen()` with `import.meta.main` so the same entry runs locally without opening a TCP listener inside a Vercel Function:

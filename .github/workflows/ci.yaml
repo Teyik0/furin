@@ -198,6 +198,18 @@ jobs:
             '
           } | tee "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Report benchmark infrastructure failure
+        if: always()
+        run: |
+          if [ ! -s "$RUNNER_TEMP/vercel-benchmark.md" ]; then
+            {
+              echo '<!-- furin-vercel-benchmark-report -->'
+              echo '## Vercel framework benchmark'
+              echo
+              echo 'No comparison was produced. Benchmark setup or validation failed; inspect the workflow logs. This is not a passing performance result.'
+            } | tee "$RUNNER_TEMP/vercel-benchmark.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload benchmark reports
         if: always()
         uses: actions/upload-artifact@v6

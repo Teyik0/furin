@@ -88,14 +88,17 @@ function vercelRuntimePlugin(): Bun.BunPlugin {
   return {
     name: "furin-vercel-runtime",
     setup(build) {
-      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, ({ importer }) =>
-        isFurinRuntimeImporter(importer)
-          ? {
-              namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
-              path: "@elysiajs/static",
-            }
-          : undefined
-      );
+      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, ({ importer }) => {
+        if (!isFurinRuntimeImporter(importer)) {
+          throw new Error(
+            "[furin] Application @elysiajs/static mounts are not supported by the Vercel target. Put CDN assets under public/ instead."
+          );
+        }
+        return {
+          namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
+          path: "@elysiajs/static",
+        };
+      });
       build.onLoad({ filter: MATCH_ALL_RE, namespace: VERCEL_RUNTIME_STUB_NAMESPACE }, () => ({
         contents: `export function staticPlugin() {
   throw new Error("[furin] The Vercel CDN owns production assets.");
@@ -393,6 +396,7 @@ import { setCachePurger } from "@teyik0/furin";
 import {
   hasPendingISRRevalidations,
   markExternalPrerenderRequest,
+  setCacheTagPurger,
   setRuntimeCacheProvider,
   waitForPendingISRRevalidations,
 } from "@teyik0/furin/internal";
@@ -416,14 +420,16 @@ setRuntimeCacheProvider({
   getCache: (options) => getVercelCache(options),
 });
 
-setCachePurger(async (paths) => {
+async function purgeCacheTags(paths) {
   const purge = Promise.all([
     invalidateByTag(paths.map(encodeCacheTag)),
     getVercelCache().expireTag(paths),
   ]);
   waitUntil(purge);
   await purge;
-});
+}
+setCachePurger(purgeCacheTags);
+setCacheTagPurger(purgeCacheTags);
 
 const serverInitStartedAt = performance.now();
 const serverModule = await import(${JSON.stringify(toPosixPath(serverEntry))});

@@ -18,7 +18,6 @@ function createVercelApp(): TmpApp {
     "src/server.ts",
     [
       'import { furin, revalidatePath, revalidateTag } from "@teyik0/furin";',
-      'import { staticPlugin } from "@elysiajs/static";',
       'import { Elysia } from "elysia";',
       'import { userHydrate } from "./build/hydrate";',
       "",
@@ -32,7 +31,6 @@ function createVercelApp(): TmpApp {
       '    revalidateTag("news,world");',
       '    return "tag invalidated";',
       "  })",
-      '  .use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))',
       '  .use(await furin({ pagesDir: "./src/pages" }));',
       "",
       "if (import.meta.main) {",
@@ -266,6 +264,26 @@ describe.serial("Vercel deployment adapter", () => {
     ).rejects.toThrow("must export the Elysia app as default");
   });
 
+  test("rejects application static mounts instead of shipping missing files", async () => {
+    const app = createVercelApp();
+    const serverPath = join(app.path, "src/server.ts");
+    writeAppFile(app.path, "src/server.ts",
+      'import { staticPlugin } from "@elysiajs/static";\n' +
+      readFileSync(serverPath, "utf8").replace("new Elysia()", 'new Elysia().use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))')
+    );
+    let failure: unknown;
+    try {
+      await buildApp({ rootDir: app.path, target: "vercel" });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(AggregateError);
+    if (!(failure instanceof AggregateError)) {
+      throw new Error("Expected a failed static mount build");
+    }
+    expect(failure.errors.map(String).join("\n")).toContain("static mounts");
+  });
+
   test("keeps SSR and personalized routes ahead of generic prerenders", (done) => {
     async function runScenario() {
     const app = createVercelApp();
@@ -430,7 +448,7 @@ export const route = defineRoute()
     expect(
       serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))
     ).toBe(false);
-    expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(true);
+    expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(false);
     const script = `
       const pending = [];
       const purged = [];
@@ -464,7 +482,6 @@ export const route = defineRoute()
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
       const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
-      const userStatic = await handler.fetch(new Request("http://furin.test/user-static/user.txt"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
@@ -515,7 +532,6 @@ export const route = defineRoute()
         offersBody: await offers.text(),
         tagInvalidationBody: await tagInvalidation.text(),
         serverTiming: api.headers.get("server-timing"),
-        userStaticBody: await userStatic.text(),
       }));
       process.exit(0);
     `;
@@ -543,7 +559,6 @@ export const route = defineRoute()
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
     expect(result.apiBody).toBe("user hydrate");
-    expect(result.userStaticBody).toBe("user static asset");
     expect(result.injectedBody).toBe("user hydrate");
     expect(result.dataCacheControl).toBe(
       "public, max-age=0, must-revalidate, s-maxage=31536000"

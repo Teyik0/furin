@@ -130,6 +130,7 @@ describe("revalidateTag", () => {
 
     expect(purged.flat()).toContain("/admin/x");
     expect(purged.flat()).not.toContain("/x");
+    expect(purged.flat()).not.toContain("shared");
   });
 
   test("cache reset unregisters auto-invalidate entries on the owning instance", async () => {

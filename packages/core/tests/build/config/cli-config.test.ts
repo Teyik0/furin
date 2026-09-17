@@ -75,7 +75,7 @@ describe("CLI config resolution", () => {
       ].join("\n")
     );
 
-    await expect(loadCliConfig(app.path)).rejects.toThrow('path: /vercel/regions/0');
+    await expect(loadCliConfig(app.path)).rejects.toThrow("path: /vercel/regions/0");
   });
 
   // RED: plugins must survive TypeBox validation and be returned

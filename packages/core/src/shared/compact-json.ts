@@ -25,7 +25,8 @@ function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue 
       return false;
     }
     for (let index = 0; index < value.length; index += 1) {
-      if (!(Object.hasOwn(value, index) && isJsonValue(value[index], seen))) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, index);
+      if (!(descriptor && "value" in descriptor && isJsonValue(descriptor.value, seen))) {
         return false;
       }
     }
@@ -40,8 +41,10 @@ function isJsonValue(value: unknown, seen: WeakSet<object>): value is JsonValue 
   if (Reflect.ownKeys(value).length !== keys.length) {
     return false;
   }
-  const object = value as { [key: string]: unknown };
-  return keys.every((key) => isJsonValue(object[key], seen));
+  return keys.every((key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined && "value" in descriptor && isJsonValue(descriptor.value, seen);
+  });
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

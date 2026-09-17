@@ -4,6 +4,7 @@ import {
   hasPendingISRRevalidations as hasPendingISR,
   waitForPendingISRRevalidations as waitForPendingISR,
 } from "./cache/isr.ts";
+import { setCacheTagPurger as installCacheTagPurger } from "./cache/purger.ts";
 import {
   type RuntimeCacheProvider,
   setRuntimeCacheProvider as setCacheProvider,
@@ -74,6 +75,10 @@ export function markExternalPrerenderRequest(request: Request): Request {
 
 export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
   setCacheProvider(provider);
+}
+
+export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): void {
+  installCacheTagPurger(purger);
 }
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory

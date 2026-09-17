@@ -5,6 +5,7 @@ import {
   revalidatePath,
   revalidatePathForInstance,
 } from "../cache/invalidation.ts";
+import { callCacheTagPurger } from "../cache/purger.ts";
 import { pathWithoutSearch } from "../cache/route-cache.ts";
 import {
   currentInstrumentationRequest,
@@ -130,10 +131,8 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
   let deleted = false;
-  // External caches can associate entries directly with semantic tags. Keep
-  // those tags in the purge even when this process has never rendered (and
-  // therefore never registered) the matching paths.
-  const purgedPaths = new Set<string>(tagList);
+  const purgedPaths = new Set<string>();
+  callCacheTagPurger(tagList);
   for (const instance of allInstances()) {
     let instanceDeleted = false;
     const instancePurgedPaths = new Set<string>();

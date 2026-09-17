@@ -82,10 +82,10 @@ Mutations remain ordinary Elysia routes, usually called through Eden Treaty. Fur
 | Static output | Built in | Prerendering support | SSG-only static exporter |
 | Incremental content | Framework caching and revalidation | Application/adapter strategy | Process-local ISR cache with time/path/tag invalidation |
 | Personalization | Dynamic APIs and component boundaries | Server functions/loaders | SSR or `requestLoader()` beside cached public data |
-| Main deployment story | Vercel and self-hosting | Adapter ecosystem | Bun server, Bun executable, static files |
+| Main deployment story | Vercel and self-hosting | Adapter ecosystem | Vercel, Bun server, Bun executable, static files |
 | Composable artifact | Framework/application deployment | Adapter-dependent | Packaged Furin app as an Elysia plugin |
 
-Furin's current origin page cache is process-local. Sync can distribute browser invalidations, and `setCachePurger()` can purge an upstream CDN, but neither is a shared multi-replica HTML cache. Node.js, Vercel, and Cloudflare build targets remain planned.
+Furin's Bun origin page cache is process-local. Sync can distribute browser invalidations, and `setCachePurger()` can purge an upstream CDN, but neither is a shared multi-replica HTML cache. The Vercel target delegates public SSG/ISR pages to Vercel's native cache and public PPR loader results to Runtime Cache. Node.js and Cloudflare build targets remain planned.
 
 ## React Server Components
 
