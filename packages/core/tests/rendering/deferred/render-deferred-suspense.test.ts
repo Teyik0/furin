@@ -44,6 +44,75 @@ async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: Resol
 }
 
 describe.serial("renderSSR deferred Suspense scenarios", () => {
+  test.serial("renderSSR flushes the Suspense shell before deferred data settles", async () => {
+    __setDevMode(false);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const fixture = await getSsrFixtureRoute();
+    let resolveSlow: ((value: string) => void) | undefined;
+    const slow = new Promise<string>((resolve) => {
+      resolveSlow = resolve;
+    });
+    const customRoute = asResolvedRoute({
+      ...fixture.ssrRoute,
+      page: {
+        ...fixture.ssrRoute.page,
+        component: (props: { [key: string]: unknown }) =>
+          createElement(
+            "div",
+            null,
+            createElement("script", {
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional raw-text regression fixture.
+              dangerouslySetInnerHTML: { __html: 'window.__bodyLiteral = "</body>";' },
+            }),
+            createElement(
+              Suspense,
+              { fallback: createElement("span", null, "loading") },
+              createElement(Await<unknown>, {
+                // biome-ignore lint/correctness/noChildrenProp: render-prop pattern — children is a function, not a ReactNode
+                children: (value: unknown) => createElement("span", null, String(value)),
+                resolve: props.slow as Promise<unknown>,
+              })
+            )
+          ),
+        loader: () => defer({ slow }),
+      },
+    });
+
+    const response = await renderSSR(
+      customRoute,
+      createMockLoaderContext({ path: "/ssr-page" }),
+      fixture.root,
+      undefined
+    );
+    const reader = response.body?.getReader();
+    if (reader === undefined) {
+      throw new Error("SSR response did not contain a body");
+    }
+    const timeout = "timeout" as const;
+    const firstRead = reader.read();
+    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(1000).then(() => timeout)]);
+
+    resolveSlow?.("done");
+    const first = firstOrTimeout === timeout ? await firstRead : firstOrTimeout;
+    const decoder = new TextDecoder();
+    let html = decoder.decode(first.value, { stream: true });
+    for (;;) {
+      // biome-ignore lint/performance/noAwaitInLoops: the response body must be drained sequentially.
+      const next = await reader.read();
+      if (next.done) {
+        break;
+      }
+      html += decoder.decode(next.value, { stream: true });
+    }
+    html += decoder.decode();
+
+    expect(firstOrTimeout).not.toBe(timeout);
+    expect(decoder.decode(first.value)).toContain("loading");
+    expect(html).toContain('window.__bodyLiteral = "</body>";');
+    expect(html.lastIndexOf("</body>")).toBeGreaterThan(html.indexOf("window.__bodyLiteral"));
+    expect(html.endsWith("</html>")).toBe(true);
+  });
+
   test.serial("renderSSR streams deferred chunks in settlement order", async () => {
     __setDevMode(false);
     setProductionTemplateContent(TEST_TEMPLATE);
@@ -74,7 +143,7 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     expect(fastIdx).toBeGreaterThan(-1);
     expect(slowIdx).toBeGreaterThan(-1);
     expect(fastIdx).toBeLessThan(slowIdx);
-    expect(html.indexOf("window.__FURIN_ROUTE_FRAME_STREAM__=")).toBeLessThan(
+    expect(html.indexOf("window.__FURIN_ROUTE_FRAME_STREAM__ =")).toBeGreaterThan(
       html.indexOf('data-furin-entry=""')
     );
     expect(html.lastIndexOf("window.__FURIN_ROUTE_FRAME_STREAM__.push(")).toBeLessThan(

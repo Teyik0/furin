@@ -23,9 +23,13 @@ export interface RscManifest {
   css: readonly RscCssAsset[];
 }
 
+export interface RscBuildApp {
+  root: RootLayout;
+  routes: ResolvedRoute[];
+}
+
 export async function buildRscGraph(
-  routes: ResolvedRoute[],
-  root: RootLayout,
+  apps: RscBuildApp[],
   outDir: string,
   buildId: string,
   userPlugins: Bun.BunPlugin[] | undefined
@@ -34,6 +38,14 @@ export async function buildRscGraph(
   const graphDir = join(outDir, "rsc");
   mkdirSync(graphDir, { recursive: true });
   const rscEntry = fileURLToPath(import.meta.resolve("../../rsc-server.tsx"));
+  const entrypoints = [
+    ...new Set(
+      apps.flatMap(({ root, routes }) => [
+        root.path,
+        ...routes.map((route) => route.path),
+      ])
+    ),
+  ];
   const aliasPlugin: Bun.BunPlugin = {
     name: "furin-rsc-entry",
     setup(build) {
@@ -46,7 +58,7 @@ export async function buildRscGraph(
     },
   };
   const result = await runBunBuild({
-    entrypoints: [root.path, ...routes.map((route) => route.path)],
+    entrypoints,
     outdir: graphDir,
     target: "bun",
     format: "esm",

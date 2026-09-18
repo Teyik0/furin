@@ -1,6 +1,17 @@
 import type { AnyElysia } from "elysia";
 import type { SsgCacheEntry } from "./cache/index.ts";
+import {
+  hasPendingISRRevalidations as hasPendingISR,
+  waitForPendingISRRevalidations as waitForPendingISR,
+} from "./cache/isr.ts";
+import { setCacheTagPurger as installCacheTagPurger } from "./cache/purger.ts";
+import {
+  type RuntimeCacheProvider,
+  setRuntimeCacheProvider as setCacheProvider,
+} from "./cache/runtime-cache.ts";
+import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
+import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
 // The generated compile entry calls `__setCompileContext()` before importing
@@ -44,8 +55,34 @@ export interface CompileContext {
     }
   >;
   routes: CompileContextRoute[];
+  /** False when a deployment platform serves client/public assets before Elysia. */
+  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
+  /** Production HTML template embedded by filesystem-free deployment adapters. */
+  templateHtml?: string;
 }
+
+export function waitForPendingISRRevalidations(): Promise<void> {
+  return waitForPendingISR();
+}
+
+export function hasPendingISRRevalidations(): boolean {
+  return hasPendingISR();
+}
+
+export function markExternalPrerenderRequest(request: Request): Request {
+  return markExternalPrerender(request);
+}
+
+export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
+  setCacheProvider(provider);
+}
+
+export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): void {
+  installCacheTagPurger(purger);
+}
+
+export const restorePprResumeRequest = restoreResumeRequest;
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
 // containing root.tsx, normalized to posix separators. The SAME pagesDir may

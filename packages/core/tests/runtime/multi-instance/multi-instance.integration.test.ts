@@ -275,7 +275,7 @@ try {
 
     const res = await parent.handle(new Request("http://furin/admin/_furin/data?path=%2Fusers"));
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("application/x-furin-route");
+    expect(res.headers.get("content-type")).toContain("application/x-ndjson");
     expect(await res.text()).toContain("admin");
   });
 

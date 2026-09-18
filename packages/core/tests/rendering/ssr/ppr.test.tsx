@@ -5,6 +5,10 @@ import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
+  resetRuntimeCacheProvider,
+  setRuntimeCacheProvider,
+} from "../../../src/server/cache/runtime-cache.ts";
+import {
   __clearInstanceRegistry,
   createInstance,
   registerInstance,
@@ -23,6 +27,7 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 afterEach(async () => {
   clearPprRouteCache();
+  resetRuntimeCacheProvider();
   await Promise.resolve();
 });
 const originalDevMode = IS_DEV;
@@ -67,7 +72,102 @@ afterAll(async () => {
   await Promise.resolve();
 });
 
-describe("partial prerendering", () => {
+describe.serial("partial prerendering", () => {
+  for (const failure of ["unavailable", "invalid-json", "invalid-payload"]) {
+    test(`serves PPR when the deployment cache is ${failure}`, async () => {
+      setRuntimeCacheProvider({
+        getCache() {
+          return {
+            delete: () => Promise.resolve(),
+            expireTag: () => Promise.resolve(),
+            get: () =>
+              failure === "unavailable"
+                ? Promise.reject(new Error("Cache unavailable"))
+                : Promise.resolve(failure === "invalid-json" ? "{" : '{"ndjson":5,"headers":null}'),
+            set: () => Promise.reject(new Error("Cache write unavailable")),
+          };
+        },
+      });
+      const resolved = resolveRoute(
+        defineRoute()
+          .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+          .requestLoader(() => ({ user: "alice" }))
+          .loader(() => ({ catalog: "Fresh catalog" }))
+          .page(({ data }) => <main>{data.catalog}</main>)
+      );
+      const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+      const response = await app.handle(new Request("http://localhost/account"));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("Fresh catalog");
+    });
+  }
+
+  test("shares only serialized public data through the deployment provider", async () => {
+    const values = new Map<string, unknown>();
+    const writes: { key: string; tags?: string[]; ttl?: number }[] = [];
+    setRuntimeCacheProvider({
+      getCache() {
+        return {
+          delete: (key) => {
+            values.delete(key);
+            return Promise.resolve();
+          },
+          expireTag: () => {
+            values.clear();
+            return Promise.resolve();
+          },
+          get: (key) => Promise.resolve(values.get(key) ?? null),
+          set: (key, value, options) => {
+            values.set(key, JSON.parse(JSON.stringify(value)));
+            writes.push({ key, tags: options?.tags, ttl: options?.ttl });
+            return Promise.resolve();
+          },
+        };
+      },
+    });
+    let publicCalls = 0;
+    let privateCalls = 0;
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .requestLoader(() => {
+        privateCalls += 1;
+        return { user: `private-${privateCalls}` };
+      })
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: publicCalls, date: new Date("2026-01-01") };
+      });
+    function User({ data }: { data: Promise<{ user: string }> }) {
+      return <strong>{use(data).user}</strong>;
+    }
+    const resolved = resolveRoute(
+      route.page(({ data, requestData }) => (
+        <main>
+          {data.catalog}:{data.date.toISOString()}
+          <Suspense fallback="loading">
+            <User data={requestData} />
+          </Suspense>
+        </main>
+      ))
+    );
+    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const first = await app.handle(new Request("http://localhost/account")).then((r) => r.text());
+    clearPprRouteCache();
+    const second = await app.handle(new Request("http://localhost/account")).then((r) => r.text());
+    expect(first).toContain("private-1");
+    expect(second).toContain("private-2");
+    expect(second).toContain("2026-01-01");
+    expect(publicCalls).toBe(1);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.ttl).toBe(60);
+    expect(writes[0]?.tags).toContain("catalog");
+    expect(writes[0]?.tags).toContain("/account");
+    expect(JSON.stringify([...values])).not.toContain("private-");
+    values.clear();
+    await app.handle(new Request("http://localhost/account")).then((r) => r.text());
+    expect(publicCalls).toBe(2);
+  });
+
   test("cross-instance invalidation removes tags from the cache-owning app", async () => {
     const route = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })

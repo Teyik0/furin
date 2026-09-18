@@ -76,5 +76,16 @@ export async function createDocsServer() {
 }
 
 const app = await createDocsServer();
-app.listen(3000);
-console.log(`Furin Docs running at http://localhost:${app.server?.port}`);
+const port = Number(process.env.PORT ?? 3000);
+
+export function startServer() {
+  app.listen(port);
+  console.log(`Furin Docs running at http://localhost:${app.server?.port}`);
+  return app;
+}
+
+if (import.meta.main) {
+  startServer();
+}
+
+export default app;

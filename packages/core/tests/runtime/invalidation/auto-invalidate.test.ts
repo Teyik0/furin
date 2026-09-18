@@ -130,6 +130,7 @@ describe("revalidateTag", () => {
 
     expect(purged.flat()).toContain("/admin/x");
     expect(purged.flat()).not.toContain("/x");
+    expect(purged.flat()).not.toContain("shared");
   });
 
   test("cache reset unregisters auto-invalidate entries on the owning instance", async () => {
@@ -163,6 +164,28 @@ describe("revalidateTag", () => {
 });
 
 describe("revalidatePath", () => {
+  test("uses the same mounted root key as the deployment adapter", async () => {
+    registerInstance(createInstance("/admin", "/apps/admin"));
+    const purged: string[] = [];
+    setCachePurger((paths) => {
+      purged.push(...paths);
+      return Promise.resolve();
+    });
+    revalidatePath("/", "page");
+    await flushMicrotasks();
+    expect(purged).toContain("/admin");
+    expect(purged).not.toContain("/admin/");
+  });
+
+  test("does not propagate a synchronous purge failure", async () => {
+    registerInstance(createInstance("/admin", "/apps/admin"));
+    setCachePurger(() => {
+      throw new Error("Purge unavailable");
+    });
+    expect(() => revalidatePath("/x", "page")).not.toThrow();
+    await flushMicrotasks();
+  });
+
   test("purges the mounted app's PHYSICAL (prefixed) URL, not the logical path", async () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];

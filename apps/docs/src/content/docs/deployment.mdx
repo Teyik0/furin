@@ -1,18 +1,19 @@
 # Deployment
 
-Furin currently ships four Bun-native production shapes: a bundled server, a compiled server with assets on disk, a self-contained executable, and a pure static export. A fifth `package` output is for composing a page tree into another Elysia application.
+Furin ships a native Vercel Build Output target plus four Bun-native production shapes: a bundled server, a compiled server with assets on disk, a self-contained executable, and a pure static export. The `package` output composes a page tree into another Elysia application.
 
 ## Choose An Output
 
 | Requirement | Recommended output |
 |---|---|
+| Vercel Functions, CDN assets, and native ISR | Vercel Build Output |
 | SSR, ISR, APIs, or Sync in a normal Bun environment | Bun server bundle |
 | Small operational artifact with assets mounted beside it | Compiled `server` |
 | One distributable executable | Compiled `embed` |
 | Only SSG pages and no request runtime | Static export |
 | Publish a Furin app for another Elysia host | Package target |
 
-Node.js, Vercel, and Cloudflare build targets are named in the CLI schema but are not implemented. Their commands fail rather than producing partial output.
+Node.js and Cloudflare build targets are named in the CLI schema but are not implemented. Their commands fail rather than producing partial output.
 
 ## Bun Server Bundle
 
@@ -38,6 +39,152 @@ furin build --target bun --compile embed
 Both commands write `.furin/build/bun/server`. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
 
 Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
+
+## Vercel
+
+The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the Vercel Bun runtime, serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
+
+Application `@elysiajs/static` mounts are not supported by this target and fail the build rather than deploying a missing runtime directory. Place files under `public/` to serve them through the CDN.
+
+### Server entry
+
+Export the Elysia application as the default export. Guard `.listen()` with `import.meta.main` so the same entry runs locally without opening a TCP listener inside a Vercel Function:
+
+```ts
+import { furin } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+const app = new Elysia().use(
+  await furin({
+    pagesDir: "./src/pages",
+  })
+);
+
+export function startServer() {
+  return app.listen(3000);
+}
+
+if (import.meta.main) {
+  startServer();
+}
+
+export default app;
+```
+
+### Build
+
+```json
+{
+  "scripts": {
+    "build:vercel": "furin build --target vercel"
+  }
+}
+```
+
+The build writes a deployable artifact to `.vercel/output`:
+
+```text
+.vercel/output/
+├── config.json
+├── static/
+│   ├── _client/
+│   └── ...public assets
+└── functions/
+    ├── __server.func/
+    │   ├── index.js
+    │   └── .vc-config.json
+    ├── index-ssg.func -> __server.func
+    └── index-ssg.prerender-config.json
+```
+
+Add `vercel.json` when Vercel should run this target automatically:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bun run build:vercel",
+  "bunVersion": "1.4.x",
+  "framework": null,
+  "installCommand": "bun install --ignore-scripts"
+}
+```
+
+You can also build and deploy the prebuilt artifact yourself:
+
+```bash
+bun run build:vercel
+bunx vercel deploy --prebuilt
+```
+
+### Rendering and cache behavior
+
+| Furin mode | Vercel output |
+|------------|----------------|
+| `ssr` | Bun catch-all Function |
+| `ssg` | Prerender Function with `expiration: false` and a build-time HTML fallback when the URL is known |
+| `isr` | Prerender Function whose expiration matches `revalidate`, with a build-time fallback for request-independent URLs |
+| SSG/ISR with `requestLoader` (PPR) | Cached public HTML shell chained to a private streaming Function continuation |
+
+Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema remain on-demand so the fallback cannot ignore query-dependent input. For PPR routes, only the public shell is prerendered: `requestLoader` does not execute during this phase. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
+
+The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
+
+Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
+
+PPR stores the public HTML shell, React's opaque postponed state, and the public loader snapshot as one coherent artifact. The build generates known PPR shells using the **actual production bundle**, so minification cannot change the component tree between prerender and resume.
+
+Vercel serves the public shell from its native cache and chains it to a Function that runs `requestLoader` and resumes the suspended boundaries. Both parts form one HTTP response; the browser does not fetch a separate continuation. Resume requests are authenticated with a build-scoped chain key and checked against the build and mounted route. The state is not included in the browser's HTML.
+
+The personalized response and navigation payload remain `private, no-store`. Public artifacts also use Runtime Cache for origin rendering and navigation, scoped by deployment, build, mount prefix, route mode, and query string. Path and tag invalidation expires those entries. On Bun deployments, the same artifact is kept in memory; stale ISR artifacts remain usable while a tracked regeneration produces their replacement.
+
+Consume `requestData` inside a React `Suspense` boundary. Furin uses React's Web Streams renderer for applications containing PPR routes so full renders and resumptions share the same React contexts. Applications without PPR keep the native Bun renderer and omit the resumable renderer from their server bundle.
+
+The isolated Flight codec is included alongside the Function handler, so RSC rendering does not compile code or read framework sources at runtime.
+
+SSR payloads, request-specific loaders, deferred streams, redirects, not-found results, and errors are explicitly `private, no-store`.
+
+### Function region
+
+Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source through `furin.config.ts`:
+
+```ts
+import { defineConfig } from "@teyik0/furin/config";
+
+export default defineConfig({
+  vercel: {
+    regions: ["cdg1"],
+  },
+});
+```
+
+Region identifiers must use Vercel's lowercase region-code format, such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and malformed identifiers fail config validation.
+
+### Cold-start diagnostics
+
+The generated Function uses a lightweight bootstrap in front of the application bundle. Dynamic responses expose:
+
+```text
+Server-Timing: furin_module_init;dur=104.74, furin_server_init;dur=12.8, furin_handler_wait;dur=0.1, furin_handler;dur=2.4
+```
+
+| Metric | Meaning |
+|--------|---------|
+| `furin_module_init` | Parse and evaluate the complete server bundle |
+| `furin_server_init` | Import the user server entry and assemble the Elysia application |
+| `furin_handler_wait` | Time the request waited for module initialization |
+| `furin_handler` | Time Furin spent creating the response after initialization |
+
+The first request handled by a Function instance also emits a structured `vercel_cold_start` event containing these timings, route/app counts, region, and raw server-bundle bytes.
+
+Use `--analyze` to inspect which modules contribute to the bundles:
+
+```bash
+bunx furin build --target vercel --analyze
+```
+
+This writes one client metafile per mounted app (for example, `vercel-client.json` for the root app and `vercel-client-admin.json` for `/admin`) plus the shared `vercel-server.json` under `.furin/build/analysis`.
+
+The executable reference is [`examples/weather`](https://github.com/teyik0/furin/tree/main/examples/weather).
 
 ## Static Export
 

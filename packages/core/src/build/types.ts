@@ -1,4 +1,8 @@
-import type { BuildTarget, StaticExportConfig } from "../config";
+import type {
+  BuildTarget,
+  StaticExportConfig,
+  VercelDeploymentConfig,
+} from "../config";
 import type { ResolvedRoute } from "../server/router/types.ts";
 
 export interface BuildClientOptions {
@@ -70,7 +74,8 @@ export interface PackageTargetBuildManifest {
 export type AnyTargetManifest =
   | TargetBuildManifest
   | StaticTargetBuildManifest
-  | PackageTargetBuildManifest;
+  | PackageTargetBuildManifest
+  | VercelTargetBuildManifest;
 
 /** One mounted app in a multi-instance build. */
 export interface BuildAppSpec {
@@ -93,7 +98,7 @@ export interface BuildManifest {
 }
 
 export interface BuildAppOptions {
-  /** Emit Bun metafiles for client bundle analysis. */
+  /** Emit Bun metafiles for client and supported server bundle analysis. */
   analyze?: boolean;
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
@@ -114,6 +119,8 @@ export interface BuildAppOptions {
   /** Configuration for the `static` build target. */
   staticConfig?: StaticExportConfig;
   target: BuildTarget | "all";
+  /** Configuration for the Vercel build target. */
+  vercelConfig?: VercelDeploymentConfig;
 }
 
 /** Build manifest entry produced by the `static` adapter. */
@@ -123,6 +130,16 @@ export interface StaticTargetBuildManifest {
   outDir: string;
   renderedRoutes: string[];
   skippedRoutes: string[];
+}
+
+/** Build manifest entry produced by the Vercel Build Output API adapter. */
+export interface VercelTargetBuildManifest {
+  buildId: string;
+  generatedAt: string;
+  isrRoutes: string[];
+  outputDir: string;
+  serverPath: string;
+  ssgRoutes: string[];
 }
 
 export interface BuildAppResult {

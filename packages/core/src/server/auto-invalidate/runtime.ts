@@ -1,10 +1,12 @@
 import type { Context } from "elysia";
+import { physicalPath } from "../../shared/prefix.ts";
 import {
   callCachePurger,
   consumePendingInvalidations,
   revalidatePath,
   revalidatePathForInstance,
 } from "../cache/invalidation.ts";
+import { callCacheTagPurger } from "../cache/purger.ts";
 import { pathWithoutSearch } from "../cache/route-cache.ts";
 import {
   currentInstrumentationRequest,
@@ -131,6 +133,7 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
   // a sibling app's unrelated page that merely shares the pathname.
   let deleted = false;
   const purgedPaths = new Set<string>();
+  callCacheTagPurger(tagList);
   for (const instance of allInstances()) {
     let instanceDeleted = false;
     const instancePurgedPaths = new Set<string>();
@@ -142,10 +145,10 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
       const result = revalidatePathForInstance(instance, logicalPath, "page", false);
       deleted = result.deleted || deleted;
       instanceDeleted = result.deleted || instanceDeleted;
-      purgedPaths.add(`${instance.prefix}${logicalPath}`);
+      purgedPaths.add(physicalPath(instance.prefix, logicalPath));
       instancePurgedPaths.add(logicalPath);
       for (const purged of result.purgedPaths) {
-        purgedPaths.add(`${instance.prefix}${purged}`);
+        purgedPaths.add(physicalPath(instance.prefix, purged));
         instancePurgedPaths.add(purged);
       }
     }

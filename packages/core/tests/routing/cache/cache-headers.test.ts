@@ -46,7 +46,7 @@ __setDevMode(false);
 let response = await routeResponse("/isr-page", undefined);
 assertEqual(response.status, 200, "ISR response should return 200");
 let cacheControl = response.headers.get("cache-control") ?? "";
-for (const directive of ["must-revalidate", "max-age=0", "public", "s-maxage=", "stale-while-revalidate"]) {
+for (const directive of ["max-age=0", "public", "s-maxage=", "stale-while-revalidate"]) {
   assert(cacheControl.includes(directive), "ISR Cache-Control should include " + directive);
 }
 assert(

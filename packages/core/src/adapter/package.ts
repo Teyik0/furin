@@ -1,6 +1,6 @@
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { type BunTargetApp, createBuildFingerprint } from "../adapter/bun.ts";
+import { createBuildFingerprint, type RuntimeTargetApp } from "../adapter/runtime-build.ts";
 import { runBunBuild } from "../build/bun-build.ts";
 import { buildClient } from "../build/client.ts";
 import { buildEntrySource } from "../build/entry-template.ts";
@@ -37,12 +37,13 @@ import { setProductionTemplateContent } from "../server/render/template.ts";
  * package without sources is production-only; its context is found by prefix.
  */
 export async function buildPackageTarget(
-  app: BunTargetApp,
+  app: RuntimeTargetApp,
   rootDir: string,
   buildRoot: string,
   options: BuildAppOptions
 ): Promise<PackageTargetBuildManifest> {
   const { prefix, root, routes, pagesDir } = app;
+  const modulePaths = routeSourcePaths(app);
   const targetDir = join(buildRoot, "package");
 
   rmSync(targetDir, { force: true, recursive: true });
@@ -70,7 +71,9 @@ export async function buildPackageTarget(
     cssChunks,
     routes,
     root,
-    null
+    null,
+    modulePaths,
+    rootDir
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
 
@@ -128,7 +131,7 @@ export async function buildPackageTarget(
       {
         buildId,
         clientLogging: options.clientLogging ?? false,
-        modulePaths: routeSourcePaths({ pagesDir, prefix }),
+        modulePaths,
         nativeRoutes: routeModuleSpecifier(app),
         prefix,
         rootConventions,

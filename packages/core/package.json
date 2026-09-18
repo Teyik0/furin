@@ -36,6 +36,11 @@
       "bun": "./src/client.ts",
       "import": "./dist/client.js"
     },
+    "./cache": {
+      "types": "./dist/cache.d.ts",
+      "bun": "./src/cache.ts",
+      "import": "./dist/cache.js"
+    },
     "./routes": {
       "types": "./dist/routes.d.ts",
       "bun": "./src/routes.ts",
@@ -132,8 +137,8 @@
     "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
     "build": "bun run build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --parallel --isolate --bail",
-    "test:dev": "bun test --changed --parallel --isolate --bail",
+    "test": "bun test --parallel --isolate --max-concurrency 8 --bail",
+    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 8 --bail",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
     "tscheck": "tsc --noEmit"
@@ -142,6 +147,7 @@
     "@elysiajs/static": "^1.4.10",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@sinclair/typebox": "0.34.52",
+    "@vercel/functions": "^3.9.7",
     "@yuku-toolchain/types": "0.9.5",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",

@@ -14,6 +14,7 @@ import {
 } from "../../client/router/search-store.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { HeadOptions } from "../../client.ts";
+import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
@@ -512,7 +513,8 @@ export function renderForPath(
   mode: "ssg" | "isr",
   basePath?: string,
   searchRoutes?: SearchRouteMetadata[],
-  search?: string
+  search?: string,
+  requestContext?: Context
 ): Promise<RenderResult | Response> {
   return runInSyntheticRenderScope(
     async () => {
@@ -529,17 +531,19 @@ export function renderForPath(
           query[key] = [previous, value];
         }
       }
-      const ctx: Context = {
-        cookie: {},
-        headers: {},
-        params,
-        path: resolvedPath,
-        query,
-        redirect: (url: string, redirectStatus: number | undefined) =>
-          new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
-        request: new Request(requestUrl),
-        set: { headers: {} },
-      } as Context;
+      const ctx: Context =
+        requestContext ??
+        ({
+          cookie: {},
+          headers: {},
+          params,
+          path: resolvedPath,
+          query,
+          redirect: (url: string, redirectStatus: number | undefined) =>
+            new Response(null, { headers: { Location: url }, status: redirectStatus ?? 302 }),
+          request: new Request(requestUrl),
+          set: { headers: {} },
+        } as Context);
 
       const loaderResult = await runPublicLoaders(route, ctx);
       const prepared = await prepareRender(
@@ -577,56 +581,143 @@ interface SsrTransportScripts {
   usesRouteFrames: boolean;
 }
 
+export function injectAfterEntry(
+  html: string,
+  injection: string,
+  fallbackIndex: number,
+  hasEntryModule: boolean
+): string | undefined {
+  const entryMarkerIndex = html.indexOf('data-furin-entry=""');
+  if (entryMarkerIndex === -1) {
+    if (hasEntryModule) {
+      return;
+    }
+    return html.slice(0, fallbackIndex) + injection + html.slice(fallbackIndex);
+  }
+  const entryEndIndex = html.indexOf("</script>", entryMarkerIndex);
+  if (entryEndIndex === -1) {
+    return;
+  }
+  const insertionIndex = entryEndIndex + "</script>".length;
+  return html.slice(0, insertionIndex) + injection + html.slice(insertionIndex);
+}
+
+function scriptsMarkerEnd(html: string): number | undefined {
+  const markerIndex = html.indexOf('data-furin-scripts=""');
+  if (markerIndex === -1) {
+    return;
+  }
+  const closeIndex = html.indexOf("</script>", markerIndex);
+  return closeIndex === -1 ? undefined : closeIndex + "</script>".length;
+}
+
+function orderDocumentTail(documentTail: string, beforeBodyClose: string): string {
+  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
+  if (htmlCloseEnd === -1) {
+    return beforeBodyClose + documentTail;
+  }
+  const closingEnd = htmlCloseEnd + "</html>".length;
+  const closingDocument = documentTail.slice(0, closingEnd);
+  const postDocumentChunks = documentTail.slice(closingEnd);
+  return postDocumentChunks + beforeBodyClose + closingDocument;
+}
+
+function documentBodyCloseIndex(
+  html: string,
+  scriptsEndIndex: number | undefined,
+  entryHandled: boolean
+): number {
+  if (!(entryHandled || scriptsEndIndex !== undefined)) {
+    return -1;
+  }
+  const candidate = html.toLowerCase().lastIndexOf("</body>");
+  return scriptsEndIndex === undefined || candidate > scriptsEndIndex ? candidate : -1;
+}
+
+async function flushDocumentPrefix(
+  pending: string,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  encoder: TextEncoder,
+  enabled: boolean
+): Promise<string> {
+  if (!enabled || pending.length <= "</body>".length) {
+    return pending;
+  }
+  let flushEnd = pending.length - "</body>".length;
+  const preceding = pending.charCodeAt(flushEnd - 1);
+  if (preceding >= 0xd8_00 && preceding <= 0xdb_ff) {
+    flushEnd -= 1;
+  }
+  await writer.write(encoder.encode(pending.slice(0, flushEnd)));
+  return pending.slice(flushEnd);
+}
+
 async function pipeDocumentStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   beforeEntry: string,
+  hasEntryModule: boolean,
   beforeBodyClose: () => Promise<string>
 ): Promise<void> {
   const decoder = new TextDecoder();
   let pending = "";
+  let documentTail: string | undefined;
+  let entryHandled = false;
   for (;;) {
     // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
     const { done, value } = await reader.read();
     if (done) {
       break;
     }
-    pending += decoder.decode(value, { stream: true });
-    if (pending.length > 1024) {
-      await writer.write(enc.encode(pending.slice(0, -1024)));
-      pending = pending.slice(-1024);
+    const chunk = decoder.decode(value, { stream: true });
+    if (documentTail !== undefined) {
+      documentTail += chunk;
+      continue;
     }
-  }
-  pending += decoder.decode();
 
-  const entryIndex = pending.lastIndexOf("<script");
-  const entryIsInTail =
-    entryIndex !== -1 && pending.slice(entryIndex).includes('data-furin-entry=""');
-  const bodyCloseIndex = pending.toLowerCase().lastIndexOf("</body>");
-  if (bodyCloseIndex === -1) {
-    await writer.write(enc.encode(pending + beforeEntry + (await beforeBodyClose())));
+    pending += chunk;
+    const scriptsEndIndex = scriptsMarkerEnd(pending);
+    const bodyCloseIndex = documentBodyCloseIndex(pending, scriptsEndIndex, entryHandled);
+    if (bodyCloseIndex !== -1) {
+      const beforeBody = pending.slice(0, bodyCloseIndex);
+      const shell = entryHandled
+        ? beforeBody
+        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length, hasEntryModule) ??
+          beforeBody + beforeEntry);
+      await writer.write(enc.encode(shell));
+      documentTail = pending.slice(bodyCloseIndex);
+      pending = "";
+      continue;
+    }
+
+    if (scriptsEndIndex !== undefined) {
+      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex, hasEntryModule);
+      if (shell === undefined) {
+        continue;
+      }
+      await writer.write(enc.encode(shell));
+      entryHandled = true;
+      pending = "";
+      continue;
+    }
+    pending = await flushDocumentPrefix(pending, writer, enc, entryHandled);
+  }
+  const finalChunk = decoder.decode();
+  if (documentTail === undefined) {
+    await writer.write(
+      enc.encode(
+        pending + finalChunk + (entryHandled ? "" : beforeEntry) + (await beforeBodyClose())
+      )
+    );
     return;
   }
 
-  let documentTail = pending;
-  if (beforeEntry && entryIsInTail) {
-    documentTail = pending.slice(0, entryIndex) + beforeEntry + pending.slice(entryIndex);
-  } else if (beforeEntry) {
-    documentTail = pending.slice(0, bodyCloseIndex) + beforeEntry + pending.slice(bodyCloseIndex);
-  }
-  const adjustedBodyCloseIndex = documentTail.toLowerCase().lastIndexOf("</body>");
-  const lateScripts = await beforeBodyClose();
-  await writer.write(
-    enc.encode(
-      documentTail.slice(0, adjustedBodyCloseIndex) +
-        lateScripts +
-        documentTail.slice(adjustedBodyCloseIndex)
-    )
-  );
+  documentTail += finalChunk;
+  await writer.write(enc.encode(orderDocumentTail(documentTail, await beforeBodyClose())));
 }
 
-function buildSsrTransportScripts(
+export function buildSsrTransportScripts(
   dataPayload: Record<string, unknown>,
   deferredKeys: string[],
   hasDeferred: boolean,
@@ -675,7 +766,7 @@ async function writeDeferredSsrChunk(
   }
 }
 
-async function writeDeferredSsrChunks(
+export async function writeDeferredSsrChunks(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   deferredPromises: Record<string, Promise<unknown>>,
@@ -703,11 +794,11 @@ export async function serializeLoaderDataNdjson(
     ...syncData,
     ...(deferredPromises ?? {}),
   };
-  if (containsRscSource(payload) || deferredPromises !== undefined) {
-    const deferredEntries = Object.entries(deferredPromises ?? {});
+  const deferredEntries = Object.entries(deferredPromises ?? {});
+  if (containsRscSource(payload) || deferredEntries.length > 0) {
     let ndjson = serializeRouteFrames(
       syncData,
-      deferredEntries.length > 0 ? deferredEntries.map(([key]) => key) : undefined
+      deferredEntries.map(([key]) => key)
     );
     await Promise.all(
       deferredEntries.map(async ([key, promise], index) => {
@@ -715,6 +806,10 @@ export async function serializeLoaderDataNdjson(
       })
     );
     return ndjson;
+  }
+  const compactJson = serializeCompactJsonLine(payload);
+  if (compactJson !== undefined) {
+    return compactJson;
   }
   const serialized = await toCrossJSONAsync(payload);
   return `${JSON.stringify(serialized)}\n`;
@@ -853,6 +948,7 @@ export async function renderSSR(
       writer,
       enc,
       hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
+      assets.entryModule !== undefined,
       async () => {
         if (!hasDeferred) {
           return "";

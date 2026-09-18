@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: SSG rendering writes route outputs in a deterministic sequence
+import type { Context } from "elysia";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { mapWithConcurrency } from "../../shared/utils/index.ts";
 import type { SsgCacheEntry } from "../cache/isr-ssg.ts";
@@ -7,6 +8,40 @@ import { createLogger } from "../context-logger.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { renderForPath } from "./ssr.ts";
+
+export async function prerenderRoute(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  root: RootLayout,
+  origin: string,
+  mode: "ssg" | "isr",
+  basePath: string | undefined,
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  requestContext?: Context
+): Promise<SsgCacheEntry | Response> {
+  const renderResult = await renderForPath(
+    route,
+    params,
+    root,
+    origin,
+    mode,
+    basePath,
+    searchRoutes,
+    undefined,
+    requestContext
+  );
+  if (renderResult instanceof Response) {
+    return renderResult;
+  }
+
+  return {
+    cachedAt: Date.now(),
+    html: renderResult.html,
+    ndjson: renderResult.ndjson,
+    status: renderResult.status,
+    tags: route.tags,
+  };
+}
 
 export async function prerenderSSG(
   route: ResolvedRoute,
@@ -28,27 +63,10 @@ export async function prerenderSSG(
     return taggedEntry;
   }
 
-  const renderResult = await renderForPath(
-    route,
-    params,
-    root,
-    origin,
-    "ssg",
-    basePath,
-    searchRoutes
-  );
-  if (renderResult instanceof Response) {
-    return renderResult;
+  const entry = await prerenderRoute(route, params, root, origin, "ssg", basePath, searchRoutes);
+  if (entry instanceof Response) {
+    return entry;
   }
-  const result = renderResult;
-
-  const entry: SsgCacheEntry = {
-    cachedAt: Date.now(),
-    html: result.html,
-    ndjson: result.ndjson,
-    status: result.status,
-    tags: route.tags,
-  };
   setSSGCache(resolvedPath, entry);
 
   return entry;

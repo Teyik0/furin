@@ -3,13 +3,15 @@ import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
-import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
+import { containsRscSource } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { useLogger } from "../context-logger.ts";
 import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
 } from "../devtools/instrumentation.ts";
+import { isExternalPrerenderRequest } from "../external-prerender.ts";
+import { currentInstance } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { handleISR } from "../render/isr.ts";
 import {
@@ -19,16 +21,21 @@ import {
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
-import { renderPprRoute } from "../render/ppr-route.ts";
+import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { extractTitle } from "../render/shell.ts";
-import { prerenderSSG } from "../render/ssg.ts";
-import { renderSSR } from "../render/ssr.ts";
+import { prerenderRoute, prerenderSSG } from "../render/ssg.ts";
+import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
-import { buildRouteMatcher } from "./patterns.ts";
+import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
-import { parseDataEndpointPath, parseRouteParams, parseRouteQuery } from "./schemas.ts";
+import {
+  createSearchRouteMetadata,
+  parseDataEndpointPath,
+  parseRouteParams,
+  parseRouteQuery,
+} from "./schemas.ts";
 import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
 
 const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
@@ -63,19 +70,26 @@ function emitSerializedPayload(body: string, kind: "route-data" | "rsc", request
   });
 }
 
-async function runDataEndpointLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+async function runDataEndpointLoaders(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout | undefined,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<LoaderResult> {
   if (route.mode !== "isr" && route.mode !== "ssg") {
     return runLoaders(route, ctx);
   }
 
-  const result = await runPublicLoaders(route, ctx);
+  const result = hasRequestLoader(route)
+    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId, root, searchRoutes)
+    : await runPublicLoaders(route, ctx);
   if (result.type !== "data" || !hasRequestLoader(route)) {
     return result;
   }
   return withRequestLoaderData(route, ctx, result);
 }
 
-async function createLoaderDataResponse(
+async function serializeLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
   requestUrl: string
@@ -115,18 +129,56 @@ async function createLoaderDataResponse(
       }
     );
   }
-  const body = serializeRouteFrames(syncDataWithTitle, undefined);
-  emitSerializedPayload(
-    body,
-    containsRscSource(syncDataWithTitle) ? "rsc" : "route-data",
-    requestUrl
-  );
+  const hasRsc = containsRscSource(syncDataWithTitle);
+  const body = await serializeLoaderDataNdjson(syncDataWithTitle, undefined);
+  emitSerializedPayload(body, hasRsc ? "rsc" : "route-data", requestUrl);
   return new Response(body, {
     headers: {
       ...result.headers,
-      "content-type": "application/x-furin-route",
+      "content-type": hasRsc ? "application/x-furin-route" : "application/x-ndjson",
     },
   });
+}
+
+function navigationDataCacheControl(route: ResolvedRoute): string {
+  if (route.mode === "ssg") {
+    return "public, max-age=0, must-revalidate, s-maxage=31536000";
+  }
+  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
+  return `public, max-age=0, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
+}
+
+function applyNavigationDataCache(
+  response: Response,
+  result: LoaderResult,
+  route: ResolvedRoute,
+  requestUrl: string
+): Response {
+  const cacheable =
+    !IS_DEV &&
+    (route.mode === "ssg" || route.mode === "isr") &&
+    !hasRequestLoader(route) &&
+    result.type === "data" &&
+    result.deferredPromises === undefined;
+  if (!cacheable) {
+    response.headers.set("cache-control", "private, no-store");
+    response.headers.delete("cache-tag");
+    return response;
+  }
+
+  const { pathname } = new URL(requestUrl);
+  response.headers.set("cache-tag", pathname);
+  response.headers.set("cache-control", navigationDataCacheControl(route));
+  return response;
+}
+
+async function createLoaderDataResponse(
+  result: LoaderResult,
+  route: ResolvedRoute,
+  requestUrl: string
+): Promise<Response> {
+  const response = await serializeLoaderDataResponse(result, route, requestUrl);
+  return applyNavigationDataCache(response, result, route, requestUrl);
 }
 
 async function createRouteDataErrorResponse(
@@ -156,14 +208,17 @@ async function handleSSGRequest(
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<unknown> {
   const { origin } = new URL(ctx.request.url);
-  const entry = await prerenderSSG(route, ctx.params ?? {}, root, origin, undefined, searchRoutes);
+  const params = ctx.params ?? {};
+  const entry = isExternalPrerenderRequest(ctx.request)
+    ? await prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes, ctx)
+    : await prerenderSSG(route, params, root, origin, undefined, searchRoutes);
 
   // Loader issued a redirect — forward it directly to the client.
   if (entry instanceof Response) {
     return entry;
   }
 
-  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const resolvedPath = resolvePath(route.pattern, params);
 
   // ETag: "buildId:cachedAt" — unique per render cycle, changes after revalidatePath
   const etag = buildId ? `"${buildId}:${entry.cachedAt}"` : null;
@@ -256,10 +311,14 @@ export function renderResolvedRoute(
  *   - `__furinNotFound`    — not-found payload
  *   - `__furinRedirect`    — logical path after a server-side redirect
  */
-export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyElysia {
+export function createDataEndpoint(
+  routesSource: DataResolvedRoutesSource,
+  root?: RootLayout
+): AnyElysia {
   const plugin = new Elysia();
   let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
+  let searchRoutes = createSearchRouteMetadata(matchedRoutes);
 
   plugin.get(
     "/_furin/data",
@@ -294,6 +353,7 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
         matchRoute = buildRouteMatcher(matchedRoutes);
+        searchRoutes = createSearchRouteMetadata(matchedRoutes);
       }
       const matched = matchRoute(pathname);
 
@@ -359,7 +419,9 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
 
       const result = await runDataEndpointLoaders(
         matched.route,
-        syntheticCtx as unknown as Context
+        syntheticCtx as unknown as Context,
+        root,
+        searchRoutes
       );
 
       return createLoaderDataResponse(result, matched.route, syntheticRequest.url);

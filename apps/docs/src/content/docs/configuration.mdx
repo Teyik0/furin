@@ -15,6 +15,7 @@ export default defineConfig({
   reactCompiler: true,
   plugins: [{ ...tailwind, buildOnly: true }],
   bun: { compile: "embed" },
+  vercel: { regions: ["cdg1"] },
 });
 ```
 
@@ -33,6 +34,7 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `optimizeImports` | `string[]` | Bun defaults | Extra package barrels for Bun import optimization |
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
+| `vercel.regions` | `string[]` | Vercel project default | Function compute regions |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
 | `targets` | `BuildTarget[]` | None | Reserved schema field; the current CLI selects targets with `--target` |
 
@@ -97,6 +99,18 @@ export default defineConfig({ bun: { compile: "server" } });
 | `embed` | Native executable with framework client/public assets embedded |
 
 The CLI `--compile` flag wins over this field.
+
+## Vercel Regions
+
+```ts
+export default defineConfig({
+  vercel: {
+    regions: ["cdg1"],
+  },
+});
+```
+
+Place compute close to the application's database or upstream service. The list must contain at least one unique lowercase Vercel region code; malformed values fail configuration loading.
 
 ## Static Export
 

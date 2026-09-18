@@ -1,4 +1,3 @@
-import { createLogger } from "../context-logger";
 import {
   currentInstrumentationRequest,
   emitCacheInvalidated,
@@ -17,6 +16,12 @@ import { clearPprRouteCache } from "../render/ppr-route.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { clearDevLoaderCaches } from "./dev-loader";
 import { clearPendingISRRevalidations, isrRouteCache } from "./isr";
+import {
+  type CachePurger,
+  setCachePurger as installPurger,
+  callCachePurger as purgePaths,
+  resetCachePurgers,
+} from "./purger.ts";
 import { getCacheInvalidators } from "./registry";
 import type { RevalidateType } from "./route-cache";
 import { ssgRouteCache } from "./ssg";
@@ -52,28 +57,12 @@ export function peekPendingInvalidations(): string[] {
 // ── CDN purger hook ───────────────────────────────────────────────────────────
 // Process-global on purpose: the CDN sits in front of every mounted app.
 
-type CachePurger = (paths: string[]) => Promise<void>;
-let _cachePurger: CachePurger | null = null;
-
 export function setCachePurger(fn: CachePurger): void {
-  _cachePurger = fn;
+  installPurger(fn);
 }
 
 export function callCachePurger(paths: string[]): void {
-  if (!_cachePurger || paths.length === 0) {
-    return;
-  }
-  _cachePurger(paths).catch((err: unknown) => {
-    const logger = createLogger({});
-    logger.set({
-      furin: {
-        action: "cdn_purge_failed",
-        paths,
-      },
-    });
-    logger.error(err instanceof Error ? err : new Error(String(err)));
-    logger.emit();
-  });
+  purgePaths(paths);
 }
 
 // ── revalidatePath ───────────────────────────────────────────────────────────
@@ -91,9 +80,9 @@ export function revalidatePath(path: string, type: RevalidateType): boolean {
   for (const instance of allInstances()) {
     const result = revalidatePathForInstance(instance, path, type);
     deleted = result.deleted || deleted;
-    purgedPaths.push(`${instance.prefix}${path}`);
+    purgedPaths.push(physicalPath(instance.prefix, path));
     for (const purged of result.purgedPaths) {
-      purgedPaths.push(`${instance.prefix}${purged}`);
+      purgedPaths.push(physicalPath(instance.prefix, purged));
     }
   }
 
@@ -166,5 +155,7 @@ export function __resetCacheState(): void {
   // cleared, while process-wide defaults like a beforeAll template survive.
   __clearInstanceRegistry();
   _globalPendingInvalidations.clear();
-  _cachePurger = null;
+  resetCachePurgers();
 }
+
+import { physicalPath } from "../../shared/prefix.ts";
