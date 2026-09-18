@@ -137,8 +137,8 @@
     "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
     "build": "bun run build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --parallel --isolate --bail",
-    "test:dev": "bun test --changed --parallel --isolate --bail",
+    "test": "bun test --parallel --isolate --max-concurrency 8 --bail",
+    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 8 --bail",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
     "tscheck": "tsc --noEmit"
