@@ -612,7 +612,7 @@ function scriptsMarkerEnd(html: string): number | undefined {
 }
 
 function orderDocumentTail(documentTail: string, beforeBodyClose: string): string {
-  const htmlCloseEnd = documentTail.toLowerCase().indexOf("</html>");
+  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
   if (htmlCloseEnd === -1) {
     return beforeBodyClose + documentTail;
   }
@@ -632,6 +632,24 @@ function documentBodyCloseIndex(
   }
   const candidate = html.toLowerCase().lastIndexOf("</body>");
   return scriptsEndIndex === undefined || candidate > scriptsEndIndex ? candidate : -1;
+}
+
+async function flushDocumentPrefix(
+  pending: string,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  encoder: TextEncoder,
+  enabled: boolean
+): Promise<string> {
+  if (!enabled || pending.length <= "</body>".length) {
+    return pending;
+  }
+  let flushEnd = pending.length - "</body>".length;
+  const preceding = pending.charCodeAt(flushEnd - 1);
+  if (preceding >= 0xd8_00 && preceding <= 0xdb_ff) {
+    flushEnd -= 1;
+  }
+  await writer.write(encoder.encode(pending.slice(0, flushEnd)));
+  return pending.slice(flushEnd);
 }
 
 async function pipeDocumentStream(
@@ -681,11 +699,17 @@ async function pipeDocumentStream(
       await writer.write(enc.encode(shell));
       entryHandled = true;
       pending = "";
+      continue;
     }
+    pending = await flushDocumentPrefix(pending, writer, enc, entryHandled);
   }
   const finalChunk = decoder.decode();
   if (documentTail === undefined) {
-    await writer.write(enc.encode(pending + finalChunk + beforeEntry + (await beforeBodyClose())));
+    await writer.write(
+      enc.encode(
+        pending + finalChunk + (entryHandled ? "" : beforeEntry) + (await beforeBodyClose())
+      )
+    );
     return;
   }
 

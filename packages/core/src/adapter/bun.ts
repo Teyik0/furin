@@ -71,6 +71,7 @@ export async function buildBunTarget(
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
   const { entryApps, headlineBuildId } = await buildRuntimeAppsSequentially(
     apps,
+    rootDir,
     targetDir,
     serverEntry,
     options,

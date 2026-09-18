@@ -707,6 +707,7 @@ export async function buildVercelTarget(
 
   const { builds, headlineBuildId } = await buildRuntimeAppsSequentially(
     apps,
+    rootDir,
     targetDir,
     serverEntry,
     options,

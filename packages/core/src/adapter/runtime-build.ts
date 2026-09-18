@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -79,7 +79,8 @@ export async function createBuildFingerprint(
   routes: ResolvedRoute[],
   root: RootLayout,
   serverEntry: string | null,
-  routeSources: string[]
+  routeSources: string[],
+  projectRoot: string
 ): Promise<string> {
   const fingerprintPaths = new Set<string>([
     root.path,
@@ -118,17 +119,37 @@ export async function createBuildFingerprint(
   const fileParts = await Promise.all(
     [...fingerprintPaths].toSorted().map(async (path) => {
       const content = existsSync(path) ? await Bun.file(path).text() : "";
-      return `${toPosixPath(path)}:${content}`;
+      return `${stableFingerprintPath(path, projectRoot)}:${content}`;
     })
   );
 
   const routeParts = routes
     .map((route) =>
-      JSON.stringify({ mode: route.mode, path: toPosixPath(route.path), pattern: route.pattern })
+      JSON.stringify({
+        mode: route.mode,
+        path: stableFingerprintPath(route.path, projectRoot),
+        pattern: route.pattern,
+      })
     )
     .sort(compareCodeUnits);
 
   return [entryChunk, ...[...cssChunks].toSorted(), ...routeParts, ...fileParts].join("\n");
+}
+
+function stableFingerprintPath(path: string, projectRoot: string): string {
+  const projectPath = relative(projectRoot, path);
+  if (projectPath !== ".." && !projectPath.startsWith("../") && !projectPath.startsWith("..\\")) {
+    return `app/${toPosixPath(projectPath)}`;
+  }
+  const frameworkPath = relative(_pkgRoot, path);
+  if (
+    frameworkPath !== ".." &&
+    !frameworkPath.startsWith("../") &&
+    !frameworkPath.startsWith("..\\")
+  ) {
+    return `furin/${toPosixPath(frameworkPath)}`;
+  }
+  return `external/${basename(path)}`;
 }
 
 function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
@@ -216,6 +237,7 @@ export interface RuntimeAppBuild {
 /** Builds one app's client bundle and compile-context payload. */
 export async function buildRuntimeApp(
   app: RuntimeTargetApp,
+  projectRoot: string,
   targetDir: string,
   serverEntry: string | null,
   options: BuildAppOptions,
@@ -248,7 +270,8 @@ export async function buildRuntimeApp(
     routes,
     root,
     serverEntry,
-    modulePaths
+    modulePaths,
+    projectRoot
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
 
@@ -298,6 +321,7 @@ export async function buildRuntimeApp(
 
 export async function buildRuntimeAppsSequentially(
   apps: RuntimeTargetApp[],
+  projectRoot: string,
   targetDir: string,
   serverEntry: string | null,
   options: BuildAppOptions,
@@ -313,7 +337,14 @@ export async function buildRuntimeAppsSequentially(
 
   for (const app of apps) {
     // biome-ignore lint/performance/noAwaitInLoops: each app installs a build-time template before SSG snapshotting, so this must remain ordered.
-    const built = await buildRuntimeApp(app, targetDir, serverEntry, options, targetName);
+    const built = await buildRuntimeApp(
+      app,
+      projectRoot,
+      targetDir,
+      serverEntry,
+      options,
+      targetName
+    );
     builds.push(built);
     entryApps.push(built.entryApp);
     if (app.prefix === "" || headlineBuildId === "") {

@@ -72,7 +72,8 @@ export async function buildPackageTarget(
     routes,
     root,
     null,
-    modulePaths
+    modulePaths,
+    rootDir
   );
   const buildId = Bun.hash(buildFingerprint).toString(16).slice(0, 12);
 
