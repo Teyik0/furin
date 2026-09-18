@@ -298,16 +298,19 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
   .page(() => <main>${name}</main>);`
       );
     }
-    await withBuildStub(() => buildApp({ rootDir: app.path, target: "vercel" }));
+    await buildApp({ rootDir: app.path, target: "vercel" });
     const output = join(app.path, ".vercel/output");
     const config = JSON.parse(readFileSync(join(output, "config.json"), "utf8")) as {
       routes: { src?: string; dest?: string }[];
     };
-    for (const path of ["/blog/private", "/blog/hello-world", "/blog/account"]) {
+    for (const path of ["/blog/private", "/blog/hello-world"]) {
       const matched = config.routes.find((rule) => rule.src && new RegExp(`^${rule.src}$`).test(path));
       expect(matched?.dest).toBe("/__server");
     }
-    expect(existsSync(join(output, "functions/blog/account-isr.prerender-config.json"))).toBe(false);
+    const ppr = JSON.parse(readFileSync(join(output, "functions/blog/account-isr.prerender-config.json"), "utf8"));
+    expect(ppr.chain.outputPath).toBe("__server");
+    expect(ppr.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
+    expect(ppr.initialHeaders["cache-control"]).toBe("private, no-store");
     }
     runScenario().then(() => done(), done);
   });
@@ -458,6 +461,10 @@ export const route = defineRoute()
       serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))
     ).toBe(false);
     expect(serverInputs.some((path) => path.includes("@elysiajs+static"))).toBe(false);
+    const pprConfig = JSON.parse(readFileSync(join(app.path, ".vercel/output/functions/account-isr.prerender-config.json"), "utf8"));
+    const fallbackBytes = readFileSync(join(app.path, ".vercel/output/functions", pprConfig.fallback));
+    const fallbackStateLength = Number(pprConfig.initialHeaders["content-type"].match(/state-length=(\d+)/)[1]);
+    const fallbackState = fallbackBytes.subarray(0, fallbackStateLength).toString();
     const script = `
       const pending = [];
       const purged = [];
@@ -488,6 +495,11 @@ export const route = defineRoute()
         }),
       };
       const handler = (await import(${JSON.stringify(pathToFileURL(handlerPath).href)})).default;
+      const fallbackResume = await handler.fetch(new Request("http://furin.test/__server", {
+        method: "POST", headers: { ...${JSON.stringify(pprConfig.chain.headers)}, cookie: "session=FallbackUser" },
+        body: ${JSON.stringify(fallbackState)},
+      }));
+      const fallbackResumeBody = await fallbackResume.text();
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
       const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
@@ -514,7 +526,28 @@ export const route = defineRoute()
       const invalidation = await handler.fetch(new Request("http://furin.test/api/revalidate", { method: "POST" }));
       const pendingCount = pending.length;
       await Promise.all(pending);
+      const shell = await handler.fetch(new Request("http://furin.test/account-isr?__furin_path=/account"));
+      const shellBytes = new Uint8Array(await shell.arrayBuffer());
+      const stateLength = Number(shell.headers.get("content-type").match(/state-length=(\\d+)/)[1]);
+      const state = new TextDecoder().decode(shellBytes.slice(0, stateLength));
+      const publicShell = new TextDecoder().decode(shellBytes.slice(stateLength));
+      const chainHeaders = ${JSON.stringify(pprConfig.chain.headers)};
+      const continuation = await handler.fetch(new Request("http://furin.test/__server", {
+        method: "POST", headers: { ...chainHeaders, cookie: "session=Charlie" }, body: state,
+      }));
+      const invalid = await handler.fetch(new Request("http://furin.test/__server", {
+        method: "POST", headers: { "x-furin-ppr-resume": "forged" }, body: state,
+      }));
+      const wrongBuild = await handler.fetch(new Request("http://furin.test/__server", {
+        method: "POST", headers: chainHeaders, body: JSON.stringify({ ...JSON.parse(state), buildId: "old-build" }),
+      }));
       console.log("__FURIN_RESULT__" + JSON.stringify({
+        publicShell,
+        fallbackResumeBody,
+        continuationStatus: continuation.status,
+        continuationBody: await continuation.text(),
+        invalidStatus: invalid.status,
+        wrongBuildStatus: wrongBuild.status,
         flightStatus: flight.status,
         flightBody: await flight.text(),
         flightDataStatus: flightData.status,
@@ -568,6 +601,14 @@ export const route = defineRoute()
     }
     const result = JSON.parse(resultLine.slice("__FURIN_RESULT__".length));
     expect(result.flightStatus).toBe(200);
+    expect(result.continuationStatus).toBe(200);
+    expect(result.fallbackResumeBody).toContain("<strong>FallbackUser</strong>");
+    expect(result.publicShell).toContain("public:");
+    expect(result.publicShell).not.toContain("Charlie");
+    expect(result.continuationBody).toContain("Charlie");
+    expect(result.continuationBody).not.toContain("<!DOCTYPE");
+    expect(result.invalidStatus).toBe(403);
+    expect(result.wrongBuildStatus).toBe(409);
     expect(result.flightBody).toContain("Flight article");
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);

@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: bd8d295cd8466c20ed21d9636faefc61798e22af
+          ref: 694ee036ef5ce452a6189efc5307a0431e495d1e
           path: .benchmark
           persist-credentials: false
 

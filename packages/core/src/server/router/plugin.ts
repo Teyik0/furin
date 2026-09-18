@@ -30,7 +30,12 @@ import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
 import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
-import { parseDataEndpointPath, parseRouteParams, parseRouteQuery } from "./schemas.ts";
+import {
+  createSearchRouteMetadata,
+  parseDataEndpointPath,
+  parseRouteParams,
+  parseRouteQuery,
+} from "./schemas.ts";
 import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
 
 const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
@@ -65,13 +70,18 @@ function emitSerializedPayload(body: string, kind: "route-data" | "rsc", request
   });
 }
 
-async function runDataEndpointLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+async function runDataEndpointLoaders(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout | undefined,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<LoaderResult> {
   if (route.mode !== "isr" && route.mode !== "ssg") {
     return runLoaders(route, ctx);
   }
 
   const result = hasRequestLoader(route)
-    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId)
+    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId, root, searchRoutes)
     : await runPublicLoaders(route, ctx);
   if (result.type !== "data" || !hasRequestLoader(route)) {
     return result;
@@ -301,10 +311,14 @@ export function renderResolvedRoute(
  *   - `__furinNotFound`    — not-found payload
  *   - `__furinRedirect`    — logical path after a server-side redirect
  */
-export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyElysia {
+export function createDataEndpoint(
+  routesSource: DataResolvedRoutesSource,
+  root?: RootLayout
+): AnyElysia {
   const plugin = new Elysia();
   let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
+  let searchRoutes = createSearchRouteMetadata(matchedRoutes);
 
   plugin.get(
     "/_furin/data",
@@ -339,6 +353,7 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
         matchRoute = buildRouteMatcher(matchedRoutes);
+        searchRoutes = createSearchRouteMetadata(matchedRoutes);
       }
       const matched = matchRoute(pathname);
 
@@ -404,7 +419,9 @@ export function createDataEndpoint(routesSource: DataResolvedRoutesSource): AnyE
 
       const result = await runDataEndpointLoaders(
         matched.route,
-        syntheticCtx as unknown as Context
+        syntheticCtx as unknown as Context,
+        root,
+        searchRoutes
       );
 
       return createLoaderDataResponse(result, matched.route, syntheticRequest.url);

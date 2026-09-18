@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
 import { buildEntrySource } from "../build/entry-template.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
@@ -22,8 +22,10 @@ import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
 import { compareRouteSpecificity, resolveRouteRevalidate } from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
+import { physicalPath } from "../shared/prefix.ts";
 import {
   buildRuntimeAppsSequentially,
+  pprRuntimePlugin,
   type RuntimeAppBuild,
   type RuntimeTargetApp,
 } from "./runtime-build.ts";
@@ -53,9 +55,11 @@ interface VercelBuildOutputConfig {
 }
 
 interface PrerenderConfig {
+  chain?: { outputPath: string; headers: { "x-furin-ppr-resume": string } };
   expiration: number | false;
   fallback?: string;
   initialHeaders?: {
+    "cache-control"?: string;
     "content-type": string;
     location?: string;
     "vercel-cache-tag": string;
@@ -150,13 +154,6 @@ function escapeRegex(value: string): string {
   return escaped;
 }
 
-function physicalPath(prefix: string, path: string): string {
-  if (prefix === "") {
-    return path;
-  }
-  return path === "/" ? prefix : `${prefix}${path}`;
-}
-
 function encodeCacheTag(value: string): string {
   return value.replaceAll(",", "%2C");
 }
@@ -227,9 +224,9 @@ function destinationForFunction(functionName: string): string {
   return `/${functionName}?${ISR_PATH_PARAM}=$${ISR_PATH_PARAM}`;
 }
 
-function isDynamicRoute(app: RuntimeTargetApp, route: ResolvedRoute): boolean {
+function isPprRoute(app: RuntimeTargetApp, route: ResolvedRoute): boolean {
   return (
-    route.mode === "ssr" || app.root.route.requestLoader !== undefined || hasRequestLoader(route)
+    route.mode !== "ssr" && (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
   );
 }
 
@@ -241,6 +238,9 @@ async function addPrerenderFallback(
 ): Promise<void> {
   const fallback = `${basename(spec.functionName)}.prerender-fallback.html`;
   const { result } = prerender;
+  if (result === undefined) {
+    return;
+  }
   let body: string;
   let contentType = "text/html; charset=utf-8";
   let location: string | undefined;
@@ -262,6 +262,7 @@ async function addPrerenderFallback(
   spec.config.fallback = fallback;
   spec.config.initialHeaders = {
     "content-type": contentType,
+    ...(spec.config.chain === undefined ? {} : { "cache-control": "private, no-store" }),
     ...(location === undefined ? {} : { location }),
     "vercel-cache-tag": cacheTagHeader(physicalRoutePath, prerender.route.tags),
   };
@@ -306,13 +307,14 @@ function createExactPrerenderSpec(
 async function createPrerenderSpecs(
   apps: RuntimeTargetApp[],
   builds: RuntimeAppBuild[],
-  functionsDir: string
+  functionsDir: string,
+  pprResumeKey: string
 ): Promise<PrerenderSpec[]> {
   const specs = new Map<string, PrerenderSpec>();
 
   for (const app of apps) {
     for (const route of app.routes) {
-      if (route.mode === "ssr" || isDynamicRoute(app, route)) {
+      if (route.mode === "ssr") {
         continue;
       }
       const physicalPattern = physicalPath(app.prefix, route.pattern);
@@ -321,6 +323,11 @@ async function createPrerenderSpecs(
         config: {
           expiration: route.mode === "ssg" ? false : (resolveRouteRevalidate(route.page) ?? 60),
           passQuery: true,
+          ...(isPprRoute(app, route)
+            ? {
+                chain: { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: "__server" },
+              }
+            : {}),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
         functionName: functionNameForPath(physicalPattern, route.mode),
@@ -334,14 +341,12 @@ async function createPrerenderSpecs(
     const app = apps[appIndex] as RuntimeTargetApp;
     const build = builds[appIndex] as RuntimeAppBuild;
     for (const prerender of build.prerenders) {
-      if (isDynamicRoute(app, prerender.route)) {
-        continue;
-      }
       const routePath = physicalPath(app.prefix, prerender.path);
       const genericSource = routePatternSource(app.prefix, prerender.route.pattern);
       let spec = specs.get(genericSource) as PrerenderSpec;
       const exactSpec = createExactPrerenderSpec(prerender, routePath);
       if (exactSpec !== undefined) {
+        exactSpec.config.chain = spec.config.chain;
         spec = exactSpec;
         specs.set(exactSpec.source, exactSpec);
       }
@@ -362,7 +367,8 @@ function vercelEntrySource(
   apps: RuntimeTargetApp[],
   builds: RuntimeAppBuild[],
   prerenderSpecs: PrerenderSpec[],
-  serverEntry: string
+  serverEntry: string,
+  pprResumeKey: string
 ): string {
   const routeCount = builds.reduce((count, build) => count + build.entryApp.routes.length, 0);
   const prerenderAliases = prerenderSpecs.map((spec) => [
@@ -370,6 +376,15 @@ function vercelEntrySource(
     `^(?:${spec.source})$`,
   ]);
   const dataEndpointPaths = builds.map(({ entryApp }) => `${entryApp.prefix}/_furin/data`);
+  const pprBuilds = apps
+    .map((app, index) => ({
+      buildId: (builds[index] as RuntimeAppBuild).buildId,
+      patterns: app.routes
+        .filter((route) => isPprRoute(app, route))
+        .map((route) => `^(?:${routePatternSource(app.prefix, route.pattern)})$`),
+      prefix: app.prefix,
+    }))
+    .filter((build) => build.patterns.length > 0);
   const cacheTagRules = apps
     .flatMap((app) =>
       app.routes.map((route) => ({
@@ -399,6 +414,7 @@ import { setCachePurger } from "@teyik0/furin";
 import {
   hasPendingISRRevalidations,
   markExternalPrerenderRequest,
+  restorePprResumeRequest,
   setCacheTagPurger,
   setRuntimeCacheProvider,
   waitForPendingISRRevalidations,
@@ -410,6 +426,13 @@ const prerenderAliases = new Map(
   ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
 );
 const dataEndpointPaths = new Set(${JSON.stringify(dataEndpointPaths)});
+${
+  pprBuilds.length === 0
+    ? ""
+    : `const pprBuilds = ${JSON.stringify(pprBuilds)}.map(build => ({
+  ...build, patterns: build.patterns.map(source => new RegExp(source))
+}));`
+}
 const cacheTagRules = ${JSON.stringify(cacheTagRules)}.map(([source, tags]) => [
   new RegExp(source),
   tags,
@@ -488,6 +511,18 @@ async function exposeVercelCacheTag(response, request) {
 }
 
 async function handle(request) {
+  ${
+    pprBuilds.length === 0
+      ? ""
+      : `if (request.headers.has("x-furin-ppr-resume")) {
+    if (request.method !== "POST" || request.headers.get("x-furin-ppr-resume") !== ${JSON.stringify(pprResumeKey)}) {
+      return new Response("Invalid PPR continuation", { status: 403 });
+    }
+    const restored = await restorePprResumeRequest(request, pprBuilds);
+    if (restored instanceof Response) return restored;
+    return app.handle(restored);
+  }`
+  }
   const restoredRequest = restorePrerenderPath(request);
   const response = await app.handle(restoredRequest);
   if (hasPendingISRRevalidations()) {
@@ -499,6 +534,87 @@ async function handle(request) {
 export { initialization };
 export default { fetch: handle };
 `;
+}
+
+async function buildPprFallbacks(
+  apps: RuntimeTargetApp[],
+  builds: RuntimeAppBuild[],
+  specs: PrerenderSpec[],
+  functionsDir: string,
+  rootDir: string,
+  targetDir: string
+): Promise<void> {
+  const jobs = builds.flatMap((build, index) =>
+    build.prerenders
+      .filter((prerender) => prerender.result === undefined)
+      .map((prerender) => {
+        const path = physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path);
+        const spec = specs.find(
+          (candidate) =>
+            candidate.config.chain !== undefined &&
+            new RegExp(`^(?:${candidate.source})$`).test(path)
+        );
+        if (!spec) {
+          throw new Error(`[furin] Missing PPR build target for ${path}`);
+        }
+        return { path, prerender, spec };
+      })
+  );
+  if (jobs.length === 0) {
+    return;
+  }
+  const resultPath = join(targetDir, "ppr-results.json");
+  const requests = jobs.map(
+    ({ path, spec }) =>
+      `http://localhost/${spec.functionName}?${ISR_PATH_PARAM}=${encodeURIComponent(path)}`
+  );
+  const script = `
+const handler = (await import(${JSON.stringify(pathToFileURL(join(functionsDir, "__server.func/index.js")).href)})).default;
+const results = [];
+for (const url of ${JSON.stringify(requests)}) {
+  const response = await handler.fetch(new Request(url));
+  if (response.status >= 400) throw new Error("PPR build failed for " + url + ": HTTP " + response.status);
+  results.push({ body: await response.text(), headers: Object.fromEntries(response.headers), status: response.status });
+}
+await Bun.write(${JSON.stringify(resultPath)}, JSON.stringify(results));
+process.exit(0);
+`;
+  const child = Bun.spawn([process.execPath, "-e", script], {
+    cwd: rootDir,
+    env: { ...process.env, RUNTIME_CACHE_DISABLE_BUILD_CACHE: "true" },
+    stderr: "pipe",
+    stdout: "pipe",
+  });
+  try {
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    if (exitCode !== 0) {
+      throw new Error(`[furin] PPR production prerender failed:\n${stderr}\n${stdout}`);
+    }
+    const results = JSON.parse(readFileSync(resultPath, "utf8")) as {
+      body: string;
+      headers: { [name: string]: string };
+      status: number;
+    }[];
+    for (const [index, job] of jobs.entries()) {
+      const result = results[index] as (typeof results)[number];
+      // biome-ignore lint/performance/noAwaitInLoops: consume and write each fallback in route order.
+      await addPrerenderFallback(
+        job.spec,
+        job.path,
+        {
+          ...job.prerender,
+          result: new Response(result.body, { headers: result.headers, status: result.status }),
+        },
+        functionsDir
+      );
+    }
+  } finally {
+    rmSync(resultPath, { force: true });
+  }
 }
 
 function vercelBootstrapSource(serverBundleBytes: number): string {
@@ -610,11 +726,12 @@ export async function buildVercelTarget(
     cpSync(build.clientDir, clientOutputDir, { recursive: true });
   }
 
-  const prerenderSpecs = await createPrerenderSpecs(apps, builds, functionsDir);
+  const pprResumeKey = crypto.randomUUID();
+  const prerenderSpecs = await createPrerenderSpecs(apps, builds, functionsDir, pprResumeKey);
   const entryPath = join(serverFunctionDir, "_vercel-handler.ts");
   const entry = createVirtualBuildEntry(
     entryPath,
-    vercelEntrySource(apps, builds, prerenderSpecs, serverEntry),
+    vercelEntrySource(apps, builds, prerenderSpecs, serverEntry, pprResumeKey),
     "ts"
   );
   const serverBuild = await runBunBuild({
@@ -630,6 +747,7 @@ export async function buildVercelTarget(
       entry.plugin,
       vercelRuntimePlugin(),
       productionInstrumentationPlugin(),
+      pprRuntimePlugin(apps),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),
@@ -650,6 +768,7 @@ export async function buildVercelTarget(
   const handlerPath = join(serverFunctionDir, "handler.js");
   const serverBundleBytes = existsSync(handlerPath) ? statSync(handlerPath).size : 0;
   writeFileSync(join(serverFunctionDir, "index.js"), vercelBootstrapSource(serverBundleBytes));
+  await buildPprFallbacks(apps, builds, prerenderSpecs, functionsDir, rootDir, targetDir);
 
   writeFileSync(
     join(serverFunctionDir, ".vc-config.json"),
@@ -690,7 +809,7 @@ export async function buildVercelTarget(
     })),
     ...apps.flatMap((app) =>
       app.routes
-        .filter((route) => isDynamicRoute(app, route))
+        .filter((route) => route.mode === "ssr")
         .map((route) => ({
           dest: "/__server",
           pattern: physicalPath(app.prefix, route.pattern),

@@ -80,9 +80,9 @@ export function revalidatePath(path: string, type: RevalidateType): boolean {
   for (const instance of allInstances()) {
     const result = revalidatePathForInstance(instance, path, type);
     deleted = result.deleted || deleted;
-    purgedPaths.push(`${instance.prefix}${path}`);
+    purgedPaths.push(physicalPath(instance.prefix, path));
     for (const purged of result.purgedPaths) {
-      purgedPaths.push(`${instance.prefix}${purged}`);
+      purgedPaths.push(physicalPath(instance.prefix, purged));
     }
   }
 
@@ -157,3 +157,5 @@ export function __resetCacheState(): void {
   _globalPendingInvalidations.clear();
   resetCachePurgers();
 }
+
+import { physicalPath } from "../../shared/prefix.ts";

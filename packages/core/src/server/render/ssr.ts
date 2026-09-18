@@ -581,7 +581,7 @@ interface SsrTransportScripts {
   usesRouteFrames: boolean;
 }
 
-function injectAfterEntry(
+export function injectAfterEntry(
   html: string,
   injection: string,
   fallbackIndex: number,
@@ -693,7 +693,7 @@ async function pipeDocumentStream(
   await writer.write(enc.encode(orderDocumentTail(documentTail, await beforeBodyClose())));
 }
 
-function buildSsrTransportScripts(
+export function buildSsrTransportScripts(
   dataPayload: Record<string, unknown>,
   deferredKeys: string[],
   hasDeferred: boolean,
@@ -742,7 +742,7 @@ async function writeDeferredSsrChunk(
   }
 }
 
-async function writeDeferredSsrChunks(
+export async function writeDeferredSsrChunks(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   deferredPromises: Record<string, Promise<unknown>>,

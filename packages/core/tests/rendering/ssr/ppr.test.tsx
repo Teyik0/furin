@@ -72,7 +72,7 @@ afterAll(async () => {
   await Promise.resolve();
 });
 
-describe("partial prerendering", () => {
+describe.serial("partial prerendering", () => {
   for (const failure of ["unavailable", "invalid-json", "invalid-payload"]) {
     test(`serves PPR when the deployment cache is ${failure}`, async () => {
       setRuntimeCacheProvider({

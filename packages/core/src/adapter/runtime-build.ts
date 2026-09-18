@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -14,6 +14,7 @@ import type { BuildAppOptions } from "../build/types.ts";
 import { routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
+import { hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -33,6 +34,10 @@ const _pkgSrcDir = existsSync(join(_pkgRoot, "src", "furin.ts"))
 // are never emitted to `dist/` as `.js`, so detecting the extension off the dist
 // copy would point at files that don't exist and silently weaken the build ID.
 const _ext = ".ts";
+const PPR_ROUTE_IMPORT_RE = /ppr-route(?:\.ts)?$/;
+const ANY_MODULE_RE = /.*/;
+const REACT_SERVER_IMPORT_RE = /^react-dom\/server(?:\.edge)?$/;
+const REACT_STATIC_IMPORT_RE = /^react-dom\/static\.edge$/;
 const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry${_ext}`,
   `${_pkgSrcDir}/build/entry-template${_ext}`,
@@ -44,6 +49,7 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/server/render/loaders${_ext}`,
   `${_pkgSrcDir}/server/render/not-found${_ext}`,
   `${_pkgSrcDir}/server/render/ppr-route${_ext}`,
+  `${_pkgSrcDir}/server/render/ppr-document${_ext}`,
   `${_pkgSrcDir}/server/render/route-frame-transport${_ext}`,
   `${_pkgSrcDir}/server/render/shell${_ext}`,
   `${_pkgSrcDir}/server/render/ssr${_ext}`,
@@ -155,6 +161,48 @@ export interface RuntimeTargetApp {
   prefix: string;
   root: RootLayout;
   routes: ResolvedRoute[];
+}
+
+/** Avoid loading React's resumable renderer in applications without PPR routes. */
+export function pprRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
+  const enabled = apps.some((app) =>
+    app.routes.some(
+      (route) =>
+        route.mode !== "ssr" &&
+        (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
+    )
+  );
+  const pprPath = resolve(_pkgSrcDir, "server/render/ppr-route.ts");
+  const reactServerPath = fileURLToPath(
+    import.meta.resolve(enabled ? "react-dom/server.edge" : "react-dom/server")
+  );
+  const reactStaticPath = fileURLToPath(import.meta.resolve("react-dom/static.edge"));
+  return {
+    name: "furin-ppr-runtime",
+    setup(build) {
+      // Resolve before user plugins: linked-project plugins commonly resolve
+      // peer dependencies from their own root and can otherwise recurse.
+      build.onResolve({ filter: REACT_SERVER_IMPORT_RE }, () => ({ path: reactServerPath }));
+      build.onResolve({ filter: REACT_STATIC_IMPORT_RE }, () => ({ path: reactStaticPath }));
+      if (enabled) {
+        return;
+      }
+      build.onResolve({ filter: PPR_ROUTE_IMPORT_RE }, ({ path, importer }) => {
+        const absolute = resolve(dirname(importer.split("?")[0] as string), path);
+        if (absolute !== pprPath && `${absolute}.ts` !== pprPath) {
+          return;
+        }
+        return { namespace: "furin-no-ppr", path: "ppr" };
+      });
+      build.onLoad({ filter: ANY_MODULE_RE, namespace: "furin-no-ppr" }, () => ({
+        contents: `export function clearPprRouteCache() {}
+export function invalidatePprRoute() { return false; }
+export function renderPprRoute() { throw new Error("[furin] PPR route missing from the build manifest."); }
+export const runPprPublicLoaders = renderPprRoute;`,
+        loader: "js",
+      }));
+    },
+  };
 }
 
 export interface RuntimeAppBuild {

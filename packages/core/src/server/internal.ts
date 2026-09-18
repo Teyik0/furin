@@ -11,6 +11,7 @@ import {
 } from "./cache/runtime-cache.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
+import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
 // The generated compile entry calls `__setCompileContext()` before importing
@@ -80,6 +81,8 @@ export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
 export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): void {
   installCacheTagPurger(purger);
 }
+
+export const restorePprResumeRequest = restoreResumeRequest;
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
 // containing root.tsx, normalized to posix separators. The SAME pagesDir may

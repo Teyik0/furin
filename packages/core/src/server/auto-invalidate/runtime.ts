@@ -1,4 +1,5 @@
 import type { Context } from "elysia";
+import { physicalPath } from "../../shared/prefix.ts";
 import {
   callCachePurger,
   consumePendingInvalidations,
@@ -144,10 +145,10 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
       const result = revalidatePathForInstance(instance, logicalPath, "page", false);
       deleted = result.deleted || deleted;
       instanceDeleted = result.deleted || instanceDeleted;
-      purgedPaths.add(`${instance.prefix}${logicalPath}`);
+      purgedPaths.add(physicalPath(instance.prefix, logicalPath));
       instancePurgedPaths.add(logicalPath);
       for (const purged of result.purgedPaths) {
-        purgedPaths.add(`${instance.prefix}${purged}`);
+        purgedPaths.add(physicalPath(instance.prefix, purged));
         instancePurgedPaths.add(purged);
       }
     }

@@ -945,7 +945,7 @@ export async function furin({
     )
     .use(createProductionBrowserEventsPlugin(sync))
     .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
-    .use(createDataEndpoint(routes))
+    .use(createDataEndpoint(routes, root))
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));

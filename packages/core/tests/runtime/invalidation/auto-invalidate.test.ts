@@ -164,6 +164,19 @@ describe("revalidateTag", () => {
 });
 
 describe("revalidatePath", () => {
+  test("uses the same mounted root key as the deployment adapter", async () => {
+    registerInstance(createInstance("/admin", "/apps/admin"));
+    const purged: string[] = [];
+    setCachePurger((paths) => {
+      purged.push(...paths);
+      return Promise.resolve();
+    });
+    revalidatePath("/", "page");
+    await flushMicrotasks();
+    expect(purged).toContain("/admin");
+    expect(purged).not.toContain("/admin/");
+  });
+
   test("does not propagate a synchronous purge failure", async () => {
     registerInstance(createInstance("/admin", "/apps/admin"));
     setCachePurger(() => {

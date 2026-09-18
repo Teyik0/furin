@@ -2,6 +2,7 @@
 import type { SsgCacheEntry } from "../server/cache/index.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
+import { hasRequestLoader } from "../server/render/loaders.ts";
 import { buildRouteMatcher } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -10,7 +11,8 @@ export type SSGCacheSnapshot = Record<string, SsgCacheEntry>;
 
 export interface RoutePrerender {
   path: string;
-  result: SsgCacheEntry | Response;
+  /** PPR targets are materialized later by the exact production bundle. */
+  result?: SsgCacheEntry | Response;
   route: ResolvedRoute;
 }
 
@@ -19,15 +21,15 @@ const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 function hasRequestDependentInput(route: ResolvedRoute, root: RootLayout): boolean {
   return [root.route, ...route.routeChain].some(
     (routeConfig) =>
-      routeConfig.query !== undefined || routeConfig.requestLoader !== undefined
+      routeConfig.query !== undefined
   );
 }
 
 /**
  * Renders every selected route URL known at build time. Fixed routes are always
  * known; dynamic routes contribute the values returned by staticParams(). ISR
- * routes with query schemas or request loaders stay on-demand because their
- * output can vary per request.
+ * routes with query schemas stay on-demand. PPR paths are collected here, then
+ * rendered by the production bundle so React's postponed tree matches at runtime.
  */
 export async function buildRoutePrerenders(
   routes: ResolvedRoute[],
@@ -67,6 +69,10 @@ export async function buildRoutePrerenders(
       if (matchRoute(path)?.route !== route) {
         continue;
       }
+      if (hasRequestLoader(route)) {
+        prerenders.push({ path, route });
+        continue;
+      }
       const result =
         route.mode === "ssg"
           ? await prerenderSSG(route, params, root, origin, basePath, searchRoutes)
@@ -96,7 +102,7 @@ export async function buildSSGCacheSnapshot(
   const searchRoutes = createSearchRouteMetadata(routes);
 
   for (const route of routes) {
-    if (route.mode !== "ssg" || !route.page.staticParams) {
+    if (route.mode !== "ssg" || !route.page.staticParams || hasRequestLoader(route)) {
       continue;
     }
     const paramSets = await route.page.staticParams();

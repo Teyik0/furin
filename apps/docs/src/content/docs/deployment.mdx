@@ -123,15 +123,21 @@ bunx vercel deploy --prebuilt
 | `ssr` | Bun catch-all Function |
 | `ssg` | Prerender Function with `expiration: false` and a build-time HTML fallback when the URL is known |
 | `isr` | Prerender Function whose expiration matches `revalidate`, with a build-time fallback for request-independent URLs |
-| SSG/ISR with `requestLoader` (PPR) | Dynamic streaming Function; only public loader results use Runtime Cache |
+| SSG/ISR with `requestLoader` (PPR) | Cached public HTML shell chained to a private streaming Function continuation |
 
-Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema or a `requestLoader` remain on-demand so a shared fallback cannot expose request-specific content. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
+Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema remain on-demand so the fallback cannot ignore query-dependent input. For PPR routes, only the public shell is prerendered: `requestLoader` does not execute during this phase. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
 The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
 
-PPR documents and navigation payloads remain `private, no-store`: the personalized document is never an ISR asset. Public loader results are serialized with the existing lossless route transport and shared through Vercel Runtime Cache, scoped by build, mount prefix, route mode, and query string. ISR public data expires after `revalidate` seconds and is regenerated before the next response, rather than in an untracked background task. Path and tag invalidation also expires the corresponding Runtime Cache entries. This preserves Furin's streaming PPR behavior; it does not emit a Next.js-style static HTML shell with a resumable dynamic continuation.
+PPR stores the public HTML shell, React's opaque postponed state, and the public loader snapshot as one coherent artifact. The build generates known PPR shells using the **actual production bundle**, so minification cannot change the component tree between prerender and resume.
+
+Vercel serves the public shell from its native cache and chains it to a Function that runs `requestLoader` and resumes the suspended boundaries. Both parts form one HTTP response; the browser does not fetch a separate continuation. Resume requests are authenticated with a build-scoped chain key and checked against the build and mounted route. The state is not included in the browser's HTML.
+
+The personalized response and navigation payload remain `private, no-store`. Public artifacts also use Runtime Cache for origin rendering and navigation, scoped by deployment, build, mount prefix, route mode, and query string. Path and tag invalidation expires those entries. On Bun deployments, the same artifact is kept in memory; stale ISR artifacts remain usable while a tracked regeneration produces their replacement.
+
+Consume `requestData` inside a React `Suspense` boundary. Furin uses React's Web Streams renderer for applications containing PPR routes so full renders and resumptions share the same React contexts. Applications without PPR keep the native Bun renderer and omit the resumable renderer from their server bundle.
 
 The isolated Flight codec is included alongside the Function handler, so RSC rendering does not compile code or read framework sources at runtime.
 

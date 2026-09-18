@@ -10,6 +10,14 @@ export function clientDirNameForPrefix(prefix: string): string {
   return prefix === "" ? "client" : `client-${prefixSlug(prefix)}`;
 }
 
+/** Canonical deployed path, shared by routing, PPR state and cache invalidation. */
+export function physicalPath(prefix: string, path: string): string {
+  if (prefix === "") {
+    return path;
+  }
+  return path === "/" ? prefix : `${prefix}${path}`;
+}
+
 /** Filesystem-safe slug for a mount prefix (`/admin/v2` → `admin-v2`). */
 export function prefixSlug(prefix: string): string {
   return prefix.slice(1).replaceAll("/", "-");

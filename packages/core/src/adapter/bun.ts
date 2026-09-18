@@ -12,7 +12,11 @@ import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
-import { buildRuntimeAppsSequentially, type RuntimeTargetApp } from "./runtime-build.ts";
+import {
+  buildRuntimeAppsSequentially,
+  pprRuntimePlugin,
+  type RuntimeTargetApp,
+} from "./runtime-build.ts";
 
 function generateDiskEntry(options: BuildEntryOptions): VirtualBuildEntry {
   ensureDir(options.outDir);
@@ -106,6 +110,7 @@ export async function buildBunTarget(
       plugins: [
         entry.plugin,
         productionInstrumentationPlugin(),
+        pprRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
@@ -148,6 +153,7 @@ export async function buildBunTarget(
       plugins: [
         entry.plugin,
         productionInstrumentationPlugin(),
+        pprRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
