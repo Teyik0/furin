@@ -1,0 +1,16 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 98
+.github/workflows/vercel-benchmark.yaml
+  h_a2cbd1b0e3ae6e 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "297e88f6b979eaa0250a5e324ca3e74c0c2ef2b9",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
