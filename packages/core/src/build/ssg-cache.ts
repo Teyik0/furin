@@ -69,7 +69,7 @@ export async function buildRoutePrerenders(
       if (matchRoute(path)?.route !== route) {
         continue;
       }
-      if (hasRequestLoader(route)) {
+      if (root.route.requestLoader !== undefined || hasRequestLoader(route)) {
         prerenders.push({ path, route });
         continue;
       }

@@ -19,10 +19,12 @@ function createVercelApp(): TmpApp {
     [
       'import { furin, revalidatePath, revalidateTag } from "@teyik0/furin";',
       'import { Elysia } from "elysia";',
+      'import * as ReactDomServer from "react-dom/server";',
       'import { userHydrate } from "./build/hydrate";',
       "",
       "const app = new Elysia()",
       '  .get("/api/health", () => userHydrate)',
+      '  .get("/api/renderer", () => typeof ReactDomServer.resume)',
       '  .post("/api/revalidate", () => {',
       '    revalidatePath("/", "page");',
       '    return "invalidated";',
@@ -264,6 +266,28 @@ describe.serial("Vercel deployment adapter", () => {
     ).rejects.toThrow("must export the Elysia app as default");
   });
 
+  test("treats a root requestLoader as PPR without running it during the build", async () => {
+    const app = createVercelApp();
+    const rootPath = join(app.path, "src/pages/root.tsx");
+    writeAppFile(
+      app.path,
+      "src/pages/root.tsx",
+      readFileSync(rootPath, "utf8").replace(
+        ".layout(",
+        '.requestLoader(() => { throw new Error("private loader ran during build"); })\n  .layout('
+      )
+    );
+    await buildApp({ rootDir: app.path, target: "vercel" });
+    const config = JSON.parse(
+      readFileSync(
+        join(app.path, ".vercel/output/functions/index-ssg.prerender-config.json"),
+        "utf8"
+      )
+    );
+    expect(config.chain.outputPath).toBe("__server");
+    expect(config.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
+  });
+
   test("rejects application static mounts instead of shipping missing files", async () => {
     const app = createVercelApp();
     const serverPath = join(app.path, "src/server.ts");
@@ -503,6 +527,7 @@ export const route = defineRoute()
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
       const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
+      const renderer = await handler.fetch(new Request("http://furin.test/api/renderer"));
       const tagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/tagged"));
       const untagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/untagged"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
@@ -553,6 +578,7 @@ export const route = defineRoute()
         flightDataStatus: flightData.status,
         apiBody: await api.text(),
         apiStatus: api.status,
+        renderer: await renderer.text(),
         tagged: tagged.headers.get("vercel-cache-tag"),
         untagged: untagged.headers.get("vercel-cache-tag"),
         dataCacheControl: data.headers.get("cache-control"),
@@ -612,6 +638,7 @@ export const route = defineRoute()
     expect(result.flightBody).toContain("Flight article");
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
+    expect(result.renderer).toBe("undefined");
     expect(result.tagged).toBe("/blog/tagged,specific");
     expect(result.untagged).toBe("/blog/untagged");
     expect(result.apiBody).toBe("user hydrate");

@@ -203,8 +203,12 @@ export function pprRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
     setup(build) {
       // Resolve before user plugins: linked-project plugins commonly resolve
       // peer dependencies from their own root and can otherwise recurse.
-      build.onResolve({ filter: REACT_SERVER_IMPORT_RE }, () => ({ path: reactServerPath }));
-      build.onResolve({ filter: REACT_STATIC_IMPORT_RE }, () => ({ path: reactStaticPath }));
+      build.onResolve({ filter: REACT_SERVER_IMPORT_RE }, ({ importer }) =>
+        isFrameworkRuntimeImporter(importer) ? { path: reactServerPath } : undefined
+      );
+      build.onResolve({ filter: REACT_STATIC_IMPORT_RE }, ({ importer }) =>
+        isFrameworkRuntimeImporter(importer) ? { path: reactStaticPath } : undefined
+      );
       if (enabled) {
         return;
       }
@@ -224,6 +228,18 @@ export const runPprPublicLoaders = renderPprRoute;`,
       }));
     },
   };
+}
+
+function isFrameworkRuntimeImporter(importer: string): boolean {
+  if (importer === "") {
+    return false;
+  }
+  const fromRuntimeRoot = relative(_pkgSrcDir, importer.split("?")[0] as string);
+  return (
+    fromRuntimeRoot !== ".." &&
+    !fromRuntimeRoot.startsWith("../") &&
+    !fromRuntimeRoot.startsWith("..\\")
+  );
 }
 
 export interface RuntimeAppBuild {
