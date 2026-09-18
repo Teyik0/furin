@@ -1,0 +1,16 @@
+packages/core/.npmignore
+  h_a2cbd1b0e3ae6e 1
+packages/core/package.json
+  h_a2cbd1b0e3ae6e 140-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc991e2933f0720c73d442531ea2b1756d1e5a95",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
