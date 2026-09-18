@@ -1,0 +1,18 @@
+packages/core/src/adapter/runtime-build.ts
+  h_a2cbd1b0e3ae6e 206-211,233-244
+packages/core/src/build/ssg-cache.ts
+  h_a2cbd1b0e3ae6e 72
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 22,27,269-290,530,581,641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1af3158564dd838ab17f8659cebaa2615585a480",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
