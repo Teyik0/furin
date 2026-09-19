@@ -153,7 +153,7 @@
     "react-server-dom-webpack": "19.2.8",
     "seroval": "^1.6.7",
     "yuku-ast": "0.9.5",
-    "yuku-parser": "0.9.5"
+    "yuku-parser": "0.10.1"
   },
   "devDependencies": {
     "@types/react": "catalog:",
