@@ -527,11 +527,13 @@ async function runLoadersInternal(
     // Route context is always injected into syncData so components receive
     // params, query and path regardless of the serialisation path (SSR, SPA
     // nav, dev cache).
-    const routeCtx = { params: ctx.params, path: ctx.path, query: ctx.query };
+    allSync.params = ctx.params;
+    allSync.path = ctx.path;
+    allSync.query = ctx.query;
     return {
       deferredPromises: Object.keys(allDeferred).length > 0 ? allDeferred : undefined,
       headers,
-      syncData: { ...allSync, ...routeCtx },
+      syncData: allSync,
       type: "data",
     };
   } catch (err) {

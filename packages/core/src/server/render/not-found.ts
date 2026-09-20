@@ -48,9 +48,12 @@ export async function renderRootNotFound(
   // page must be physical (prefixed), and currentHref logical, exactly like
   // the regular render pipeline.
   const basePath = currentInstance().prefix;
+  const logicalPath = request
+    ? normalizeHref(toLogical(new URL(request.url).pathname, basePath))
+    : "/";
   const notFoundContext: RouterContextValue = {
     basePath,
-    currentHref: request ? normalizeHref(toLogical(new URL(request.url).pathname, basePath)) : "/",
+    currentHref: logicalPath,
     defaultPreload: "intent",
     defaultPreloadDelay: 50,
     defaultPreloadStaleTime: 30_000,
@@ -81,7 +84,11 @@ export async function renderRootNotFound(
     reactStream = await renderToReadableStream(
       withDocumentState(
         withSSRRouterContext(
-          wrapRootLayout(buildNotFoundElement(root.notFound, notFoundError), {}, root.route),
+          wrapRootLayout(
+            buildNotFoundElement(root.notFound, notFoundError),
+            { params: {}, path: logicalPath, query: {} },
+            root.route
+          ),
           notFoundContext
         ),
         assets,

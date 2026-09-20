@@ -293,6 +293,7 @@ function buildSuccessRender(
   route: ResolvedRoute,
   root: RootLayout,
   componentProps: Record<string, unknown>,
+  headContext: Record<string, unknown>,
   throwOnFailure: boolean
 ): {
   element: ReactNode;
@@ -302,7 +303,7 @@ function buildSuccessRender(
   status: number;
 } {
   try {
-    const headData = route.page.head?.(componentProps);
+    const headData = route.page.head?.(headContext);
     const element = buildElement(route, componentProps, root.route);
     return { element, errorDigest: undefined, errorMessage: undefined, headData, status: 200 };
   } catch (headError) {
@@ -367,19 +368,16 @@ export async function prepareRender(
   const isNotFound = loaderResult.type === "not-found";
   const isError = loaderResult.type === "error";
   const isFallback = isNotFound || isError;
-  const syncData = isFallback ? {} : loaderResult.syncData;
+  const syncData = isFallback
+    ? { params: ctx.params, path: ctx.path, query: ctx.query }
+    : loaderResult.syncData;
   const deferredPromises =
     !isFallback && loaderResult.type === "data" ? loaderResult.deferredPromises : undefined;
   assertDeferredModeAllowed(route, deferredPromises);
 
   const { headers } = loaderResult;
-  const componentProps = {
-    ...syncData,
-    ...(deferredPromises ?? {}),
-    params: ctx.params,
-    path: ctx.path,
-    query: ctx.query,
-  };
+  const componentProps =
+    deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
 
   const assets = await resolveDocumentAssets(ctx);
   const errorComponent = route.error ?? root.error;
@@ -411,6 +409,7 @@ export async function prepareRender(
       route,
       root,
       componentProps,
+      syncData,
       throwOnFailure
     ));
   }

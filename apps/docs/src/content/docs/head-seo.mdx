@@ -28,7 +28,7 @@ export const route = defineRoute()
   .page(({ post }) => <Article post={post} />);
 ```
 
-Metadata receives validated route values and public loader fields only. `requestData` is intentionally unavailable to `head()`; keep request-private values in the rendered body so cached metadata remains public and deterministic.
+Metadata receives validated route values and synchronous public loader fields only. Promise fields explicitly wrapped in `defer()` and `requestData` are intentionally unavailable to `head()`; keep metadata inputs in the synchronous loader result so SSR and SPA navigation remain deterministic.
 
 ## Descriptor Reference
 

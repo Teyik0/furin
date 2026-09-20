@@ -30,6 +30,8 @@ export const route = defineRoute()
 
 `<Await>` reads the promise with React `use()`, so it must be inside `<Suspense>`. During SPA navigation, the route-data endpoint streams the same fields as NDJSON and reconstructs the promise-valued contract before React renders the destination.
 
+Only synchronous loader fields are available to `head()`. Keep titles and other metadata inputs outside deferred promises.
+
 ## Local Error UI
 
 ```tsx
