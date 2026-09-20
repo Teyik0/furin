@@ -1,0 +1,28 @@
+packages/core/src/client/router/provider.tsx
+  s_60a29d9fb49afc::t_ea849a0d93afc4 334
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_60a29d9fb49afc::t_288976f2009579 811-813
+  s_60a29d9fb49afc::t_27949bf05cdad5 790-792
+packages/core/src/client/router/boundary-tree.tsx
+  s_60a29d9fb49afc::t_4c4dafefeb5236 101-102,110-111
+packages/core/src/server/router/plugin.ts
+  s_60a29d9fb49afc::t_946683bba08ca3 194-202
+  s_60a29d9fb49afc::t_ea849a0d93afc4 56-57,97-98,120,181-182,184,191-192,359,435
+  s_60a29d9fb49afc::t_42a2ee0e98755d 203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2295036b7e4ceb3be059ea39c560a58d3c465f2e",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
