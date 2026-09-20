@@ -76,6 +76,11 @@ let _pluginRegistered = false;
 
 type SourceLoader = "js" | "jsx" | "ts" | "tsx";
 
+interface CachedDevPageContents {
+  contents: string;
+  moduleIdentity: string;
+}
+
 // ── Singleton package resolution ───────────────────────────────────────────────
 //
 // React (and react-dom) must be singletons: every module in the render graph
@@ -403,14 +408,18 @@ function isMissingSourceFile(error: unknown): boolean {
 export async function loadDevPageContents(
   filePath: string,
   moduleIdentity: string,
-  transformedSourceCache: Map<string, string>
+  transformedSourceCache: Map<string, CachedDevPageContents>
 ): Promise<string> {
   let raw: string;
   try {
     raw = await Bun.file(filePath).text();
   } catch (error) {
     if (isMissingSourceFile(error)) {
-      return transformedSourceCache.get(moduleIdentity) ?? DELETED_DEV_PAGE_CONTENTS;
+      const cached = transformedSourceCache.get(filePath);
+      transformedSourceCache.delete(filePath);
+      return cached?.moduleIdentity === moduleIdentity
+        ? cached.contents
+        : DELETED_DEV_PAGE_CONTENTS;
     }
     throw error;
   }
@@ -424,7 +433,7 @@ export async function loadDevPageContents(
   } catch (error) {
     throw new DevTransformFailure(error, { cause: error });
   }
-  transformedSourceCache.set(moduleIdentity, contents);
+  transformedSourceCache.set(filePath, { contents, moduleIdentity });
   return contents;
 }
 
@@ -439,7 +448,7 @@ export function registerDevPagePlugin(): void {
       // Keep an already-loaded module generation usable if its source is
       // deleted while Bun finishes that same generation. A later generation
       // receives a tombstone instead of reviving the removed route.
-      const transformedSourceCache = new Map<string, string>();
+      const transformedSourceCache = new Map<string, CachedDevPageContents>();
 
       /**
        * Strip `?furin-server` but keep `?t=<source-version>` in the resolved

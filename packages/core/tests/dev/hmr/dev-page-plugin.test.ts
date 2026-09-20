@@ -14,16 +14,23 @@ import {
 test("a deleted page finishes an in-flight load from its last transformed source", async () => {
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-page-"));
   const filePath = resolve(directory, "page.tsx");
-  const cache = new Map<string, string>();
+  const cache = new Map<string, { contents: string; moduleIdentity: string }>();
   const loadedIdentity = `${filePath}?t=1`;
 
   try {
     writeFileSync(filePath, 'export const marker = "loaded";');
     const loaded = await loadDevPageContents(filePath, loadedIdentity, cache);
+    writeFileSync(filePath, 'export const marker = "edited";');
+    const editedIdentity = `${filePath}?t=2`;
+    const edited = await loadDevPageContents(filePath, editedIdentity, cache);
+
+    expect(edited).not.toBe(loaded);
+    expect(cache.size).toBe(1);
     rmSync(filePath);
 
-    expect(await loadDevPageContents(filePath, loadedIdentity, cache)).toBe(loaded);
-    expect(await loadDevPageContents(filePath, `${filePath}?t=2`, cache)).toContain(
+    expect(await loadDevPageContents(filePath, editedIdentity, cache)).toBe(edited);
+    expect(cache.size).toBe(0);
+    expect(await loadDevPageContents(filePath, `${filePath}?t=3`, cache)).toContain(
       "route = undefined"
     );
   } finally {
