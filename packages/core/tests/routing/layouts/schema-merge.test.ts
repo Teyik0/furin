@@ -154,7 +154,10 @@ describe("parseRouteQuery", () => {
 
   test("coerces the matching object member of an anyOf query schema", async () => {
     const schema = t.Object({
-      filter: t.Union([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]),
+      filter: t.Union([
+        t.Object({ page: t.Number() }, { additionalProperties: false }),
+        t.Object({ active: t.Boolean() }, { additionalProperties: false }),
+      ]),
     });
 
     const result = await parseRouteQuery(
@@ -179,6 +182,23 @@ describe("parseRouteQuery", () => {
     expect(result).toEqual({
       ok: true,
       query: { active: true, page: 2 },
+    });
+  });
+
+  test("parses and coerces object properties inside an intersected query schema", async () => {
+    const schema = t.Intersect([
+      t.Object({ filter: t.Object({ page: t.Number() }) }),
+      t.Object({ active: t.Boolean() }),
+    ]);
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"page":"2"}&active=true'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, filter: { page: 2 } },
     });
   });
 

@@ -31,8 +31,9 @@ import { furin } from "@teyik0/furin";
 import { api } from "./api";
 
 export const app = api.use(await furin({ pagesDir: "./src/pages" }));
+const port = Number(process.env.PORT ?? 3000);
 
-if (import.meta.main) app.listen(3000);
+if (import.meta.main) app.listen(port);
 
 export type App = typeof app;
 export default app;

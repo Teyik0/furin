@@ -74,8 +74,9 @@ process.stdout.write("logger-active");
     env: { ...process.env, NODE_ENV: "test" },
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 30_000,
   });
 
-  expect(result.exitCode).toBe(0);
+  expect(result.exitCode, result.stderr.toString()).toBe(0);
   expect(result.stdout.toString()).toContain("logger-active");
 });

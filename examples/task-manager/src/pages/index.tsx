@@ -9,7 +9,7 @@ export const route = defineRoute()
   .loader(async () => {
     const result = await client.boards.get();
     if (result.error) {
-      throw new Error(`Failed to load boards (${result.error.status})`);
+      throw new Error(`Failed to load boards (${result.error.status ?? "unknown status"})`);
     }
     const generatedAt = new Date().toLocaleTimeString("en-US", {
       hour: "2-digit",

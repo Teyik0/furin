@@ -28,7 +28,7 @@ const workflow = Bun.YAML.parse(
   jobs: {
     "live-vercel": {
       if?: string;
-      outputs?: { supported?: string };
+      outputs?: { report_available?: string; supported?: string };
       permissions?: { "pull-requests"?: string };
       steps: WorkflowStep[];
     };
@@ -174,8 +174,14 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
   expect(workflow.jobs.comment?.if).toContain(
     "needs.live-vercel.outputs.supported == 'true'"
   );
+  expect(workflow.jobs.comment?.if).toContain(
+    "needs.live-vercel.outputs.report_available == 'true'"
+  );
   expect(workflow.jobs["live-vercel"].outputs?.supported).toBe(
     "${{ steps.adapter-support.outputs.available }}"
+  );
+  expect(workflow.jobs["live-vercel"].outputs?.report_available).toBe(
+    "${{ steps.live-benchmark.outputs.report_available }}"
   );
   expect(workflow.jobs["live-vercel"].permissions?.["pull-requests"]).toBe("read");
   expect(
@@ -196,6 +202,16 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
     BENCHMARK_WARM_SAMPLES: "5",
     VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}",
   });
+  const benchmarkStep = workflow.jobs["live-vercel"].steps.find(
+    (step) => step.name === "Run live benchmark"
+  );
+  expect(benchmarkStep?.id).toBe("live-benchmark");
+  expect(benchmarkStep?.run).toContain("api-deployments-free-per-day");
+  expect(benchmarkStep?.run).toContain("report_available=false");
+  expect(benchmarkStep?.run).toContain("exit \"$benchmark_status\"");
+  expect(
+    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Prepare live report")?.if
+  ).toContain("steps.live-benchmark.outputs.report_available == 'true'");
 });
 
 test.each([
@@ -212,7 +228,19 @@ test.each([
   expect(installStep).toContain("dependencies.elysia=2.0.0-beta.16");
   expect(installStep).toContain("dependencies.exact-mirror=1.2.6");
   expect(installStep).toContain("dependencies.typebox=1.3.34");
-  expect(installStep).toContain("bun install --force");
+  expect(installStep).toContain("bun install --lockfile-only");
+  expect(installStep).toContain("bun install --frozen-lockfile");
+  expect(installStep).not.toContain("bun install --force");
+});
+
+test("recreates and freezes the benchmark lockfile for the baseline tarball", () => {
+  const baselineStep = ciWorkflow.jobs["vercel-benchmark"].steps.find(
+    (step) => step.name === "Build baseline benchmark"
+  )?.run;
+
+  expect(baselineStep).toContain("bun install --lockfile-only");
+  expect(baselineStep).toContain("bun install --frozen-lockfile");
+  expect(baselineStep).not.toContain("bun install --force");
 });
 
 test("compares Vercel bundles with the Elysia-major-aware budget", () => {

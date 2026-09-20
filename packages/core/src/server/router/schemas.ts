@@ -59,35 +59,48 @@ function isStandardSchema(schema: unknown): boolean {
 }
 
 function collectQueryArrayKeys(schema: unknown): QueryKeyMap | undefined {
-  if (!(isObjectSchema(schema) && isObjectSchema(schema.properties))) {
+  return collectQueryKeys(schema, "array");
+}
+
+function collectQueryObjectKeys(schema: unknown): QueryKeyMap | undefined {
+  return collectQueryKeys(schema, "object");
+}
+
+function collectQueryKeys(schema: unknown, type: "array" | "object"): QueryKeyMap | undefined {
+  if (!isObjectSchema(schema)) {
     return;
   }
 
   const keys: QueryKeyMap = {};
-  for (const [key, value] of Object.entries(schema.properties)) {
-    const effectiveSchema = findEffectiveAnyOfMember(value, "array") ?? value;
-    if (isObjectSchema(effectiveSchema) && effectiveSchema.type === "array") {
-      keys[key] = 1;
+  if (isObjectSchema(schema.properties)) {
+    for (const [key, value] of Object.entries(schema.properties)) {
+      if (hasSchemaType(value, type)) {
+        keys[key] = 1;
+      }
+    }
+  }
+
+  for (const keyword of ["allOf", "anyOf"] as const) {
+    const members = schema[keyword];
+    if (!Array.isArray(members)) {
+      continue;
+    }
+    for (const member of members) {
+      Object.assign(keys, collectQueryKeys(member, type));
     }
   }
 
   return Object.keys(keys).length > 0 ? keys : undefined;
 }
 
-function collectQueryObjectKeys(schema: unknown): QueryKeyMap | undefined {
-  if (!(isObjectSchema(schema) && isObjectSchema(schema.properties))) {
-    return;
+function hasSchemaType(schema: unknown, type: "array" | "object"): boolean {
+  if (!isObjectSchema(schema)) {
+    return false;
   }
-
-  const keys: QueryKeyMap = {};
-  for (const [key, value] of Object.entries(schema.properties)) {
-    const effectiveSchema = findEffectiveAnyOfMember(value, "object") ?? value;
-    if (isObjectSchema(effectiveSchema) && effectiveSchema.type === "object") {
-      keys[key] = 1;
-    }
+  if (schema.type === type) {
+    return true;
   }
-
-  return Object.keys(keys).length > 0 ? keys : undefined;
+  return findEffectiveAnyOfMember(schema, type) !== undefined;
 }
 
 function findEffectiveAnyOfMember(
