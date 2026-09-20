@@ -65,4 +65,24 @@ describe("defineRoute renderer adapter", () => {
     );
     expect(await requestPromise).toEqual({ user: "alice" });
   });
+
+  test("keeps requestLoader data out of head props at runtime", async () => {
+    const parent = { __type: "FURIN_ROUTE" as const };
+    let receivedRequestData = false;
+    const route = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => ({}))
+      .head((props) => {
+        receivedRequestData = "requestData" in props;
+        return {};
+      })
+      .page(() => null);
+    const page = adaptDefinedPage(route, parent);
+
+    page.head?.({ requestData: Promise.resolve({ user: "alice" }) });
+
+    expect(receivedRequestData).toBe(false);
+    await Promise.resolve();
+  });
 });

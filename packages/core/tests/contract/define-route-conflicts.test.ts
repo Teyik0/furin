@@ -85,7 +85,32 @@ const createRoutesWithReservedLoaderKeys = () => {
     .config({ mode: "ssr" })
     // @ts-expect-error — public loader fields cannot use Furin's internal namespace.
     .loader(() => ({ __furinHead: "shadowed" }));
-  return { internalNamespace, noSchema, paramsSchema, querySchema };
+  const path = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot shadow the route path.
+    .loader(() => ({ path: "shadowed" }));
+  const query = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot shadow validated query values.
+    .loader(() => ({ query: "shadowed" }));
+  const ref = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot use React's ref prop.
+    .loader(() => ({ ref: "shadowed" }));
+  const requestData = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot shadow private request data.
+    .loader(() => ({ requestData: "shadowed" }));
+  return {
+    internalNamespace,
+    noSchema,
+    paramsSchema,
+    path,
+    query,
+    querySchema,
+    ref,
+    requestData,
+  };
 };
 
 describe("defineRoute parentData conflicts", () => {

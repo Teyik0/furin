@@ -48,6 +48,11 @@ function toDefinedRenderContext(props: RuntimeData): DefinedRenderContext {
   };
 }
 
+function toDefinedHeadContext(props: RuntimeData) {
+  const { requestData: _requestData, ...headContext } = toDefinedRenderContext(props);
+  return headContext;
+}
+
 function copyTags(tags: readonly string[] | undefined): string[] | undefined {
   return tags ? [...tags] : undefined;
 }
@@ -88,7 +93,9 @@ export function adaptDefinedLayout(
 
 export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRoute): RuntimePage {
   const component = route.component as (props: DefinedRenderContext) => React.ReactNode;
-  const head = route.head as ((context: DefinedRenderContext) => HeadOptions) | undefined;
+  const head = route.head as
+    | ((context: ReturnType<typeof toDefinedHeadContext>) => HeadOptions)
+    | undefined;
   return {
     __type: "FURIN_PAGE",
     _route: {
@@ -99,7 +106,7 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
       requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     },
     component: (props) => component(toDefinedRenderContext(props)),
-    head: head ? (props) => head(toDefinedRenderContext(props)) : undefined,
+    head: head ? (props) => head(toDefinedHeadContext(props)) : undefined,
     loader: route.loader as RuntimePage["loader"],
     mode: route.mode,
     revalidate: route.revalidate,
