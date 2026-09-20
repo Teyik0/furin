@@ -1,5 +1,12 @@
 import { getWeather, type WeatherLogger } from "./weather";
 
+export function formatForecastWeekday(date: string): string {
+  return new Date(date).toLocaleDateString("en", {
+    timeZone: "UTC",
+    weekday: "short",
+  });
+}
+
 export async function loadWeatherPage(city: string, logger: WeatherLogger) {
   const data = await getWeather(city, logger);
 
@@ -9,7 +16,7 @@ export async function loadWeatherPage(city: string, logger: WeatherLogger) {
 
   const dailyWithDayName = data.daily.map((day) => ({
     ...day,
-    dayName: new Date(day.date).toLocaleDateString("en", { weekday: "short" }),
+    dayName: formatForecastWeekday(day.date),
   }));
 
   return {

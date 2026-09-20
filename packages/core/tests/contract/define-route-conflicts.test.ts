@@ -15,6 +15,7 @@ import { describe, expectTypeOf, test } from "bun:test";
 
 declare const defineRoute: typeof import("../../src/furin.ts").defineRoute;
 declare const defineRootRoute: typeof import("../../src/furin.ts").defineRootRoute;
+declare const t: typeof import("elysia").t;
 
 const createParentRoute = () =>
   defineRootRoute()
@@ -67,6 +68,26 @@ const createParentlessRoute = () =>
       return String(user);
     });
 
+const createRoutesWithReservedLoaderKeys = () => {
+  const noSchema = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot shadow route params.
+    .loader(() => ({ params: "shadowed" }));
+  const querySchema = defineRootRoute()
+    .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })
+    // @ts-expect-error — public loader fields cannot shadow React children.
+    .loader(() => ({ children: "shadowed" }));
+  const paramsSchema = defineRootRoute()
+    .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
+    // @ts-expect-error — public loader fields cannot use React's key prop.
+    .loader(() => ({ key: "shadowed" }));
+  const internalNamespace = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — public loader fields cannot use Furin's internal namespace.
+    .loader(() => ({ __furinHead: "shadowed" }));
+  return { internalNamespace, noSchema, paramsSchema, querySchema };
+};
+
 describe("defineRoute parentData conflicts", () => {
   test("compatible override keeps the parent-friendly type", () => {
     expectTypeOf<ReturnType<typeof createCompatibleChild>>().not.toBeNever();
@@ -82,5 +103,9 @@ describe("defineRoute parentData conflicts", () => {
 
   test("no parent means no conflict surface", () => {
     expectTypeOf<ReturnType<typeof createParentlessRoute>>().not.toBeNever();
+  });
+
+  test("reserved render-context keys are rejected by every loader chain", () => {
+    expectTypeOf<ReturnType<typeof createRoutesWithReservedLoaderKeys>>().not.toBeNever();
   });
 });

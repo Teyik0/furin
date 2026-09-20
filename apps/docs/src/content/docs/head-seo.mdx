@@ -28,7 +28,7 @@ export const route = defineRoute()
   .page(({ post }) => <Article post={post} />);
 ```
 
-Metadata for cached routes should remain public and deterministic. Although head props include `requestData`, prefer values that remain valid across cache hits and put request-private values in the rendered body.
+Metadata receives validated route values and public loader fields only. `requestData` is intentionally unavailable to `head()`; keep request-private values in the rendered body so cached metadata remains public and deterministic.
 
 ## Descriptor Reference
 

@@ -60,7 +60,7 @@ import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 import { api } from "./api/hello";
 
-const port = Number(process.env.PORT ?? 3000);
+export const port = Number(process.env.PORT ?? 3000);
 
 const app = new Elysia()
   .use(await furin({ pagesDir: "./src/pages" }))

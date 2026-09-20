@@ -67,6 +67,22 @@ describe("writeRouteTypes", () => {
     expect(Bun.file(outputPath).lastModified).toBe(firstTimestamp);
   });
 
+  test("emits static route properties before dynamic route properties", () => {
+    writeRouteTypes(
+      [
+        route("/weather/:city", join(temporaryDirectory, "src/pages/weather/[city].tsx")),
+        route("/weather/search", join(temporaryDirectory, "src/pages/weather/search.tsx")),
+      ],
+      temporaryDirectory
+    );
+
+    const content = readFileSync(join(temporaryDirectory, "furin-env.d.ts"), "utf8");
+    expect(content.indexOf('"/weather/search"')).toBeLessThan(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: asserts generated TypeScript syntax
+      content.indexOf("[path: `/weather/${string}`]")
+    );
+  });
+
   test("emits sorted, deduplicated cache tags", () => {
     writeRouteTypes(
       [

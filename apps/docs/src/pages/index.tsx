@@ -54,7 +54,7 @@ export const route = defineRootRoute()
   "server.ts": `import { Elysia } from "elysia"
 import { furin } from "@teyik0/furin"
 
-const port = Number(process.env.PORT ?? 3000)
+export const port = Number(process.env.PORT ?? 3000)
 
 const app = new Elysia()
   .use(await furin({ pagesDir: "./pages" }))
