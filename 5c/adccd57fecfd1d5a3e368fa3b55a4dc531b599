@@ -1,0 +1,22 @@
+CHANGELOG.md
+  s_60a29d9fb49afc::t_5b842d87081150 14,17-24,26,30-33,39-44,49-55
+  s_60a29d9fb49afc::t_a12ecfea7f099b 10-11,27,34-36,45-48
+  s_60a29d9fb49afc::t_ecea890ed88c00 28-29
+  s_60a29d9fb49afc::t_eeb7476b8183da 37-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5cadccd57fecfd1d5a3e368fa3b55a4dc531b599",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
