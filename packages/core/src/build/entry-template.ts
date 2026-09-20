@@ -22,6 +22,8 @@ export interface EntryAppContext {
   buildId?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
+  /** Deployment adapter that owns public page caching for this build. */
+  deploymentTarget?: "vercel";
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
   /** Additional route modules such as filesystem-derived `_route` layouts. */
@@ -152,6 +154,10 @@ function buildAppContextBlock(
   const routeMetadataLine = app.routeMetadata
     ? `  routeMetadata: ${JSON.stringify(app.routeMetadata)},`
     : "";
+  const deploymentTargetLine =
+    app.deploymentTarget === undefined
+      ? ""
+      : `  deploymentTarget: ${JSON.stringify(app.deploymentTarget)},`;
   const serveAssetsLine =
     app.serveAssets === undefined ? "" : `  serveAssets: ${JSON.stringify(app.serveAssets)},`;
   const ssgCacheLine = app.ssgCache ? `  ssgCache: ${JSON.stringify(app.ssgCache)},` : "";
@@ -162,6 +168,7 @@ function buildAppContextBlock(
     "__setCompileContext({",
     `  buildId: ${JSON.stringify(app.buildId ?? "")},`,
     `  clientLogging: ${JSON.stringify(app.clientLogging ?? false)},`,
+    deploymentTargetLine,
     `  prefix: ${JSON.stringify(app.prefix ?? "")},`,
     `  rootPath: ${JSON.stringify(app.rootPath.replace(/\\/g, "/"))},`,
     app.nativeRoutes ? `  nativeRoutes: ${nativeRoutesVar},` : "",

@@ -12,11 +12,11 @@ export function furinInvalidate() {
   return new Elysia({ name: "furin-invalidate" }).macro({
     invalidate(rules: InvalidationInput) {
       return {
-        afterHandle(ctx: AnyAfterHandleContext) {
+        async afterHandle(ctx: AnyAfterHandleContext) {
           if (!isSuccessfulMutationResponse(ctx)) {
             return;
           }
-          runInvalidationRules(rules);
+          await runInvalidationRules(rules);
           appendPendingInvalidationHeader(ctx.set);
         },
       };

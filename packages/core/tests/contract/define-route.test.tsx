@@ -104,11 +104,26 @@ describe("defineRoute", () => {
         layout: rootRoute,
         mode: "ssg",
         params: t.Object({ slug: t.String() }),
-        staticParams: () => [{ slug: "hello-world" }],
       })
+      .staticParams(() => [{ slug: "hello-world" }])
       .page(({ params }) => params.slug);
 
-    expect(await staticRoute.staticParams?.()).toEqual([{ slug: "hello-world" }]);
+    expect(await staticRoute.staticParams?.({ params: {} })).toEqual([{ slug: "hello-world" }]);
+  });
+
+  test("rejects static params passed inside config at runtime", async () => {
+    const config = defineRoute().config as unknown as (options: object) => unknown;
+    let thrown: unknown;
+
+    try {
+      config({ layout: rootRoute, mode: "ssg", staticParams: () => [{ slug: "legacy" }] });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect((thrown as Error).message).toContain("staticParams() must be chained after config()");
+    await Promise.resolve();
   });
 
   test("types request-specific data through the requestLoader stage", async () => {
@@ -160,6 +175,30 @@ describe("defineRoute", () => {
       });
 
     expect("parent" in child).toBe(false);
+    await Promise.resolve();
+  });
+
+  test("types parent loader data in static params", async () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssg", params: t.Object({ category: t.String() }) })
+      .loader(() => ({ slugs: ["hello-world"] }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({
+        layout: parent,
+        mode: "ssg",
+        params: t.Object({ category: t.String(), slug: t.String() }),
+      })
+      .staticParams(async ({ params, slugs }) => {
+        const inheritedCategory: string | undefined = params.category;
+        const parentSlugs: Promise<string[]> = slugs;
+        return (await parentSlugs).map((slug) => ({
+          slug: `${inheritedCategory ?? "all"}-${slug}`,
+        }));
+      })
+      .page(({ params }) => params.slug);
+
+    expect(typeof child.staticParams).toBe("function");
     await Promise.resolve();
   });
 

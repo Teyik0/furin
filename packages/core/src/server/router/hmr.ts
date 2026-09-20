@@ -185,6 +185,7 @@ function patchRouteEntryFromFreshModule(
     entry.query = adapted.query;
     entry.requestLoader = adapted.requestLoader;
     entry.revalidate = adapted.revalidate;
+    entry.staticParams = adapted.staticParams;
     entry.tags = adapted.tags;
   }
 }
@@ -320,6 +321,7 @@ export async function handleDevRequest(
       if (chain[0] && currentRoot.route) {
         chain[0].layout = currentRoot.route.layout;
         chain[0].loader = currentRoot.route.loader;
+        chain[0].staticParams = currentRoot.route.staticParams;
       }
 
       const refreshedRoute = rebuildDevRoute(route, page, chain);

@@ -24,7 +24,7 @@ import {
 import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { extractTitle } from "../render/shell.ts";
-import { prerenderRoute, prerenderSSG } from "../render/ssg.ts";
+import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest } from "./hmr.ts";
@@ -217,9 +217,23 @@ async function handleSSGRequest(
 ): Promise<unknown> {
   const { origin } = new URL(ctx.request.url);
   const params = ctx.params ?? {};
-  const entry = isExternalPrerenderRequest(ctx.request)
-    ? await prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes, ctx)
-    : await prerenderSSG(route, params, root, origin, undefined, searchRoutes);
+  const externalPrerender = isExternalPrerenderRequest(ctx.request);
+  const runtimeResult = externalPrerender
+    ? {
+        cacheStored: true,
+        entry: await prerenderRoute(
+          route,
+          params,
+          root,
+          origin,
+          "ssg",
+          undefined,
+          searchRoutes,
+          ctx
+        ),
+      }
+    : await prerenderRuntimeSSG(route, params, root, origin, buildId, searchRoutes);
+  const { cacheStored, entry } = runtimeResult;
 
   // Loader issued a redirect — forward it directly to the client.
   if (entry instanceof Response) {
@@ -238,7 +252,9 @@ async function handleSSGRequest(
   ctx.set.headers["content-type"] = "text/html; charset=utf-8";
   // Browser: max-age=0 + must-revalidate → always validates via ETag (304 = free)
   // CDN:     s-maxage=31536000 → cache for 1 year, purge via revalidatePath + purger
-  ctx.set.headers["cache-control"] = "public, max-age=0, must-revalidate, s-maxage=31536000";
+  ctx.set.headers["cache-control"] = cacheStored
+    ? "public, max-age=0, must-revalidate, s-maxage=31536000"
+    : "no-store";
   if (etag) {
     ctx.set.headers.etag = etag;
   }

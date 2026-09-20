@@ -1,3 +1,4 @@
+import { physicalPath } from "../../shared/prefix.ts";
 import {
   currentInstrumentationRequest,
   emitCacheInvalidated,
@@ -16,6 +17,7 @@ import { clearPprRouteCache } from "../render/ppr-route.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { clearDevLoaderCaches } from "./dev-loader";
 import { clearPendingISRRevalidations, isrRouteCache } from "./isr";
+import { getPageCacheAdapter, resetPageCacheAdapter } from "./page-cache-state.ts";
 import {
   type CachePurger,
   setCachePurger as installPurger,
@@ -67,6 +69,57 @@ export function callCachePurger(paths: string[]): void {
 
 // ── revalidatePath ───────────────────────────────────────────────────────────
 
+function emitPathInvalidation(
+  instance: FurinInstance,
+  path: string,
+  deleted: boolean,
+  purgedPaths: readonly string[]
+): void {
+  if (!IS_DEV) {
+    return;
+  }
+  withInstance(instance, () => {
+    const request = currentInstrumentationRequest();
+    emitCacheInvalidated({
+      deleted,
+      operationId: request?.operationId ?? null,
+      purgedPaths: new Set(purgedPaths).size,
+      reason: "path",
+      requestId: request?.requestId ?? null,
+      target: path,
+    });
+  });
+}
+
+async function invalidateInstancePath(
+  instance: FurinInstance,
+  path: string,
+  type: RevalidateType
+): Promise<{ deleted: boolean; purgedPaths: string[] }> {
+  const result = revalidatePathForInstance(instance, path, type, false);
+  const purgedPaths = [physicalPath(instance.prefix, path)];
+  for (const purged of result.purgedPaths) {
+    purgedPaths.push(physicalPath(instance.prefix, purged));
+  }
+  const pageCache = getPageCacheAdapter(instance);
+  if (pageCache === undefined) {
+    emitPathInvalidation(instance, path, result.deleted, purgedPaths);
+    return { deleted: result.deleted, purgedPaths };
+  }
+  const sharedResult = await pageCache.invalidate({
+    kind: "path",
+    path,
+    scope: instance.prefix,
+    type,
+  });
+  for (const purged of sharedResult.paths) {
+    purgedPaths.push(physicalPath(instance.prefix, purged));
+  }
+  const deleted = result.deleted || sharedResult.invalidated;
+  emitPathInvalidation(instance, path, deleted, purgedPaths);
+  return { deleted, purgedPaths };
+}
+
 /**
  * Invalidates `path` across EVERY mounted furin instance — paths are logical
  * (unprefixed), and with shared data two apps can legitimately render the same
@@ -74,16 +127,15 @@ export function callCachePurger(paths: string[]): void {
  * instance's invalidation runs inside its own scope so cache `onDelete` hooks
  * (auto-invalidate unregistration) hit the owning instance's registry.
  */
-export function revalidatePath(path: string, type: RevalidateType): boolean {
+export async function revalidatePath(path: string, type: RevalidateType): Promise<boolean> {
   let deleted = false;
   const purgedPaths: string[] = [];
-  for (const instance of allInstances()) {
-    const result = revalidatePathForInstance(instance, path, type);
+  const results = await Promise.all(
+    allInstances().map((instance) => invalidateInstancePath(instance, path, type))
+  );
+  for (const result of results) {
     deleted = result.deleted || deleted;
-    purgedPaths.push(physicalPath(instance.prefix, path));
-    for (const purged of result.purgedPaths) {
-      purgedPaths.push(physicalPath(instance.prefix, purged));
-    }
+    purgedPaths.push(...result.purgedPaths);
   }
 
   callCachePurger(dedupePaths(purgedPaths));
@@ -114,17 +166,7 @@ export function revalidatePathForInstance(
       purgedPaths.push(...result.purgedPaths);
     }
     if (IS_DEV && emitPathEvent !== false) {
-      const request = currentInstrumentationRequest();
-      const operationId = request === undefined ? null : request.operationId;
-      const requestId = request === undefined ? null : request.requestId;
-      emitCacheInvalidated({
-        deleted,
-        operationId,
-        purgedPaths: new Set(purgedPaths).size,
-        reason: "path",
-        requestId,
-        target: path,
-      });
+      emitPathInvalidation(instance, path, deleted, purgedPaths);
     }
   });
   return { deleted, purgedPaths };
@@ -147,6 +189,7 @@ export function __resetCacheState(): void {
       clearDevLoaderCaches(instance);
       clearPprRouteCache(instance);
       clearPendingISRRevalidations(instance);
+      resetPageCacheAdapter(instance);
     });
     instance.buildId = "";
   }
@@ -157,5 +200,3 @@ export function __resetCacheState(): void {
   _globalPendingInvalidations.clear();
   resetCachePurgers();
 }
-
-import { physicalPath } from "../../shared/prefix.ts";

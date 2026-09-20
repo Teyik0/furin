@@ -45,6 +45,7 @@ function createVercelApp(): TmpApp {
   );
   writeAppFile(app.path, "src/build/hydrate.ts", 'export const userHydrate = "user hydrate";\n');
   writeAppFile(app.path, "public/user.txt", "user static asset");
+  writeAppFile(app.path, "public/favicon.ico", "test favicon");
   writeAppFile(
     app.path,
     "src/pages/news.tsx",
@@ -82,7 +83,8 @@ function createVercelApp(): TmpApp {
       'import { route as rootRoute } from "../root";',
       "",
       "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90, staticParams: () => [{ slug: "launch" }] })',
+      '  .config({ layout: rootRoute, mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
+      '  .staticParams(() => [{ slug: "launch" }])',
       '  .page(({ params }) => <main>Event: {params.slug}</main>);',
       "",
     ].join("\n")
@@ -144,7 +146,7 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.2" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.4" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
@@ -288,6 +290,33 @@ describe.serial("Vercel deployment adapter", () => {
     expect(config.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
   });
 
+  test("rejects a custom page cache instead of combining it with Vercel caching", async () => {
+    const app = createVercelApp();
+    const serverPath = join(app.path, "src/server.ts");
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      'import { createMemoryPageCache } from "@teyik0/furin/cache";\n' +
+        readFileSync(serverPath, "utf8").replace(
+          'furin({ pagesDir: "./src/pages" })',
+          'furin({ pagesDir: "./src/pages", pageCache: createMemoryPageCache() })'
+        )
+    );
+    const rootPath = join(app.path, "src/pages/root.tsx");
+    writeAppFile(
+      app.path,
+      "src/pages/root.tsx",
+      readFileSync(rootPath, "utf8").replace(
+        ".layout(",
+        ".requestLoader(() => ({ viewer: \"test\" }))\n  .layout("
+      )
+    );
+
+    await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
+      "pageCache cannot be configured with the Vercel target"
+    );
+  });
+
   test("rejects application static mounts instead of shipping missing files", async () => {
     const app = createVercelApp();
     const serverPath = join(app.path, "src/server.ts");
@@ -375,6 +404,17 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
       const config = JSON.parse(readFileSync(join(outputDir, "config.json"), "utf8"));
       expect(existsSync(join(outputDir, "static/_client/index.html"))).toBe(true);
       expect(existsSync(join(outputDir, "static/admin/_client/index.html"))).toBe(true);
+      expect(readFileSync(join(outputDir, "static/user.txt"), "utf8")).toBe("user static asset");
+      expect(readFileSync(join(outputDir, "static/public/user.txt"), "utf8")).toBe(
+        "user static asset"
+      );
+      expect(readFileSync(join(outputDir, "static/admin/public/user.txt"), "utf8")).toBe(
+        "user static asset"
+      );
+      expect(readFileSync(join(outputDir, "static/favicon.ico"), "utf8")).toBe("test favicon");
+      expect(readFileSync(join(outputDir, "static/admin/favicon.ico"), "utf8")).toBe(
+        "test favicon"
+      );
       expect(config.routes).toContainEqual({
         dest: "/admin-ssg?__furin_path=$__furin_path",
         src: "(?<__furin_path>/admin)",

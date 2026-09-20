@@ -10,6 +10,7 @@ import type { StaticExportConfig } from "../config.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderSSG } from "../server/render/ssg.ts";
+import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -271,7 +272,7 @@ async function buildTaskQueue(
       if (!DYNAMIC_SEGMENT_RE.test(route.pattern)) {
         return { paramSets: [{}], route };
       }
-      if (!route.page.staticParams) {
+      if (!hasStaticParams(route)) {
         console.warn(
           `[furin] static: skipping dynamic route "${route.pattern}" — no staticParams() defined.`
         );
@@ -279,7 +280,7 @@ async function buildTaskQueue(
         return { paramSets: null, route };
       }
       try {
-        const paramSets = (await route.page.staticParams()) ?? [];
+        const paramSets = (await resolveStaticParams(route, STATIC_RENDER_ORIGIN)) ?? [];
         return { paramSets, route };
       } catch (err) {
         return { error: err, paramSets: null, route };

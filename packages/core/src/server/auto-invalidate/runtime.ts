@@ -6,6 +6,7 @@ import {
   revalidatePath,
   revalidatePathForInstance,
 } from "../cache/invalidation.ts";
+import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { callCacheTagPurger } from "../cache/purger.ts";
 import { pathWithoutSearch } from "../cache/route-cache.ts";
 import {
@@ -124,48 +125,78 @@ export function appendPendingInvalidationHeader(set: Context["set"]): string[] {
   return pending;
 }
 
-export function revalidateTag(tags: string | readonly string[]): boolean {
+async function invalidateTagsForInstance(
+  instance: ReturnType<typeof allInstances>[number],
+  tagList: readonly string[]
+): Promise<{ deleted: boolean; purgedPaths: string[] }> {
+  let deleted = false;
+  const purgedPaths = new Set<string>();
+  const logicalPurgedPaths = new Set<string>();
+  const pageCache = getPageCacheAdapter(instance);
+  const sharedResult =
+    pageCache === undefined
+      ? undefined
+      : await pageCache.invalidate({
+          kind: "tags",
+          scope: instance.prefix,
+          tags: tagList,
+        });
+  if (sharedResult !== undefined) {
+    deleted = sharedResult.invalidated;
+  }
+  const taggedPaths = new Set([
+    ...getAutoInvalidateRegistry(instance).pathsForTags(tagList),
+    ...(sharedResult?.paths ?? []),
+  ]);
+  // Registry paths are LOGICAL (unprefixed); the CDN caches the PHYSICAL
+  // request URL, so prefix each with the instance's mount prefix before
+  // queueing it for purge — otherwise a mounted app's `/admin/x` stays stale.
+  for (const path of taggedPaths) {
+    const logicalPath = pathWithoutSearch(path);
+    const result = revalidatePathForInstance(instance, logicalPath, "page", false);
+    deleted = result.deleted || deleted;
+    purgedPaths.add(physicalPath(instance.prefix, logicalPath));
+    logicalPurgedPaths.add(logicalPath);
+    for (const purged of result.purgedPaths) {
+      purgedPaths.add(physicalPath(instance.prefix, purged));
+      logicalPurgedPaths.add(purged);
+    }
+  }
+  if (IS_DEV) {
+    withInstance(instance, () => {
+      const request = currentInstrumentationRequest();
+      const operationId = request === undefined ? null : request.operationId;
+      const requestId = request === undefined ? null : request.requestId;
+      emitCacheInvalidated({
+        deleted,
+        operationId,
+        purgedPaths: logicalPurgedPaths.size,
+        reason: "tag",
+        requestId,
+        target: tagList.join(","),
+      });
+    });
+  }
+  return { deleted, purgedPaths: [...purgedPaths] };
+}
+
+export async function revalidateTag(tags: string | readonly string[]): Promise<boolean> {
   const tagList = typeof tags === "string" ? [tags] : [...tags];
   // Tags are cross-app by design: with several mounted furin instances a
   // shared mutation must be able to invalidate pages rendered by any of them.
   // But each instance's tag-registered paths are evicted from THAT instance's
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
-  let deleted = false;
-  const purgedPaths = new Set<string>();
   callCacheTagPurger(tagList);
-  for (const instance of allInstances()) {
-    let instanceDeleted = false;
-    const instancePurgedPaths = new Set<string>();
-    // Registry paths are LOGICAL (unprefixed); the CDN caches the PHYSICAL
-    // request URL, so prefix each with the instance's mount prefix before
-    // queueing it for purge — otherwise a mounted app's `/admin/x` stays stale.
-    for (const path of getAutoInvalidateRegistry(instance).pathsForTags(tagList)) {
-      const logicalPath = pathWithoutSearch(path);
-      const result = revalidatePathForInstance(instance, logicalPath, "page", false);
-      deleted = result.deleted || deleted;
-      instanceDeleted = result.deleted || instanceDeleted;
-      purgedPaths.add(physicalPath(instance.prefix, logicalPath));
-      instancePurgedPaths.add(logicalPath);
-      for (const purged of result.purgedPaths) {
-        purgedPaths.add(physicalPath(instance.prefix, purged));
-        instancePurgedPaths.add(purged);
-      }
-    }
-    if (IS_DEV) {
-      withInstance(instance, () => {
-        const request = currentInstrumentationRequest();
-        const operationId = request === undefined ? null : request.operationId;
-        const requestId = request === undefined ? null : request.requestId;
-        emitCacheInvalidated({
-          deleted: instanceDeleted,
-          operationId,
-          purgedPaths: instancePurgedPaths.size,
-          reason: "tag",
-          requestId,
-          target: tagList.join(","),
-        });
-      });
+  const results = await Promise.all(
+    allInstances().map((instance) => invalidateTagsForInstance(instance, tagList))
+  );
+  const purgedPaths = new Set<string>();
+  let deleted = false;
+  for (const result of results) {
+    deleted = result.deleted || deleted;
+    for (const path of result.purgedPaths) {
+      purgedPaths.add(path);
     }
   }
   // One batched CDN purge — the CDN sits in front of every mounted app, so
@@ -174,15 +205,16 @@ export function revalidateTag(tags: string | readonly string[]): boolean {
   return deleted;
 }
 
-export function runInvalidationRules(input: InvalidationInput): boolean {
-  let deleted = false;
-  for (const rule of toRules(input)) {
+export async function runInvalidationRules(input: InvalidationInput): Promise<boolean> {
+  const operations = toRules(input).flatMap((rule) => {
+    const pending: Promise<boolean>[] = [];
     if ("path" in rule && rule.path) {
-      deleted = revalidatePath(rule.path, rule.type) || deleted;
+      pending.push(revalidatePath(rule.path, rule.type));
     }
     if (rule.tags && rule.tags.length > 0) {
-      deleted = revalidateTag(rule.tags) || deleted;
+      pending.push(revalidateTag(rule.tags));
     }
-  }
-  return deleted;
+    return pending;
+  });
+  return (await Promise.all(operations)).some(Boolean);
 }

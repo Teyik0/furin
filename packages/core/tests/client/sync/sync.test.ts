@@ -6,6 +6,9 @@ import {
   _runWithRequestInvalidationScope,
   revalidatePath,
 } from "../../../src/server/cache/index.ts";
+import type { PageCacheAdapter } from "../../../src/server/cache/page-cache.ts";
+import { setPageCacheAdapter } from "../../../src/server/cache/page-cache-state.ts";
+import { defaultInstanceBucket } from "../../../src/server/instance.ts";
 import type {
   BeginMutationInput,
   BeginMutationResult,
@@ -149,6 +152,43 @@ test("furinSync durably preserves manual and declarative invalidations", async (
       { kind: "path", path: "/declared", type: "layout" },
       { kind: "path", path: "/manual", type: "page" },
     ]);
+  } finally {
+    resetSyncTestState();
+  }
+});
+
+test("furinSync completes idempotency when cache invalidation is unavailable", async () => {
+  resetSyncTestState();
+  const unavailable = (): Promise<never> => Promise.reject(new Error("cache unavailable"));
+  const pageCache: PageCacheAdapter = {
+    acquire: unavailable,
+    commit: unavailable,
+    invalidate: unavailable,
+    read: unavailable,
+    release: unavailable,
+  };
+  setPageCacheAdapter(defaultInstanceBucket(), pageCache);
+  let mutationCalls = 0;
+  const app = new Elysia().use(furinSync(testSync)).post(
+    "/invalidation-outage",
+    () => {
+      mutationCalls += 1;
+      return { mutationCalls };
+    },
+    { sync: { invalidate: { path: "/cards", type: "page" } } }
+  );
+  const request = () =>
+    app.handle(
+      new Request("http://localhost/invalidation-outage", {
+        headers: { "Idempotency-Key": "invalidation-outage" },
+        method: "POST",
+      })
+    );
+
+  try {
+    expect(await (await request()).json()).toEqual({ mutationCalls: 1 });
+    expect(await (await request()).json()).toEqual({ mutationCalls: 1 });
+    expect(mutationCalls).toBe(1);
   } finally {
     resetSyncTestState();
   }

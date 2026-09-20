@@ -249,7 +249,11 @@ Treat every `FURIN_PUBLIC_*` value as public, because it may be compiled into br
 
 ## Caches And Replicas
 
-SSG/ISR HTML caches are in-process. A CDN can cache their public responses, but on-demand invalidation must evict both the origin entry and the CDN entry. Multiple replicas need an application-level origin-coordination strategy; the Sync journal distributes browser invalidations but is not a shared HTML cache.
+SSG/ISR HTML caches are in-process unless `furin({ pageCache })` receives a shared adapter. A CDN can cache their public responses, but on-demand invalidation must evict both the origin entry and the CDN entry. For multiple Bun replicas, create `redisPageCache()` once per process and use one stable namespace across replicas and releases. Do not include a replica ID or build ID in that namespace. See [Shared Page Cache](/docs/caching#shared-page-cache) for the complete setup.
+
+Vercel Build Output is the exception: omit `pageCache` and let the deployment adapter use Vercel's native prerender and Runtime Cache integration. A custom page cache is intended for self-hosted Bun replicas, and configuring one on the Vercel target fails fast instead of creating a second source of truth.
+
+The Sync journal distributes browser invalidations but is not a shared HTML cache. A Redis Sync adapter and a Redis page-cache adapter may use the same server, but they are separate contracts and should use distinct namespaces.
 
 For Sync, use file-backed SQLite only on one host. For replicas on separate hosts, PostgreSQL with its native `LISTEN/NOTIFY` notifier is the recommended default; Redis remains available as either the durable adapter or an independent notifier. Keep one stable namespace and run the required schema bootstrap before starting traffic. See [Sync & Invalidations](/docs/sync).
 
@@ -259,5 +263,6 @@ For Sync, use file-backed SQLite only on one host. For replicas on separate host
 - Deploy the exact server and asset directories listed by the manifest.
 - Keep `NODE_ENV=production` behavior and server-only secrets consistent across replicas.
 - Configure health checks on an explicit Elysia API route.
+- For multiple Bun replicas, verify Redis connectivity and keep the page-cache namespace stable across releases.
 - Decide whether CDN invalidation is required before enabling long shared-cache lifetimes.
 - Roll back code and matching assets together; the build ID protects browsers from mixed deployments, not the origin from an incomplete rollout.

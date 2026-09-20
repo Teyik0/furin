@@ -106,7 +106,7 @@ test("renders Paris at the root without depending on search params", async () =>
 });
 
 test("declares popular city paths for build-time ISR prerendering", async () => {
-  expect(await cityRoute.staticParams?.()).toEqual([
+  expect(await cityRoute.staticParams?.({ params: {} })).toEqual([
     { city: "tokyo" },
     { city: "new-york" },
     { city: "london" },

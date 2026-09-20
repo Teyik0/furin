@@ -4,6 +4,7 @@ import { join } from "node:path";
 import Elysia from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import { routeModuleSpecifier } from "../../../src/plugin/routes.ts";
+import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { evlogOptionsMock, initLoggerOptionsMock, resetEvlogMock } from "../../setup/evlog-mock";
@@ -651,6 +652,26 @@ test.serial("furin() serves embedded assets in production", async () => {
   expect(missPublic.status).toBe(404);
 });
 
+test.serial("furin() rejects a custom page cache in a Vercel deployment", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(false);
+  process.chdir(app.path);
+
+  __setCompileContext({
+    ...(await createBuiltRouteContext(app.path)),
+    deploymentTarget: "vercel",
+  });
+
+  await expect(
+    createTestApp({
+      pageCache: createMemoryPageCache(),
+      pagesDir: join(app.path, "src/pages"),
+    })
+  ).rejects.toThrow(
+    "[furin] pageCache cannot be configured with the Vercel target. Vercel owns SSG, ISR, and PPR public caching."
+  );
+});
+
 test.serial("furin() rejects dev pages without a root layout", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   removeAppPath(app.path, "src/pages/root.tsx");
@@ -671,8 +692,8 @@ test.serial("furin() rejects dev pages without a root layout", async () => {
       'import { t } from "elysia";',
       "export const route = defineRoute().config({ mode: 'ssg',",
       "  params: t.Object({ slug: t.String() }),",
-      "  staticParams: () => [{ slug: 'hello-world' }],",
-      "}).page(() => <article>No root blog</article>);",
+      "}).staticParams(() => [{ slug: 'hello-world' }])",
+      "  .page(() => <article>No root blog</article>);",
     ].join("\n")
   );
   __setDevMode(true);

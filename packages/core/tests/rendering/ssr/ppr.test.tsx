@@ -5,9 +5,19 @@ import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
+  createMemoryPageCache,
+  type PageCacheAdapter,
+  type PageCacheIdentity,
+} from "../../../src/server/cache/page-cache.ts";
+import {
+  resetPageCacheAdapter,
+  setPageCacheAdapter,
+} from "../../../src/server/cache/page-cache-state.ts";
+import {
   resetRuntimeCacheProvider,
   setRuntimeCacheProvider,
 } from "../../../src/server/cache/runtime-cache.ts";
+import { markExternalPrerenderRequest } from "../../../src/server/external-prerender.ts";
 import {
   __clearInstanceRegistry,
   createInstance,
@@ -314,7 +324,7 @@ describe.serial("partial prerendering", () => {
     expect(first).toContain("Shoes");
     expect(stale).toContain("Shoes");
     expect(publicCalls).toBe(1);
-    expect(revalidateTag("catalog")).toBe(true);
+    expect(await revalidateTag("catalog")).toBe(true);
 
     const fresh = await app
       .handle(new Request("http://localhost/account"))
@@ -322,6 +332,169 @@ describe.serial("partial prerendering", () => {
 
     expect(fresh).toContain("Boots");
     expect(publicCalls).toBe(2);
+  });
+
+  test("uses the shared page cache for PPR public artifacts", async () => {
+    let publicCalls = 0;
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: publicCalls };
+      })
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const resolved = resolveRoute(route);
+    const owner = registerInstance(createInstance("", "/shared-ppr/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+
+    try {
+      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      expect(publicCalls).toBe(1);
+      await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
+      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+    } finally {
+      resetPageCacheAdapter(owner);
+      clearPprRouteCache(owner);
+      __clearInstanceRegistry();
+    }
+
+    expect(publicCalls).toBe(2);
+  });
+
+  test("external prerender bypasses shared and local PPR artifacts", async () => {
+    let publicCalls = 0;
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: publicCalls };
+      })
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const resolved = resolveRoute(route);
+    const owner = registerInstance(createInstance("", "/external-ppr/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+
+    try {
+      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      const request = markExternalPrerenderRequest(new Request("http://localhost/account"));
+      await withInstance(owner, () => app.handle(request));
+      expect(publicCalls).toBe(2);
+    } finally {
+      resetPageCacheAdapter(owner);
+      clearPprRouteCache(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("serves stale shared PPR while regeneration runs in the background", async () => {
+    const gate = Promise.withResolvers<void>();
+    let publicCalls = 0;
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(async () => {
+        publicCalls += 1;
+        if (publicCalls === 2) {
+          await gate.promise;
+        }
+        return { catalog: publicCalls };
+      })
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const resolved = resolveRoute(route);
+    const owner = registerInstance(createInstance("", "/stale-shared-ppr/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const identity: PageCacheIdentity = {
+      buildId: owner.buildId,
+      key: "isr:/account",
+      mode: "ppr",
+      path: "/account",
+      scope: "",
+      tags: [],
+    };
+
+    try {
+      await withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+      const stored = await cache.read(identity);
+      if (stored === null) {
+        throw new Error("Expected the initial shared PPR artifact");
+      }
+      const artifact = JSON.parse(stored.payload) as { cachedAt: number };
+      artifact.cachedAt = 0;
+      await cache.invalidate({ kind: "path", path: "/account", scope: "", type: "page" });
+      const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+      if (lease === null) {
+        throw new Error("Expected a lease for the stale PPR artifact");
+      }
+      await cache.commit({
+        entry: { ...stored, payload: JSON.stringify(artifact) },
+        identity,
+        lease,
+      });
+
+      const response = withInstance(owner, () =>
+        app.handle(new Request("http://localhost/account"))
+      );
+      const settled = await Promise.race([
+        response.then((value) => ({ type: "response" as const, value })),
+        Bun.sleep(100).then(() => ({ type: "timeout" as const })),
+      ]);
+      expect(settled.type).toBe("response");
+      expect(publicCalls).toBe(2);
+      if (settled.type === "response") {
+        expect(await settled.value.text()).toContain("1");
+      }
+    } finally {
+      gate.resolve();
+      resetPageCacheAdapter(owner);
+      clearPprRouteCache(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("serves PPR with no-store when the shared page cache is unavailable", async () => {
+    const unavailable = (): Promise<never> => Promise.reject(new Error("cache unavailable"));
+    const cache: PageCacheAdapter = {
+      acquire: unavailable,
+      commit: unavailable,
+      invalidate: unavailable,
+      read: unavailable,
+      release: unavailable,
+    };
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(() => ({ catalog: "Fresh catalog" }))
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const resolved = resolveRoute(route);
+    const owner = registerInstance(createInstance("", "/unavailable-ppr/pages"));
+    owner.buildId = "build-1";
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+
+    try {
+      const response = await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/account"))
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(await response.text()).toContain("Fresh catalog");
+    } finally {
+      resetPageCacheAdapter(owner);
+      clearPprRouteCache(owner);
+      __clearInstanceRegistry();
+    }
   });
 
   test("streams a rejected requestData chunk instead of aborting the PPR response", async () => {

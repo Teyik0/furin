@@ -48,14 +48,35 @@ export const route = defineRoute()
     layout: rootRoute,
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
-    staticParams: async () =>
-      (await getPublishedSlugs()).map((slug) => ({ slug })),
   })
+  .staticParams(async () => (await getPublishedSlugs()).map((slug) => ({ slug })))
   .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
   .page(({ post }) => <Post value={post} />);
 ```
 
 A pure static export requires `staticParams()` for dynamic SSG routes. The Bun server can still render an uncached concrete SSG path on demand.
+
+`staticParams()` is a build-time builder stage, so it must appear directly after `config()` and before `requestLoader()` or `loader()`. On nested routes it receives the params already produced by ancestor `staticParams()` stages plus the parent loader fields as typed promises. Parent loaders stay lazy: Furin runs them only when the callback reads one of those fields, and repeated field reads share one execution for the current branch.
+
+```tsx
+export const route = defineRoute()
+  .config({
+    layout: categoryRoute,
+    mode: "ssg",
+    params: t.Object({ category: t.String(), product: t.String() }),
+  })
+  .staticParams(async ({ params, products }) => {
+    const categoryProducts = (await products).filter(
+      (product) => product.category === params.category
+    );
+
+    return categoryProducts.map(({ slug }) => ({ product: slug }));
+  })
+  .loader(async ({ params }) => ({
+    product: await getProduct(params.category, params.product),
+  }))
+  .page(({ product }) => <Product value={product} />);
+```
 
 ## ISR
 

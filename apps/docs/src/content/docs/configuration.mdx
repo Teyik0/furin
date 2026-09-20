@@ -143,6 +143,7 @@ await furin({
   clientDir: "./custom-client",
   clientLogging: true,
   logger: { exclude: ["/health"] },
+  pageCache,
   sync,
 });
 ```
@@ -154,6 +155,9 @@ await furin({
 | `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
 | `clientLogging` | Enable browser logging for this runtime/build context |
 | `logger` | evlog Elysia options plus global sampling |
+| `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
 | `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
 
-Keep the same `pagesDir` and `prefix` between the build and runtime mount. See [Multi-Instance](/docs/multi-instance) and [Sync & Invalidations](/docs/sync).
+Keep the same `pagesDir` and `prefix` between the build and runtime mount. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
+
+For a single Bun process, omit `pageCache`. For multiple Bun replicas, create one `redisPageCache()` adapter at module scope and pass it to each `furin()` mount. On Vercel Build Output, omit it and use the cache integration installed by the deployment adapter. Vercel deployments reject a custom `pageCache` during application initialization so native and Redis caches cannot become competing sources of truth.

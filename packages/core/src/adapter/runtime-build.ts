@@ -316,6 +316,7 @@ export async function buildRuntimeApp(
     entryApp: {
       buildId,
       clientLogging: options.clientLogging ?? false,
+      deploymentTarget: targetName === "vercel" ? "vercel" : undefined,
       embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
       nativeRoutes: routeModuleSpecifier(app),

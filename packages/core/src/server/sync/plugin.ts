@@ -6,6 +6,7 @@ import {
 } from "../auto-invalidate/runtime.ts";
 import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
+import { useLogger as getLogger } from "../context-logger.ts";
 import type { MutationLease, SyncInvalidation, SyncRuntimeOptions } from "./adapter.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
 import { mergeStoredResponseHeaders, replayResponse, storeResponse } from "./response.ts";
@@ -213,8 +214,15 @@ export function furinSync(options: SyncRuntimeOptions) {
     const result = await storeResponse(ctx.responseValue, ctx.set);
     const manualPending = peekPendingInvalidations();
     const invalidate = routeMetadata.get(ctx.request)?.invalidate;
+    const logger = getLogger();
     if (invalidate) {
-      runInvalidationRules(invalidate);
+      try {
+        await runInvalidationRules(invalidate);
+      } catch {
+        logger.warn(
+          "Sync cache invalidation failed after mutation; preserving the idempotent result"
+        );
+      }
     }
     const pending = appendPendingInvalidationHeader(ctx.set);
     if (pending.length > 0) {

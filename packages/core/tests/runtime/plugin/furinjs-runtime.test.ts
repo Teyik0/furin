@@ -320,7 +320,7 @@ test.serial("furin() production revalidates embedded SSG cache tags", async () =
 
   await furin({ pagesDir: join(app.path, "src/pages") });
 
-  expect(revalidateTag("boards")).toBe(true);
+  expect(await revalidateTag("boards")).toBe(true);
   expect(ssgCache.has("/")).toBe(false);
 });
 

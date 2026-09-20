@@ -1,0 +1,166 @@
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { RedisClient } from "bun";
+import type { PageCacheIdentity } from "../../../src/server/cache/page-cache.ts";
+import { redisPageCache } from "../../../src/server/cache/redis/index.ts";
+
+describe("Redis page cache validation", () => {
+  test("rejects an empty namespace", () => {
+    const client = new RedisClient("redis://127.0.0.1:1");
+    expect(() => redisPageCache({ client, namespace: "" })).toThrow(
+      "[furin-page-cache-redis] namespace must not be empty."
+    );
+    client.close();
+  });
+
+  test("rejects an invalid retention window", () => {
+    const client = new RedisClient("redis://127.0.0.1:1");
+    expect(() => redisPageCache({ client, namespace: "test", retentionMs: 0 })).toThrow(
+      "[furin-page-cache-redis] retentionMs must be a positive safe integer."
+    );
+    client.close();
+  });
+});
+
+const redisUrl = process.env.FURIN_PAGE_CACHE_REDIS_URL;
+const describeWithRedis = redisUrl === undefined ? describe.skip : describe;
+
+describeWithRedis("Redis page cache", () => {
+  const client = new RedisClient(redisUrl as string);
+  const cache = redisPageCache({ client, namespace: "page-cache-conformance" });
+  const identity: PageCacheIdentity = {
+    buildId: "build-a",
+    key: "/posts?category=frameworks",
+    mode: "isr",
+    path: "/posts",
+    scope: "shop",
+    tags: ["posts"],
+  };
+
+  beforeEach(async () => {
+    const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:*"]);
+    if (Array.isArray(keys) && keys.length > 0) {
+      await client.send("DEL", keys as string[]);
+    }
+  });
+
+  afterAll(() => {
+    client.close();
+  });
+
+  test("rejects a stale commit after path invalidation", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" });
+
+    expect(
+      await cache.commit({
+        entry: { cachedAt: Date.now(), payload: "<html>stale</html>", revalidate: 60 },
+        identity,
+        lease,
+      })
+    ).toBe("superseded");
+    expect(await cache.read(identity)).toBeNull();
+  });
+
+  test("shares entries and invalidates them by tag", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    const entry = {
+      cachedAt: Date.now(),
+      payload: "<html>fresh</html>",
+      revalidate: 60,
+    };
+
+    expect(await cache.commit({ entry, identity, lease })).toBe("stored");
+    expect(await cache.read(identity)).toEqual(entry);
+    expect(await cache.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual({
+      invalidated: true,
+      paths: ["/posts"],
+    });
+    expect(await cache.read(identity)).toBeNull();
+  });
+
+  test("allows only one replica to regenerate an entry", async () => {
+    const first = await cache.acquire({ identity, leaseMs: 30_000 });
+    const second = await cache.acquire({ identity, leaseMs: 30_000 });
+
+    expect(first).not.toBeNull();
+    expect(second).toBeNull();
+    if (first !== null) {
+      await cache.release({ identity, lease: first });
+    }
+    expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
+  });
+
+  test("does not index a path when its render lease is abandoned", async () => {
+    const abandonedIdentity: PageCacheIdentity = {
+      ...identity,
+      key: "/abandoned",
+      path: "/abandoned",
+    };
+    const lease = await cache.acquire({ identity: abandonedIdentity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await cache.release({ identity: abandonedIdentity, lease });
+
+    expect(await cache.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual({
+      invalidated: false,
+      paths: [],
+    });
+    expect(
+      await cache.invalidate({ kind: "path", path: "/abandoned", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: false, paths: [] });
+  });
+
+  test("normalizes trailing slashes for layout invalidation", async () => {
+    const childIdentity: PageCacheIdentity = {
+      ...identity,
+      key: "/posts/one",
+      path: "/posts/one",
+    };
+    const lease = await cache.acquire({ identity: childIdentity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the child render lease");
+    }
+    await cache.commit({
+      entry: { cachedAt: 1, payload: "child", revalidate: 60 },
+      identity: childIdentity,
+      lease,
+    });
+
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts/", scope: "shop", type: "layout" })
+    ).toEqual({ invalidated: true, paths: ["/posts/one"] });
+    expect(await cache.read(childIdentity)).toBeNull();
+  });
+
+  test("expires entries and prunes their path and tag indexes", async () => {
+    const expiring = redisPageCache({
+      client,
+      namespace: `page-cache-retention-${crypto.randomUUID()}`,
+      retentionMs: 20,
+    });
+    const lease = await expiring.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the expiring render lease");
+    }
+    await expiring.commit({
+      entry: { cachedAt: 1, payload: "expiring", revalidate: 60 },
+      identity,
+      lease,
+    });
+
+    await Bun.sleep(30);
+
+    expect(await expiring.read(identity)).toBeNull();
+    expect(await expiring.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual({
+      invalidated: false,
+      paths: [],
+    });
+  });
+});

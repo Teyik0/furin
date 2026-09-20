@@ -92,6 +92,10 @@ describe("runLoaders requestLoader", () => {
       "query",
       "ref",
       "requestData",
+      "then",
+      "catch",
+      "finally",
+      "toJSON",
     ]) {
       const route = {
         mode: "ssr",

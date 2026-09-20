@@ -104,6 +104,29 @@ describe("defineRoute renderer adapter", () => {
     expect(runtimeLayout.parent).toBe(root);
   });
 
+  test("keeps static params on layout and page runtime entries", async () => {
+    const root = { __type: "FURIN_ROUTE" as const };
+    const layoutRoute = defineRoute()
+      .config({ layout: root, mode: "ssg", params: t.Object({ category: t.String() }) })
+      .staticParams(() => [{ category: "guides" }])
+      .layout(({ children }) => children);
+    const runtimeLayout = adaptDefinedLayout(layoutRoute, root);
+    const pageRoute = defineRoute()
+      .config({
+        layout: layoutRoute,
+        mode: "ssg",
+        params: t.Object({ category: t.String(), slug: t.String() }),
+      })
+      .staticParams(({ params }) => [{ ...params, slug: "routing" }])
+      .page(() => null);
+    const page = adaptDefinedPage(pageRoute, runtimeLayout);
+
+    expect(await runtimeLayout.staticParams?.({ params: {} })).toEqual([{ category: "guides" }]);
+    expect(await page.staticParams?.({ params: { category: "guides" } })).toEqual([
+      { category: "guides", slug: "routing" },
+    ]);
+  });
+
   test("keeps requestLoader data outside public loader data", async () => {
     const parent = { __type: "FURIN_ROUTE" as const };
     const route = defineRoute()
