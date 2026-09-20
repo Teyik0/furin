@@ -36,7 +36,15 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   }
 }
 
-test.serial("SSG uses the shared page cache for runtime artifacts", async () => {
+test.serial(
+  "SSG uses the shared page cache for runtime artifacts",
+  (done) => {
+    runSharedSsgCache().then(() => done(), done);
+  },
+  15_000
+);
+
+async function runSharedSsgCache(): Promise<void> {
   __setDevMode(false);
   const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
   const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
@@ -81,9 +89,17 @@ test.serial("SSG uses the shared page cache for runtime artifacts", async () => 
 
   expect(await cache.read(identity)).not.toBeNull();
   expect(loaderCalls).toBe(2);
-});
+}
 
-test.serial("SSG renders fresh with no-store when the shared cache is unavailable", async () => {
+test.serial(
+  "SSG renders fresh with no-store when the shared cache is unavailable",
+  (done) => {
+    runUnavailableSsgCache().then(() => done(), done);
+  },
+  15_000
+);
+
+async function runUnavailableSsgCache(): Promise<void> {
   __setDevMode(false);
   const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
   const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
@@ -114,9 +130,17 @@ test.serial("SSG renders fresh with no-store when the shared cache is unavailabl
     resetPageCacheAdapter(instance);
     __resetCacheState();
   }
-});
+}
 
-test.serial("SSG invalidation fences a render already in progress", async () => {
+test.serial(
+  "SSG invalidation fences a render already in progress",
+  (done) => {
+    runSsgInvalidationRace().then(() => done(), done);
+  },
+  15_000
+);
+
+async function runSsgInvalidationRace(): Promise<void> {
   __setDevMode(false);
   const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
   const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
@@ -162,4 +186,4 @@ test.serial("SSG invalidation fences a render already in progress", async () => 
   }
 
   expect(loaderCalls).toBe(2);
-});
+}
