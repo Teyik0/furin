@@ -70,6 +70,7 @@ export const WORKSPACE_SOURCE_FILTER =
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
+const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
 
 let _pluginRegistered = false;
 
@@ -401,15 +402,15 @@ function isMissingSourceFile(error: unknown): boolean {
 /** @internal exported for testing */
 export async function loadDevPageContents(
   filePath: string,
+  moduleIdentity: string,
   transformedSourceCache: Map<string, string>
 ): Promise<string> {
   let raw: string;
   try {
     raw = await Bun.file(filePath).text();
   } catch (error) {
-    const cached = transformedSourceCache.get(filePath);
-    if (cached !== undefined && isMissingSourceFile(error)) {
-      return cached;
+    if (isMissingSourceFile(error)) {
+      return transformedSourceCache.get(moduleIdentity) ?? DELETED_DEV_PAGE_CONTENTS;
     }
     throw error;
   }
@@ -423,7 +424,7 @@ export async function loadDevPageContents(
   } catch (error) {
     throw new DevTransformFailure(error, { cause: error });
   }
-  transformedSourceCache.set(filePath, contents);
+  transformedSourceCache.set(moduleIdentity, contents);
   return contents;
 }
 
@@ -435,9 +436,9 @@ export function registerDevPagePlugin(): void {
   Bun.plugin({
     name: "furin-dev-page-loader",
     setup(build) {
-      // Keep the last complete module graph usable while a route deletion is
-      // being observed. Bun may finish an already-started virtual module load
-      // after the topology watcher has removed its source from disk.
+      // Keep an already-loaded module generation usable if its source is
+      // deleted while Bun finishes that same generation. A later generation
+      // receives a tombstone instead of reviving the removed route.
       const transformedSourceCache = new Map<string, string>();
 
       /**
@@ -536,7 +537,7 @@ export function registerDevPagePlugin(): void {
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
-        const contents = await loadDevPageContents(filePath, transformedSourceCache);
+        const contents = await loadDevPageContents(filePath, args.path, transformedSourceCache);
 
         return {
           contents,

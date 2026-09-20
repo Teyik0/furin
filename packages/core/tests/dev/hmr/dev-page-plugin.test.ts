@@ -15,13 +15,17 @@ test("a deleted page finishes an in-flight load from its last transformed source
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-page-"));
   const filePath = resolve(directory, "page.tsx");
   const cache = new Map<string, string>();
+  const loadedIdentity = `${filePath}?t=1`;
 
   try {
     writeFileSync(filePath, 'export const marker = "loaded";');
-    const loaded = await loadDevPageContents(filePath, cache);
+    const loaded = await loadDevPageContents(filePath, loadedIdentity, cache);
     rmSync(filePath);
 
-    expect(await loadDevPageContents(filePath, cache)).toBe(loaded);
+    expect(await loadDevPageContents(filePath, loadedIdentity, cache)).toBe(loaded);
+    expect(await loadDevPageContents(filePath, `${filePath}?t=2`, cache)).toContain(
+      "route = undefined"
+    );
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }
