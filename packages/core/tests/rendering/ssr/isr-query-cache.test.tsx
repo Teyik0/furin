@@ -77,7 +77,7 @@ test("ISR cache keys include the query string and path invalidation clears every
       loaderCalls += 1;
       return { tenant: query.tenant ?? "" };
     })
-    .page(({ data }) => <main data-tenant={data.tenant}>{data.tenant}</main>);
+    .page(({ tenant }) => <main data-tenant={tenant}>{tenant}</main>);
   const resolved = resolveRoute(route, "/search.tsx", "/search", root);
   const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 
@@ -111,7 +111,7 @@ test("ISR cached loaders reject request-specific context", async () => {
       session: cookie.session,
       tenant: query.tenant ?? "",
     }))
-    .page(({ data }) => <main>{data.tenant}</main>);
+    .page(({ tenant }) => <main>{tenant}</main>);
   const resolved = resolveRoute(route, "/private.tsx", "/private", root);
   const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
 

@@ -213,7 +213,7 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "ssr" })',
       "  .loader(() => ({ title: 'Snapshot route' }))",
-      "  .page(({ data }) => <main>{data.title}</main>);",
+      "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
   );
   __setDevMode(true);
@@ -246,7 +246,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "ssr" })',
       "  .loader(() => ({ title: 'Last known good' }))",
-      "  .page(({ data }) => <main>{data.title}</main>);",
+      "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
   );
   __setDevMode(true);
@@ -354,7 +354,7 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "ssr" })',
       "  .loader(() => ({ title: 'Native route' }))",
-      "  .page(({ data }) => <main>{data.title}</main>);",
+      "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
   );
   __setDevMode(true);
@@ -404,7 +404,7 @@ test.serial(
         // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture contains a template literal
         "    return { label: `${await parent.organization}:${context.params.id}:${parent.query.locale}` };",
         "  })",
-        "  .page(({ data }) => <main>{data.label}</main>);",
+        "  .page(({ label }) => <main>{label}</main>);",
       ].join("\n")
     );
     __setDevMode(true);
@@ -432,7 +432,7 @@ test.serial("native routes preserve deferred renderer streaming", async () => {
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "ssr" })',
       "  .loader(() => defer({ slow: Promise.resolve('later'), title: 'Native deferred' }))",
-      "  .page(({ data }) => <main>{data.title}</main>);",
+      "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
   );
   __setDevMode(true);
@@ -571,7 +571,7 @@ test.serial(
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "ssr" })',
         "  .loader(() => ({ title: 'Compiled native' }))",
-        "  .page(({ data }) => <main>{data.title}</main>);",
+        "  .page(({ title }) => <main>{title}</main>);",
       ].join("\n")
     );
     __setDevMode(false);

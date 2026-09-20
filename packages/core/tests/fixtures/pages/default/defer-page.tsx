@@ -10,4 +10,4 @@ export const route = defineRoute()
       title: "deferred page",
     })
   )
-  .page(({ data: { title } }) => <div data-testid="defer-page">{String(title)}</div>);
+  .page(({ title }) => <div data-testid="defer-page">{String(title)}</div>);

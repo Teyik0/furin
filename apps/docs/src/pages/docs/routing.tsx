@@ -14,7 +14,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "File-Based Routing — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage
       Content={Routing}
       doc={DOCS_BY_PATH["/docs/routing"]}

@@ -4,7 +4,63 @@ import { defineRoute } from "../../src/furin.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../src/server/router/defined-route.ts";
 
 describe("defineRoute renderer adapter", () => {
-  test("defaults a missing render path to an empty string", async () => {
+  test("forwards the runtime render context without copying it", async () => {
+    const parent = { __type: "FURIN_ROUTE" as const };
+    let receivedProps: unknown;
+    const route = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .page((props) => {
+        receivedProps = props;
+        return null;
+      });
+    const page = adaptDefinedPage(route, parent);
+    const renderContext = { params: {}, path: "/boards", query: {} };
+
+    page.component(renderContext);
+
+    expect(receivedProps).toBe(renderContext);
+    await Promise.resolve();
+  });
+
+  test("forwards the runtime layout context without copying it", async () => {
+    const parent = { __type: "FURIN_ROUTE" as const };
+    let receivedProps: unknown;
+    const route = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .layout((props) => {
+        receivedProps = props;
+        return null;
+      });
+    const layout = adaptDefinedLayout(route, parent);
+    const renderContext = { children: "Content", params: {}, path: "/boards", query: {} };
+
+    layout.layout?.(renderContext);
+
+    expect(receivedProps).toBe(renderContext);
+    await Promise.resolve();
+  });
+
+  test("forwards the runtime head context without copying it", async () => {
+    const parent = { __type: "FURIN_ROUTE" as const };
+    let receivedContext: unknown;
+    const route = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader(() => ({}))
+      .head((context) => {
+        receivedContext = context;
+        return {};
+      })
+      .page(() => null);
+    const page = adaptDefinedPage(route, parent);
+    const headContext = { params: {}, path: "/boards", query: {} };
+
+    page.head?.(headContext);
+
+    expect(receivedContext).toBe(headContext);
+    await Promise.resolve();
+  });
+
+  test("passes an empty render path through the runtime context", async () => {
     const parent = { __type: "FURIN_ROUTE" as const };
     const route = defineRoute()
       .config({ layout: parent, mode: "ssr" })
@@ -13,8 +69,10 @@ describe("defineRoute renderer adapter", () => {
       .page(({ path }) => path);
     const page = adaptDefinedPage(route, parent);
 
-    expect(page.component({})).toBe("");
-    expect(page.head?.({})).toEqual({ meta: [{ title: "" }] });
+    expect(page.component({ params: {}, path: "", query: {} })).toBe("");
+    expect(page.head?.({ params: {}, path: "", query: {} })).toEqual({
+      meta: [{ title: "" }],
+    });
     await Promise.resolve();
   });
 
@@ -23,13 +81,13 @@ describe("defineRoute renderer adapter", () => {
     const layout = defineRoute()
       .config({ layout: root, mode: "ssr" })
       .loader(() => ({ organization: "Furin" }))
-      .layout(({ children, data }) => `${data.organization}:${children}`);
+      .layout(({ children, organization }) => `${organization}:${children}`);
     const runtimeLayout = adaptDefinedLayout(layout, root);
     const route = defineRoute()
       .config({ layout: root, mode: "isr", params: t.Object({ id: t.Number() }), revalidate: 60 })
       .loader(({ params }) => ({ board: `Board ${params.id}` }))
-      .head(({ data }) => ({ meta: [{ title: data.board }] }))
-      .page(({ data, params }) => `${data.board}:${params.id}`);
+      .head(({ board }) => ({ meta: [{ title: board }] }))
+      .page(({ board, params }) => `${board}:${params.id}`);
     const page = adaptDefinedPage(route, runtimeLayout);
 
     expect(await page.loader?.({ params: { id: 42 }, query: {} })).toEqual({
@@ -53,7 +111,8 @@ describe("defineRoute renderer adapter", () => {
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ public: "catalog" }))
       .page(
-        ({ data, requestData: privateData }) => `${String(data.public)}:${String(privateData)}`
+        ({ public: catalog, requestData: privateData }) =>
+          `${String(catalog)}:${String(privateData)}`
       );
     const page = adaptDefinedPage(route, parent);
     const requestPromise = Promise.resolve({ user: "alice" });

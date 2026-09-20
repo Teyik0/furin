@@ -19,16 +19,17 @@ const route = defineRoute()
     board: `Board ${params.id}`,
     tab: query.tab,
   }))
-  .head(({ data, params }) => {
-    const board: string = data.board;
+  .head(({ board, params }) => {
+    const boardTitle: string = board;
     const id: number = params.id;
-    return { meta: [{ title: `${board} ${id}` }] };
+    return { meta: [{ title: `${boardTitle} ${id}` }] };
   })
-  .page(({ data, params, query }) => {
-    const board: string = data.board;
+  .page((props) => {
+    const { board, params, query } = props;
+    const boardTitle: string = board;
     const id: number = params.id;
     const tab: string | undefined = query.tab;
-    return `${board}:${id}:${tab ?? "none"}`;
+    return `${boardTitle}:${id}:${tab ?? "none"}`;
   });
 
 const app = new Elysia().use(new Elysia({ prefix: "/boards/:id" }).use(route.elysia));
@@ -39,7 +40,7 @@ const queryRoute = defineRoute()
     const page: number = query.page;
     return { page };
   })
-  .page(({ data, query }) => `${data.page}:${query.page}`);
+  .page(({ page, query }) => `${page}:${query.page}`);
 
 const queryApp = new Elysia().use(new Elysia({ prefix: "/search" }).use(queryRoute.elysia));
 
@@ -52,7 +53,7 @@ describe("defineRoute", () => {
         loaderCalls += 1;
         return { title: "loader" };
       })
-      .page(({ data }) => data.title);
+      .page(({ title }) => title);
     const renderedApp = new Elysia()
       .decorate("$furinRender", () => new Response("<main>SSR</main>"))
       .use(renderedRoute.elysia);
@@ -73,10 +74,11 @@ describe("defineRoute", () => {
     expect(route.tags).toEqual(["boards"]);
     expect(
       route.head?.({
-        data: { board: "Board 42", tab: "activity" },
+        board: "Board 42",
         params: { id: 42 },
         path: "/boards/42",
         query: { tab: "activity" },
+        tab: "activity",
       })
     ).toEqual({ meta: [{ title: "Board 42 42" }] });
   });
@@ -117,10 +119,10 @@ describe("defineRoute", () => {
         user: cookies.get("session"),
       }))
       .loader(() => ({ catalog: "Shoes" }))
-      .page(({ data, requestData }) => {
-        const catalog: string = data.catalog;
+      .page(({ catalog, requestData }) => {
+        const publicCatalog: string = catalog;
         const privateData: Promise<{ locale: string; user: unknown }> = requestData;
-        return `${catalog}:${String(privateData)}`;
+        return `${publicCatalog}:${String(privateData)}`;
       });
 
     if (typeof privateRoute.requestLoader !== "function") {
@@ -146,15 +148,15 @@ describe("defineRoute", () => {
         const boardId: number = params.boardId;
         return { board: `${name}:${boardId}:${await organizationPromise}` };
       })
-      .head(({ data }) => {
-        const name: string = data.organization;
-        const board: string = data.board;
-        return { meta: [{ title: `${name}:${board}` }] };
+      .head(({ board, organization }) => {
+        const name: string = organization;
+        const boardName: string = board;
+        return { meta: [{ title: `${name}:${boardName}` }] };
       })
-      .page(({ data }) => {
-        const name: string = data.organization;
-        const board: string = data.board;
-        return `${name}:${board}`;
+      .page(({ board, organization }) => {
+        const name: string = organization;
+        const boardName: string = board;
+        return `${name}:${boardName}`;
       });
 
     expect("parent" in child).toBe(false);
@@ -169,10 +171,10 @@ describe("defineRoute", () => {
     const organizationLayout = defineRoute()
       .config({ layout: rootLayout, mode: "ssr" })
       .loader(async ({ account }) => ({ organization: `${await account}:furin` }))
-      .layout(({ data, children }) => {
-        const account: string = data.account;
-        const organization: string = data.organization;
-        return `${account}:${organization}:${children}`;
+      .layout(({ account, children, organization }) => {
+        const accountName: string = account;
+        const organizationName: string = organization;
+        return `${accountName}:${organizationName}:${children}`;
       });
     const child = defineRoute()
       .config({
@@ -183,12 +185,12 @@ describe("defineRoute", () => {
       .loader(async ({ account, organization, query }) => ({
         label: `${await (account satisfies Promise<string>)}:${await (organization satisfies Promise<string>)}:${query.page}`,
       }))
-      .page(({ data, query }) => {
-        const account: string = data.account;
-        const organization: string = data.organization;
-        const label: string = data.label;
+      .page(({ account, label, organization, query }) => {
+        const accountName: string = account;
+        const organizationName: string = organization;
+        const pageLabel: string = label;
         const page: number = query.page;
-        return `${account}:${organization}:${label}:${page}`;
+        return `${accountName}:${organizationName}:${pageLabel}:${page}`;
       });
     const nestedApp = new Elysia().use(
       rootLayout.elysia.use(organizationLayout.elysia.use(child.elysia))
@@ -216,7 +218,7 @@ describe("defineRoute", () => {
         boardId: context.params.boardId,
         organizationId: (context as typeof context & { organizationId: number }).organizationId,
       }))
-      .page(({ data }) => `${data.organizationId}:${data.boardId}`);
+      .page(({ boardId, organizationId }) => `${organizationId}:${boardId}`);
     const nestedApp = new Elysia().use(
       new Elysia({ prefix: "/:organizationId" }).use(
         layout.elysia.use(new Elysia({ prefix: "/boards/:boardId" }).use(child.elysia))

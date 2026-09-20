@@ -14,7 +14,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Nested Layouts — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage
       Content={Layouts}
       doc={DOCS_BY_PATH["/docs/layouts"]}

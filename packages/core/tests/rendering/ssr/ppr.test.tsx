@@ -93,7 +93,7 @@ describe.serial("partial prerendering", () => {
           .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
           .requestLoader(() => ({ user: "alice" }))
           .loader(() => ({ catalog: "Fresh catalog" }))
-          .page(({ data }) => <main>{data.catalog}</main>)
+          .page(({ catalog }) => <main>{catalog}</main>)
       );
       const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
       const response = await app.handle(new Request("http://localhost/account"));
@@ -141,9 +141,9 @@ describe.serial("partial prerendering", () => {
       return <strong>{use(data).user}</strong>;
     }
     const resolved = resolveRoute(
-      route.page(({ data, requestData }) => (
+      route.page(({ catalog, date, requestData }) => (
         <main>
-          {data.catalog}:{data.date.toISOString()}
+          {catalog}:{date.toISOString()}
           <Suspense fallback="loading">
             <User data={requestData} />
           </Suspense>
@@ -173,7 +173,7 @@ describe.serial("partial prerendering", () => {
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ catalog: "Shoes" }))
-      .page(({ data }) => <main>{data.catalog}</main>);
+      .page(({ catalog }) => <main>{catalog}</main>);
     const resolved = resolveRoute(route);
     const owner = registerInstance(createInstance("/owner", "/owner/pages"));
     registerInstance(createInstance("/other", "/other/pages"));
@@ -208,9 +208,9 @@ describe.serial("partial prerendering", () => {
     function User({ data }: { data: Promise<{ user: unknown }> }) {
       return <strong>{String(use(data).user)}</strong>;
     }
-    const page = route.page(({ data, requestData }) => (
+    const page = route.page(({ catalog, requestData }) => (
       <main>
-        <h1>{data.catalog}</h1>
+        <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
           <User data={requestData} />
         </Suspense>
@@ -252,9 +252,9 @@ describe.serial("partial prerendering", () => {
     function User({ data }: { data: Promise<{ user: string }> }) {
       return <strong>{use(data).user}</strong>;
     }
-    const page = route.page(({ data, requestData }) => (
+    const page = route.page(({ requestData, view }) => (
       <main>
-        <h1>{data.view}</h1>
+        <h1>{view}</h1>
         <Suspense fallback={<span>Loading</span>}>
           <User data={requestData} />
         </Suspense>
@@ -292,9 +292,9 @@ describe.serial("partial prerendering", () => {
     function User({ data }: { data: Promise<{ user: string }> }) {
       return <strong>{use(data).user}</strong>;
     }
-    const page = route.page(({ data, requestData }) => (
+    const page = route.page(({ catalog: loadedCatalog, requestData }) => (
       <main>
-        <h1>{data.catalog}</h1>
+        <h1>{loadedCatalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
           <User data={requestData} />
         </Suspense>
@@ -334,9 +334,9 @@ describe.serial("partial prerendering", () => {
     function User({ data }: { data: Promise<{ user: unknown }> }) {
       return <strong>{String(use(data).user)}</strong>;
     }
-    const page = route.page(({ data, requestData }) => (
+    const page = route.page(({ catalog, requestData }) => (
       <main>
-        <h1>{data.catalog}</h1>
+        <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
           <User data={requestData} />
         </Suspense>

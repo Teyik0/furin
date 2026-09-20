@@ -9,7 +9,7 @@ import { route as rootRoute } from "./root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssg" })
   .loader(() => Promise.resolve({ timestamp: Date.now() }))
-  .page(({ data: { timestamp } }) => (
+  .page(({ timestamp }) => (
     <div data-testid="ssg-loader-page" data-timestamp={String(timestamp)}>
       SSG Loader Page
     </div>

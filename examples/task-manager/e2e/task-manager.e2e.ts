@@ -6,7 +6,7 @@ import { join } from "node:path";
 const SERVER_READY_TIMEOUT_MS = 10_000;
 const HTTP_TIMEOUT_MS = 5000;
 const EVENT_TIMEOUT_MS = 2000;
-const SERVER_URL_PATTERN = /Task Manager running at (http:\/\/localhost:\d+)/;
+const SERVER_URL_PATTERN = /\[furin\] Server running at (http:\/\/localhost:\d+)/;
 
 interface CreatedBoard {
   createdAt: string;

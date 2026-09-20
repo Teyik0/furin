@@ -6,4 +6,4 @@ import { route as rootRoute } from "../root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(() => ({ pageData: "from-static-specific" }))
-  .page(({ data: { pageData } }) => <div data-testid="static-specific">{String(pageData)}</div>);
+  .page(({ pageData }) => <div data-testid="static-specific">{String(pageData)}</div>);

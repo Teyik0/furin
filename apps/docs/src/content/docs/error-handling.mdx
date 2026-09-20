@@ -75,7 +75,7 @@ export const route = defineRoute()
     }
     return { post };
   })
-  .page(({ data }) => <Post value={data.post} />);
+  .page(({ post }) => <Post value={post} />);
 ```
 
 `notFound()` never returns. It selects the nearest `not-found.tsx`, carries serializable `message` and `data`, and produces status `404`. A root `src/pages/not-found.tsx` also handles URLs that match no page.

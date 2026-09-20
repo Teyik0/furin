@@ -21,9 +21,18 @@ function routeTypeProperty(pattern: string): string {
   return `[path: \`${template}\`]`;
 }
 
+function compareRouteProperties(left: RouteMapEntry, right: RouteMapEntry): number {
+  const leftProperty = routeTypeProperty(left.pattern);
+  const rightProperty = routeTypeProperty(right.pattern);
+  if (leftProperty === rightProperty) {
+    return 0;
+  }
+  return leftProperty < rightProperty ? -1 : 1;
+}
+
 export function routeMapDeclaration(entries: RouteMapEntry[]): string {
   const body = entries
-    .toSorted((left, right) => left.pattern.localeCompare(right.pattern))
+    .toSorted(compareRouteProperties)
     .map(
       (entry) =>
         `    ${routeTypeProperty(entry.pattern)}: typeof import(${JSON.stringify(entry.importSpecifier)}).route;`

@@ -62,7 +62,15 @@ const FURIN_RESERVED_KEY_PREFIX = "__furin";
  * values when assembling component props — a loader field with one of these
  * names is silently dead on arrival.
  */
-const ROUTE_CTX_RESERVED_KEYS = new Set(["params", "query", "path"]);
+const ROUTE_CTX_RESERVED_KEYS = new Set([
+  "children",
+  "key",
+  "params",
+  "path",
+  "query",
+  "ref",
+  "requestData",
+]);
 
 function assertPublicLoaderKey(key: string): void {
   if (key.startsWith(FURIN_RESERVED_KEY_PREFIX)) {
@@ -519,11 +527,13 @@ async function runLoadersInternal(
     // Route context is always injected into syncData so components receive
     // params, query and path regardless of the serialisation path (SSR, SPA
     // nav, dev cache).
-    const routeCtx = { params: ctx.params, path: ctx.path, query: ctx.query };
+    allSync.params = ctx.params;
+    allSync.path = ctx.path;
+    allSync.query = ctx.query;
     return {
       deferredPromises: Object.keys(allDeferred).length > 0 ? allDeferred : undefined,
       headers,
-      syncData: { ...allSync, ...routeCtx },
+      syncData: allSync,
       type: "data",
     };
   } catch (err) {

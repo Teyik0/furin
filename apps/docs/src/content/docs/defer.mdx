@@ -16,11 +16,11 @@ export const route = defineRoute()
       analytics: fetchAnalytics(),
     })
   )
-  .page(({ data }) => (
+  .page(({ analytics, title }) => (
     <main>
-      <h1>{data.title}</h1>
+      <h1>{title}</h1>
       <Suspense fallback={<ChartSkeleton />}>
-        <Await resolve={data.analytics}>
+        <Await resolve={analytics}>
           {(analytics) => <Chart value={analytics} />}
         </Await>
       </Suspense>
@@ -29,6 +29,8 @@ export const route = defineRoute()
 ```
 
 `<Await>` reads the promise with React `use()`, so it must be inside `<Suspense>`. During SPA navigation, the route-data endpoint streams the same fields as NDJSON and reconstructs the promise-valued contract before React renders the destination.
+
+Only synchronous loader fields are available to `head()`. Keep titles and other metadata inputs outside deferred promises.
 
 ## Local Error UI
 
@@ -41,7 +43,7 @@ function AnalyticsError() {
 }
 
 <Suspense fallback={<ChartSkeleton />}>
-  <Await errorElement={<AnalyticsError />} resolve={data.analytics}>
+  <Await errorElement={<AnalyticsError />} resolve={analytics}>
     {(analytics) => <Chart value={analytics} />}
   </Await>
 </Suspense>;

@@ -51,9 +51,9 @@ test("a serialized public shell resumes independently for two sessions", async (
       publicCalls += 1;
       return { title: "Public shell é" };
     })
-    .page(({ data, requestData }) => (
+    .page(({ requestData, title }) => (
       <main>
-        <h1>{data.title}</h1>
+        <h1>{title}</h1>
         <Suspense fallback="Loading">
           <Private data={requestData} />
         </Suspense>

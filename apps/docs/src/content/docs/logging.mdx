@@ -48,7 +48,7 @@ export const route = defineRoute()
     log.set({ post: { found: post !== null } });
     return { post };
   })
-  .page(({ data }) => <Post value={data.post} />);
+  .page(({ post }) => <Post value={post} />);
 ```
 
 Pass the request logger into services that contribute useful fields. Prefer one nested domain object over many unrelated line logs.

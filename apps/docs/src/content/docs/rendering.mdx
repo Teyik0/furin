@@ -17,7 +17,7 @@ import { route as rootRoute } from "../root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(async ({ request }) => ({ user: await getSession(request) }))
-  .page(({ data }) => <Dashboard user={data.user} />);
+  .page(({ user }) => <Dashboard user={user} />);
 ```
 
 SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. It is the only mode that supports public `defer()` streaming and direct request access in `loader()`.
@@ -31,7 +31,7 @@ import { route as rootRoute } from "../root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssg" })
   .loader(async () => ({ features: await getFeatures() }))
-  .page(({ data }) => <FeatureList items={data.features} />);
+  .page(({ features }) => <FeatureList items={features} />);
 ```
 
 The Bun server stores SSG HTML and route data in the build snapshot or warms them at startup. A static build writes them as files. Public SSG loaders cannot read cookies, headers, the incoming request, or mutate response state.
@@ -52,7 +52,7 @@ export const route = defineRoute()
       (await getPublishedSlugs()).map((slug) => ({ slug })),
   })
   .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
-  .page(({ data }) => <Post value={data.post} />);
+  .page(({ post }) => <Post value={post} />);
 ```
 
 A pure static export requires `staticParams()` for dynamic SSG routes. The Bun server can still render an uncached concrete SSG path on demand.
@@ -72,7 +72,7 @@ export const route = defineRoute()
     revalidate: 60,
   })
   .loader(async ({ params }) => ({ product: await getProduct(params.id) }))
-  .page(({ data }) => <Product value={data.product} />);
+  .page(({ product }) => <Product value={product} />);
 ```
 
 The first request renders and stores a healthy response. After 60 seconds, the next request may receive the stale entry while one background regeneration starts. Concurrent stale requests share that regeneration, and a failed regeneration keeps the last good entry.
@@ -94,9 +94,9 @@ export const route = defineRoute()
     account: getAccount(cookies.get("session")),
   }))
   .loader(async () => ({ catalog: await getCatalog() }))
-  .page(({ data, requestData }) => (
+  .page(({ catalog, requestData }) => (
     <>
-      <Catalog value={data.catalog} />
+      <Catalog value={catalog} />
       <Suspense fallback={<AccountSkeleton />}>
         <Account value={use(requestData).account} />
       </Suspense>

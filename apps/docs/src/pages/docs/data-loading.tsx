@@ -14,7 +14,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Data Loading — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage
       Content={DataLoading}
       doc={DOCS_BY_PATH["/docs/data-loading"]}

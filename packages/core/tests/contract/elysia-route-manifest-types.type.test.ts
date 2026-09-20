@@ -25,7 +25,7 @@ const createGeneratedRoute = () =>
       query: t.Object({ page: t.Number(), tag: t.Optional(t.String()) }),
     })
     .loader(({ query }) => query)
-    .page(({ data }) => data.page);
+    .page(({ page }) => page);
 
 const createGeneratedBoardRoute = () =>
   defineRoute()
@@ -34,7 +34,7 @@ const createGeneratedBoardRoute = () =>
       mode: "ssr",
       params: t.Object({ boardId: t.Number() }),
     })
-    .page(({ data, params }) => `${data}:${params.boardId}`);
+    .page(({ params }) => String(params.boardId));
 
 declare const generatedBoardRoute: ReturnType<typeof createGeneratedBoardRoute>;
 

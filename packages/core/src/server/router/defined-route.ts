@@ -1,8 +1,4 @@
-import type {
-  RuntimeData,
-  RuntimePage,
-  RuntimeRoute,
-} from "../../client/internal/runtime-types.ts";
+import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import type { HeadOptions, RenderingMode } from "../../client.ts";
 
 interface DefinedRouteTerminal {
@@ -19,34 +15,6 @@ interface DefinedRouteTerminal {
   schemas?: { params?: unknown; query?: unknown };
   staticParams?: () => Promise<readonly unknown[]> | readonly unknown[];
   tags?: readonly string[];
-}
-
-interface DefinedRenderContext {
-  children?: React.ReactNode;
-  data: RuntimeData;
-  params: unknown;
-  path: string;
-  query: unknown;
-  requestData?: Promise<object>;
-}
-
-function toDefinedRenderContext(props: RuntimeData): DefinedRenderContext {
-  const {
-    children,
-    params = {},
-    path: _path,
-    query = {},
-    requestData,
-    ...data
-  } = props as RuntimeData & { children?: React.ReactNode };
-  return {
-    children,
-    data,
-    params,
-    path: (_path as string | undefined) ?? "",
-    query,
-    requestData: requestData as Promise<object> | undefined,
-  };
 }
 
 function copyTags(tags: readonly string[] | undefined): string[] | undefined {
@@ -71,10 +39,10 @@ export function adaptDefinedLayout(
   parent: RuntimeRoute | undefined,
   sourcePath?: string
 ): RuntimeRoute {
-  const component = route.component as (props: DefinedRenderContext) => React.ReactNode;
+  const component = route.component as RuntimeRoute["layout"];
   return {
     __type: "FURIN_ROUTE",
-    layout: (props) => component(toDefinedRenderContext(props)),
+    layout: component,
     loader: route.loader as RuntimeRoute["loader"],
     mode: route.mode,
     params: route.schemas?.params,
@@ -88,8 +56,8 @@ export function adaptDefinedLayout(
 }
 
 export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRoute): RuntimePage {
-  const component = route.component as (props: DefinedRenderContext) => React.ReactNode;
-  const head = route.head as ((context: DefinedRenderContext) => HeadOptions) | undefined;
+  const component = route.component as RuntimePage["component"];
+  const head = route.head as RuntimePage["head"];
   return {
     __type: "FURIN_PAGE",
     _route: {
@@ -99,8 +67,8 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
       query: route.schemas?.query,
       requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     },
-    component: (props) => component(toDefinedRenderContext(props)),
-    head: head ? (props) => head(toDefinedRenderContext(props)) : undefined,
+    component,
+    head,
     loader: route.loader as RuntimePage["loader"],
     mode: route.mode,
     revalidate: route.revalidate,

@@ -33,7 +33,7 @@ test("the RSC page renders server-owned boards with client interaction slots", a
 
   const Component = route.component;
   const stream = await renderToReadableStream(
-    <Component data={loaderData} params={{}} path="/rsc" query={{}} />
+    <Component {...loaderData} params={{}} path="/rsc" query={{}} />
   );
   const html = await new Response(stream).text();
 

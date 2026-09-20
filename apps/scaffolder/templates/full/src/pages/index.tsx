@@ -9,7 +9,7 @@ import { route as parentRoute } from "./root";
 export const route = defineRoute()
   .config({ layout: parentRoute })
   .loader(() => getHelloPayload())
-  .page(({ data: { message, source } }) => (
+  .page(({ message, source }) => (
     <div className="w-full space-y-8">
       <div className="space-y-2">
         <h1 className="font-bold text-4xl tracking-tight">Welcome to Furin</h1>

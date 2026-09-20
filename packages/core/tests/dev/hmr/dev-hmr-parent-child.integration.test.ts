@@ -140,8 +140,8 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
       "export const route = defineRoute()",
       '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
       "  .loader(async () => ({ stamp: Date.now() }))",
-      "  .page(({ data }) => (",
-      "    <div data-stamp={String(data.stamp)}>ISR stamp: {data.stamp}</div>",
+      "  .page(({ stamp }) => (",
+      "    <div data-stamp={String(stamp)}>ISR stamp: {stamp}</div>",
       "  ));",
     ].join("\n")
   );
@@ -438,8 +438,8 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
         '  .config({ layout: parentRoute, mode: "isr", revalidate: 60 })',
         "  // Loader intentionally returns a bumped stamp so a cache miss is detectable.",
         "  .loader(async () => ({ stamp: Date.now() + 99999 }))",
-        "  .page(({ data }) => (",
-        "    <div data-stamp={String(data.stamp)}>ISR stamp v2: {data.stamp}</div>",
+        "  .page(({ stamp }) => (",
+        "    <div data-stamp={String(stamp)}>ISR stamp v2: {stamp}</div>",
         "  ));",
       ].join("\n")
     );
@@ -496,10 +496,10 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
           "export const route = defineRootRoute()",
           '  .config({ mode: "ssr" })',
           `  .loader(() => ({ hello: "${helloValue}" }))`,
-          "  .layout(({ children, data }) => (",
+          "  .layout(({ children, hello }) => (",
           '    <html lang="en">',
           "      <head><HeadContent /></head>",
-          '      <body data-root="true" data-hello={data.hello}>',
+          '      <body data-root="true" data-hello={hello}>',
           "        {children}",
           "        <Scripts />",
           "      </body>",

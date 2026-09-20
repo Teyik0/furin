@@ -17,25 +17,40 @@ describe("client defineRoute", () => {
     expect("loader" in pageRoute).toBe(false);
   });
 
-  test("keeps request data outside public loader data", () => {
+  test("passes the flat runtime context to a page without copying it", () => {
     let received: unknown;
     const pageRoute = defineRoute().page((props) => {
       received = props;
       return null;
     });
-
-    pageRoute.component({
+    const renderContext = {
       message: "public",
-      requestData: Promise.resolve({ sessionId: "private" }),
-    });
-
-    expect(received).toEqual({
-      children: undefined,
-      data: { message: "public" },
       params: {},
-      path: "",
+      path: "/messages",
       query: {},
-      requestData: expect.any(Promise),
+      requestData: Promise.resolve({ sessionId: "private" }),
+    };
+
+    pageRoute.component(renderContext);
+
+    expect(received).toBe(renderContext);
+  });
+
+  test("passes the flat runtime context to a layout without copying it", () => {
+    let received: unknown;
+    const layoutRoute = defineRoute().layout((props) => {
+      received = props;
+      return null;
     });
+    const renderContext = {
+      children: "Content",
+      params: {},
+      path: "/messages",
+      query: {},
+    };
+
+    layoutRoute.component(renderContext);
+
+    expect(received).toBe(renderContext);
   });
 });

@@ -1,7 +1,7 @@
 import { furin } from "@teyik0/furin";
 import Elysia from "elysia";
 
-const port = Number(process.env.PORT ?? 3111);
+export const port = Number(process.env.PORT ?? 3111);
 
 const app = new Elysia()
   .use(

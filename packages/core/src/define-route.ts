@@ -26,6 +26,19 @@ export type FurinRouteDispatcher = (context: FurinNativeRouteContext) => unknown
 interface LoaderData {
   [key: string]: unknown;
 }
+type ReservedRenderContextKey =
+  | "children"
+  | "key"
+  | "params"
+  | "path"
+  | "query"
+  | "ref"
+  | "requestData";
+type PublicLoaderData = LoaderData & {
+  [Key in ReservedRenderContextKey]?: never;
+} & {
+  [Key in `__furin${string}`]?: never;
+};
 interface SchemaValues {
   [key: string]: unknown;
 }
@@ -35,8 +48,8 @@ type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSche
 type DataOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
-  ? Props extends { data: infer Data extends LoaderData }
-    ? Data
+  ? Props extends LoaderData
+    ? Omit<Props, ReservedRenderContextKey>
     : NoFields
   : NoFields;
 type PromisedData<Data extends LoaderData> = {
@@ -131,11 +144,11 @@ type RenderContext<
   Data extends LoaderData,
   RequestData extends LoaderData,
 > = {
-  data: WithoutParentDataConflicts<ParentData, Data>;
   params: Params;
   path: string;
   query: Query;
-} & RequestDataContext<RequestData>;
+} & WithoutParentDataConflicts<ParentData, Data> &
+  RequestDataContext<RequestData>;
 
 type Component<
   Params,
@@ -355,7 +368,7 @@ class NoSchemaChain<
     return new NoSchemaChain(this.metadata, requestLoader);
   }
 
-  loader<Data extends LoaderData>(
+  loader<Data extends PublicLoaderData>(
     loader: Loader<Params, Query, ParentData, Data>
   ): LoadedNoSchema<Params, Query, ParentData, Data, RequestData> {
     return new LoadedNoSchema(this.metadata, loader, undefined, this.requestLoaderFunction);
@@ -483,7 +496,7 @@ class QuerySchemaChain<
     return new QuerySchemaChain(this.metadata, this.querySchema, requestLoader);
   }
 
-  loader<Data extends LoaderData>(
+  loader<Data extends PublicLoaderData>(
     loader: Loader<NoFields, Query, ParentData, Data>
   ): LoadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData> {
     return new LoadedQuerySchema(
@@ -642,7 +655,7 @@ class SchemaChain<
     return new SchemaChain(this.metadata, this.paramsSchema, this.querySchema, requestLoader);
   }
 
-  loader<Data extends LoaderData>(
+  loader<Data extends PublicLoaderData>(
     loader: Loader<Params, Query, ParentData, Data>
   ): LoadedSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, RequestData> {
     return new LoadedSchema(

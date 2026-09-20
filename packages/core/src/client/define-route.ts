@@ -9,34 +9,24 @@ interface ClientRuntimeProps {
   [key: string]: unknown;
 }
 
-function toRenderContext(props: ClientRuntimeProps) {
-  const { children, params = {}, path = "", query = {}, requestData, ...data } = props;
-  return { children, data, params, path, query, requestData };
-}
-
-function render<Component extends ClientComponent>(
-  component: Component,
-  props: ClientRuntimeProps
-) {
-  return component(toRenderContext(props) as never);
-}
+type ClientRuntimeComponent = (props: ClientRuntimeProps) => React.ReactNode;
 
 export function defineRoute() {
   return {
     layout<Component extends ClientComponent>(component: Component) {
-      const clientComponent = (props: ClientRuntimeProps) => render(component, props);
+      const runtimeComponent = component as unknown as ClientRuntimeComponent;
       return {
         __type: "FURIN_ROUTE" as const,
-        component: clientComponent,
-        layout: clientComponent,
+        component: runtimeComponent,
+        layout: runtimeComponent,
       };
     },
     page<Component extends ClientComponent>(component: Component) {
-      const clientComponent = (props: ClientRuntimeProps) => render(component, props);
+      const runtimeComponent = component as unknown as ClientRuntimeComponent;
       return {
         __type: "FURIN_ROUTE" as const,
-        component: clientComponent,
-        page: clientComponent,
+        component: runtimeComponent,
+        page: runtimeComponent,
       };
     },
   };

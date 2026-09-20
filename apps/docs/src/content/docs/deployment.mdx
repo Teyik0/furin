@@ -60,16 +60,17 @@ const app = new Elysia().use(
   })
 );
 
-export function startServer() {
-  return app.listen(3000);
-}
+export const port = Number(process.env.PORT ?? 3000);
 
 if (import.meta.main) {
-  startServer();
+  app.listen(port);
+  console.log(`Furin app running at http://localhost:${app.server?.port}`);
 }
 
 export default app;
 ```
+
+The compiled Bun boot entry reads the exported numeric `port` when `PORT` is unset, so multiple workspace applications keep distinct local production defaults. Runtime `PORT` still takes precedence because the server module computes the export from the environment.
 
 ### Build
 

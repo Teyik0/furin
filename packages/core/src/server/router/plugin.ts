@@ -53,6 +53,8 @@ type SyntheticDataContext = Omit<Context, "params" | "query"> & {
   query: SearchParamsInput;
 };
 
+type RouteDataContext = Pick<SyntheticDataContext, "params" | "path" | "query">;
+
 function emitSerializedPayload(body: string, kind: "route-data" | "rsc", requestUrl: string): void {
   if (!IS_DEV) {
     return;
@@ -92,7 +94,8 @@ async function runDataEndpointLoaders(
 async function serializeLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
-  requestUrl: string
+  requestUrl: string,
+  routeContext: RouteDataContext
 ): Promise<Response> {
   if (result.type === "redirect") {
     const redirectUrl = new URL(result.response.headers.get("location") ?? "/", requestUrl);
@@ -114,7 +117,7 @@ async function serializeLoaderDataResponse(
     });
   }
   if (result.type === "error") {
-    return createRouteDataErrorResponse(result.error, result.message, result.status);
+    return createRouteDataErrorResponse(result.error, result.message, result.status, routeContext);
   }
 
   const syncDataWithTitle = withResolvedHead(route, result.syncData);
@@ -175,24 +178,29 @@ function applyNavigationDataCache(
 async function createLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
-  requestUrl: string
+  requestUrl: string,
+  routeContext: RouteDataContext
 ): Promise<Response> {
-  const response = await serializeLoaderDataResponse(result, route, requestUrl);
+  const response = await serializeLoaderDataResponse(result, route, requestUrl, routeContext);
   return applyNavigationDataCache(response, result, route, requestUrl);
 }
 
 async function createRouteDataErrorResponse(
   error: unknown,
   message: string,
-  status: number
+  status: number,
+  routeContext: RouteDataContext | undefined
 ): Promise<Response> {
-  const serialized = await toCrossJSONAsync({
-    __furinError: {
-      digest: computeErrorDigest(error),
-      message,
-      status,
-    },
-  });
+  const __furinError = { digest: computeErrorDigest(error), message, status };
+  const payload = routeContext
+    ? {
+        __furinError,
+        params: routeContext.params,
+        path: routeContext.path,
+        query: routeContext.query,
+      }
+    : { __furinError };
+  const serialized = await toCrossJSONAsync(payload);
   return new Response(`${JSON.stringify(serialized)}\n`, {
     headers: { "content-type": "application/x-ndjson" },
     status,
@@ -348,7 +356,7 @@ export function createDataEndpoint(
           typeof routesSource === "function" ? await routesSource(ctx.request) : routesSource;
       } catch (error) {
         wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
-        return createRouteDataErrorResponse(error, "Something went wrong", 500);
+        return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
       }
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
@@ -424,7 +432,7 @@ export function createDataEndpoint(
         searchRoutes
       );
 
-      return createLoaderDataResponse(result, matched.route, syntheticRequest.url);
+      return createLoaderDataResponse(result, matched.route, syntheticRequest.url, syntheticCtx);
     },
     {
       query: t.Object({ path: t.Optional(t.String()) }),

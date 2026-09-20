@@ -13,7 +13,7 @@ export const route = defineRoute()
       requestUrl: request.url,
     };
   })
-  .layout(({ data: { layoutData }, children }) => (
+  .layout(({ layoutData, children }) => (
     <div data-layout={String(layoutData)} data-testid="loader-layout">
       {children}
     </div>

@@ -6,6 +6,7 @@ await import("./packages/core/tests/setup/evlog-mock.ts");
 
 const { join } = await import("node:path");
 const { renderRootNotFound } = await import("./packages/core/src/server/render/index.ts");
+const { t } = await import(Bun.resolveSync("elysia", join(process.cwd(), "packages/core")));
 const {
   __resetTemplateState,
   setProductionTemplateContent,
@@ -38,6 +39,27 @@ response = await renderRootNotFound(result.root, undefined);
 assert(response.status === 404, "generated template response status");
 body = await response.text();
 assert(body.includes("__FURIN_DATA__"), "generated template body");
+
+let receivedQuery;
+const rootWithQueryLayout = {
+  ...result.root,
+  route: {
+    ...result.root.route,
+    layout: ({ children, query }) => {
+      receivedQuery = query;
+      return children;
+    },
+    query: t.Object({ page: t.Number(), tag: t.Array(t.String()) }),
+  },
+};
+response = await renderRootNotFound(
+  rootWithQueryLayout,
+  new Request("http://localhost/missing?page=2&tag=first&tag=second")
+);
+assert(response.status === 404, "query-aware response status");
+await response.text();
+assert(receivedQuery.page === 2, "root not-found query coercion");
+assert(receivedQuery.tag.join("|") === "first|second", "root not-found repeated query keys");
 
 __resetTemplateState();
 result = await scanPages(fixturesDir);

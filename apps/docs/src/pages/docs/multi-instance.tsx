@@ -14,7 +14,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Multi-Instance & Micro-Frontends — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage
       Content={MultiInstance}
       doc={DOCS_BY_PATH["/docs/multi-instance"]}

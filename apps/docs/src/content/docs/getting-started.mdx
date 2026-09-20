@@ -60,10 +60,18 @@ import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
 import { api } from "./api/hello";
 
-new Elysia()
+export const port = Number(process.env.PORT ?? 3000);
+
+const app = new Elysia()
   .use(await furin({ pagesDir: "./src/pages" }))
-  .use(api)
-  .listen(3000);
+  .use(api);
+
+if (import.meta.main) {
+  app.listen(port);
+  console.log(`Furin app running at http://localhost:${app.server?.port}`);
+}
+
+export default app;
 ```
 
 Keep chaining the returned Elysia instance. Plugin order and lifecycle scope remain Elysia concerns; see [API Routes](/docs/api-routes).

@@ -96,7 +96,7 @@ export const route = defineRoute()
     if (result.error) throw result.error.value;
     return { posts: result.data };
   })
-  .page(({ data }) => <PostList posts={data.posts} />);
+  .page(({ posts }) => <PostList posts={posts} />);
 ```
 
 The server Treaty client contains only the hooks and dependencies composed into `postsApi`; hooks on an unrelated outer instance are not inherited. Direct execution also does not automatically forward the incoming page request, so pass headers or cookies when identity matters.

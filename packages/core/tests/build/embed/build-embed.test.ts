@@ -35,6 +35,21 @@ describe.serial("compile: embed", () => {
   test("CLI build --compile embed writes a runnable single server binary", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     writeFileSync(join(app.path, "public/embed.txt"), "embedded public asset");
+    const serverPath = join(app.path, "src/server.ts");
+    writeFileSync(
+      serverPath,
+      `import { furin } from "@teyik0/furin";
+import Elysia from "elysia";
+
+export const port = 3111;
+
+const app = new Elysia().use(
+  await furin({ pagesDir: \`${"${import.meta.dir}"}/pages\` })
+);
+
+export default app;
+`
+    );
 
     const result = await runCli(["build", "--compile", "embed"], { cwd: app.path });
 
@@ -65,6 +80,11 @@ describe.serial("compile: embed", () => {
     try {
       const response = await waitForHttp(`http://127.0.0.1:${port}/`, {
         timeoutMs: 10_000,
+      }).catch((error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `${detail}\nstdout:\n${server.getStdout()}\nstderr:\n${server.getStderr()}`
+        );
       });
       const html = await response.text();
       expect(html).toContain("Home page");
@@ -176,6 +196,10 @@ describe.serial("compile: embed", () => {
     expect(content).toContain("modules:");
     expect(content).toContain("import(");
     expect(content).toContain("publicDir: import.meta.dir");
+    expect(content).toContain(
+      "console.log(`[furin] Server running at http://localhost:${__app.server?.port}`);"
+    );
+    expect(content).toContain('typeof __serverModule.port === "number"');
     expect(content).not.toContain('with { type: "file" }');
     expect(content).not.toContain("/public/logo.png");
   });

@@ -38,9 +38,9 @@ import { route as rootRoute } from "../root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(async ({ request }) => ({ user: await getSession(request) }))
-  .layout(({ children, data }) => (
+  .layout(({ children, user }) => (
     <div className="dashboard-shell">
-      <DashboardNav user={data.user} />
+      <DashboardNav user={user} />
       <main>{children}</main>
     </div>
   ));
@@ -59,10 +59,10 @@ export const route = defineRoute()
     const sessionUser = await user;
     return { settings: await getSettings(sessionUser.id) };
   })
-  .page(({ data }) => <Settings user={data.user} value={data.settings} />);
+  .page(({ settings, user }) => <Settings user={user} value={settings} />);
 ```
 
-Ancestor data is merged into descendant component `data`. In descendant loaders, each ancestor field is an individual promise, so unrelated work can start in parallel and a child only awaits what it needs.
+Ancestor loader fields are exposed directly as props on descendant components. In descendant loaders, each ancestor field is an individual promise, so unrelated work can start in parallel and a child only awaits what it needs.
 
 ## Multiple Levels
 

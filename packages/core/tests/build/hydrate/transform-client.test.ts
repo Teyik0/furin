@@ -12,7 +12,7 @@ const Page = () => null;
 export const route = defineRoute()
   .config({ mode: "ssr", params: schema })
   .loader(() => ({ secret }))
-  .head(({ data }) => ({ meta: [{ title: data.secret }] }))
+  .head(({ secret }) => ({ meta: [{ title: secret }] }))
   .page(Page);`,
       "route.tsx"
     );
@@ -50,8 +50,8 @@ export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
     const transform = (componentMessage: string, loaderMessage: string) =>
       transformForClient(
         `import { defineRoute } from "@teyik0/furin";
-function Page({ data }) {
-  return <output>${componentMessage}: {data.message}</output>;
+function Page({ message }) {
+  return <output>${componentMessage}: {message}</output>;
 }
 export const route = defineRoute()
   .loader(() => ({ message: "${loaderMessage}" }))
@@ -78,8 +78,8 @@ export const route = defineRoute()
 function loadData() {
   return { message: "${loaderMessage}" };
 }
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
         "route.tsx"
@@ -97,8 +97,8 @@ export const route = defineRoute().loader(loadData).page(Page);`,
 const loadMessage = createIsomorphicFn()
   .server(() => "${serverMessage}")
   .client(() => "client");
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute()
   .loader(() => ({ message: loadMessage() }))
@@ -133,8 +133,8 @@ const loadData = Loader.load;`,
       transformForClient(
         `import { defineRoute } from "@teyik0/furin";
 ${helperSource(loaderMessage)}
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
         "route.tsx"
@@ -172,8 +172,8 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 import { loadData } from "./loader";
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
       "route.tsx"
@@ -188,8 +188,8 @@ export const route = defineRoute().loader(loadData).page(Page);`,
       `import { defineRoute } from "@teyik0/furin";
 import { loadData } from "./loader";
 const shared = () => loadData();
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute()
   .config({ query: shared })
@@ -209,8 +209,8 @@ function fallbackLoader() {
   return { message: "${loaderMessage}" };
 }
 const { loadData = fallbackLoader } = {};
-function Page({ data }) {
-  return <output>{data.message}</output>;
+function Page({ message }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
         "route.tsx"
@@ -229,8 +229,8 @@ function loadData(value: LoaderData): LoaderData {
   const data: LoaderData = value as LoaderData;
   return data;
 }
-function Page({ data }: { data: LoaderData }) {
-  return <output>{data.message}</output>;
+function Page({ message }: LoaderData) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
       "route.tsx"
@@ -249,8 +249,8 @@ class LoaderInput {
 function loadData() {
   return { message: new LoaderInput().value };
 }
-function Page({ data }: { data: { message: string } }) {
-  return <output>{data.message}</output>;
+function Page({ message }: { message: string }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
       "route.tsx"
@@ -269,8 +269,8 @@ class LoaderInput {
 function loadData() {
   return { message: new LoaderInput("value").value };
 }
-function Page({ data }: { data: { message: string } }) {
-  return <output>{data.message}</output>;
+function Page({ message }: { message: string }) {
+  return <output>{message}</output>;
 }
 export const route = defineRoute().loader(loadData).page(Page);`,
       "route.tsx"
