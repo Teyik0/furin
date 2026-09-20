@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Breaking
+- **Ordered `staticParams()` builder stage** — dynamic SSG/ISR params move from `config({ staticParams })` to `.config(...).staticParams(...).loader(...)`. Nested stages compose ancestor params top-down and expose typed parent loader fields as lazy promises; ancestor loaders execute only when a field is read and are single-flight within each branch.
 - **Flat loader props** — public loader fields from the complete layout chain are passed directly to `page()`, `layout()`, and `head()` instead of being nested under `data`. Migrate `page(({ data }) => data.posts)` to `page(({ posts }) => posts)`. `params`, `path`, `query`, and `requestData` remain explicit framework props; loaders may no longer return those names, React's `children`/`key`/`ref`, or keys beginning with `__furin`.
 - **Synchronous `head()` data boundary** — metadata callbacks receive validated route context and synchronous public loader fields only. Deferred fields and request-private `requestData` are no longer exposed to `head()`; move metadata inputs into the synchronous loader result.
 - **Sync path terminology** — `FurinSyncOptions.streamPath` is now `path`; `createSyncStreamPlugin()`, `getSyncStreamPath()`, `resolveSyncStreamPath()`, and `runWithSyncStreamPath()` are renamed to their `SyncChanges` / `SyncPath` equivalents. The generated browser config exposes `{ path }`, and the former sync, diagnostics, and DevTools SSE endpoints are removed.
@@ -14,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Application-owned theme bootstrap** — Furin no longer injects a theme initialization script in development. Applications that persist light/dark mode must initialize their theme themselves.
 
 ### Added
+- **Shared page-cache adapters** — `furin({ pageCache })` can coordinate SSG, ISR, and PPR artifacts across Bun replicas. `@teyik0/furin/cache` exports the in-memory contract and adapter, while `@teyik0/furin/cache/redis` adds distributed regeneration leases, fenced commits, path/tag invalidation, rolling-build isolation, and safe `no-store` fallback during cache outages.
 - **Native Vercel deployment target** — `furin build --target vercel` emits Build Output API v3 artifacts with Bun 1.4 Web Handlers, CDN-hosted client/public assets, native SSG fallbacks, ISR Prerender Functions, dynamic and prefixed routes, API routes, streaming, configurable regions, and build manifests.
 - **Vercel cache and PPR integration** — `Vercel-Cache-Tag`, `invalidateByTag()`, and `waitUntil()` are connected to Furin invalidation; cached public PPR shells resume request-private content inside a Function, and Vercel owns deployed SSG/ISR freshness instead of Furin's process-local cache.
 - **Platform runtime cache** — `@teyik0/furin/cache` provides TTL and tag-aware application caching with a memory fallback and an automatically installed Vercel Runtime Cache provider.
@@ -36,6 +38,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Route and deployment documentation** — guides, examples, generated declarations, and scaffolder templates now use flat loader props and the shared Bun/Vercel server-entry convention throughout.
 
 ### Fixed
+- **Single Vercel page-cache owner** — Vercel deployments now reject `furin({ pageCache })` during application initialization instead of mixing a custom Redis cache with native Prerender and Runtime Cache state. Bun deployments remain free to use shared page-cache adapters.
+- **Embedded asset startup on Bun 1.4.0** — self-contained executables serve BunFS client and public files by direct path lookup instead of scanning embedded directories with `Bun.Glob`, avoiding the startup `ENOENT` while retaining traversal protection and cache headers.
+- **Vercel public asset prefixes** — the Vercel target now mirrors the development and compiled-server behavior by copying `public/` under each application's prefix (`/public`, `/admin/public`, ...) instead of only the output root, so runtime asset URLs resolve without a post-build copy step.
 - **Development recovery and routing** — compatible Fast Refresh edits preserve component state, hook-signature changes remount safely, a restored native HMR connection reloads the page to rebuild the module graph, initial loader errors reach the client boundary, route-data requests observe current topology, and CSS module imports survive client transforms.
 - **Development assets and route metadata** — public files and development 404s are served before route loaders, configured ISR `revalidate` values survive dev/production/build manifests, failed rebuilds retry, and watcher replacement no longer drops file events.
 - **Multi-tab sync no longer stalls mutations** — sync notifications, diagnostics, and DevTools events share one versioned WebSocket per page instead of consuming three long-lived HTTP connections per tab. Durable change replay remains on `/_furin/sync/changes`, while lifecycle cleanup, bounded buffering, heartbeats, and jittered reconnects keep concurrent tabs reliable.

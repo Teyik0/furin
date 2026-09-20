@@ -6,8 +6,11 @@ import { type AnyElysia, Elysia, file } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
 import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
+import { createProductionAssetsPlugin } from "./server/assets/production.ts";
 import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
+import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
+import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
 import type { DevelopmentRouteSnapshot, DevGraph } from "./server/dev/graph.ts";
 import {
@@ -548,6 +551,12 @@ export interface FurinOptions {
    */
   clientLogging?: boolean;
   logger?: FurinLoggerOptions;
+  /**
+   * Cache for public page artifacts. Use a distributed adapter when several
+   * replicas serve the same application. When omitted, Furin keeps its
+   * process-local cache.
+   */
+  pageCache?: PageCacheAdapter;
   pagesDir?: string;
   /**
    * Mount prefix for this app, e.g. `"/admin"`. All pages, framework
@@ -562,6 +571,21 @@ export interface FurinOptions {
    * `false` to disable sync.
    */
   sync?: FurinSyncOption;
+}
+
+function configurePageCache(
+  instance: FurinInstance,
+  ctx: CompileContext | null,
+  pageCache: PageCacheAdapter | undefined
+): void {
+  if (pageCache !== undefined && ctx?.deploymentTarget === "vercel") {
+    throw new Error(
+      "[furin] pageCache cannot be configured with the Vercel target. Vercel owns SSG, ISR, and PPR public caching."
+    );
+  }
+  if (pageCache !== undefined) {
+    setPageCacheAdapter(instance, pageCache);
+  }
 }
 
 /**
@@ -586,6 +610,7 @@ export async function furin({
   clientDir: explicitClientDir,
   logger,
   clientLogging,
+  pageCache,
   sync,
 }: FurinOptions = {}) {
   const prefix = normalizePrefix(rawPrefix);
@@ -618,6 +643,7 @@ export async function furin({
   assertPrefixAvailable(prefix, normalizedPagesDir);
   const instance = createInstance(prefix, normalizedPagesDir);
   instance.syncPath = syncPath;
+  configurePageCache(instance, ctx, pageCache);
 
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
   if (IS_DEV) {
@@ -919,30 +945,7 @@ export async function furin({
       // render pipeline resolves its template/caches, not a sibling's.
       await withInstance(instance, () => warmSSGCache(routes, root, origin, searchRoutes));
     })
-    .use(
-      await (async () => {
-        if (ctx.serveAssets === false) {
-          return new Elysia();
-        }
-        const publicDir = embedded?.publicDir ?? join(dirname(clientDir), "public");
-        const app = new Elysia();
-        if (existsSync(publicDir)) {
-          app
-            .get("/favicon.ico", file(join(publicDir, "favicon.ico")))
-            .use(await staticPlugin({ assets: publicDir, prefix: "/public" }));
-        }
-        app.use(
-          await staticPlugin({
-            assets: clientDir,
-            headers: {
-              "Cache-Control": "public, max-age=31536000, immutable",
-            },
-            prefix: "/_client",
-          })
-        );
-        return app;
-      })()
-    )
+    .use(await createProductionAssetsPlugin(ctx, embedded, clientDir))
     .use(createProductionBrowserEventsPlugin(sync))
     .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
     .use(createDataEndpoint(routes, root))

@@ -18,8 +18,8 @@
     "performance:startup": "bun scripts/probe-server-startup.ts",
     "prepare": "lefthook install",
     "start": "bun run --parallel --filter '*' --if-present start",
-    "test": "bun run --filter '*' test",
-    "test:dev": "bun run --parallel --filter '*' test:dev",
+    "test": "bun run --sequential --filter '*' test",
+    "test:dev": "bun run --sequential --filter '*' test:dev",
     "tscheck": "bun run --parallel --filter '*' tscheck"
   },
   "overrides": {

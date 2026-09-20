@@ -324,9 +324,9 @@ describe.serial("buildBunTarget Bun branches", () => {
       join(app.path, "src/pages/index.tsx"),
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'export const route = defineRoute().config({ mode: "ssg",',
-        '  staticParams: async () => { throw new Error("snapshot should not run"); },',
-        "}).page(() => <main>Home</main>);",
+        'export const route = defineRoute().config({ mode: "ssg" })',
+        '  .staticParams(async () => { throw new Error("snapshot should not run"); })',
+        "  .page(() => <main>Home</main>);",
       ].join("\n"),
     );
     const { root, routes } = await scanPages(join(app.path, "src/pages"));

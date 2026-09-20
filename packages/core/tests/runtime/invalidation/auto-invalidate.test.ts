@@ -44,7 +44,7 @@ describe("revalidateTag", () => {
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const deleted = revalidateTag("board");
+    const deleted = await revalidateTag("board");
 
     expect(deleted).toBe(true);
     expect(isrCache.has("/board/123")).toBe(false);
@@ -68,7 +68,7 @@ describe("revalidateTag", () => {
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
-    const deleted = revalidateTag(["board", "boards"]);
+    const deleted = await revalidateTag(["board", "boards"]);
 
     expect(deleted).toBe(true);
     expect(getDevISRLoaderCache("/repo/src/pages/root.tsx:/board/123")).toBeUndefined();
@@ -80,8 +80,8 @@ describe("revalidateTag", () => {
     setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
-    revalidateTag("board");
-    const second = revalidateTag("board");
+    await revalidateTag("board");
+    const second = await revalidateTag("board");
 
     expect(second).toBe(false);
     await flushMicrotasks();
@@ -102,7 +102,7 @@ describe("revalidateTag", () => {
       setISRCache("/x", { generatedAt: Date.now(), html: "b:x", revalidate: 60 });
     });
 
-    const deleted = revalidateTag("shared");
+    const deleted = await revalidateTag("shared");
 
     expect(deleted).toBe(true);
     expect(withInstance(a, () => isrCache.has("/x"))).toBe(false);
@@ -125,7 +125,7 @@ describe("revalidateTag", () => {
       autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
     });
 
-    revalidateTag("shared");
+    await revalidateTag("shared");
     await flushMicrotasks();
 
     expect(purged.flat()).toContain("/admin/x");
@@ -171,7 +171,7 @@ describe("revalidatePath", () => {
       purged.push(...paths);
       return Promise.resolve();
     });
-    revalidatePath("/", "page");
+    await revalidatePath("/", "page");
     await flushMicrotasks();
     expect(purged).toContain("/admin");
     expect(purged).not.toContain("/admin/");
@@ -182,7 +182,7 @@ describe("revalidatePath", () => {
     setCachePurger(() => {
       throw new Error("Purge unavailable");
     });
-    expect(() => revalidatePath("/x", "page")).not.toThrow();
+    await expect(revalidatePath("/x", "page")).resolves.toBe(false);
     await flushMicrotasks();
   });
 
@@ -198,7 +198,7 @@ describe("revalidatePath", () => {
       setISRCache("/x", { generatedAt: Date.now(), html: "admin:x", revalidate: 60 });
     });
 
-    const deleted = revalidatePath("/x", "page");
+    const deleted = await revalidatePath("/x", "page");
     await flushMicrotasks();
 
     expect(deleted).toBe(true);

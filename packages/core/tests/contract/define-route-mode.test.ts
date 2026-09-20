@@ -28,10 +28,9 @@ const createSsgWithRevalidate = () =>
 
 const createSsrWithStaticParams = () =>
   defineRoute()
-    .config(
-      // @ts-expect-error — staticParams requires mode "ssg" or "isr".
-      { layout: createRootRoute(), mode: "ssr", staticParams: () => [{}] }
-    )
+    .config({ layout: createRootRoute(), mode: "ssr" })
+    // @ts-expect-error — staticParams is unavailable for SSR routes.
+    .staticParams(() => [{}])
     .page(() => null);
 
 const createIsrWithoutRevalidate = () =>
@@ -48,8 +47,35 @@ const createIsrWithStaticParams = () =>
       layout: createRootRoute(),
       mode: "isr",
       revalidate: 60,
+    })
+    .staticParams(() => [{}])
+    .page(() => null);
+
+const createLegacyConfigStaticParams = () =>
+  defineRoute()
+    .config({
+      layout: createRootRoute(),
+      mode: "isr",
+      revalidate: 60,
+      // @ts-expect-error — staticParams is a builder stage, not route config.
       staticParams: () => [{}],
     })
+    .page(() => null);
+
+const createStaticParamsAfterLoader = () =>
+  defineRoute()
+    .config({ layout: createRootRoute(), mode: "ssg" })
+    .loader(() => ({ ready: true }))
+    // @ts-expect-error — staticParams must run before loader.
+    .staticParams(() => [{}])
+    .page(() => null);
+
+const createStaticParamsAfterRequestLoader = () =>
+  defineRoute()
+    .config({ layout: createRootRoute(), mode: "ssg" })
+    .requestLoader(() => ({ session: true }))
+    // @ts-expect-error — staticParams must run before requestLoader.
+    .staticParams(() => [{}])
     .page(() => null);
 
 describe("defineRoute rendering mode config", () => {
@@ -68,5 +94,8 @@ describe("defineRoute rendering mode config", () => {
 
   test("allows static params in ISR", () => {
     expectTypeOf<ReturnType<typeof createIsrWithStaticParams>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createLegacyConfigStaticParams>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createStaticParamsAfterLoader>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createStaticParamsAfterRequestLoader>>().not.toBeNever();
   });
 });

@@ -92,7 +92,7 @@ test("ISR cache keys include the query string and path invalidation clears every
   expect(beta).toContain("beta");
   expect(loaderCalls).toBe(2);
 
-  expect(revalidatePath("/search", "page")).toBe(true);
+  expect(await revalidatePath("/search", "page")).toBe(true);
 
   await app.handle(new Request("http://localhost/search?tenant=alpha"));
   await app.handle(new Request("http://localhost/search?tenant=beta"));

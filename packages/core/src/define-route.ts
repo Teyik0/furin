@@ -52,6 +52,13 @@ type DataOfRoute<Route> = Route extends {
     ? Omit<Props, ReservedRenderContextKey>
     : NoFields
   : NoFields;
+type ParamsOfRoute<Route> = Route extends {
+  component: (props: infer Props) => unknown;
+}
+  ? Props extends { params: infer Params }
+    ? Params
+    : NoFields
+  : NoFields;
 type PromisedData<Data extends LoaderData> = {
   [Key in keyof Data]: Promise<Awaited<Data[Key]>>;
 };
@@ -74,28 +81,48 @@ interface SharedRouteConfig {
   tags?: readonly string[];
 }
 
-type RenderingConfig<Params> = SharedRouteConfig &
+type RenderingConfig = SharedRouteConfig &
   (
     | {
         mode: "ssr";
         revalidate?: never;
-        staticParams?: never;
       }
     | {
         mode: "ssg";
         revalidate?: never;
-        staticParams?: () => Awaitable<readonly Params[]>;
       }
     | {
         mode: "isr";
         revalidate: number;
-        staticParams?: () => Awaitable<readonly Params[]>;
       }
   );
 
-export type DefineRouteConfig = RenderingConfig<unknown>;
+export type DefineRouteConfig = RenderingConfig;
 
-type ConfigFor<Params> = RenderingConfig<Params>;
+type ConfigFor = RenderingConfig;
+
+type StaticParamsContext<ParentParams, ParentData extends LoaderData> = {
+  params: Partial<ParentParams>;
+} & PromisedData<ParentData>;
+
+type StaticParamsResult<Params, ParentParams> = Omit<Params, keyof ParentParams> & Partial<Params>;
+
+type StaticParams<Params, ParentParams, ParentData extends LoaderData> = (
+  context: StaticParamsContext<ParentParams, ParentData>
+) => Awaitable<readonly StaticParamsResult<Params, ParentParams>[]>;
+
+interface ErasedStaticParamsContext {
+  params: unknown;
+  [key: string]: unknown;
+}
+
+type RouteMetadata = DefineRouteConfig & {
+  staticParams?: (context: ErasedStaticParamsContext) => Awaitable<readonly unknown[]>;
+};
+
+type ConfiguredChain<Mode extends RenderingMode, Chain> = Mode extends "ssr"
+  ? Omit<Chain, "staticParams">
+  : Chain;
 
 type LoaderContext<Params, Query, ParentData extends LoaderData> = {
   params: Params;
@@ -336,7 +363,7 @@ function registerLayout<Params, Query, ParentData extends LoaderData, Data exten
   return app;
 }
 
-function withMetadata<Metadata extends DefineRouteConfig>(metadata: Metadata) {
+function withMetadata(metadata: RouteMetadata) {
   return {
     mode: metadata.mode,
     revalidate: metadata.revalidate,
@@ -345,17 +372,41 @@ function withMetadata<Metadata extends DefineRouteConfig>(metadata: Metadata) {
   };
 }
 
+function withStaticParams<Params, ParentParams, ParentData extends LoaderData>(
+  metadata: RouteMetadata,
+  staticParams: StaticParams<Params, ParentParams, ParentData>,
+  hasRequestLoader: boolean
+): RouteMetadata {
+  if (metadata.mode === "ssr") {
+    throw new TypeError("[furin] staticParams() requires mode ssg or isr.");
+  }
+  if (hasRequestLoader) {
+    throw new TypeError("[furin] staticParams() must be declared before requestLoader().");
+  }
+  if (metadata.staticParams) {
+    throw new TypeError("[furin] staticParams() can only be declared once.");
+  }
+  return { ...metadata, staticParams: staticParams as RouteMetadata["staticParams"] };
+}
+
+function assertStaticParamsOutsideConfig(options: object): void {
+  if ("staticParams" in options) {
+    throw new TypeError("[furin] staticParams() must be chained after config().");
+  }
+}
+
 class NoSchemaChain<
   Params = NoFields,
   Query = NoFields,
   ParentData extends LoaderData = NoFields,
   RequestData extends LoaderData = NoFields,
+  ParentParams = NoFields,
 > {
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     requestLoader: RequestLoader<Params, Query, RequestData> | undefined
   ) {
     this.metadata = metadata;
@@ -364,8 +415,17 @@ class NoSchemaChain<
 
   requestLoader<Data extends LoaderData>(
     requestLoader: RequestLoader<Params, Query, Data>
-  ): NoSchemaChain<Params, Query, ParentData, Data> {
+  ): Omit<NoSchemaChain<Params, Query, ParentData, Data, ParentParams>, "staticParams"> {
     return new NoSchemaChain(this.metadata, requestLoader);
+  }
+
+  staticParams(
+    staticParams: StaticParams<Params, ParentParams, ParentData>
+  ): Omit<NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams>, "staticParams"> {
+    return new NoSchemaChain(
+      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
+      this.requestLoaderFunction
+    );
   }
 
   loader<Data extends PublicLoaderData>(
@@ -406,11 +466,11 @@ class LoadedNoSchema<
 > {
   protected readonly headFunction: Head<Params, Query, ParentData, Data> | undefined;
   protected readonly loaderFunction: Loader<Params, Query, ParentData, Data>;
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     loader: Loader<Params, Query, ParentData, Data>,
     head: Head<Params, Query, ParentData, Data> | undefined,
     requestLoader: RequestLoader<Params, Query, RequestData> | undefined
@@ -475,13 +535,14 @@ class QuerySchemaChain<
   QuerySchema extends FurinSchema,
   ParentData extends LoaderData = NoFields,
   RequestData extends LoaderData = NoFields,
+  ParentParams = NoFields,
 > {
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     querySchema: QuerySchema,
     requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined
   ) {
@@ -492,8 +553,21 @@ class QuerySchemaChain<
 
   requestLoader<Data extends LoaderData>(
     requestLoader: RequestLoader<NoFields, Query, Data>
-  ): QuerySchemaChain<Query, QuerySchema, ParentData, Data> {
+  ): Omit<QuerySchemaChain<Query, QuerySchema, ParentData, Data, ParentParams>, "staticParams"> {
     return new QuerySchemaChain(this.metadata, this.querySchema, requestLoader);
+  }
+
+  staticParams(
+    staticParams: StaticParams<NoFields, ParentParams, ParentData>
+  ): Omit<
+    QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams>,
+    "staticParams"
+  > {
+    return new QuerySchemaChain(
+      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
+      this.querySchema,
+      this.requestLoaderFunction
+    );
   }
 
   loader<Data extends PublicLoaderData>(
@@ -546,12 +620,12 @@ class LoadedQuerySchema<
 > {
   protected readonly headFunction: Head<NoFields, Query, ParentData, Data> | undefined;
   protected readonly loaderFunction: Loader<NoFields, Query, ParentData, Data>;
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     querySchema: QuerySchema,
     loader: Loader<NoFields, Query, ParentData, Data>,
     head: Head<NoFields, Query, ParentData, Data> | undefined,
@@ -631,14 +705,15 @@ class SchemaChain<
   QuerySchema extends FurinSchema | undefined,
   ParentData extends LoaderData = NoFields,
   RequestData extends LoaderData = NoFields,
+  ParentParams = NoFields,
 > {
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly paramsSchema: ParamsSchema;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     paramsSchema: ParamsSchema,
     querySchema: QuerySchema,
     requestLoader: RequestLoader<Params, Query, RequestData> | undefined
@@ -651,8 +726,33 @@ class SchemaChain<
 
   requestLoader<RequestLoaderData extends LoaderData>(
     requestLoader: RequestLoader<Params, Query, RequestLoaderData>
-  ): SchemaChain<Params, Query, ParamsSchema, QuerySchema, ParentData, RequestLoaderData> {
+  ): Omit<
+    SchemaChain<
+      Params,
+      Query,
+      ParamsSchema,
+      QuerySchema,
+      ParentData,
+      RequestLoaderData,
+      ParentParams
+    >,
+    "staticParams"
+  > {
     return new SchemaChain(this.metadata, this.paramsSchema, this.querySchema, requestLoader);
+  }
+
+  staticParams(
+    staticParams: StaticParams<Params, ParentParams, ParentData>
+  ): Omit<
+    SchemaChain<Params, Query, ParamsSchema, QuerySchema, ParentData, RequestData, ParentParams>,
+    "staticParams"
+  > {
+    return new SchemaChain(
+      withStaticParams(this.metadata, staticParams, this.requestLoaderFunction !== undefined),
+      this.paramsSchema,
+      this.querySchema,
+      this.requestLoaderFunction
+    );
   }
 
   loader<Data extends PublicLoaderData>(
@@ -712,13 +812,13 @@ class LoadedSchema<
 > {
   protected readonly headFunction: Head<Params, Query, ParentData, Data> | undefined;
   protected readonly loaderFunction: Loader<Params, Query, ParentData, Data>;
-  protected readonly metadata: DefineRouteConfig;
+  protected readonly metadata: RouteMetadata;
   protected readonly paramsSchema: ParamsSchema;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
-    metadata: DefineRouteConfig,
+    metadata: RouteMetadata,
     paramsSchema: ParamsSchema,
     querySchema: QuerySchema,
     loader: Loader<Params, Query, ParentData, Data>,
@@ -803,50 +903,83 @@ class HeadedSchema<
  * before it — a route without an explicit rendering contract does not compile.
  */
 class UnconfiguredRoute {
-  config<LayoutRoute, QuerySchema extends FurinSchema>(
-    options: ConfigFor<NoFields> & {
+  config<LayoutRoute, QuerySchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ConfigFor & {
       layout: LayoutRoute;
-      mode: RenderingMode;
+      mode: Mode;
       params?: undefined;
       query: QuerySchema;
     }
-  ): QuerySchemaChain<ParamsOf<QuerySchema>, QuerySchema, DataOfRoute<LayoutRoute>>;
-  config<LayoutRoute, ParamsSchema extends FurinSchema, QuerySchema extends FurinSchema>(
-    options: ConfigFor<ParamsOf<ParamsSchema>> & {
+  ): ConfiguredChain<
+    Mode,
+    QuerySchemaChain<
+      ParamsOf<QuerySchema>,
+      QuerySchema,
+      DataOfRoute<LayoutRoute>,
+      NoFields,
+      ParamsOfRoute<LayoutRoute>
+    >
+  >;
+  config<
+    LayoutRoute,
+    ParamsSchema extends FurinSchema,
+    QuerySchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
+    options: ConfigFor & {
       layout: LayoutRoute;
-      mode: RenderingMode;
+      mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
     }
-  ): SchemaChain<
-    ParamsOf<ParamsSchema>,
-    ParamsOf<QuerySchema>,
-    ParamsSchema,
-    QuerySchema,
-    DataOfRoute<LayoutRoute>
+  ): ConfiguredChain<
+    Mode,
+    SchemaChain<
+      ParamsOf<ParamsSchema>,
+      ParamsOf<QuerySchema>,
+      ParamsSchema,
+      QuerySchema,
+      DataOfRoute<LayoutRoute>,
+      NoFields,
+      ParamsOfRoute<LayoutRoute>
+    >
   >;
-  config<LayoutRoute, ParamsSchema extends FurinSchema>(
-    options: ConfigFor<ParamsOf<ParamsSchema>> & {
+  config<LayoutRoute, ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ConfigFor & {
       layout: LayoutRoute;
-      mode: RenderingMode;
+      mode: Mode;
       params: ParamsSchema;
       query?: undefined;
     }
-  ): SchemaChain<
-    ParamsOf<ParamsSchema>,
-    NoFields,
-    ParamsSchema,
-    undefined,
-    DataOfRoute<LayoutRoute>
+  ): ConfiguredChain<
+    Mode,
+    SchemaChain<
+      ParamsOf<ParamsSchema>,
+      NoFields,
+      ParamsSchema,
+      undefined,
+      DataOfRoute<LayoutRoute>,
+      NoFields,
+      ParamsOfRoute<LayoutRoute>
+    >
   >;
-  config<LayoutRoute>(
-    options: ConfigFor<NoFields> & {
+  config<LayoutRoute, Mode extends RenderingMode>(
+    options: ConfigFor & {
       layout: LayoutRoute;
-      mode: RenderingMode;
+      mode: Mode;
       params?: undefined;
       query?: undefined;
     }
-  ): NoSchemaChain<NoFields, NoFields, DataOfRoute<LayoutRoute>>;
+  ): ConfiguredChain<
+    Mode,
+    NoSchemaChain<
+      NoFields,
+      NoFields,
+      DataOfRoute<LayoutRoute>,
+      NoFields,
+      ParamsOfRoute<LayoutRoute>
+    >
+  >;
   config<
     LayoutRoute,
     ParamsSchema extends FurinSchema | undefined,
@@ -858,23 +991,34 @@ class UnconfiguredRoute {
       params?: ParamsSchema;
       query?: QuerySchema;
     }
-  ) {
+  ): unknown {
+    assertStaticParamsOutsideConfig(options);
     if (options.params === undefined) {
       if (options.query !== undefined) {
         return new QuerySchemaChain<
           ParamsOf<Exclude<QuerySchema, undefined>>,
           Exclude<QuerySchema, undefined>,
-          DataOfRoute<LayoutRoute>
+          DataOfRoute<LayoutRoute>,
+          NoFields,
+          ParamsOfRoute<LayoutRoute>
         >(options, options.query as Exclude<QuerySchema, undefined>, undefined);
       }
-      return new NoSchemaChain<NoFields, NoFields, DataOfRoute<LayoutRoute>>(options, undefined);
+      return new NoSchemaChain<
+        NoFields,
+        NoFields,
+        DataOfRoute<LayoutRoute>,
+        NoFields,
+        ParamsOfRoute<LayoutRoute>
+      >(options, undefined);
     }
     return new SchemaChain<
       ParamsOf<Exclude<ParamsSchema, undefined>>,
       ParamsOf<Exclude<QuerySchema, undefined>>,
       Exclude<ParamsSchema, undefined>,
       Exclude<QuerySchema, undefined>,
-      DataOfRoute<LayoutRoute>
+      DataOfRoute<LayoutRoute>,
+      NoFields,
+      ParamsOfRoute<LayoutRoute>
     >(
       options,
       options.params as Exclude<ParamsSchema, undefined>,
@@ -889,47 +1033,52 @@ class UnconfiguredRoute {
  * `config()` requires only `mode` (the TanStack `createRootRoute` analogue).
  */
 class UnconfiguredRootRoute {
-  config<QuerySchema extends FurinSchema>(
-    options: ConfigFor<NoFields> & {
-      mode: RenderingMode;
+  config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ConfigFor & {
+      mode: Mode;
       params?: undefined;
       query: QuerySchema;
     }
-  ): QuerySchemaChain<ParamsOf<QuerySchema>, QuerySchema, NoFields>;
-  config<ParamsSchema extends FurinSchema, QuerySchema extends FurinSchema>(
-    options: ConfigFor<ParamsOf<ParamsSchema>> & {
-      mode: RenderingMode;
+  ): ConfiguredChain<Mode, QuerySchemaChain<ParamsOf<QuerySchema>, QuerySchema, NoFields>>;
+  config<
+    ParamsSchema extends FurinSchema,
+    QuerySchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
+    options: ConfigFor & {
+      mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
     }
-  ): SchemaChain<
-    ParamsOf<ParamsSchema>,
-    ParamsOf<QuerySchema>,
-    ParamsSchema,
-    QuerySchema,
-    NoFields
+  ): ConfiguredChain<
+    Mode,
+    SchemaChain<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>, ParamsSchema, QuerySchema, NoFields>
   >;
-  config<ParamsSchema extends FurinSchema>(
-    options: ConfigFor<ParamsOf<ParamsSchema>> & {
-      mode: RenderingMode;
+  config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ConfigFor & {
+      mode: Mode;
       params: ParamsSchema;
       query?: undefined;
     }
-  ): SchemaChain<ParamsOf<ParamsSchema>, NoFields, ParamsSchema, undefined, NoFields>;
-  config(
-    options: ConfigFor<NoFields> & {
-      mode: RenderingMode;
+  ): ConfiguredChain<
+    Mode,
+    SchemaChain<ParamsOf<ParamsSchema>, NoFields, ParamsSchema, undefined, NoFields>
+  >;
+  config<Mode extends RenderingMode>(
+    options: ConfigFor & {
+      mode: Mode;
       params?: undefined;
       query?: undefined;
     }
-  ): NoSchemaChain<NoFields, NoFields, NoFields>;
+  ): ConfiguredChain<Mode, NoSchemaChain<NoFields, NoFields, NoFields>>;
   config<ParamsSchema extends FurinSchema | undefined, QuerySchema extends FurinSchema | undefined>(
     options: DefineRouteConfig & {
       mode: RenderingMode;
       params?: ParamsSchema;
       query?: QuerySchema;
     }
-  ) {
+  ): unknown {
+    assertStaticParamsOutsideConfig(options);
     if (options.params === undefined) {
       if (options.query !== undefined) {
         return new QuerySchemaChain<

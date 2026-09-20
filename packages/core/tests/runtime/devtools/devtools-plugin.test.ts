@@ -267,7 +267,7 @@ describe("native DevTools plugin", () => {
       });
       autoInvalidateRegistry.registerLoaderTags("/posts", ["posts"]);
 
-      revalidateTag("posts");
+      await revalidateTag("posts");
       const event = devtoolsEventsSnapshot().events.findLast(
         (candidate) => candidate.type === "cache.invalidated"
       );

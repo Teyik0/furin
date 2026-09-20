@@ -3,6 +3,7 @@ import type { SsgCacheEntry } from "../server/cache/index.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
+import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
 import { buildRouteMatcher } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -52,14 +53,8 @@ export async function buildRoutePrerenders(
     let paramSets: Record<string, string>[];
     if (!DYNAMIC_SEGMENT_RE.test(route.pattern)) {
       paramSets = [{}];
-    } else if (route.page.staticParams) {
-      const resolvedParams = await route.page.staticParams();
-      if (!Array.isArray(resolvedParams)) {
-        throw new TypeError(
-          `[furin] staticParams() for "${route.pattern}" must return an array.`
-        );
-      }
-      paramSets = resolvedParams;
+    } else if (hasStaticParams(route)) {
+      paramSets = (await resolveStaticParams(route, origin)) ?? [];
     } else {
       continue;
     }
@@ -102,10 +97,10 @@ export async function buildSSGCacheSnapshot(
   const searchRoutes = createSearchRouteMetadata(routes);
 
   for (const route of routes) {
-    if (route.mode !== "ssg" || !route.page.staticParams || hasRequestLoader(route)) {
+    if (route.mode !== "ssg" || !hasStaticParams(route) || hasRequestLoader(route)) {
       continue;
     }
-    const paramSets = await route.page.staticParams();
+    const paramSets = (await resolveStaticParams(route, origin)) ?? [];
     for (const params of paramSets) {
       const result = await prerenderSSG(
         route,

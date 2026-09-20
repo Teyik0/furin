@@ -6,6 +6,14 @@ export type RuntimeData = Record<string, unknown>;
 
 type Awaitable<T> = Promise<T> | T;
 
+export interface RuntimeParams {
+  [key: string]: string;
+}
+
+export type RuntimeStaticParams = (
+  context: RuntimeData & { params: RuntimeParams }
+) => Awaitable<readonly RuntimeParams[]>;
+
 export interface RuntimeRoute {
   __type: "FURIN_ROUTE";
   layout?: React.FC<RuntimeData & { children: React.ReactNode }>;
@@ -17,6 +25,7 @@ export interface RuntimeRoute {
   requestLoader?: (ctx: RequestLoaderContext) => Awaitable<object>;
   revalidate?: number;
   sourcePath?: string;
+  staticParams?: RuntimeStaticParams;
   tags?: string[];
 }
 
@@ -28,6 +37,6 @@ export interface RuntimePage {
   loader?: (ctx: RuntimeData) => Awaitable<RuntimeData>;
   mode?: RenderingMode;
   revalidate?: number;
-  staticParams?: () => Awaitable<Record<string, string>[]>;
+  staticParams?: RuntimeStaticParams;
   tags?: string[];
 }

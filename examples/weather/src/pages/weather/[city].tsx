@@ -11,9 +11,10 @@ export const route = defineRoute()
     mode: "isr",
     params: t.Object({ city: t.String({ minLength: 1 }) }),
     revalidate: 300,
-    staticParams: () =>
-      POPULAR_CITIES.filter(({ slug }) => slug !== "paris").map(({ slug }) => ({ city: slug })),
   })
+  .staticParams(() =>
+    POPULAR_CITIES.filter(({ slug }) => slug !== "paris").map(({ slug }) => ({ city: slug }))
+  )
   .loader(({ log, params, redirect }) => {
     if (params.city.toLocaleLowerCase("en") === "paris") {
       throw redirect("/");

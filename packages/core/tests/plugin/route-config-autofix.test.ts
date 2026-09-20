@@ -575,7 +575,7 @@ export const route = defineRoute()
     }
   });
 
-  test("rejects staticParams with explicit ssr mode", () => {
+  test("rejects staticParams inside config", () => {
     const pages = createPages({
       "about.tsx": `import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
@@ -588,7 +588,7 @@ export const route = defineRoute()
     try {
       const filePath = join(pages.path, "about.tsx");
       expect(() => fixRouteConfigLayout(readFile(filePath), filePath, pages.path)).toThrow(
-        `${filePath}: staticParams requires mode ssg or isr`
+        `${filePath}: staticParams must be chained after config`
       );
     } finally {
       pages.cleanup();
@@ -600,7 +600,8 @@ export const route = defineRoute()
       "about.tsx": `import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, staticParams: () => [] })
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .staticParams(() => [])
   .loader(() => ({ ok: true }))
   .page(() => "about");
 `,
@@ -619,7 +620,8 @@ export const route = defineRoute()
       "about.tsx": `import { defineRoute } from "@teyik0/furin";
 import { route as rootRoute } from "./root";
 export const route = defineRoute()
-  .config({ layout: rootRoute, staticParams: () => [] })
+  .config({ layout: rootRoute })
+  .staticParams(() => [])
   .loader(() => ({ ok: true }))
   .page(() => "about");
 `,

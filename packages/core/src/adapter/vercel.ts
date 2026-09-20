@@ -719,6 +719,10 @@ export async function buildVercelTarget(
   const publicDir = join(rootDir, "public");
   if (existsSync(publicDir)) {
     cpSync(publicDir, staticDir, { recursive: true });
+    for (const app of apps) {
+      const appPublicDir = join(staticDir, app.prefix.slice(1), "public");
+      cpSync(publicDir, appPublicDir, { recursive: true });
+    }
   }
   for (let appIndex = 0; appIndex < apps.length; appIndex += 1) {
     const app = apps[appIndex] as RuntimeTargetApp;

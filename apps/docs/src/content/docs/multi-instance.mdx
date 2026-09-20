@@ -49,7 +49,7 @@ That intentionally loads the other document and browser bundle.
 
 | Concern | Behavior |
 |---|---|
-| SSG, ISR, PPR, and dev loader caches | Per instance |
+| SSG, ISR, PPR, and dev loader caches | Per instance by default; public production artifacts can share one `pageCache` adapter |
 | Build ID and document template | Per instance |
 | Root/prefixed 404 handling | Per instance |
 | `revalidatePath()` | Applies the logical path across all mounted instances |
@@ -58,6 +58,31 @@ That intentionally loads the other document and browser bundle.
 | CDN purge paths | Converted to physical prefixed URLs |
 
 Cross-instance path and tag invalidation is deliberate for applications sharing data. If two apps use the same logical path for unrelated content, prefer distinct tags and avoid broad path invalidation.
+
+When several processes host the same set of mounts, reuse one page-cache adapter in each process and pass it to every mount. The prefix is part of Furin's cache identity, so `/` and `/admin` remain isolated even when they use the same Redis namespace:
+
+```ts
+import { RedisClient } from "bun";
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { redisPageCache } from "@teyik0/furin/cache/redis";
+
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl === undefined) {
+  throw new Error("REDIS_URL is required");
+}
+
+const pageCache = redisPageCache({
+  client: new RedisClient(redisUrl),
+  namespace: "backoffice:production",
+});
+
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages", pageCache }))
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", pageCache }));
+```
+
+Use separate namespaces only for deployments that must never invalidate each other, such as staging and production. Do not use a different namespace per replica or per build.
 
 ## Build Discovery
 

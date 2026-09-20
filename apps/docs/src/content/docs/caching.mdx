@@ -1,6 +1,21 @@
 # Caching
 
-Furin caches complete public route results according to the route's explicit rendering mode. Route caches are in-process and scoped to each mounted Furin instance; CDN caching is a separate layer controlled by response headers and an optional purge callback.
+Furin caches complete public route results according to the route's explicit rendering mode. By default, route caches are in-process and scoped to each mounted Furin instance. Configure a page-cache adapter to share ISR, runtime SSG, and PPR public artifacts across replicas. CDN caching remains a separate layer controlled by response headers and an optional purge callback.
+
+## Choose A Cache Setup
+
+Route files do not change when the deployment topology changes. Choose the page-cache backend at application composition time:
+
+| Deployment | `pageCache` | Recommendation |
+|---|---|---|
+| Development or one Bun process | Omit it | Use Furin's existing process-local render caches |
+| Several Bun processes, containers, or hosts | `redisPageCache(...)` | Required for coherent origin invalidation and regeneration |
+| Vercel Build Output | Omit it | Let the Vercel adapter use native prerenders and Runtime Cache |
+| Pure static export | Not used | There is no request-time page cache |
+
+The page cache stores public render artifacts. It does not replace the runtime data cache, browser prefetch cache, Sync journal, or CDN cache.
+
+Vercel deployments reject an explicit `pageCache` during application initialization. Native Prerender and Runtime Cache integrations are the single source of truth on that target; combining them with Redis would create two independently invalidated page-cache layers.
 
 ## Cache Contract By Mode
 
@@ -36,7 +51,7 @@ export const route = defineRoute()
 1. A miss renders and caches only a healthy `200` result.
 2. A fresh hit returns the stored HTML.
 3. The first stale hit returns the old HTML and starts background regeneration.
-4. Other stale hits reuse the same in-flight regeneration.
+4. Other stale hits reuse the same in-flight regeneration, including hits handled by another replica when the page cache is shared.
 5. Success replaces the entry atomically; failure retains the last good entry.
 
 ISR cache keys include the request search string. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
@@ -67,16 +82,95 @@ The application API stays the same on every target:
 
 Cache handles resolve the active provider when an operation runs, not when the module is imported. This guarantees that top-level handles created by statically imported route modules still use the deployment provider.
 
+The runtime data cache is intentionally separate from the page cache. Page artifacts need conditional writes and distributed regeneration leases so a render that started before an invalidation cannot publish stale HTML afterward.
+
+## Shared Page Cache
+
+Use the Redis page-cache adapter when several Bun replicas serve the same application. Create the Redis client and adapter once when the server module starts, then pass the adapter to every replica through the same application code:
+
+```ts
+import { RedisClient } from "bun";
+import { Elysia } from "elysia";
+import { furin } from "@teyik0/furin";
+import { redisPageCache } from "@teyik0/furin/cache/redis";
+
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl === undefined) {
+  throw new Error("REDIS_URL is required in a multi-replica deployment");
+}
+
+const client = new RedisClient(redisUrl);
+const pageCache = redisPageCache({
+  client,
+  namespace: "storefront:production",
+});
+
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages", pageCache }))
+  .listen(3000);
+```
+
+`RedisClient` connects lazily. The application owns it and should close it during graceful shutdown. Furin does not create a second Redis connection or close the supplied client.
+
+Every replica of one environment must use the same namespace. Keep it stable across releases: use a value such as `storefront:production`, not a deployment ID or build ID. Use a different namespace for staging, preview, and production. Mounted Furin applications remain isolated by their normalized prefix, so one adapter can be reused safely:
+
+```ts
+new Elysia()
+  .use(await furin({ pagesDir: "./src/pages", pageCache }))
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin", pageCache }))
+  .listen(3000);
+```
+
+Build IDs isolate rendered artifacts during rolling deployments, while invalidation versions deliberately span build IDs. An older replica therefore cannot publish a render that started before a mutation. Do not add the build ID to the Redis namespace; doing so would split invalidation state between releases.
+
+Redis coordinates both invalidation fencing and ISR regeneration leases. A cache outage degrades page rendering to a fresh `no-store` response rather than caching an uncoordinated result.
+
+Furin uses Bun's native Redis client and Redis Lua scripts. Use Redis 7.2 or later. Bun's Redis client currently expects a direct Redis endpoint and does not support Redis Cluster or Sentinel discovery; a managed service can still be used through a compatible direct or proxy endpoint.
+
+### What Furin Coordinates
+
+| Event | Shared behavior |
+|---|---|
+| First ISR/SSG/PPR miss | One replica acquires the render lease; other replicas wait briefly for its artifact |
+| Stale ISR hit | The stale artifact is served while one replica regenerates it |
+| `revalidatePath()` | All query variants of the page, or all layout descendants, become invalid |
+| `revalidateTag()` | Every artifact carrying one of the tags becomes invalid |
+| Rolling deployment | Artifacts remain build-specific; invalidation state remains shared |
+| Render finishes after invalidation | Its conditional commit is rejected, so stale HTML cannot be republished |
+| Redis read, write, or lease fails during rendering | Furin renders fresh and responds with `no-store` |
+
+The adapter is the source of truth; Redis Pub/Sub is not required. Notifications alone would be insufficient because a disconnected or restarting replica could miss an invalidation.
+
+### Route Authoring Stays The Same
+
+Routes continue to declare their mode, revalidation window, and tags:
+
+```tsx
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "isr",
+    revalidate: 60,
+    tags: ["posts"],
+  })
+  .loader(async () => ({ posts: await db.posts.findMany() }))
+  .page(({ posts }) => <PostList posts={posts} />);
+```
+
+No Redis key construction belongs in route code. Furin derives keys from the mounted prefix, build ID, render mode, concrete pathname, and, where the mode supports it, query string.
+
 ## Invalidate A Path
 
 ```ts
 import { revalidatePath } from "@teyik0/furin";
 
-revalidatePath("/blog/hello", "page");
-revalidatePath("/blog", "layout");
+await revalidatePath("/blog/hello", "page");
+await revalidatePath("/blog", "layout");
 ```
 
-`page` evicts the exact pathname. `layout` evicts the path and its descendants. The function returns whether an origin entry was deleted, queues an `X-Furin-Revalidate` signal for the current response, and invokes the configured CDN purger asynchronously.
+`page` evicts the exact pathname and all of its query variants. `layout` evicts the path and its descendants. The promise resolves after origin invalidation is committed, returns whether an origin entry was affected, queues an `X-Furin-Revalidate` signal for the current response, and invokes the configured CDN purger asynchronously.
+
+Manual invalidation is asynchronous because a shared adapter must durably advance its invalidation version before the mutation is considered complete. Always await it in application code. Declarative invalidation through `furinInvalidate()` or Furin Sync already performs this wait for you.
 
 Logical paths are unprefixed. `revalidatePath()` intentionally checks every mounted Furin instance; physical CDN purge paths include each instance prefix.
 
@@ -98,13 +192,28 @@ Then invalidate the concrete cached paths registered under those tags:
 ```ts
 import { revalidateTag } from "@teyik0/furin";
 
-revalidateTag("posts");
-revalidateTag(["posts", "homepage"]);
+await revalidateTag("posts");
+await revalidateTag(["posts", "homepage"]);
 ```
 
 Tag invalidation spans mounted instances but evicts only paths registered by each owning instance. Generated route types augment `FurinCacheTags`, providing autocomplete for tags discovered in route config.
 
 Prefer tags when a mutation changes shared data used by several pages. Prefer paths when the changed URL is already known. This keeps invalidation precise instead of clearing the entire route cache.
+
+For an Elysia mutation, declarative invalidation is the shortest path:
+
+```ts
+import { furinInvalidate } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+export const postsApi = new Elysia({ prefix: "/api/posts" })
+  .use(furinInvalidate())
+  .post("/", ({ body }) => db.posts.create(body), {
+    invalidate: { tags: ["posts"] },
+  });
+```
+
+The mutation response is not completed until origin invalidation succeeds. It also carries `X-Furin-Revalidate` for the initiating browser.
 
 ## Browser Prefetch Invalidation
 
@@ -116,7 +225,7 @@ X-Furin-Revalidate: /blog/hello,/blog:layout
 
 The generated router observes same-page browser `fetch()` responses, evicts matching prefetch entries, and refreshes the active route when it is affected. `applyRevalidateHeader()` is exported from `@teyik0/furin/link` for a custom integration, but application code normally does not need to call it.
 
-For other tabs and devices, configure [Sync & Invalidations](/docs/sync). Sync distributes invalidation events; it does not turn the process-local HTML cache into a shared cache.
+For other tabs and devices, configure [Sync & Invalidations](/docs/sync). Sync distributes invalidation events; it is not a page-cache adapter. Configure `pageCache` separately when origin replicas must share public artifacts.
 
 ## CDN Purging
 
@@ -132,7 +241,7 @@ setCachePurger(async (paths) => {
 
 Furin batches and deduplicates physical paths for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
 
-An origin cache and a CDN cache must both be coherent. In a multi-replica deployment, each replica currently owns its own page cache. Purging only the CDN can allow another replica to repopulate it with stale HTML. Use a deployment strategy that coordinates origin invalidation or routes cached pages consistently until a shared page-cache adapter exists.
+An origin cache and a CDN cache must both be coherent. In a multi-replica Bun deployment, configure the shared page cache in addition to CDN purging. Purging only the CDN can allow another origin replica with a local cache to repopulate it with stale HTML.
 
 ## Deploy Changes
 

@@ -448,6 +448,7 @@ interface FixContext {
   expectedResolvedPath: string;
   filePath: string;
   hasLoader: boolean;
+  hasStaticParams: boolean;
   imports: LayoutImport[];
   isRootLayout: boolean;
   lastImportEnd: number;
@@ -659,6 +660,9 @@ function validateConfigProperties(
   ctx: FixContext
 ): { inferredMode: InferredRenderingMode | null; layoutValue: AstNode | null } {
   const layoutValue = properties.layout ? asAstNode(properties.layout.value) : null;
+  if (properties.staticParams) {
+    throw routeConfigError(ctx.filePath, "staticParams must be chained after config");
+  }
   if (!ctx.isRootLayout && properties.layout && layoutValue?.type !== "Identifier") {
     throw routeConfigError(ctx.filePath, "use a static layout route reference");
   }
@@ -670,7 +674,7 @@ function validateConfigProperties(
   ) {
     throw routeConfigError(ctx.filePath, "revalidate requires mode isr");
   }
-  if (properties.staticParams && modeValue?.type === "Literal" && modeValue.value === "ssr") {
+  if (ctx.hasStaticParams && modeValue?.type === "Literal" && modeValue.value === "ssr") {
     throw routeConfigError(ctx.filePath, "staticParams requires mode ssg or isr");
   }
   if (!properties.revalidate && modeValue?.type === "Literal" && modeValue.value === "isr") {
@@ -685,7 +689,7 @@ function validateConfigProperties(
         hasRevalidate: Boolean(properties.revalidate),
         isRootLayout: ctx.isRootLayout,
       });
-  if (properties.staticParams && inferredMode === "ssr") {
+  if (ctx.hasStaticParams && inferredMode === "ssr") {
     throw routeConfigError(ctx.filePath, "staticParams requires mode ssg or isr");
   }
   return { inferredMode, layoutValue };
@@ -1097,6 +1101,7 @@ export function fixRouteConfigLayout(
   );
   const bindings = collectBuilderBindings(parsed.program);
   const hasLoader = builderChainHasMethod(parsed.program, bindings, "loader");
+  const hasStaticParams = builderChainHasMethod(parsed.program, bindings, "staticParams");
   const heads = collectChainHeads(parsed.program, bindings).filter(
     (candidate) => candidate.end !== 0
   );
@@ -1116,6 +1121,7 @@ export function fixRouteConfigLayout(
     expectedResolvedPath,
     filePath,
     hasLoader,
+    hasStaticParams,
     imports,
     isRootLayout: convention.isRootLayout,
     lastImportEnd,

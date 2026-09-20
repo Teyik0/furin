@@ -32,13 +32,14 @@ The chain order is fixed:
 ```text
 defineRoute()
   → config()
+  → staticParams()? (SSG/ISR only)
   → requestLoader()?
   → loader()?
   → head()?
   → page() or layout()
 ```
 
-`config()` and the terminal `page()` or `layout()` are required. Optional stages disappear from the builder once used, preventing duplicate or out-of-order declarations.
+`config()` and the terminal `page()` or `layout()` are required. Optional stages disappear from the builder once used, preventing duplicate or out-of-order declarations. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering) for nested build-time params and lazy parent loader data.
 
 ## Dynamic Parameters
 

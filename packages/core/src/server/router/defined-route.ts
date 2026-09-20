@@ -13,7 +13,7 @@ interface DefinedRouteTerminal {
   requestLoader?: (...args: never[]) => unknown;
   revalidate?: number;
   schemas?: { params?: unknown; query?: unknown };
-  staticParams?: () => Promise<readonly unknown[]> | readonly unknown[];
+  staticParams?: (context: never) => Promise<readonly unknown[]> | readonly unknown[];
   tags?: readonly string[];
 }
 
@@ -51,6 +51,7 @@ export function adaptDefinedLayout(
     requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     revalidate: route.revalidate,
     sourcePath,
+    staticParams: route.staticParams as RuntimeRoute["staticParams"],
     tags: copyTags(route.tags),
   };
 }

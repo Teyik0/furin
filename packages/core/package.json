@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.4.0-alpha.2",
+  "version": "0.4.0-alpha.4",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
@@ -40,6 +40,11 @@
       "types": "./dist/cache.d.ts",
       "bun": "./src/cache.ts",
       "import": "./dist/cache.js"
+    },
+    "./cache/redis": {
+      "types": "./dist/server/cache/redis/index.d.ts",
+      "bun": "./src/server/cache/redis/index.ts",
+      "import": "./dist/server/cache/redis/index.js"
     },
     "./routes": {
       "types": "./dist/routes.d.ts",
@@ -137,8 +142,8 @@
     "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
     "build": "bun run build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --parallel --isolate --max-concurrency 8 --bail",
-    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 8 --bail",
+    "test": "bun test --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
+    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
     "tscheck": "tsc --noEmit"

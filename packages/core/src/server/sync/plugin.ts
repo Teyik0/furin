@@ -214,7 +214,7 @@ export function furinSync(options: SyncRuntimeOptions) {
     const manualPending = peekPendingInvalidations();
     const invalidate = routeMetadata.get(ctx.request)?.invalidate;
     if (invalidate) {
-      runInvalidationRules(invalidate);
+      await runInvalidationRules(invalidate);
     }
     const pending = appendPendingInvalidationHeader(ctx.set);
     if (pending.length > 0) {

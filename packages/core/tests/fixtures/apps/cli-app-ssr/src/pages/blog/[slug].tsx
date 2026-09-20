@@ -7,6 +7,6 @@ export const route = defineRoute()
     layout: rootRoute,
     mode: "ssg",
     params: t.Object({ slug: t.String() }),
-    staticParams: () => [{ slug: "hello-world" }],
   })
+  .staticParams(() => [{ slug: "hello-world" }])
   .page(() => <article>Blog post page</article>);

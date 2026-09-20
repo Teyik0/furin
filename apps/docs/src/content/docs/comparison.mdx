@@ -80,12 +80,12 @@ Mutations remain ordinary Elysia routes, usually called through Eden Treaty. Fur
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
 | Static output | Built in | Prerendering support | SSG-only static exporter |
-| Incremental content | Framework caching and revalidation | Application/adapter strategy | Process-local ISR cache with time/path/tag invalidation |
+| Incremental content | Framework caching and revalidation | Application/adapter strategy | Built-in ISR with memory or Redis page cache and path/tag invalidation |
 | Personalization | Dynamic APIs and component boundaries | Server functions/loaders | SSR or `requestLoader()` beside cached public data |
 | Main deployment story | Vercel and self-hosting | Adapter ecosystem | Vercel, Bun server, Bun executable, static files |
 | Composable artifact | Framework/application deployment | Adapter-dependent | Packaged Furin app as an Elysia plugin |
 
-Furin's Bun origin page cache is process-local. Sync can distribute browser invalidations, and `setCachePurger()` can purge an upstream CDN, but neither is a shared multi-replica HTML cache. The Vercel target delegates public SSG/ISR pages and PPR shells to Vercel's native cache, then resumes private PPR content in a Function. Coherent public PPR artifacts also use Runtime Cache for origin rendering and navigation. Node.js and Cloudflare build targets remain planned.
+Furin uses an instance-local memory page cache by default and supports a Redis adapter for shared SSG, ISR, and PPR artifacts across Bun replicas. Distributed regeneration leases and fenced writes prevent duplicate work and stale publication after invalidation. Sync remains responsible for browser invalidations, while `setCachePurger()` handles an upstream CDN. The Vercel target delegates public SSG/ISR pages and PPR shells to Vercel's native cache, then resumes private PPR content in a Function. Coherent public PPR artifacts also use Runtime Cache for origin rendering and navigation. Node.js and Cloudflare build targets remain planned.
 
 ## React Server Components
 
@@ -112,7 +112,7 @@ Choose **Furin** when:
 - Explicit route rendering modes and Elysia/TypeBox inference fit the team's mental model.
 - Alpha maturity, Bun-only deployment, and the documented HMR/cache limitations are acceptable.
 
-The recommended direction for Furin is to keep the Bun-native architecture. Replacing it with Vite would close some HMR gaps quickly but create two development architectures and erase its clearest distinction. The higher-value path is stronger browser conformance, persistent graph performance work, and explicit shared-cache/deployment adapters.
+The recommended direction for Furin is to keep the Bun-native architecture. Replacing it with Vite would close some HMR gaps quickly but create two development architectures and erase its clearest distinction. The higher-value path is stronger browser conformance, persistent graph performance work, and broader deployment-adapter coverage.
 
 Next.js has the broadest integrated cache revalidation API. TanStack Start emphasizes typed same-origin Server Functions and deliberate client-cache integration. Furin keeps standard HTTP routes as the public mutation contract and adds an optional durable replay/change journal around them. For multi-replica production, PostgreSQL is the recommended source of truth and native `LISTEN/NOTIFY` wake-up path; Redis remains an optional independent notifier.
 
