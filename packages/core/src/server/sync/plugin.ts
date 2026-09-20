@@ -6,7 +6,7 @@ import {
 } from "../auto-invalidate/runtime.ts";
 import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
-import { useLogger as getLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import type { MutationLease, SyncInvalidation, SyncRuntimeOptions } from "./adapter.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
 import { mergeStoredResponseHeaders, replayResponse, storeResponse } from "./response.ts";
@@ -285,6 +285,9 @@ export function furinSync(options: SyncRuntimeOptions) {
   const finishMutationHook = hideTransportResponse(finishMutation);
 
   return new Elysia({ name: "furin-sync" })
+    .beforeHandle("global", beginMutationHook)
+    .afterHandle("global", finishMutationHook)
+    .error("global", ({ request }) => abortMutation(request))
     .macro({
       sync(input: SyncRouteOption) {
         return {
@@ -298,8 +301,5 @@ export function furinSync(options: SyncRuntimeOptions) {
           },
         };
       },
-    })
-    .onBeforeHandle({ as: "global" }, beginMutationHook)
-    .onAfterHandle({ as: "global" }, finishMutationHook)
-    .onError({ as: "global" }, ({ request }) => abortMutation(request));
+    });
 }

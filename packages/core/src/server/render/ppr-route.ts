@@ -9,7 +9,7 @@ import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
 import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
 import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
@@ -110,7 +110,7 @@ async function readPprArtifact(key: string, buildId: string): Promise<PprArtifac
     await pprPublicResult(artifact.state);
     return artifact;
   } catch {
-    useLogger().warn("PPR runtime cache read failed; rendering fresh public data");
+    getLogger().warn("PPR runtime cache read failed; rendering fresh public data");
   }
 }
 
@@ -153,7 +153,7 @@ async function writePprArtifact(
       ttl,
     });
   } catch {
-    useLogger().warn("PPR runtime cache write failed; serving the fresh result");
+    getLogger().warn("PPR runtime cache write failed; serving the fresh result");
   }
 }
 
@@ -209,7 +209,7 @@ async function renderSharedPpr(
         lease,
       });
     } catch {
-      useLogger().warn("PPR shared page cache write failed; serving fresh public data");
+      getLogger().warn("PPR shared page cache write failed; serving fresh public data");
     }
     return result;
   } finally {
@@ -217,7 +217,7 @@ async function renderSharedPpr(
       try {
         await input.pageCache.release({ identity, lease });
       } catch {
-        useLogger().warn("PPR shared page cache lease release failed");
+        getLogger().warn("PPR shared page cache lease release failed");
       }
     }
   }
@@ -234,7 +234,7 @@ function revalidateSharedPpr(
   const refresh = renderSharedPpr(input, identity, lease, revalidate)
     .then(() => undefined)
     .catch(() => {
-      useLogger().warn("PPR shared page cache background regeneration failed");
+      getLogger().warn("PPR shared page cache background regeneration failed");
     })
     .finally(() => pending.delete(pendingKey));
   pending.set(pendingKey, refresh);
@@ -257,7 +257,7 @@ async function lookupSharedPpr(
       available: true,
     };
   } catch {
-    useLogger().warn("PPR shared page cache read failed; rendering fresh public data");
+    getLogger().warn("PPR shared page cache read failed; rendering fresh public data");
     return { artifact: undefined, available: false };
   }
 }
@@ -300,7 +300,7 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
   try {
     lease = await input.pageCache.acquire({ identity, leaseMs: 30_000 });
   } catch {
-    useLogger().warn("PPR shared page cache lease failed");
+    getLogger().warn("PPR shared page cache lease failed");
     if (cachedArtifact !== undefined) {
       return cachedArtifact;
     }
@@ -322,7 +322,7 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
         }
       }
     } catch {
-      useLogger().warn("PPR shared page cache wait failed; rendering fresh public data");
+      getLogger().warn("PPR shared page cache wait failed; rendering fresh public data");
     }
   }
   return renderSharedPpr(input, identity, lease, revalidate);

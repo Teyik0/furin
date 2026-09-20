@@ -127,15 +127,13 @@ test("furinSync durably preserves manual and declarative invalidations", async (
     publish: () => Promise.resolve(),
     subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
   };
-  const app = new Elysia().use(furinSync({ adapter, notifier, principal: () => "principal" })).post(
-    "/cards",
-    () => {
+  const app = new Elysia()
+    .use(furinSync({ adapter, notifier, principal: () => "principal" }))
+    .post("/cards", { sync: { invalidate: { path: "/declared", type: "layout" } } }, () => {
       revalidatePath("/manual", "page");
       revalidatePath("/declared", "layout");
       return { ok: true };
-    },
-    { sync: { invalidate: { path: "/declared", type: "layout" } } }
-  );
+    });
 
   try {
     const response = await _runWithRequestInvalidationScope(() =>
@@ -169,14 +167,16 @@ test("furinSync completes idempotency when cache invalidation is unavailable", a
   };
   setPageCacheAdapter(defaultInstanceBucket(), pageCache);
   let mutationCalls = 0;
-  const app = new Elysia().use(furinSync(testSync)).post(
-    "/invalidation-outage",
-    () => {
-      mutationCalls += 1;
-      return { mutationCalls };
-    },
-    { sync: { invalidate: { path: "/cards", type: "page" } } }
-  );
+  const app = new Elysia()
+    .use(furinSync(testSync))
+    .post(
+      "/invalidation-outage",
+      { sync: { invalidate: { path: "/cards", type: "page" } } },
+      () => {
+        mutationCalls += 1;
+        return { mutationCalls };
+      }
+    );
   const request = () =>
     app.handle(
       new Request("http://localhost/invalidation-outage", {
@@ -269,13 +269,11 @@ test("furinSync schedules the next lease renewal while the current renewal is pe
 test("furinSync direct handle completes inside bun:test", async () => {
   resetSyncTestState();
   try {
-    const app = new Elysia().use(furinSync(testSync)).post(
-      "/cards",
-      () => ({
+    const app = new Elysia()
+      .use(furinSync(testSync))
+      .post("/cards", { sync: { invalidate: { path: "/board", type: "layout" } } }, () => ({
         ok: true,
-      }),
-      { sync: { invalidate: { path: "/board", type: "layout" } } }
-    );
+      }));
 
     const response = await app.handle(
       new Request("http://localhost/cards", {
@@ -330,14 +328,10 @@ test("furinSync enforces idempotent mutation semantics directly", async () => {
         calls += 1;
         return { calls };
       })
-      .post(
-        "/opted-out",
-        () => {
-          calls += 1;
-          return { calls };
-        },
-        { sync: false }
-      );
+      .post("/opted-out", { sync: false }, () => {
+        calls += 1;
+        return { calls };
+      });
 
     let response = await syncApp.handle(new Request("http://localhost/synced", { method: "POST" }));
     expect(response.status).toBe(428);
@@ -500,9 +494,11 @@ test("furinSync publishes invalidations for successful mutations with unreplayab
   };
   const app = new Elysia()
     .use(furinSync({ adapter, notifier, principal: () => "principal" }))
-    .post("/download", () => new Response("ok"), {
-      sync: { invalidate: { path: "/board", type: "layout" } },
-    });
+    .post(
+      "/download",
+      { sync: { invalidate: { path: "/board", type: "layout" } } },
+      () => new Response("ok")
+    );
 
   try {
     const response = await _runWithRequestInvalidationScope(() =>

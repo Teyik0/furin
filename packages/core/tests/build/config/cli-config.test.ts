@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { loadCliConfig } from "../../../src/cli/config";
+import { BUILD_TARGETS } from "../../../src/config";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
@@ -17,6 +18,10 @@ afterEach(() => {
 });
 
 describe("CLI config resolution", () => {
+  test("only advertises implemented runtime adapters", () => {
+    expect(BUILD_TARGETS).toEqual(["bun", "vercel", "static", "package"]);
+  });
+
   test("loadCliConfig uses defaults when no config file is present", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
 

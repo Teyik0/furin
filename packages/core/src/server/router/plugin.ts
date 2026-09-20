@@ -5,7 +5,7 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { containsRscSource } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
@@ -346,6 +346,9 @@ export function createDataEndpoint(
 
   plugin.get(
     "/_furin/data",
+    {
+      query: t.Object({ path: t.Optional(t.String()) }),
+    },
     async (ctx) => {
       const rawPath = ctx.query.path;
       if (!rawPath || typeof rawPath !== "string") {
@@ -363,7 +366,7 @@ export function createDataEndpoint(
       // instead of the technical "/_furin/data" transport URL. We set this
       // before the route-match check so 404s also surface the attempted path
       // — otherwise monitoring just sees "GET /_furin/data 404" with no clue.
-      const wideEventLog = useLogger();
+      const wideEventLog = getLogger();
       wideEventLog.set({ path: rawPath });
 
       let currentRoutes: ResolvedRoute[];
@@ -449,9 +452,6 @@ export function createDataEndpoint(
       );
 
       return createLoaderDataResponse(result, matched.route, syntheticRequest.url, syntheticCtx);
-    },
-    {
-      query: t.Object({ path: t.Optional(t.String()) }),
     }
   );
 

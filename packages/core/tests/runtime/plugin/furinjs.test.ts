@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import Elysia from "elysia";
+import Elysia, { type AnyElysia } from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import { routeModuleSpecifier } from "../../../src/plugin/routes.ts";
 import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
@@ -26,7 +26,7 @@ function rememberTmpApp(app: TmpApp): TmpApp {
   return app;
 }
 
-async function createTestApp(options: FurinOptions): Promise<Elysia> {
+async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
   return new Elysia().use(await furin(options));
 }
 
@@ -179,6 +179,7 @@ test.serial("furin() refreshes route types after a topology change", async () =>
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
+  await Promise.resolve();
   try {
     writeAppFile(
       app.path,
@@ -257,6 +258,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   try {
     instance = await createTestApp({ pagesDir });
     instance.listen(0);
+    await Promise.resolve();
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     try {
       writeAppFile(
@@ -310,6 +312,7 @@ test.serial("furin() restores a removed route layout while the dev server is run
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
+  await Promise.resolve();
   try {
     const source = readFileSync(routePath, "utf8");
     writeAppFile(app.path, "src/pages/index.tsx", source.replace("layout: rootRoute, ", ""));

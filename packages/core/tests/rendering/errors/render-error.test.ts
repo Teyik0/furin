@@ -4,6 +4,7 @@ import type { HTTPHeaders } from "elysia/types";
 import { createElement, type ReactNode } from "react";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
 import { renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
@@ -449,11 +450,15 @@ describe("renderSSR — digest", () => {
       pattern: "/blog",
     });
 
-    const response = await renderSSR(
-      routeWithError,
-      createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
-      undefined
+    const response = await runInSyntheticRenderScope(
+      () =>
+        renderSSR(
+          routeWithError,
+          createMockLoaderContext({ path: "/blog" }),
+          createTestRoot(RootError),
+          undefined
+        ),
+      { path: "/blog" }
     );
     const body = await response.text();
     expect(body).toContain("__furinError");
@@ -497,11 +502,15 @@ describe("renderSSR — digest", () => {
       pattern: "/blog",
     });
 
-    const response = await renderSSR(
-      routeWithError,
-      createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
-      undefined
+    const response = await runInSyntheticRenderScope(
+      () =>
+        renderSSR(
+          routeWithError,
+          createMockLoaderContext({ path: "/blog" }),
+          createTestRoot(RootError),
+          undefined
+        ),
+      { path: "/blog" }
     );
     await response.text(); // drain
 

@@ -1,5 +1,3 @@
-// biome-ignore-all lint/correctness/useHookAtTopLevel: useLogger is not a hook attached to a react component
-
 import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
@@ -18,7 +16,7 @@ import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { runInSyntheticRenderScope, useLogger } from "../context-logger.ts";
+import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 // FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -558,7 +556,7 @@ export function renderForPath(
         return prepared;
       }
 
-      useLogger().set({
+      getLogger().set({
         furin: {
           cache: mode === "isr" ? "revalidated" : "miss",
           loader_ms: prepared.loader_ms,
@@ -852,7 +850,7 @@ export async function renderSSR(
     return prepared;
   }
 
-  useLogger().set({
+  getLogger().set({
     furin: {
       loader_ms: prepared.loader_ms,
       render: route.mode,
@@ -900,7 +898,7 @@ export async function renderSSR(
     status = 500;
     finalDigest = shellError.digest;
     finalMessage = shellError.message;
-    useLogger().set({
+    getLogger().set({
       furin: { digest: finalDigest, phase: "shell", render: route.mode, route: route.pattern },
     });
   }

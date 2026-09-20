@@ -15,8 +15,8 @@ const paramsSchema = t.Object({ id: t.Numeric() });
 const querySchema = t.Object({ filter: t.Optional(t.String()) });
 const route = new Elysia().get(
   "/",
-  ({ params, query }) => ({ filter: query.filter, id: params.id }),
-  { params: paramsSchema, query: querySchema }
+  { params: paramsSchema, query: querySchema },
+  ({ params, query }) => ({ filter: query.filter, id: params.id })
 );
 const app = new Elysia().use(new Elysia({ prefix: "/boards/:id" }).use(route));
 
@@ -34,19 +34,19 @@ describe("Elysia contract", () => {
     expectTypeOf<FurinUnwrap<typeof querySchema>>().toEqualTypeOf<{ filter?: string }>();
   });
 
-  test("pins the Elysia 1.4 handler-first route signature", () => {
-    new Elysia().get("/", ({ params }) => params.id, { params: paramsSchema });
+  test("pins the Elysia 2 hook-first route signature", () => {
+    new Elysia().get("/", { params: paramsSchema }, ({ params }) => params.id);
 
-    const invalidHookFirst = () => {
-      // @ts-expect-error Elysia 1.4 uses get(path, handler, hook), not hook-first.
-      new Elysia().get("/", { params: paramsSchema }, ({ params }) => params.id);
+    const invalidHandlerFirst = () => {
+      // @ts-expect-error Elysia 2 uses get(path, hook, handler), not handler-first.
+      new Elysia().get("/", ({ params }) => params.id, { params: paramsSchema });
     };
-    expectTypeOf(invalidHookFirst).returns.toBeVoid();
+    expectTypeOf(invalidHandlerFirst).returns.toBeVoid();
   });
 
   test("propagates parent promises to nested routes without awaiting independent work", async () => {
     const nested = new Elysia()
-      .derive({ as: "scoped" }, () => ({ parentData: Promise.resolve({ user: "teyik" }) }))
+      .derive("plugin", () => ({ parentData: Promise.resolve({ user: "teyik" }) }))
       .use(
         new Elysia({ prefix: "/:id" }).get("/", async (context) => {
           const { parentData } = context as typeof context & {

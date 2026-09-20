@@ -215,7 +215,7 @@ describe("furinInvalidate macro", () => {
 
     const app = new Elysia()
       .use(furinInvalidate())
-      .post("/cards", () => ({ ok: true }), { invalidate: { tags: ["board"] } });
+      .post("/cards", { invalidate: { tags: ["board"] } }, () => ({ ok: true }));
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -233,9 +233,9 @@ describe("furinInvalidate macro", () => {
 
     const app = new Elysia()
       .use(furinInvalidate())
-      .post("/cards", ({ status }) => status("Bad Request", "bad"), {
-        invalidate: { tags: ["board"] },
-      });
+      .post("/cards", { invalidate: { tags: ["board"] } }, ({ status }) =>
+        status("Bad Request", "bad")
+      );
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/cards", { method: "POST" }))
@@ -282,12 +282,12 @@ describe("furinInvalidate macro", () => {
 
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
-      .post("/boards", () => ({ id: "x" }), { invalidate: { tags: ["boards"] } })
-      .delete("/boards/:id", () => ({ ok: true }), { invalidate: { tags: ["boards"] } });
+      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "x" }))
+      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
 
     const cardPlugin = new Elysia()
       .use(furinInvalidate())
-      .post("/cards", () => ({ ok: true }), { invalidate: { tags: ["cards"] } });
+      .post("/cards", { invalidate: { tags: ["cards"] } }, () => ({ ok: true }));
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin).use(cardPlugin);
 
@@ -309,18 +309,17 @@ describe("furinInvalidate macro", () => {
 
     const inner = new Elysia()
       .use(furinInvalidate())
-      .delete("/boards/:id", () => ({ ok: true }), { invalidate: { tags: ["boards"] } });
+      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
 
     const api = new Elysia({ prefix: "/api" }).use(inner);
 
     // Mirror `wrapWithRequestScope`: app.wrap(...) — installs the AsyncLocalStorage
     // scope around the composed handler instead of using the test helper.
-    const wrapped = new Elysia()
-      .use(api)
-      .wrap(
-        (handler, _request) => (ctx: unknown) =>
-          _runWithRequestInvalidationScope(() => handler(ctx))
-      );
+    const wrapped = new Elysia().use(api).wrap(
+      (fetch) =>
+        (request, ...rest) =>
+          _runWithRequestInvalidationScope(() => fetch(request, ...rest))
+    );
 
     // Note: we deliberately do NOT use _runWithRequestInvalidationScope here —
     // the .wrap() above should be sufficient.
@@ -342,10 +341,8 @@ describe("furinInvalidate macro", () => {
     const boardPlugin = new Elysia()
       .use(furinInvalidate())
       .get("/boards", () => ({ list: [] }))
-      .post("/boards", () => ({ id: "new" }), { invalidate: { tags: ["boards"] } })
-      .delete("/boards/:boardId", () => ({ ok: true }), {
-        invalidate: { tags: ["boards"] },
-      })
+      .post("/boards", { invalidate: { tags: ["boards"] } }, () => ({ id: "new" }))
+      .delete("/boards/:boardId", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }))
       .get("/boards/:boardId", () => ({ id: "x" }));
 
     const api = new Elysia({ prefix: "/api" }).use(boardPlugin);
@@ -369,7 +366,7 @@ describe("furinInvalidate macro", () => {
 
     const app = new Elysia()
       .use(furinInvalidate())
-      .delete("/boards/:id", () => ({ ok: true }), { invalidate: { tags: ["boards"] } });
+      .delete("/boards/:id", { invalidate: { tags: ["boards"] } }, () => ({ ok: true }));
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/boards/abc", { method: "DELETE" }))
@@ -383,9 +380,11 @@ describe("furinInvalidate macro", () => {
   test("supports path-based invalidation rules", async () => {
     setISRCache("/blog/post", { generatedAt: Date.now(), html: "post", revalidate: 60 });
 
-    const app = new Elysia().use(furinInvalidate()).delete("/posts/1", () => ({ ok: true }), {
-      invalidate: { path: "/blog/post", type: "page" },
-    });
+    const app = new Elysia()
+      .use(furinInvalidate())
+      .delete("/posts/1", { invalidate: { path: "/blog/post", type: "page" } }, () => ({
+        ok: true,
+      }));
 
     const response = await _runWithRequestInvalidationScope(() =>
       app.handle(new Request("http://localhost/posts/1", { method: "DELETE" }))

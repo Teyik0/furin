@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
 
 const { furin } = await import("../../../src/furin");
@@ -9,7 +9,7 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
 
-async function createTestApp(clientLogging: boolean): Promise<Elysia> {
+async function createTestApp(clientLogging: boolean): Promise<AnyElysia> {
   return new Elysia().use(await furin({ clientLogging, pagesDir: fixturesDir }));
 }
 

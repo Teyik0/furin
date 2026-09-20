@@ -230,11 +230,6 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
           options
         );
         break;
-      case "node":
-      case "cloudflare":
-        throw new Error(
-          `[furin] \`--target ${target}\` is planned but not implemented yet in this branch.`
-        );
       default:
         throw new Error(`[furin] Unsupported build target "${target}"`);
     }

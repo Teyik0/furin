@@ -13,7 +13,31 @@ Furin ships a native Vercel Build Output target plus four Bun-native production 
 | Only SSG pages and no request runtime | Static export |
 | Publish a Furin app for another Elysia host | Package target |
 
-Node.js and Cloudflare build targets are named in the CLI schema but are not implemented. Their commands fail rather than producing partial output.
+Furin intentionally exposes only adapters it can build and verify today. Node.js and Cloudflare are not accepted build targets; use Bun, Vercel's Bun runtime, a static export, or the package target.
+
+## Elysia 2 / Kiana Migration
+
+Furin pins the Elysia 2 beta line and its matching official packages. Existing applications should run the official codemod first, then let TypeScript expose the Furin-specific integration points:
+
+```sh
+bunx @elysia/codemod@latest
+bun add elysia@2.0.0-beta.16 @elysia/eden@2.0.0-beta.5 @elysia/static@2.0.0-beta.2 typebox@1.3.34 exact-mirror@1.2.6
+```
+
+The important manual checks are:
+
+- route arguments are now `(path, hooks, handler)`;
+- lifecycle registration drops the `on` prefix (`beforeHandle`, `afterHandle`, `error`, `request`, and `afterResponse`);
+- lifecycle scope `scoped` is now `plugin`;
+- official plugins move from `@elysiajs/*` to `@elysia/*`;
+- TypeBox 1 uses the `typebox` package;
+- WebSocket support is explicit through `elysia/websocket`.
+
+See the official [Elysia 2 DayDream release post](https://elysiajs.com/blog/elysia-20) for the complete breaking-change list.
+
+Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. It generates a real, listener-free application entry for Elysia's dry run and keeps the boot entry separate. The current Kiana beta receives `strip: false`: its no-WebSocket stub omits exports still imported by the WebSocket capability module and therefore breaks applications that do not mount Sync. Handler and validator AOT remain enabled; only removal of the runtime compiler fallback is deferred until the upstream stub exposes its complete import surface. A compiled Sync application is also exercised end-to-end to ensure its production WebSocket still opens.
+
+No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
 
 ## Bun Server Bundle
 
@@ -44,7 +68,7 @@ Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, 
 
 The Vercel adapter emits the [Build Output API v3](https://vercel.com/docs/build-output-api) directly. It uses the Vercel Bun runtime, serves browser and `public/` assets from the CDN, and keeps SSR, SSG, ISR, API routes, streaming, and SPA navigation in one Furin application.
 
-Application `@elysiajs/static` mounts are not supported by this target and fail the build rather than deploying a missing runtime directory. Place files under `public/` to serve them through the CDN.
+Application `@elysia/static` mounts are not supported by this target and fail the build rather than deploying a missing runtime directory. Place files under `public/` to serve them through the CDN.
 
 ### Server entry
 

@@ -5,7 +5,7 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
@@ -196,7 +196,7 @@ export async function resumePprDocument(
     if (artifact.state.postponed !== null) {
       const stream = await resume(tree, structuredClone(artifact.state.postponed), {
         onError: (error) => {
-          useLogger().error(error instanceof Error ? error : new Error(String(error)));
+          getLogger().error(error instanceof Error ? error : new Error(String(error)));
           return computeErrorDigest(error);
         },
         signal: ctx.request.signal,

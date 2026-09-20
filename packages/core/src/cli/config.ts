@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { Validator } from "elysia";
 import { configSchema, type FurinConfig } from "../config.ts";
-import { TypeCompiler } from "../shared/elysia-contract.ts";
 
-const compiledConfigSchema = TypeCompiler.Compile(configSchema);
+const compiledConfigSchema = Validator.create(configSchema);
 
 const DEFAULT_CONFIG_FILENAMES = [
   "furin.config.ts",
@@ -57,7 +57,7 @@ export async function loadCliConfig(
   if (!compiledConfigSchema.Check(configToValidate)) {
     const [firstError] = compiledConfigSchema.Errors(configToValidate);
     throw new Error(
-      `[furin] Invalid config at ${configPath}: ${firstError?.message ?? "unknown error"} (path: ${firstError?.path ?? "/"})`
+      `[furin] Invalid config at ${configPath}: ${firstError?.message ?? "unknown error"} (path: ${firstError?.instancePath ?? "/"})`
     );
   }
 

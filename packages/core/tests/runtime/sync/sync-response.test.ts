@@ -38,16 +38,14 @@ function replayApp(storedHeaders: HeadersInit, replayHeaders: Record<string, str
     scope: "process-local",
   };
 
-  return new Elysia().use(furinSync({ adapter, notifier, principal: () => "test" })).post(
-    "/mutation",
-    ({ set }) => {
+  return new Elysia()
+    .use(furinSync({ adapter, notifier, principal: () => "test" }))
+    .post("/mutation", { sync: { tags: [] } }, ({ set }) => {
       Object.assign(set.headers, replayHeaders);
       return new Response("stored", {
         headers: new Headers([["content-length", "6"], ...new Headers(storedHeaders).entries()]),
       });
-    },
-    { sync: { tags: [] } }
-  );
+    });
 }
 
 async function executeAndReplay(app: SyncTestApp): Promise<Response> {

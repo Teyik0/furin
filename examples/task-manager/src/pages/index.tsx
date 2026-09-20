@@ -1,22 +1,18 @@
 import { defineRoute } from "@teyik0/furin";
+import { getBoards } from "@/api/modules/boards/service";
 import { BoardCard } from "@/components/board-card";
 import { CreateBoardForm } from "@/components/create-board-form";
-import { client } from "@/lib/api";
 import { route as rootRoute } from "./root";
 
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "isr", revalidate: 10, tags: ["boards"] })
-  .loader(async () => {
-    const result = await client.boards.get();
-    if (result.error) {
-      throw new Error(`Failed to load boards (${result.error.status})`);
-    }
+  .loader(() => {
     const generatedAt = new Date().toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
-    const boards = result.data.map((board) => ({
+    const boards = getBoards().map((board) => ({
       ...board,
       formattedCreatedAt: new Date(board.createdAt).toLocaleDateString("en-US", {
         day: "numeric",

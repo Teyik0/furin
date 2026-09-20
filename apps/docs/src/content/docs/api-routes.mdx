@@ -12,13 +12,13 @@ export const postsApi = new Elysia({ prefix: "/api/posts" })
   .get("/", () => db.posts.findMany())
   .post(
     "/",
-    ({ body }) => db.posts.create(body),
     {
       body: t.Object({
         title: t.String({ minLength: 1 }),
         content: t.String(),
       }),
-    }
+    },
+    ({ body }) => db.posts.create(body)
   );
 ```
 
@@ -57,7 +57,7 @@ export const accountApi = new Elysia({ prefix: "/api/account" })
   );
 ```
 
-Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `scoped`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
+Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `plugin`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
 
 ## Typed Browser Client
 
@@ -65,7 +65,7 @@ Eden Treaty can derive a client from the exported Elysia type:
 
 ```ts
 // src/lib/api.ts
-import { treaty } from "@elysiajs/eden";
+import { treaty } from "@elysia/eden";
 import type { App } from "../server";
 
 export const api = treaty<App>(window.location.origin);
@@ -75,7 +75,7 @@ For a module imported by both server loaders and browser components, use `create
 
 ```ts
 // src/lib/posts-api.ts
-import { treaty } from "@elysiajs/eden";
+import { treaty } from "@elysia/eden";
 import { createIsomorphicFn } from "@teyik0/furin";
 import { postsApi } from "../api/posts";
 
@@ -111,10 +111,14 @@ import { Elysia, t } from "elysia";
 
 export const postsApi = new Elysia({ prefix: "/api/posts" })
   .use(furinInvalidate())
-  .post("/", ({ body }) => db.posts.create(body), {
-    body: t.Object({ title: t.String() }),
-    invalidate: { tags: ["posts"] },
-  });
+  .post(
+    "/",
+    {
+      body: t.Object({ title: t.String() }),
+      invalidate: { tags: ["posts"] },
+    },
+    ({ body }) => db.posts.create(body)
+  );
 ```
 
 Successful responses invalidate the origin cache and carry `X-Furin-Revalidate`, allowing the initiating tab to evict prefetched data and refresh an affected page.

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -146,7 +147,7 @@ describe("sync adapter bundle isolation", () => {
         const result = await Bun.build({
           entrypoints: [join(fixture, "entry.ts")],
           external: [
-            "@elysiajs/static",
+            "@elysia/static",
             "@jridgewell/trace-mapping",
             "@yuku-toolchain/types",
             "elysia",
@@ -186,10 +187,19 @@ describe("sync adapter bundle isolation", () => {
 });
 
 function pack(packageDirectory: string, destination: string): string {
+  const workspaceDirectory = join(destination, "workspace");
+  const stagingDirectory = join(workspaceDirectory, "packages/core");
+  mkdirSync(stagingDirectory, { recursive: true });
+  const repositoryRoot = resolve(packageDirectory, "../..");
+  cpSync(join(repositoryRoot, "package.json"), join(workspaceDirectory, "package.json"));
+  cpSync(join(repositoryRoot, "bun.lock"), join(workspaceDirectory, "bun.lock"));
+  for (const entry of ["dist", "src", "LICENSE", "README.md", "package.json"]) {
+    cpSync(join(packageDirectory, entry), join(stagingDirectory, entry), { recursive: true });
+  }
   const before = new Set(readdirSync(destination));
   const result = Bun.spawnSync({
     cmd: ["bun", "pm", "pack", "--destination", destination],
-    cwd: packageDirectory,
+    cwd: stagingDirectory,
     stderr: "pipe",
     stdout: "pipe",
   });

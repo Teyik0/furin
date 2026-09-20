@@ -1,17 +1,14 @@
-import { getSchemaValidator as elysiaGetSchemaValidator } from "elysia";
-import {
-  parseQueryFromURL as elysiaParseQueryFromURL,
-  parseQueryStandardSchema as elysiaParseQueryStandardSchema,
-} from "elysia/parse-query";
-import { TypeCompiler as ElysiaTypeCompiler } from "elysia/type-system";
-import type { AnySchema, UnwrapSchema } from "elysia/types";
+import { type AnySchema, type UnwrapSchema, Validator } from "elysia";
+import { parseQueryFromURL as elysiaParseQueryFromURL } from "elysia/parse-query";
 
 export const parseQueryFromURL = elysiaParseQueryFromURL;
-export const parseQueryStandardSchema = elysiaParseQueryStandardSchema;
-export const TypeCompiler = ElysiaTypeCompiler;
 
 interface SchemaObject {
   [key: string]: unknown;
+}
+
+interface TypeBoxObjectSchema extends SchemaObject {
+  properties: SchemaObject;
 }
 
 const TYPEBOX_KIND = Symbol.for("TypeBox.Kind");
@@ -23,21 +20,21 @@ const TYPEBOX_KIND = Symbol.for("TypeBox.Kind");
 export type FurinSchema = AnySchema;
 
 interface FurinSchemaValidator {
-  Check: (value: unknown) => unknown;
+  Check: (value: unknown) => boolean;
   Errors: (value: unknown) => Iterable<unknown>;
-  parse: (value: unknown) => unknown;
+  parse: (value: unknown, type: "params" | "query") => Promise<unknown>;
 }
 
-interface FurinSchemaValidatorOptions {
-  coerce?: boolean;
-  dynamic?: boolean;
-}
-
-export function getSchemaValidator(
-  schema: FurinSchema,
-  options: FurinSchemaValidatorOptions
-): FurinSchemaValidator | undefined {
-  return elysiaGetSchemaValidator(schema, options) as FurinSchemaValidator | undefined;
+export function getSchemaValidator(schema: FurinSchema): FurinSchemaValidator | undefined {
+  const validator = Validator.create(schema);
+  if (validator === undefined) {
+    return;
+  }
+  return {
+    Check: (value) => validator.Check(value),
+    Errors: (value) => validator.Errors(value),
+    parse: async (value, type) => (validator.From ? await validator.From(value, type) : value),
+  };
 }
 
 export type FurinUnwrap<Schema extends FurinSchema | undefined> = UnwrapSchema<Schema>;
@@ -54,10 +51,14 @@ export type ElysiaRouteParams<Leaf> = Leaf extends { params: infer Params } ? Pa
 
 export type ElysiaRouteQuery<Leaf> = Leaf extends { query: infer Query } ? Query : never;
 
-export function isTypeBoxObjectSchema(schema: unknown): schema is SchemaObject {
+export function isTypeBoxObjectSchema(schema: unknown): schema is TypeBoxObjectSchema {
   if (schema === null || typeof schema !== "object") {
     return false;
   }
   const candidate = schema as SchemaObject & { [key: symbol]: unknown };
-  return candidate[TYPEBOX_KIND] === "Object" || candidate["~kind"] === "Object";
+  return (
+    (candidate[TYPEBOX_KIND] === "Object" || candidate["~kind"] === "Object") &&
+    candidate.properties !== null &&
+    typeof candidate.properties === "object"
+  );
 }

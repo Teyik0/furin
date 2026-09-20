@@ -94,7 +94,7 @@ describe("mergeRouteSchemas", () => {
     ];
 
     expect(() => mergeRouteSchemas(chain as RuntimeRoute[], "query")).toThrow(
-      "[furin] Merging query schemas across the route chain requires TypeBox in V1. Use TypeBox for parent/child query, or define query only on leaf routes."
+      "[furin] Merging query schemas across the route chain requires TypeBox object schemas. Use TypeBox for parent/child query, or define query only on leaf routes."
     );
   });
 
@@ -111,7 +111,7 @@ describe("mergeRouteSchemas", () => {
     ];
 
     expect(() => mergeRouteSchemas(chain as RuntimeRoute[], "query")).toThrow(
-      "[furin] Merging query schemas across the route chain requires TypeBox in V1. Use TypeBox for parent/child query, or define query only on leaf routes."
+      "[furin] Merging query schemas across the route chain requires TypeBox object schemas. Use TypeBox for parent/child query, or define query only on leaf routes."
     );
   });
 });
@@ -149,6 +149,23 @@ describe("parseRouteQuery", () => {
         filter: { category: "framework" },
         tags: ["react", "furin"],
       },
+    });
+  });
+
+  test("coerces primitive query values like an Elysia route", async () => {
+    const schema = t.Object({
+      active: t.Boolean(),
+      page: t.Number(),
+    });
+
+    const result = await parseRouteQuery(
+      new URL("http://localhost/products?page=2&active=true"),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, page: 2 },
     });
   });
 });

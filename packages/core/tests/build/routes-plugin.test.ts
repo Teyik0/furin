@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createRoutesPlugin,
@@ -14,7 +13,7 @@ const FIXTURES = join(import.meta.dir, "../fixtures/routes-v2");
 describe("furin/routes server plugin", () => {
   test("keeps generated route bindings unique for separator-like paths", async () => {
     const instance = { pagesDir: join(FIXTURES, "colliding-paths"), prefix: "" };
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-bindings-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-bindings-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -52,7 +51,7 @@ describe("furin/routes server plugin", () => {
 
   test("preserves catch-all pages as Elysia wildcards", async () => {
     const instance = { pagesDir: join(FIXTURES, "catch-all"), prefix: "" };
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-catch-all-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-catch-all-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -79,6 +78,9 @@ describe("furin/routes server plugin", () => {
       const response = await built.furinApp.handle(
         new Request("http://localhost/docs/guides/routing")
       );
+      if (response.status !== 200) {
+        throw new Error(await response.text());
+      }
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ catchAllPath: "guides/routing" });
@@ -91,7 +93,7 @@ describe("furin/routes server plugin", () => {
     const rootInstance = { pagesDir: join(FIXTURES, "root"), prefix: "" };
     const adminInstance = { pagesDir: join(FIXTURES, "admin"), prefix: "/admin" };
     const instances = [rootInstance, adminInstance] satisfies RouteInstanceSpec[];
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-plugin-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-plugin-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -134,7 +136,7 @@ export { adminApp, rootApp };
 
   test("composes nested layouts above their dynamic children", async () => {
     const instance = { pagesDir: join(FIXTURES, "root"), prefix: "" };
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-layout-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-layout-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -159,6 +161,9 @@ export { adminApp, rootApp };
       };
 
       const response = await built.furinApp.handle(new Request("http://localhost/boards/42"));
+      if (response.status !== 200) {
+        throw new Error(await response.text());
+      }
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ board: "42", user: "teyik" });
     } finally {
@@ -168,7 +173,7 @@ export { adminApp, rootApp };
 
   test("rejects dynamic paths without a matching params schema", async () => {
     const instance = { pagesDir: join(FIXTURES, "bad"), prefix: "" };
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-drift-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-drift-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -191,7 +196,7 @@ export { adminApp, rootApp };
 
   test("ignores underscore-prefixed files and directories", async () => {
     const instance = { pagesDir: join(FIXTURES, "underscore"), prefix: "" };
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-underscore-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-underscore-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {
@@ -238,7 +243,7 @@ describe("furin/routes client plugin", () => {
       { pagesDir: join(FIXTURES, "root"), prefix: "" },
       { pagesDir: join(FIXTURES, "admin"), prefix: "/admin" },
     ] satisfies RouteInstanceSpec[];
-    const tempDir = mkdtempSync(join(tmpdir(), "furin-routes-client-"));
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-client-"));
     const entryPath = join(tempDir, "entry.ts");
 
     try {

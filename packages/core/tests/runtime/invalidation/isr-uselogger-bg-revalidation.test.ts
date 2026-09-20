@@ -5,7 +5,7 @@
  * request (ISR background revalidation, SSG pre-renders). Both code paths go
  * through renderForPath() which creates a synthetic context — evlog's ALS is empty.
  *
- * Fix: context-logger.ts wraps useLogger with a fallback to a detached createLogger()
+ * Fix: context-logger.ts exposes getLogger with a fallback to a detached createLogger()
  * instance scoped to the render (via runInSyntheticRenderScope), whose wide event is
  * emitted to the configured drain at the end of the render.
  *
@@ -31,7 +31,7 @@ mock.module("evlog/elysia", () => ({
 
 import { useLogger as evlogUseLogger } from "evlog/elysia";
 import { __resetCacheState } from "../../../src/server/cache/invalidation.ts";
-import { useLogger as furinUseLogger } from "../../../src/server/context-logger.ts";
+import { getLogger as furinGetLogger } from "../../../src/server/context-logger.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 
 beforeAll(async () => {
@@ -57,15 +57,15 @@ describe("useLogger() in synthetic render contexts (no evlog ALS)", () => {
     await Promise.resolve();
   });
 
-  // ── Fix: context-logger useLogger() works in all contexts ─────────────────
+  // ── Fix: context-logger getLogger() works in all contexts ─────────────────
 
-  test("furin useLogger() does not throw outside a request context", async () => {
-    expect(() => furinUseLogger()).not.toThrow();
+  test("furin getLogger() does not throw outside a request context", async () => {
+    expect(() => furinGetLogger()).not.toThrow();
     await Promise.resolve();
   });
 
-  test("furin useLogger() fallback logger methods are all callable without throwing", async () => {
-    const log = furinUseLogger();
+  test("furin getLogger() fallback logger methods are all callable without throwing", async () => {
+    const log = furinGetLogger();
     expect(() => log.set({ foo: "bar" })).not.toThrow();
     expect(() => log.info("msg")).not.toThrow();
     expect(() => log.warn("msg")).not.toThrow();

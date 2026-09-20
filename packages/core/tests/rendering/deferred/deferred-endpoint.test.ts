@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import "../../setup/evlog-mock";
 
-import { Elysia, t } from "elysia";
+import { type AnyElysia, Elysia, t } from "elysia";
 import { defer } from "../../../src/client";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
@@ -175,7 +175,7 @@ const BASE_ROUTES: ResolvedRoute[] = [
   ),
 ];
 
-function createDataTestApp(): { app: Elysia; routes: ResolvedRoute[] } {
+function createDataTestApp(): { app: AnyElysia; routes: ResolvedRoute[] } {
   const routes = BASE_ROUTES.map(cloneResolvedRoute);
   return { app: new Elysia().use(createDataEndpoint(routes)), routes };
 }

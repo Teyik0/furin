@@ -1,10 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { staticPlugin } from "@elysiajs/static";
-import { type AnyElysia, Elysia, file } from "elysia";
+import { staticPlugin } from "@elysia/static";
+import { type AnyElysia, Elysia, file, NotFound } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
-import { type EvlogElysiaOptions, evlog } from "evlog/elysia";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
 import { createProductionAssetsPlugin } from "./server/assets/production.ts";
 import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
@@ -19,6 +18,7 @@ import {
   runWithRequestInstrumentation,
   shouldInstrumentRequest,
 } from "./server/devtools/instrumentation.ts";
+import { createFurinEvlog, type FurinEvlogOptions } from "./server/evlog.ts";
 import {
   assertPrefixAvailable,
   createInstance,
@@ -313,12 +313,12 @@ async function readBrowserIngest(request: Request): Promise<BrowserIngestRead> {
 function createLoggerPlugin(
   prefix: string,
   syncPath: string | undefined,
-  logger: EvlogElysiaOptions | undefined,
+  logger: FurinEvlogOptions | undefined,
   clientLogging: boolean
-): Elysia {
+) {
   const { exclude: userExclude, ...evlogOptions } = logger ?? {};
   const app = new Elysia().use(
-    evlog({
+    createFurinEvlog({
       ...evlogOptions,
       // Exclude patterns match the PHYSICAL request path — prefix them.
       exclude: [
@@ -329,7 +329,7 @@ function createLoggerPlugin(
         ...instrumentationLoggerExclusions(prefix),
         ...(syncPath ? [`${prefix}${syncPath}/**`] : []),
         // Note: /_furin/data is logged with the *logical* path rewritten by
-        // createDataEndpoint via useLogger().set({ path }), so SPA navigations
+        // createDataEndpoint via getLogger().set({ path }), so SPA navigations
         // appear as "GET /board/123 200" — same shape as a normal SSR nav.
         // /_furin/ingest remains loggable when browser logging is explicitly
         // enabled so browser-side events show up.
@@ -341,50 +341,46 @@ function createLoggerPlugin(
   );
 
   if (!clientLogging) {
-    return app as unknown as Elysia;
+    return app;
   }
 
-  return app.post(
-    "/_furin/ingest",
-    async ({ log, request, status }) => {
-      const parsed = await readBrowserIngest(request);
-      if (parsed.kind === "oversized") {
-        return status(413);
+  return app.post("/_furin/ingest", { parse: "none" }, async ({ log, request, status }) => {
+    const parsed = await readBrowserIngest(request);
+    if (parsed.kind === "oversized") {
+      return status(413);
+    }
+    if (parsed.kind === "invalid") {
+      return status("Bad Request");
+    }
+    const { body } = parsed;
+    if (!Array.isArray(body)) {
+      return status("Bad Request");
+    }
+    const batch = (body as DrainContext[]).slice(0, MAX_BROWSER_INGEST_EVENTS);
+    for (const entry of batch) {
+      if (!entry || typeof entry !== "object" || !("event" in entry)) {
+        log.set({ msg: "[furin] ingest: skipping malformed entry" });
+        continue;
       }
-      if (parsed.kind === "invalid") {
-        return status("Bad Request");
+      // Pick only safe, known fields from the event to prevent prototype pollution
+      const event = entry.event as FurinBrowserEvent | undefined;
+      if (!event || typeof event !== "object") {
+        continue;
       }
-      const { body } = parsed;
-      if (!Array.isArray(body)) {
-        return status("Bad Request");
-      }
-      const batch = (body as DrainContext[]).slice(0, MAX_BROWSER_INGEST_EVENTS);
-      for (const entry of batch) {
-        if (!entry || typeof entry !== "object" || !("event" in entry)) {
-          log.set({ msg: "[furin] ingest: skipping malformed entry" });
-          continue;
-        }
-        // Pick only safe, known fields from the event to prevent prototype pollution
-        const event = entry.event as FurinBrowserEvent | undefined;
-        if (!event || typeof event !== "object") {
-          continue;
-        }
-        const {
-          __proto__,
-          constructor: _ctor,
-          prototype,
-          environment: _browserEnv,
-          ...safeEvent
-        } = event;
-        log.set({ ...safeEvent, service: "furin:browser" });
-      }
-      return status("No Content");
-    },
-    { parse: "none" }
-  ) as unknown as Elysia;
+      const {
+        __proto__,
+        constructor: _ctor,
+        prototype,
+        environment: _browserEnv,
+        ...safeEvent
+      } = event;
+      log.set({ ...safeEvent, service: "furin:browser" });
+    }
+    return status("No Content");
+  }) as unknown as Elysia;
 }
 
-function initializeLogger(logger: FurinLoggerOptions | undefined): EvlogElysiaOptions {
+function initializeLogger(logger: FurinLoggerOptions | undefined): FurinEvlogOptions {
   const { sampling, ...elysiaLoggerOptions } = logger ?? {};
   initializeFurinLogger({
     env: { service: "furin" },
@@ -412,32 +408,25 @@ function initializeLogger(logger: FurinLoggerOptions | undefined): EvlogElysiaOp
  * closure — which wrap executes first is therefore irrelevant.
  */
 function wrapWithRequestScope(app: AnyElysia): Elysia {
-  return app.wrap((handler, request) => (ctx: unknown) => {
+  return app.wrap((fetch) => (request, ...rest) => {
     if (hasRequestScope()) {
-      return handler(ctx);
+      return fetch(request, ...rest);
     }
     markTraffic();
-    const req = request ?? (ctx as { request?: Request } | undefined)?.request;
-    const pathname = req ? new URL(req.url).pathname : "/";
+    const { pathname } = new URL(request.url);
     const instance = resolveInstanceByPath(pathname);
     return runWithInstanceScope(instance, () => {
-      if (!(req && shouldInstrumentRequest(pathname, instance.prefix))) {
-        return handler(ctx);
+      if (!shouldInstrumentRequest(pathname, instance.prefix)) {
+        return fetch(request, ...rest);
       }
-      return runWithRequestInstrumentation(req, () => handler(ctx));
+      return runWithRequestInstrumentation(request, () => fetch(request, ...rest));
     });
   });
 }
 
-function createFurinPlugin(
-  app: AnyElysia,
-  prepareParent: ((parentApp: AnyElysia) => void) | undefined
-) {
+function createFurinPlugin(app: AnyElysia) {
   const scopedApp = wrapWithRequestScope(app);
-  return <ParentApp extends AnyElysia>(parentApp: ParentApp) => {
-    prepareParent?.(parentApp);
-    return parentApp.use(scopedApp);
-  };
+  return <ParentApp extends AnyElysia>(parentApp: ParentApp) => parentApp.use(scopedApp);
 }
 
 async function loadDevelopmentRoutes(resolvedPagesDir: string) {
@@ -533,7 +522,7 @@ function hydrateSSGCacheFromCompileContext(ctx: CompileContext): void {
 }
 
 /** Options for the {@link furin} plugin. */
-export type FurinLoggerOptions = EvlogElysiaOptions & Pick<LoggerConfig, "sampling">;
+export type FurinLoggerOptions = FurinEvlogOptions & Pick<LoggerConfig, "sampling">;
 
 export interface FurinOptions {
   /**
@@ -759,10 +748,8 @@ export async function furin({
           throw error;
         }
       });
-    const devHtmlBundle = (await import(join(furinDir, "index.html"))).default;
     const publicDir = resolve(cwd, "public");
     const publicExists = existsSync(publicDir);
-    const hmrEntryPath = `${prefix}/_bun_hmr_entry`;
     let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
 
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
@@ -773,7 +760,7 @@ export async function furin({
       prefix: prefix || undefined,
       seed: resolvedPagesDir,
     })
-      .onStart(() => {
+      .setup(() => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
           onRouteFilesTouched: async (sourcePaths) => {
@@ -803,22 +790,18 @@ export async function furin({
           },
         });
       })
-      .onStop(() => {
+      .cleanup(() => {
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
       })
-      // Elysia 1.4.30 only preserves Bun's native HTMLBundle handler when the
-      // bundle is also present in serve.routes once request hooks are installed.
       .use(await staticPlugin({ assets: furinDir, bunFullstack: true, prefix: "/_bun_hmr_entry" }))
       .use(loggerPlugin)
       // Local scope (default) — a global hook would leak onto sibling furin
       // instances mounted on the same parent app.
-      .onError(async ({ code, request, server }) => {
-        if (code === "NOT_FOUND") {
-          return await renderRootNotFound(currentSnapshot().root, request, server?.url.origin);
-        }
-      })
-      .onAfterHandle(({ set }) => {
+      .error(NotFound, async ({ request, server }) =>
+        renderRootNotFound(currentSnapshot().root, request, server?.url.origin)
+      )
+      .afterHandle(({ set }) => {
         // Forward pending revalidation paths so the client can bust its prefetch cache
         const pending = consumePendingInvalidations();
         if (pending.length > 0) {
@@ -872,15 +855,7 @@ export async function furin({
         })
       );
     registerInstance(instance);
-    return createFurinPlugin(devApp, (parentApp) => {
-      parentApp.config.serve = {
-        ...parentApp.config.serve,
-        routes: {
-          ...parentApp.config.serve?.routes,
-          [hmrEntryPath]: devHtmlBundle,
-        },
-      };
-    });
+    return createFurinPlugin(devApp);
   }
 
   // ── Production ──────────────────────────────────────────────────────────
@@ -909,7 +884,8 @@ export async function furin({
   });
 
   const embedded = ctx?.embedded;
-  const clientDir = embedded?.clientDir ?? explicitClientDir ?? resolveClientDirFromArgv(prefix);
+  const clientDir =
+    embedded?.clientDir ?? explicitClientDir ?? ctx.clientDir ?? resolveClientDirFromArgv(prefix);
   await setupCompiledTemplate(ctx, embedded, clientDir, instance);
 
   const prodApp = new Elysia({
@@ -920,12 +896,10 @@ export async function furin({
     .use(loggerPlugin)
     // Local scope (default) — a global hook would leak onto sibling furin
     // instances mounted on the same parent app.
-    .onError(async ({ code, request, server }) => {
-      if (code === "NOT_FOUND") {
-        return await renderRootNotFound(root, request, server?.url.origin);
-      }
-    })
-    .onAfterHandle(({ set }) => {
+    .error(NotFound, async ({ request, server }) =>
+      renderRootNotFound(root, request, server?.url.origin)
+    )
+    .afterHandle(({ set }) => {
       // Forward pending revalidation paths so the client can bust its prefetch cache
       const pending = consumePendingInvalidations();
       if (pending.length > 0) {
@@ -936,7 +910,7 @@ export async function furin({
         set.headers["x-furin-build-id"] = instance.buildId;
       }
     })
-    .onStart(async ({ server }) => {
+    .setup(async ({ server }) => {
       if (ctx.ssgCache) {
         return;
       }
@@ -953,14 +927,14 @@ export async function furin({
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));
   registerInstance(instance);
-  return createFurinPlugin(prodApp, undefined);
+  return createFurinPlugin(prodApp);
 }
 
 /**
  * 404 handling per mount position:
  *
- * - ROOT instance (`prefix === ""`): the historical `{as:"global"}`
- *   onError(NOT_FOUND) hook — it owns the root scope, and a parent `.onError`
+ * - ROOT instance (`prefix === ""`): a global `NotFound` handler owns the root
+ *   scope, and a parent `.error()`
  *   registered BEFORE `.use(furin)` still wins (documented escape hatch for
  *   JSON API 404s).
  * - PREFIXED instance: a global hook would leak onto sibling apps, and a
@@ -978,10 +952,7 @@ function createNotFoundHandling(
 ): Elysia {
   const app = new Elysia();
   if (prefix === "") {
-    app.onError({ as: "global" }, async (context) => {
-      if (context.code !== "NOT_FOUND") {
-        return;
-      }
+    app.error("global", NotFound, async (context) => {
       // Dev topology: the native renderer is rebuilt by the watcher on route
       // add/remove, so a hot-added route (no mounted Elysia route yet) can
       // still be served here. `tryNativeDispatch` is undefined in production.

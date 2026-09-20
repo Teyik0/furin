@@ -84,7 +84,7 @@ my-app/
         └── index.tsx
 ```
 
-Dependencies: `@teyik0/furin`, `@sinclair/typebox`, `elysia`, `react`, `react-dom`, `bun-plugin-tailwind`, `tailwindcss`
+Dependencies: `@teyik0/furin`, `elysia`, `typebox`, `exact-mirror`, `react`, `react-dom`, `bun-plugin-tailwind`, `tailwindcss`
 
 ---
 
@@ -156,7 +156,7 @@ Edit `src/generated/package-catalog.json` — templates automatically pick up ne
 ```json
 {
   "@teyik0/furin": "0.1.0-alpha.4",
-  "elysia": "^1.4.28",
+  "elysia": "2.0.0-beta.16",
   "react": "^19.2.4"
 }
 ```

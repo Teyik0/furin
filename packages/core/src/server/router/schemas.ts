@@ -3,7 +3,6 @@ import {
   type FurinSchema,
   getSchemaValidator,
   parseQueryFromURL,
-  parseQueryStandardSchema,
 } from "../../shared/elysia-contract.ts";
 import {
   collectSearchDefaults,
@@ -129,6 +128,68 @@ function parseJsonQueryObjects(
   return parsed;
 }
 
+function coerceUnionValue(members: unknown[], value: unknown): unknown {
+  for (const member of members) {
+    const candidate = coerceSchemaValue(member, value);
+    if (candidate !== value) {
+      return candidate;
+    }
+  }
+  return value;
+}
+
+function coerceObjectValue(properties: UnknownObject, value: UnknownObject): UnknownObject {
+  const coerced = { ...value };
+  for (const [key, propertySchema] of Object.entries(properties)) {
+    if (key in coerced) {
+      coerced[key] = coerceSchemaValue(propertySchema, coerced[key]);
+    }
+  }
+  return coerced;
+}
+
+function coerceStringValue(schema: UnknownObject, value: string): unknown {
+  if (value.length === 0) {
+    return value;
+  }
+  if (schema.type === "boolean") {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+    return value;
+  }
+  if (schema.type === "number" || schema.type === "integer") {
+    const number = Number(value);
+    if (Number.isFinite(number) && (schema.type !== "integer" || Number.isInteger(number))) {
+      return number;
+    }
+  }
+  return value;
+}
+
+function coerceSchemaValue(schema: unknown, value: unknown): unknown {
+  if (!isObjectSchema(schema)) {
+    return value;
+  }
+  if (Array.isArray(schema.anyOf)) {
+    return coerceUnionValue(schema.anyOf, value);
+  }
+  if (schema.type === "object" && isObjectSchema(schema.properties) && isObjectSchema(value)) {
+    return coerceObjectValue(schema.properties, value);
+  }
+  if (schema.type === "array" && Array.isArray(value)) {
+    return value.map((entry) => coerceSchemaValue(schema.items, entry));
+  }
+  return typeof value === "string" ? coerceStringValue(schema, value) : value;
+}
+
+export function coerceRouteInput(schema: FurinSchema, value: UnknownObject): UnknownObject {
+  return coerceSchemaValue(schema, value) as UnknownObject;
+}
+
 export type ParseRouteQueryResult =
   | { ok: true; query: SearchParamsInput }
   | { errors: unknown; ok: false };
@@ -143,30 +204,25 @@ type RouteInputValidationResult =
 
 async function validateRouteInput(
   input: UnknownObject,
-  schema: FurinSchema
+  schema: FurinSchema,
+  type: "params" | "query"
 ): Promise<RouteInputValidationResult> {
-  if (isStandardSchema(schema)) {
-    const validator = getSchemaValidator(schema, { dynamic: true });
-    const checked = await validator?.Check(input);
-    if (checked && typeof checked === "object" && "issues" in checked) {
-      return { errors: checked.issues, ok: false };
-    }
-    if (checked && typeof checked === "object" && "value" in checked) {
-      return { ok: true, value: checked.value as UnknownObject };
-    }
-    return { ok: true, value: input };
+  const inputWithDefaults = isStandardSchema(schema)
+    ? input
+    : applySchemaDefaults(schema as UnknownObject, input);
+  const valueToValidate = isStandardSchema(schema)
+    ? inputWithDefaults
+    : coerceRouteInput(schema, inputWithDefaults);
+  const validator = getSchemaValidator(schema);
+  try {
+    const parsed = await validator?.parse(valueToValidate, type);
+    return {
+      ok: true,
+      value: (parsed ?? valueToValidate) as UnknownObject,
+    };
+  } catch {
+    return { errors: [...(validator?.Errors(valueToValidate) ?? [])], ok: false };
   }
-
-  const inputWithDefaults = applySchemaDefaults(schema as UnknownObject, input);
-  const validator = getSchemaValidator(schema, { coerce: true, dynamic: true });
-  if (validator?.Check(inputWithDefaults) === false) {
-    return { errors: [...(validator?.Errors(inputWithDefaults) ?? [])], ok: false };
-  }
-
-  return {
-    ok: true,
-    value: (validator?.parse(inputWithDefaults) ?? inputWithDefaults) as UnknownObject,
-  };
 }
 
 /**
@@ -181,16 +237,21 @@ export async function parseRouteQuery(
   schema: FurinSchema | undefined
 ): Promise<ParseRouteQueryResult> {
   if (!schema) {
-    return { ok: true, query: parseQueryFromURL(url.search, 1) as SearchParamsInput };
+    return { ok: true, query: parseQueryFromURL(url.search, 0) as SearchParamsInput };
   }
 
   const rawQuery = isStandardSchema(schema)
-    ? (parseQueryStandardSchema(url.search, 1) as UnknownObject)
+    ? (parseQueryFromURL(url.search, 0) as UnknownObject)
     : parseJsonQueryObjects(
-        parseQueryFromURL(url.search, 1, collectQueryArrayKeys(schema)) as UnknownObject,
+        parseQueryFromURL(
+          url.search,
+          0,
+          collectQueryArrayKeys(schema),
+          collectQueryObjectKeys(schema)
+        ) as UnknownObject,
         collectQueryObjectKeys(schema)
       );
-  const result = await validateRouteInput(rawQuery, schema);
+  const result = await validateRouteInput(rawQuery, schema, "query");
   return result.ok ? { ok: true, query: result.value as SearchParamsInput } : result;
 }
 
@@ -209,7 +270,7 @@ export async function parseRouteParams(
     return { ok: true, params };
   }
 
-  const result = await validateRouteInput(params, schema);
+  const result = await validateRouteInput(params, schema, "params");
   return result.ok ? { ok: true, params: result.value } : result;
 }
 

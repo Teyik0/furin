@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
+import { Elysia } from "elysia";
 
 import { __resetCacheState } from "../../../packages/core/src/server/cache";
 import { __resetSyncState } from "../../../packages/core/src/server/sync/stream";
@@ -9,6 +10,7 @@ import { boards } from "../src/db/schema";
 
 const CREATED_BOARD_NAME = "Invalidation create test board";
 const DELETED_BOARD_NAME = "Invalidation delete test board";
+const boardApp = new Elysia().use(boardPlugin);
 
 interface CreatedBoard {
   id: string;
@@ -25,7 +27,7 @@ describe("boards API cache invalidation", () => {
   test("creating a board invalidates both the index page and board layout sidebars", async () => {
     resetState();
     try {
-      const response = await boardPlugin.handle(
+      const response = await boardApp.handle(
         new Request("http://furin/boards", {
           body: JSON.stringify({ name: CREATED_BOARD_NAME }),
           headers: {
@@ -51,7 +53,7 @@ describe("boards API cache invalidation", () => {
   test("deleting a board invalidates both the index page and board layout sidebars", async () => {
     resetState();
     try {
-      const createResponse = await boardPlugin.handle(
+      const createResponse = await boardApp.handle(
         new Request("http://furin/boards", {
           body: JSON.stringify({ name: DELETED_BOARD_NAME }),
           headers: {
@@ -63,7 +65,7 @@ describe("boards API cache invalidation", () => {
       );
       const created = (await createResponse.json()) as CreatedBoard;
 
-      const response = await boardPlugin.handle(
+      const response = await boardApp.handle(
         new Request(`http://furin/boards/${created.id}`, {
           headers: { "Idempotency-Key": "delete-board-test" },
           method: "DELETE",

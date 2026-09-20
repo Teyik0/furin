@@ -146,7 +146,7 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.4" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.3" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
@@ -236,6 +236,7 @@ describe.serial("Vercel deployment adapter", () => {
       );
       const entrypoint = serverBuild?.entrypoints[0] as string;
       const source = serverBuild?.files?.[entrypoint] as string;
+      const captureEntry = join(serverFunctionDir, "_furin-app.ts");
       expect(source).toContain("@vercel+functions");
       expect(source).toContain("getCache as getVercelCache");
       expect(source).toContain("invalidateByTag");
@@ -246,6 +247,11 @@ describe.serial("Vercel deployment adapter", () => {
       expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
         source.indexOf("const serverModule = await import")
       );
+      expect(serverBuild?.plugins?.map((plugin) => plugin.name)).toContain("elysia-aot");
+      expect(readFileSync(captureEntry, "utf8")).toContain(
+        "export default __serverModule.default"
+      );
+      expect(source).toContain(captureEntry.replaceAll("\\", "/"));
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {
@@ -262,6 +268,12 @@ describe.serial("Vercel deployment adapter", () => {
   test("requires the Vercel server entry to export its Elysia app as default", async () => {
     const app = createTmpApp("cli-app");
     tmpApps.push(app);
+    const serverPath = join(app.path, "src/server.ts");
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      readFileSync(serverPath, "utf8").replace("export default app;", "")
+    );
 
     await expect(
       withBuildStub(() => buildApp({ rootDir: app.path, target: "vercel" }))
@@ -321,7 +333,7 @@ describe.serial("Vercel deployment adapter", () => {
     const app = createVercelApp();
     const serverPath = join(app.path, "src/server.ts");
     writeAppFile(app.path, "src/server.ts",
-      'import { staticPlugin } from "@elysiajs/static";\n' +
+      'import { staticPlugin } from "@elysia/static";\n' +
       readFileSync(serverPath, "utf8").replace("new Elysia()", 'new Elysia().use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))')
     );
     let failure: unknown;

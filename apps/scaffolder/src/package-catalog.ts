@@ -3,7 +3,6 @@ import catalog from "./generated/package-catalog.json";
 export interface PackageCatalog {
   "@biomejs/biome": string;
   "@radix-ui/react-slot": string;
-  "@sinclair/typebox": string;
   "@teyik0/furin": string;
   "@types/bun": string;
   "@types/react": string;
@@ -13,12 +12,14 @@ export interface PackageCatalog {
   clsx: string;
   elysia: string;
   evlog: string;
+  "exact-mirror": string;
   "lucide-react": string;
   react: string;
   "react-dom": string;
   "tailwind-merge": string;
   tailwindcss: string;
   "tw-animate-css": string;
+  typebox: string;
   typescript: string;
   ultracite: string;
 }

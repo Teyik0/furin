@@ -3,12 +3,15 @@ import Elysia from "elysia";
 
 export const port = Number(process.env.PORT ?? 3111);
 
-const app = new Elysia()
-  .use(
-    await furin({
-      pagesDir: `${import.meta.dir}/pages`,
-    })
-  )
-  .listen(port);
+const app = new Elysia().use(
+  await furin({
+    pagesDir: `${import.meta.dir}/pages`,
+  })
+);
 
-console.log(`[test-app] listening on ${app.server?.port}`);
+if (import.meta.main) {
+  app.listen(port);
+  console.log(`[test-app] listening on ${app.server?.port}`);
+}
+
+export default app;

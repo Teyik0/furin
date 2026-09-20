@@ -5,6 +5,7 @@ import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
 
 const { scanPages } = await import("../../../src/server/router/discovery.ts");
 const { createDataEndpoint } = await import("../../../src/server/router/plugin.ts");
+const { runInSyntheticRenderScope } = await import("../../../src/server/context-logger.ts");
 const { __setDevMode } = await import("../../../src/server/runtime-env");
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
@@ -26,7 +27,10 @@ test("GET /_furin/data enriches matching route events", async () => {
   const scanned = await scanPages(fixturesDir);
   const app = new Elysia().use(createDataEndpoint(scanned.routes));
 
-  await app.handle(new Request("http://localhost/_furin/data?path=%2Fdynamic%2F42"));
+  await runInSyntheticRenderScope(
+    () => app.handle(new Request("http://localhost/_furin/data?path=%2Fdynamic%2F42")),
+    { path: "/_furin/data" }
+  );
 
   const merged = evlogSetMock.mock.calls.reduce<LogFields>(
     (acc, [arg]) => Object.assign(acc, arg),
@@ -42,7 +46,10 @@ test("GET /_furin/data enriches not-found route events", async () => {
   const scanned = await scanPages(fixturesDir);
   const app = new Elysia().use(createDataEndpoint(scanned.routes));
 
-  const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnope%2Fnowhere"));
+  const res = await runInSyntheticRenderScope(
+    () => app.handle(new Request("http://localhost/_furin/data?path=%2Fnope%2Fnowhere")),
+    { path: "/_furin/data" }
+  );
 
   expect(res.status).toBe(404);
   const enrichingCall = evlogSetMock.mock.calls.find(([arg]) => arg.path === "/nope/nowhere");

@@ -124,6 +124,41 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(serverBuild?.target).toBe("bun");
   });
 
+  test("server builds precompile the exported Elysia app through a real capture entry", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const buildConfigs: Bun.BuildConfig[] = [];
+
+    await withBuildStub(
+      () =>
+        buildBunTarget(
+          [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+          app.path,
+          join(app.path, ".furin/build"),
+          join(app.path, "src/server.ts"),
+          { target: "bun" }
+        ),
+      (config) => {
+        buildConfigs.push(config);
+      }
+    );
+
+    const serverBuild = buildConfigs.find((config) =>
+      config.entrypoints.some((entrypoint) => entrypoint.endsWith("/server.ts"))
+    );
+    const pluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
+    const captureEntry = join(app.path, ".furin/build/bun/_furin-app.ts");
+    const captureSource = readFileSync(captureEntry, "utf8");
+    const bootSource = serverBuild?.files?.[serverBuild.entrypoints[0] as string];
+
+    expect(pluginNames).toContain("elysia-aot");
+    expect(existsSync(captureEntry)).toBe(true);
+    expect(captureSource).toContain("export default __serverModule.default");
+    expect(captureSource).not.toContain(".listen(");
+    expect(captureSource).toContain("_furin-routes-0.ts");
+    expect(bootSource).toContain("_furin-app.ts");
+  });
+
   test("embed compilation uses Bun asset directories and an in-memory server entry", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
@@ -152,10 +187,9 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(compile.assets?.map((path) => path.split("/").at(-1))).toEqual(["client", "public"]);
     const entrypoint = serverBuild?.entrypoints[0];
     expect(entrypoint).toEndWith("_compile-entry.ts");
-    const source = serverBuild?.files?.[entrypoint as string];
-    expect(source).toBeString();
-    expect(source as string).toContain("import.meta.dir");
-    expect(source as string).not.toContain('with { type: "file" }');
+    const source = readFileSync(join(app.path, ".furin/build/bun/_furin-app.ts"), "utf8");
+    expect(source).toContain("import.meta.dir");
+    expect(source).not.toContain('with { type: "file" }');
     expect(existsSync(entrypoint as string)).toBe(false);
   });
 

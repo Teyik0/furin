@@ -1,4 +1,4 @@
-import { type Context, ElysiaCustomStatusResponse, StatusMap } from "elysia";
+import { type Context, ElysiaStatus, StatusMap } from "elysia";
 import type { StoredResponse } from "./adapter.ts";
 
 const NON_REPLAYABLE_HEADERS = new Set([
@@ -33,10 +33,10 @@ function statusCode(status: Context["set"]["status"]): number {
 }
 
 function unwrapStatusResponse(value: unknown): { status: number; value: unknown } | undefined {
-  if (!(value instanceof ElysiaCustomStatusResponse)) {
+  if (!(value instanceof ElysiaStatus)) {
     return;
   }
-  return { status: value.code, value: value.response };
+  return { status: value.status, value: value.response };
 }
 
 function responseHeaders(headers: Context["set"]["headers"]): Headers {

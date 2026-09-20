@@ -604,7 +604,8 @@ async function retainComposableRoutes(node: RouteTreeNode): Promise<void> {
 
 async function generateServerInstance(
   instance: RouteInstanceSpec,
-  routeFilesBySpecifier: Map<string, RouteModuleInfo>
+  routeFilesBySpecifier: Map<string, RouteModuleInfo>,
+  materialized: boolean
 ): Promise<GeneratedServerInstance> {
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
   const tree = buildRouteTree(instance.pagesDir, instanceId);
@@ -612,7 +613,7 @@ async function generateServerInstance(
   const imports = collectRouteFiles(tree)
     .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
     .map((route) => {
-      const specifier = routeFileSpecifier(route);
+      const specifier = materialized ? resolve(route.sourcePath) : routeFileSpecifier(route);
       routeFilesBySpecifier.set(specifier, {
         routePath: route.path,
         sourcePath: resolve(route.sourcePath),
@@ -629,11 +630,14 @@ async function generateServerInstance(
 
 async function serverRegistrySource(
   instances: RouteInstanceSpec[],
-  routeFilesBySpecifier: Map<string, RouteModuleInfo>
+  routeFilesBySpecifier: Map<string, RouteModuleInfo>,
+  materialized: boolean
 ): Promise<string> {
   routeFilesBySpecifier.clear();
   const generated = await Promise.all(
-    instances.map((instance) => generateServerInstance(instance, routeFilesBySpecifier))
+    instances.map((instance) =>
+      generateServerInstance(instance, routeFilesBySpecifier, materialized)
+    )
   );
   return `import { Elysia } from "elysia";
 ${generated.map(({ imports }) => imports).join("\n")}
@@ -642,6 +646,18 @@ ${generated
   .map(({ appExpression, exportName }) => `export const ${exportName} = ${appExpression};`)
   .join("\n")}
 `;
+}
+
+/**
+ * Emits a real server route module for build-time consumers such as Elysia's
+ * AOT plugin, which imports the application outside Bun's virtual module graph.
+ */
+export async function materializedRouteModuleSource(instance: RouteInstanceSpec): Promise<string> {
+  const routeFilesBySpecifier = new Map<string, RouteModuleInfo>();
+  const source = await serverRegistrySource([instance], routeFilesBySpecifier, true);
+  await validateRouteModules(routeFilesBySpecifier.values());
+  const exportName = `furinApp_${Bun.hash(instanceKey(instance)).toString(16)}`;
+  return `${source}\nexport { ${exportName} as furinApp };\n`;
 }
 
 export function validateRouteParams(
@@ -1023,7 +1039,11 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
         path: registryVirtualPath,
       }));
       build.onLoad({ filter: ROUTES_REGISTRY_FILE_FILTER, namespace: "file" }, async () => {
-        const contents = await serverRegistrySource(options.instances, routeFilesBySpecifier);
+        const contents = await serverRegistrySource(
+          options.instances,
+          routeFilesBySpecifier,
+          false
+        );
         await validateRouteModules(routeFilesBySpecifier.values());
         return { contents, loader: "ts" };
       });

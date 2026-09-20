@@ -31,6 +31,8 @@ export interface CompileContextRoute {
 
 export interface CompileContext {
   buildId?: string;
+  /** Runtime directory containing this app's disk-served client assets. */
+  clientDir?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
   /** Deployment adapter that owns public page caching for this build. */

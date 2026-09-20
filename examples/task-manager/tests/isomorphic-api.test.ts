@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { treaty } from "@elysiajs/eden";
+import { treaty } from "@elysia/eden";
 import { createIsomorphicFn } from "@teyik0/furin";
 import { Elysia } from "elysia";
 

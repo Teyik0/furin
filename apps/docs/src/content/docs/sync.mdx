@@ -63,11 +63,11 @@ export const api = new Elysia({ prefix: "/api" })
   .use(furinSync(sync))
   .post(
     "/posts",
-    ({ body }) => db.posts.create(body),
     {
       body: t.Object({ title: t.String() }),
       sync: { invalidate: { tags: ["posts"] } },
-    }
+    },
+    ({ body }) => db.posts.create(body)
   );
 ```
 
@@ -82,7 +82,7 @@ Multiple rules are allowed. Tags target cached paths that declared those tags; a
 Set `sync: false` for routes whose request or response cannot be replayed safely:
 
 ```ts
-.post("/uploads", uploadFile, { sync: false })
+.post("/uploads", { sync: false }, uploadFile)
 ```
 
 Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.

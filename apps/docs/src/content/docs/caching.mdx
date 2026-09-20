@@ -210,9 +210,11 @@ import { Elysia } from "elysia";
 
 export const postsApi = new Elysia({ prefix: "/api/posts" })
   .use(furinInvalidate())
-  .post("/", ({ body }) => db.posts.create(body), {
-    invalidate: { tags: ["posts"] },
-  });
+  .post(
+    "/",
+    { invalidate: { tags: ["posts"] } },
+    ({ body }) => db.posts.create(body)
+  );
 ```
 
 The mutation response is not completed until origin invalidation succeeds. It also carries `X-Furin-Revalidate` for the initiating browser.

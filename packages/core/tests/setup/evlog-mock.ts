@@ -1,7 +1,10 @@
 import { mock } from "bun:test";
-import type { AnyElysia } from "elysia";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { join } from "node:path";
+import { type AnyElysia, Elysia } from "elysia";
 import type { LoggerConfig, RequestLogger } from "evlog";
 import type { EvlogElysiaOptions } from "evlog/elysia";
+import type { BaseEvlogOptions } from "evlog/toolkit";
 
 export interface EvlogMockFields {
   [key: string]: unknown;
@@ -63,17 +66,52 @@ mock.module("evlog", () => ({
     emit: noop,
     error: (error: unknown) => {
       ctx.error = error;
+      evlogErrorMock(error instanceof Error || typeof error === "string" ? error : String(error));
     },
     fork: (_label: string, fn: () => unknown) => fn(),
     getContext: () => ctx,
     info: noop,
     set: (entry: EvlogMockFields) => {
       Object.assign(ctx, entry);
+      setHandler(entry);
     },
     setLevel: noop,
-    warn: noop,
+    warn: (message: string) => evlogWarnMock(message),
   }),
   initLogger: initLoggerOptionsMock,
   log: { debug: noop, error: noop, info: noop, warn: noop },
   useLogger: createUseLoggerMock,
+}));
+
+const requestLoggerStorage = new AsyncLocalStorage<RequestLogger>();
+
+mock.module(join(import.meta.dir, "../../src/server/evlog.ts"), () => ({
+  createFurinEvlog: (options: BaseEvlogOptions) => {
+    evlogOptionsMock(options);
+    const requestLoggers = new WeakMap<Request, RequestLogger>();
+    return new Elysia({ name: "furin-evlog-test" })
+      .derive("global", ({ request }) => {
+        const log = requestLoggers.get(request);
+        if (log === undefined) {
+          throw new Error("No request logger");
+        }
+        return { log };
+      })
+      .wrap((fetch) => async (request, ...rest) => {
+        const logger = createUseLoggerMock();
+        requestLoggers.set(request, logger);
+        try {
+          return await requestLoggerStorage.run(logger, () => fetch(request, ...rest));
+        } finally {
+          requestLoggers.delete(request);
+        }
+      });
+  },
+  getRequestLogger: () => {
+    const logger = requestLoggerStorage.getStore();
+    if (logger === undefined) {
+      throw new Error("No request logger");
+    }
+    return logger;
+  },
 }));
