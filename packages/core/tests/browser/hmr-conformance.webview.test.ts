@@ -491,7 +491,7 @@ function routeContractPageSource(version: "after" | "before"): string {
     "  .loader(({ params, query }) => ({",
     `    summary: "${version}:" + typeof params.id + ":" + typeof query.page,`,
     "  }))",
-    "  .page(({ data }) => <ContractPage summary={data.summary} />);",
+    "  .page(({ summary }) => <ContractPage summary={summary} />);",
   ].join("\n");
 }
 

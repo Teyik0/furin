@@ -31,7 +31,7 @@ export const route = defineRoute()
     const sidebarBoards = getBoards();
     return { sidebarBoards };
   })
-  .layout(({ data: { sidebarBoards }, children }) => (
+  .layout(({ sidebarBoards, children }) => (
     <div className="flex min-h-screen">
       {/* ─── Sidebar ──────────────────────────────────────────── */}
       <aside className="flex w-55 shrink-0 flex-col border-white/5 border-r bg-[#0a0a0c]">

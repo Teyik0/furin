@@ -93,7 +93,7 @@ function createRscRoute(renderServerComponent: RenderServerComponent): {
   const route = defineRoute()
     .config({ layout: rootTerminal, mode: "ssr" })
     .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
-    .page(({ data }) => <main>{data.article}</main>);
+    .page(({ article }) => <main>{article}</main>);
   const resolved = resolveRoute(route, "/rsc.tsx", "/rsc");
   return { resolved, root };
 }
@@ -207,7 +207,7 @@ try {
     .loader(async () => ({
       content: { article: await renderServerComponent(<h1>SSR Nested Flight article</h1>) },
     }))
-    .page(({ data: loaderData }) => <main>{loaderData.content.article}</main>);
+    .page(({ content }) => <main>{content.article}</main>);
   let nestedSsrResolved = resolveRoute(nestedSsrRoute, "/ssr-nested-rsc.tsx", "/ssr-nested-rsc");
   response = await renderSSR(
     nestedSsrResolved,

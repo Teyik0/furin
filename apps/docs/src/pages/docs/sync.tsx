@@ -14,6 +14,6 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Sync & Invalidations — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage Content={Sync} doc={DOCS_BY_PATH["/docs/sync"]} markdownSource={markdownSource} />
   ));

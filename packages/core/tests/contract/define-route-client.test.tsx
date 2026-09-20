@@ -17,7 +17,7 @@ describe("client defineRoute", () => {
     expect("loader" in pageRoute).toBe(false);
   });
 
-  test("keeps request data outside public loader data", () => {
+  test("passes public loader data as flat component props", () => {
     let received: unknown;
     const pageRoute = defineRoute().page((props) => {
       received = props;
@@ -31,7 +31,7 @@ describe("client defineRoute", () => {
 
     expect(received).toEqual({
       children: undefined,
-      data: { message: "public" },
+      message: "public",
       params: {},
       path: "",
       query: {},

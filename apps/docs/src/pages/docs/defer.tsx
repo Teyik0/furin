@@ -14,6 +14,6 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Deferred Data — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage Content={Defer} doc={DOCS_BY_PATH["/docs/defer"]} markdownSource={markdownSource} />
   ));

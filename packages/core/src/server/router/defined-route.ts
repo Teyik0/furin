@@ -21,9 +21,8 @@ interface DefinedRouteTerminal {
   tags?: readonly string[];
 }
 
-interface DefinedRenderContext {
+interface DefinedRenderContext extends RuntimeData {
   children?: React.ReactNode;
-  data: RuntimeData;
   params: unknown;
   path: string;
   query: unknown;
@@ -40,8 +39,8 @@ function toDefinedRenderContext(props: RuntimeData): DefinedRenderContext {
     ...data
   } = props as RuntimeData & { children?: React.ReactNode };
   return {
+    ...data,
     children,
-    data,
     params,
     path: (_path as string | undefined) ?? "",
     query,

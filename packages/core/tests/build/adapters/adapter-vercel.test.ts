@@ -69,7 +69,7 @@ function createVercelApp(): TmpApp {
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
       '  .loader(({ query }) => ({ q: query.q }))',
-      '  .page(({ data }) => <main>Search: {data.q}</main>);',
+      '  .page(({ q }) => <main>Search: {q}</main>);',
       "",
     ].join("\n")
   );
@@ -419,7 +419,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "ssg" })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
-        '  .page(({ data }) => <main>SSG render {data.renderCount}</main>);',
+        '  .page(({ renderCount }) => <main>SSG render {renderCount}</main>);',
         "",
       ].join("\n")
     );
@@ -434,7 +434,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
-        '  .page(({ data }) => <main>ISR render {data.renderCount}</main>);',
+        '  .page(({ renderCount }) => <main>ISR render {renderCount}</main>);',
         "",
       ].join("\n")
     );
@@ -447,7 +447,7 @@ import { route as rootRoute } from "./root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
-  .page(({ data }) => <main>{data.article}</main>);`
+  .page(({ article }) => <main>{article}</main>);`
     );
     writeAppFile(
       app.path,
@@ -463,7 +463,7 @@ export const route = defineRoute()
   .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
-  .page(({ data, requestData }) => <main>public:{data.count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
+  .page(({ count, requestData }) => <main>public:{count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
     );
     await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 

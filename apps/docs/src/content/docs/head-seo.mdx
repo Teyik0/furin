@@ -14,18 +14,18 @@ export const route = defineRoute()
     params: t.Object({ slug: t.String() }),
   })
   .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
-  .head(({ data, params }) => ({
+  .head(({ params, post }) => ({
     meta: [
-      { title: data.post.title },
-      { name: "description", content: data.post.excerpt },
-      { property: "og:title", content: data.post.title },
+      { title: post.title },
+      { name: "description", content: post.excerpt },
+      { property: "og:title", content: post.title },
       { property: "og:type", content: "article" },
     ],
     links: [
       { rel: "canonical", href: `https://example.com/blog/${params.slug}` },
     ],
   }))
-  .page(({ data }) => <Article post={data.post} />);
+  .page(({ post }) => <Article post={post} />);
 ```
 
 Metadata for cached routes should remain public and deterministic. Although head props include `requestData`, prefer values that remain valid across cache hits and put request-private values in the rendered body.
@@ -65,13 +65,13 @@ Application CSS should normally be imported from route or component code so Bun 
 ### JSON-LD
 
 ```ts
-head: ({ data }) => ({
+head: ({ post }) => ({
   meta: [
     {
       "script:ld+json": {
         "@context": "https://schema.org",
         "@type": "Article",
-        headline: data.post.title,
+        headline: post.title,
       },
     },
   ],

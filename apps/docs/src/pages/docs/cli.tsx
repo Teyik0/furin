@@ -14,6 +14,6 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "CLI — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage Content={Cli} doc={DOCS_BY_PATH["/docs/cli"]} markdownSource={markdownSource} />
   ));

@@ -84,7 +84,15 @@ describe("runLoaders requestLoader", () => {
   });
 
   test("rejects loader data keys that would be shadowed by the route context", async () => {
-    for (const reservedKey of ["params", "query", "path"]) {
+    for (const reservedKey of [
+      "children",
+      "key",
+      "params",
+      "path",
+      "query",
+      "ref",
+      "requestData",
+    ]) {
       const route = {
         mode: "ssr",
         page: {

@@ -35,8 +35,8 @@ type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSche
 type DataOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
-  ? Props extends { data: infer Data extends LoaderData }
-    ? Data
+  ? Props extends LoaderData
+    ? Omit<Props, "children" | "params" | "path" | "query" | "requestData">
     : NoFields
   : NoFields;
 type PromisedData<Data extends LoaderData> = {
@@ -131,11 +131,11 @@ type RenderContext<
   Data extends LoaderData,
   RequestData extends LoaderData,
 > = {
-  data: WithoutParentDataConflicts<ParentData, Data>;
   params: Params;
   path: string;
   query: Query;
-} & RequestDataContext<RequestData>;
+} & WithoutParentDataConflicts<ParentData, Data> &
+  RequestDataContext<RequestData>;
 
 type Component<
   Params,

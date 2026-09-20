@@ -62,7 +62,15 @@ const FURIN_RESERVED_KEY_PREFIX = "__furin";
  * values when assembling component props — a loader field with one of these
  * names is silently dead on arrival.
  */
-const ROUTE_CTX_RESERVED_KEYS = new Set(["params", "query", "path"]);
+const ROUTE_CTX_RESERVED_KEYS = new Set([
+  "children",
+  "key",
+  "params",
+  "path",
+  "query",
+  "ref",
+  "requestData",
+]);
 
 function assertPublicLoaderKey(key: string): void {
   if (key.startsWith(FURIN_RESERVED_KEY_PREFIX)) {

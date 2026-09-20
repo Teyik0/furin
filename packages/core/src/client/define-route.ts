@@ -11,7 +11,7 @@ interface ClientRuntimeProps {
 
 function toRenderContext(props: ClientRuntimeProps) {
   const { children, params = {}, path = "", query = {}, requestData, ...data } = props;
-  return { children, data, params, path, query, requestData };
+  return { ...data, children, params, path, query, requestData };
 }
 
 function render<Component extends ClientComponent>(

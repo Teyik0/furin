@@ -29,7 +29,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Task Manager — Furin" }],
   }))
-  .page(({ data: { boards, generatedAt } }) => {
+  .page(({ boards, generatedAt }) => {
     return (
       <div className="mx-auto max-w-5xl px-6 py-14">
         {/* Header */}

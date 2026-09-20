@@ -86,7 +86,7 @@ import { route as rootRoute } from "../root";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr", params: t.Object({ id: t.String() }) })
   .loader(({ params }) => ({ id: params.id }))
-  .page(({ data }) => data.id);
+  .page(({ id }) => id);
 `
 );
 writeFileSync(

@@ -14,7 +14,7 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Next.js vs TanStack Start vs Furin — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage
       Content={Comparison}
       doc={DOCS_BY_PATH["/docs/comparison"]}

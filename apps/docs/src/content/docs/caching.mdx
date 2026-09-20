@@ -30,7 +30,7 @@ export const route = defineRoute()
     tags: ["posts"],
   })
   .loader(async () => ({ posts: await db.posts.findMany() }))
-  .page(({ data }) => <PostList posts={data.posts} />);
+  .page(({ posts }) => <PostList posts={posts} />);
 ```
 
 1. A miss renders and caches only a healthy `200` result.

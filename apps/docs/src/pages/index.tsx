@@ -23,7 +23,7 @@ export const route = defineRoute()
   .loader(async () => ({
     message: "Hello from Furin!",
   }))
-  .page(({ data: { message } }) => (
+  .page(({ message }) => (
     <h1>{message}</h1>
   ))`,
   "pages/root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
@@ -54,9 +54,17 @@ export const route = defineRootRoute()
   "server.ts": `import { Elysia } from "elysia"
 import { furin } from "@teyik0/furin"
 
+const port = Number(process.env.PORT ?? 3000)
+
 const app = new Elysia()
   .use(await furin({ pagesDir: "./pages" }))
-  .listen(3000)`,
+
+if (import.meta.main) {
+  app.listen(port)
+  console.log(\`Furin app running at http://localhost:\${app.server?.port}\`)
+}
+
+export default app`,
 } as const;
 
 type FileName = keyof typeof FILES;
@@ -77,7 +85,7 @@ export const route = defineRoute()
     links: [{ href: "/", rel: "canonical" }],
     meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
   }))
-  .page(({ data: { codeHtmlMap } }) => (
+  .page(({ codeHtmlMap }) => (
     <div>
       {/* Hero */}
       <section className="relative flex min-h-[calc(100vh-3.5rem)] items-center overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.22),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.12),transparent)]">

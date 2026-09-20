@@ -266,7 +266,8 @@ describe("Furin page templates", () => {
 
       expect(page.indexOf(".loader(")).toBeGreaterThanOrEqual(0);
       expect(page.indexOf(".page(")).toBeGreaterThan(page.indexOf(".loader("));
-      expect(page).toContain(".page(({ data:");
+      expect(page).toContain(".page(({");
+      expect(page).not.toContain(".page(({ data");
     }
   });
 });

@@ -82,7 +82,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       `    query: t.Object({ view: t.Literal(${viewExpression}) }),`,
       "  })",
       "  .loader(({ query }) => ({ view: query.view }))",
-      "  .page(({ data }) => <main data-schema={data.view}>{data.view}</main>);",
+      "  .page(({ view }) => <main data-schema={view}>{view}</main>);",
     ].join("\n");
 
   writeAppFile(app.path, "src/schema-view.ts", 'export const schemaView = "before" as const;');
@@ -145,7 +145,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "ssg" })',
         '  .loader(() => ({ title: "About page" }))',
-        '  .page(({ data }) => <main data-about="v1">{data.title}</main>);',
+        '  .page(({ title }) => <main data-about="v1">{title}</main>);',
       ].join("\n")
     );
 
@@ -242,7 +242,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
         // biome-ignore lint/suspicious/noTemplateCurlyInString: emits a route source template literal
         "    detail: `${typeof params.id}:${params.id}:${query.page}`,",
         "  }))",
-        '  .page(({ data }) => <main data-item="true">{data.detail}</main>);',
+        '  .page(({ detail }) => <main data-item="true">{detail}</main>);',
       ].join("\n")
     );
 

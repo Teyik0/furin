@@ -228,6 +228,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
           "  const __app = __serverModule.default;",
           "  if (__app && typeof __app.listen === \"function\" && !__app.server) {",
           "    __app.listen(Number(process.env.PORT ?? 3000));",
+          "    console.log(`[furin] Server running at http://localhost:${__app.server?.port}`);",
           "  }",
           "}",
           "",

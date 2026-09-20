@@ -45,10 +45,10 @@ export const route = defineRoute()
       renderedAt,
     };
   })
-  .head(({ data: { card, boardName } }) => ({
+  .head(({ card, boardName }) => ({
     meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
   }))
-  .page(({ data: { card, boardName, renderedAt, formattedCreatedAt }, params }) => (
+  .page(({ card, boardName, renderedAt, formattedCreatedAt, params }) => (
     <CardDetailPage
       boardName={boardName}
       card={card}

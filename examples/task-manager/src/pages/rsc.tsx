@@ -127,7 +127,7 @@ export const route = defineRoute()
     return { content };
   })
   .head(() => ({ meta: [{ title: "Task Manager RSC — Furin" }] }))
-  .page(({ data: { content } }) => (
+  .page(({ content }) => (
     <CompositeComponent
       CreateForm={() => <CreateBoardForm />}
       DeleteButton={(boardId) => <DeleteBoardButton boardId={boardId} />}

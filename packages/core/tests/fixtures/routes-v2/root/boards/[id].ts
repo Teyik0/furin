@@ -10,5 +10,5 @@ export const route = defineRoute()
     const user = await (context as typeof context & { user: Promise<string> | string }).user;
     return { board: context.params.id, user };
   })
-  .head(({ data }) => ({ meta: [{ title: `Board ${data.board}` }] }))
-  .page(({ data }) => data.board);
+  .head(({ board }) => ({ meta: [{ title: `Board ${board}` }] }))
+  .page(({ board }) => board);

@@ -13,7 +13,7 @@ export const route = defineRoute()
     tenant: query.tenant ?? "",
     timestamp: Date.now(),
   }))
-  .page(({ data: { tenant, timestamp } }) => (
+  .page(({ tenant, timestamp }) => (
     <div data-tenant={tenant} data-testid="isr-query-page" data-timestamp={String(timestamp)}>
       {tenant}
     </div>

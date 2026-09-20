@@ -23,10 +23,10 @@ const createChildWithLayout = () =>
   defineRoute()
     .config({ layout: createBoardLayout(), mode: "ssr" })
     .loader(() => ({ board: "42" }))
-    .page(({ data }) => {
-      expectTypeOf(data.user).toEqualTypeOf<string>();
-      expectTypeOf(data.board).toEqualTypeOf<string>();
-      return `${data.user}:${data.board}`;
+    .page(({ board, user }) => {
+      expectTypeOf(user).toEqualTypeOf<string>();
+      expectTypeOf(board).toEqualTypeOf<string>();
+      return `${user}:${board}`;
     });
 
 const createChildWithLayoutAndParams = () =>
@@ -40,19 +40,19 @@ const createChildWithLayoutAndParams = () =>
       expectTypeOf(params.id).toEqualTypeOf<string>();
       return { board: params.id };
     })
-    .page(({ data }) => {
-      expectTypeOf(data.user).toEqualTypeOf<string>();
-      expectTypeOf(data.board).toEqualTypeOf<string>();
-      return `${data.user}:${data.board}`;
+    .page(({ board, user }) => {
+      expectTypeOf(user).toEqualTypeOf<string>();
+      expectTypeOf(board).toEqualTypeOf<string>();
+      return `${user}:${board}`;
     });
 
 const createParentlessChild = () =>
   defineRootRoute()
     .config({ mode: "ssr" })
     .loader(() => ({ board: "42" }))
-    .page(({ data }) => {
-      expectTypeOf(data).toEqualTypeOf<{ board: string }>();
-      return data.board;
+    .page(({ board }) => {
+      expectTypeOf(board).toEqualTypeOf<string>();
+      return board;
     });
 
 const createLegacyParentKey = () =>

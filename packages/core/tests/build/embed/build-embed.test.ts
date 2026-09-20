@@ -176,6 +176,9 @@ describe.serial("compile: embed", () => {
     expect(content).toContain("modules:");
     expect(content).toContain("import(");
     expect(content).toContain("publicDir: import.meta.dir");
+    expect(content).toContain(
+      "console.log(`[furin] Server running at http://localhost:${__app.server?.port}`);"
+    );
     expect(content).not.toContain('with { type: "file" }');
     expect(content).not.toContain("/public/logo.png");
   });

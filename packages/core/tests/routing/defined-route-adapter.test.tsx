@@ -23,13 +23,13 @@ describe("defineRoute renderer adapter", () => {
     const layout = defineRoute()
       .config({ layout: root, mode: "ssr" })
       .loader(() => ({ organization: "Furin" }))
-      .layout(({ children, data }) => `${data.organization}:${children}`);
+      .layout(({ children, organization }) => `${organization}:${children}`);
     const runtimeLayout = adaptDefinedLayout(layout, root);
     const route = defineRoute()
       .config({ layout: root, mode: "isr", params: t.Object({ id: t.Number() }), revalidate: 60 })
       .loader(({ params }) => ({ board: `Board ${params.id}` }))
-      .head(({ data }) => ({ meta: [{ title: data.board }] }))
-      .page(({ data, params }) => `${data.board}:${params.id}`);
+      .head(({ board }) => ({ meta: [{ title: board }] }))
+      .page(({ board, params }) => `${board}:${params.id}`);
     const page = adaptDefinedPage(route, runtimeLayout);
 
     expect(await page.loader?.({ params: { id: 42 }, query: {} })).toEqual({
@@ -53,7 +53,8 @@ describe("defineRoute renderer adapter", () => {
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ public: "catalog" }))
       .page(
-        ({ data, requestData: privateData }) => `${String(data.public)}:${String(privateData)}`
+        ({ public: catalog, requestData: privateData }) =>
+          `${String(catalog)}:${String(privateData)}`
       );
     const page = adaptDefinedPage(route, parent);
     const requestPromise = Promise.resolve({ user: "alice" });

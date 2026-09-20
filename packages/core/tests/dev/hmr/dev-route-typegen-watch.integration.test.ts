@@ -36,7 +36,7 @@ function typedRouteSource(version: "after" | "before"): string {
     `    tags: ["${version}"],`,
     "  })",
     `  .loader(({ params, query }) => ({ message: ${message} }))`,
-    "  .page(({ data }) => <main>{data.message}</main>);",
+    "  .page(({ message }) => <main>{message}</main>);",
   ].join("\n");
 }
 

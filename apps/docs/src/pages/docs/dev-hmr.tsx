@@ -14,6 +14,6 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Dev Mode HMR — Furin" }],
   }))
-  .page(({ data: { markdownSource } }) => (
+  .page(({ markdownSource }) => (
     <DocPage Content={DevHmr} doc={DOCS_BY_PATH["/docs/dev-hmr"]} markdownSource={markdownSource} />
   ));

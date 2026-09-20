@@ -32,8 +32,8 @@ export const route = defineRoute()
     log.set({ feature: "home" });
     return { message: "Hello from the server" };
   })
-  .head(({ data }) => ({ meta: [{ title: data.message }] }))
-  .page(({ data }) => <h1>{data.message}</h1>);
+  .head(({ message }) => ({ meta: [{ title: message }] }))
+  .page(({ message }) => <h1>{message}</h1>);
 ```
 
 `config()` is mandatory. The builder then carries layout data, route params, validated search state, loader output, and `requestLoader()` output into the next stage.

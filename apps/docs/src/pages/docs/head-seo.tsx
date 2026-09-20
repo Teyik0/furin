@@ -14,6 +14,6 @@ export const route = defineRoute()
   .head(() => ({
     meta: [{ title: "Head & SEO — Furin" }],
   }))
-  .page(({ data: { doc, markdownSource } }) => (
+  .page(({ doc, markdownSource }) => (
     <DocPage Content={HeadSeo} doc={doc} markdownSource={markdownSource} />
   ));

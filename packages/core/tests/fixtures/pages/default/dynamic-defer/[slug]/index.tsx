@@ -10,4 +10,4 @@ export const route = defineRoute()
       slug: String(params.slug),
     })
   )
-  .page(({ data: { slug } }) => <div data-testid="dynamic-defer-page">{slug}</div>);
+  .page(({ slug }) => <div data-testid="dynamic-defer-page">{slug}</div>);

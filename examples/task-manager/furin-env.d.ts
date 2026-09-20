@@ -12,11 +12,3 @@ declare module "@teyik0/furin/routes" {
     ]: typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
   }
 }
-
-declare module "@teyik0/furin" {
-  interface FurinCacheTags {
-    board: "board";
-    boards: "boards";
-    cards: "cards";
-  }
-}

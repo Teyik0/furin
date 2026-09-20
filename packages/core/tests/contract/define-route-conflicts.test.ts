@@ -26,20 +26,20 @@ const createCompatibleChild = () =>
   defineRoute()
     .config({ layout: createParentRoute(), mode: "ssr" })
     .loader(() => ({ visits: 3 }))
-    .page(({ data }) => {
-      expectTypeOf(data.visits).toEqualTypeOf<number>();
-      expectTypeOf(data.user).toEqualTypeOf<string>();
-      return `${data.user}:${data.visits}`;
+    .page(({ user, visits }) => {
+      expectTypeOf(visits).toEqualTypeOf<number>();
+      expectTypeOf(user).toEqualTypeOf<string>();
+      return `${user}:${visits}`;
     });
 
 const createConflictingChild = () =>
   defineRoute()
     .config({ layout: createParentRoute(), mode: "ssr" })
     .loader(() => ({ user: 42 }))
-    .page(({ data }) => {
+    .page(({ user: conflictedUser }) => {
       // @ts-expect-error — `user` is the branded conflict marker: the child
       // loader's `number` overwrites the parent's `string`.
-      const user: string = data.user;
+      const user: string = conflictedUser;
       return String(user);
     });
 
@@ -47,14 +47,14 @@ const createConflictingHeadAndLayout = () =>
   defineRoute()
     .config({ layout: createParentRoute(), mode: "ssr" })
     .loader(() => ({ visits: "many" }))
-    .head(({ data }) => {
+    .head(({ visits }) => {
       // @ts-expect-error — `visits` conflicts: number (parent) vs string.
-      const visits: number = data.visits;
-      return { meta: [{ title: String(visits) }] };
+      const count: number = visits;
+      return { meta: [{ title: String(count) }] };
     })
-    .layout(({ children, data }) => {
+    .layout(({ children, visits }) => {
       // @ts-expect-error — same branded conflict, layout reads included.
-      const _conflict: number = data.visits;
+      const _conflict: number = visits;
       return children;
     });
 
@@ -62,9 +62,9 @@ const createParentlessRoute = () =>
   defineRootRoute()
     .config({ mode: "ssr" })
     .loader(() => ({ user: 42 }))
-    .page(({ data }) => {
-      expectTypeOf(data.user).toEqualTypeOf<number>();
-      return String(data.user);
+    .page(({ user }) => {
+      expectTypeOf(user).toEqualTypeOf<number>();
+      return String(user);
     });
 
 describe("defineRoute parentData conflicts", () => {

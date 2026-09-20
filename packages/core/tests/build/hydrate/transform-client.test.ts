@@ -12,7 +12,7 @@ const Page = () => null;
 export const route = defineRoute()
   .config({ mode: "ssr", params: schema })
   .loader(() => ({ secret }))
-  .head(({ data }) => ({ meta: [{ title: data.secret }] }))
+  .head(({ secret }) => ({ meta: [{ title: secret }] }))
   .page(Page);`,
       "route.tsx"
     );

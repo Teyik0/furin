@@ -148,11 +148,11 @@ export interface AwaitProps<T> {
  * ```tsx
  * export const route = defineRoute()
  *   .loader(() => defer({ board: "x", stats: fetchStats() }))
- *   .page(({ data }) => (
+ *   .page(({ board, stats }) => (
  *     <div>
- *       <h1>{data.board}</h1>
+ *       <h1>{board}</h1>
  *       <Suspense fallback={<Spinner />}>
- *         <Await resolve={data.stats}>
+ *         <Await resolve={stats}>
  *           {(s) => <StatsBar stats={s} />}
  *         </Await>
  *       </Suspense>

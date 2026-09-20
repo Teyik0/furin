@@ -16,11 +16,11 @@ export const route = defineRoute()
       analytics: fetchAnalytics(),
     })
   )
-  .page(({ data }) => (
+  .page(({ analytics, title }) => (
     <main>
-      <h1>{data.title}</h1>
+      <h1>{title}</h1>
       <Suspense fallback={<ChartSkeleton />}>
-        <Await resolve={data.analytics}>
+        <Await resolve={analytics}>
           {(analytics) => <Chart value={analytics} />}
         </Await>
       </Suspense>
@@ -41,7 +41,7 @@ function AnalyticsError() {
 }
 
 <Suspense fallback={<ChartSkeleton />}>
-  <Await errorElement={<AnalyticsError />} resolve={data.analytics}>
+  <Await errorElement={<AnalyticsError />} resolve={analytics}>
     {(analytics) => <Chart value={analytics} />}
   </Await>
 </Suspense>;

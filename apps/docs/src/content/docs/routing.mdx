@@ -57,7 +57,7 @@ export const route = defineRoute()
     params: t.Object({ slug: t.String({ minLength: 1 }) }),
   })
   .loader(async ({ params }) => ({ post: await getPost(params.slug) }))
-  .page(({ data, params }) => <article>{data.post.title}</article>);
+  .page(({ params, post }) => <article>{post.title}</article>);
 ```
 
 Parameter names must be valid JavaScript-style identifiers. Catch-all routes use Elysia's wildcard key, regardless of the filename label:
@@ -92,7 +92,7 @@ export const route = defineRoute()
     }),
   })
   .loader(({ query }) => search({ page: query.page, query: query.q }))
-  .page(({ data, query }) => <Results items={data.items} page={query.page} />);
+  .page(({ items, query }) => <Results items={items} page={query.page} />);
 ```
 
 Schema defaults are applied before loaders run. Navigation omits values equal to those defaults from the generated URL, keeping canonical links clean.

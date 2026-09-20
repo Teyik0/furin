@@ -5,4 +5,4 @@ import { route as rootRoute } from "./_route";
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssg" })
   .loader(async ({ root }) => ({ home, root: await root }))
-  .page(({ data }) => String(data.home));
+  .page(({ home: homeValue }) => String(homeValue));

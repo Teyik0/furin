@@ -16,16 +16,16 @@ export const route = defineRoute()
     log.set({ postCount: posts.length });
     return { posts };
   })
-  .page(({ data }) => <PostList posts={data.posts} />);
+  .page(({ posts }) => <PostList posts={posts} />);
 ```
 
-The return object is serialized into the initial document and route-data response. It must therefore contain values supported by Furin's Seroval transport. Keys beginning with `__furin`, plus `params`, `query`, and `path`, are reserved.
+The return object is serialized into the initial document and route-data response, then exposed as flat props to `page()`, `layout()`, and `head()`. It must therefore contain values supported by Furin's Seroval transport. Keys beginning with `__furin`, plus `children`, `key`, `params`, `path`, `query`, `ref`, and `requestData`, are reserved.
 
 Returning a plain promise inside a plain object does not opt into streaming: it is resolved as normal loader data. Use `defer()` explicitly when a field should stream.
 
 ## Layout Data And Parallelism
 
-Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant receives each ancestor field as an individual promise:
+Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant loader receives each ancestor field as an individual promise; render callbacks receive the resolved fields as flat props:
 
 ```tsx
 // src/pages/dashboard/settings.tsx
@@ -43,7 +43,7 @@ export const route = defineRoute()
       settings: await getSettings(resolvedOrganization.id, resolvedUser.id),
     };
   })
-  .page(({ data }) => <Settings value={data.settings} user={data.user} />);
+  .page(({ settings, user }) => <Settings value={settings} user={user} />);
 ```
 
 If the child does not read a parent field, its work stays parallel. Layout results are merged from root to leaf and the page result is applied last. Reusing a key overwrites the parent value; development logs a collision, so prefer unique field names.
@@ -80,8 +80,8 @@ export const route = defineRoute()
   .loader(async ({ params, query }) => ({
     post: await getPost(params.slug, { preview: query.preview }),
   }))
-  .page(({ data, params, query }) => (
-    <Post post={data.post} preview={query.preview} slug={params.slug} />
+  .page(({ params, post, query }) => (
+    <Post post={post} preview={query.preview} slug={params.slug} />
   ));
 ```
 
@@ -102,9 +102,9 @@ export const route = defineRoute()
     session: await readSession(cookies.get("session"), request.signal),
   }))
   .loader(async () => ({ catalog: await getPublicCatalog() }))
-  .page(({ data, requestData }) => (
+  .page(({ catalog, requestData }) => (
     <>
-      <Catalog items={data.catalog} />
+      <Catalog items={catalog} />
       <Suspense fallback={<AccountSkeleton />}>
         <Account session={use(requestData).session} />
       </Suspense>
