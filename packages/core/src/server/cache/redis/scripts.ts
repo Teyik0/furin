@@ -20,10 +20,6 @@ local lease = {
   values = values
 }
 redis.call('SET', KEYS[1], cjson.encode(lease), 'PX', ARGV[2])
-redis.call('ZADD', KEYS[4], 0, ARGV[4])
-for index = 5, #KEYS do
-  redis.call('SADD', KEYS[index], ARGV[4])
-end
 return cjson.encode(lease)
 `;
 

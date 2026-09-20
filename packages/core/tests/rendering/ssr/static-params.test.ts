@@ -97,4 +97,43 @@ describe("static params", () => {
     expect(await resolveStaticParams(route, "http://localhost")).toEqual([{ city: "paris-fr" }]);
     expect(loaderCalls).toBe(1);
   });
+
+  test("runs ancestor loaders with the deepest concrete ancestor path", async () => {
+    const observedPaths: string[] = [];
+    const root: RuntimeRoute = {
+      __type: "FURIN_ROUTE",
+      loader: ({ path }) => {
+        observedPaths.push(path as string);
+        return { categories: ["books"] };
+      },
+      sourcePath: "/app/pages/root.tsx",
+    };
+    const category: RuntimeRoute = {
+      __type: "FURIN_ROUTE",
+      loader: ({ path }) => {
+        observedPaths.push(path as string);
+        return { products: ["novel"] };
+      },
+      sourcePath: "/app/pages/categories/[category]/_route.tsx",
+      staticParams: async ({ categories }) =>
+        ((await categories) as string[]).map((categoryName) => ({ category: categoryName })),
+    };
+    const page: RuntimePage = {
+      __type: "FURIN_PAGE",
+      _route: { __type: "FURIN_ROUTE" },
+      component: () => null,
+      staticParams: async ({ products }) =>
+        ((await products) as string[]).map((product) => ({ product })),
+    };
+    const route: ResolvedRoute = {
+      ...createRoute([root, category], page),
+      path: "/app/pages/categories/[category]/[product].tsx",
+      pattern: "/categories/:category/:product",
+    };
+
+    expect(await resolveStaticParams(route, "http://localhost")).toEqual([
+      { category: "books", product: "novel" },
+    ]);
+    expect(observedPaths).toEqual(["/", "/categories/books", "/categories/books"]);
+  });
 });

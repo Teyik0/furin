@@ -84,4 +84,25 @@ describeWithRedis("Redis page cache", () => {
     }
     expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
   });
+
+  test("does not index a path when its render lease is abandoned", async () => {
+    const abandonedIdentity: PageCacheIdentity = {
+      ...identity,
+      key: "/abandoned",
+      path: "/abandoned",
+    };
+    const lease = await cache.acquire({ identity: abandonedIdentity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await cache.release({ identity: abandonedIdentity, lease });
+
+    expect(await cache.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual({
+      invalidated: false,
+      paths: [],
+    });
+    expect(
+      await cache.invalidate({ kind: "path", path: "/abandoned", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: false, paths: [] });
+  });
 });

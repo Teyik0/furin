@@ -1,3 +1,4 @@
+import { dirname, relative } from "node:path";
 import type { Context } from "elysia";
 import type {
   RuntimeData,
@@ -6,6 +7,7 @@ import type {
   RuntimeStaticParams,
 } from "../../client/internal/runtime-types.ts";
 import { mapWithConcurrency } from "../../shared/utils/index.ts";
+import { filePathToPattern } from "../router/patterns.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { runPublicLoaders } from "./loaders.ts";
@@ -30,8 +32,22 @@ function collectStaticParamsStages(route: ResolvedRoute): StaticParamsStage[] {
   return stages;
 }
 
-function createBuildContext(route: ResolvedRoute, params: RuntimeParams, origin: string): Context {
-  const path = resolvePath(route.pattern, params);
+function ancestorPattern(route: ResolvedRoute, ancestors: RuntimeRoute[]): string {
+  const rootSourcePath = route.routeChain[0]?.sourcePath;
+  const ancestorSourcePath = ancestors.at(-1)?.sourcePath;
+  if (rootSourcePath === undefined || ancestorSourcePath === undefined) {
+    return route.pattern;
+  }
+  const pagesDir = dirname(rootSourcePath);
+  const ancestorDir = dirname(ancestorSourcePath);
+  if (ancestorDir === pagesDir) {
+    return "/";
+  }
+  return filePathToPattern(`${relative(pagesDir, ancestorDir)}/index.tsx`);
+}
+
+function createBuildContext(pattern: string, params: RuntimeParams, origin: string): Context {
+  const path = resolvePath(pattern, params);
   return {
     cookie: {},
     headers: {},
@@ -51,13 +67,15 @@ async function runAncestorLoaders(
   params: RuntimeParams,
   origin: string
 ): Promise<RuntimeData> {
+  const pattern = ancestorPattern(route, ancestors);
   const result = await runPublicLoaders(
     {
       ...route,
       page: { ...route.page, loader: undefined },
+      pattern,
       routeChain: ancestors,
     },
-    createBuildContext(route, params, origin)
+    createBuildContext(pattern, params, origin)
   );
 
   if (result.type === "redirect") {

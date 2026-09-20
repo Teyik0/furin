@@ -146,13 +146,10 @@ export class RedisPageCache implements PageCacheAdapter {
     leaseMs: number;
   }): Promise<PageCacheLease | null> {
     const id = crypto.randomUUID();
-    const tagKeys = [...new Set(identity.tags)].map((tag) => this.tagPathsKey(identity.scope, tag));
     const keys = [
       this.leaseKey(identity),
       this.fenceKey(identity),
       this.versionsKey(identity.scope),
-      this.pathsKey(identity.scope),
-      ...tagKeys,
     ];
     const raw = await this.client.send("EVAL", [
       ACQUIRE_PAGE_CACHE_LEASE_SCRIPT,
@@ -161,7 +158,6 @@ export class RedisPageCache implements PageCacheAdapter {
       id,
       String(leaseMs),
       JSON.stringify(selectorFields(identity)),
-      identity.path,
     ]);
     if (raw === null) {
       return null;
