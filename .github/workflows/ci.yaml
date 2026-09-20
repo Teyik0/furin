@@ -113,15 +113,26 @@ jobs:
       - name: Install Furin
         run: bun install --frozen-lockfile
 
-      - name: Build and link Furin HEAD
+      - name: Build and pack Furin HEAD
         working-directory: packages/core
         run: |
           bun run build
-          bun link
+          mkdir -p "$RUNNER_TEMP/furin-head-package"
+          bun pm pack --destination "$RUNNER_TEMP/furin-head-package"
+          furin_tarball="$(find "$RUNNER_TEMP/furin-head-package" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "$furin_tarball"
+          echo "FURIN_HEAD_TARBALL=$furin_tarball" >> "$GITHUB_ENV"
 
-      - name: Install benchmark
+      - name: Install Furin benchmark package
         working-directory: .benchmark
-        run: bun install --frozen-lockfile
+        run: |
+          bun install --frozen-lockfile
+          bun add --cwd apps/furin --exact \
+            "$FURIN_HEAD_TARBALL" \
+            elysia@2.0.0-beta.16 \
+            evlog@2.29.0 \
+            exact-mirror@1.2.6 \
+            typebox@1.3.34
 
       - name: Validate framework fixtures
         working-directory: .benchmark
@@ -153,9 +164,14 @@ jobs:
           bun install --frozen-lockfile
           cd "$RUNNER_TEMP/furin-benchmark-base/packages/core"
           bun run build
-          bun link
+          mkdir -p "$RUNNER_TEMP/furin-base-package"
+          bun pm pack --destination "$RUNNER_TEMP/furin-base-package"
+          furin_tarball="$(find "$RUNNER_TEMP/furin-base-package" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "$furin_tarball"
           cd "$GITHUB_WORKSPACE/.benchmark"
+          git restore bun.lock apps/furin/package.json
           bun install --frozen-lockfile --force
+          bun add --cwd apps/furin --exact "$furin_tarball"
           bun run link:furin
           bun run --cwd apps/furin build
           bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-base.json"
@@ -164,11 +180,15 @@ jobs:
         if: steps.benchmark-baseline.outputs.available == 'true'
         working-directory: .benchmark
         run: |
+          base_elysia_version="$(bun -e 'const path = process.argv.at(-1); const pkg = await Bun.file(path).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
+          head_elysia_version="$(bun -e 'const path = process.argv.at(-1); const pkg = await Bun.file(path).json(); console.log(pkg.catalog.elysia)' "$GITHUB_WORKSPACE/package.json")"
           set +e
-          bun scripts/compare-local-reports.ts \
+          bun "$GITHUB_WORKSPACE/scripts/compare-vercel-framework-reports.ts" \
             "$RUNNER_TEMP/vercel-benchmark-base.json" \
             "$RUNNER_TEMP/vercel-benchmark-head.json" \
-            "$RUNNER_TEMP/vercel-benchmark.md"
+            "$RUNNER_TEMP/vercel-benchmark.md" \
+            "$base_elysia_version" \
+            "$head_elysia_version"
           comparison_status=$?
           set -e
           {

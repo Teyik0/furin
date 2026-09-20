@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { aot } from "elysia/plugin/aot/bun";
 import { runBunBuild } from "../build/bun-build.ts";
 import { prepareCompileEntryApps } from "../build/compile-entry.ts";
+import { elysiaAot } from "../build/elysia-aot.ts";
 import type { BuildEntryOptions } from "../build/entry-template.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { materializeServerAppEntry, serverBootSource } from "../build/server-app-entry.ts";
@@ -153,16 +153,13 @@ export async function buildBunTarget(
       minify: true,
       plugins: [
         entry.plugin,
+        elysiaAot(appEntry),
         productionInstrumentationPlugin(),
         pprRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
         environmentGuardPlugin("ssr"),
-        // Kiana beta.16's no-WS stub omits exports still imported by the
-        // websocket capability module. Keep handler/validator AOT, but retain
-        // the runtime compiler until the upstream stub surface is complete.
-        aot(appEntry, { strip: false, target: "bun" }),
       ],
       sourcemap: "none",
       splitting: true,
@@ -196,13 +193,13 @@ export async function buildBunTarget(
       outdir: targetDir,
       plugins: [
         entry.plugin,
+        elysiaAot(appEntry),
         productionInstrumentationPlugin(),
         pprRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
         environmentGuardPlugin("ssr"),
-        aot(appEntry, { strip: false, target: "bun" }),
       ],
       sourcemap: "none",
       target: "bun",

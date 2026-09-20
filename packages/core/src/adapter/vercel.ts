@@ -9,8 +9,8 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { aot } from "elysia/plugin/aot/bun";
 import { runBunBuild } from "../build/bun-build.ts";
+import { elysiaAot } from "../build/elysia-aot.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
@@ -767,6 +767,7 @@ export async function buildVercelTarget(
     outdir: serverFunctionDir,
     plugins: [
       entry.plugin,
+      elysiaAot(appEntry),
       vercelRuntimePlugin(),
       productionInstrumentationPlugin(),
       pprRuntimePlugin(apps),
@@ -774,7 +775,6 @@ export async function buildVercelTarget(
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("ssr"),
-      aot(appEntry, { strip: false, target: "bun" }),
     ],
     sourcemap: "none",
     target: "bun",

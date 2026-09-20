@@ -35,6 +35,15 @@ const workflow = Bun.YAML.parse(
     comment?: { if?: string; steps: WorkflowStep[] };
   };
 };
+const ciWorkflow = Bun.YAML.parse(
+  readFileSync(new URL("../../../../../.github/workflows/ci.yaml", import.meta.url), "utf8")
+) as {
+  jobs: {
+    "vercel-benchmark": {
+      steps: WorkflowStep[];
+    };
+  };
+};
 const sha = "a".repeat(40);
 const table = `# Vercel framework benchmark
 
@@ -187,6 +196,32 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
     BENCHMARK_WARM_SAMPLES: "5",
     VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}",
   });
+});
+
+test.each([
+  ["live", workflow.jobs["live-vercel"].steps],
+  ["pull request", ciWorkflow.jobs["vercel-benchmark"].steps],
+])("installs packed Furin with one Kiana dependency graph in the %s benchmark", (_name, steps) => {
+  const packageStep = steps.find((step) => step.name === "Build and pack Furin HEAD")?.run;
+  const installStep = steps.find((step) => step.name === "Install Furin benchmark package")?.run;
+
+  expect(packageStep).toContain("bun pm pack");
+  expect(packageStep).not.toContain("bun link");
+  expect(installStep).toContain("bun add --cwd apps/furin --exact");
+  expect(installStep).toContain('"$FURIN_HEAD_TARBALL"');
+  expect(installStep).toContain("elysia@2.0.0-beta.16");
+  expect(installStep).toContain("exact-mirror@1.2.6");
+  expect(installStep).toContain("typebox@1.3.34");
+});
+
+test("compares Vercel bundles with the Elysia-major-aware budget", () => {
+  const step = ciWorkflow.jobs["vercel-benchmark"].steps.find(
+    (candidate) => candidate.name === "Enforce benchmark budgets"
+  )?.run;
+
+  expect(step).toContain("scripts/compare-vercel-framework-reports.ts");
+  expect(step).toContain('"$RUNNER_TEMP/furin-benchmark-base/package.json"');
+  expect(step).toContain('"$GITHUB_WORKSPACE/package.json"');
 });
 
 test.each([0, 1, 2])("prepares a publishable report only for one completed run (%i reports)", async (count) => {
