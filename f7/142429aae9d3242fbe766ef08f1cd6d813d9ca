@@ -1,0 +1,20 @@
+packages/core/tests/runtime/cache/page-cache-ssg.test.ts
+  s_94f8881e2139f4::t_d15179c5ed9ef3 39-47,92-94,96-100,102,133-141,143,189
+  s_94f8881e2139f4::t_514908ffcef430 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f7142429aae9d3242fbe766ef08f1cd6d813d9ca",
+  "prompts": {},
+  "sessions": {
+    "s_94f8881e2139f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf45-d557-7fb3-aec4-fe66a3a21b6a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
