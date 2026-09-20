@@ -13,7 +13,7 @@ interface WeatherPageProps {
 }
 
 export function WeatherPage({ activeCitySlug, city, error, weather }: WeatherPageProps) {
-  const { navigate } = useRouter();
+  const { basePath, navigate } = useRouter();
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>): void => {
@@ -36,7 +36,12 @@ export function WeatherPage({ activeCitySlug, city, error, weather }: WeatherPag
         </p>
       </div>
 
-      <form action="/weather/search" className="flex gap-3" method="get" onSubmit={handleSubmit}>
+      <form
+        action={`${basePath}/weather/search`}
+        className="flex gap-3"
+        method="get"
+        onSubmit={handleSubmit}
+      >
         <input
           aria-label="City name"
           className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white outline-none placeholder:text-zinc-500 focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/30"

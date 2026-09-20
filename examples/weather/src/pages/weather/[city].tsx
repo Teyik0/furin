@@ -14,7 +14,12 @@ export const route = defineRoute()
     staticParams: () =>
       POPULAR_CITIES.filter(({ slug }) => slug !== "paris").map(({ slug }) => ({ city: slug })),
   })
-  .loader(({ log, params }) => loadWeatherPage(cityNameFromSlug(params.city), log))
+  .loader(({ log, params, redirect }) => {
+    if (params.city.toLocaleLowerCase("en") === "paris") {
+      throw redirect("/");
+    }
+    return loadWeatherPage(cityNameFromSlug(params.city), log);
+  })
   .head(({ city }) => ({
     meta: [{ title: `Weather in ${city}` }],
   }))

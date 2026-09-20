@@ -1,9 +1,12 @@
 import { afterAll, expect, test } from "bun:test";
+import { furin } from "@teyik0/furin";
 import { getCache } from "@teyik0/furin/cache";
+import { Elysia } from "elysia";
 import { cityNameFromSlug, toCitySlug } from "../src/lib/cities.ts";
 import { route as cityRoute } from "../src/pages/weather/[city].tsx";
 import app from "../src/server.ts";
 
+const prefixedApp = new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "/forecast" }));
 const weatherCache = getCache({ namespace: "furin-weather-v1" });
 const city = "Routeville";
 const latitude = 47.25;
@@ -68,7 +71,25 @@ test("renders a city route directly without redirecting", async () => {
 
   expect(response.status).toBe(200);
   expect(response.headers.get("location")).toBeNull();
-  expect(await response.text()).toContain(city);
+  const html = await response.text();
+  expect(html).toContain("18<!-- -->°C");
+  expect(html).not.toContain("City not found");
+});
+
+test("keeps the no-JavaScript search action inside a mount prefix", async () => {
+  await primeWeatherCache("Paris", parisLatitude, parisLongitude);
+
+  const response = await prefixedApp.handle(new Request("http://localhost/forecast/"));
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('action="/forecast/weather/search"');
+});
+
+test("redirects the duplicate Paris city route to the canonical root", async () => {
+  const response = await app.handle(new Request("http://localhost/weather/paris"));
+
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toBe("/");
 });
 
 test("renders Paris at the root without depending on search params", async () => {
