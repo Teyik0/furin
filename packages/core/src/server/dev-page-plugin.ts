@@ -389,6 +389,44 @@ export function transformDevSource(
   }
 }
 
+function isMissingSourceFile(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+/** @internal exported for testing */
+export async function loadDevPageContents(
+  filePath: string,
+  transformedSourceCache: Map<string, string>
+): Promise<string> {
+  let raw: string;
+  try {
+    raw = await Bun.file(filePath).text();
+  } catch (error) {
+    const cached = transformedSourceCache.get(filePath);
+    if (cached !== undefined && isMissingSourceFile(error)) {
+      return cached;
+    }
+    throw error;
+  }
+
+  let contents: string;
+  try {
+    contents = transformDevSource(raw, filePath, {
+      rewriteBareImports: true,
+      rewriteRelativeImports: true,
+    });
+  } catch (error) {
+    throw new DevTransformFailure(error, { cause: error });
+  }
+  transformedSourceCache.set(filePath, contents);
+  return contents;
+}
+
 export function registerDevPagePlugin(): void {
   if (_pluginRegistered) {
     return;
@@ -397,6 +435,11 @@ export function registerDevPagePlugin(): void {
   Bun.plugin({
     name: "furin-dev-page-loader",
     setup(build) {
+      // Keep the last complete module graph usable while a route deletion is
+      // being observed. Bun may finish an already-started virtual module load
+      // after the topology watcher has removed its source from disk.
+      const transformedSourceCache = new Map<string, string>();
+
       /**
        * Strip `?furin-server` but keep `?t=<source-version>` in the resolved
        * path so each edited version gets a new module identity.
@@ -493,16 +536,7 @@ export function registerDevPagePlugin(): void {
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
-        const raw = await Bun.file(filePath).text();
-        let contents: string;
-        try {
-          contents = transformDevSource(raw, filePath, {
-            rewriteBareImports: true,
-            rewriteRelativeImports: true,
-          });
-        } catch (error) {
-          throw new DevTransformFailure(error, { cause: error });
-        }
+        const contents = await loadDevPageContents(filePath, transformedSourceCache);
 
         return {
           contents,

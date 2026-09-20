@@ -1,12 +1,31 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
+  loadDevPageContents,
   rewriteRelativeImports,
   rewriteSingletonImports,
   toImportSpecifier,
   transformDevSource,
   WORKSPACE_SOURCE_FILTER,
 } from "../../../src/server/dev-page-plugin.ts";
+
+test("a deleted page finishes an in-flight load from its last transformed source", async () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-page-"));
+  const filePath = resolve(directory, "page.tsx");
+  const cache = new Map<string, string>();
+
+  try {
+    writeFileSync(filePath, 'export const marker = "loaded";');
+    const loaded = await loadDevPageContents(filePath, cache);
+    rmSync(filePath);
+
+    expect(await loadDevPageContents(filePath, cache)).toBe(loaded);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 describe("WORKSPACE_SOURCE_FILTER", () => {
   test.each([
