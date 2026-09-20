@@ -267,19 +267,19 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect((await fetch(`http://localhost:${port}/items/nope`)).status).toBe(422);
     } finally {
       removeAppPath(app.path, "src/pages/items/[id].tsx");
-      const removed = await pollUntil(
-        async () => {
-          try {
-            return (await fetch(`http://localhost:${port}/items/42`)).status === 404;
-          } catch {
-            return false;
-          }
-        },
-        40,
-        250
-      );
-      expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
     }
+    const removed = await pollUntil(
+      async () => {
+        try {
+          return (await fetch(`http://localhost:${port}/items/42`)).status === 404;
+        } catch {
+          return false;
+        }
+      },
+      40,
+      250
+    );
+    expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
   }, 20_000);
 
   test.each(["schema", "schema-dependency"])(

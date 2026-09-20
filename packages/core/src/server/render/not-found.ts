@@ -3,9 +3,12 @@ import { renderToReadableStream } from "react-dom/server";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
+import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { FurinNotFoundError } from "../../shared/not-found.ts";
+import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { useLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
+import { parseRouteQuery } from "../router/schemas.ts";
 import type { RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { streamToString } from "./assemble.ts";
@@ -48,9 +51,23 @@ export async function renderRootNotFound(
   // page must be physical (prefixed), and currentHref logical, exactly like
   // the regular render pipeline.
   const basePath = currentInstance().prefix;
-  const logicalPath = request
-    ? normalizeHref(toLogical(new URL(request.url).pathname, basePath))
-    : "/";
+  const requestUrl = request ? new URL(request.url) : undefined;
+  const logicalPath = requestUrl ? normalizeHref(toLogical(requestUrl.pathname, basePath)) : "/";
+  let query: SearchParamsInput = {};
+  if (requestUrl) {
+    const parsedQuery = await parseRouteQuery(
+      requestUrl,
+      root.route.query as FurinSchema | undefined
+    );
+    if (parsedQuery.ok) {
+      ({ query } = parsedQuery);
+    } else {
+      const rawQuery = await parseRouteQuery(requestUrl, undefined);
+      if (rawQuery.ok) {
+        ({ query } = rawQuery);
+      }
+    }
+  }
   const notFoundContext: RouterContextValue = {
     basePath,
     currentHref: logicalPath,
@@ -66,14 +83,14 @@ export async function renderRootNotFound(
       /* noop */
     },
     refresh: (_opts) => Promise.resolve(),
-    search: {},
+    search: query,
     searchRoutes: [],
   };
 
   useLogger().set({
     furin: {
       action: "catch_all",
-      path: request ? new URL(request.url).pathname : "/",
+      path: requestUrl?.pathname ?? "/",
       render: "not-found",
     },
   });
@@ -86,7 +103,7 @@ export async function renderRootNotFound(
         withSSRRouterContext(
           wrapRootLayout(
             buildNotFoundElement(root.notFound, notFoundError),
-            { params: {}, path: logicalPath, query: {} },
+            { params: {}, path: logicalPath, query },
             root.route
           ),
           notFoundContext

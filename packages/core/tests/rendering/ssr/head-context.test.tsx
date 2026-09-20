@@ -26,13 +26,18 @@ function createLoaderContext(): Context {
 }
 
 describe("SSR head context", () => {
-  test("reuses synchronous loader data as the component context", async () => {
+  test("reuses synchronous loader data as the component context without exposing it to head mutations", async () => {
     const rootTerminal = defineRootRoute()
       .config({ mode: "ssr" })
       .layout(({ children }) => children);
     const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
     const terminal = defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(() => ({}))
+      .head((props) => {
+        Object.assign(props, { headMutation: true });
+        return {};
+      })
       .page(() => null);
     const page = adaptDefinedPage(terminal, rootRoute);
     const route: ResolvedRoute = {
@@ -58,6 +63,7 @@ describe("SSR head context", () => {
       throw new Error("Expected a prepared render result.");
     }
     expect(prepared.componentProps).toBe(syncData);
+    expect("headMutation" in syncData).toBe(false);
   });
 
   test("keeps deferred and request data out of head while exposing them to the page", async () => {
@@ -75,6 +81,7 @@ describe("SSR head context", () => {
         </html>
       ));
     const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
+    let headReceivedCatalog = false;
     let headReceivedDeferredData = false;
     let headReceivedRequestData = false;
     let pageReceivedDeferredData = false;
@@ -84,6 +91,7 @@ describe("SSR head context", () => {
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => defer({ catalog: "Shoes", stock: Promise.resolve(42) }))
       .head((props) => {
+        headReceivedCatalog = props.catalog === "Shoes";
         headReceivedDeferredData = "stock" in props;
         headReceivedRequestData = "requestData" in props;
         return {};
@@ -105,6 +113,7 @@ describe("SSR head context", () => {
 
     await renderToHTML(route, createLoaderContext(), { path: "/", route: rootRoute });
 
+    expect(headReceivedCatalog).toBe(true);
     expect(headReceivedDeferredData).toBe(false);
     expect(headReceivedRequestData).toBe(false);
     expect(pageReceivedDeferredData).toBe(true);

@@ -303,7 +303,7 @@ function buildSuccessRender(
   status: number;
 } {
   try {
-    const headData = route.page.head?.(headContext);
+    const headData = route.page.head?.({ ...headContext });
     const element = buildElement(route, componentProps, root.route);
     return { element, errorDigest: undefined, errorMessage: undefined, headData, status: 200 };
   } catch (headError) {
