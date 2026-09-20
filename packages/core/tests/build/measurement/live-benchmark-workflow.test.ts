@@ -199,7 +199,7 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
     workflow.jobs["live-vercel"].steps.find((step) => step.name === "Run live benchmark")?.env
   ).toEqual({
     BENCHMARK_ROUNDS: "3",
-    BENCHMARK_WARM_SAMPLES: "5",
+    BENCHMARK_WARM_SAMPLES: "20",
     VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}",
   });
   const benchmarkStep = workflow.jobs["live-vercel"].steps.find(

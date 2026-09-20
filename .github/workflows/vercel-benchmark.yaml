@@ -137,7 +137,8 @@ jobs:
         working-directory: .benchmark
         env:
           BENCHMARK_ROUNDS: "3"
-          BENCHMARK_WARM_SAMPLES: "5"
+          # 60 observations keep p95 from collapsing to the single slowest sample.
+          BENCHMARK_WARM_SAMPLES: "20"
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set +e
