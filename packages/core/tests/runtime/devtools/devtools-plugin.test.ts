@@ -12,8 +12,14 @@ import {
 } from "../../../src/server/cache/dev-loader.ts";
 import {
   consumePendingInvalidations,
+  revalidatePath,
   revalidatePathForInstance,
 } from "../../../src/server/cache/invalidation.ts";
+import type { PageCacheAdapter } from "../../../src/server/cache/page-cache.ts";
+import {
+  resetPageCacheAdapter,
+  setPageCacheAdapter,
+} from "../../../src/server/cache/page-cache-state.ts";
 import { devtoolsEventsSnapshot } from "../../../src/server/devtools/hub.ts";
 import { createDevtoolsPlugin } from "../../../src/server/devtools/plugin.ts";
 import { runWithDevtoolsRequest } from "../../../src/server/devtools/request-context.ts";
@@ -226,6 +232,34 @@ describe("native DevTools plugin", () => {
       reason: "path",
       target: "/posts",
     });
+  });
+
+  test("records the combined result of shared path invalidation", async () => {
+    const instance = currentInstance();
+    const pageCache: PageCacheAdapter = {
+      acquire: () => Promise.resolve(null),
+      commit: () => Promise.resolve("superseded"),
+      invalidate: () => Promise.resolve({ invalidated: true, paths: ["/shared"] }),
+      read: () => Promise.resolve(null),
+      release: () => Promise.resolve(),
+    };
+    setPageCacheAdapter(instance, pageCache);
+    const cursor = devtoolsEventsSnapshot().lastEventId;
+
+    try {
+      expect(await revalidatePath("/shared", "page")).toBe(true);
+      const event = devtoolsEventsSnapshot().events.find(
+        (candidate) => candidate.id > cursor && candidate.type === "cache.invalidated"
+      );
+      expect(event).toMatchObject({
+        deleted: true,
+        purgedPaths: 1,
+        reason: "path",
+        target: "/shared",
+      });
+    } finally {
+      resetPageCacheAdapter(instance);
+    }
   });
 
   test("records source invalidations without absolute file paths", async () => {

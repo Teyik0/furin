@@ -12,6 +12,7 @@ import {
   setPageCacheAdapter,
 } from "../../../src/server/cache/page-cache-state.ts";
 import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
+import { warmSSGCache } from "../../../src/server/render/ssg.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
@@ -186,4 +187,56 @@ async function runSsgInvalidationRace(): Promise<void> {
   }
 
   expect(loaderCalls).toBe(2);
+}
+
+test.serial(
+  "SSG warm-up populates the configured shared cache",
+  (done) => {
+    runSharedSsgWarmup().then(() => done(), done);
+  },
+  15_000
+);
+
+async function runSharedSsgWarmup(): Promise<void> {
+  __setDevMode(false);
+  const result = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const matched = result.routes.find((candidate) => candidate.pattern === "/ssg-page");
+  if (matched === undefined) {
+    throw new Error("Route /ssg-page not found");
+  }
+  let loaderCalls = 0;
+  const route: ResolvedRoute = {
+    ...matched,
+    mode: "ssg",
+    page: {
+      ...matched.page,
+      loader: () => {
+        loaderCalls += 1;
+        return { timestamp: loaderCalls };
+      },
+      staticParams: () => [{ slug: "one" }],
+    },
+    pattern: "/products/:slug",
+  };
+  const instance = registerInstance(createInstance("", "/ssg-warmup/pages"));
+  instance.buildId = "build-a";
+  const cache = createMemoryPageCache();
+  setPageCacheAdapter(instance, cache);
+  const identity: PageCacheIdentity = {
+    buildId: instance.buildId,
+    key: "/products/one",
+    mode: "ssg",
+    path: "/products/one",
+    scope: "",
+    tags: route.tags ?? [],
+  };
+
+  try {
+    await withInstance(instance, () => warmSSGCache([route], result.root, "http://localhost"));
+    expect(await cache.read(identity)).not.toBeNull();
+    expect(loaderCalls).toBe(1);
+  } finally {
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
 }

@@ -637,6 +637,26 @@ export const route = defineRoute()
     }
   });
 
+  test("rejects staticParams when inserting a complete config would infer ssr", () => {
+    const pages = createPages({
+      "about.tsx": `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute()
+  .staticParams(() => [])
+  .loader(() => ({ ok: true }))
+  .page(() => "about");
+`,
+      "root.tsx": ROOT_LAYOUT,
+    });
+    try {
+      const filePath = join(pages.path, "about.tsx");
+      expect(() => fixRouteConfigLayout(readFile(filePath), filePath, pages.path)).toThrow(
+        `${filePath}: staticParams requires mode ssg or isr`
+      );
+    } finally {
+      pages.cleanup();
+    }
+  });
+
   test("rejects isr mode without revalidate", () => {
     const pages = createPages({
       "about.tsx": `import { defineRoute } from "@teyik0/furin";

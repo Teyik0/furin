@@ -14,9 +14,14 @@ import {
   RELEASE_PAGE_CACHE_LEASE_SCRIPT,
 } from "./scripts.ts";
 
+const TRAILING_SLASHES = /\/+$/;
+const DEFAULT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const METADATA_GRACE_MS = 24 * 60 * 60 * 1000;
+
 export interface RedisPageCacheOptions {
   client: RedisClient;
   namespace: string;
+  retentionMs?: number;
 }
 
 interface RedisLeaseDocument {
@@ -30,7 +35,17 @@ interface RedisLeaseDocument {
 interface RedisEntryDocument {
   entry: PageCacheEntry;
   fields: string[];
+  indexMember: string;
+  pathsKey: string;
+  tagKeys: string[];
   values: number[];
+}
+
+interface RedisIndexMember {
+  entryKey: string;
+  path: string;
+  pathsKey: string;
+  tagKeys: string[];
 }
 
 function assertNamespace(namespace: string): void {
@@ -61,6 +76,10 @@ function layoutPaths(path: string): string[] {
     paths.push(current);
   }
   return paths;
+}
+
+function normalizeInvalidationPath(path: string): string {
+  return path.length > 1 ? path.replace(TRAILING_SLASHES, "") : path;
 }
 
 function selectorFields(identity: PageCacheIdentity): string[] {
@@ -130,12 +149,24 @@ function parseEntry(raw: string): PageCacheEntry {
 
 export class RedisPageCache implements PageCacheAdapter {
   private readonly client: RedisClient;
+  private readonly metadataRetentionMs: number;
   private readonly prefix: string;
+  private readonly retentionMs: number;
 
   constructor(options: RedisPageCacheOptions) {
     assertNamespace(options.namespace);
+    const retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
+    if (
+      !Number.isSafeInteger(retentionMs) ||
+      retentionMs <= 0 ||
+      retentionMs > Number.MAX_SAFE_INTEGER - METADATA_GRACE_MS
+    ) {
+      throw new Error("[furin-page-cache-redis] retentionMs must be a positive safe integer.");
+    }
     this.client = options.client;
     this.prefix = `furin:page:{${encodeURIComponent(options.namespace)}}`;
+    this.retentionMs = retentionMs;
+    this.metadataRetentionMs = retentionMs + METADATA_GRACE_MS;
   }
 
   async acquire({
@@ -158,6 +189,7 @@ export class RedisPageCache implements PageCacheAdapter {
       id,
       String(leaseMs),
       JSON.stringify(selectorFields(identity)),
+      String(this.metadataRetentionMs),
     ]);
     if (raw === null) {
       return null;
@@ -181,16 +213,27 @@ export class RedisPageCache implements PageCacheAdapter {
     lease: PageCacheLease;
   }): Promise<"stored" | "superseded"> {
     const tagKeys = [...new Set(identity.tags)].map((tag) => this.tagPathsKey(identity.scope, tag));
+    const entryKey = this.entryKey(identity);
+    const pathsKey = this.pathsKey(identity.scope);
+    const indexMember = JSON.stringify({
+      entryKey,
+      path: identity.path,
+      pathsKey,
+      tagKeys,
+    } satisfies RedisIndexMember);
     const document: RedisEntryDocument = {
       entry,
       fields: selectorFields(identity),
+      indexMember,
+      pathsKey,
+      tagKeys,
       values: JSON.parse(lease.revision) as number[],
     };
     const keys = [
       this.leaseKey(identity),
-      this.entryKey(identity),
+      entryKey,
       this.versionsKey(identity.scope),
-      this.pathsKey(identity.scope),
+      pathsKey,
       ...tagKeys,
     ];
     const result = await this.client.send("EVAL", [
@@ -200,7 +243,9 @@ export class RedisPageCache implements PageCacheAdapter {
       lease.id,
       String(lease.fence),
       JSON.stringify(document),
-      identity.path,
+      indexMember,
+      String(this.retentionMs),
+      String(this.metadataRetentionMs),
     ]);
     if (result === "stored" || result === "superseded") {
       return result;
@@ -210,15 +255,17 @@ export class RedisPageCache implements PageCacheAdapter {
 
   async invalidate(input: Parameters<PageCacheAdapter["invalidate"]>[0]) {
     if (input.kind === "path") {
+      const path = normalizeInvalidationPath(input.path);
       const result = stringArrayResult(
         await this.client.send("EVAL", [
           INVALIDATE_PAGE_CACHE_PATH_SCRIPT,
           "2",
           this.versionsKey(input.scope),
           this.pathsKey(input.scope),
-          `${input.type}:${input.path}`,
-          input.path,
+          `${input.type}:${path}`,
+          path,
           input.type,
+          String(this.metadataRetentionMs),
         ]),
         "path invalidation"
       );
@@ -228,6 +275,7 @@ export class RedisPageCache implements PageCacheAdapter {
     const tags = [...new Set(input.tags)];
     const keys = [
       this.versionsKey(input.scope),
+      this.pathsKey(input.scope),
       ...tags.map((tag) => this.tagPathsKey(input.scope, tag)),
     ];
     const result = stringArrayResult(
@@ -236,6 +284,7 @@ export class RedisPageCache implements PageCacheAdapter {
         String(keys.length),
         ...keys,
         JSON.stringify(tags),
+        String(this.metadataRetentionMs),
       ]),
       "tag invalidation"
     );

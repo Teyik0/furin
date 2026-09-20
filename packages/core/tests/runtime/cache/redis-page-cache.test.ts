@@ -11,6 +11,14 @@ describe("Redis page cache validation", () => {
     );
     client.close();
   });
+
+  test("rejects an invalid retention window", () => {
+    const client = new RedisClient("redis://127.0.0.1:1");
+    expect(() => redisPageCache({ client, namespace: "test", retentionMs: 0 })).toThrow(
+      "[furin-page-cache-redis] retentionMs must be a positive safe integer."
+    );
+    client.close();
+  });
 });
 
 const redisUrl = process.env.FURIN_PAGE_CACHE_REDIS_URL;
@@ -29,7 +37,10 @@ describeWithRedis("Redis page cache", () => {
   };
 
   beforeEach(async () => {
-    await client.send("FLUSHDB", []);
+    const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:*"]);
+    if (Array.isArray(keys) && keys.length > 0) {
+      await client.send("DEL", keys as string[]);
+    }
   });
 
   afterAll(() => {
@@ -104,5 +115,52 @@ describeWithRedis("Redis page cache", () => {
     expect(
       await cache.invalidate({ kind: "path", path: "/abandoned", scope: "shop", type: "page" })
     ).toEqual({ invalidated: false, paths: [] });
+  });
+
+  test("normalizes trailing slashes for layout invalidation", async () => {
+    const childIdentity: PageCacheIdentity = {
+      ...identity,
+      key: "/posts/one",
+      path: "/posts/one",
+    };
+    const lease = await cache.acquire({ identity: childIdentity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the child render lease");
+    }
+    await cache.commit({
+      entry: { cachedAt: 1, payload: "child", revalidate: 60 },
+      identity: childIdentity,
+      lease,
+    });
+
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts/", scope: "shop", type: "layout" })
+    ).toEqual({ invalidated: true, paths: ["/posts/one"] });
+    expect(await cache.read(childIdentity)).toBeNull();
+  });
+
+  test("expires entries and prunes their path and tag indexes", async () => {
+    const expiring = redisPageCache({
+      client,
+      namespace: `page-cache-retention-${crypto.randomUUID()}`,
+      retentionMs: 20,
+    });
+    const lease = await expiring.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the expiring render lease");
+    }
+    await expiring.commit({
+      entry: { cachedAt: 1, payload: "expiring", revalidate: 60 },
+      identity,
+      lease,
+    });
+
+    await Bun.sleep(30);
+
+    expect(await expiring.read(identity)).toBeNull();
+    expect(await expiring.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual({
+      invalidated: false,
+      paths: [],
+    });
   });
 });

@@ -27,7 +27,10 @@ describeWithRedis("Redis sync", () => {
   const adapter = redisSyncAdapter({ client, namespace });
 
   beforeEach(async () => {
-    await client.send("FLUSHDB", []);
+    const keys = await client.send("KEYS", [`furin:sync:{${encodeURIComponent(namespace)}}:*`]);
+    if (Array.isArray(keys) && keys.length > 0) {
+      await client.send("DEL", keys as string[]);
+    }
   });
 
   afterAll(() => {

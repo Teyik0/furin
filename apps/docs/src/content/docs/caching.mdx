@@ -112,6 +112,8 @@ new Elysia()
 
 `RedisClient` connects lazily. The application owns it and should close it during graceful shutdown. Furin does not create a second Redis connection or close the supplied client.
 
+Committed artifacts are retained for seven days by default. Set `retentionMs` on `redisPageCache()` to change that window. Furin expires entry keys, prunes expired path/tag index members, and keeps fencing metadata for an additional day so rolling deployments cannot revive stale renders.
+
 Every replica of one environment must use the same namespace. Keep it stable across releases: use a value such as `storefront:production`, not a deployment ID or build ID. Use a different namespace for staging, preview, and production. Mounted Furin applications remain isolated by their normalized prefix, so one adapter can be reused safely:
 
 ```ts

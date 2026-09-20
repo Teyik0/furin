@@ -49,6 +49,7 @@ test("an expired lease owner cannot revoke or overwrite its successor", async ()
   if (second === null) {
     throw new Error("Expected the successor render lease");
   }
+  await cache.release({ identity, lease: first });
 
   expect(
     await cache.commit({
@@ -65,6 +66,63 @@ test("an expired lease owner cannot revoke or overwrite its successor", async ()
     })
   ).toBe("stored");
   expect((await cache.read(identity))?.payload).toBe("new");
+});
+
+test("layout invalidation normalizes a trailing slash", async () => {
+  const cache = createMemoryPageCache();
+  const childIdentity: PageCacheIdentity = {
+    ...identity,
+    key: "/posts/one",
+    path: "/posts/one",
+  };
+  const lease = await cache.acquire({ identity: childIdentity, leaseMs: 30_000 });
+  if (lease === null) {
+    throw new Error("Expected the child render lease");
+  }
+  await cache.commit({
+    entry: { cachedAt: 1, payload: "child", revalidate: 60 },
+    identity: childIdentity,
+    lease,
+  });
+
+  expect(
+    await cache.invalidate({ kind: "path", path: "/posts/", scope: "shop", type: "layout" })
+  ).toEqual({ invalidated: true, paths: ["/posts/one"] });
+  expect(await cache.read(childIdentity)).toBeNull();
+});
+
+test("bounds active render leases and reclaims expired capacity", async () => {
+  const cache = createMemoryPageCache();
+  const originalNow = Date.now;
+  let now = 1000;
+  Date.now = () => now;
+  try {
+    for (let index = 0; index < 1000; index += 1) {
+      // biome-ignore lint/performance/noAwaitInLoops: sequential acquisition fills the deterministic lease bound.
+      const lease = await cache.acquire({
+        identity: { ...identity, key: `/bounded/${index}`, path: `/bounded/${index}` },
+        leaseMs: 30_000,
+      });
+      expect(lease).not.toBeNull();
+    }
+    expect(
+      await cache.acquire({
+        identity: { ...identity, key: "/bounded/overflow", path: "/bounded/overflow" },
+        leaseMs: 30_000,
+      })
+    ).toBeNull();
+
+    now += 30_001;
+
+    expect(
+      await cache.acquire({
+        identity: { ...identity, key: "/bounded/reclaimed", path: "/bounded/reclaimed" },
+        leaseMs: 30_000,
+      })
+    ).not.toBeNull();
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("path invalidation crosses build IDs without sharing their artifacts", async () => {

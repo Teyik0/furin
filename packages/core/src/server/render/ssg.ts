@@ -282,7 +282,14 @@ export async function warmSSGCache(
     for (const params of paramSets) {
       tasks.push(async () => {
         try {
-          await prerenderSSG(route, params, root, origin, undefined, searchRoutes);
+          await prerenderRuntimeSSG(
+            route,
+            params,
+            root,
+            origin,
+            currentInstance().buildId,
+            searchRoutes
+          );
         } catch (err) {
           logSsgError({ action: "prerender_failed", render: "ssg", route: route.pattern }, err);
         }

@@ -94,7 +94,13 @@ describe("defineRoute rendering mode config", () => {
 
   test("allows static params in ISR", () => {
     expectTypeOf<ReturnType<typeof createIsrWithStaticParams>>().not.toBeNever();
+  });
+
+  test("rejects static params in config", () => {
     expectTypeOf<ReturnType<typeof createLegacyConfigStaticParams>>().not.toBeNever();
+  });
+
+  test("rejects static params after a loader", () => {
     expectTypeOf<ReturnType<typeof createStaticParamsAfterLoader>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createStaticParamsAfterRequestLoader>>().not.toBeNever();
   });

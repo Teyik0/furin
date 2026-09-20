@@ -22,6 +22,7 @@ import { handleISR } from "../../../src/server/render/index.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { notFound } from "../../../src/shared/not-found.ts";
 
 function createContext(path: string): Context {
   return {
@@ -224,6 +225,66 @@ async function runStaleISRRefresh(): Promise<void> {
   expect(loaderCalls).toBe(1);
 }
 
+test("shared invalidation failure does not reject background ISR work", (done) => {
+  runBackgroundInvalidationFailure().then(() => done(), done);
+}, 15_000);
+
+async function runBackgroundInvalidationFailure(): Promise<void> {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (matched === undefined) {
+    throw new Error("Route /isr-page not found");
+  }
+  const route: ResolvedRoute = {
+    ...matched,
+    mode: "isr",
+    page: { ...matched.page, loader: () => notFound({}) },
+  };
+  const instance = createInstance("", "/background-invalidation/pages");
+  instance.buildId = "build-a";
+  const memory = createMemoryPageCache();
+  const cache: PageCacheAdapter = {
+    ...memory,
+    invalidate: () => Promise.reject(new Error("cache unavailable")),
+  };
+  const identity: PageCacheIdentity = {
+    buildId: instance.buildId,
+    key: "/isr-page",
+    mode: "isr",
+    path: "/isr-page",
+    scope: "",
+    tags: route.tags ?? [],
+  };
+  const lease = await memory.acquire({ identity, leaseMs: 30_000 });
+  if (lease === null) {
+    throw new Error("Expected the stale-entry lease");
+  }
+  await memory.commit({
+    entry: { cachedAt: 0, payload: "<html>stale</html>", revalidate: 60 },
+    identity,
+    lease,
+  });
+  setPageCacheAdapter(instance, cache);
+  const unhandled: unknown[] = [];
+  const onUnhandled = (error: unknown) => unhandled.push(error);
+  process.on("unhandledRejection", onUnhandled);
+
+  try {
+    const html = await withInstance(instance, () =>
+      handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
+    );
+    expect(html).toBe("<html>stale</html>");
+    await waitForPendingISRRevalidations();
+    await Bun.sleep(0);
+    expect(unhandled).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
+}
+
 test("revalidateTag invalidates shared ISR entries", async () => {
   const instance = registerInstance(createInstance("", "/tagged/pages"));
   instance.buildId = "build-a";
@@ -353,4 +414,58 @@ async function runConcurrentISRMisses(): Promise<void> {
   }
 
   expect(loaderCalls).toBe(1);
+}
+
+test("a slow shared ISR miss does not trigger follower renders", (done) => {
+  runSlowConcurrentISRMisses().then(() => done(), done);
+}, 15_000);
+
+async function runSlowConcurrentISRMisses(): Promise<void> {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (matched === undefined) {
+    throw new Error("Route /isr-page not found");
+  }
+
+  const gate = createDeferred();
+  let loaderCalls = 0;
+  const route: ResolvedRoute = {
+    ...matched,
+    mode: "isr",
+    page: {
+      ...matched.page,
+      loader: async () => {
+        loaderCalls += 1;
+        if (loaderCalls === 1) {
+          await gate.promise;
+        }
+        return { timestamp: loaderCalls };
+      },
+    },
+  };
+  const instance = createInstance("", "/slow-concurrent/pages");
+  instance.buildId = "build-a";
+  setPageCacheAdapter(instance, createMemoryPageCache());
+  const followerContext = createContext("/isr-page");
+
+  try {
+    const leader = withInstance(instance, () =>
+      handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
+    );
+    await waitFor(() => loaderCalls === 1);
+    const follower = withInstance(instance, () =>
+      handleISR(route, followerContext, result.root, instance.buildId)
+    );
+    await Bun.sleep(2100);
+    expect(loaderCalls).toBe(1);
+    gate.resolve();
+    await Promise.all([leader, follower]);
+  } finally {
+    gate.resolve();
+    resetPageCacheAdapter(instance);
+  }
+
+  expect(loaderCalls).toBe(1);
+  expect(followerContext.set.headers["cache-control"]).not.toBe("no-store");
 }

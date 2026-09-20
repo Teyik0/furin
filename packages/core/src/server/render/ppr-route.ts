@@ -223,6 +223,56 @@ async function renderSharedPpr(
   }
 }
 
+function revalidateSharedPpr(
+  input: SharedPprInput,
+  identity: PageCacheIdentity,
+  lease: PageCacheLease,
+  revalidate: number
+): void {
+  const pending = pendingISRRevalidations();
+  const pendingKey = `ppr-shared:${input.cacheKey}`;
+  const refresh = renderSharedPpr(input, identity, lease, revalidate)
+    .then(() => undefined)
+    .catch(() => {
+      useLogger().warn("PPR shared page cache background regeneration failed");
+    })
+    .finally(() => pending.delete(pendingKey));
+  pending.set(pendingKey, refresh);
+}
+
+interface SharedPprLookup {
+  artifact: PprArtifact | undefined;
+  available: boolean;
+}
+
+async function lookupSharedPpr(
+  input: SharedPprInput,
+  identity: PageCacheIdentity
+): Promise<SharedPprLookup> {
+  try {
+    const cached = await input.pageCache.read(identity);
+    return {
+      artifact:
+        cached === null ? undefined : await parseSharedPprArtifact(cached.payload, input.buildId),
+      available: true,
+    };
+  } catch {
+    useLogger().warn("PPR shared page cache read failed; rendering fresh public data");
+    return { artifact: undefined, available: false };
+  }
+}
+
+function renderFreshPpr(input: SharedPprInput): Promise<PprResult> {
+  return prerenderPprDocument(
+    input.route,
+    input.ctx,
+    input.root,
+    input.buildId,
+    input.searchRoutes,
+    undefined
+  );
+}
+
 async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
   const { prefix } = currentInstance();
   const identity: PageCacheIdentity = {
@@ -234,45 +284,32 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
     tags: input.route.tags ?? [],
   };
   const revalidate = resolveRouteRevalidate(input.route.page) ?? 60;
-  let cachedArtifact: PprArtifact | undefined;
-  try {
-    const cached = await input.pageCache.read(identity);
-    if (cached !== null) {
-      cachedArtifact = await parseSharedPprArtifact(cached.payload, input.buildId);
-      if (
-        cachedArtifact !== undefined &&
-        (input.route.mode !== "isr" || Date.now() - cachedArtifact.cachedAt < revalidate * 1000)
-      ) {
-        return cachedArtifact;
-      }
-    }
-  } catch {
-    useLogger().warn("PPR shared page cache read failed; rendering fresh public data");
-    return prerenderPprDocument(
-      input.route,
-      input.ctx,
-      input.root,
-      input.buildId,
-      input.searchRoutes,
-      undefined
-    );
+  const lookup = await lookupSharedPpr(input, identity);
+  if (!lookup.available) {
+    return renderFreshPpr(input);
+  }
+  const cachedArtifact = lookup.artifact;
+  if (
+    cachedArtifact !== undefined &&
+    (input.route.mode !== "isr" || Date.now() - cachedArtifact.cachedAt < revalidate * 1000)
+  ) {
+    return cachedArtifact;
   }
 
   let lease: PageCacheLease | null;
   try {
     lease = await input.pageCache.acquire({ identity, leaseMs: 30_000 });
   } catch {
-    useLogger().warn("PPR shared page cache lease failed; rendering fresh public data");
-    return prerenderPprDocument(
-      input.route,
-      input.ctx,
-      input.root,
-      input.buildId,
-      input.searchRoutes,
-      undefined
-    );
+    useLogger().warn("PPR shared page cache lease failed");
+    if (cachedArtifact !== undefined) {
+      return cachedArtifact;
+    }
+    return renderFreshPpr(input);
   }
-  if (lease === null && cachedArtifact !== undefined) {
+  if (cachedArtifact !== undefined) {
+    if (lease !== null) {
+      revalidateSharedPpr(input, identity, lease, revalidate);
+    }
     return cachedArtifact;
   }
   if (lease === null) {
@@ -301,7 +338,8 @@ async function getPprArtifact(
   const requestUrl = new URL(ctx.request.url);
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
   const cacheKey = `${route.mode}:${resolvedPath}${requestUrl.search}`;
-  const pageCache = getPageCacheAdapter();
+  const externalPrerender = isExternalPrerenderRequest(ctx.request);
+  const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   if (pageCache !== undefined) {
     return getSharedPprArtifact({
       buildId,
@@ -317,9 +355,7 @@ async function getPprArtifact(
   if (hasExternalRuntimeCache()) {
     const { prefix } = currentInstance();
     const key = JSON.stringify([process.env.VERCEL_DEPLOYMENT_ID, buildId, prefix, cacheKey]);
-    const stored = isExternalPrerenderRequest(ctx.request)
-      ? undefined
-      : await readPprArtifact(key, buildId);
+    const stored = externalPrerender ? undefined : await readPprArtifact(key, buildId);
     if (stored !== undefined) {
       return stored;
     }
@@ -333,7 +369,7 @@ async function getPprArtifact(
     return result;
   }
   const pprRoutes = getPprRoutes();
-  const cached = pprRoutes.get(cacheKey);
+  const cached = externalPrerender ? undefined : pprRoutes.get(cacheKey);
   if (cached === undefined || cached.artifact.state.buildId !== buildId) {
     const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
     if (!isPprArtifact(result)) {

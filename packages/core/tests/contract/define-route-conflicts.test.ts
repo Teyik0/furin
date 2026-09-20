@@ -101,6 +101,11 @@ const createRoutesWithReservedLoaderKeys = () => {
     .config({ mode: "ssr" })
     // @ts-expect-error — public loader fields cannot shadow private request data.
     .loader(() => ({ requestData: "shadowed" }));
+  const then = defineRootRoute()
+    .config({ mode: "ssr" })
+    // @ts-expect-error — thenable protocol keys are reserved by staticParams contexts.
+    // biome-ignore lint/suspicious/noThenProperty: verifies that this dangerous key is rejected.
+    .loader(() => ({ then: "shadowed" }));
   return {
     internalNamespace,
     noSchema,
@@ -110,6 +115,7 @@ const createRoutesWithReservedLoaderKeys = () => {
     querySchema,
     ref,
     requestData,
+    then,
   };
 };
 

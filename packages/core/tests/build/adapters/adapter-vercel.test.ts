@@ -45,6 +45,7 @@ function createVercelApp(): TmpApp {
   );
   writeAppFile(app.path, "src/build/hydrate.ts", 'export const userHydrate = "user hydrate";\n');
   writeAppFile(app.path, "public/user.txt", "user static asset");
+  writeAppFile(app.path, "public/favicon.ico", "test favicon");
   writeAppFile(
     app.path,
     "src/pages/news.tsx",
@@ -409,6 +410,10 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
       );
       expect(readFileSync(join(outputDir, "static/admin/public/user.txt"), "utf8")).toBe(
         "user static asset"
+      );
+      expect(readFileSync(join(outputDir, "static/favicon.ico"), "utf8")).toBe("test favicon");
+      expect(readFileSync(join(outputDir, "static/admin/favicon.ico"), "utf8")).toBe(
+        "test favicon"
       );
       expect(config.routes).toContainEqual({
         dest: "/admin-ssg?__furin_path=$__furin_path",

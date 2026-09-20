@@ -1,3 +1,4 @@
+import { physicalPath } from "../../shared/prefix.ts";
 import {
   currentInstrumentationRequest,
   emitCacheInvalidated,
@@ -68,18 +69,41 @@ export function callCachePurger(paths: string[]): void {
 
 // ── revalidatePath ───────────────────────────────────────────────────────────
 
+function emitPathInvalidation(
+  instance: FurinInstance,
+  path: string,
+  deleted: boolean,
+  purgedPaths: readonly string[]
+): void {
+  if (!IS_DEV) {
+    return;
+  }
+  withInstance(instance, () => {
+    const request = currentInstrumentationRequest();
+    emitCacheInvalidated({
+      deleted,
+      operationId: request?.operationId ?? null,
+      purgedPaths: new Set(purgedPaths).size,
+      reason: "path",
+      requestId: request?.requestId ?? null,
+      target: path,
+    });
+  });
+}
+
 async function invalidateInstancePath(
   instance: FurinInstance,
   path: string,
   type: RevalidateType
 ): Promise<{ deleted: boolean; purgedPaths: string[] }> {
-  const result = revalidatePathForInstance(instance, path, type);
+  const result = revalidatePathForInstance(instance, path, type, false);
   const purgedPaths = [physicalPath(instance.prefix, path)];
   for (const purged of result.purgedPaths) {
     purgedPaths.push(physicalPath(instance.prefix, purged));
   }
   const pageCache = getPageCacheAdapter(instance);
   if (pageCache === undefined) {
+    emitPathInvalidation(instance, path, result.deleted, purgedPaths);
     return { deleted: result.deleted, purgedPaths };
   }
   const sharedResult = await pageCache.invalidate({
@@ -91,7 +115,9 @@ async function invalidateInstancePath(
   for (const purged of sharedResult.paths) {
     purgedPaths.push(physicalPath(instance.prefix, purged));
   }
-  return { deleted: result.deleted || sharedResult.invalidated, purgedPaths };
+  const deleted = result.deleted || sharedResult.invalidated;
+  emitPathInvalidation(instance, path, deleted, purgedPaths);
+  return { deleted, purgedPaths };
 }
 
 /**
@@ -140,17 +166,7 @@ export function revalidatePathForInstance(
       purgedPaths.push(...result.purgedPaths);
     }
     if (IS_DEV && emitPathEvent !== false) {
-      const request = currentInstrumentationRequest();
-      const operationId = request === undefined ? null : request.operationId;
-      const requestId = request === undefined ? null : request.requestId;
-      emitCacheInvalidated({
-        deleted,
-        operationId,
-        purgedPaths: new Set(purgedPaths).size,
-        reason: "path",
-        requestId,
-        target: path,
-      });
+      emitPathInvalidation(instance, path, deleted, purgedPaths);
     }
   });
   return { deleted, purgedPaths };
@@ -184,5 +200,3 @@ export function __resetCacheState(): void {
   _globalPendingInvalidations.clear();
   resetCachePurgers();
 }
-
-import { physicalPath } from "../../shared/prefix.ts";

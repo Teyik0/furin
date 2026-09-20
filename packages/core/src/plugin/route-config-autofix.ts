@@ -974,6 +974,9 @@ function insertCompleteConfig(routeHead: ChainHead, ctx: FixContext): void {
     hasRevalidate: false,
     isRootLayout: ctx.isRootLayout,
   });
+  if (ctx.hasStaticParams && mode === "ssr") {
+    throw routeConfigError(ctx.filePath, "staticParams requires mode ssg or isr");
+  }
   entries.push(`mode: "${mode}"`);
   if (ctx.dynamicParams.length > 0) {
     const typeBoxBinding = ensureTImport(ctx);

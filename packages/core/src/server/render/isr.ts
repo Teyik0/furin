@@ -261,13 +261,16 @@ interface ISRLeaseResult {
   sharedAvailable: boolean;
 }
 
+const SHARED_ISR_LEASE_MS = 30_000;
+const SHARED_ISR_WAIT_SLICE_MS = 2000;
+
 async function acquireISRLease(
   pageCache: PageCacheAdapter,
   identity: PageCacheIdentity
 ): Promise<ISRLeaseResult> {
   try {
     return {
-      lease: await pageCache.acquire({ identity, leaseMs: 30_000 }),
+      lease: await pageCache.acquire({ identity, leaseMs: SHARED_ISR_LEASE_MS }),
       sharedAvailable: true,
     };
   } catch {
@@ -276,21 +279,50 @@ async function acquireISRLease(
   }
 }
 
-async function waitForConcurrentISR(
+interface ISRCoordinationResult extends ISRCacheLookup {
+  lease: PageCacheLease | null;
+}
+
+function coordinateConcurrentISR(
   pageCache: PageCacheAdapter,
   identity: PageCacheIdentity,
   revalidate: number
-): Promise<ISRCacheLookup> {
+): Promise<ISRCoordinationResult> {
+  return coordinateConcurrentISRUntil(
+    pageCache,
+    identity,
+    revalidate,
+    Date.now() + SHARED_ISR_LEASE_MS
+  );
+}
+
+async function coordinateConcurrentISRUntil(
+  pageCache: PageCacheAdapter,
+  identity: PageCacheIdentity,
+  revalidate: number,
+  deadline: number
+): Promise<ISRCoordinationResult> {
+  if (Date.now() >= deadline) {
+    return { cached: undefined, lease: null, sharedAvailable: true };
+  }
   try {
-    const entry = await waitForPageCacheEntry(pageCache, identity, 2000);
-    return {
-      cached: entry === null ? undefined : toISRCacheEntry(entry, revalidate),
-      sharedAvailable: true,
-    };
+    const entry = await waitForPageCacheEntry(pageCache, identity, SHARED_ISR_WAIT_SLICE_MS);
+    if (entry !== null) {
+      return {
+        cached: toISRCacheEntry(entry, revalidate),
+        lease: null,
+        sharedAvailable: true,
+      };
+    }
   } catch {
     useLogger().warn("ISR shared page cache wait failed; rendering fresh with no-store");
-    return { cached: undefined, sharedAvailable: false };
+    return { cached: undefined, lease: null, sharedAvailable: false };
   }
+  const leaseResult = await acquireISRLease(pageCache, identity);
+  if (!leaseResult.sharedAvailable || leaseResult.lease !== null) {
+    return { cached: undefined, ...leaseResult };
+  }
+  return coordinateConcurrentISRUntil(pageCache, identity, revalidate, deadline);
 }
 
 interface ISRCacheMissInput {
@@ -491,9 +523,14 @@ export async function handleISR(
     ({ lease: pageCacheLease, sharedAvailable } = leaseResult);
   }
   if (pageCache !== undefined && sharedAvailable && pageCacheLease === null) {
-    const concurrent = await waitForConcurrentISR(pageCache, pageCacheIdentity, revalidate);
-    const { cached: concurrentCached, sharedAvailable: concurrentAvailable } = concurrent;
+    const concurrent = await coordinateConcurrentISR(pageCache, pageCacheIdentity, revalidate);
+    const {
+      cached: concurrentCached,
+      lease: concurrentLease,
+      sharedAvailable: concurrentAvailable,
+    } = concurrent;
     sharedAvailable = concurrentAvailable;
+    pageCacheLease = concurrentLease;
     if (concurrentCached !== undefined) {
       return serveISRCacheHit(
         concurrentCached,
@@ -624,12 +661,16 @@ async function handleBackgroundRevalidationError(
     if (input.sharedCache === undefined) {
       deleteISRCache(input.cacheKey);
     } else {
-      await input.sharedCache.adapter.invalidate({
-        kind: "path",
-        path: input.sharedCache.identity.path,
-        scope: input.sharedCache.identity.scope,
-        type: "page",
-      });
+      try {
+        await input.sharedCache.adapter.invalidate({
+          kind: "path",
+          path: input.sharedCache.identity.path,
+          scope: input.sharedCache.identity.scope,
+          type: "page",
+        });
+      } catch {
+        logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
+      }
     }
     logger.set({
       furin: {

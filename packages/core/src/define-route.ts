@@ -27,13 +27,17 @@ interface LoaderData {
   [key: string]: unknown;
 }
 type ReservedRenderContextKey =
+  | "catch"
   | "children"
+  | "finally"
   | "key"
   | "params"
   | "path"
   | "query"
   | "ref"
-  | "requestData";
+  | "requestData"
+  | "then"
+  | "toJSON";
 type PublicLoaderData = LoaderData & {
   [Key in ReservedRenderContextKey]?: never;
 } & {

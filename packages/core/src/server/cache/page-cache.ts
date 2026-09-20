@@ -1,5 +1,7 @@
 export type PageCacheMode = "isr" | "ppr" | "ssg";
 
+const TRAILING_SLASHES = /\/+$/;
+
 export interface PageCacheIdentity {
   buildId: string;
   key: string;
@@ -148,6 +150,10 @@ function selectorKey(scope: string, selector: "layout" | "page" | "tag", value: 
   return JSON.stringify([scope, selector, value]);
 }
 
+function normalizeInvalidationPath(path: string): string {
+  return path.length > 1 ? path.replace(TRAILING_SLASHES, "") : path;
+}
+
 export function createMemoryPageCache(): PageCacheAdapter {
   const maxEntries = 1000;
   const entries = new Map<string, StoredPageCacheEntry>();
@@ -155,25 +161,66 @@ export function createMemoryPageCache(): PageCacheAdapter {
   const fences = new Map<string, number>();
   const versions = new Map<string, number>();
 
-  const revisionFor = (identity: PageCacheIdentity): string => {
-    const selectors = [
-      selectorKey(identity.scope, "page", identity.path),
-      ...layoutPaths(identity.path).map((path) => selectorKey(identity.scope, "layout", path)),
-      ...identity.tags.map((tag) => selectorKey(identity.scope, "tag", tag)),
-    ];
-    return JSON.stringify(selectors.map((selector) => versions.get(selector) ?? 0));
-  };
+  const selectorsFor = (identity: PageCacheIdentity): string[] => [
+    selectorKey(identity.scope, "page", identity.path),
+    ...layoutPaths(identity.path).map((path) => selectorKey(identity.scope, "layout", path)),
+    ...identity.tags.map((tag) => selectorKey(identity.scope, "tag", tag)),
+  ];
+
+  const revisionFor = (identity: PageCacheIdentity): string =>
+    JSON.stringify(selectorsFor(identity).map((selector) => versions.get(selector) ?? 0));
 
   const increment = (key: string): void => {
     versions.set(key, (versions.get(key) ?? 0) + 1);
   };
 
+  const removeExpiredLeases = (now: number): void => {
+    for (const [key, active] of leases) {
+      if (active.lease.expiresAt <= now) {
+        leases.delete(key);
+      }
+    }
+  };
+
+  const liveSelectors = (): Set<string> => {
+    const selectors = new Set<string>();
+    for (const identity of [
+      ...[...entries.values()].map((stored) => stored.identity),
+      ...[...leases.values()].map((active) => active.identity),
+    ]) {
+      for (const selector of selectorsFor(identity)) {
+        selectors.add(selector);
+      }
+    }
+    return selectors;
+  };
+
+  const cleanupMetadata = (now: number): void => {
+    removeExpiredLeases(now);
+    const liveKeys = new Set([...entries.keys(), ...leases.keys()]);
+    for (const key of fences.keys()) {
+      if (!liveKeys.has(key)) {
+        fences.delete(key);
+      }
+    }
+    const retainedSelectors = liveSelectors();
+    for (const selector of versions.keys()) {
+      if (!retainedSelectors.has(selector)) {
+        versions.delete(selector);
+      }
+    }
+  };
+
   return {
     acquire({ identity, leaseMs }) {
       const key = identityKey(identity);
-      const active = leases.get(key);
       const now = Date.now();
+      cleanupMetadata(now);
+      const active = leases.get(key);
       if (active !== undefined && active.lease.expiresAt > now) {
+        return Promise.resolve(null);
+      }
+      if (leases.size >= maxEntries) {
         return Promise.resolve(null);
       }
       const lease: PageCacheLease = {
@@ -188,6 +235,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
     },
     commit({ entry, identity, lease }) {
       const key = identityKey(identity);
+      cleanupMetadata(Date.now());
       const active = leases.get(key);
       if (active?.lease.id !== lease.id || active.lease.fence !== lease.fence) {
         return Promise.resolve("superseded");
@@ -204,14 +252,18 @@ export function createMemoryPageCache(): PageCacheAdapter {
           entries.delete(oldest);
         }
       }
+      cleanupMetadata(Date.now());
       return Promise.resolve("stored");
     },
     invalidate(input) {
+      cleanupMetadata(Date.now());
       if (input.kind === "path") {
+        const normalizedInput = { ...input, path: normalizeInvalidationPath(input.path) };
         const result = invalidateMatchingEntries(entries, leases, (identity) =>
-          identityMatchesPath(identity, input)
+          identityMatchesPath(identity, normalizedInput)
         );
-        increment(selectorKey(input.scope, input.type, input.path));
+        increment(selectorKey(input.scope, input.type, normalizedInput.path));
+        cleanupMetadata(Date.now());
         return Promise.resolve(result);
       }
       const tags = new Set(input.tags);
@@ -221,9 +273,11 @@ export function createMemoryPageCache(): PageCacheAdapter {
       for (const tag of input.tags) {
         increment(selectorKey(input.scope, "tag", tag));
       }
+      cleanupMetadata(Date.now());
       return Promise.resolve(result);
     },
     read(identity) {
+      cleanupMetadata(Date.now());
       const key = identityKey(identity);
       const stored = entries.get(key);
       if (stored === undefined || stored.revision !== revisionFor(identity)) {
@@ -239,6 +293,7 @@ export function createMemoryPageCache(): PageCacheAdapter {
       if (leases.get(key)?.lease.id === lease.id) {
         leases.delete(key);
       }
+      cleanupMetadata(Date.now());
       return Promise.resolve();
     },
   };

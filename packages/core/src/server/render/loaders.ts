@@ -63,13 +63,17 @@ const FURIN_RESERVED_KEY_PREFIX = "__furin";
  * names is silently dead on arrival.
  */
 const ROUTE_CTX_RESERVED_KEYS = new Set([
+  "catch",
   "children",
+  "finally",
   "key",
   "params",
   "path",
   "query",
   "ref",
   "requestData",
+  "then",
+  "toJSON",
 ]);
 
 function assertPublicLoaderKey(key: string): void {
