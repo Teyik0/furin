@@ -23,14 +23,15 @@ const base: VercelReport = {
 async function compare(
   headHandlerBytes: number | null,
   versions: [string, string],
-  baseHandlerBytes = base.serverHandlerBytes
+  baseHandlerBytes?: number
 ) {
+  const effectiveBaseHandlerBytes = baseHandlerBytes ?? base.serverHandlerBytes;
   const directory = mkdtempSync(join(tmpdir(), "furin-vercel-budget-"));
   try {
     const basePath = join(directory, "base.json");
     const headPath = join(directory, "head.json");
     const markdownPath = join(directory, "report.md");
-    writeFileSync(basePath, JSON.stringify({ ...base, serverHandlerBytes: baseHandlerBytes }));
+    writeFileSync(basePath, JSON.stringify({ ...base, serverHandlerBytes: effectiveBaseHandlerBytes }));
     writeFileSync(headPath, JSON.stringify({ ...base, serverHandlerBytes: headHandlerBytes }));
     const child = Bun.spawn(
       [

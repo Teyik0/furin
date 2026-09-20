@@ -153,6 +153,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     const bootSource = serverBuild?.files?.[serverBuild.entrypoints[0] as string];
 
     expect(pluginNames).toContain("elysia-aot");
+    expect(pluginNames).toContain("test-user-plugin");
     expect(pluginNames.indexOf("test-user-plugin")).toBeLessThan(pluginNames.indexOf("elysia-aot"));
     expect(existsSync(captureEntry)).toBe(true);
     expect(captureSource).toContain("export default __serverModule.default");

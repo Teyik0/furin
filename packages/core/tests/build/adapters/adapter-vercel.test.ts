@@ -251,6 +251,7 @@ describe.serial("Vercel deployment adapter", () => {
       );
       const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
       expect(serverPluginNames).toContain("elysia-aot");
+      expect(serverPluginNames).toContain("test-user-plugin");
       expect(serverPluginNames.indexOf("test-user-plugin")).toBeLessThan(
         serverPluginNames.indexOf("elysia-aot")
       );

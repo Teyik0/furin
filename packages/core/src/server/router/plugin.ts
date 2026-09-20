@@ -273,16 +273,16 @@ export function createRoutePlugin(
 
   // Keep every route-chain schema in Elysia's native merge pipeline so its
   // coercion and default semantics remain authoritative for document requests.
-  let plugin: AnyElysia = new Elysia();
-  for (const entry of routeChain) {
-    if (entry.params || entry.query) {
-      plugin = plugin.guard({
-        params: entry.params as FurinSchema,
-        query: entry.query as FurinSchema,
-        schema: "merge",
-      });
+  const plugin = routeChain.reduce<AnyElysia>((app, entry) => {
+    if (!(entry.params || entry.query)) {
+      return app;
     }
-  }
+    return app.guard({
+      params: entry.params as FurinSchema,
+      query: entry.query as FurinSchema,
+      schema: "merge",
+    });
+  }, new Elysia());
 
   plugin.get(pattern, (ctx: Context) =>
     renderResolvedRoute(route, ctx, root, resolvedBuildId, searchRoutes)
