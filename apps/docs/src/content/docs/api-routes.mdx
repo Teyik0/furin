@@ -45,6 +45,12 @@ The exported `api` is also the root application extended by Furin. Kiana's AOT m
 
 ## Middleware, Guards, And Scope
 
+Install the JWT plugin before using this example:
+
+```bash
+bun add @elysia/jwt
+```
+
 ```ts
 import { Elysia } from "elysia";
 import { jwt } from "@elysia/jwt";
