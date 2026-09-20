@@ -148,7 +148,7 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "@sinclair/typebox": "0.34.52",
     "@vercel/functions": "^3.9.7",
-    "@yuku-toolchain/types": "0.9.5",
+    "@yuku-toolchain/types": "0.10.1",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",
     "seroval": "^1.6.7",
