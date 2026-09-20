@@ -331,7 +331,7 @@ export function RouterProvider({
         // Loader threw a non-redirect Response (or an Error).
         if (__furinError) {
           return {
-            data: {},
+            data,
             error: __furinError,
             finalHref,
             head: __furinHead,

@@ -98,8 +98,8 @@ export function buildPageElement(
     element = wrapSegmentBoundaries(element, byDepth.get(i), options);
     const Layout = chain[i]?.layout;
     if (Layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: spread loses `children` type info for createElement
-      element = createElement(Layout, { ...data } as any, element);
+      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
+      element = createElement(Layout, data as any, element);
     }
   }
 
@@ -107,8 +107,8 @@ export function buildPageElement(
     // Depth 0 boundary wraps EVERYTHING below the root layout.
     element = wrapSegmentBoundaries(element, byDepth.get(0), options);
     if (root.layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: spread loses `children` type info for createElement
-      element = createElement(root.layout, { ...data } as any, element);
+      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
+      element = createElement(root.layout, data as any, element);
     }
   }
 

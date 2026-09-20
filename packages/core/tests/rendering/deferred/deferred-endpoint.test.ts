@@ -787,7 +787,9 @@ describe("GET /_furin/data", () => {
         throw new Response("Forbidden", { status: 403 });
       },
     };
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+    const res = await app.handle(
+      new Request("http://localhost/_furin/data?path=%2Fwith-loader%3Ftab%3Ddetails")
+    );
 
     // The HTTP status of the data response matches the loader's Response.status —
     // browsers and monitoring see the right code.
@@ -806,6 +808,9 @@ describe("GET /_furin/data", () => {
     expect(furinError?.message).toBe("Forbidden");
     // Digest is a 10-hex-char string correlating with server logs.
     expect(furinError?.digest).toMatch(DIGEST_RE);
+    expect(syncData.params).toEqual({});
+    expect(syncData.path).toBe("/with-loader");
+    expect(syncData.query).toEqual({ tab: "details" });
   });
 
   test("loader throwing plain Error returns HTTP 500 with __furinError NDJSON sentinel", async () => {
