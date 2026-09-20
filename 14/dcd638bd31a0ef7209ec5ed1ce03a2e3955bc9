@@ -1,0 +1,32 @@
+packages/core/tests/rendering/ssr/head-context.test.tsx
+  s_60a29d9fb49afc::t_c1b0f942303ea5 36
+  s_60a29d9fb49afc::t_5e09bb580a649f 29,37-40,66,84,94,116
+packages/core/src/server/render/not-found.ts
+  s_60a29d9fb49afc::t_95b07f60bedaf1 55
+  s_60a29d9fb49afc::t_ba21381782f0e2 63,67
+  s_60a29d9fb49afc::t_e01eac40fd2aa8 6,8,11,54,56-62,64-66,68-70,86,93,106
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_60a29d9fb49afc::t_5e09bb580a649f 271-282
+packages/core/src/server/render/ssr.ts
+  s_60a29d9fb49afc::t_e01eac40fd2aa8 306
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_60a29d9fb49afc::t_5e09bb580a649f 43-62
+  s_60a29d9fb49afc::t_30c3a0c92f5f01 9
+  s_60a29d9fb49afc::t_8694daa1553ff1 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "14dcd638bd31a0ef7209ec5ed1ce03a2e3955bc9",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
