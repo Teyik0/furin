@@ -1,0 +1,21 @@
+packages/core/src/server/dev-page-plugin.ts
+  s_13b9bbaf2a91a1::t_c6d054d57658be 73,405,412-413,427,439-441,540
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_13b9bbaf2a91a1::t_7bb2b4a2e5acd1 18,22,25-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9c7e603c32fa2b5a53257014578e91b87f21ff19",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
