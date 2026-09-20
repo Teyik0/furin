@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
 import { act, createElement, memo, useEffect } from "react";
-import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { RouterContext, type RouterContextValue } from "../../../src/client/link.tsx";
 import { useNavigate } from "../../../src/client/router/navigation.ts";
@@ -37,21 +36,21 @@ function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): 
   };
 }
 
-function renderWithRouter(
+async function renderWithRouter(
   element: React.ReactElement,
   ctx: RouterContextValue
-): {
-  cleanup: () => void;
+): Promise<{
+  cleanup: () => Promise<void>;
   container: HTMLDivElement;
   root: Root;
   searchStore: SearchStore;
-} {
+}> {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   const searchStore = createSearchStore(searchSnapshotFromRouterContext(ctx));
 
-  flushSync(() => {
+  await act(() => {
     root.render(
       createElement(
         SearchStoreContext.Provider,
@@ -62,8 +61,8 @@ function renderWithRouter(
   });
 
   return {
-    cleanup: () => {
-      flushSync(() => {
+    cleanup: async () => {
+      await act(() => {
         root.unmount();
       });
       container.remove();
@@ -77,34 +76,34 @@ function renderWithRouter(
 describe("useSearch", () => {
   useDomTests();
 
-  test("reads the current server-resolved search from router context", () => {
+  test("reads the current server-resolved search from router context", async () => {
     function Page(): React.ReactElement {
       const [search] = useSearch("/products");
       return createElement("output", null, String(search.page));
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({ currentHref: "/products?page=2", search: { page: 2 } })
     );
 
     expect(rendered.container.textContent).toBe("2");
-    rendered.cleanup();
+    await rendered.cleanup();
   });
 
-  test("returns an empty object for routes without search", () => {
+  test("returns an empty object for routes without search", async () => {
     function Page(): React.ReactElement {
       const [search] = useSearch("/");
       return createElement("output", null, JSON.stringify(search));
     }
 
-    const rendered = renderWithRouter(createElement(Page), makeRouterContext({ search: {} }));
+    const rendered = await renderWithRouter(createElement(Page), makeRouterContext({ search: {} }));
 
     expect(rendered.container.textContent).toBe("{}");
-    rendered.cleanup();
+    await rendered.cleanup();
   });
 
-  test("selector subscribers do not rerender when the selected value is unchanged", () => {
+  test("selector subscribers do not rerender when the selected value is unchanged", async () => {
     let renders = 0;
 
     const PageSelector = memo(function PageSelectorComponent(): React.ReactElement {
@@ -113,7 +112,7 @@ describe("useSearch", () => {
       return createElement("output", null, String(page));
     });
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(PageSelector),
       makeRouterContext({
         currentHref: "/products?page=1&q=react",
@@ -124,7 +123,7 @@ describe("useSearch", () => {
     expect(rendered.container.textContent).toBe("1");
     expect(renders).toBe(1);
 
-    flushSync(() => {
+    await act(() => {
       rendered.searchStore.setSnapshot({
         currentHref: "/products?page=1&q=bun",
         navigate: () => Promise.resolve(),
@@ -137,7 +136,7 @@ describe("useSearch", () => {
     expect(rendered.container.textContent).toBe("1");
     expect(renders).toBe(1);
 
-    flushSync(() => {
+    await act(() => {
       rendered.searchStore.setSnapshot({
         currentHref: "/products?page=2&q=bun",
         navigate: () => Promise.resolve(),
@@ -149,7 +148,7 @@ describe("useSearch", () => {
 
     expect(rendered.container.textContent).toBe("2");
     expect(renders).toBe(2);
-    rendered.cleanup();
+    await rendered.cleanup();
   });
 });
 
@@ -167,7 +166,7 @@ describe("useNavigate", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({
         navigate,
@@ -187,7 +186,7 @@ describe("useNavigate", () => {
       });
       expect(navigate).toHaveBeenCalledWith("/products", undefined);
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 
@@ -202,7 +201,7 @@ describe("useNavigate", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(createElement(Page), makeRouterContext({ navigate }));
+    const rendered = await renderWithRouter(createElement(Page), makeRouterContext({ navigate }));
 
     try {
       await act(async () => {
@@ -213,7 +212,7 @@ describe("useNavigate", () => {
         resetScroll: false,
       });
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 });
@@ -232,7 +231,7 @@ describe("useSearch setter", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({
         currentHref: "/products?page=1",
@@ -247,7 +246,7 @@ describe("useSearch setter", () => {
       });
       expect(navigate).toHaveBeenCalledWith("/products?page=2", undefined);
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 
@@ -262,7 +261,7 @@ describe("useSearch setter", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({
         currentHref: "/products?page=1",
@@ -280,7 +279,7 @@ describe("useSearch setter", () => {
         resetScroll: false,
       });
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 
@@ -295,7 +294,7 @@ describe("useSearch setter", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({
         currentHref: "/products?page=1&tag=react",
@@ -310,7 +309,7 @@ describe("useSearch setter", () => {
       });
       expect(navigate).toHaveBeenCalledWith("/products?page=2&tag=react", undefined);
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 
@@ -325,7 +324,7 @@ describe("useSearch setter", () => {
       return createElement("output");
     }
 
-    const rendered = renderWithRouter(
+    const rendered = await renderWithRouter(
       createElement(Page),
       makeRouterContext({
         currentHref: "/products?page=2",
@@ -347,7 +346,7 @@ describe("useSearch setter", () => {
       });
       expect(navigate).toHaveBeenCalledWith("/products", undefined);
     } finally {
-      rendered.cleanup();
+      await rendered.cleanup();
     }
   });
 });
