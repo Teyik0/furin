@@ -1,0 +1,78 @@
+packages/core/src/build/entry-template.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 230,236
+  s_60a29d9fb49afc::t_abe7187b8fdb13 231-235
+packages/core/tests/contract/define-route-conflicts.test.ts
+  s_60a29d9fb49afc::t_02d312382f3208 84-88
+  s_60a29d9fb49afc::t_8cbedc41f10a90 18,71-79,81-83,89-90,107-109
+  s_60a29d9fb49afc::t_593f21521afa3e 80
+  s_60a29d9fb49afc::t_62b5093c751e07 110
+apps/docs/src/content/docs/head-seo.mdx
+  s_60a29d9fb49afc::t_980c8fcaa391de 31
+examples/task-manager/src/server.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 6
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_60a29d9fb49afc::t_23d93b732980fd 5
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_60a29d9fb49afc::t_c3b44e1c56832b 207-208,433,437,522,531,551,559
+packages/core/tests/build/embed/build-embed.test.ts
+  s_60a29d9fb49afc::t_02d312382f3208 38
+  s_60a29d9fb49afc::t_dd3b84b14a1b97 202
+  s_60a29d9fb49afc::t_41c8525c3023a7 83-87
+  s_60a29d9fb49afc::t_3e0320f9511f45 39-52
+packages/core/tests/fixtures/apps/cli-app/src/server.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 4
+examples/weather/src/server.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 5,8
+packages/core/tests/fixtures/apps/cli-app-ssr/src/server.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 4
+apps/docs/src/content/docs/getting-started.mdx
+  s_60a29d9fb49afc::t_23d93b732980fd 63
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_60a29d9fb49afc::t_bec1df58b7ce94 53-54,81-82,100-101,136-137,175-176,191-192,212-213,232-233,252-253,272-273
+apps/scaffolder/templates/full/src/server.ts.ejs
+  s_60a29d9fb49afc::t_23d93b732980fd 5
+examples/weather/tests/weather-routes.test.ts
+  s_60a29d9fb49afc::t_cfdc716ca589f8 49,57
+  s_60a29d9fb49afc::t_02d312382f3208 50-56,58-59
+  s_60a29d9fb49afc::t_30d06e4c301d6a 60-61
+apps/docs/src/pages/index.tsx
+  s_60a29d9fb49afc::t_abe7187b8fdb13 57
+examples/weather/src/api/weather-page.ts
+  s_60a29d9fb49afc::t_abe7187b8fdb13 3-9,19
+packages/core/src/shared/route-map.ts
+  s_60a29d9fb49afc::t_6a8fd74607774f 24-32,35
+.github/workflows/ci.yaml
+  s_60a29d9fb49afc::t_7570c31e5c9f0b 98
+packages/core/tests/contract/route-types.test.ts
+  s_60a29d9fb49afc::t_07cae0b332c04b 70-85
+apps/docs/src/server.ts
+  s_60a29d9fb49afc::t_23d93b732980fd 79
+packages/core/src/define-route.ts
+  s_60a29d9fb49afc::t_abe7187b8fdb13 39-40
+  s_60a29d9fb49afc::t_a5730982226563 29-38,41,52,371,499,658
+examples/task-manager/furin-env.d.ts
+  s_60a29d9fb49afc::t_ff30e7d3d81eeb 18-20
+  s_60a29d9fb49afc::t_a70f02fa46f7e8 13-17
+  s_60a29d9fb49afc::t_8084039c8bccf7 12
+apps/docs/src/content/docs/deployment.mdx
+  s_60a29d9fb49afc::t_23d93b732980fd 63
+  s_60a29d9fb49afc::t_198848479d6d61 73-74
+.github/workflows/vercel-benchmark.yaml
+  s_60a29d9fb49afc::t_7570c31e5c9f0b 81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fd46817ac0f7937fc4413c4eb6da06dfe4a6e635",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
