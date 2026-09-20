@@ -209,6 +209,13 @@ test.serial("browser log ingest rejects oversized batches", async () => {
   );
 
   expect(res.status).toBe(413);
+  expect(res.headers.get("content-type")).toContain("application/problem+json");
+  expect(await res.json()).toMatchObject({
+    detail: "Browser event payload exceeds 64 KiB.",
+    status: 413,
+    title: "Payload Too Large",
+    type: "about:blank",
+  });
 });
 
 test.serial("browser log ingest stops reading an oversized chunked body", async () => {

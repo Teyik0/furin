@@ -96,7 +96,10 @@ if (command === "preview") {
   };
   const config = await loadCliConfig(process.cwd(), values.config);
   const port = values.port === undefined ? 3000 : Number(values.port);
-  if (!(Number.isInteger(port) && port >= 0 && port <= 65_535)) {
+  if (
+    (values.port !== undefined && !/^\d+$/.test(values.port)) ||
+    !(Number.isInteger(port) && port >= 0 && port <= 65_535)
+  ) {
     bail(`Invalid preview port "${values.port}". Expected an integer between 0 and 65535.`);
   }
 

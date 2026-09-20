@@ -126,17 +126,20 @@ jobs:
       - name: Install Furin benchmark package
         working-directory: .benchmark
         run: |
-          bun install --frozen-lockfile
-          bun add --cwd apps/furin --exact \
-            "$FURIN_HEAD_TARBALL" \
-            elysia@2.0.0-beta.16 \
-            evlog@2.29.0 \
-            exact-mirror@1.2.6 \
-            typebox@1.3.34
+          cd apps/furin
+          bun pm pkg set \
+            "dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL" \
+            dependencies.elysia=2.0.0-beta.16 \
+            dependencies.evlog=2.29.0 \
+            dependencies.exact-mirror=1.2.6 \
+            dependencies.typebox=1.3.34
+          cd ../..
+          bun install --force
 
       - name: Validate framework fixtures
         working-directory: .benchmark
         run: |
+          # Despite its legacy name, this verifies the installed tarball and creates benchmark nonces.
           bun run link:furin
           bun run build
           bun run typecheck
@@ -170,8 +173,11 @@ jobs:
           test -n "$furin_tarball"
           cd "$GITHUB_WORKSPACE/.benchmark"
           git restore bun.lock apps/furin/package.json
-          bun install --frozen-lockfile --force
-          bun add --cwd apps/furin --exact "$furin_tarball"
+          cd apps/furin
+          bun pm pkg set "dependencies.@teyik0/furin=$furin_tarball"
+          cd ../..
+          bun install --force
+          # Despite its legacy name, this verifies the installed tarball and creates benchmark nonces.
           bun run link:furin
           bun run --cwd apps/furin build
           bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-base.json"

@@ -189,6 +189,13 @@ describe("GET /_furin/data", () => {
     const res = await app.handle(new Request("http://localhost/_furin/data"));
 
     expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({
+      detail: "Missing required query param: path",
+      status: 400,
+      title: "Bad Request",
+      type: "about:blank",
+    });
   });
 
   test("returns a route-data error when resolving dynamic routes fails", async () => {
@@ -221,6 +228,8 @@ describe("GET /_furin/data", () => {
     );
 
     expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({ detail: "Invalid path", status: 400 });
   });
 
   test("rejects a protocol-relative path `//host/foo`", async () => {
@@ -231,6 +240,8 @@ describe("GET /_furin/data", () => {
     );
 
     expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({ detail: "Invalid path", status: 400 });
   });
 
   test("resolves query defaults without emitting a redirect sentinel", async () => {
@@ -322,9 +333,12 @@ describe("GET /_furin/data", () => {
     );
 
     expect(res.status).toBe(422);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
     expect(await res.json()).toMatchObject({
-      message: "Invalid query",
-      type: "validation",
+      detail: "Invalid query",
+      status: 422,
+      title: "Unprocessable Content",
+      type: "about:blank",
     });
   });
 
@@ -336,6 +350,13 @@ describe("GET /_furin/data", () => {
     );
 
     expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({
+      detail: "Route not found",
+      status: 404,
+      title: "Not Found",
+      type: "about:blank",
+    });
   });
 
   test("returns NDJSON for a route with a synchronous loader", async () => {
@@ -603,9 +624,12 @@ describe("GET /_furin/data", () => {
     const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnumber%2Fnope"));
 
     expect(res.status).toBe(422);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
     expect(await res.json()).toMatchObject({
-      message: "Invalid params",
-      type: "validation",
+      detail: "Invalid params",
+      status: 422,
+      title: "Unprocessable Content",
+      type: "about:blank",
     });
     expect(loaderRuns).toBe(0);
   });

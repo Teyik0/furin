@@ -131,7 +131,8 @@ function parseJsonQueryObjects(
 function coerceUnionValue(members: unknown[], value: unknown): unknown {
   for (const member of members) {
     const candidate = coerceSchemaValue(member, value);
-    if (candidate !== value) {
+    const validator = getSchemaValidator(member as FurinSchema);
+    if (validator?.Check(candidate)) {
       return candidate;
     }
   }
@@ -176,6 +177,9 @@ function coerceSchemaValue(schema: unknown, value: unknown): unknown {
   }
   if (Array.isArray(schema.anyOf)) {
     return coerceUnionValue(schema.anyOf, value);
+  }
+  if (Array.isArray(schema.allOf)) {
+    return schema.allOf.reduce((candidate, member) => coerceSchemaValue(member, candidate), value);
   }
   if (schema.type === "object" && isObjectSchema(schema.properties) && isObjectSchema(value)) {
     return coerceObjectValue(schema.properties, value);

@@ -24,6 +24,8 @@ bunx @elysia/codemod@latest
 bun add elysia@2.0.0-beta.16 @elysia/eden@2.0.0-beta.5 @elysia/static@2.0.0-beta.2 typebox@1.3.34 exact-mirror@1.2.6
 ```
 
+`typebox` and `exact-mirror` are direct application dependencies because Kiana declares them as peers rather than embedding private copies. This keeps one compatible validator/normalizer graph for Elysia, its plugins, Eden, and Furin; `typebox` is also part of Furin's public schema contract. Exact Mirror itself contributes only a small runtime module—the larger compiled-binary increase in this beta comes primarily from the TypeBox 1 runtime and Bun bytecode amplification.
+
 The important manual checks are:
 
 - route arguments are now `(path, hooks, handler)`;

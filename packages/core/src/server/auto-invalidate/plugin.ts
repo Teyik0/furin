@@ -1,4 +1,4 @@
-import { type Context, Elysia } from "elysia";
+import { Elysia } from "elysia";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
@@ -6,10 +6,7 @@ import {
 } from "./runtime.ts";
 import type { InvalidationInput } from "./types.ts";
 
-type AnyAfterHandleContext = Pick<Context, "set"> & {
-  response?: unknown;
-  responseValue?: unknown;
-};
+type AnyAfterHandleContext = Parameters<typeof isSuccessfulMutationResponse>[0];
 
 export function furinInvalidate() {
   return new Elysia({ name: "furin-invalidate" }).macro({

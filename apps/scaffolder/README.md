@@ -84,7 +84,7 @@ my-app/
         └── index.tsx
 ```
 
-Dependencies: `@teyik0/furin`, `elysia`, `typebox`, `exact-mirror`, `react`, `react-dom`, `bun-plugin-tailwind`, `tailwindcss`
+Dependencies: `@teyik0/furin`, `elysia`, `evlog`, `typebox`, `exact-mirror`, `react`, `react-dom`, `bun-plugin-tailwind`, `tailwindcss`
 
 ---
 

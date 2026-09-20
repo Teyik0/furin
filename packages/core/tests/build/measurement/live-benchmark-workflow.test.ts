@@ -207,11 +207,12 @@ test.each([
 
   expect(packageStep).toContain("bun pm pack");
   expect(packageStep).not.toContain("bun link");
-  expect(installStep).toContain("bun add --cwd apps/furin --exact");
-  expect(installStep).toContain('"$FURIN_HEAD_TARBALL"');
-  expect(installStep).toContain("elysia@2.0.0-beta.16");
-  expect(installStep).toContain("exact-mirror@1.2.6");
-  expect(installStep).toContain("typebox@1.3.34");
+  expect(installStep).toContain("bun pm pkg set");
+  expect(installStep).toContain('"dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL"');
+  expect(installStep).toContain("dependencies.elysia=2.0.0-beta.16");
+  expect(installStep).toContain("dependencies.exact-mirror=1.2.6");
+  expect(installStep).toContain("dependencies.typebox=1.3.34");
+  expect(installStep).toContain("bun install --force");
 });
 
 test("compares Vercel bundles with the Elysia-major-aware budget", () => {

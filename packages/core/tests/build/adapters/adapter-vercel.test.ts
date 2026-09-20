@@ -122,11 +122,13 @@ describe.serial("Vercel deployment adapter", () => {
       const app = createVercelApp();
       writeAppFile(app.path, "public/_client/_hydrate.js", "public collision");
       const buildConfigs: Bun.BuildConfig[] = [];
+      const userPlugin: Bun.BunPlugin = { name: "test-user-plugin", setup() {} };
 
       const result = await withBuildStub(
         () =>
           buildApp({
             analyze: true,
+            plugins: [userPlugin],
             rootDir: app.path,
             target: "vercel",
             vercelConfig: { regions: ["cdg1"] },
@@ -146,7 +148,7 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.3" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.4" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
@@ -247,7 +249,11 @@ describe.serial("Vercel deployment adapter", () => {
       expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
         source.indexOf("const serverModule = await import")
       );
-      expect(serverBuild?.plugins?.map((plugin) => plugin.name)).toContain("elysia-aot");
+      const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
+      expect(serverPluginNames).toContain("elysia-aot");
+      expect(serverPluginNames.indexOf("test-user-plugin")).toBeLessThan(
+        serverPluginNames.indexOf("elysia-aot")
+      );
       expect(readFileSync(captureEntry, "utf8")).toContain(
         "export default __serverModule.default"
       );

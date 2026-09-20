@@ -42,11 +42,7 @@ interface MutationContext {
 
 type TransportHook<TContext> = (context: TContext) => Promise<void>;
 
-type CompletionContext = MutationContext &
-  Pick<Context, "set"> & {
-    response?: unknown;
-    responseValue?: unknown;
-  };
+type CompletionContext = MutationContext & Parameters<typeof isSuccessfulMutationResponse>[0];
 type PathInvalidation = Extract<SyncInvalidation, { kind: "path" }>;
 
 const routeMetadata = new WeakMap<Request, RouteSyncMetadata>();

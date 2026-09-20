@@ -767,7 +767,6 @@ export async function buildVercelTarget(
     outdir: serverFunctionDir,
     plugins: [
       entry.plugin,
-      elysiaAot(appEntry),
       vercelRuntimePlugin(),
       productionInstrumentationPlugin(),
       pprRuntimePlugin(apps),
@@ -775,6 +774,7 @@ export async function buildVercelTarget(
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("ssr"),
+      elysiaAot(appEntry),
     ],
     sourcemap: "none",
     target: "bun",

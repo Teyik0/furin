@@ -128,6 +128,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const buildConfigs: Bun.BuildConfig[] = [];
+    const userPlugin: Bun.BunPlugin = { name: "test-user-plugin", setup() {} };
 
     await withBuildStub(
       () =>
@@ -136,7 +137,7 @@ describe.serial("buildBunTarget Bun branches", () => {
           app.path,
           join(app.path, ".furin/build"),
           join(app.path, "src/server.ts"),
-          { target: "bun" }
+          { plugins: [userPlugin], target: "bun" }
         ),
       (config) => {
         buildConfigs.push(config);
@@ -152,6 +153,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     const bootSource = serverBuild?.files?.[serverBuild.entrypoints[0] as string];
 
     expect(pluginNames).toContain("elysia-aot");
+    expect(pluginNames.indexOf("test-user-plugin")).toBeLessThan(pluginNames.indexOf("elysia-aot"));
     expect(existsSync(captureEntry)).toBe(true);
     expect(captureSource).toContain("export default __serverModule.default");
     expect(captureSource).not.toContain(".listen(");

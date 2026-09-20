@@ -1,5 +1,5 @@
 import { furinSync } from "@teyik0/furin";
-import { type Elysia, t } from "elysia";
+import { Elysia, t } from "elysia";
 import { taskManagerSync } from "../../../sync";
 import { createBoard, deleteBoard, getBoardData, getBoardStats, getBoards } from "./service";
 
@@ -15,42 +15,41 @@ const BOARD_MUTATION_INVALIDATIONS = [
   { path: "/board", type: "layout" as const },
 ];
 
-export const boardPlugin = (app: Elysia) =>
-  app
-    .use(furinSync(taskManagerSync))
-    .get("/boards", () => getBoards())
-    .post(
-      "/boards",
-      {
-        body: t.Object({ name: t.String({ minLength: 1 }) }),
-        sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
-      },
-      ({ body }) => createBoard(body.name)
-    )
-    .delete(
-      "/boards/:boardId",
-      { sync: { invalidate: BOARD_MUTATION_INVALIDATIONS } },
-      ({ params, status }) => {
-        const ok = deleteBoard(params.boardId);
-        if (!ok) {
-          return status("Not Found", "Not found");
-        }
-        return { ok: true };
+export const boardPlugin = new Elysia()
+  .use(furinSync(taskManagerSync))
+  .get("/boards", () => getBoards())
+  .post(
+    "/boards",
+    {
+      body: t.Object({ name: t.String({ minLength: 1 }) }),
+      sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
+    },
+    ({ body }) => createBoard(body.name)
+  )
+  .delete(
+    "/boards/:boardId",
+    { sync: { invalidate: BOARD_MUTATION_INVALIDATIONS } },
+    ({ params, problem }) => {
+      const ok = deleteBoard(params.boardId);
+      if (!ok) {
+        return problem("Not Found", { detail: "Board not found" });
       }
-    )
-    .get("/boards/:boardId", ({ params, status }) => {
-      const data = getBoardData(params.boardId);
-      if (!data) {
-        return status("Not Found", "Not found");
-      }
-      return data;
-    })
-    .get("/boards/:boardId/stats", async ({ params, status }) => {
-      // Artificial delay — makes the Suspense streaming boundary visible in the UI
-      await new Promise<void>((resolve) => setTimeout(resolve, 800));
-      const stats = getBoardStats(params.boardId);
-      if (!stats) {
-        return status("Not Found", "Not found");
-      }
-      return stats;
-    });
+      return { ok: true };
+    }
+  )
+  .get("/boards/:boardId", ({ params, problem }) => {
+    const data = getBoardData(params.boardId);
+    if (!data) {
+      return problem("Not Found", { detail: "Board not found" });
+    }
+    return data;
+  })
+  .get("/boards/:boardId/stats", async ({ params, problem }) => {
+    // Artificial delay — makes the Suspense streaming boundary visible in the UI
+    await new Promise<void>((resolve) => setTimeout(resolve, 800));
+    const stats = getBoardStats(params.boardId);
+    if (!stats) {
+      return problem("Not Found", { detail: "Board not found" });
+    }
+    return stats;
+  });

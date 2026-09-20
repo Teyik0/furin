@@ -613,7 +613,9 @@ async function generateServerInstance(
   const imports = collectRouteFiles(tree)
     .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
     .map((route) => {
-      const specifier = materialized ? resolve(route.sourcePath) : routeFileSpecifier(route);
+      const specifier = materialized
+        ? resolve(route.sourcePath).replaceAll("\\", "/")
+        : routeFileSpecifier(route);
       routeFilesBySpecifier.set(specifier, {
         routePath: route.path,
         sourcePath: resolve(route.sourcePath),

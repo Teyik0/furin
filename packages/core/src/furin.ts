@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysia/static";
-import { type AnyElysia, Elysia, file, NotFound } from "elysia";
+import { type AnyElysia, Elysia, file, NotFound, problem } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
 import { createProductionAssetsPlugin } from "./server/assets/production.ts";
@@ -347,14 +347,14 @@ function createLoggerPlugin(
   return app.post("/_furin/ingest", { parse: "none" }, async ({ log, request, status }) => {
     const parsed = await readBrowserIngest(request);
     if (parsed.kind === "oversized") {
-      return status(413);
+      return problem(413, { detail: "Browser event payload exceeds 64 KiB." });
     }
     if (parsed.kind === "invalid") {
-      return status("Bad Request");
+      return problem("Bad Request", { detail: "Browser event payload must be valid JSON." });
     }
     const { body } = parsed;
     if (!Array.isArray(body)) {
-      return status("Bad Request");
+      return problem("Bad Request", { detail: "Browser event payload must be a JSON array." });
     }
     const batch = (body as DrainContext[]).slice(0, MAX_BROWSER_INGEST_EVENTS);
     for (const entry of batch) {
@@ -461,20 +461,14 @@ function createNativeRouteRenderer(
       mergeRouteSchemas(matched.route.routeChain, "params")
     );
     if (!parsedParams.ok) {
-      return Response.json(
-        { errors: parsedParams.errors, message: "Invalid params", type: "validation" },
-        { status: 422 }
-      );
+      return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
     }
     const parsedQuery = await parseRouteQuery(
       requestUrl,
       mergeRouteSchemas(matched.route.routeChain, "query")
     );
     if (!parsedQuery.ok) {
-      return Response.json(
-        { errors: parsedQuery.errors, message: "Invalid query", type: "validation" },
-        { status: 422 }
-      );
+      return problem(422, { detail: "Invalid query", errors: parsedQuery.errors });
     }
     context.params = parsedParams.params;
     context.query = parsedQuery.query;

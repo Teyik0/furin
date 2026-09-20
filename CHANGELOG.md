@@ -7,12 +7,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Breaking
+- **Elysia 2 Kiana contracts** — Furin now targets Elysia 2 and TypeBox 1 with the hook-first route signature. Run the official Elysia codemod before applying the Furin-specific migration steps.
+- **Supported build targets** — `node` and `cloudflare` have been removed from `BUILD_TARGETS`; existing configurations using them now fail validation. Use the Bun or Vercel adapters described in the deployment guide.
 - **Ordered `staticParams()` builder stage** — dynamic SSG/ISR params move from `config({ staticParams })` to `.config(...).staticParams(...).loader(...)`. Nested stages compose ancestor params top-down and expose typed parent loader fields as lazy promises; ancestor loaders execute only when a field is read and are single-flight within each branch.
 
 ### Added
+- **Elysia AOT production builds** — Bun and Vercel builds compile listener-free Elysia application entries at build time, including handlers and schema validators.
+- **Kiana-native schema and error paths** — document routes compose inherited query and params contracts with Elysia's native `schema: "merge"`, while framework JSON validation failures and generated examples use RFC 9457 Problem Details.
 - **Shared page-cache adapters** — `furin({ pageCache })` can coordinate SSG, ISR, and PPR artifacts across Bun replicas. `@teyik0/furin/cache` exports the in-memory contract and adapter, while `@teyik0/furin/cache/redis` adds distributed regeneration leases, fenced commits, path/tag invalidation, rolling-build isolation, and safe `no-store` fallback during cache outages.
 
 ### Fixed
+- **In-process Eden under AOT** — the task-manager example keeps its Eden Treaty loader DX while extending the same root Elysia instance with Furin, avoiding Kiana's one-AOT-application-per-process guard.
 - **Single Vercel page-cache owner** — Vercel deployments now reject `furin({ pageCache })` during application initialization instead of mixing a custom Redis cache with native Prerender and Runtime Cache state. Bun deployments remain free to use shared page-cache adapters.
 - **Distributed page-cache correctness** — shared SSG warm-up now publishes to the configured adapter, slow ISR followers wait for the active lease instead of duplicating work, stale PPR shells revalidate in the background, trailing-slash invalidation is normalized, and failed post-mutation invalidation no longer breaks idempotent replay.
 - **Bounded shared-cache metadata** — the memory adapter reclaims expired leases and selector metadata, while Redis entries and reverse indexes use configurable retention with automatic pruning. Stale lease releases remain fenced from newer owners.

@@ -152,6 +152,36 @@ describe("parseRouteQuery", () => {
     });
   });
 
+  test("coerces the matching object member of an anyOf query schema", async () => {
+    const schema = t.Object({
+      filter: t.Union([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]),
+    });
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"active":"true"}'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { filter: { active: true } },
+    });
+  });
+
+  test("coerces every member of an intersected query schema", async () => {
+    const schema = t.Intersect([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]);
+
+    const result = await parseRouteQuery(
+      new URL("http://localhost/products?page=2&active=true"),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, page: 2 },
+    });
+  });
+
   test("coerces primitive query values like an Elysia route", async () => {
     const schema = t.Object({
       active: t.Boolean(),

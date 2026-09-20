@@ -14,7 +14,12 @@ interface Budget {
   relativeAllowance: number;
 }
 
+type UnknownVercelFrameworkReport = Partial<{
+  [Key in keyof VercelFrameworkReport]: unknown;
+}>;
+
 const ELYSIA_2_MIGRATION_SERVER_LIMIT = 1_000_000;
+const MAJOR_VERSION_PATTERN = /\d+/;
 const budgets: Budget[] = [
   { absoluteAllowance: 4096, key: "serverHandlerBytes", relativeAllowance: 0.05 },
   { absoluteAllowance: 1024, key: "serverBootstrapBytes", relativeAllowance: 0.05 },
@@ -22,6 +27,25 @@ const budgets: Budget[] = [
   { absoluteAllowance: 2048, key: "clientCssBytes", relativeAllowance: 0.03 },
   { absoluteAllowance: 1, key: "clientAssetCount", relativeAllowance: 0 },
 ];
+
+const reportKeys = budgets.map(({ key }) => key);
+
+function readReport(path: string): VercelFrameworkReport {
+  const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (typeof value !== "object" || value === null) {
+    throw new Error(`Invalid Vercel framework report: ${path}`);
+  }
+  const candidate = value as UnknownVercelFrameworkReport;
+  if (reportKeys.some((key) => !Number.isFinite(candidate[key]))) {
+    throw new Error(`Invalid Vercel framework report: ${path}`);
+  }
+  return candidate as VercelFrameworkReport;
+}
+
+function majorVersion(version: string): number | undefined {
+  const match = version.match(MAJOR_VERSION_PATTERN);
+  return match === null ? undefined : Number(match[0]);
+}
 
 const [basePath, headPath, markdownPath, baseElysiaVersion, headElysiaVersion] =
   process.argv.slice(2);
@@ -37,9 +61,10 @@ if (
   );
 }
 
-const base = JSON.parse(readFileSync(basePath, "utf8")) as VercelFrameworkReport;
-const head = JSON.parse(readFileSync(headPath, "utf8")) as VercelFrameworkReport;
-const isElysia2Migration = baseElysiaVersion.startsWith("1.") && headElysiaVersion.startsWith("2.");
+const base = readReport(basePath);
+const head = readReport(headPath);
+const isElysia2Migration =
+  majorVersion(baseElysiaVersion) === 1 && majorVersion(headElysiaVersion) === 2;
 let failed = false;
 const lines = [
   "## Vercel framework benchmark budgets",
@@ -56,7 +81,7 @@ for (const budget of budgets) {
   );
   const limit =
     budget.key === "serverHandlerBytes" && isElysia2Migration
-      ? Math.max(relativeLimit, ELYSIA_2_MIGRATION_SERVER_LIMIT)
+      ? ELYSIA_2_MIGRATION_SERVER_LIMIT
       : relativeLimit;
   const passed = headValue <= limit;
   failed ||= !passed;
