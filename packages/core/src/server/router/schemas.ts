@@ -100,22 +100,13 @@ function hasSchemaType(schema: unknown, type: "array" | "object"): boolean {
   if (schema.type === type) {
     return true;
   }
-  return findEffectiveAnyOfMember(schema, type) !== undefined;
-}
-
-function findEffectiveAnyOfMember(
-  schema: unknown,
-  type: "array" | "object"
-): UnknownObject | undefined {
-  if (!(isObjectSchema(schema) && Array.isArray(schema.anyOf))) {
-    return;
-  }
-
-  for (const member of schema.anyOf) {
-    if (isObjectSchema(member) && member.type === type) {
-      return member;
+  for (const keyword of ["allOf", "anyOf"] as const) {
+    const members = schema[keyword];
+    if (Array.isArray(members) && members.some((member) => hasSchemaType(member, type))) {
+      return true;
     }
   }
+  return false;
 }
 
 function parseJsonQueryObjects(

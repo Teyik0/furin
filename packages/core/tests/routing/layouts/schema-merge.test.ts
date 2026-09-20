@@ -202,6 +202,22 @@ describe("parseRouteQuery", () => {
     });
   });
 
+  test("parses an object-valued query property defined as an intersection", async () => {
+    const schema = t.Object({
+      filter: t.Intersect([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]),
+    });
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"page":"2","active":"true"}'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { filter: { active: true, page: 2 } },
+    });
+  });
+
   test("coerces primitive query values like an Elysia route", async () => {
     const schema = t.Object({
       active: t.Boolean(),
