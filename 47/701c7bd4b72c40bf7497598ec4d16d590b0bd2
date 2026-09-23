@@ -1,0 +1,32 @@
+packages/core/src/adapter/vercel.ts
+  s_13b9bbaf2a91a1::t_14f7807ba46501 784-786
+  s_13b9bbaf2a91a1::t_787b38a6d7b275 1
+packages/core/tests/build/measurement/measure-vercel-server-bundle.test.ts
+  s_13b9bbaf2a91a1::t_65e3e213eb60e5 1-18
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_37f22317609c4c 149-150,188-189
+packages/core/tests/build/vercel-optional-sync.test.ts
+  s_13b9bbaf2a91a1::t_7bb3823d59e586 2,34-41
+  s_13b9bbaf2a91a1::t_42edbc8aa9b5de 52,54
+scripts/measure-vercel-server-bundle.ts
+  s_13b9bbaf2a91a1::t_e6613d897658ad 1-32
+  s_13b9bbaf2a91a1::t_524b3443ab6c00 33-34
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_13b9bbaf2a91a1::t_f82a9ac3957f06 80-82,84-86,93,95-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47701c7bd4b72c40bf7497598ec4d16d590b0bd2",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
