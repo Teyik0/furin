@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
@@ -12,6 +12,7 @@ import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+const ROUTER_PROVIDER_PATH = resolve(import.meta.dir, "../client/router/provider.tsx");
 
 function resolveClientModuleSpecifiers(code: string): string {
   return code
@@ -109,6 +110,21 @@ export async function buildClient(
     },
   };
 
+  const routerLoggerPlugin: Bun.BunPlugin = {
+    name: "furin-client-router-logger",
+    setup(build) {
+      build.onResolve({ filter: /^evlog$/ }, ({ importer }) => {
+        if (importer === ROUTER_PROVIDER_PATH) {
+          return { namespace: "furin-client-router-logger", path: "router-logger" };
+        }
+      });
+      build.onLoad({ filter: /.*/, namespace: "furin-client-router-logger" }, () => ({
+        contents: "export const log = { warn: console.warn, error: console.error };",
+        loader: "js",
+      }));
+    },
+  };
+
   const clientBuildConfig: BunBuildAliasConfig = {
     // Use the JS file as entrypoint — NOT an HTML file. Bun's HTML bundler
     // with code-splitting incorrectly references a leaf chunk in the output
@@ -141,6 +157,7 @@ export async function buildClient(
     plugins: [
       hydrateEntry.plugin,
       ...(plugins ?? []),
+      ...(!clientLogging ? [routerLoggerPlugin] : []),
       ...(pagesDir
         ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
         : []),

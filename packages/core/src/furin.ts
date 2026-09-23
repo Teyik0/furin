@@ -6,7 +6,6 @@ import { type AnyElysia, Elysia, file, NotFound, problem } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
 import { FURIN_RENDER_DECORATOR, type FurinRouteDispatcher } from "./define-route.ts";
 import { createProductionAssetsPlugin } from "./server/assets/production.ts";
-import { createBrowserEventsPlugin } from "./server/browser-events/plugin.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
@@ -53,15 +52,18 @@ import {
 import type { ResolvedRoute, RootLayout } from "./server/router/types.ts";
 import { IS_DEV } from "./server/runtime-env.ts";
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
-import { createSyncChangesPlugin } from "./server/sync/stream.ts";
 
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmentable via furin-env.d.ts
 export interface FurinCacheTags {}
 
 export type CacheTag = keyof FurinCacheTags extends never ? string : keyof FurinCacheTags;
 
-function createProductionBrowserEventsPlugin(sync: FurinSyncOption | undefined): AnyElysia {
-  return sync ? createBrowserEventsPlugin({ sync }) : new Elysia();
+async function createProductionBrowserEventsPlugin(
+  sync: FurinSyncOption | undefined
+): Promise<AnyElysia> {
+  return sync
+    ? (await import("./server/browser-events/plugin.ts")).createBrowserEventsPlugin({ sync })
+    : new Elysia();
 }
 
 function repairedDevelopmentRoutes(
@@ -812,7 +814,7 @@ export async function furin({
           : () => new Response(null, { status: 404 })
       )
       .use(
-        createBrowserEventsPlugin({
+        (await import("./server/browser-events/plugin.ts")).createBrowserEventsPlugin({
           sources: createDevelopmentBrowserEventSources(instance, devDiagnosticStore(instance)),
           sync: sync || undefined,
         })
@@ -823,7 +825,11 @@ export async function furin({
         })
       )
       .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath))
-      .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
+      .use(
+        sync
+          ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync)
+          : new Elysia()
+      )
       .use(
         createDataEndpoint(async (request) => {
           if (request.headers.get("x-furin-hmr-refresh") === "1") {
@@ -914,8 +920,10 @@ export async function furin({
       await withInstance(instance, () => warmSSGCache(routes, root, origin, searchRoutes));
     })
     .use(await createProductionAssetsPlugin(ctx, embedded, clientDir))
-    .use(createProductionBrowserEventsPlugin(sync))
-    .use(sync ? createSyncChangesPlugin(sync) : new Elysia())
+    .use(await createProductionBrowserEventsPlugin(sync))
+    .use(
+      sync ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync) : new Elysia()
+    )
     .use(createDataEndpoint(routes, root))
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)

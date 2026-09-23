@@ -336,6 +336,46 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(Object.keys(metafile.outputs).length).toBeGreaterThan(0);
   });
 
+  test("the default client bundle excludes Furin's evlog router import", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const metafilePath = join(app.path, "client.json");
+
+    await buildClient(routes, {
+      basePath: "",
+      clientLogging: false,
+      metafilePath,
+      outDir: join(app.path, "client-build"),
+      publicPath: "/_client/",
+      rootLayout: root.path,
+    });
+
+    const metafile = JSON.parse(readFileSync(metafilePath, "utf8")) as Bun.BuildMetafile;
+    expect(Object.keys(metafile.inputs).some((path) => /node_modules[/\\]evlog[/\\]/.test(path))).toBe(false);
+  });
+
+  test("client logging isolation leaves application evlog imports intact", async () => {
+    const app = createCompileTmpApp();
+    writeFileSync(
+      join(app.path, "src/pages/index.tsx"),
+      'import { log } from "evlog";\nimport { defineRoute } from "@teyik0/furin";\nimport { route as root } from "./root";\nexport const route = defineRoute().config({ layout: root, mode: "ssr" }).page(() => <main>{String(log.info)}</main>);'
+    );
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const metafilePath = join(app.path, "client.json");
+
+    await buildClient(routes, {
+      basePath: "",
+      clientLogging: false,
+      metafilePath,
+      outDir: join(app.path, "client-build"),
+      publicPath: "/_client/",
+      rootLayout: root.path,
+    });
+
+    const metafile = JSON.parse(readFileSync(metafilePath, "utf8")) as Bun.BuildMetafile;
+    expect(Object.keys(metafile.inputs).some((path) => /node_modules[/\\]evlog[/\\]/.test(path))).toBe(true);
+  });
+
   test("Bun target analysis emits its client metafile outside served assets", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));

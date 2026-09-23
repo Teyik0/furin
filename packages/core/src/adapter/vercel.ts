@@ -777,6 +777,7 @@ export async function buildVercelTarget(
       elysiaAot(appEntry),
     ],
     sourcemap: "none",
+    splitting: true,
     target: "bun",
   });
   if (options.analyze) {
