@@ -19,6 +19,10 @@ export function devDiagnosticStore(): undefined {
   // Development-only state is absent from production bundles.
 }
 
+export function devGraph(): never {
+  throw new Error("[furin] Development route state is unavailable in production.");
+}
+
 export function injectDevDiagnosticClient(html: string, _basePath: string): string {
   return html;
 }

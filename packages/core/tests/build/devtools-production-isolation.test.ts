@@ -34,6 +34,25 @@ afterEach(() => {
 
 describe.serial("production DevTools isolation", () => {
   test(
+    "the Vercel server bundle excludes development route state",
+    async () => {
+      const app = createTmpApp("cli-app-ssr");
+      tmpApps.push(app);
+
+      const result = await runCli(["build", "--target", "vercel", "--analyze"], { cwd: app.path });
+
+      expect(result.exitCode).toBe(0);
+      const metafile = JSON.parse(
+        readFileSync(join(app.path, ".furin/build/analysis/vercel-server.json"), "utf8")
+      ) as { inputs: object };
+      expect(Object.keys(metafile.inputs).some((path) => path.endsWith("/server/dev/graph.ts"))).toBe(
+        false
+      );
+    },
+    { timeout: 30_000 }
+  );
+
+  test(
     "the production server bundle contains no DevTools code",
     async () => {
       const app = createTmpApp("cli-app-ssr");

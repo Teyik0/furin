@@ -3,12 +3,12 @@ import { dirname, relative, resolve } from "node:path";
 const INSTRUMENTATION_IMPORT = /(?:^|[/\\])devtools[/\\]instrumentation(?:\.ts|\.js)?$/;
 const DEV_PAGE_PLUGIN_IMPORT = /(?:^|[/\\])server[/\\]dev-page-plugin(?:\.ts|\.js)?$/;
 const DEV_RUNTIME_IMPORT =
-  /(?:^|[/\\])server[/\\]dev[/\\](?:browser-events|diagnostics|plugin)(?:\.ts|\.js)?$/;
+  /(?:^|[/\\])server[/\\]dev[/\\](?:browser-events|diagnostics|graph|plugin)(?:\.ts|\.js)?$/;
 const DEV_BUILD_IMPORT =
   /(?:^|[/\\])(?:build[/\\]hydrate|plugin[/\\]route-config-autofix)(?:\.ts|\.js)?$/;
 const HMR_IMPORT = /(?:^|[/\\])server[/\\]router[/\\]hmr(?:\.ts|\.js)?$/;
 const PRODUCTION_BOUNDARY_IMPORT =
-  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|plugin|hmr|hydrate|route-config-autofix)(?:\.ts|\.js)?$/;
+  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|hmr|hydrate|route-config-autofix)(?:\.ts|\.js)?$/;
 const PRODUCTION_STUB_NAMESPACE = "furin-production-runtime-stub";
 const FURIN_RUNTIME_ROOT = resolve(import.meta.dir, "..");
 
