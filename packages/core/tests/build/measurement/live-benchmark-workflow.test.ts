@@ -241,6 +241,8 @@ test("recreates and freezes the benchmark lockfile for the baseline tarball", ()
   expect(baselineStep).toContain("bun install --lockfile-only");
   expect(baselineStep).toContain("bun install --frozen-lockfile");
   expect(baselineStep).not.toContain("bun install --force");
+  expect(baselineStep).toContain("f124698be971e275a164c55a2fedcbc85256558c");
+  expect(baselineStep).toContain("base_elysia_version");
 });
 
 test("compares Vercel bundles with the Elysia-major-aware budget", () => {

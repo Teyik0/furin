@@ -176,6 +176,12 @@ jobs:
           test -n "$furin_tarball"
           cd "$GITHUB_WORKSPACE/.benchmark"
           git restore bun.lock apps/furin/package.json
+          base_elysia_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
+          if [[ "$base_elysia_version" == ^1.* ]]; then
+            # The Elysia 1 baseline needs the matching fixture loader API and peer graph.
+            git fetch --depth=1 origin f124698be971e275a164c55a2fedcbc85256558c
+            git checkout --detach FETCH_HEAD
+          fi
           cd apps/furin
           bun pm pkg set "dependencies.@teyik0/furin=$furin_tarball"
           cd ../..
