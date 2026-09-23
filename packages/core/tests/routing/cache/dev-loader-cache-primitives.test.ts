@@ -221,7 +221,11 @@ test("dev loader cache primitive scenarios", async () => {
     stderr: "pipe",
     stdout: "pipe",
   });
-  const timeout = setTimeout(() => proc.kill(), 10_000);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, 10_000);
   let exitCode: number;
   let stdout: string;
   let stderr: string;
@@ -237,7 +241,13 @@ test("dev loader cache primitive scenarios", async () => {
 
   if (exitCode !== 0) {
     throw new Error(
-      [`dev loader cache subprocess exited with ${exitCode}`, stdout, stderr].join("\n")
+      [
+        timedOut
+          ? "dev loader cache subprocess timed out after 10 seconds"
+          : `dev loader cache subprocess exited with ${exitCode}`,
+        stdout,
+        stderr,
+      ].join("\n")
     );
   }
 
