@@ -1,0 +1,38 @@
+packages/core/src/adapter/vercel.ts
+  s_13b9bbaf2a91a1::t_5b7d3d5b4009fe 780
+packages/core/src/build/client.ts
+  s_13b9bbaf2a91a1::t_661c2de414986e 2,15,113-127,160
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_13b9bbaf2a91a1::t_7ad56ffb7da81d 357-378
+  s_13b9bbaf2a91a1::t_3f99f779615eb4 339-356
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_13b9bbaf2a91a1::t_cccfe95e9d537e 47-60,62-83,85-96
+  s_13b9bbaf2a91a1::t_ae2a7b8fe778a9 61,84
+packages/core/src/furin.ts
+  s_13b9bbaf2a91a1::t_5203f7cd044e6b 817
+  s_13b9bbaf2a91a1::t_7ed109591e58e3 61-66,923
+  s_13b9bbaf2a91a1::t_df2c3852dc2ae9 828-832,924-926
+packages/core/tests/build/devtools-production-isolation.test.ts
+  s_13b9bbaf2a91a1::t_13f22bc33c50a5 36,42,44-47
+  s_13b9bbaf2a91a1::t_870cee082e0d5b 43
+  s_13b9bbaf2a91a1::t_b68d8e8e6d2404 37-41,48-49
+packages/core/tests/build/vercel-optional-sync.test.ts
+  s_13b9bbaf2a91a1::t_b3305a91100783 1-25,27-50
+  s_13b9bbaf2a91a1::t_2315f5ce116a28 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c8007e9a8317239c1f1fca0f86dc4a0d135e469a",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
