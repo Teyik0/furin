@@ -669,6 +669,7 @@ async function handle(request) {
     \`furin_server_init;dur=\${initialization.server_init_ms}\`,
     \`furin_handler_wait;dur=\${requestWaitMs}\`,
     \`furin_handler;dur=\${handlerMs}\`,
+    ...(isFirstRequest ? ["furin_instance_first_request"] : []),
   ].join(", ");
   return appendServerTiming(response, serverTiming);
 }

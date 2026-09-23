@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { buildApp } from "../../src/build/index.ts";
 import { patchElysiaWebSocketStub } from "../../src/build/elysia-aot.ts";
+import { createTmpApp } from "../support/app-fixtures.ts";
 
 const websocketStub = `function e(){throw new Error("[elysia-aot] WebSocket route builder was stripped (strip mode) but a WS route was used.")}`;
 
@@ -19,4 +23,22 @@ describe("Elysia AOT WebSocket compatibility", () => {
     const patched = patchElysiaWebSocketStub(websocketStub);
     expect(patchElysiaWebSocketStub(patched)).toBe(patched);
   });
+});
+
+test("Vercel marks only the first instance request", async () => {
+  const app = createTmpApp("cli-app");
+  try {
+    await buildApp({ rootDir: app.path, target: "vercel" });
+    const handlerPath = join(app.path, ".vercel/output/functions/__server.func/index.js");
+    const handler = (await import(pathToFileURL(handlerPath).href)).default;
+    const response = await handler.fetch(new Request("http://localhost/"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("server-timing")).toContain("furin_instance_first_request");
+    const nextResponse = await handler.fetch(new Request("http://localhost/"));
+    expect(nextResponse.headers.get("server-timing")).not.toContain(
+      "furin_instance_first_request"
+    );
+  } finally {
+    app.cleanup();
+  }
 });
