@@ -146,6 +146,8 @@ jobs:
           bun run typecheck
           bun test
           bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-head.json"
+          bun "$GITHUB_WORKSPACE/scripts/measure-vercel-server-bundle.ts" \
+            "$RUNNER_TEMP/vercel-benchmark-head.json" apps/furin/.vercel/output/functions/__server.func
 
       - name: Check baseline support
         id: benchmark-baseline
@@ -183,6 +185,8 @@ jobs:
           bun run link:furin
           bun run --cwd apps/furin build
           bun scripts/local-report.ts "$RUNNER_TEMP/vercel-benchmark-base.json"
+          bun "$GITHUB_WORKSPACE/scripts/measure-vercel-server-bundle.ts" \
+            "$RUNNER_TEMP/vercel-benchmark-base.json" apps/furin/.vercel/output/functions/__server.func
 
       - name: Enforce benchmark budgets
         if: steps.benchmark-baseline.outputs.available == 'true'

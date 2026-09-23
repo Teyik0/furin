@@ -1,12 +1,4 @@
-import {
-  cpSync,
-  existsSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
@@ -789,8 +781,9 @@ export async function buildVercelTarget(
     writeFileSync(metafilePath, `${JSON.stringify(serverBuild.metafile, null, 2)}\n`);
     console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
   }
-  const handlerPath = join(serverFunctionDir, "handler.js");
-  const serverBundleBytes = existsSync(handlerPath) ? statSync(handlerPath).size : 0;
+  const serverBundleBytes = serverBuild.outputs
+    .filter((output) => output.path.endsWith(".js"))
+    .reduce((total, output) => total + output.size, 0);
   writeFileSync(join(serverFunctionDir, "index.js"), vercelBootstrapSource(serverBundleBytes));
   await buildPprFallbacks(apps, builds, prerenderSpecs, functionsDir, rootDir, targetDir);
 

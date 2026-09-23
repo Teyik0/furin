@@ -77,18 +77,23 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     if (!reader) {
       throw new Error("SSR response did not contain a body");
     }
-    const first = await reader.read();
+    const timeout = "timeout" as const;
+    const firstRead = reader.read();
+    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(1000).then(() => timeout)]);
     slow.resolve("late-content");
-    const chunks: Uint8Array[] = first.value ? [first.value] : [];
+    const first = firstOrTimeout === timeout ? await firstRead : firstOrTimeout;
+    const decoder = new TextDecoder();
+    let html = first.value ? decoder.decode(first.value, { stream: true }) : "";
     for (;;) {
       // biome-ignore lint/performance/noAwaitInLoops: stream chunks must be consumed in order.
       const next = await reader.read();
       if (next.done) {
         break;
       }
-      chunks.push(next.value);
+      html += decoder.decode(next.value, { stream: true });
     }
-    const html = chunks.map((chunk) => new TextDecoder().decode(chunk)).join("");
+    html += decoder.decode();
+    expect(firstOrTimeout).not.toBe(timeout);
     expect(html).toContain("loading");
     expect(html).toContain("late-content");
     expect(html.indexOf("late-content")).toBeLessThan(html.lastIndexOf("</html>"));

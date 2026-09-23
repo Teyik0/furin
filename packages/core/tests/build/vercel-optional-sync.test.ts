@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
@@ -30,7 +31,14 @@ export default new Elysia().use(await furin({
 
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode).toBe(0);
-    const handlerPath = join(app.path, ".vercel/output/functions/__server.func/handler.js");
+    const functionDir = join(app.path, ".vercel/output/functions/__server.func");
+    const bundleBytes = readdirSync(functionDir)
+      .filter((file) => file === "handler.js" || /^chunk-.*\.js$/.test(file))
+      .reduce((total, file) => total + statSync(join(functionDir, file)).size, 0);
+    expect(await Bun.file(join(functionDir, "index.js")).text()).toContain(
+      `server_bundle_bytes: ${bundleBytes}`
+    );
+    const handlerPath = join(functionDir, "handler.js");
     const response = Bun.spawnSync({
       cmd: [
         process.execPath,
@@ -41,8 +49,9 @@ export default new Elysia().use(await furin({
       cwd: app.path,
       stderr: "pipe",
       stdout: "pipe",
+      timeout: 10_000,
     });
-    expect(response.exitCode).toBe(0);
+    expect(response.exitCode, response.stderr.toString()).toBe(0);
     expect(response.stdout.toString()).toContain('200 {"changes":[],"cursor":"7"');
   } finally {
     app.cleanup();
