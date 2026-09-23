@@ -214,23 +214,32 @@ assertEqual(invalidateDevLoaderCacheBySource(dep2).isr, 1, "new dependency shoul
 process.exit(0);
 `;
 
-test("dev loader cache primitive scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: ["bun", "-e", DEV_LOADER_CACHE_PRIMITIVES],
+test("dev loader cache primitive scenarios", async () => {
+  const proc = Bun.spawn({
+    cmd: [process.execPath, "-e", DEV_LOADER_CACHE_PRIMITIVES],
     cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
     stderr: "pipe",
     stdout: "pipe",
   });
+  const timeout = setTimeout(() => proc.kill(), 10_000);
+  let exitCode: number;
+  let stdout: string;
+  let stderr: string;
+  try {
+    [exitCode, stdout, stderr] = await Promise.all([
+      proc.exited,
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 
-  if (proc.exitCode !== 0) {
+  if (exitCode !== 0) {
     throw new Error(
-      [
-        `dev loader cache subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`dev loader cache subprocess exited with ${exitCode}`, stdout, stderr].join("\n")
     );
   }
 
-  expect(proc.exitCode).toBe(0);
-});
+  expect(exitCode).toBe(0);
+}, 15_000);
