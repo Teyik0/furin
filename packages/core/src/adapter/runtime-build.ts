@@ -11,7 +11,7 @@ import {
   type SSGCacheSnapshot,
 } from "../build/ssg-cache.ts";
 import type { BuildAppOptions } from "../build/types.ts";
-import { routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
@@ -319,7 +319,7 @@ export async function buildRuntimeApp(
       deploymentTarget: targetName === "vercel" ? "vercel" : undefined,
       embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
-      nativeRoutes: routeModuleSpecifier(app),
+      nativeRoutes: composableRouteModuleSpecifier(app),
       prefix,
       rootConventions,
       rootPath: root.path,

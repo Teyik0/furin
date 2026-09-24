@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  composableRouteModuleSpecifier,
   createRoutesPlugin,
   routeModuleSpecifier,
   type RouteInstanceSpec,
@@ -57,7 +58,8 @@ describe("furin/routes server plugin", () => {
     try {
       writeFileSync(
         entryPath,
-        `export { furinApp } from ${JSON.stringify(routeModuleSpecifier(instance))};\n`
+        `export { furinApp } from ${JSON.stringify(routeModuleSpecifier(instance))};
+export { furinApp as composableApp } from ${JSON.stringify(composableRouteModuleSpecifier(instance))};\n`
       );
       const result = await Bun.build({
         entrypoints: [entryPath],
@@ -73,6 +75,7 @@ describe("furin/routes server plugin", () => {
       }
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
         furinApp: { handle(request: Request): Promise<Response> };
+        composableApp: { handle(request: Request): Promise<Response> };
       };
 
       const response = await built.furinApp.handle(
@@ -84,6 +87,15 @@ describe("furin/routes server plugin", () => {
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ catchAllPath: "guides/routing" });
+
+      const rootResponse = await built.furinApp.handle(
+        new Request("http://localhost/other/page")
+      );
+      expect(rootResponse.status).toBe(200);
+      expect(await rootResponse.json()).toEqual({ rootCatchAllPath: "other/page" });
+      expect(
+        (await built.composableApp.handle(new Request("http://localhost/other/page"))).status
+      ).toBe(404);
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }

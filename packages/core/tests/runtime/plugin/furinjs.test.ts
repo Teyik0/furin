@@ -410,11 +410,19 @@ test.serial("furin() lets a prefixed mount handle GET before a root catch-all pa
     .use(await furin({ pagesDir }));
   const response = await instance.handle(new Request("http://furin/api/auth/session"));
   const pageResponse = await instance.handle(new Request("http://furin/some-page"));
+  const nativeModule = (await import(routeModuleSpecifier({ pagesDir, prefix: "" }))) as {
+    furinApp: { handle: (request: Request) => Promise<Response> };
+  };
+  const standaloneResponse = await nativeModule.furinApp.handle(
+    new Request("http://furin/some-page")
+  );
 
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("auth:/auth/session");
   expect(pageResponse.status).toBe(200);
   expect(await pageResponse.text()).toContain("Catch-all page");
+  expect(standaloneResponse.status).toBe(200);
+  expect(await standaloneResponse.json()).toEqual({});
 });
 
 test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", async () => {

@@ -8,7 +8,11 @@ import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import { buildSSGCacheSnapshot } from "../build/ssg-cache.ts";
 import type { BuildAppOptions, PackageTargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
-import { createRoutesPlugin, routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import {
+  composableRouteModuleSpecifier,
+  createRoutesPlugin,
+  routeSourcePaths,
+} from "../plugin/routes.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
@@ -132,7 +136,7 @@ export async function buildPackageTarget(
         buildId,
         clientLogging: options.clientLogging ?? false,
         modulePaths,
-        nativeRoutes: routeModuleSpecifier(app),
+        nativeRoutes: composableRouteModuleSpecifier(app),
         prefix,
         rootConventions,
         rootPath: root.path,
