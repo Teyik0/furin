@@ -1,0 +1,38 @@
+packages/core/src/adapter/package.ts
+  s_13b9bbaf2a91a1::t_a160ebb4231b7e 11-15,139
+packages/core/src/plugin/routes.ts
+  s_13b9bbaf2a91a1::t_8ac91af77d5c48 1029-1032
+  s_13b9bbaf2a91a1::t_a160ebb4231b7e 19-20,23-24,87-90,543-547,565,618-619,638,647-648,653,671,919-921,1010,1012-1015,1025-1028,1033,1046,1071,1073,1076,1080-1081,1109,1111
+  s_13b9bbaf2a91a1::t_82cedc5152848a 557,900,1034-1045,1074
+packages/core/tests/support/http.ts
+  s_13b9bbaf2a91a1::t_a160ebb4231b7e 2
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_13b9bbaf2a91a1::t_8ac91af77d5c48 425
+  s_13b9bbaf2a91a1::t_c571e3ba76e15c 413-418,424
+packages/core/tests/build/routes-plugin.test.ts
+  s_13b9bbaf2a91a1::t_c571e3ba76e15c 90-95
+  s_13b9bbaf2a91a1::t_8ac91af77d5c48 5,96-98
+  s_13b9bbaf2a91a1::t_6fa5d842384d6f 61-62,78
+packages/core/tests/support/http.test.ts
+  s_13b9bbaf2a91a1::t_c04d078843db0a 1-17
+packages/core/tests/fixtures/routes-v2/catch-all/[...path].ts
+  s_13b9bbaf2a91a1::t_c571e3ba76e15c 1-8
+packages/core/src/adapter/runtime-build.ts
+  s_13b9bbaf2a91a1::t_a160ebb4231b7e 14,322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "20f29ef75b90ab140243fd6bf96b0187350e5e7a",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
