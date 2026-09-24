@@ -1,0 +1,48 @@
+packages/core/src/adapter/bun.ts
+  s_13b9bbaf2a91a1::t_9caf08c2f58430 48-51,145-146,176
+packages/core/src/furin.ts
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 2,199
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_31afbe449ccf45 79-110
+packages/core/package.json
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 3
+CHANGELOG.md
+  s_13b9bbaf2a91a1::t_31afbe449ccf45 27-28,413-418
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 128-129
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_13b9bbaf2a91a1::t_c58c8be6b81346 240-244
+  s_13b9bbaf2a91a1::t_69c85a068213a3 238-239
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 496-497
+packages/core/src/adapter/static.ts
+  s_13b9bbaf2a91a1::t_9caf08c2f58430 3,398-399,407-408
+apps/docs/src/content/docs/deployment.mdx
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 65
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_13b9bbaf2a91a1::t_c58c8be6b81346 101-128,130-135
+  s_13b9bbaf2a91a1::t_3a9b9f2643eccf 129
+  s_13b9bbaf2a91a1::t_74a8e9d57f6152 136-137
+scripts/build-performance-report.ts
+  s_13b9bbaf2a91a1::t_b30a44be0310cf 25,41
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_13b9bbaf2a91a1::t_c58c8be6b81346 151
+bun.lock
+  s_13b9bbaf2a91a1::t_1cce140dd39099 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "130043f27bd82be1fe99185072aeb83cb2501b47",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
