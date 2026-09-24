@@ -3,7 +3,7 @@
   "@biomejs/biome": "^2.4.12",
   "ultracite": "^7.6.0",
   "@radix-ui/react-slot": "^1.2.3",
-  "elysia": "2.0.0-beta.16",
+  "elysia": "2.0.0-beta.19",
   "evlog": "^2.29.0",
   "exact-mirror": "1.2.6",
   "react": "^19.2.4",

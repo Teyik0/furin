@@ -132,6 +132,32 @@ describe("parseRouteQuery", () => {
     expect(result).toEqual({ ok: true, query: elysiaQuery });
   });
 
+  test("matches Elysia array query parsing for repeated, comma, and bracket values", async () => {
+    const schema = t.Object({ tags: t.Array(t.String()) });
+    const app = new Elysia().get("/products", { query: schema }, ({ query }) => query);
+
+    await Promise.all(
+      [
+        "tags=a&tags=b",
+        "tags=a,b",
+        "tags=[a,b]",
+        "tags=%5Ba%2Cb%5D",
+        "tags=a%2Cb",
+        "tags=[a%2Cb,c]",
+        "tags=%5Ba%2Cb%2Cc%5D",
+        "tags=a&tags=b,c",
+      ].map(async (search) => {
+        const url = new URL(`http://localhost/products?${search}`);
+        const response = await app.handle(new Request(url));
+        expect(response.status).toBe(200);
+        expect(await parseRouteQuery(url, schema)).toEqual({
+          ok: true,
+          query: await response.json(),
+        });
+      })
+    );
+  });
+
   test("coerces anyOf array and object query schemas", async () => {
     const schema = t.Object({
       filter: t.Union([t.Object({ category: t.String() }), t.Null()]),

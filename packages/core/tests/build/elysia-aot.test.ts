@@ -8,7 +8,7 @@ import { createTmpApp } from "../support/app-fixtures.ts";
 const websocketStub = `function e(){throw new Error("[elysia-aot] WebSocket route builder was stripped (strip mode) but a WS route was used.")}`;
 
 describe("Elysia AOT WebSocket compatibility", () => {
-  test("completes the beta.16 no-WebSocket stub without retaining the WS implementation", () => {
+  test("completes the no-WebSocket stub without retaining the WS implementation", () => {
     const patched = patchElysiaWebSocketStub(websocketStub);
 
     expect(patched).toContain("export function accumulateWSOptions(){return e()}");

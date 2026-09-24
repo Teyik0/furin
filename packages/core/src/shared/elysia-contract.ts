@@ -1,7 +1,4 @@
 import { type AnySchema, type UnwrapSchema, Validator } from "elysia";
-import { parseQueryFromURL as elysiaParseQueryFromURL } from "elysia/parse-query";
-
-export const parseQueryFromURL = elysiaParseQueryFromURL;
 
 interface SchemaObject {
   [key: string]: unknown;

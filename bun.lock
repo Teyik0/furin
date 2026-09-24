@@ -152,7 +152,7 @@
   "catalog": {
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "elysia": "2.0.0-beta.16",
+    "elysia": "2.0.0-beta.19",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
     "react": "19.2.8",
@@ -1018,7 +1018,7 @@
 
     "electron-to-chromium": ["electron-to-chromium@1.5.393", "", {}, "sha512-kiDJdIUawuEIcp9XoICKp1iTYDEbgguIPq526N1Q7jIQDeQ3CqoMx71025PI/7E48Ddtw2HuWsVjY7afEgNxmg=="],
 
-    "elysia": ["elysia@2.0.0-beta.16", "", { "dependencies": { "deuri": "^3.0.0", "memoirist": "1.2.2" }, "peerDependencies": { "@types/bun": ">= 1.3.0", "exact-mirror": ">= 1.2.6", "openapi-types": ">= 12.0.0", "typebox": ">= 1.3.0", "typescript": ">= 5.7.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-Hb66lhRFJKwi1GFb/RcFkKWgKW+heiRH1ocxR2CNkrHBX5xyB8Hu1dDM5tJjUghS7piFk82VSrPnm8sDwSaRGA=="],
+    "elysia": ["elysia@2.0.0-beta.19", "", { "dependencies": { "deuri": "^3.0.0", "memoirist": "1.2.2" }, "peerDependencies": { "@types/bun": ">= 1.3.0", "exact-mirror": ">= 1.2.6", "openapi-types": ">= 12.0.0", "typebox": ">= 1.3.0", "typescript": ">= 5.7.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-+oEznf0oYJ7MFeMkoLwSGDYQsTUp6TW54UfILzj9s01atkq6vf5ux+0Jb2RuCLLwdnOX37pTz+iBVkdk/BgyZw=="],
 
     "emoji-regex": ["emoji-regex@10.6.0", "", {}, "sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A=="],
 

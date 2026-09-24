@@ -225,7 +225,7 @@ test.each([
   expect(packageStep).not.toContain("bun link");
   expect(installStep).toContain("bun pm pkg set");
   expect(installStep).toContain('"dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL"');
-  expect(installStep).toContain("dependencies.elysia=2.0.0-beta.16");
+  expect(installStep).toContain("dependencies.elysia=2.0.0-beta.19");
   expect(installStep).toContain("dependencies.exact-mirror=1.2.6");
   expect(installStep).toContain("dependencies.typebox=1.3.34");
   expect(installStep).toContain("bun install --lockfile-only");

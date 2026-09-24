@@ -43,7 +43,7 @@
     "bun": ">=1.4.0"
   },
   "catalog": {
-    "elysia": "2.0.0-beta.16",
+    "elysia": "2.0.0-beta.19",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
     "@types/react": "^19.2.18",

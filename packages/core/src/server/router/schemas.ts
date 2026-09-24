@@ -1,9 +1,5 @@
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import {
-  type FurinSchema,
-  getSchemaValidator,
-  parseQueryFromURL,
-} from "../../shared/elysia-contract.ts";
+import { type FurinSchema, getSchemaValidator } from "../../shared/elysia-contract.ts";
 import {
   collectSearchDefaults,
   type SearchParamsInput,
@@ -19,6 +15,59 @@ interface UnknownObject {
 
 interface QueryKeyMap {
   [key: string]: 1;
+}
+
+function decodeQueryPart(value: string): string {
+  return new URLSearchParams(`value=${value}`).get("value") ?? "";
+}
+
+function parseArrayQueryValue(raw: string, decoded: string, repeated: boolean): string[] {
+  const rawBracketed = raw.startsWith("[") && raw.endsWith("]");
+  const decodedBracketed = decoded.startsWith("[") && decoded.endsWith("]");
+  if (repeated && !rawBracketed && !decodedBracketed) {
+    return [decoded];
+  }
+  if (decoded === "[]") {
+    return [];
+  }
+  if (rawBracketed) {
+    return raw.slice(1, -1).split(",").map(decodeQueryPart);
+  }
+  if (decodedBracketed) {
+    return decoded.slice(1, -1).split(",");
+  }
+  return raw.includes(",") ? raw.split(",").map(decodeQueryPart) : [decoded];
+}
+
+function parseQueryFromURL(search: string, arrayKeys?: QueryKeyMap): UnknownObject {
+  const query: UnknownObject = Object.create(null);
+  if (!arrayKeys) {
+    for (const [key, value] of new URLSearchParams(search)) {
+      query[key] = value;
+    }
+    return query;
+  }
+  for (const pair of search.slice(1).split("&")) {
+    const entry = new URLSearchParams(pair).entries().next().value;
+    if (!entry) {
+      continue;
+    }
+    const [key, value] = entry;
+    if (!arrayKeys[key]) {
+      query[key] = value;
+      continue;
+    }
+    const equalIndex = pair.indexOf("=");
+    const rawValue = equalIndex === -1 ? "" : pair.slice(equalIndex + 1);
+    const previous = query[key];
+    const values = parseArrayQueryValue(rawValue, value, Array.isArray(previous));
+    if (Array.isArray(previous)) {
+      previous.push(...values);
+    } else {
+      query[key] = values;
+    }
+  }
+  return query;
 }
 
 /**
@@ -245,18 +294,13 @@ export async function parseRouteQuery(
   schema: FurinSchema | undefined
 ): Promise<ParseRouteQueryResult> {
   if (!schema) {
-    return { ok: true, query: parseQueryFromURL(url.search, 0) as SearchParamsInput };
+    return { ok: true, query: parseQueryFromURL(url.search) as SearchParamsInput };
   }
 
   const rawQuery = isStandardSchema(schema)
-    ? (parseQueryFromURL(url.search, 0) as UnknownObject)
+    ? parseQueryFromURL(url.search)
     : parseJsonQueryObjects(
-        parseQueryFromURL(
-          url.search,
-          0,
-          collectQueryArrayKeys(schema),
-          collectQueryObjectKeys(schema)
-        ) as UnknownObject,
+        parseQueryFromURL(url.search, collectQueryArrayKeys(schema)),
         collectQueryObjectKeys(schema)
       );
   const result = await validateRouteInput(rawQuery, schema, "query");
