@@ -1,0 +1,27 @@
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_13b9bbaf2a91a1::t_d0ab9f8bd953c9 187,189
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_13b9bbaf2a91a1::t_d0ab9f8bd953c9 108,110
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_13b9bbaf2a91a1::t_d0ab9f8bd953c9 123,126
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_13b9bbaf2a91a1::t_d0ab9f8bd953c9 200,202
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_13b9bbaf2a91a1::t_d0ab9f8bd953c9 101,103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e86b5bbfbbf919aca98af6a15a990b7b8df9a74",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
