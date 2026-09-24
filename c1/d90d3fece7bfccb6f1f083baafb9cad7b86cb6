@@ -1,0 +1,50 @@
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 228
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 132
+apps/scaffolder/src/generated/package-catalog.json
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 6
+packages/core/tests/build/elysia-aot.test.ts
+  s_13b9bbaf2a91a1::t_27bbfa60364e73 11
+apps/docs/src/content/docs/deployment.mdx
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 24
+.github/workflows/vercel-benchmark.yaml
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 121
+apps/scaffolder/README.md
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 159
+packages/core/src/build/elysia-aot.ts
+  s_13b9bbaf2a91a1::t_27bbfa60364e73 25,42
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_13b9bbaf2a91a1::t_b4f3a181a8c4d9 139,150-158
+  s_13b9bbaf2a91a1::t_a8592e8755f599 140-147,149
+  s_13b9bbaf2a91a1::t_11de96c7dcd006 148
+  s_13b9bbaf2a91a1::t_93ebe017681482 135-138,159-160
+packages/core/src/server/router/schemas.ts
+  s_13b9bbaf2a91a1::t_5d48fa535404fa 44-49,56
+  s_13b9bbaf2a91a1::t_dc7df7a75be3fb 50-55,60-61
+  s_13b9bbaf2a91a1::t_02e03915479ecd 62
+  s_13b9bbaf2a91a1::t_b4f3a181a8c4d9 2,59
+  s_13b9bbaf2a91a1::t_487784a2dc8f5d 20-41,63
+  s_13b9bbaf2a91a1::t_0fc06a006f8a8e 64-68
+  s_13b9bbaf2a91a1::t_06ffd48eaafa4e 42-43,57-58,69-72,297,301,303
+package.json
+  s_13b9bbaf2a91a1::t_cc453cd7c52912 46
+bun.lock
+  s_13b9bbaf2a91a1::t_a04a8d56c33836 155,1021
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1d90d3fece7bfccb6f1f083baafb9cad7b86cb6",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
