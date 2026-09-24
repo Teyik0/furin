@@ -24,7 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Embedded asset startup on Bun 1.4.0** — self-contained executables serve BunFS client and public files by direct path lookup instead of scanning embedded directories with `Bun.Glob`, avoiding the startup `ENOENT` while retaining traversal protection and cache headers.
 - **Vercel public asset prefixes** — the Vercel target now mirrors the development and compiled-server behavior by copying `public/` under each application's prefix (`/public`, `/admin/public`, ...) instead of only the output root, so runtime asset URLs resolve without a post-build copy step.
 - **Prefixed Vercel favicons** — each prefixed application now receives its conventional `/favicon.ico` asset alongside its prefixed public directory.
-- **Windows compiled builds** — Bun executables use `server.exe` in build manifests and local tooling, `PATH` lookup respects the host separator, and CI exercises the Windows build, types, and tests.
+- **Windows compiled builds** — Bun executables use `server.exe` in build manifests and local tooling, virtual Bun build entries use normalized paths, `PATH` lookup respects the host separator, and CI exercises the Windows build, types, and tests.
 - **Static output root protection** — static builds reject a Windows drive root as `outDir` before deleting output files.
 
 ## [0.4.0-alpha.2] — 2026-09-20

@@ -11,14 +11,15 @@ export function createVirtualBuildEntry(
   source: string,
   loader: Bun.Loader
 ): VirtualBuildEntry {
+  const normalizedEntrypoint = entrypoint.replaceAll("\\", "/");
   const entrypointFilter = new RegExp(
-    `^${entrypoint.replace(REGEX_SPECIAL_CHARACTERS_RE, "\\$&")}$`
+    `^${normalizedEntrypoint.replace(REGEX_SPECIAL_CHARACTERS_RE, "\\$&")}$`
   );
   return {
-    entrypoint,
-    files: { [entrypoint]: source },
+    entrypoint: normalizedEntrypoint,
+    files: { [normalizedEntrypoint]: source },
     plugin: {
-      name: `furin-virtual-entry:${entrypoint}`,
+      name: `furin-virtual-entry:${normalizedEntrypoint}`,
       setup(build) {
         build.onLoad({ filter: entrypointFilter }, () => ({ contents: source, loader }));
       },
