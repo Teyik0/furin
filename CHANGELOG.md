@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-24
+
 ### Breaking
 - **Elysia 2 Kiana contracts** — Furin now targets Elysia 2 and TypeBox 1 with the hook-first route signature. Run the official Elysia codemod before applying the Furin-specific migration steps.
 - **Supported build targets** — `node` and `cloudflare` have been removed from `BUILD_TARGETS`; existing configurations using them now fail validation. Use the Bun or Vercel adapters described in the deployment guide.
@@ -408,7 +410,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/c228ea2...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.2...v0.5.0
 [0.2.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.3...c228ea2
 [0.2.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
