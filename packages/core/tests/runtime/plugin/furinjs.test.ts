@@ -9,7 +9,8 @@ import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { evlogOptionsMock, initLoggerOptionsMock, resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../support/app-fixtures";
-import { runCli } from "../../support/process";
+import { getTestPort, waitForHttp } from "../../support/http";
+import { runCli, startProcess } from "../../support/process";
 
 const { furin } = await import("../../../src/furin");
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
@@ -20,6 +21,23 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
 const tmpApps: TmpApp[] = [];
+const ROOT_CATCH_ALL_PAGE = [
+  'import { defineRoute, notFound } from "@teyik0/furin";',
+  'import { t } from "elysia";',
+  'import { route as rootRoute } from "./root";',
+  "export const route = defineRoute()",
+  '  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ "*": t.String() }) })',
+  '  .loader(({ params }) => params["*"] === "missing" ? notFound({ message: "Missing page" }) : {})',
+  "  .page(() => <main>Catch-all page</main>);",
+].join("\n");
+const MOUNTED_SERVER = [
+  'import { furin } from "@teyik0/furin";',
+  'import { Elysia } from "elysia";',
+  "const app = new Elysia()",
+  '  .use(new Elysia({ prefix: "/api" }).mount((request) => new Response("auth:" + new URL(request.url).pathname)))',
+  '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));',
+  "export default app;",
+].join("\n");
 
 function rememberTmpApp(app: TmpApp): TmpApp {
   tmpApps.push(app);
@@ -375,6 +393,120 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
   expect(ssrResponse.headers.get("content-type")).toContain("text/html");
   expect(await ssrResponse.text()).toContain("Native route");
 });
+
+test.serial("furin() lets a prefixed mount handle GET before a root catch-all page", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .use(
+      new Elysia({ prefix: "/api" }).mount(
+        (request) => new Response(`auth:${new URL(request.url).pathname}`)
+      )
+    )
+    .use(await furin({ pagesDir }));
+  const response = await instance.handle(new Request("http://furin/api/auth/session"));
+  const pageResponse = await instance.handle(new Request("http://furin/some-page"));
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("auth:/auth/session");
+  expect(pageResponse.status).toBe(200);
+  expect(await pageResponse.text()).toContain("Catch-all page");
+});
+
+test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .use(
+      new Elysia({ prefix: "/api" }).mount(
+        (request) => new Response(`auth:${new URL(request.url).pathname}`)
+      )
+    )
+    .use(await furin({ pagesDir, prefix: "/site" }));
+  const apiResponse = await instance.handle(new Request("http://furin/api/auth/session"));
+  const pageResponse = await instance.handle(new Request("http://furin/site/some-page"));
+
+  expect(await apiResponse.text()).toBe("auth:/auth/session");
+  expect(pageResponse.status).toBe(200);
+  expect(await pageResponse.text()).toContain("Catch-all page");
+});
+
+test.serial("furin() built catch-all page coexists with a prefixed mount", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
+
+  const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
+  if (result.exitCode !== 0) {
+    throw new Error(result.stderr || result.stdout);
+  }
+  const port = getTestPort();
+  const server = startProcess([process.execPath, join(app.path, ".furin/build/bun/server.js")], {
+    cwd: app.path,
+    env: { PORT: String(port) },
+  });
+  try {
+    const apiResponse = await waitForHttp(`http://127.0.0.1:${port}/api/auth/session`, {
+      timeoutMs: 10_000,
+    });
+    const pageResponse = await fetch(`http://127.0.0.1:${port}/some-page`);
+    const missingResponse = await fetch(`http://127.0.0.1:${port}/missing`);
+
+    expect(pageResponse.status).toBe(200);
+    expect(await pageResponse.text()).toContain("Catch-all page");
+    expect(apiResponse.status).toBe(200);
+    expect(await apiResponse.text()).toBe("auth:/auth/session");
+    expect(missingResponse.status).toBe(404);
+  } finally {
+    server.kill();
+    await server.exitCode;
+  }
+});
+
+test.serial(
+  "furin() compiled server serves a prefixed mount and a catch-all page",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+    writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
+
+    const result = await runCli(["build", "--target", "bun", "--compile", "server"], {
+      cwd: app.path,
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr || result.stdout);
+    }
+    const port = getTestPort();
+    const server = startProcess([join(app.path, ".furin/build/bun/server")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    try {
+      const authResponse = await waitForHttp(`http://127.0.0.1:${port}/api/auth/session`, {
+        timeoutMs: 10_000,
+      });
+      const pageResponse = await fetch(`http://127.0.0.1:${port}/some-page`);
+      expect(await authResponse.text()).toBe("auth:/auth/session");
+      const pageHtml = await pageResponse.text();
+      expect(pageResponse.status, `${pageHtml}\n${server.getStdout()}\n${server.getStderr()}`).toBe(
+        200
+      );
+      expect(pageHtml).toContain("Catch-all page");
+    } finally {
+      server.kill();
+      await server.exitCode;
+    }
+  },
+  30_000
+);
 
 test.serial(
   "native layouts validate their schema and render through the loader pipeline",

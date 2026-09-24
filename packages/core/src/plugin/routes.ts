@@ -544,7 +544,9 @@ function emitRouteNode(node: RouteTreeNode, indentation: string): string {
       `${childIndentation}.use(new Elysia({ prefix: "" }).use(${node.indexRoute.id}.elysia))`
     );
   }
-  for (const route of node.fileRoutes) {
+  // The root catch-all is rendered by Furin's final 404 fallback so mounted
+  // Elysia APIs can claim their own paths first.
+  for (const route of node.fileRoutes.filter((file) => file.path !== "/*")) {
     const segment = route.path.slice(route.path.lastIndexOf("/") + 1);
     content.push(
       `${childIndentation}.use(new Elysia({ prefix: ${JSON.stringify(`/${segment}`)} }).use(${route.id}.elysia))`
@@ -885,10 +887,11 @@ async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | un
 
 async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
   const prefix = node.name ? `/${segmentPath(node.name)}` : "";
+  const fileRoutes = node.fileRoutes.filter((route) => route.path !== "/*");
   const [layoutApps, indexRouteApps, fileRouteApps, childApps] = await Promise.all([
     node.layout ? composableRouteApps(node.layout) : undefined,
     node.indexRoute ? composableRouteApps(node.indexRoute) : undefined,
-    Promise.all(node.fileRoutes.map((route) => composableRouteApps(route))),
+    Promise.all(fileRoutes.map((route) => composableRouteApps(route))),
     Promise.all(node.children.map((child) => composeRuntimeNode(child))),
   ]);
   const appScope = layoutApps?.app ?? new Elysia();
@@ -898,7 +901,7 @@ async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
     appScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.app));
     shellScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.shell));
   }
-  for (const [index, route] of node.fileRoutes.entries()) {
+  for (const [index, route] of fileRoutes.entries()) {
     const routeApps = fileRouteApps[index];
     if (routeApps) {
       const segment = route.path.slice(route.path.lastIndexOf("/") + 1);

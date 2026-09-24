@@ -43,6 +43,20 @@ Continue chaining Elysia instances so route types remain intact. Elysia plugins 
 
 The exported `api` is also the root application extended by Furin. Kiana's AOT manifest owns one Elysia application per process, so an in-process Eden client must call this same instance instead of a second standalone app.
 
+## Mounted Request Handlers
+
+Mount external `Request`/`Response` handlers under an API prefix before adding Furin:
+
+```ts
+const externalApi = new Elysia({ prefix: "/api" }).mount(externalHandler);
+
+export const app = new Elysia()
+  .use(externalApi)
+  .use(await furin({ pagesDir: "./src/pages" }));
+```
+
+The root `[...rest]` page runs after Elysia has checked mounted API routes. An unprefixed `.mount(handler)` claims every URL, including page URLs. Elysia strips a mount prefix from the request URL passed to the handler, so configure the external handler's internal base path and callback URLs accordingly. Furin skips Elysia's build-time AOT step for applications with `.mount()` because that compiler does not support mounted handlers; the Bun server still compiles and serves them at runtime.
+
 ## Middleware, Guards, And Scope
 
 Install the JWT plugin before using this example:

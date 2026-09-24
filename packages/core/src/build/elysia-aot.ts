@@ -2,10 +2,21 @@ import { dirname, resolve } from "node:path";
 import { aotFactory } from "elysia/plugin/aot/unplugin";
 
 const AOT_NAMESPACE = "furin-elysia-aot";
+const RUNTIME_NAMESPACE = "furin-elysia-runtime";
+const RUNTIME_SPECIFIER = "furin:elysia-runtime";
 const ELYSIA_RESOLVE_DIR = dirname(Bun.resolveSync("elysia", import.meta.dir));
 const SOURCE_FILTER = /\.[cm]?[jt]sx?$/;
 const WEBSOCKET_STUB_MARKER =
   "[elysia-aot] WebSocket route builder was stripped (strip mode) but a WS route was used.";
+const RUNTIME_TYPEBOX_SETUP = `import { setupTypebox } from "elysia";
+import exactMirror from "exact-mirror";
+import * as type from "typebox/type";
+import * as system from "typebox/system";
+import * as value from "typebox/value";
+import * as schema from "typebox/schema";
+import * as compile from "typebox/compile";
+setupTypebox({ exactMirror, typebox: { type, system, value, schema, compile } });
+`;
 
 function loaderFor(path: string): Bun.Loader {
   const extension = path.slice(path.lastIndexOf("."));
@@ -46,7 +57,30 @@ export function elysiaAot(entry: string): Bun.BunPlugin {
   return {
     name: "elysia-aot",
     async setup(build) {
-      await hooks.buildStart?.();
+      try {
+        await hooks.buildStart?.();
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.startsWith("[elysia-aot]") &&
+          error.message.includes("mounts a sub-app")
+        ) {
+          console.warn("[furin] Elysia AOT skipped because the app uses .mount().");
+          const entrySource = await Bun.file(entryPath).text();
+          await Bun.write(entryPath, `import ${JSON.stringify(RUNTIME_SPECIFIER)};\n${entrySource}`);
+          build.onResolve({ filter: /^furin:elysia-runtime$/ }, () => ({
+            namespace: RUNTIME_NAMESPACE,
+            path: RUNTIME_SPECIFIER,
+          }));
+          build.onLoad({ filter: /.*/, namespace: RUNTIME_NAMESPACE }, () => ({
+            contents: RUNTIME_TYPEBOX_SETUP,
+            loader: "js",
+            resolveDir: ELYSIA_RESOLVE_DIR,
+          }));
+          return;
+        }
+        throw error;
+      }
       const entrySource = await Bun.file(entryPath).text();
       const transformedEntry = await hooks.transform?.(entrySource, entryPath);
       if (transformedEntry !== undefined) {

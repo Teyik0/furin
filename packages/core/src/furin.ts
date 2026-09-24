@@ -182,7 +182,10 @@ function resolveClientDirFromCandidate(candidate: string, dirName: string): stri
 
   const absolute = candidate.startsWith("/") ? candidate : resolve(process.cwd(), candidate);
   if (existsSync(absolute)) {
-    return join(dirname(absolute), dirName);
+    const clientDir = join(dirname(absolute), dirName);
+    if (existsSync(join(clientDir, "index.html"))) {
+      return clientDir;
+    }
   }
 
   if (!candidate.includes("/")) {
@@ -197,7 +200,10 @@ function resolveClientDirFromPath(candidate: string, dirName: string): string | 
   for (const dir of pathEntries) {
     const fullPath = join(dir, candidate);
     if (existsSync(fullPath)) {
-      return join(dirname(fullPath), dirName);
+      const clientDir = join(dirname(fullPath), dirName);
+      if (existsSync(join(clientDir, "index.html"))) {
+        return clientDir;
+      }
     }
   }
   return null;
@@ -953,13 +959,23 @@ function createNotFoundHandling(
   tryNativeDispatch?: (context: { request: Request }) => Promise<unknown>
 ): Elysia {
   const app = new Elysia();
+  const dispatch =
+    tryNativeDispatch ??
+    (routes.some((route) => route.pattern === "/*")
+      ? async (context: { request: Request }): Promise<unknown> => {
+          if (context.request.method !== "GET") {
+            return;
+          }
+          return await dispatchNativeRoute(context as Parameters<FurinRouteDispatcher>[0]);
+        }
+      : undefined);
   if (prefix === "") {
     app.error("global", NotFound, async (context) => {
       // Dev topology: the native renderer is rebuilt by the watcher on route
       // add/remove, so a hot-added route (no mounted Elysia route yet) can
-      // still be served here. `tryNativeDispatch` is undefined in production.
-      if (tryNativeDispatch) {
-        const rendered = await tryNativeDispatch(context);
+      // still be served here. Production also renders root catch-all pages here.
+      if (dispatch) {
+        const rendered = await dispatch(context);
         if (rendered !== undefined && rendered !== null) {
           return rendered;
         }
@@ -968,17 +984,14 @@ function createNotFoundHandling(
     });
     return app;
   }
-  if (routes.some((route) => route.pattern === "/*")) {
-    return app;
-  }
-  app.get("/*", async ({ request, server }) => {
-    if (tryNativeDispatch) {
-      const rendered = await tryNativeDispatch({ request });
+  app.get("/*", async (context) => {
+    if (dispatch) {
+      const rendered = await dispatch(context);
       if (rendered !== undefined && rendered !== null) {
         return rendered;
       }
     }
-    return renderRootNotFound(root, request, server?.url.origin);
+    return renderRootNotFound(root, context.request, context.server?.url.origin);
   });
   return app;
 }
