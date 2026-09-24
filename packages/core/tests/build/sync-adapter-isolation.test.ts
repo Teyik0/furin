@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const fixtures = new URL("../fixtures/sync-bundles/", import.meta.url);
 const postgresMarker = "pg_advisory_xact_lock";
@@ -25,7 +26,7 @@ interface PackageManifest {
 
 async function bundle(name: string, target: "browser" | "bun"): Promise<string> {
   const result = await Bun.build({
-    entrypoints: [new URL(`${name}.ts`, fixtures).pathname],
+    entrypoints: [fileURLToPath(new URL(`${name}.ts`, fixtures))],
     packages: "bundle",
     root: resolve(import.meta.dir, "../.."),
     target,
