@@ -159,6 +159,7 @@ test.serial(
     } finally {
       compiler?.kill();
       server?.kill();
+      await Promise.all([compiler?.exitCode, server?.exitCode]);
       app.cleanup();
     }
   },
