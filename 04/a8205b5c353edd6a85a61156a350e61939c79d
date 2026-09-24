@@ -1,0 +1,21 @@
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_13b9bbaf2a91a1::t_83340116e5bba8 3,227
+examples/weather/tests/weather-routes.test.ts
+  s_13b9bbaf2a91a1::t_77fe9311bbba6f 53-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04a8205b5c353edd6a85a61156a350e61939c79d",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
