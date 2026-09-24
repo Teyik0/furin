@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -138,11 +138,17 @@ export async function createBuildFingerprint(
 
 function stableFingerprintPath(path: string, projectRoot: string): string {
   const projectPath = relative(projectRoot, path);
-  if (projectPath !== ".." && !projectPath.startsWith("../") && !projectPath.startsWith("..\\")) {
+  if (
+    !isAbsolute(projectPath) &&
+    projectPath !== ".." &&
+    !projectPath.startsWith("../") &&
+    !projectPath.startsWith("..\\")
+  ) {
     return `app/${toPosixPath(projectPath)}`;
   }
   const frameworkPath = relative(_pkgRoot, path);
   if (
+    !isAbsolute(frameworkPath) &&
     frameworkPath !== ".." &&
     !frameworkPath.startsWith("../") &&
     !frameworkPath.startsWith("..\\")

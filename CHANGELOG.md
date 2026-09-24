@@ -26,6 +26,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Prefixed Vercel favicons** — each prefixed application now receives its conventional `/favicon.ico` asset alongside its prefixed public directory.
 - **Windows compiled builds** — Bun executables use `server.exe` in build manifests and local tooling, virtual Bun build entries use normalized paths, `PATH` lookup respects the host separator, and CI exercises the Windows build, types, and tests.
 - **Static output root protection** — static builds reject a Windows drive root as `outDir` before deleting output files.
+- **Cross-drive build fingerprints** — framework source files keep their stable `furin/` fingerprint paths when Windows builds use a temporary directory on another drive.
 
 ## [0.4.0-alpha.2] — 2026-09-20
 
