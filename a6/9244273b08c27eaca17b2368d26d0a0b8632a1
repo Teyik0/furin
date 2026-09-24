@@ -1,0 +1,36 @@
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_13b9bbaf2a91a1::t_c066b125b0335d 55-61,63-65,67-81,83-95,99-105
+  s_13b9bbaf2a91a1::t_aa38732a181f86 82
+  s_13b9bbaf2a91a1::t_0dc1425a9ca4c9 62,66
+  s_13b9bbaf2a91a1::t_9208afa7cf4832 96-98
+packages/core/src/adapter/vercel.ts
+  s_13b9bbaf2a91a1::t_0dc1425a9ca4c9 413,441
+packages/core/src/server/evlog.ts
+  s_13b9bbaf2a91a1::t_c6fb0fad098627 86-87
+  s_13b9bbaf2a91a1::t_9208afa7cf4832 40-42
+  s_13b9bbaf2a91a1::t_0f0521766f3e4a 77-83
+  s_13b9bbaf2a91a1::t_0dc1425a9ca4c9 38-39,43-45,75-76,84-85,88
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_13b9bbaf2a91a1::t_0f0521766f3e4a 717
+  s_13b9bbaf2a91a1::t_b715545b4dffac 246,253
+  s_13b9bbaf2a91a1::t_07087e6abacf64 254-255
+packages/core/src/server/internal.ts
+  s_13b9bbaf2a91a1::t_9208afa7cf4832 12,86
+  s_13b9bbaf2a91a1::t_7de50c23de86eb 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a69244273b08c27eaca17b2368d26d0a0b8632a1",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
