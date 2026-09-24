@@ -4,6 +4,7 @@ import {
   type BaseEvlogOptions,
   createLoggerStorage,
   defineFrameworkIntegration,
+  shouldDeferEmitForResponse,
 } from "evlog/toolkit";
 
 interface EvlogRequestContext {
@@ -57,7 +58,18 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
           // while Elysia's beta wrap type still declares Response only.
           return undefined as unknown as Response;
         }
-        return await handle.finishResponse(response);
+        if (shouldDeferEmitForResponse(response)) {
+          return await handle.finishResponse(response);
+        }
+        // Elysia 2 runs afterResponse/defer before fetch resolves, so emit
+        // non-streaming events in the next task instead of delaying the response.
+        const { status } = response;
+        setTimeout(() => {
+          handle.finish({ status }).catch((error: unknown) => {
+            console.error("[furin] Request log emission failed", error);
+          });
+        }, 0);
+        return response;
       } catch (error) {
         await handle.finish({
           error: error instanceof Error ? error : new Error(String(error)),
