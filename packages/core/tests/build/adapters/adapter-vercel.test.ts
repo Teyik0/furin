@@ -243,10 +243,14 @@ describe.serial("Vercel deployment adapter", () => {
       expect(source).toContain("getCache as getVercelCache");
       expect(source).toContain("invalidateByTag");
       expect(source).toContain("setRuntimeCacheProvider");
+      expect(source).toContain("setRuntimeEvlogWaitUntil(waitUntil)");
       expect(source).toContain("waitUntil");
       expect(source).toContain("serverModule.default");
       expect(source).toContain("app.handle(restoredRequest)");
       expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
+        source.indexOf("const serverModule = await import")
+      );
+      expect(source.indexOf("setRuntimeEvlogWaitUntil(waitUntil)")).toBeLessThan(
         source.indexOf("const serverModule = await import")
       );
       const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
@@ -710,7 +714,7 @@ export const route = defineRoute()
     expect(result.serverTiming).toContain("furin_server_init;dur=");
     expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
-    expect(result.pendingCount).toBe(2);
+    expect(result.pendingCount).toBeGreaterThanOrEqual(2);
     expect(result.purged).toEqual([["news%2Cworld"], ["/"]]);
     expect(result.registeredTags).toContainEqual(["/news", "news%2Cworld"]);
     expect(result.expiredTags).toEqual([["news,world"], ["/"]]);

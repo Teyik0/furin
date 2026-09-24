@@ -9,6 +9,7 @@ import {
   type RuntimeCacheProvider,
   setRuntimeCacheProvider as setCacheProvider,
 } from "./cache/runtime-cache.ts";
+import { setRuntimeEvlogWaitUntil as installRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
@@ -81,6 +82,8 @@ export function markExternalPrerenderRequest(request: Request): Request {
 export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
   setCacheProvider(provider);
 }
+
+export const setRuntimeEvlogWaitUntil = installRuntimeEvlogWaitUntil;
 
 export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): void {
   installCacheTagPurger(purger);

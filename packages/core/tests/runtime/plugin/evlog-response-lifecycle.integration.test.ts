@@ -52,6 +52,57 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   });
 });
 
+test("registers the full deferred emission with waitUntil before returning", () => {
+  const result = Bun.spawnSync({
+    cmd: [
+      "bun",
+      "-e",
+      `
+import { Elysia } from "elysia";
+import { createFurinEvlog, setRuntimeEvlogWaitUntil } from "./src/server/evlog.ts";
+
+const events = [];
+const pending = [];
+setRuntimeEvlogWaitUntil((promise) => { pending.push(promise); });
+const app = new Elysia()
+  .use(createFurinEvlog({
+    drain: ({ event }) => { events.push(event); },
+  }))
+  .get("/", () => "ok");
+
+const response = await app.handle(new Request("http://localhost/"));
+const registeredBeforeReturn = pending.length;
+const emittedBeforeReturn = events.length;
+await Promise.all(pending);
+process.stdout.write("__RESULT__" + JSON.stringify({
+  body: await response.text(),
+  emittedBeforeReturn,
+  events: events.length,
+  registeredBeforeReturn,
+}) + "__END__");
+`,
+    ],
+    cwd: join(import.meta.dir, "../../.."),
+    env: { ...process.env, NODE_ENV: "test" },
+    stderr: "pipe",
+    stdout: "pipe",
+    timeout: 30_000,
+  });
+
+  expect(result.exitCode, result.stderr.toString()).toBe(0);
+  const output = result.stdout.toString();
+  const marker = output.lastIndexOf("__RESULT__");
+  expect(marker).toBeGreaterThanOrEqual(0);
+  expect(
+    JSON.parse(output.slice(marker + "__RESULT__".length, output.indexOf("__END__", marker)))
+  ).toEqual({
+    body: "ok",
+    emittedBeforeReturn: 0,
+    events: 1,
+    registeredBeforeReturn: 1,
+  });
+});
+
 test("a streaming response emits its wide event only after the body finishes", () => {
   const result = Bun.spawnSync({
     cmd: [

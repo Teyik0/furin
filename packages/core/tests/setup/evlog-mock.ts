@@ -114,4 +114,5 @@ mock.module(join(import.meta.dir, "../../src/server/evlog.ts"), () => ({
     }
     return logger;
   },
+  setRuntimeEvlogWaitUntil: noop,
 }));

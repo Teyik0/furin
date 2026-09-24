@@ -410,6 +410,7 @@ import {
   markExternalPrerenderRequest,
   restorePprResumeRequest,
   setCacheTagPurger,
+  setRuntimeEvlogWaitUntil,
   setRuntimeCacheProvider,
   waitForPendingISRRevalidations,
 } from "@teyik0/furin/internal";
@@ -437,6 +438,7 @@ function encodeCacheTag(value) {
 setRuntimeCacheProvider({
   getCache: (options) => getVercelCache(options),
 });
+setRuntimeEvlogWaitUntil(waitUntil);
 
 async function purgeCacheTags(paths) {
   const purge = Promise.all([

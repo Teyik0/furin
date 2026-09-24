@@ -35,6 +35,14 @@ export type FurinEvlogOptions = BaseEvlogOptions;
 
 export const getRequestLogger = loggerStorage.useLogger;
 
+let runtimeWaitUntil: NonNullable<FurinEvlogOptions["waitUntil"]> | undefined;
+
+export function setRuntimeEvlogWaitUntil(
+  waitUntil: NonNullable<FurinEvlogOptions["waitUntil"]>
+): void {
+  runtimeWaitUntil = waitUntil;
+}
+
 /** Elysia 2-native evlog integration built on evlog's public adapter toolkit. */
 export function createFurinEvlog(options: FurinEvlogOptions) {
   const requestLoggers = new WeakMap<Request, RequestLogger>();
@@ -64,11 +72,20 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
         // Elysia 2 runs afterResponse/defer before fetch resolves, so emit
         // non-streaming events in the next task instead of delaying the response.
         const { status } = response;
-        setTimeout(() => {
-          handle.finish({ status }).catch((error: unknown) => {
-            console.error("[furin] Request log emission failed", error);
-          });
-        }, 0);
+        const emission = new Promise<void>((resolve) => {
+          setTimeout(() => {
+            handle.finish({ status }).then(
+              () => resolve(),
+              (error: unknown) => {
+                console.error("[furin] Request log emission failed", error);
+                resolve();
+              }
+            );
+          }, 0);
+        });
+        // Register before the Vercel request context closes, even though the
+        // emission itself starts after this response is returned.
+        (options.waitUntil ?? runtimeWaitUntil)?.(emission);
         return response;
       } catch (error) {
         await handle.finish({
