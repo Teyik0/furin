@@ -21,7 +21,7 @@ test("rewrites specifiers after non-ASCII source without corrupting the module",
     const code = 'const label = "café";\nimport value from "./value.js";\n';
 
     expect(rewriteModuleSpecifiers({ code, filePath, versioned: false })).toBe(
-      `const label = "café";\nimport value from ${JSON.stringify(join(directory, "value.js"))};\n`
+      `const label = "café";\nimport value from ${JSON.stringify(join(directory, "value.js").replaceAll("\\", "/"))};\n`
     );
   });
 });
