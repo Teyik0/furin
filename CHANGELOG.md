@@ -6,8 +6,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-09-24
-
 ### Breaking
 - **Elysia 2 Kiana contracts** — Furin now targets Elysia 2 and TypeBox 1 with the hook-first route signature. Run the official Elysia codemod before applying the Furin-specific migration steps.
 - **Supported build targets** — `node` and `cloudflare` have been removed from `BUILD_TARGETS`; existing configurations using them now fail validation. Use the Bun or Vercel adapters described in the deployment guide.
@@ -26,6 +24,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Embedded asset startup on Bun 1.4.0** — self-contained executables serve BunFS client and public files by direct path lookup instead of scanning embedded directories with `Bun.Glob`, avoiding the startup `ENOENT` while retaining traversal protection and cache headers.
 - **Vercel public asset prefixes** — the Vercel target now mirrors the development and compiled-server behavior by copying `public/` under each application's prefix (`/public`, `/admin/public`, ...) instead of only the output root, so runtime asset URLs resolve without a post-build copy step.
 - **Prefixed Vercel favicons** — each prefixed application now receives its conventional `/favicon.ico` asset alongside its prefixed public directory.
+- **Windows compiled builds** — Bun executables use `server.exe` in build manifests and local tooling, `PATH` lookup respects the host separator, and CI exercises the Windows build, types, and tests.
+- **Static output root protection** — static builds reject a Windows drive root as `outDir` before deleting output files.
 
 ## [0.4.0-alpha.2] — 2026-09-20
 
@@ -410,9 +410,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.2...v0.5.0
-[0.2.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.3...c228ea2
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.2...HEAD
+[0.4.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
+[0.4.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.3.0-alpha.1...v0.4.0-alpha.1
+[0.3.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.5...v0.3.0-alpha.1
+[0.2.0-alpha.5]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.4...v0.2.0-alpha.5
+[0.2.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
 [0.2.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.1.0-alpha.15...v0.2.0-alpha.1

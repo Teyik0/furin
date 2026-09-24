@@ -148,7 +148,7 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.5.0" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.5.0-alpha.1" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",

@@ -62,7 +62,7 @@ furin build --target bun --compile server
 furin build --target bun --compile embed
 ```
 
-Both commands write `.furin/build/bun/server`. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
+Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
 
 Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
 

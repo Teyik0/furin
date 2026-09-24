@@ -237,6 +237,13 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
   expect(buildError.message).toMatch(UNSAFE_DIR_RE);
   buildError = await rejectionError(
     buildStaticTarget(scanned.routes, app.path, join(app.path, ".furin/build"), scanned.root, {
+      staticConfig: { outDir: "C:\\" },
+      target: "static",
+    })
+  );
+  expect(buildError.message).toMatch(UNSAFE_DIR_RE);
+  buildError = await rejectionError(
+    buildStaticTarget(scanned.routes, app.path, join(app.path, ".furin/build"), scanned.root, {
       staticConfig: { outDir: app.path },
       target: "static",
     }),

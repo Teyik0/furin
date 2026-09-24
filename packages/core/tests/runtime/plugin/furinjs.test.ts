@@ -493,7 +493,8 @@ test.serial(
       throw new Error(result.stderr || result.stdout);
     }
     const port = getTestPort();
-    const server = startProcess([join(app.path, ".furin/build/bun/server")], {
+    const serverFilename = process.platform === "win32" ? "server.exe" : "server";
+    const server = startProcess([join(app.path, ".furin/build/bun", serverFilename)], {
       cwd: app.path,
       env: { PORT: String(port) },
     });

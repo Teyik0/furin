@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file, NotFound, problem } from "elysia";
@@ -196,7 +196,7 @@ function resolveClientDirFromCandidate(candidate: string, dirName: string): stri
 }
 
 function resolveClientDirFromPath(candidate: string, dirName: string): string | null {
-  const pathEntries = process.env.PATH?.split(":") ?? [];
+  const pathEntries = process.env.PATH?.split(delimiter) ?? [];
   for (const dir of pathEntries) {
     const fullPath = join(dir, candidate);
     if (existsSync(fullPath)) {

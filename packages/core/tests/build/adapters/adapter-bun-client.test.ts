@@ -98,6 +98,43 @@ describe.serial("buildBunTarget Bun branches", () => {
     await expectCompileAssets("embed", false);
   });
 
+  test("compiled Windows server paths include the executable extension", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const buildConfigs: Bun.BuildConfig[] = [];
+    const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
+
+    Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
+    try {
+      const manifest = await withBuildStub(
+        () =>
+          buildBunTarget(
+            [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+            app.path,
+            join(app.path, ".furin/build"),
+            join(app.path, "src/server.ts"),
+            { compile: "server", target: "bun" }
+          ),
+        (config) => {
+          buildConfigs.push(config);
+        }
+      );
+      const serverBuild = buildConfigs.find((config) => config.compile !== undefined);
+      const compile = serverBuild?.compile;
+
+      expect(compile).toBeObject();
+      if (typeof compile !== "object") {
+        throw new TypeError("Expected compile options");
+      }
+      expect(compile.outfile).toBe(join(app.path, ".furin/build/bun/server.exe"));
+      expect(manifest.serverPath).toBe(".furin/build/bun/server.exe");
+    } finally {
+      if (platformDescriptor) {
+        Object.defineProperty(process, "platform", platformDescriptor);
+      }
+    }
+  });
+
   test("compiled server builds use split ESM bytecode", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));

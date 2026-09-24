@@ -125,7 +125,8 @@ async function readOutput(
 }
 
 describe.serial("task-manager production E2E", () => {
-  const serverPath = join(import.meta.dir, "../.furin/build/bun/server");
+  const serverFilename = process.platform === "win32" ? "server.exe" : "server";
+  const serverPath = join(import.meta.dir, "../.furin/build/bun", serverFilename);
   const workingDirectory = mkdtempSync(join(tmpdir(), "furin-task-manager-e2e-"));
   const ready = Promise.withResolvers<string>();
   let baseUrl = "";

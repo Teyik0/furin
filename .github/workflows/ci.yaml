@@ -76,6 +76,38 @@ jobs:
         if: github.event_name == 'pull_request'
         run: bunx pkg-pr-new publish
 
+  windows:
+    name: Windows compatibility
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cache bun
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install packages
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Type Check
+        run: bun run tscheck
+
+      - name: Test
+        run: bun run test
+
   vercel-benchmark:
     name: Vercel framework benchmark
     if: github.event_name == 'pull_request'

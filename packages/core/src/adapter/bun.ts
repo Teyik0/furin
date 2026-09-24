@@ -45,6 +45,10 @@ function collectEmbeddedAssets(
   return assets;
 }
 
+function compiledServerFilename(platform: NodeJS.Platform): string {
+  return platform === "win32" ? "server.exe" : "server";
+}
+
 async function createBunAppEntry(
   apps: RuntimeTargetApp[],
   entryApps: BuildEntryOptions["apps"],
@@ -138,7 +142,8 @@ export async function buildBunTarget(
   );
 
   if (options.compile && serverEntry && appEntry) {
-    const outfile = join(targetDir, "server");
+    const serverFilename = compiledServerFilename(process.platform);
+    const outfile = join(targetDir, serverFilename);
 
     const entry = generateBootEntry(appEntry, targetDir, "_compile-entry.ts");
     const embeddedAssets = collectEmbeddedAssets(entryApps, publicDir, options.compile);
@@ -168,7 +173,7 @@ export async function buildBunTarget(
 
     console.log(`[furin] Server binary: ${outfile}`);
 
-    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server"));
+    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, serverFilename));
 
     // Embed mode: assets are in the binary — clean up client dirs too.
     if (options.compile === "embed") {
