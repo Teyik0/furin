@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { buildClient } from "../../../src/build/client.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
@@ -224,7 +224,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     if (typeof compile !== "object") {
       throw new TypeError("Expected compile options");
     }
-    expect(compile.assets?.map((path) => path.split("/").at(-1))).toEqual(["client", "public"]);
+    expect(compile.assets?.map((path) => basename(path))).toEqual(["client", "public"]);
     const entrypoint = serverBuild?.entrypoints[0];
     expect(entrypoint).toEndWith("_compile-entry.ts");
     const source = readFileSync(join(app.path, ".furin/build/bun/_furin-app.ts"), "utf8");
