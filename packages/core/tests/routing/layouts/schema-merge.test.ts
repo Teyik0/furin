@@ -146,6 +146,7 @@ describe("parseRouteQuery", () => {
         "tags=[a%2Cb,c]",
         "tags=%5Ba%2Cb%2Cc%5D",
         "tags=a&tags=b,c",
+        "tags=%5B%22a%2Cb%22%2C%22c%22%5D",
       ].map(async (search) => {
         const url = new URL(`http://localhost/products?${search}`);
         const response = await app.handle(new Request(url));
