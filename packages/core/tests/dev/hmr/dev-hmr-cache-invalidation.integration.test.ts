@@ -105,8 +105,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     }
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     server?.kill();
+    await server?.exitCode;
     app.cleanup();
   });
 

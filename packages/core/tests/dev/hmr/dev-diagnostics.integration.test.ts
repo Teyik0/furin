@@ -197,8 +197,9 @@ describe.serial("development diagnostics", () => {
     throw new Error(`Development server did not start\n${server.getStderr()}`);
   }, 30_000);
 
-  afterAll(() => {
+  afterAll(async () => {
     server?.kill();
+    await server?.exitCode;
     app.cleanup();
   });
 

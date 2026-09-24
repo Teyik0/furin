@@ -184,8 +184,9 @@ describe.serial("dev HMR — parent/child dependency edge cases", () => {
     }
   }, 30_000);
 
-  afterAll(() => {
+  afterAll(async () => {
     server?.kill();
+    await server?.exitCode;
     app.cleanup();
   });
 
