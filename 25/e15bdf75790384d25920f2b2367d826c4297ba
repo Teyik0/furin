@@ -1,0 +1,39 @@
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/dev/hmr/dev-route-rebuild.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/routing/conventions/route-plugin.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 19
+packages/core/tests/routing/cache/dev-loader-cache-primitives.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 21
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 9
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+packages/core/tests/routing/conventions/plugin.test.ts
+  s_13b9bbaf2a91a1::t_5140612a7eb214 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "25e15bdf75790384d25920f2b2367d826c4297ba",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
