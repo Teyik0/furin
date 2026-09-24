@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_13b9bbaf2a91a1::t_f3200f48b9253b 27
+packages/core/tests/build/virtual-entry.test.ts
+  s_13b9bbaf2a91a1::t_e7fe08b0c0b71c 1-13
+packages/core/src/build/virtual-entry.ts
+  s_13b9bbaf2a91a1::t_0bb1a136bf52fa 14,16,19-20,22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "13027493b7e44739b88858b2a52bfaf690e0e041",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
