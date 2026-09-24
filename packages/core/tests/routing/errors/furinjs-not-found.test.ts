@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const TESTS_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 test("furin() catch-all 404 scenarios", () => {
   const proc = Bun.spawnSync({

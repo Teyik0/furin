@@ -18,7 +18,7 @@ import { mergeRouteSchemas } from "../../../src/server/router/schema-merge.ts";
 import { parseRouteQuery } from "../../../src/server/router/schemas.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
-const ROUTER_TESTS_DIR_RE = /\/tests(?:\/.*)?$/;
+const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 let originalDevMode: boolean;
 beforeAll(() => {

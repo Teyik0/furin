@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const CORE_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 const CACHE_HEADER_SCENARIOS = String.raw`
 import { join } from "node:path";

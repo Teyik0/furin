@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const TESTS_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 test("request scope isolation when furin is mounted as a plugin", () => {
   const proc = Bun.spawnSync({

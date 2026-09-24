@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const CORE_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 const ROUTE_DEPENDENCY_SCENARIOS = `
 import { existsSync } from "node:fs";

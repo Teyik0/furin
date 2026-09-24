@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const CORE_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 const DEV_LOADER_CACHE_PRIMITIVES = `
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
