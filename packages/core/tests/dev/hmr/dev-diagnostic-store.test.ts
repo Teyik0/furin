@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   createDevDiagnostic,
   DevDiagnosticStore,
@@ -109,20 +111,21 @@ describe("DevDiagnosticStore", () => {
   });
 
   test("decodes file URL source locations", () => {
+    const sourcePath = join(process.cwd(), "src/card view.tsx");
     const error = new Error("encoded path");
     Reflect.set(error, "position", {
       column: 2,
-      file: "file:///workspace/src/card%20view.tsx",
+      file: pathToFileURL(sourcePath).href,
       line: 3,
     });
 
     const result = createDevDiagnostic(error, {
-      entryPath: "/workspace/src/page.tsx",
-      importChain: ["/workspace/src/page.tsx", "/workspace/src/card view.tsx"],
+      entryPath: join(process.cwd(), "src/page.tsx"),
+      importChain: [join(process.cwd(), "src/page.tsx"), sourcePath],
       phase: "render",
       route: "/",
     });
 
-    expect(result.location?.file).toEndWith("workspace/src/card view.tsx");
+    expect(result.location?.file).toEndWith("src/card view.tsx");
   });
 });
