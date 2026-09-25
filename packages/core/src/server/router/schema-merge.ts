@@ -21,7 +21,7 @@ export function mergeRouteSchemas(
   }
   if (schemas.some((schema) => !isTypeBoxObjectSchema(schema))) {
     throw new Error(
-      `[furin] Merging ${key} schemas across the route chain requires TypeBox in V1. Use TypeBox for parent/child ${key}, or define ${key} only on leaf routes.`
+      `[furin] Merging ${key} schemas across the route chain requires TypeBox object schemas. Use TypeBox for parent/child ${key}, or define ${key} only on leaf routes.`
     );
   }
 

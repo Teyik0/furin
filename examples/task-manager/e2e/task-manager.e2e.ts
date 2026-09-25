@@ -125,7 +125,8 @@ async function readOutput(
 }
 
 describe.serial("task-manager production E2E", () => {
-  const serverPath = join(import.meta.dir, "../.furin/build/bun/server");
+  const serverFilename = process.platform === "win32" ? "server.exe" : "server";
+  const serverPath = join(import.meta.dir, "../.furin/build/bun", serverFilename);
   const workingDirectory = mkdtempSync(join(tmpdir(), "furin-task-manager-e2e-"));
   const ready = Promise.withResolvers<string>();
   let baseUrl = "";
@@ -253,6 +254,22 @@ describe.serial("task-manager production E2E", () => {
       );
       const boards = (await boardsResponse.json()) as CreatedBoard[];
       expect(boards.filter((board) => board.name === boardName)).toHaveLength(1);
+
+      const missingBoardResponse = await withTimeout(
+        fetch(`${baseUrl}/api/boards/missing`),
+        "the missing board API response",
+        HTTP_TIMEOUT_MS
+      );
+      expect(missingBoardResponse.status).toBe(404);
+      expect(missingBoardResponse.headers.get("content-type")).toContain(
+        "application/problem+json"
+      );
+      expect(await missingBoardResponse.json()).toMatchObject({
+        detail: "Board not found",
+        status: 404,
+        title: "Not Found",
+        type: "about:blank",
+      });
 
       const invalidatedPage = await withTimeout(
         fetch(`${baseUrl}/`),

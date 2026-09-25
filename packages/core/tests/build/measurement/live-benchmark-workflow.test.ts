@@ -28,11 +28,20 @@ const workflow = Bun.YAML.parse(
   jobs: {
     "live-vercel": {
       if?: string;
-      outputs?: { supported?: string };
+      outputs?: { report_available?: string; supported?: string };
       permissions?: { "pull-requests"?: string };
       steps: WorkflowStep[];
     };
     comment?: { if?: string; steps: WorkflowStep[] };
+  };
+};
+const ciWorkflow = Bun.YAML.parse(
+  readFileSync(new URL("../../../../../.github/workflows/ci.yaml", import.meta.url), "utf8")
+) as {
+  jobs: {
+    "vercel-benchmark": {
+      steps: WorkflowStep[];
+    };
   };
 };
 const sha = "a".repeat(40);
@@ -165,8 +174,14 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
   expect(workflow.jobs.comment?.if).toContain(
     "needs.live-vercel.outputs.supported == 'true'"
   );
+  expect(workflow.jobs.comment?.if).toContain(
+    "needs.live-vercel.outputs.report_available == 'true'"
+  );
   expect(workflow.jobs["live-vercel"].outputs?.supported).toBe(
     "${{ steps.adapter-support.outputs.available }}"
+  );
+  expect(workflow.jobs["live-vercel"].outputs?.report_available).toBe(
+    "${{ steps.live-benchmark.outputs.report_available }}"
   );
   expect(workflow.jobs["live-vercel"].permissions?.["pull-requests"]).toBe("read");
   expect(
@@ -184,9 +199,60 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
     workflow.jobs["live-vercel"].steps.find((step) => step.name === "Run live benchmark")?.env
   ).toEqual({
     BENCHMARK_ROUNDS: "3",
-    BENCHMARK_WARM_SAMPLES: "5",
+    BENCHMARK_WARM_SAMPLES: "20",
     VERCEL_TOKEN: "${{ secrets.VERCEL_TOKEN }}",
   });
+  const benchmarkStep = workflow.jobs["live-vercel"].steps.find(
+    (step) => step.name === "Run live benchmark"
+  );
+  expect(benchmarkStep?.id).toBe("live-benchmark");
+  expect(benchmarkStep?.run).toContain("api-deployments-free-per-day");
+  expect(benchmarkStep?.run).toContain("report_available=false");
+  expect(benchmarkStep?.run).toContain("exit \"$benchmark_status\"");
+  expect(
+    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Prepare live report")?.if
+  ).toContain("steps.live-benchmark.outputs.report_available == 'true'");
+});
+
+test.each([
+  ["live", workflow.jobs["live-vercel"].steps],
+  ["pull request", ciWorkflow.jobs["vercel-benchmark"].steps],
+])("installs packed Furin with one Kiana dependency graph in the %s benchmark", (_name, steps) => {
+  const packageStep = steps.find((step) => step.name === "Build and pack Furin HEAD")?.run;
+  const installStep = steps.find((step) => step.name === "Install Furin benchmark package")?.run;
+
+  expect(packageStep).toContain("bun pm pack");
+  expect(packageStep).not.toContain("bun link");
+  expect(installStep).toContain("bun pm pkg set");
+  expect(installStep).toContain('"dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL"');
+  expect(installStep).toContain("dependencies.elysia=2.0.0-beta.19");
+  expect(installStep).toContain("dependencies.exact-mirror=1.2.6");
+  expect(installStep).toContain("dependencies.typebox=1.3.34");
+  expect(installStep).toContain("bun install --lockfile-only");
+  expect(installStep).toContain("bun install --frozen-lockfile");
+  expect(installStep).not.toContain("bun install --force");
+});
+
+test("recreates and freezes the benchmark lockfile for the baseline tarball", () => {
+  const baselineStep = ciWorkflow.jobs["vercel-benchmark"].steps.find(
+    (step) => step.name === "Build baseline benchmark"
+  )?.run;
+
+  expect(baselineStep).toContain("bun install --lockfile-only");
+  expect(baselineStep).toContain("bun install --frozen-lockfile");
+  expect(baselineStep).not.toContain("bun install --force");
+  expect(baselineStep).toContain("f124698be971e275a164c55a2fedcbc85256558c");
+  expect(baselineStep).toContain("base_elysia_version");
+});
+
+test("compares Vercel bundles with the Elysia-major-aware budget", () => {
+  const step = ciWorkflow.jobs["vercel-benchmark"].steps.find(
+    (candidate) => candidate.name === "Enforce benchmark budgets"
+  )?.run;
+
+  expect(step).toContain("scripts/compare-vercel-framework-reports.ts");
+  expect(step).toContain('"$RUNNER_TEMP/furin-benchmark-base/package.json"');
+  expect(step).toContain('"$GITHUB_WORKSPACE/package.json"');
 });
 
 test.each([0, 1, 2])("prepares a publishable report only for one completed run (%i reports)", async (count) => {

@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.4.0-alpha.4",
+  "version": "0.5.0-alpha.1",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
@@ -142,21 +142,22 @@
     "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
     "build": "bun run build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
+    "test": "bun test --parallel=2 --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:dev": "bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysiajs/static": "^1.4.10",
+    "@elysia/static": "2.0.0-beta.2",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "@sinclair/typebox": "0.34.52",
     "@vercel/functions": "^3.9.7",
     "@yuku-toolchain/types": "0.9.5",
+    "exact-mirror": "catalog:",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",
     "seroval": "^1.6.7",
+    "typebox": "catalog:",
     "yuku-ast": "0.9.5",
     "yuku-parser": "0.9.5"
   },

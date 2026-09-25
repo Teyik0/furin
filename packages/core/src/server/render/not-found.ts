@@ -6,7 +6,7 @@ import type { RouterContextValue } from "../../client/router/types.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { FurinNotFoundError } from "../../shared/not-found.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import { parseRouteQuery } from "../router/schemas.ts";
 import type { RootLayout } from "../router/types.ts";
@@ -24,7 +24,7 @@ import {
 
 /**
  * Renders the root-level not-found component into a complete 404 HTML Response.
- * Used by the Elysia `.onError` catch-all when no route matches the request URL.
+ * Used by the Elysia `.error` catch-all when no route matches the request URL.
  */
 export async function renderRootNotFound(
   root: RootLayout,
@@ -87,7 +87,7 @@ export async function renderRootNotFound(
     searchRoutes: [],
   };
 
-  useLogger().set({
+  getLogger().set({
     furin: {
       action: "catch_all",
       path: requestUrl?.pathname ?? "/",
@@ -117,7 +117,7 @@ export async function renderRootNotFound(
     // The user's not-found component itself threw. Fall back to the built-in
     // screen, but surface the failure — silently swallowing it hides a broken
     // 404 page from logs and drains.
-    useLogger().set({
+    getLogger().set({
       furin: {
         action: "component_render_failed",
         error: renderError instanceof Error ? renderError.message : String(renderError),

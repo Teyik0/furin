@@ -1,11 +1,11 @@
-import { type AnyElysia, type Context, Elysia, t } from "elysia";
+import { type AnyElysia, type Context, Elysia, problem, t } from "elysia";
 import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { containsRscSource } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
@@ -271,21 +271,20 @@ export function createRoutePlugin(
   const resolvedBuildId = buildId ?? "";
   const { pattern, routeChain } = route;
 
-  const allParams = mergeRouteSchemas(routeChain, "params");
-  const allQuery = mergeRouteSchemas(routeChain, "query");
-
-  // Guard and handler MUST live in the same Elysia scope so that validation
-  // (including default-filling) applies to the route handler's ctx.query.
-  const plugin = new Elysia();
-
-  if (allParams || allQuery) {
-    plugin.guard({
-      params: allParams as FurinSchema,
-      query: allQuery as FurinSchema,
+  // Keep every route-chain schema in Elysia's native merge pipeline so its
+  // coercion and default semantics remain authoritative for document requests.
+  const plugin = routeChain.reduce<AnyElysia>((app, entry) => {
+    if (!(entry.params || entry.query)) {
+      return app;
+    }
+    return app.guard({
+      params: entry.params as FurinSchema,
+      query: entry.query as FurinSchema,
+      schema: "merge",
     });
-  }
+  }, new Elysia());
 
-  plugin.get(pattern, (ctx) =>
+  plugin.get(pattern, (ctx: Context) =>
     renderResolvedRoute(route, ctx, root, resolvedBuildId, searchRoutes)
   );
 
@@ -346,15 +345,18 @@ export function createDataEndpoint(
 
   plugin.get(
     "/_furin/data",
+    {
+      query: t.Object({ path: t.Optional(t.String()) }),
+    },
     async (ctx) => {
       const rawPath = ctx.query.path;
       if (!rawPath || typeof rawPath !== "string") {
-        return new Response("Missing required query param: path", { status: 400 });
+        return problem("Bad Request", { detail: "Missing required query param: path" });
       }
 
       const parsed = parseDataEndpointPath(rawPath);
       if (!parsed) {
-        return new Response("Invalid path", { status: 400 });
+        return problem("Bad Request", { detail: "Invalid path" });
       }
       const { url, pathname } = parsed;
 
@@ -363,7 +365,7 @@ export function createDataEndpoint(
       // instead of the technical "/_furin/data" transport URL. We set this
       // before the route-match check so 404s also surface the attempted path
       // — otherwise monitoring just sees "GET /_furin/data 404" with no clue.
-      const wideEventLog = useLogger();
+      const wideEventLog = getLogger();
       wideEventLog.set({ path: rawPath });
 
       let currentRoutes: ResolvedRoute[];
@@ -382,7 +384,7 @@ export function createDataEndpoint(
       const matched = matchRoute(pathname);
 
       if (!matched) {
-        return new Response("Route not found", { status: 404 });
+        return problem("Not Found", { detail: "Route not found" });
       }
 
       // Now that we know the matched pattern, add it as a stable aggregation
@@ -426,17 +428,11 @@ export function createDataEndpoint(
       const mergedQuery = mergeRouteSchemas(matched.route.routeChain, "query");
       const parsedParams = await parseRouteParams(matched.params, mergedParams);
       if (!parsedParams.ok) {
-        return Response.json(
-          { errors: parsedParams.errors, message: "Invalid params", type: "validation" },
-          { status: 422 }
-        );
+        return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
       }
       const parsedQuery = await parseRouteQuery(url, mergedQuery);
       if (!parsedQuery.ok) {
-        return Response.json(
-          { errors: parsedQuery.errors, message: "Invalid query", type: "validation" },
-          { status: 422 }
-        );
+        return problem(422, { detail: "Invalid query", errors: parsedQuery.errors });
       }
       syntheticCtx.params = parsedParams.params;
       syntheticCtx.query = parsedQuery.query as SearchParamsInput;
@@ -449,9 +445,6 @@ export function createDataEndpoint(
       );
 
       return createLoaderDataResponse(result, matched.route, syntheticRequest.url, syntheticCtx);
-    },
-    {
-      query: t.Object({ path: t.Optional(t.String()) }),
     }
   );
 

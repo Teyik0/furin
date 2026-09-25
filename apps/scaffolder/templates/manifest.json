@@ -8,13 +8,14 @@
       "description": "Tailwind CSS + an API route",
       "features": ["tailwind"],
       "dependencies": {
-        "@sinclair/typebox": "{{SINCLAIR_TYPEBOX_VERSION}}",
         "@teyik0/furin": "{{FURIN_VERSION}}",
         "bun-plugin-tailwind": "{{BUN_PLUGIN_TAILWIND_VERSION}}",
         "elysia": "{{ELYSIA_VERSION}}",
         "evlog": "{{EVLOG_VERSION}}",
+        "exact-mirror": "{{EXACT_MIRROR_VERSION}}",
         "react": "{{REACT_VERSION}}",
-        "react-dom": "{{REACT_DOM_VERSION}}"
+        "react-dom": "{{REACT_DOM_VERSION}}",
+        "typebox": "{{TYPEBOX_VERSION}}"
       },
       "devDependencies": {
         "@biomejs/biome": "{{BIOME_VERSION}}",
@@ -94,19 +95,20 @@
       "description": "shadcn/ui + Tailwind + API routes",
       "features": ["tailwind", "shadcn"],
       "dependencies": {
-        "@sinclair/typebox": "{{SINCLAIR_TYPEBOX_VERSION}}",
         "@teyik0/furin": "{{FURIN_VERSION}}",
         "bun-plugin-tailwind": "{{BUN_PLUGIN_TAILWIND_VERSION}}",
         "class-variance-authority": "{{CVA_VERSION}}",
         "clsx": "{{CLSX_VERSION}}",
         "elysia": "{{ELYSIA_VERSION}}",
         "evlog": "{{EVLOG_VERSION}}",
+        "exact-mirror": "{{EXACT_MIRROR_VERSION}}",
         "lucide-react": "{{LUCIDE_REACT_VERSION}}",
         "@radix-ui/react-slot": "{{RADIX_UI_SLOT_VERSION}}",
         "react": "{{REACT_VERSION}}",
         "react-dom": "{{REACT_DOM_VERSION}}",
         "tailwind-merge": "{{TAILWIND_MERGE_VERSION}}",
-        "tw-animate-css": "{{TW_ANIMATE_VERSION}}"
+        "tw-animate-css": "{{TW_ANIMATE_VERSION}}",
+        "typebox": "{{TYPEBOX_VERSION}}"
       },
       "devDependencies": {
         "@biomejs/biome": "{{BIOME_VERSION}}",

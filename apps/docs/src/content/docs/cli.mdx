@@ -18,7 +18,7 @@ furin build [options]
 
 | Flag | Value | Default | Meaning |
 |---|---|---|---|
-| `--target` | `bun`, `static`, `package`, `node`, `vercel`, `cloudflare`, or `all` | `bun` | Select output |
+| `--target` | `bun`, `vercel`, `static`, `package`, or `all` | `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
@@ -43,11 +43,11 @@ furin build --target static
 # Publishable Furin/Elysia plugin
 furin build --target package --pagesDir ./src/admin --prefix /admin
 
-# Bun and static outputs
+# Bun, Vercel, and static outputs
 furin build --target all
 ```
 
-`all` currently means the implemented deploy targets `bun` and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
+`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
 
 ### Target Status
 
@@ -56,9 +56,7 @@ furin build --target all
 | `bun` | Implemented | `.furin/build/bun` |
 | `static` | Implemented | `static.outDir`, default `dist` |
 | `package` | Implemented | `.furin/build/package` |
-| `node` | Planned; command fails | None |
 | `vercel` | Implemented | `.vercel/output` (Bun Function, CDN assets, native SSG/ISR) |
-| `cloudflare` | Planned; command fails | None |
 
 Every successful build writes `.furin/build/manifest.json`. It records route modes, app prefixes, output paths, build IDs, and target-specific metadata.
 

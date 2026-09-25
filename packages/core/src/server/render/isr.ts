@@ -24,7 +24,7 @@ import type {
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { pathWithRequestSearch } from "../cache/route-cache.ts";
-import { createLogger, useLogger } from "../context-logger.ts";
+import { createLogger, getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance, withInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
@@ -105,7 +105,7 @@ function serveISRCacheHit(
     ctx.set.headers.etag = etag;
   }
 
-  useLogger().set({
+  getLogger().set({
     furin: { cache: isFresh ? "hit" : "stale", render: "isr", route: route.pattern },
   });
   return injectSyncRuntimeScript(cached.html);
@@ -166,7 +166,7 @@ async function renderISRNon200(
   if (shellError) {
     finalStatus = 500;
     finalDigest = shellError.digest;
-    useLogger().set({
+    getLogger().set({
       furin: {
         cache: "miss",
         digest: finalDigest,
@@ -192,7 +192,7 @@ async function renderISRNon200(
   const generatedAt = Date.now();
 
   const renderMs = generatedAt - renderStart;
-  useLogger().set({
+  getLogger().set({
     furin: {
       cache: "miss",
       render: "isr",
@@ -251,7 +251,7 @@ async function lookupISRCache(
       sharedAvailable: true,
     };
   } catch {
-    useLogger().warn("ISR shared page cache read failed; rendering fresh with no-store");
+    getLogger().warn("ISR shared page cache read failed; rendering fresh with no-store");
     return { cached: undefined, sharedAvailable: false };
   }
 }
@@ -274,7 +274,7 @@ async function acquireISRLease(
       sharedAvailable: true,
     };
   } catch {
-    useLogger().warn("ISR shared page cache lease failed; rendering fresh with no-store");
+    getLogger().warn("ISR shared page cache lease failed; rendering fresh with no-store");
     return { lease: null, sharedAvailable: false };
   }
 }
@@ -315,7 +315,7 @@ async function coordinateConcurrentISRUntil(
       };
     }
   } catch {
-    useLogger().warn("ISR shared page cache wait failed; rendering fresh with no-store");
+    getLogger().warn("ISR shared page cache wait failed; rendering fresh with no-store");
     return { cached: undefined, lease: null, sharedAvailable: false };
   }
   const leaseResult = await acquireISRLease(pageCache, identity);
@@ -356,7 +356,7 @@ async function storeRenderedISR(
         })) === "stored"
       );
     } catch {
-      useLogger().warn("ISR shared page cache write failed; serving fresh with no-store");
+      getLogger().warn("ISR shared page cache write failed; serving fresh with no-store");
       return false;
     }
   }
@@ -378,7 +378,7 @@ async function releaseISRRenderLocks(input: ISRCacheMissInput): Promise<void> {
         lease: input.pageCacheLease,
       });
     } catch {
-      useLogger().warn("ISR shared page cache lease release failed");
+      getLogger().warn("ISR shared page cache lease release failed");
     }
   }
   if (input.cacheGeneration !== undefined) {
@@ -442,7 +442,7 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
     await stream.allReady;
     const html = await streamToString(stream);
     const generatedAt = Date.now();
-    useLogger().set({
+    getLogger().set({
       furin: {
         cache: "miss",
         render: "isr",
@@ -702,7 +702,7 @@ async function releaseBackgroundRevalidation(
     try {
       await input.sharedCache.adapter.release({ identity: input.sharedCache.identity, lease });
     } catch {
-      useLogger().warn("ISR shared page cache lease release failed");
+      getLogger().warn("ISR shared page cache lease release failed");
     }
   }
   if (input.cacheGeneration !== undefined) {

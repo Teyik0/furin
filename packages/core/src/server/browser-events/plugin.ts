@@ -1,4 +1,5 @@
 import { type AnyElysia, Elysia } from "elysia";
+import { websocket } from "elysia/websocket";
 import { browserEventsClientSource } from "../../client/browser-events-runtime.ts";
 import {
   BROWSER_EVENT_PROTOCOL_VERSION,
@@ -60,6 +61,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
   const connections = new Map<string, ConnectionState>();
   const { sources = [], sync } = options;
   return new Elysia({ name: "furin-browser-events" })
+    .use(websocket())
     .get(CLIENT_PATH, ({ request, server }) => {
       const forbidden = forbiddenBrowserRequest(request, server);
       if (forbidden) {
@@ -106,7 +108,10 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
         };
         const state: ConnectionState = {
           closed: false,
-          heartbeat: setInterval(() => ws.ping(), HEARTBEAT_INTERVAL_MS),
+          heartbeat: setInterval(
+            () => (ws as unknown as { ping: () => number }).ping(),
+            HEARTBEAT_INTERVAL_MS
+          ),
           subscriptions: [],
         };
         state.heartbeat.unref?.();

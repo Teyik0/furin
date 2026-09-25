@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const TESTS_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 test("furin() catch-all 404 scenarios", () => {
   const proc = Bun.spawnSync({
@@ -10,7 +10,7 @@ test("furin() catch-all 404 scenarios", () => {
       `
 import { expect } from "bun:test";
 import { join } from "node:path";
-import { Elysia } from "elysia";
+import { Elysia, NotFound } from "elysia";
 import { furin } from "furin";
 import { __resetCompileContext } from "./src/server/internal.ts";
 import { setProductionTemplatePath } from "./src/server/render/template.ts";
@@ -88,8 +88,8 @@ try {
 
   plugin = await furin({ pagesDir: join(app.path, "src/pages") });
   parent = new Elysia()
-    .onError(({ code, path }) => {
-      if (code === "NOT_FOUND" && path.startsWith("/api/")) {
+    .error(NotFound, ({ path }) => {
+      if (path.startsWith("/api/")) {
         return new Response(JSON.stringify({ error: "not_found" }), {
           headers: { "Content-Type": "application/json" },
           status: 404,

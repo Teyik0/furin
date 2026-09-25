@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 export interface SyncMutationHeaders {
   "Idempotency-Key": string;
+  [header: string]: string;
 }
 
 export interface SyncMutationOptions {

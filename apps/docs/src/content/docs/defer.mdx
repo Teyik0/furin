@@ -2,6 +2,8 @@
 
 `defer()` lets an SSR route send its ready fields in the initial shell and settle selected promise fields in later chunks. The API is explicit: only promise values inside a `defer()` result are streamed.
 
+This is separate from Elysia 2's request-context `defer(callback)`: Elysia queues cleanup work after `afterResponse`, while Furin's `defer(data)` streams loader values into React Suspense and reconstructs them during SPA navigation. Neither API can replace the other.
+
 ```tsx
 import { defineRoute } from "@teyik0/furin";
 import { Await, defer } from "@teyik0/furin/client";

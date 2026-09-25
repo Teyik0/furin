@@ -1,7 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
 
 async function waitForCount(readCount: () => number, expected: number): Promise<void> {
@@ -32,7 +32,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
       touchedSources.push([...sourcePaths]);
     },
     onTopologyChange: () => {
-      const paths = routeSourcePaths(instance).map((path) => path.replace(`${pagesDir}/`, ""));
+      const paths = routeSourcePaths(instance).map((path) => relative(pagesDir, path));
       topologies.push(paths);
     },
   });
@@ -51,7 +51,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
     writeFileSync(join(nestedDir, "[id].ts"), "export const route = 1;\n");
     await waitForCount(() => topologies.length, 1);
 
-    expect(topologies[0]).toContain("boards/[id].ts");
+    expect(topologies[0]).toContain(join("boards", "[id].ts"));
     await Bun.sleep(80);
     expect(touchedRouteFiles).toBe(1);
 

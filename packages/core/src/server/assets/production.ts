@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { staticPlugin } from "@elysiajs/static";
+import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file } from "elysia";
 import type { CompileContext, EmbeddedAppData } from "../internal.ts";
 
@@ -32,30 +32,38 @@ async function loadEmbeddedAsset(
 
 function createEmbeddedAssetsPlugin(embedded: EmbeddedAppData): AnyElysia {
   const { clientDir, publicDir } = embedded;
-  const publicAssets = publicDir
-    ? new Elysia()
-        .get("/favicon.ico", async ({ status }) => {
-          const asset = await loadEmbeddedAsset(publicDir, "favicon.ico");
-          return asset ?? status("Not Found");
-        })
-        .get("/public/*", async ({ params, set, status }) => {
-          const asset = await loadEmbeddedAsset(publicDir, params["*"]);
-          if (asset === null) {
-            return status("Not Found");
-          }
-          set.headers["cache-control"] = "public, max-age=86400";
-          return asset;
-        })
-    : new Elysia();
+  if (!publicDir) {
+    return new Elysia().get("/_client/*", async ({ params, set, status }) => {
+      const asset = await loadEmbeddedAsset(clientDir, params["*"]);
+      if (asset === null) {
+        return status("Not Found");
+      }
+      set.headers["cache-control"] = "public, max-age=31536000, immutable";
+      return asset;
+    });
+  }
 
-  return publicAssets.get("/_client/*", async ({ params, set, status }) => {
-    const asset = await loadEmbeddedAsset(clientDir, params["*"]);
-    if (asset === null) {
-      return status("Not Found");
-    }
-    set.headers["cache-control"] = "public, max-age=31536000, immutable";
-    return asset;
-  });
+  return new Elysia()
+    .get("/favicon.ico", async ({ status }) => {
+      const asset = await loadEmbeddedAsset(publicDir, "favicon.ico");
+      return asset ?? status("Not Found");
+    })
+    .get("/public/*", async ({ params, set, status }) => {
+      const asset = await loadEmbeddedAsset(publicDir, params["*"]);
+      if (asset === null) {
+        return status("Not Found");
+      }
+      set.headers["cache-control"] = "public, max-age=86400";
+      return asset;
+    })
+    .get("/_client/*", async ({ params, set, status }) => {
+      const asset = await loadEmbeddedAsset(clientDir, params["*"]);
+      if (asset === null) {
+        return status("Not Found");
+      }
+      set.headers["cache-control"] = "public, max-age=31536000, immutable";
+      return asset;
+    });
 }
 
 export async function createProductionAssetsPlugin(
@@ -67,7 +75,7 @@ export async function createProductionAssetsPlugin(
     return new Elysia();
   }
   if (embedded) {
-    // @elysiajs/static scans with Bun.Glob, which cannot open BunFS directories
+    // @elysia/static scans with Bun.Glob, which cannot open BunFS directories
     // in Bun 1.4.0. Direct file lookup also avoids enumerating assets at startup.
     return createEmbeddedAssetsPlugin(embedded);
   }

@@ -5,59 +5,84 @@ Furin pages and Elysia APIs run in the same application. There is no frontend pr
 ## Define An API Plugin
 
 ```ts
-// src/api/posts.ts
+// src/api/index.ts
 import { Elysia, t } from "elysia";
 
-export const postsApi = new Elysia({ prefix: "/api/posts" })
+const postsPlugin = new Elysia()
   .get("/", () => db.posts.findMany())
   .post(
     "/",
-    ({ body }) => db.posts.create(body),
     {
       body: t.Object({
         title: t.String({ minLength: 1 }),
         content: t.String(),
       }),
-    }
+    },
+    ({ body }) => db.posts.create(body)
   );
+
+export const api = new Elysia().group("/api/posts", (app) => app.use(postsPlugin));
+export type Api = typeof api;
 ```
 
 ```ts
 // src/server.ts
-import { Elysia } from "elysia";
 import { furin } from "@teyik0/furin";
-import { postsApi } from "./api/posts";
+import { api } from "./api";
 
-export const app = new Elysia()
-  .use(await furin({ pagesDir: "./src/pages" }))
-  .use(postsApi)
-  .listen(3000);
+export const app = api.use(await furin({ pagesDir: "./src/pages" }));
+const port = Number(process.env.PORT ?? 3000);
+
+if (import.meta.main) app.listen(port);
 
 export type App = typeof app;
+export default app;
 ```
 
 Continue chaining Elysia instances so route types remain intact. Elysia plugins are isolated by default: an API plugin must explicitly `.use()` the auth, database, logging, macro, or model dependencies required by its own routes.
 
+The exported `api` is also the root application extended by Furin. Kiana's AOT manifest owns one Elysia application per process, so an in-process Eden client must call this same instance instead of a second standalone app.
+
+## Mounted Request Handlers
+
+Mount external `Request`/`Response` handlers under an API prefix before adding Furin:
+
+```ts
+const externalApi = new Elysia({ prefix: "/api" }).mount(externalHandler);
+
+export const app = new Elysia()
+  .use(externalApi)
+  .use(await furin({ pagesDir: "./src/pages" }));
+```
+
+The root `[...rest]` page runs after Elysia has checked mounted API routes. An unprefixed `.mount(handler)` claims every URL, including page URLs. Elysia strips a mount prefix from the request URL passed to the handler, so configure the external handler's internal base path and callback URLs accordingly. Furin skips Elysia's build-time AOT step for applications with `.mount()` because that compiler does not support mounted handlers; the Bun server still compiles and serves them at runtime.
+
 ## Middleware, Guards, And Scope
+
+Install the JWT plugin before using this example:
+
+```bash
+bun add @elysia/jwt
+```
 
 ```ts
 import { Elysia } from "elysia";
-import { jwt } from "@elysiajs/jwt";
+import { jwt } from "@elysia/jwt";
 
 export const accountApi = new Elysia({ prefix: "/api/account" })
   .use(jwt({ name: "jwt", secret: process.env.JWT_SECRET! }))
   .guard(
     {
-      beforeHandle: async ({ cookie, jwt, status }) => {
+      beforeHandle: async ({ cookie, jwt, problem }) => {
         const user = await jwt.verify(cookie.auth?.value);
-        if (!user) return status(401, "Unauthorized");
+        if (!user) return problem(401, { detail: "Authentication required" });
       },
     },
     (app) => app.get("/me", ({ cookie, jwt }) => jwt.verify(cookie.auth?.value))
   );
 ```
 
-Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `scoped`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
+Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `plugin`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
 
 ## Typed Browser Client
 
@@ -65,25 +90,23 @@ Eden Treaty can derive a client from the exported Elysia type:
 
 ```ts
 // src/lib/api.ts
-import { treaty } from "@elysiajs/eden";
-import type { App } from "../server";
+import { treaty } from "@elysia/eden";
+import type { Api } from "../api";
 
-export const api = treaty<App>(window.location.origin);
+export const api = treaty<Api>(window.location.origin);
 ```
 
 For a module imported by both server loaders and browser components, use `createIsomorphicFn()` so loaders call Elysia in-process and the browser uses HTTP:
 
 ```ts
 // src/lib/posts-api.ts
-import { treaty } from "@elysiajs/eden";
+import { treaty } from "@elysia/eden";
 import { createIsomorphicFn } from "@teyik0/furin";
-import { postsApi } from "../api/posts";
-
-export type PostsApi = typeof postsApi;
+import { api, type Api } from "../api";
 
 export const getPostsApi = createIsomorphicFn()
-  .server(() => treaty(postsApi))
-  .client(() => treaty<PostsApi>(window.location.origin));
+  .server(() => treaty(api))
+  .client(() => treaty<Api>(window.location.origin));
 ```
 
 ```tsx
@@ -99,7 +122,35 @@ export const route = defineRoute()
   .page(({ posts }) => <PostList posts={posts} />);
 ```
 
-The server Treaty client contains only the hooks and dependencies composed into `postsApi`; hooks on an unrelated outer instance are not inherited. Direct execution also does not automatically forward the incoming page request, so pass headers or cookies when identity matters.
+The server Treaty client contains only the hooks and dependencies composed into `api`; hooks on an unrelated instance are not inherited. Direct execution also does not automatically forward the incoming page request, so pass headers or cookies when identity matters.
+
+## Accelerating External Schemas
+
+Kiana compiles TypeBox schemas such as `t.Object()` directly. When an API deliberately uses an external Standard Schema validator such as Zod, `t.Accelerate()` converts its JSON Schema representation into the TypeBox compiler path:
+
+```ts
+import { Elysia, t } from "elysia";
+import { z } from "zod";
+
+new Elysia().post(
+  "/api/posts",
+  { body: t.Accelerate(z.object({ title: z.string().min(1) })) },
+  ({ body }) => db.posts.create(body)
+);
+```
+
+Do not wrap schemas already created with Elysia's `t`: they already use the optimized path. `t.Accelerate()` is still marked alpha in Elysia 2 beta, so keep its use explicit at external-schema boundaries.
+
+## API Problem Details
+
+Use Kiana's `problem()` helper for expected HTTP failures. It emits an RFC 9457 body and the `application/problem+json` content type while preserving Eden's status-based inference:
+
+```ts
+new Elysia().get("/api/posts/:id", ({ params, problem }) => {
+  const post = db.posts.find(params.id);
+  return post ?? problem("Not Found", { detail: "Post not found" });
+});
+```
 
 ## Invalidation After A Mutation
 
@@ -111,10 +162,14 @@ import { Elysia, t } from "elysia";
 
 export const postsApi = new Elysia({ prefix: "/api/posts" })
   .use(furinInvalidate())
-  .post("/", ({ body }) => db.posts.create(body), {
-    body: t.Object({ title: t.String() }),
-    invalidate: { tags: ["posts"] },
-  });
+  .post(
+    "/",
+    {
+      body: t.Object({ title: t.String() }),
+      invalidate: { tags: ["posts"] },
+    },
+    ({ body }) => db.posts.create(body)
+  );
 ```
 
 Successful responses invalidate the origin cache and carry `X-Furin-Revalidate`, allowing the initiating tab to evict prefetched data and refresh an affected page.

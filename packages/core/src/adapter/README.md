@@ -8,7 +8,10 @@ Goal is having 3 modes:
 
 All should be portable.
 
-## Cloudflare adapter
+Server bundles and executables run Elysia 2's build-time AOT plugin against a
+real generated application entry. The listener lives in a separate boot entry,
+so AOT capture never opens a port. `strip` remains disabled while the Kiana beta
+WebSocket capability imports helpers omitted by its automatic WS stub.
 
 ## Vercel adapter
 
@@ -27,6 +30,10 @@ The Vercel target emits Build Output API v3 directly to `.vercel/output`:
 The generated handler connects Furin cache invalidation to Vercel cache tags
 and keeps background ISR work alive with `waitUntil`.
 
+The Function bundle uses the same Elysia AOT capture path with the Bun target.
+No custom Elysia runtime adapter is needed: Vercel invokes the application's
+Web-standard `handle(Request)` API inside its Bun runtime.
+
 Vercel Prerender Function invocations bypass Furin's process-local SSG/ISR
 cache. The CDN owns freshness and each regeneration returns newly rendered
 HTML; the in-memory cache remains exclusive to development and Bun targets.
@@ -35,7 +42,7 @@ The generated handler also installs Vercel Runtime Cache as the provider behind
 `@teyik0/furin/cache`. Application code keeps one portable cache API while
 development and Bun targets fall back to the in-memory provider.
 
-Application `@elysiajs/static` mounts are rejected during Vercel builds: their
+Application `@elysia/static` mounts are rejected during Vercel builds: their
 runtime filesystem mappings are not deployable CDN mappings. Place static files
 under `public/` instead. PPR pages produce a cached public HTML shell, postponed
 React state and public loader snapshot atomically. Vercel's native `chain`

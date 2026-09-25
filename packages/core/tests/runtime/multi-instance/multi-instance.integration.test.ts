@@ -6,7 +6,7 @@
  */
 import { expect, test } from "bun:test";
 
-const TESTS_DIR_SUFFIX_RE = /\/tests(?:\/.*)?$/;
+const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 test("multi-instance furin composition", () => {
   const coreDir = import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, "");

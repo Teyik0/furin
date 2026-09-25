@@ -33,18 +33,8 @@ function buildEmbeddedContext(
   ];
 }
 
-/**
- * Generates a virtual `_compile-entry.ts` that:
- * 1. Statically imports every page module of every app so Bun bundles them
- * 2. Points embed-mode contexts at Bun's `compile.assets` directories
- * 3. Sets production mode and registers one CompileContext PER APP
- * 4. Dynamically imports server.ts to boot the composed app
- */
-export function generateCompileEntry(options: BuildEntryOptions): VirtualBuildEntry {
-  const { apps, outDir, serverEntry, publicDir } = options;
-  ensureDir(outDir);
-
-  const preparedApps: EntryAppContext[] = apps.map((app) => {
+export function prepareCompileEntryApps(options: BuildEntryOptions): EntryAppContext[] {
+  return options.apps.map((app) => {
     const { embed, ...context } = app;
     if (!embed) {
       return context;
@@ -53,10 +43,24 @@ export function generateCompileEntry(options: BuildEntryOptions): VirtualBuildEn
       ...context,
       extraContext: [
         ...(context.extraContext ?? []),
-        ...buildEmbeddedContext(embed.clientDir, publicDir),
+        ...buildEmbeddedContext(embed.clientDir, options.publicDir),
       ],
     };
   });
+}
+
+/**
+ * Generates a virtual `_compile-entry.ts` that:
+ * 1. Statically imports every page module of every app so Bun bundles them
+ * 2. Points embed-mode contexts at Bun's `compile.assets` directories
+ * 3. Sets production mode and registers one CompileContext PER APP
+ * 4. Dynamically imports server.ts to boot the composed app
+ */
+export function generateCompileEntry(options: BuildEntryOptions): VirtualBuildEntry {
+  const { outDir, serverEntry } = options;
+  ensureDir(outDir);
+
+  const preparedApps = prepareCompileEntryApps(options);
 
   const source = buildEntrySource({
     apps: preparedApps,

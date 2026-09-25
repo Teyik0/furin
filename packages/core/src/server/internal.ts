@@ -9,6 +9,7 @@ import {
   type RuntimeCacheProvider,
   setRuntimeCacheProvider as setCacheProvider,
 } from "./cache/runtime-cache.ts";
+import { setRuntimeEvlogWaitUntil as installRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
 import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
@@ -31,6 +32,8 @@ export interface CompileContextRoute {
 
 export interface CompileContext {
   buildId?: string;
+  /** Runtime directory containing this app's disk-served client assets. */
+  clientDir?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
   /** Deployment adapter that owns public page caching for this build. */
@@ -79,6 +82,8 @@ export function markExternalPrerenderRequest(request: Request): Request {
 export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
   setCacheProvider(provider);
 }
+
+export const setRuntimeEvlogWaitUntil = installRuntimeEvlogWaitUntil;
 
 export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): void {
   installCacheTagPurger(purger);

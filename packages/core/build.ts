@@ -17,7 +17,7 @@ const shared = {
     "react",
     "react-dom",
     "react-server-dom-webpack",
-    "@elysiajs/static",
+    "@elysia/static",
     "yuku-parser",
   ],
   format: "esm" as const,

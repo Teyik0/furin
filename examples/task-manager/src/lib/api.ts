@@ -1,4 +1,4 @@
-import { treaty } from "@elysiajs/eden";
+import { treaty } from "@elysia/eden";
 import { createIsomorphicFn } from "@teyik0/furin";
 import { type Api, api as serverApi } from "@/api";
 

@@ -120,9 +120,10 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     }
   }, 30_000);
 
-  afterAll(() => {
+  afterAll(async () => {
     stopping = true;
     server?.kill();
+    await server?.exitCode;
     app.cleanup();
   });
 

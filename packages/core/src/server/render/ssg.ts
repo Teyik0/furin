@@ -7,7 +7,7 @@ import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cac
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { getSSGCache, setSSGCache } from "../cache/ssg.ts";
-import { createLogger, useLogger } from "../context-logger.ts";
+import { createLogger, getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
@@ -128,7 +128,7 @@ async function renderAndStoreSharedSsg(
           lease,
         })) === "stored";
     } catch {
-      useLogger().warn("SSG shared page cache write failed; serving fresh with no-store");
+      getLogger().warn("SSG shared page cache write failed; serving fresh with no-store");
     }
     return { cacheStored, entry };
   } finally {
@@ -136,7 +136,7 @@ async function renderAndStoreSharedSsg(
       try {
         await input.pageCache.release({ identity: input.identity, lease });
       } catch {
-        useLogger().warn("SSG shared page cache lease release failed");
+        getLogger().warn("SSG shared page cache lease release failed");
       }
     }
   }
@@ -152,7 +152,7 @@ async function resolveSharedSsg(input: SharedSsgInput): Promise<RuntimeSsgResult
       }
     }
   } catch {
-    useLogger().warn("SSG shared page cache read failed; rendering fresh with no-store");
+    getLogger().warn("SSG shared page cache read failed; rendering fresh with no-store");
     return { cacheStored: false, entry: await input.renderFresh() };
   }
 
@@ -160,7 +160,7 @@ async function resolveSharedSsg(input: SharedSsgInput): Promise<RuntimeSsgResult
   try {
     lease = await input.pageCache.acquire({ identity: input.identity, leaseMs: 30_000 });
   } catch {
-    useLogger().warn("SSG shared page cache lease failed; rendering fresh with no-store");
+    getLogger().warn("SSG shared page cache lease failed; rendering fresh with no-store");
     return { cacheStored: false, entry: await input.renderFresh() };
   }
   if (lease === null) {
@@ -173,7 +173,7 @@ async function resolveSharedSsg(input: SharedSsgInput): Promise<RuntimeSsgResult
         }
       }
     } catch {
-      useLogger().warn("SSG shared page cache wait failed; rendering fresh with no-store");
+      getLogger().warn("SSG shared page cache wait failed; rendering fresh with no-store");
     }
   }
   return renderAndStoreSharedSsg(input, lease);

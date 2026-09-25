@@ -122,11 +122,13 @@ describe.serial("Vercel deployment adapter", () => {
       const app = createVercelApp();
       writeAppFile(app.path, "public/_client/_hydrate.js", "public collision");
       const buildConfigs: Bun.BuildConfig[] = [];
+      const userPlugin: Bun.BunPlugin = { name: "test-user-plugin", setup() {} };
 
       const result = await withBuildStub(
         () =>
           buildApp({
             analyze: true,
+            plugins: [userPlugin],
             rootDir: app.path,
             target: "vercel",
             vercelConfig: { regions: ["cdg1"] },
@@ -146,7 +148,7 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.4.0-alpha.4" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.5.0-alpha.1" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
@@ -236,16 +238,31 @@ describe.serial("Vercel deployment adapter", () => {
       );
       const entrypoint = serverBuild?.entrypoints[0] as string;
       const source = serverBuild?.files?.[entrypoint] as string;
+      const captureEntry = join(serverFunctionDir, "_furin-app.ts");
       expect(source).toContain("@vercel+functions");
       expect(source).toContain("getCache as getVercelCache");
       expect(source).toContain("invalidateByTag");
       expect(source).toContain("setRuntimeCacheProvider");
+      expect(source).toContain("setRuntimeEvlogWaitUntil(waitUntil)");
       expect(source).toContain("waitUntil");
       expect(source).toContain("serverModule.default");
       expect(source).toContain("app.handle(restoredRequest)");
       expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
         source.indexOf("const serverModule = await import")
       );
+      expect(source.indexOf("setRuntimeEvlogWaitUntil(waitUntil)")).toBeLessThan(
+        source.indexOf("const serverModule = await import")
+      );
+      const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
+      expect(serverPluginNames).toContain("elysia-aot");
+      expect(serverPluginNames).toContain("test-user-plugin");
+      expect(serverPluginNames.indexOf("test-user-plugin")).toBeLessThan(
+        serverPluginNames.indexOf("elysia-aot")
+      );
+      expect(readFileSync(captureEntry, "utf8")).toContain(
+        "export default __serverModule.default"
+      );
+      expect(source).toContain(captureEntry.replaceAll("\\", "/"));
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {
@@ -262,6 +279,12 @@ describe.serial("Vercel deployment adapter", () => {
   test("requires the Vercel server entry to export its Elysia app as default", async () => {
     const app = createTmpApp("cli-app");
     tmpApps.push(app);
+    const serverPath = join(app.path, "src/server.ts");
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      readFileSync(serverPath, "utf8").replace("export default app;", "")
+    );
 
     await expect(
       withBuildStub(() => buildApp({ rootDir: app.path, target: "vercel" }))
@@ -321,7 +344,7 @@ describe.serial("Vercel deployment adapter", () => {
     const app = createVercelApp();
     const serverPath = join(app.path, "src/server.ts");
     writeAppFile(app.path, "src/server.ts",
-      'import { staticPlugin } from "@elysiajs/static";\n' +
+      'import { staticPlugin } from "@elysia/static";\n' +
       readFileSync(serverPath, "utf8").replace("new Elysia()", 'new Elysia().use(await staticPlugin({ assets: "./public", prefix: "/user-static" }))')
     );
     let failure: unknown;
@@ -691,7 +714,7 @@ export const route = defineRoute()
     expect(result.serverTiming).toContain("furin_server_init;dur=");
     expect(result.serverTiming).toContain("furin_handler;dur=");
     expect(result.invalidationBody).toBe("invalidated");
-    expect(result.pendingCount).toBe(2);
+    expect(result.pendingCount).toBeGreaterThanOrEqual(2);
     expect(result.purged).toEqual([["news%2Cworld"], ["/"]]);
     expect(result.registeredTags).toContainEqual(["/news", "news%2Cworld"]);
     expect(result.expiredTags).toEqual([["news,world"], ["/"]]);

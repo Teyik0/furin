@@ -18,36 +18,38 @@ const BOARD_MUTATION_INVALIDATIONS = [
 export const boardPlugin = new Elysia()
   .use(furinSync(taskManagerSync))
   .get("/boards", () => getBoards())
-  .post("/boards", ({ body }) => createBoard(body.name), {
-    body: t.Object({ name: t.String({ minLength: 1 }) }),
-    sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
-  })
+  .post(
+    "/boards",
+    {
+      body: t.Object({ name: t.String({ minLength: 1 }) }),
+      sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
+    },
+    ({ body }) => createBoard(body.name)
+  )
   .delete(
     "/boards/:boardId",
-    ({ params, status }) => {
+    { sync: { invalidate: BOARD_MUTATION_INVALIDATIONS } },
+    ({ params, problem }) => {
       const ok = deleteBoard(params.boardId);
       if (!ok) {
-        return status("Not Found", "Not found");
+        return problem("Not Found", { detail: "Board not found" });
       }
       return { ok: true };
-    },
-    {
-      sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
     }
   )
-  .get("/boards/:boardId", ({ params, status }) => {
+  .get("/boards/:boardId", ({ params, problem }) => {
     const data = getBoardData(params.boardId);
     if (!data) {
-      return status("Not Found", "Not found");
+      return problem("Not Found", { detail: "Board not found" });
     }
     return data;
   })
-  .get("/boards/:boardId/stats", async ({ params, status }) => {
+  .get("/boards/:boardId/stats", async ({ params, problem }) => {
     // Artificial delay — makes the Suspense streaming boundary visible in the UI
     await new Promise<void>((resolve) => setTimeout(resolve, 800));
     const stats = getBoardStats(params.boardId);
     if (!stats) {
-      return status("Not Found", "Not found");
+      return problem("Not Found", { detail: "Board not found" });
     }
     return stats;
   });

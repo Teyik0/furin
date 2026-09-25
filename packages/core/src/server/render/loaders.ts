@@ -5,7 +5,7 @@ import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
-import { useLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
@@ -141,11 +141,13 @@ function createLoaderCtx(
       if (prop === "then" || prop === "catch" || prop === "finally" || prop === "toJSON") {
         return Reflect.get(target, prop);
       }
-      // RouteContext fields (request, params, query, set, headers, cookie,
-      // path, redirect) are present on target — return directly.
-      // Use hasOwn so prototype keys (toString, constructor, …) are not
-      // mistaken for context fields and incorrectly hide parent loader data.
-      if (Object.hasOwn(target, prop)) {
+      // Kiana keeps status/problem/redirect/defer and decorators on the
+      // Elysia context prototype. Preserve those while excluding generic
+      // Object.prototype keys that may legitimately be parent loader data.
+      if (
+        Object.hasOwn(target, prop) ||
+        (prop in target && !Object.hasOwn(Object.prototype, prop))
+      ) {
         return target[prop];
       }
       // Everything else is a parent-data field → individual lazy Promise.
@@ -207,7 +209,7 @@ function createRequestLoaderContext(ctx: Context): RequestLoaderContext {
       get: (name: string) => headers.get(name),
       has: (name: string) => headers.has(name),
     }),
-    log: useLogger(),
+    log: getLogger(),
     params: ctx.params,
     path: ctx.path,
     query: ctx.query,
@@ -421,7 +423,7 @@ async function normalizeLoaderError(
     return { error: err, headers, message, status, type: "error" };
   }
   if (isFurinRscRenderError(err)) {
-    useLogger().error(err);
+    getLogger().error(err);
     return {
       error: err,
       headers,
@@ -447,11 +449,11 @@ async function runLoadersInternal(
   try {
     const requestData = includeRequestData ? runRequestLoaderData(route, ctx) : undefined;
     // Inject `log` so loaders can destructure it directly as `({ log })`.
-    // useLogger() resolves the correct logger for every rendering context:
+    // getLogger() resolves the correct logger for every rendering context:
     // live request → evlog request-scoped logger, synthetic render → detached
     // createLogger() from runInSyntheticRenderScope, outside any context → no-op.
     const ctxRecord = includeRequestData
-      ? { ...(ctx as Record<string, unknown>), log: useLogger() }
+      ? Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { log: getLogger() })
       : createPublicLoaderContext(ctx);
     const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
 
@@ -488,7 +490,7 @@ async function runLoadersInternal(
             // ancestor's field (deepest wins). Surface the collision instead.
             for (const key of Object.keys(own)) {
               if (Object.hasOwn(acc, key)) {
-                useLogger().warn(
+                getLogger().warn(
                   `[furin] Loader data collision on "${key}" for ${ctx.path}: a deeper loader overwrites the value inherited from its layout chain (deepest wins).`
                 );
               }
@@ -557,7 +559,7 @@ function createPublicLoaderContext(ctx: Context): { [key: string]: unknown } {
   Object.defineProperties(publicContext, {
     cookie: { enumerable: true, get: fail },
     headers: { enumerable: true, get: fail },
-    log: { enumerable: true, value: useLogger() },
+    log: { enumerable: true, value: getLogger() },
     params: { enumerable: true, value: ctx.params },
     path: { enumerable: true, value: ctx.path },
     query: { enumerable: true, value: ctx.query },

@@ -16,7 +16,7 @@ import { requireTmpPath, withTmpFiles, withTmpPage } from "../../support/tmp-fil
 
 registerDevPagePlugin();
 
-const CORE_DIR = import.meta.dir.replace(/\/tests(?:\/.*)?$/, "");
+const CORE_DIR = import.meta.dir.replace(/[\\/]tests(?:[\\/].*)?$/, "");
 const TMP_DIR = join(CORE_DIR, ".tmp-tests", "react-singleton");
 
 describe("furin-dev-page React singleton", () => {

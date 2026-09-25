@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import type { CompileContext, EmbeddedAppData } from "../../../src/server/internal";
 import { resetEvlogMock } from "../../setup/evlog-mock";
@@ -31,7 +31,7 @@ function rememberTmpApp(app: TmpApp): TmpApp {
   return app;
 }
 
-async function createTestApp(options: FurinOptions): Promise<Elysia> {
+async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
   return new Elysia().use(await furin(options));
 }
 

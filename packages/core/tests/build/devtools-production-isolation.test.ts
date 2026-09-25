@@ -33,6 +33,39 @@ afterEach(() => {
 });
 
 describe.serial("production DevTools isolation", () => {
+  test("a Vercel app without sync keeps WebSocket and sync code out of its handler", async () => {
+    const app = createTmpApp("cli-app-ssr");
+    tmpApps.push(app);
+
+    const result = await runCli(["build", "--target", "vercel", "--analyze"], { cwd: app.path });
+    expect(result.exitCode).toBe(0);
+    const handler = readFileSync(
+      join(app.path, ".vercel/output/functions/__server.func/handler.js"),
+      "utf8"
+    );
+    expect(handler).not.toContain("FURIN_BROWSER_EVENTS_CAPACITY");
+    expect(handler).not.toContain("FURIN_INVALID_SYNC_CURSOR");
+  }, { timeout: 30_000 });
+
+  test(
+    "the Vercel server bundle excludes development route state",
+    async () => {
+      const app = createTmpApp("cli-app-ssr");
+      tmpApps.push(app);
+
+      const result = await runCli(["build", "--target", "vercel", "--analyze"], { cwd: app.path });
+
+      expect(result.exitCode).toBe(0);
+      const metafile = JSON.parse(
+        readFileSync(join(app.path, ".furin/build/analysis/vercel-server.json"), "utf8")
+      ) as { inputs: object };
+      expect(Object.keys(metafile.inputs).some((path) => path.endsWith("/server/dev/graph.ts"))).toBe(
+        false
+      );
+    },
+    { timeout: 30_000 }
+  );
+
   test(
     "the production server bundle contains no DevTools code",
     async () => {

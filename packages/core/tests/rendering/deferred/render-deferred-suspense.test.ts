@@ -44,6 +44,61 @@ async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: Resol
 }
 
 describe.serial("renderSSR deferred Suspense scenarios", () => {
+  test.serial("ordinary SSR keeps late Suspense resolution inside the document", async () => {
+    __setDevMode(false);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const fixture = await getSsrFixtureRoute();
+    const slow = Promise.withResolvers<string>();
+    const customRoute = asResolvedRoute({
+      ...fixture.ssrRoute,
+      page: {
+        ...fixture.ssrRoute.page,
+        component: () =>
+          createElement(
+            Suspense,
+            { fallback: createElement("span", null, "loading") },
+            createElement(Await<string>, {
+              // biome-ignore lint/correctness/noChildrenProp: render-prop pattern — children is a function, not a ReactNode.
+              children: (value: string) => createElement("span", null, value),
+              resolve: slow.promise,
+            })
+          ),
+        loader: undefined,
+      },
+    });
+
+    const response = await renderSSR(
+      customRoute,
+      createMockLoaderContext({ path: "/ssr-page" }),
+      fixture.root,
+      undefined
+    );
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("SSR response did not contain a body");
+    }
+    const timeout = "timeout" as const;
+    const firstRead = reader.read();
+    const firstOrTimeout = await Promise.race([firstRead, Bun.sleep(1000).then(() => timeout)]);
+    slow.resolve("late-content");
+    const first = firstOrTimeout === timeout ? await firstRead : firstOrTimeout;
+    const decoder = new TextDecoder();
+    let html = first.value ? decoder.decode(first.value, { stream: true }) : "";
+    for (;;) {
+      // biome-ignore lint/performance/noAwaitInLoops: stream chunks must be consumed in order.
+      const next = await reader.read();
+      if (next.done) {
+        break;
+      }
+      html += decoder.decode(next.value, { stream: true });
+    }
+    html += decoder.decode();
+    expect(firstOrTimeout).not.toBe(timeout);
+    expect(html).toContain("loading");
+    expect(html).toContain("late-content");
+    expect(html.indexOf("late-content")).toBeLessThan(html.lastIndexOf("</html>"));
+  });
+
   test.serial("renderSSR flushes the Suspense shell before deferred data settles", async () => {
     __setDevMode(false);
     setProductionTemplateContent(TEST_TEMPLATE);

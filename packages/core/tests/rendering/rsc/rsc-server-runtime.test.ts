@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 interface RscServerRuntimeResult {
   stderr: string;
@@ -10,7 +11,7 @@ async function runRscServerRuntimeScenario(mode: string): Promise<RscServerRunti
     [
       process.execPath,
       "--conditions=react-server",
-      new URL("./rsc-server-runtime.scenario.tsx", import.meta.url).pathname,
+      fileURLToPath(new URL("./rsc-server-runtime.scenario.tsx", import.meta.url)),
       mode,
     ],
     {

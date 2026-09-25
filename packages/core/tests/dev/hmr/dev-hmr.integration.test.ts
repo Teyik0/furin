@@ -98,8 +98,9 @@ describe.serial("dev HMR", () => {
     port = await getFreePort();
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     server?.kill();
+    await server?.exitCode;
     app.cleanup();
   });
 

@@ -7,7 +7,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Breaking
+- **Elysia 2 Kiana contracts** — Furin now targets Elysia 2 and TypeBox 1 with the hook-first route signature. Run the official Elysia codemod before applying the Furin-specific migration steps.
+- **Supported build targets** — `node` and `cloudflare` have been removed from `BUILD_TARGETS`; existing configurations using them now fail validation. Use the Bun or Vercel adapters described in the deployment guide.
 - **Ordered `staticParams()` builder stage** — dynamic SSG/ISR params move from `config({ staticParams })` to `.config(...).staticParams(...).loader(...)`. Nested stages compose ancestor params top-down and expose typed parent loader fields as lazy promises; ancestor loaders execute only when a field is read and are single-flight within each branch.
+
+### Added
+- **Elysia AOT production builds** — Bun and Vercel builds compile listener-free Elysia application entries at build time, including handlers and schema validators.
+- **Kiana-native schema and error paths** — document routes compose inherited query and params contracts with Elysia's native `schema: "merge"`, while framework JSON validation failures and generated examples use RFC 9457 Problem Details.
+- **Shared page-cache adapters** — `furin({ pageCache })` can coordinate SSG, ISR, and PPR artifacts across Bun replicas. `@teyik0/furin/cache` exports the in-memory contract and adapter, while `@teyik0/furin/cache/redis` adds distributed regeneration leases, fenced commits, path/tag invalidation, rolling-build isolation, and safe `no-store` fallback during cache outages.
+
+### Fixed
+- **In-process Eden under AOT** — the task-manager example keeps its Eden Treaty loader DX while extending the same root Elysia instance with Furin, avoiding Kiana's one-AOT-application-per-process guard.
+- **Single Vercel page-cache owner** — Vercel deployments now reject `furin({ pageCache })` during application initialization instead of mixing a custom Redis cache with native Prerender and Runtime Cache state. Bun deployments remain free to use shared page-cache adapters.
+- **Distributed page-cache correctness** — shared SSG warm-up now publishes to the configured adapter, slow ISR followers wait for the active lease instead of duplicating work, stale PPR shells revalidate in the background, trailing-slash invalidation is normalized, and failed post-mutation invalidation no longer breaks idempotent replay.
+- **Bounded shared-cache metadata** — the memory adapter reclaims expired leases and selector metadata, while Redis entries and reverse indexes use configurable retention with automatic pruning. Stale lease releases remain fenced from newer owners.
+- **Embedded asset startup on Bun 1.4.0** — self-contained executables serve BunFS client and public files by direct path lookup instead of scanning embedded directories with `Bun.Glob`, avoiding the startup `ENOENT` while retaining traversal protection and cache headers.
+- **Vercel public asset prefixes** — the Vercel target now mirrors the development and compiled-server behavior by copying `public/` under each application's prefix (`/public`, `/admin/public`, ...) instead of only the output root, so runtime asset URLs resolve without a post-build copy step.
+- **Prefixed Vercel favicons** — each prefixed application now receives its conventional `/favicon.ico` asset alongside its prefixed public directory.
+- **Windows compiled builds** — Bun executables use `server.exe` in build manifests and local tooling, virtual Bun build entries use normalized paths, `PATH` lookup respects the host separator, and CI exercises the Windows build, types, and tests.
+- **Static output root protection** — static builds reject a Windows drive root as `outDir` before deleting output files.
+- **Cross-drive build fingerprints** — framework source files keep their stable `furin/` fingerprint paths when Windows builds use a temporary directory on another drive.
+
+## [0.4.0-alpha.2] — 2026-09-20
+
+### Breaking
 - **Flat loader props** — public loader fields from the complete layout chain are passed directly to `page()`, `layout()`, and `head()` instead of being nested under `data`. Migrate `page(({ data }) => data.posts)` to `page(({ posts }) => posts)`. `params`, `path`, `query`, and `requestData` remain explicit framework props; loaders may no longer return those names, React's `children`/`key`/`ref`, or keys beginning with `__furin`.
 - **Synchronous `head()` data boundary** — metadata callbacks receive validated route context and synchronous public loader fields only. Deferred fields and request-private `requestData` are no longer exposed to `head()`; move metadata inputs into the synchronous loader result.
 - **Sync path terminology** — `FurinSyncOptions.streamPath` is now `path`; `createSyncStreamPlugin()`, `getSyncStreamPath()`, `resolveSyncStreamPath()`, and `runWithSyncStreamPath()` are renamed to their `SyncChanges` / `SyncPath` equivalents. The generated browser config exposes `{ path }`, and the former sync, diagnostics, and DevTools SSE endpoints are removed.
@@ -15,7 +38,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Application-owned theme bootstrap** — Furin no longer injects a theme initialization script in development. Applications that persist light/dark mode must initialize their theme themselves.
 
 ### Added
-- **Shared page-cache adapters** — `furin({ pageCache })` can coordinate SSG, ISR, and PPR artifacts across Bun replicas. `@teyik0/furin/cache` exports the in-memory contract and adapter, while `@teyik0/furin/cache/redis` adds distributed regeneration leases, fenced commits, path/tag invalidation, rolling-build isolation, and safe `no-store` fallback during cache outages.
 - **Native Vercel deployment target** — `furin build --target vercel` emits Build Output API v3 artifacts with Bun 1.4 Web Handlers, CDN-hosted client/public assets, native SSG fallbacks, ISR Prerender Functions, dynamic and prefixed routes, API routes, streaming, configurable regions, and build manifests.
 - **Vercel cache and PPR integration** — `Vercel-Cache-Tag`, `invalidateByTag()`, and `waitUntil()` are connected to Furin invalidation; cached public PPR shells resume request-private content inside a Function, and Vercel owns deployed SSG/ISR freshness instead of Furin's process-local cache.
 - **Platform runtime cache** — `@teyik0/furin/cache` provides TTL and tag-aware application caching with a memory fallback and an automatically installed Vercel Runtime Cache provider.
@@ -38,12 +60,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Route and deployment documentation** — guides, examples, generated declarations, and scaffolder templates now use flat loader props and the shared Bun/Vercel server-entry convention throughout.
 
 ### Fixed
-- **Single Vercel page-cache owner** — Vercel deployments now reject `furin({ pageCache })` during application initialization instead of mixing a custom Redis cache with native Prerender and Runtime Cache state. Bun deployments remain free to use shared page-cache adapters.
-- **Distributed page-cache correctness** — shared SSG warm-up now publishes to the configured adapter, slow ISR followers wait for the active lease instead of duplicating work, stale PPR shells revalidate in the background, trailing-slash invalidation is normalized, and failed post-mutation invalidation no longer breaks idempotent replay.
-- **Bounded shared-cache metadata** — the memory adapter reclaims expired leases and selector metadata, while Redis entries and reverse indexes use configurable retention with automatic pruning. Stale lease releases remain fenced from newer owners.
-- **Embedded asset startup on Bun 1.4.0** — self-contained executables serve BunFS client and public files by direct path lookup instead of scanning embedded directories with `Bun.Glob`, avoiding the startup `ENOENT` while retaining traversal protection and cache headers.
-- **Vercel public asset prefixes** — the Vercel target now mirrors the development and compiled-server behavior by copying `public/` under each application's prefix (`/public`, `/admin/public`, ...) instead of only the output root, so runtime asset URLs resolve without a post-build copy step.
-- **Prefixed Vercel favicons** — each prefixed application now receives its conventional `/favicon.ico` asset alongside its prefixed public directory.
 - **Development recovery and routing** — compatible Fast Refresh edits preserve component state, hook-signature changes remount safely, a restored native HMR connection reloads the page to rebuild the module graph, initial loader errors reach the client boundary, route-data requests observe current topology, and CSS module imports survive client transforms.
 - **Development assets and route metadata** — public files and development 404s are served before route loaders, configured ISR `revalidate` values survive dev/production/build manifests, failed rebuilds retry, and watcher replacement no longer drops file events.
 - **Multi-tab sync no longer stalls mutations** — sync notifications, diagnostics, and DevTools events share one versioned WebSocket per page instead of consuming three long-lived HTTP connections per tab. Durable change replay remains on `/_furin/sync/changes`, while lifecycle cleanup, bounded buffering, heartbeats, and jittered reconnects keep concurrent tabs reliable.
@@ -395,8 +411,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/c228ea2...HEAD
-[0.2.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.3...c228ea2
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.2...HEAD
+[0.4.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
+[0.4.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.3.0-alpha.1...v0.4.0-alpha.1
+[0.3.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.5...v0.3.0-alpha.1
+[0.2.0-alpha.5]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.4...v0.2.0-alpha.5
+[0.2.0-alpha.4]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
 [0.2.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.1.0-alpha.15...v0.2.0-alpha.1

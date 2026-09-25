@@ -1,7 +1,7 @@
 import { type Context, Elysia, ValidationError } from "elysia";
 import type { RequestLogger } from "evlog";
 import type { HeadOptions, RenderingMode } from "./client.ts";
-import { applySchemaDefaults } from "./server/router/schemas.ts";
+import { applySchemaDefaults, coerceRouteInput } from "./server/router/schemas.ts";
 import type {
   ElysiaRouteLeaf,
   ElysiaRouteParams,
@@ -213,7 +213,7 @@ export function getFurinRenderer(context: object): FurinRouteDispatcher | undefi
 function registerPlain<Params, Query, ParentData extends LoaderData, Data extends LoaderData>(
   loader: Loader<Params, Query, ParentData, Data> | undefined
 ) {
-  return new Elysia().get("/", async (context) => {
+  return new Elysia().get("", async (context) => {
     const renderer = getFurinRenderer(context);
     if (renderer) {
       return renderer(context as unknown as FurinNativeRouteContext);
@@ -242,25 +242,21 @@ function registerSchema<
   querySchema: QuerySchema,
   loader: Loader<Params, Query, ParentData, Data> | undefined
 ) {
-  return new Elysia().get(
-    "/",
-    async (context) => {
-      const renderer = getFurinRenderer(context);
-      if (renderer) {
-        return renderer(context as unknown as FurinNativeRouteContext);
-      }
-      return Response.json(
-        loader
-          ? await loader({
-              ...context,
-              params: context.params as Params,
-              query: context.query as Query,
-            } as LoaderContext<Params, Query, ParentData>)
-          : {}
-      );
-    },
-    { params: paramsSchema, query: querySchema }
-  );
+  return new Elysia().get("", { params: paramsSchema, query: querySchema }, async (context) => {
+    const renderer = getFurinRenderer(context);
+    if (renderer) {
+      return renderer(context as unknown as FurinNativeRouteContext);
+    }
+    return Response.json(
+      loader
+        ? await loader({
+            ...context,
+            params: context.params as Params,
+            query: context.query as Query,
+          } as LoaderContext<Params, Query, ParentData>)
+        : {}
+    );
+  });
 }
 
 function registerQuery<
@@ -269,25 +265,21 @@ function registerQuery<
   ParentData extends LoaderData,
   Data extends LoaderData,
 >(querySchema: QuerySchema, loader: Loader<NoFields, Query, ParentData, Data> | undefined) {
-  return new Elysia().get(
-    "/",
-    async (context) => {
-      const renderer = getFurinRenderer(context);
-      if (renderer) {
-        return renderer(context as unknown as FurinNativeRouteContext);
-      }
-      return Response.json(
-        loader
-          ? await loader({
-              ...context,
-              params: {},
-              query: context.query as Query,
-            } as LoaderContext<NoFields, Query, ParentData>)
-          : {}
-      );
-    },
-    { query: querySchema }
-  );
+  return new Elysia().get("", { query: querySchema }, async (context) => {
+    const renderer = getFurinRenderer(context);
+    if (renderer) {
+      return renderer(context as unknown as FurinNativeRouteContext);
+    }
+    return Response.json(
+      loader
+        ? await loader({
+            ...context,
+            params: {},
+            query: context.query as Query,
+          } as LoaderContext<NoFields, Query, ParentData>)
+        : {}
+    );
+  });
 }
 
 function schemaValues(value: unknown): SchemaValues {
@@ -319,20 +311,13 @@ async function validateLayoutSchema(
 ): Promise<SchemaValues> {
   const selectedValues = selectLayoutSchemaValues(schema, value);
   const selected = isTypeBoxObjectSchema(schema)
-    ? applySchemaDefaults(schema, selectedValues)
+    ? coerceRouteInput(schema, applySchemaDefaults(schema, selectedValues))
     : selectedValues;
-  const validator = getSchemaValidator(schema, { coerce: true, dynamic: true });
-  const checked = await validator?.Check(selected);
-  if (
-    checked === false ||
-    (checked !== null && typeof checked === "object" && "issues" in checked)
-  ) {
-    throw new ValidationError(type, schema, selected);
+  const validator = getSchemaValidator(schema);
+  if (validator?.Check(selected) === false) {
+    throw new ValidationError(type, selected, [...validator.Errors(selected)], schema);
   }
-  const parsed =
-    checked !== null && typeof checked === "object" && "value" in checked
-      ? checked.value
-      : validator?.parse(selected);
+  const parsed = await validator?.parse(selected, type);
   return { ...schemaValues(value), ...schemaValues(parsed) };
 }
 
@@ -343,7 +328,7 @@ function registerLayout<Params, Query, ParentData extends LoaderData, Data exten
 ) {
   const app = new Elysia();
   if (paramsSchema || querySchema || loader) {
-    app.resolve(async (context) => {
+    app.derive(async (context) => {
       const params = paramsSchema
         ? await validateLayoutSchema("params", paramsSchema, context.params)
         : context.params;

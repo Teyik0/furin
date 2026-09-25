@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: static build emits routes in sequence to keep output deterministic
 import { cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep, win32 } from "node:path";
 import { toCrossJSONAsync } from "seroval";
 import { buildClient } from "../build/client.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
@@ -395,7 +395,8 @@ export async function buildStaticTarget(
     );
   }
 
-  const outDir = resolve(rootDir, staticConfig.outDir ?? "dist");
+  const rawOutDir = staticConfig.outDir ?? "dist";
+  const outDir = resolve(rootDir, rawOutDir);
 
   // Guard against destructive rmSync on obviously wrong output directories.
   const normalizedRoot = resolve(rootDir);
@@ -403,8 +404,8 @@ export async function buildStaticTarget(
   if (
     outDir === normalizedRoot ||
     outDir === normalizedBuildRoot ||
-    outDir === "/" ||
-    outDir === "."
+    outDir === parse(outDir).root ||
+    rawOutDir === win32.parse(rawOutDir).root
   ) {
     throw new Error(
       `[furin] static: outDir resolves to "${outDir}" which is unsafe to delete. ` +

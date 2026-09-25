@@ -86,7 +86,9 @@ describe("manifest.json integrity", () => {
         dest: "package.json",
         kind: "package-json",
       });
-      expect(template.dependencies["@sinclair/typebox"]).toBeDefined();
+      expect(template.dependencies["exact-mirror"]).toBeDefined();
+      expect(template.dependencies.typebox).toBeDefined();
+      expect(template.dependencies["@sinclair/typebox"]).toBeUndefined();
       expect(template.devDependencies["@biomejs/biome"]).toBeDefined();
       expect(template.devDependencies.ultracite).toBeDefined();
     }

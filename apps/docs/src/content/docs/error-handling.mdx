@@ -7,6 +7,26 @@ Furin separates unexpected failures from expected missing content:
 
 Both conventions are scoped by directory. The nearest authored boundary wins, and a boundary failure bubbles to the next parent boundary.
 
+These page conventions return HTML or Furin's navigation transport. For JSON APIs, use Elysia 2's `problem()` and class-based `.error(ErrorClass, handler)` APIs so failures follow RFC 9457 and Eden can infer each error response:
+
+```ts
+import { Elysia } from "elysia";
+
+class PostUnavailable extends Error {}
+
+export const postsApi = new Elysia()
+  .error(PostUnavailable, ({ problem }) =>
+    problem(503, { detail: "Posts are temporarily unavailable" })
+  )
+  .get("/posts/:id", ({ params, problem }) => {
+    if (!postsService.isAvailable()) throw new PostUnavailable();
+    const post = findPost(params.id);
+    return post ?? problem("Not Found", { detail: "Post not found" });
+  });
+```
+
+Expected API failures use `application/problem+json`. Furin page `notFound()` remains a render-control signal rather than an API error, so it intentionally keeps the nearest `not-found.tsx` behavior.
+
 ## Error Boundaries
 
 ```tsx

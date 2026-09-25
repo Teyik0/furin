@@ -37,6 +37,11 @@ function runPluginSetups(plugins: Bun.BunPlugin[] | undefined): void {
   } as unknown as Parameters<Bun.BunPlugin["setup"]>[0];
 
   for (const plugin of plugins ?? []) {
+    // Elysia AOT imports and compiles the full application before Bun starts.
+    // This lightweight build stub only verifies build configuration.
+    if (plugin.name === "elysia-aot") {
+      continue;
+    }
     plugin.setup(builder);
   }
 }

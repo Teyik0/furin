@@ -16,10 +16,12 @@ import { parseDynamicRouteSegment, routeSegmentToPattern } from "../server/route
 
 const ROUTES_NAMESPACE_PREFIX = "furin-routes";
 const ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry";
-const ROUTES_REGISTRY_FILTER = /^furin\/routes\?registry$/;
+const COMPOSABLE_ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry=composable";
+const ROUTES_REGISTRY_FILTER = /^furin\/routes\?registry(?:=composable)?$/;
 const ROUTE_FILE_FILTER = /^furin-route-file:.+$/;
 const ROUTE_FILES_NAMESPACE = "furin-route-files";
-const ROUTES_REGISTRY_FILE_FILTER = /[\\/]\.furin-routes-registry\.ts\?furin-virtual$/;
+const ROUTES_REGISTRY_FILE_FILTER =
+  /[\\/]\.furin-routes-registry(?:-composable)?\.ts\?furin-virtual$/;
 const CLIENT_ROUTES_NAMESPACE = "furin-routes-client";
 const CLIENT_ROUTES_FILTER = /^(?:@teyik0\/furin|furin)\/routes$/;
 const SERVER_ROUTES_FILTER = /^(?:@teyik0\/furin|furin)\/routes\?instance=.+$/;
@@ -80,6 +82,10 @@ function instanceKey(instance: RouteInstanceSpec): string {
 
 export function routeModuleSpecifier(instance: RouteInstanceSpec): string {
   return `@teyik0/furin/routes?instance=${Bun.hash(instanceKey(instance)).toString(16)}`;
+}
+
+export function composableRouteModuleSpecifier(instance: RouteInstanceSpec): string {
+  return `${routeModuleSpecifier(instance)}&composable`;
 }
 
 function instanceNamespace(instance: RouteInstanceSpec): string {
@@ -534,7 +540,11 @@ export function registerDevRouteTopologyWatcher(
   };
 }
 
-function emitRouteNode(node: RouteTreeNode, indentation: string): string {
+function emitRouteNode(
+  node: RouteTreeNode,
+  indentation: string,
+  includeRootCatchAll: boolean
+): string {
   const childIndentation = `${indentation}  `;
   const prefix = node.name ? `/${segmentPath(node.name)}` : "";
   const head = `new Elysia({ prefix: ${JSON.stringify(prefix)} })`;
@@ -544,7 +554,7 @@ function emitRouteNode(node: RouteTreeNode, indentation: string): string {
       `${childIndentation}.use(new Elysia({ prefix: "" }).use(${node.indexRoute.id}.elysia))`
     );
   }
-  for (const route of node.fileRoutes) {
+  for (const route of node.fileRoutes.filter((file) => includeRootCatchAll || file.path !== "/*")) {
     const segment = route.path.slice(route.path.lastIndexOf("/") + 1);
     content.push(
       `${childIndentation}.use(new Elysia({ prefix: ${JSON.stringify(`/${segment}`)} }).use(${route.id}.elysia))`
@@ -552,7 +562,7 @@ function emitRouteNode(node: RouteTreeNode, indentation: string): string {
   }
   for (const child of node.children) {
     content.push(`${childIndentation}.use(`);
-    content.push(emitRouteNode(child, `${childIndentation}  `));
+    content.push(emitRouteNode(child, `${childIndentation}  `, includeRootCatchAll));
     content.push(`${childIndentation})`);
   }
   if (node.layout) {
@@ -604,7 +614,9 @@ async function retainComposableRoutes(node: RouteTreeNode): Promise<void> {
 
 async function generateServerInstance(
   instance: RouteInstanceSpec,
-  routeFilesBySpecifier: Map<string, RouteModuleInfo>
+  routeFilesBySpecifier: Map<string, RouteModuleInfo>,
+  materialized: boolean,
+  includeRootCatchAll: boolean
 ): Promise<GeneratedServerInstance> {
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
   const tree = buildRouteTree(instance.pagesDir, instanceId);
@@ -612,7 +624,9 @@ async function generateServerInstance(
   const imports = collectRouteFiles(tree)
     .sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
     .map((route) => {
-      const specifier = routeFileSpecifier(route);
+      const specifier = materialized
+        ? resolve(route.sourcePath).replaceAll("\\", "/")
+        : routeFileSpecifier(route);
       routeFilesBySpecifier.set(specifier, {
         routePath: route.path,
         sourcePath: resolve(route.sourcePath),
@@ -621,7 +635,7 @@ async function generateServerInstance(
     })
     .join("\n");
   return {
-    appExpression: emitRouteNode(tree, ""),
+    appExpression: emitRouteNode(tree, "", includeRootCatchAll),
     exportName: `furinApp_${instanceId}`,
     imports,
   };
@@ -629,11 +643,15 @@ async function generateServerInstance(
 
 async function serverRegistrySource(
   instances: RouteInstanceSpec[],
-  routeFilesBySpecifier: Map<string, RouteModuleInfo>
+  routeFilesBySpecifier: Map<string, RouteModuleInfo>,
+  materialized: boolean,
+  includeRootCatchAll: boolean
 ): Promise<string> {
   routeFilesBySpecifier.clear();
   const generated = await Promise.all(
-    instances.map((instance) => generateServerInstance(instance, routeFilesBySpecifier))
+    instances.map((instance) =>
+      generateServerInstance(instance, routeFilesBySpecifier, materialized, includeRootCatchAll)
+    )
   );
   return `import { Elysia } from "elysia";
 ${generated.map(({ imports }) => imports).join("\n")}
@@ -642,6 +660,18 @@ ${generated
   .map(({ appExpression, exportName }) => `export const ${exportName} = ${appExpression};`)
   .join("\n")}
 `;
+}
+
+/**
+ * Emits a real server route module for build-time consumers such as Elysia's
+ * AOT plugin, which imports the application outside Bun's virtual module graph.
+ */
+export async function materializedRouteModuleSource(instance: RouteInstanceSpec): Promise<string> {
+  const routeFilesBySpecifier = new Map<string, RouteModuleInfo>();
+  const source = await serverRegistrySource([instance], routeFilesBySpecifier, true, false);
+  await validateRouteModules(routeFilesBySpecifier.values());
+  const exportName = `furinApp_${Bun.hash(instanceKey(instance)).toString(16)}`;
+  return `${source}\nexport { ${exportName} as furinApp };\n`;
 }
 
 export function validateRouteParams(
@@ -867,10 +897,11 @@ async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | un
 
 async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
   const prefix = node.name ? `/${segmentPath(node.name)}` : "";
+  const { fileRoutes } = node;
   const [layoutApps, indexRouteApps, fileRouteApps, childApps] = await Promise.all([
     node.layout ? composableRouteApps(node.layout) : undefined,
     node.indexRoute ? composableRouteApps(node.indexRoute) : undefined,
-    Promise.all(node.fileRoutes.map((route) => composableRouteApps(route))),
+    Promise.all(fileRoutes.map((route) => composableRouteApps(route))),
     Promise.all(node.children.map((child) => composeRuntimeNode(child))),
   ]);
   const appScope = layoutApps?.app ?? new Elysia();
@@ -880,12 +911,14 @@ async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
     appScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.app));
     shellScope.use(new Elysia({ prefix: "" }).use(indexRouteApps.shell));
   }
-  for (const [index, route] of node.fileRoutes.entries()) {
+  for (const [index, route] of fileRoutes.entries()) {
     const routeApps = fileRouteApps[index];
     if (routeApps) {
       const segment = route.path.slice(route.path.lastIndexOf("/") + 1);
       appScope.use(new Elysia({ prefix: `/${segment}` }).use(routeApps.app));
-      shellScope.use(new Elysia({ prefix: `/${segment}` }).use(routeApps.shell));
+      if (route.path !== "/*") {
+        shellScope.use(new Elysia({ prefix: `/${segment}` }).use(routeApps.shell));
+      }
     }
   }
   for (const child of childApps) {
@@ -974,9 +1007,12 @@ function primaryInstance(instances: RouteInstanceSpec[]): RouteInstanceSpec {
   return instance;
 }
 
-function serverProxySource(instance: RouteInstanceSpec): string {
+function serverProxySource(instance: RouteInstanceSpec, includeRootCatchAll: boolean): string {
   const exportName = `furinApp_${Bun.hash(instanceKey(instance)).toString(16)}`;
-  return `export { ${exportName} as furinApp } from ${JSON.stringify(ROUTES_REGISTRY_SPECIFIER)};\n`;
+  const registry = includeRootCatchAll
+    ? ROUTES_REGISTRY_SPECIFIER
+    : COMPOSABLE_ROUTES_REGISTRY_SPECIFIER;
+  return `export { ${exportName} as furinApp } from ${JSON.stringify(registry)};\n`;
 }
 
 export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunPlugin {
@@ -986,14 +1022,28 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
     resolve(primaryInstance(options.instances).pagesDir),
     ".furin-routes-registry.ts?furin-virtual"
   );
-  const instancesBySpecifier = new Map(
-    options.instances.map(
-      (instance) =>
-        [
-          routeModuleSpecifier(instance),
-          { instance, namespace: instanceNamespace(instance) },
-        ] as const
-    )
+  const composableRegistryVirtualPath = join(
+    resolve(primaryInstance(options.instances).pagesDir),
+    ".furin-routes-registry-composable.ts?furin-virtual"
+  );
+  const instancesBySpecifier = new Map<
+    string,
+    { instance: RouteInstanceSpec; namespace: string; includeRootCatchAll: boolean }
+  >(
+    options.instances.flatMap((instance) => [
+      [
+        routeModuleSpecifier(instance),
+        { includeRootCatchAll: true, instance, namespace: instanceNamespace(instance) },
+      ] as const,
+      [
+        composableRouteModuleSpecifier(instance),
+        {
+          includeRootCatchAll: false,
+          instance,
+          namespace: `${instanceNamespace(instance)}-composable`,
+        },
+      ] as const,
+    ])
   );
 
   return {
@@ -1018,12 +1068,18 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
         }
         return { namespace: registered.namespace, path };
       });
-      build.onResolve({ filter: ROUTES_REGISTRY_FILTER }, () => ({
+      build.onResolve({ filter: ROUTES_REGISTRY_FILTER }, ({ path }) => ({
         namespace: "file",
-        path: registryVirtualPath,
+        path:
+          path === ROUTES_REGISTRY_SPECIFIER ? registryVirtualPath : composableRegistryVirtualPath,
       }));
-      build.onLoad({ filter: ROUTES_REGISTRY_FILE_FILTER, namespace: "file" }, async () => {
-        const contents = await serverRegistrySource(options.instances, routeFilesBySpecifier);
+      build.onLoad({ filter: ROUTES_REGISTRY_FILE_FILTER, namespace: "file" }, async ({ path }) => {
+        const contents = await serverRegistrySource(
+          options.instances,
+          routeFilesBySpecifier,
+          false,
+          path === registryVirtualPath
+        );
         await validateRouteModules(routeFilesBySpecifier.values());
         return { contents, loader: "ts" };
       });
@@ -1050,9 +1106,9 @@ export function createRoutesPlugin(options: CreateRoutesPluginOptions): Bun.BunP
           };
         }
       );
-      for (const { instance, namespace } of instancesBySpecifier.values()) {
+      for (const { instance, namespace, includeRootCatchAll } of instancesBySpecifier.values()) {
         build.onLoad({ filter: VIRTUAL_ROUTES_FILTER, namespace }, () => ({
-          contents: serverProxySource(instance),
+          contents: serverProxySource(instance, includeRootCatchAll),
           loader: "ts",
         }));
       }

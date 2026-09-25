@@ -4,6 +4,7 @@ import "../../setup/evlog-mock";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
+import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
 import { runLoaders, runPublicLoaders } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
@@ -138,7 +139,10 @@ describe("runLoaders requestLoader", () => {
         segmentBoundaries: [],
       } as unknown as ResolvedRoute;
 
-      const result = await runLoaders(route, createMockLoaderContext({ path: "/collision" }));
+      const result = await runInSyntheticRenderScope(
+        () => runLoaders(route, createMockLoaderContext({ path: "/collision" })),
+        { path: "/collision" }
+      );
       expect(result.type).toBe("data");
 
       expect(evlogWarnMock).toHaveBeenCalled();
@@ -167,7 +171,10 @@ describe("runLoaders requestLoader", () => {
         segmentBoundaries: [],
       } as unknown as ResolvedRoute;
 
-      const result = await runLoaders(route, createMockLoaderContext({ path: "/disjoint" }));
+      const result = await runInSyntheticRenderScope(
+        () => runLoaders(route, createMockLoaderContext({ path: "/disjoint" })),
+        { path: "/disjoint" }
+      );
       expect(result.type).toBe("data");
 
       expect(evlogWarnMock).not.toHaveBeenCalled();
@@ -278,7 +285,10 @@ describe("runLoaders requestLoader", () => {
     } as unknown as ResolvedRoute;
 
     try {
-      const result = await runLoaders(route, createMockLoaderContext({ path: "/rsc-error" }));
+      const result = await runInSyntheticRenderScope(
+        () => runLoaders(route, createMockLoaderContext({ path: "/rsc-error" })),
+        { path: "/rsc-error" }
+      );
 
       expect(result.type).toBe("error");
       if (result.type === "error") {

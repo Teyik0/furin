@@ -50,8 +50,8 @@ afterAll(async () => {
 });
 
 test("keeps forecast weekdays stable across server time zones", async () => {
-  const modulePath = new URL("../src/api/weather-page.ts", import.meta.url).pathname;
-  const script = `import { formatForecastWeekday } from ${JSON.stringify(modulePath)}; console.log(formatForecastWeekday("2026-09-19"));`;
+  const moduleUrl = new URL("../src/api/weather-page.ts", import.meta.url).href;
+  const script = `import { formatForecastWeekday } from ${JSON.stringify(moduleUrl)}; console.log(formatForecastWeekday("2026-09-19"));`;
   const process = Bun.spawn(["bun", "-e", script], {
     env: { ...Bun.env, TZ: "America/Los_Angeles" },
     stderr: "pipe",

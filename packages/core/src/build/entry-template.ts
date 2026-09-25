@@ -59,13 +59,15 @@ export interface EntryTemplateOptions {
   /**
    * - "boot" (default): forces production mode and dynamically imports the
    *   server entry after registering contexts — the whole app's entrypoint.
+   * - "app": registers contexts and exports the user's Elysia app without
+   *   starting a listener, so build-time tooling can safely import it.
    * - "register": ONLY registers contexts. Emitted by `--target package` as a
    *   side-effect module the HOST app imports; it must not touch dev mode or
    *   NODE_ENV (the host decides), and it imports furin internals via the
    *   package specifier so the host and the register module share ONE copy of
    *   the context registry (`packages: "external"` keeps it unbundled).
    */
-  mode?: "boot" | "register";
+  mode?: "app" | "boot" | "register";
   /**
    * Server entry to boot after context registration. Omitted in package
    * (register-module) mode where the entry only registers contexts.
@@ -195,6 +197,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
   const mode = options.mode ?? "boot";
   const internalSpecifier =
     mode === "register" ? "@teyik0/furin/internal" : INTERNAL_MODULE_PATH;
+  const productionMode = mode !== "register";
 
   const importLines: string[] = [];
   const contextBlocks: string[] = [];
@@ -212,11 +215,11 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
   const lines = [
     headerComment,
     `import { __setCompileContext } from ${JSON.stringify(internalSpecifier)};`,
-    ...(mode === "boot"
+    ...(productionMode
       ? [`import { __setDevMode } from ${JSON.stringify(RUNTIME_ENV_MODULE_PATH)};`]
       : []),
     ...importLines,
-    ...(mode === "boot"
+    ...(productionMode
       ? [
           "",
           "// Force production mode — Bun may inline process.env.NODE_ENV at bundle time.",
@@ -226,7 +229,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
       : []),
     ...contextBlocks,
     "",
-    ...(serverEntry
+    ...(serverEntry && mode === "boot"
       ? [
           `const __serverModule = await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`,
           "if (typeof __serverModule.startServer === \"function\") {",
@@ -246,7 +249,16 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
           "}",
           "",
         ]
-      : []),
+      : serverEntry && mode === "app"
+        ? [
+            `const __serverModule = await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`,
+            "export const app = __serverModule.default;",
+            "export const port = __serverModule.port;",
+            "export const startServer = __serverModule.startServer;",
+            "export default __serverModule.default;",
+            "",
+          ]
+        : []),
   ];
 
   return lines.join("\n");

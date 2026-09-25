@@ -22,6 +22,7 @@ if (projectPath === undefined || reportPath === undefined) {
 const projectDir = resolve(projectPath);
 const outputPath = resolve(reportPath);
 const measurementScript = join(import.meta.dirname, "measure-client-bundle.ts");
+const serverFilename = process.platform === "win32" ? "server.exe" : "server";
 mkdirSync(dirname(outputPath), { recursive: true });
 
 run(["bun", "install", "--frozen-lockfile"], projectDir);
@@ -37,7 +38,7 @@ run(
     "--json",
     outputPath,
     "--server-binary",
-    join(projectDir, "examples/weather/.furin/build/bun/server"),
+    join(projectDir, "examples/weather/.furin/build/bun", serverFilename),
   ],
   projectDir
 );

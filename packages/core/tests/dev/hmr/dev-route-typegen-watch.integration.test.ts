@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: integration polling waits for persistent process output
 import { expect, test } from "bun:test";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http.ts";
@@ -126,9 +126,8 @@ test.serial(
 
       compiler = startProcess(
         [
-          "bun",
-          "run",
-          "tsc",
+          process.execPath,
+          resolve(Bun.resolveSync("typescript", import.meta.dir), "../../bin/tsc"),
           "--watch",
           "--noEmit",
           "--pretty",
@@ -159,6 +158,7 @@ test.serial(
     } finally {
       compiler?.kill();
       server?.kill();
+      await Promise.all([compiler?.exitCode, server?.exitCode]);
       app.cleanup();
     }
   },

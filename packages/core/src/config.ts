@@ -1,7 +1,8 @@
 import type { BunPlugin } from "bun";
 import { t } from "elysia";
+import type { Static } from "typebox";
 
-export const BUILD_TARGETS = ["bun", "node", "vercel", "cloudflare", "static", "package"] as const;
+export const BUILD_TARGETS = ["bun", "vercel", "static", "package"] as const;
 
 export type BuildTarget = (typeof BUILD_TARGETS)[number];
 
@@ -101,7 +102,7 @@ export const configSchema = t.Object({
 
 export type FurinPlugin = BunPlugin & { buildOnly?: boolean };
 
-export type FurinConfig = (typeof configSchema)["static"] & {
+export type FurinConfig = Static<typeof configSchema> & {
   plugins?: FurinPlugin[];
   static?: StaticExportConfig;
 };

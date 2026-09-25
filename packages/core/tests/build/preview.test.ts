@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startStaticPreview } from "../../src/cli/preview.ts";
-import { getTestPort } from "../support/http.ts";
 import { startCli } from "../support/process.ts";
 
 const tempDirs: string[] = [];
@@ -123,20 +122,43 @@ describe("static preview", () => {
     writeFileSync(join(distDir, "index.html"), "<h1>Root</h1>");
     writeFileSync(join(distDir, "404.html"), "<h1>Missing</h1>");
 
-    const port = getTestPort();
     const cli = startCli(
-      ["preview", "--dir", ".", "--basePath", "/", "--port", String(port)],
+      ["preview", "--dir", ".", "--basePath", "/", "--port", "0"],
       { cwd: distDir },
     );
     try {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
+      for (let attempt = 0; attempt < 500; attempt += 1) {
         if (cli.getStdout().includes("Local:")) {
           break;
         }
         await Bun.sleep(10);
       }
-      expect(cli.getStdout()).toContain(`Local:  http://localhost:${port}/`);
+      const localUrl = cli.getStdout().match(/Local:\s+(http:\/\/localhost:\d+\/)/)?.[1];
+      expect(localUrl).toBeDefined();
+      const response = await fetch(localUrl as string);
+      expect(await response.text()).toBe("<h1>Root</h1>");
       expect(cli.getStderr()).toBe("");
+    } finally {
+      cli.kill();
+      await cli.exitCode;
+    }
+  });
+
+  test("rejects a whitespace-only preview port", async () => {
+    const distDir = mkdtempSync(join(tmpdir(), "furin-static-preview-cli-port-"));
+    tempDirs.push(distDir);
+    mkdirSync(join(distDir, "_client"), { recursive: true });
+    writeFileSync(join(distDir, "index.html"), "<h1>Root</h1>");
+    writeFileSync(join(distDir, "404.html"), "<h1>Missing</h1>");
+
+    const cli = startCli(["preview", "--dir", ".", "--port", " "], { cwd: distDir });
+    try {
+      const exitCode = await Promise.race([
+        cli.exitCode,
+        Bun.sleep(5000).then(() => undefined),
+      ]);
+      expect(exitCode).toBe(1);
+      expect(cli.getStderr()).toContain('Invalid preview port " ".');
     } finally {
       cli.kill();
       await cli.exitCode;

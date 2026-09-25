@@ -1,6 +1,6 @@
 import { expect } from "bun:test";
 import { join, relative } from "node:path";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import {
   __resetCacheState,
   __resetDevLoaderCacheState,
@@ -60,7 +60,7 @@ function getRoute(
   return route;
 }
 
-async function requestText(app: Elysia, path: string): Promise<string> {
+async function requestText(app: AnyElysia, path: string): Promise<string> {
   setProductionTemplateContent(template);
   const response = await app.handle(new Request(`http://localhost${path}`));
   expect(response.status).toBe(200);
@@ -77,7 +77,7 @@ function scanDefaultPages(): ReturnType<typeof scanPages> {
   return scanPages(fixturesDir);
 }
 
-function createDevRouteApp(route: ResolvedRoute, root: RootLayout): Elysia {
+function createDevRouteApp(route: ResolvedRoute, root: RootLayout): AnyElysia {
   __setDevMode(true);
   setProductionTemplateContent(template);
   return new Elysia().use(createRoutePlugin(route, root));

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-const ROUTER_TESTS_DIR_RE = /\/tests(?:\/.*)?$/;
+const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 test("rebuildDevRoute scenarios", () => {
   const proc = Bun.spawnSync({

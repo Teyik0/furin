@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -11,7 +11,7 @@ import {
   type SSGCacheSnapshot,
 } from "../build/ssg-cache.ts";
 import type { BuildAppOptions } from "../build/types.ts";
-import { routeModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
@@ -138,11 +138,17 @@ export async function createBuildFingerprint(
 
 function stableFingerprintPath(path: string, projectRoot: string): string {
   const projectPath = relative(projectRoot, path);
-  if (projectPath !== ".." && !projectPath.startsWith("../") && !projectPath.startsWith("..\\")) {
+  if (
+    !isAbsolute(projectPath) &&
+    projectPath !== ".." &&
+    !projectPath.startsWith("../") &&
+    !projectPath.startsWith("..\\")
+  ) {
     return `app/${toPosixPath(projectPath)}`;
   }
   const frameworkPath = relative(_pkgRoot, path);
   if (
+    !isAbsolute(frameworkPath) &&
     frameworkPath !== ".." &&
     !frameworkPath.startsWith("../") &&
     !frameworkPath.startsWith("..\\")
@@ -319,7 +325,7 @@ export async function buildRuntimeApp(
       deploymentTarget: targetName === "vercel" ? "vercel" : undefined,
       embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
-      nativeRoutes: routeModuleSpecifier(app),
+      nativeRoutes: composableRouteModuleSpecifier(app),
       prefix,
       rootConventions,
       rootPath: root.path,

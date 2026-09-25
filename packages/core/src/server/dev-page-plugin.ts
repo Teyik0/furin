@@ -70,10 +70,16 @@ export const WORKSPACE_SOURCE_FILTER =
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
+const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
 
 let _pluginRegistered = false;
 
 type SourceLoader = "js" | "jsx" | "ts" | "tsx";
+
+interface CachedDevPageContents {
+  contents: string;
+  moduleIdentity: string;
+}
 
 // ── Singleton package resolution ───────────────────────────────────────────────
 //
@@ -389,6 +395,48 @@ export function transformDevSource(
   }
 }
 
+function isMissingSourceFile(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+/** @internal exported for testing */
+export async function loadDevPageContents(
+  filePath: string,
+  moduleIdentity: string,
+  transformedSourceCache: Map<string, CachedDevPageContents>
+): Promise<string> {
+  let raw: string;
+  try {
+    raw = await Bun.file(filePath).text();
+  } catch (error) {
+    if (isMissingSourceFile(error)) {
+      const cached = transformedSourceCache.get(filePath);
+      transformedSourceCache.delete(filePath);
+      return cached?.moduleIdentity === moduleIdentity
+        ? cached.contents
+        : DELETED_DEV_PAGE_CONTENTS;
+    }
+    throw error;
+  }
+
+  let contents: string;
+  try {
+    contents = transformDevSource(raw, filePath, {
+      rewriteBareImports: true,
+      rewriteRelativeImports: true,
+    });
+  } catch (error) {
+    throw new DevTransformFailure(error, { cause: error });
+  }
+  transformedSourceCache.set(filePath, { contents, moduleIdentity });
+  return contents;
+}
+
 export function registerDevPagePlugin(): void {
   if (_pluginRegistered) {
     return;
@@ -397,6 +445,11 @@ export function registerDevPagePlugin(): void {
   Bun.plugin({
     name: "furin-dev-page-loader",
     setup(build) {
+      // Keep an already-loaded module generation usable if its source is
+      // deleted while Bun finishes that same generation. A later generation
+      // receives a tombstone instead of reviving the removed route.
+      const transformedSourceCache = new Map<string, CachedDevPageContents>();
+
       /**
        * Strip `?furin-server` but keep `?t=<source-version>` in the resolved
        * path so each edited version gets a new module identity.
@@ -493,16 +546,7 @@ export function registerDevPagePlugin(): void {
        */
       build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-page" }, async (args) => {
         const filePath = args.path.replace(STRIP_T_PARAM_RE, "");
-        const raw = await Bun.file(filePath).text();
-        let contents: string;
-        try {
-          contents = transformDevSource(raw, filePath, {
-            rewriteBareImports: true,
-            rewriteRelativeImports: true,
-          });
-        } catch (error) {
-          throw new DevTransformFailure(error, { cause: error });
-        }
+        const contents = await loadDevPageContents(filePath, args.path, transformedSourceCache);
 
         return {
           contents,

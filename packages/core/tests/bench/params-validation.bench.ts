@@ -55,9 +55,11 @@ async function benchHandle(
 
 // ── 1. Coût pur de la validation Elysia (micro) ────────────────────────────
 
-const withSchemaApp = new Elysia().get("/x/:id", ({ params }) => params.id, {
-  params: t.Object({ id: t.String() }),
-});
+const withSchemaApp = new Elysia().get(
+  "/x/:id",
+  { params: t.Object({ id: t.String() }) },
+  ({ params }) => params.id
+);
 
 const withoutSchemaApp = new Elysia().get("/x/:id", ({ params }) => params.id);
 

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeRouteTypes } from "../../src/build/route-types.ts";
 import type { ResolvedRoute } from "../../src/server/router/types.ts";
@@ -24,7 +25,7 @@ describe("writeRouteTypes", () => {
   let temporaryDirectory: string;
 
   beforeAll(() => {
-    temporaryDirectory = mkdtempSync("/tmp/furin-route-types-");
+    temporaryDirectory = mkdtempSync(join(tmpdir(), "furin-route-types-"));
     mkdirSync(join(temporaryDirectory, "src/pages/boards"), { recursive: true });
   });
 

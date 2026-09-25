@@ -6,58 +6,47 @@ import { createCard, deleteCard, getCard, updateCard } from "./service";
 
 export const cardPlugin = new Elysia()
   .use(furinSync(taskManagerSync))
-  .get("/cards/:id", ({ params, status }) => {
+  .get("/cards/:id", ({ params, problem }) => {
     const card = getCard(params.id);
     if (!card) {
-      return status("Not Found", "Not found");
+      return problem("Not Found", { detail: "Card not found" });
     }
     return card;
   })
   .post(
     "/boards/:boardId/cards",
-    ({ params, body }) => createCard(params.boardId, body.title, body.column),
     {
       body: t.Object({
         column: columnType,
         title: t.String({ minLength: 1 }),
       }),
       sync: { invalidate: { tags: ["cards"] } },
-    }
+    },
+    ({ params, body }) => createCard(params.boardId, body.title, body.column)
   )
   .post(
     "/cards/:id",
-    ({ params, body, status, redirect }) => {
-      const existing = getCard(params.id);
-      if (!existing) {
-        return status("Not Found", "Not found");
-      }
-      const card = updateCard(params.id, body);
-      if (!card) {
-        return status("Not Found", "Not found");
-      }
-      return redirect(`/board/${card.boardId}`);
-    },
     {
       body: t.Object({
         description: t.Optional(t.String()),
         title: t.Optional(t.String()),
       }),
       sync: { invalidate: { tags: ["cards"] } },
+    },
+    ({ params, body, problem, redirect }) => {
+      const existing = getCard(params.id);
+      if (!existing) {
+        return problem("Not Found", { detail: "Card not found" });
+      }
+      const card = updateCard(params.id, body);
+      if (!card) {
+        return problem("Not Found", { detail: "Card not found" });
+      }
+      return redirect(`/board/${card.boardId}`);
     }
   )
   .patch(
     "/cards/:id",
-    ({ params, body, status }) => {
-      const existing = getCard(params.id);
-      if (!existing) {
-        return status("Not Found", "Not found");
-      }
-      const card = updateCard(params.id, body);
-      if (!card) {
-        return status("Not Found", "Not found");
-      }
-      return card;
-    },
     {
       body: t.Object({
         column: t.Optional(columnType),
@@ -66,22 +55,27 @@ export const cardPlugin = new Elysia()
         title: t.Optional(t.String()),
       }),
       sync: { invalidate: { tags: ["cards"] } },
+    },
+    ({ params, body, problem }) => {
+      const existing = getCard(params.id);
+      if (!existing) {
+        return problem("Not Found", { detail: "Card not found" });
+      }
+      const card = updateCard(params.id, body);
+      if (!card) {
+        return problem("Not Found", { detail: "Card not found" });
+      }
+      return card;
     }
   )
-  .delete(
-    "/cards/:id",
-    ({ params, status }) => {
-      const card = getCard(params.id);
-      if (!card) {
-        return status("Not Found", "Not found");
-      }
-      const ok = deleteCard(params.id);
-      if (!ok) {
-        return status("Not Found", "Not found");
-      }
-      return { ok: true };
-    },
-    {
-      sync: { invalidate: { tags: ["cards"] } },
+  .delete("/cards/:id", { sync: { invalidate: { tags: ["cards"] } } }, ({ params, problem }) => {
+    const card = getCard(params.id);
+    if (!card) {
+      return problem("Not Found", { detail: "Card not found" });
     }
-  );
+    const ok = deleteCard(params.id);
+    if (!ok) {
+      return problem("Not Found", { detail: "Card not found" });
+    }
+    return { ok: true };
+  });

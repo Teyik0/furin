@@ -2,12 +2,12 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { RequestLogger } from "evlog";
 // biome-ignore lint/style/noExportedImports: used locally and re-exported for consumers
 import { createLogger } from "evlog";
-import { useLogger as _evlogUseLogger } from "evlog/elysia";
+import { getRequestLogger } from "./evlog.ts";
 
 export { createLogger };
 
 /**
- * Fallback used when useLogger() is called completely outside any context
+ * Fallback used when getLogger() is called completely outside any context
  * (not in a live request, not in a synthetic render scope).
  */
 const noopLogger: RequestLogger = {
@@ -40,9 +40,9 @@ const syntheticRenderStorage = new AsyncLocalStorage<RequestLogger>();
  * Import from `@teyik0/furin` instead of `evlog/elysia` so this fallback chain
  * applies in all rendering contexts.
  */
-export function useLogger(): RequestLogger {
+export function getLogger(): RequestLogger {
   try {
-    return _evlogUseLogger();
+    return getRequestLogger();
   } catch {
     return syntheticRenderStorage.getStore() ?? noopLogger;
   }
@@ -52,7 +52,7 @@ export function useLogger(): RequestLogger {
  * Runs `fn` inside a synthetic render scope.
  *
  * Creates a detached `createLogger()` instance for the duration of `fn`.
- * `useLogger()` calls inside `fn` (including user loaders) return this logger
+ * `getLogger()` calls inside `fn` (including user loaders) return this logger
  * instead of throwing. On completion, the accumulated wide event is emitted to
  * the global drain with the provided initial context (e.g. route pattern).
  *

@@ -18,7 +18,7 @@ import { mergeRouteSchemas } from "../../../src/server/router/schema-merge.ts";
 import { parseRouteQuery } from "../../../src/server/router/schemas.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
-const ROUTER_TESTS_DIR_RE = /\/tests(?:\/.*)?$/;
+const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
 
 let originalDevMode: boolean;
 beforeAll(() => {
@@ -94,7 +94,7 @@ describe("mergeRouteSchemas", () => {
     ];
 
     expect(() => mergeRouteSchemas(chain as RuntimeRoute[], "query")).toThrow(
-      "[furin] Merging query schemas across the route chain requires TypeBox in V1. Use TypeBox for parent/child query, or define query only on leaf routes."
+      "[furin] Merging query schemas across the route chain requires TypeBox object schemas. Use TypeBox for parent/child query, or define query only on leaf routes."
     );
   });
 
@@ -111,7 +111,7 @@ describe("mergeRouteSchemas", () => {
     ];
 
     expect(() => mergeRouteSchemas(chain as RuntimeRoute[], "query")).toThrow(
-      "[furin] Merging query schemas across the route chain requires TypeBox in V1. Use TypeBox for parent/child query, or define query only on leaf routes."
+      "[furin] Merging query schemas across the route chain requires TypeBox object schemas. Use TypeBox for parent/child query, or define query only on leaf routes."
     );
   });
 });
@@ -132,6 +132,33 @@ describe("parseRouteQuery", () => {
     expect(result).toEqual({ ok: true, query: elysiaQuery });
   });
 
+  test("matches Elysia array query parsing for repeated, comma, and bracket values", async () => {
+    const schema = t.Object({ tags: t.Array(t.String()) });
+    const app = new Elysia().get("/products", { query: schema }, ({ query }) => query);
+
+    await Promise.all(
+      [
+        "tags=a&tags=b",
+        "tags=a,b",
+        "tags=[a,b]",
+        "tags=%5Ba%2Cb%5D",
+        "tags=a%2Cb",
+        "tags=[a%2Cb,c]",
+        "tags=%5Ba%2Cb%2Cc%5D",
+        "tags=a&tags=b,c",
+        "tags=%5B%22a%2Cb%22%2C%22c%22%5D",
+      ].map(async (search) => {
+        const url = new URL(`http://localhost/products?${search}`);
+        const response = await app.handle(new Request(url));
+        expect(response.status).toBe(200);
+        expect(await parseRouteQuery(url, schema)).toEqual({
+          ok: true,
+          query: await response.json(),
+        });
+      })
+    );
+  });
+
   test("coerces anyOf array and object query schemas", async () => {
     const schema = t.Object({
       filter: t.Union([t.Object({ category: t.String() }), t.Null()]),
@@ -149,6 +176,89 @@ describe("parseRouteQuery", () => {
         filter: { category: "framework" },
         tags: ["react", "furin"],
       },
+    });
+  });
+
+  test("coerces the matching object member of an anyOf query schema", async () => {
+    const schema = t.Object({
+      filter: t.Union([
+        t.Object({ page: t.Number() }, { additionalProperties: false }),
+        t.Object({ active: t.Boolean() }, { additionalProperties: false }),
+      ]),
+    });
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"active":"true"}'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { filter: { active: true } },
+    });
+  });
+
+  test("coerces every member of an intersected query schema", async () => {
+    const schema = t.Intersect([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]);
+
+    const result = await parseRouteQuery(
+      new URL("http://localhost/products?page=2&active=true"),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, page: 2 },
+    });
+  });
+
+  test("parses and coerces object properties inside an intersected query schema", async () => {
+    const schema = t.Intersect([
+      t.Object({ filter: t.Object({ page: t.Number() }) }),
+      t.Object({ active: t.Boolean() }),
+    ]);
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"page":"2"}&active=true'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, filter: { page: 2 } },
+    });
+  });
+
+  test("parses an object-valued query property defined as an intersection", async () => {
+    const schema = t.Object({
+      filter: t.Intersect([t.Object({ page: t.Number() }), t.Object({ active: t.Boolean() })]),
+    });
+
+    const result = await parseRouteQuery(
+      new URL('http://localhost/products?filter={"page":"2","active":"true"}'),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { filter: { active: true, page: 2 } },
+    });
+  });
+
+  test("coerces primitive query values like an Elysia route", async () => {
+    const schema = t.Object({
+      active: t.Boolean(),
+      page: t.Number(),
+    });
+
+    const result = await parseRouteQuery(
+      new URL("http://localhost/products?page=2&active=true"),
+      schema
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      query: { active: true, page: 2 },
     });
   });
 });

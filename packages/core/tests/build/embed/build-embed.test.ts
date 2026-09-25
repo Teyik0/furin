@@ -39,12 +39,26 @@ describe.serial("compile: embed", () => {
     writeFileSync(
       serverPath,
       `import { furin } from "@teyik0/furin";
+import type { SyncAdapter } from "@teyik0/furin/sync";
 import Elysia from "elysia";
 
 export const port = 3111;
 
+const adapter: SyncAdapter = {
+  scope: "host-local",
+  abortMutation: async () => {},
+  beginMutation: async () => ({ kind: "conflict", reason: "in-progress" }),
+  completeMutation: async () => ({ kind: "lost" }),
+  currentCursor: async () => "0",
+  readChanges: async () => ({ changes: [], cursor: "0", hasMore: false, reset: false }),
+  renewMutation: async () => "lost",
+};
+
 const app = new Elysia().use(
-  await furin({ pagesDir: \`${"${import.meta.dir}"}/pages\` })
+  await furin({
+    pagesDir: \`${"${import.meta.dir}"}/pages\`,
+    sync: { adapter, principal: () => "test" },
+  })
 );
 
 export default app;
@@ -53,7 +67,9 @@ export default app;
 
     const result = await runCli(["build", "--compile", "embed"], { cwd: app.path });
 
-    expect(result.exitCode).toBe(0);
+    if (result.exitCode !== 0) {
+      throw new Error(`Compiled server build failed:\n${result.stdout}\n${result.stderr}`);
+    }
     const targetDir = join(app.path, ".furin/build/bun");
     const serverBin = existsSync(join(targetDir, "server"))
       ? join(targetDir, "server")
@@ -93,13 +109,30 @@ export default app;
       expect(publicAsset.status).toBe(200);
       expect(await publicAsset.text()).toBe("embedded public asset");
 
-      const clientAssetPath = html.match(/src="([^"]+\.js)"/)?.[1];
+      const clientAssetPath = html.match(/src="(\/_client\/[^"]+\.js)"/)?.[1];
       expect(clientAssetPath).toBeDefined();
       const clientAsset = await fetch(`http://127.0.0.1:${port}${clientAssetPath}`);
       expect(clientAsset.status).toBe(200);
       expect(clientAsset.headers.get("cache-control")).toBe(
         "public, max-age=31536000, immutable",
       );
+
+      const socket = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("Timed out opening the compiled browser-event socket")),
+          5000,
+        );
+        socket.addEventListener("open", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        socket.addEventListener("error", () => {
+          clearTimeout(timeout);
+          reject(new Error("Compiled browser-event socket failed to open"));
+        });
+      });
+      socket.close();
     } finally {
       server.kill();
       await server.exitCode;

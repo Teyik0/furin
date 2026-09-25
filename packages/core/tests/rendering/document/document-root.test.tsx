@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 const { furin } = await import("../../../src/furin.ts");
@@ -42,7 +42,7 @@ export const route = defineRoute()
 `;
 }
 
-async function createDocumentApp(options: DocumentSourceOptions): Promise<Elysia> {
+async function createDocumentApp(options: DocumentSourceOptions): Promise<AnyElysia> {
   const fixture = createTmpApp("cli-app");
   tmpApps.push(fixture);
   process.chdir(fixture.path);
