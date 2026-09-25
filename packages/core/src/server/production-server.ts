@@ -2,10 +2,24 @@ import type { AnyElysia } from "elysia";
 import { closeBrowserEventConnections } from "./browser-events/shutdown.ts";
 import { waitForPendingISRRevalidations } from "./cache/isr.ts";
 import { setRuntimeEvlogWaitUntil } from "./evlog.ts";
-import { closeSyncCursorStates } from "./sync/stream.ts";
+import { closeSyncCursorStates, waitForSyncCursorUnsubscriptions } from "./sync/stream.ts";
 
 const DEFAULT_PRE_STOP_DELAY_MS = 5000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
+const activeShutdowns = new Set<() => Promise<void>>();
+
+const signalShutdown = (): void => {
+  Promise.allSettled([...activeShutdowns].map((shutdown) => shutdown())).then((results) => {
+    let code = process.exitCode ?? 0;
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error("[furin] Graceful shutdown failed", result.reason);
+        code = 1;
+      }
+    }
+    process.exit(code);
+  });
+};
 
 export interface ProductionServerOptions {
   app: AnyElysia;
@@ -86,7 +100,11 @@ export function startProductionServer(options: ProductionServerOptions): {
           await server.stop();
           await waitForPendingISRRevalidations();
           await Promise.allSettled([...pendingEmissions]);
-          await closeSyncCursorStates();
+          if (activeShutdowns.size === 1) {
+            await closeSyncCursorStates();
+          } else {
+            await waitForSyncCursorUnsubscriptions();
+          }
           await options.onShutdown?.();
         };
         await Promise.race([drain(), deadline]);
@@ -94,24 +112,21 @@ export function startProductionServer(options: ProductionServerOptions): {
         if (timeout) {
           clearTimeout(timeout);
         }
-        process.off("SIGTERM", signalShutdown);
-        process.off("SIGINT", signalShutdown);
+        activeShutdowns.delete(shutdown);
+        if (activeShutdowns.size === 0) {
+          process.off("SIGTERM", signalShutdown);
+          process.off("SIGINT", signalShutdown);
+        }
         unregisterWaitUntil();
       }
     })();
     return shutdownPromise;
   };
 
-  const signalShutdown = (): void => {
-    shutdown().then(
-      () => process.exit(process.exitCode ?? 0),
-      (error: unknown) => {
-        console.error("[furin] Graceful shutdown failed", error);
-        process.exit(1);
-      }
-    );
-  };
-  process.on("SIGTERM", signalShutdown);
-  process.on("SIGINT", signalShutdown);
+  if (activeShutdowns.size === 0) {
+    process.on("SIGTERM", signalShutdown);
+    process.on("SIGINT", signalShutdown);
+  }
+  activeShutdowns.add(shutdown);
   return { server, shutdown };
 }

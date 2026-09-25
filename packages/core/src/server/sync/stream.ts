@@ -215,5 +215,10 @@ export async function closeSyncCursorStates(): Promise<void> {
       return [trackUnsubscription(state.subscription)];
     })
   );
+  await waitForSyncCursorUnsubscriptions();
+}
+
+/** Wait for released connections without closing subscriptions owned by other servers. */
+export async function waitForSyncCursorUnsubscriptions(): Promise<void> {
   await Promise.allSettled([...pendingUnsubscriptions]);
 }

@@ -4,6 +4,8 @@ import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../src/server/browser-events/plugin.ts";
 import { createFurinEvlog } from "../../src/server/evlog.ts";
 import { startProductionServer } from "../../src/server/production-server.ts";
+import type { SyncAdapter } from "../../src/server/sync/adapter.ts";
+import { subscribeSyncCursor } from "../../src/server/sync/stream.ts";
 
 test.each([
   { code: 7, mode: "success" },
@@ -27,6 +29,14 @@ test.each([
         if (${JSON.stringify(mode)} === "deadline") await new Promise(() => {});
       },
     });
+    startProductionServer({
+      app: new Elysia(), port: 0,
+      preStopDelayMs: 0, shutdownTimeoutMs: 1000,
+      onShutdown: async () => {
+        await Bun.sleep(200);
+        console.log("SECOND_SERVER_DRAINED");
+      },
+    });
     process.emit("SIGTERM");
   `,
     ],
@@ -41,6 +51,7 @@ test.each([
       }),
     ]);
     expect(result).toBe(code);
+    expect(await new Response(child.stdout).text()).toContain("SECOND_SERVER_DRAINED");
     if (mode === "failure") {
       expect(await new Response(child.stderr).text()).toContain("Graceful shutdown failed");
     }
@@ -277,6 +288,37 @@ test("shutting down one server leaves another server's browser-event sockets ope
     preStopDelayMs: 0,
     shutdownTimeoutMs: 2000,
   });
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.reject(new Error("not used")),
+    completeMutation: () => Promise.reject(new Error("not used")),
+    currentCursor: () => Promise.resolve("7"),
+    readChanges: () => Promise.reject(new Error("not used")),
+    renewMutation: () => Promise.reject(new Error("not used")),
+    scope: "host-local",
+  };
+  let publish: (cursor: string) => void = () => undefined;
+  const cursors: string[] = [];
+  let unsubscribed = false;
+  const subscription = await subscribeSyncCursor(
+    {
+      adapter,
+      notifier: {
+        publish: () => Promise.resolve(),
+        subscribe: (listener) => {
+          publish = listener;
+          return Promise.resolve({
+            unsubscribe: () => {
+              unsubscribed = true;
+              return Promise.resolve();
+            },
+          });
+        },
+      },
+      principal: () => "test",
+    },
+    (cursor) => cursors.push(cursor)
+  );
   const firstSocket = new WebSocket(`ws://localhost:${first.server.port}/_furin/events`);
   const secondSocket = new WebSocket(`ws://localhost:${second.server.port}/_furin/events`);
   const firstClosed = new Promise<void>((resolve) =>
@@ -296,7 +338,11 @@ test("shutting down one server leaves another server's browser-event sockets ope
     await firstClosed;
     expect(firstSocket.readyState).toBe(WebSocket.CLOSED);
     expect(secondSocket.readyState).toBe(WebSocket.OPEN);
+    publish("8");
+    expect(unsubscribed).toBe(false);
+    expect(cursors).toEqual(["7", "8"]);
   } finally {
+    subscription.unsubscribe();
     firstSocket.close();
     secondSocket.close();
     await Promise.all([first.shutdown(), second.shutdown()]);
