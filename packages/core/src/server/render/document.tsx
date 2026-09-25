@@ -5,6 +5,7 @@ import {
   type DocumentState,
 } from "../../client/document.tsx";
 import type { HeadOptions } from "../../client.ts";
+import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import { currentInstance } from "../instance.ts";
 import { getSyncPath } from "../sync/config.ts";
 import { safeJson } from "./shell.ts";
@@ -24,10 +25,15 @@ export function withDocumentState(
           ...assets,
           frameworkModules: [browserEventsClientPath, ...assets.frameworkModules],
         };
+  const routeFrames =
+    data !== undefined && containsRscSource(data)
+      ? serializeRouteFrames(data, undefined)
+      : undefined;
   const state: DocumentState = {
     assets: resolvedAssets,
-    dataJson: data === undefined ? undefined : safeJson(data),
+    dataJson: data === undefined || routeFrames !== undefined ? undefined : safeJson(data),
     head,
+    routeFrames,
     syncJson: syncPath === undefined ? undefined : safeJson({ path: syncPath }),
   };
   return createElement(DocumentProvider, { value: state }, element);

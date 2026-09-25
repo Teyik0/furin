@@ -54,6 +54,11 @@ function loadServerCodec(): Promise<ServerCodec> {
     }
     const result = await Bun.build({
       conditions: ["react-server"],
+      define: {
+        "process.env.NODE_ENV": JSON.stringify(
+          process.env.NODE_ENV === "production" ? "production" : "development"
+        ),
+      },
       entrypoints: [sourcePath],
       format: "esm",
       minify: false,

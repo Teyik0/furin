@@ -23,10 +23,10 @@ test(
   "RSC public API scenarios",
   async () => {
     const result = await runRscScenarioWorker();
-    expect(result.type).toBe("pass");
     if (result.type === "fail") {
       throw new Error([result.message, result.stack].filter(Boolean).join("\n"));
     }
+    expect(result.type).toBe("pass");
   },
   { timeout: 30_000 }
 );

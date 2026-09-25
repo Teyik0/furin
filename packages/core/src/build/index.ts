@@ -82,6 +82,20 @@ function resolveAppSpecs(
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    return await buildAppInternal(options);
+  } finally {
+    if (previousNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+  }
+}
+
+async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
   const rootDir = resolve(options.rootDir ?? process.cwd());
   const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
   const serverEntry = (() => {

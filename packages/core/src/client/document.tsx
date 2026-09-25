@@ -14,6 +14,7 @@ export interface DocumentState {
   assets: DocumentAssets;
   dataJson: string | undefined;
   head: HeadOptions | undefined;
+  routeFrames?: string;
   syncJson: string | undefined;
 }
 
@@ -127,6 +128,15 @@ export function Scripts(): ReactNode {
           dangerouslySetInnerHTML={{ __html: state.dataJson }}
           id="__FURIN_DATA__"
           type="application/json"
+        />
+      )}
+      {state.routeFrames === undefined ? null : (
+        <template
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: route frames are escaped before insertion.
+          dangerouslySetInnerHTML={{
+            __html: state.routeFrames.replaceAll("&", "&amp;").replaceAll("<", "&lt;"),
+          }}
+          id="__FURIN_ROUTE_FRAMES__"
         />
       )}
       <script
