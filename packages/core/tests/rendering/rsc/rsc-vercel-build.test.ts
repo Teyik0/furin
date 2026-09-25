@@ -36,8 +36,9 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
     const sourceModule = pathToFileURL(join(import.meta.dir, "../../../src/rsc/shared.tsx")).href;
     const script = `
       const html = await Bun.file(process.argv[1]).text();
-      const templateId = html.indexOf('id="__FURIN_ROUTE_FRAMES__"');
-      const payloadStart = html.indexOf('>', templateId) + 1;
+      const templateOpening = /<template\\b(?=[^>]*\\sid="__FURIN_ROUTE_FRAMES__"(?:\\s|>))[^>]*>/.exec(html);
+      if (!templateOpening) throw new Error('route frame template missing');
+      const payloadStart = templateOpening.index + templateOpening[0].length;
       const payload = html.slice(payloadStart, html.indexOf('</template>', payloadStart))
         .replaceAll('&lt;', '<').replaceAll('&amp;', '&');
       const { parseDeferredNdjson } = await import(${JSON.stringify(parseModule)});

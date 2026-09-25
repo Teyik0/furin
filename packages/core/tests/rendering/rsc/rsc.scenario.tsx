@@ -18,6 +18,9 @@ process.env.FURIN_RSC_CODEC_PATH = "";
 
 type RenderServerComponent = (node: ReactNode) => Promise<ReactNode>;
 
+const ROUTE_FRAME_TEMPLATE_PATTERN =
+  /<template\b(?=[^>]*\sid="__FURIN_ROUTE_FRAMES__"(?:\s|>))[^>]*>/;
+
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
   .layout(({ children }) => (
@@ -116,15 +119,11 @@ function createMockContext(path: string): Context {
 }
 
 function extractRouteFramePayload(html: string): string {
-  const idIndex = html.indexOf('id="__FURIN_ROUTE_FRAMES__"');
-  const start = html.lastIndexOf("<template", idIndex);
-  if (idIndex === -1 || start === -1) {
+  const openingTag = ROUTE_FRAME_TEMPLATE_PATTERN.exec(html);
+  if (openingTag === null) {
     throw new Error("route frame template missing");
   }
-  const contentStart = html.indexOf(">", idIndex) + 1;
-  if (contentStart === 0) {
-    throw new Error("route frame template opening tag was not closed");
-  }
+  const contentStart = openingTag.index + openingTag[0].length;
   const contentEnd = html.indexOf("</template>", contentStart);
   if (contentEnd === -1) {
     throw new Error("route frame template was not closed");
@@ -161,6 +160,12 @@ try {
   const { CompositeComponent, createCompositeComponent, renderServerComponent } = await import(
     "furin/rsc"
   );
+
+  expect(
+    extractRouteFramePayload(
+      '<template data-id=\'id="__FURIN_ROUTE_FRAMES__"\'>decoy</template><template id="__FURIN_ROUTE_FRAMES__">payload</template>'
+    )
+  ).toBe("payload");
 
   let article = await renderServerComponent(<h1>Composite RSC</h1>);
   expect(await renderHtml(<main>{article}</main>)).toBe("<main><h1>Composite RSC</h1></main>");
