@@ -1,0 +1,27 @@
+packages/core/src/client/document.tsx
+  s_7c2a26ae7397db::t_a6c330eb6f6d2f 139
+packages/core/tests/rendering/rsc/rsc-vercel-build.test.ts
+  s_7c2a26ae7397db::t_fce338f685e782 29-30,39-40
+  s_7c2a26ae7397db::t_d674f5b5f1e1f9 41-42
+packages/core/src/build/hydrate.ts
+  s_7c2a26ae7397db::t_6bf9f1e2ca6d71 235-237
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_7c2a26ae7397db::t_d674f5b5f1e1f9 125-127
+  s_7c2a26ae7397db::t_fce338f685e782 119-121,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b22d024e72b2c2f233f39a478d48a83a2f529c29",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
