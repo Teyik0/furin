@@ -159,7 +159,7 @@
     "seroval": "^1.6.7",
     "typebox": "catalog:",
     "yuku-ast": "0.9.5",
-    "yuku-parser": "0.9.5"
+    "yuku-parser": "0.10.2"
   },
   "devDependencies": {
     "@types/react": "catalog:",
