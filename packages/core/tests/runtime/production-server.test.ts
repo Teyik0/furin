@@ -99,7 +99,7 @@ test("bounds application cleanup by the shutdown timeout", async () => {
       }),
     ]);
     expect(completed).toBe(false);
-    const result = await Promise.race([shutdown, Bun.sleep(2200).then(() => "timed-out")]);
+    const result = await Promise.race([shutdown, Bun.sleep(1400).then(() => "timed-out")]);
     expect(result).toBe("stopped");
   } finally {
     resolve();
