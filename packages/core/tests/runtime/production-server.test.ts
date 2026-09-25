@@ -73,20 +73,33 @@ describe("Bun production lifecycle", () => {
 });
 
 test("bounds application cleanup by the shutdown timeout", async () => {
+  const { promise: cleanupStarted, resolve: markCleanupStarted } = Promise.withResolvers<void>();
   const { promise: releaseCleanup, resolve } = Promise.withResolvers<void>();
   const lifecycle = startProductionServer({
     app: new Elysia().get("/", () => "ok"),
-    onShutdown: () => releaseCleanup,
+    onShutdown: () => {
+      markCleanupStarted();
+      return releaseCleanup;
+    },
     port: 0,
     preStopDelayMs: 0,
-    shutdownTimeoutMs: 50,
+    shutdownTimeoutMs: 1000,
   });
 
   try {
-    const result = await Promise.race([
-      lifecycle.shutdown().then(() => "stopped"),
-      Bun.sleep(200).then(() => "timed-out"),
+    let completed = false;
+    const shutdown = lifecycle.shutdown().then(() => {
+      completed = true;
+      return "stopped";
+    });
+    await Promise.race([
+      cleanupStarted,
+      Bun.sleep(1500).then(() => {
+        throw new Error("Application cleanup did not start");
+      }),
     ]);
+    expect(completed).toBe(false);
+    const result = await Promise.race([shutdown, Bun.sleep(2200).then(() => "timed-out")]);
     expect(result).toBe("stopped");
   } finally {
     resolve();
