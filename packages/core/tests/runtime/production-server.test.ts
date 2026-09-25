@@ -1,8 +1,55 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../src/server/browser-events/plugin.ts";
 import { createFurinEvlog } from "../../src/server/evlog.ts";
 import { startProductionServer } from "../../src/server/production-server.ts";
+
+test.each([
+  { code: 7, mode: "success" },
+  { code: 1, mode: "failure" },
+  { code: 7, mode: "deadline" },
+])("signal shutdown exits with lingering handles: $mode", async ({ mode, code }) => {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      "-e",
+      `
+    import { Elysia } from "elysia";
+    import { startProductionServer } from "./src/server/production-server.ts";
+    setInterval(() => {}, 1000);
+    process.exitCode = 7;
+    startProductionServer({
+      app: new Elysia().get("/", () => "ok"), port: 0,
+      preStopDelayMs: 0, shutdownTimeoutMs: 100,
+      onShutdown: async () => {
+        if (${JSON.stringify(mode)} === "failure") throw new Error("cleanup failed");
+        if (${JSON.stringify(mode)} === "deadline") await new Promise(() => {});
+      },
+    });
+    process.emit("SIGTERM");
+  `,
+    ],
+    { cwd: fileURLToPath(new URL("../../", import.meta.url)), stderr: "pipe", stdout: "pipe" }
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      child.exited,
+      new Promise<string>((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), 3000);
+      }),
+    ]);
+    expect(result).toBe(code);
+    if (mode === "failure") {
+      expect(await new Response(child.stderr).text()).toContain("Graceful shutdown failed");
+    }
+  } finally {
+    clearTimeout(timer);
+    child.kill();
+    await child.exited;
+  }
+});
 
 describe("Bun production lifecycle", () => {
   test("separates liveness and readiness while draining in-flight requests", async () => {
@@ -14,7 +61,8 @@ describe("Bun production lifecycle", () => {
         await release;
         return "finished";
       })
-      .get("/_furin/health/admin", () => "private");
+      .get("/_furin/health/admin", () => "private")
+      .get("/", () => "ok");
     const lifecycle = startProductionServer({
       app,
       port: 0,
@@ -31,8 +79,8 @@ describe("Bun production lifecycle", () => {
       const shutdown = lifecycle.shutdown();
       expect((await fetch(`${origin}/_furin/health/ready`)).status).toBe(503);
       expect((await fetch(`${origin}/_furin/health/live`)).status).toBe(200);
-      expect((await fetch(`${origin}/slow`)).status).toBe(503);
-      expect((await fetch(`${origin}/_furin/health/admin`)).status).toBe(503);
+      expect(await (await fetch(`${origin}/`)).text()).toBe("ok");
+      expect((await fetch(`${origin}/_furin/health/admin`)).status).toBe(200);
       resolve();
       expect(await (await slow).text()).toBe("finished");
       await shutdown;

@@ -23,6 +23,7 @@ export function startProductionServer(options: ProductionServerOptions): {
   const { app } = options;
   const pendingEmissions = new Set<Promise<unknown>>();
   let draining = false;
+  let rejecting = false;
 
   const unregisterWaitUntil = setRuntimeEvlogWaitUntil((emission) => {
     pendingEmissions.add(emission);
@@ -32,7 +33,7 @@ export function startProductionServer(options: ProductionServerOptions): {
   app
     .wrap((fetch) => (request, ...rest) => {
       const path = new URL(request.url).pathname;
-      if (draining && path !== "/_furin/health/live" && path !== "/_furin/health/ready") {
+      if (rejecting && path !== "/_furin/health/live" && path !== "/_furin/health/ready") {
         return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
       }
       return fetch(request, ...rest);
@@ -69,6 +70,7 @@ export function startProductionServer(options: ProductionServerOptions): {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         await Bun.sleep(delayMs);
+        rejecting = true;
         const deadline = new Promise<void>((resolve) => {
           timeout = setTimeout(() => {
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
@@ -102,10 +104,10 @@ export function startProductionServer(options: ProductionServerOptions): {
 
   const signalShutdown = (): void => {
     shutdown().then(
-      () => undefined,
+      () => process.exit(process.exitCode ?? 0),
       (error: unknown) => {
         console.error("[furin] Graceful shutdown failed", error);
-        process.exitCode = 1;
+        process.exit(1);
       }
     );
   };

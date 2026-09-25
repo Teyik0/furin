@@ -182,6 +182,7 @@ export class RedisPageCache implements PageCacheAdapter {
       this.fenceKey(identity),
       this.versionsKey(identity.scope),
       this.leasesKey(identity.scope),
+      ...[...new Set(identity.tags)].map((tag) => this.tagLeasesKey(identity.scope, tag)),
     ];
     const raw = await this.client.send("EVAL", [
       ACQUIRE_PAGE_CACHE_LEASE_SCRIPT,
@@ -283,6 +284,7 @@ export class RedisPageCache implements PageCacheAdapter {
       this.pathsKey(input.scope),
       this.leasesKey(input.scope),
       ...tags.map((tag) => this.tagPathsKey(input.scope, tag)),
+      ...tags.map((tag) => this.tagLeasesKey(input.scope, tag)),
     ];
     const result = stringArrayResult(
       await this.client.send("EVAL", [
@@ -349,6 +351,10 @@ export class RedisPageCache implements PageCacheAdapter {
 
   private tagPathsKey(scope: string, tag: string): string {
     return `${this.prefix}:tag-paths:${digest(scope)}:${digest(tag)}`;
+  }
+
+  private tagLeasesKey(scope: string, tag: string): string {
+    return `${this.prefix}:tag-leases:${digest(scope)}:${digest(tag)}`;
   }
 
   private versionsKey(scope: string): string {
