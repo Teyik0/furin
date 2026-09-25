@@ -299,8 +299,8 @@ server {
   # Configure certificates and HTTP/2 for your environment.
   gzip on;
   gzip_vary on;
-  gzip_types text/css application/javascript application/json image/svg+xml;
-  # If the Brotli module is installed: brotli on; brotli_types text/html text/css application/javascript application/json image/svg+xml;
+  gzip_types text/css text/javascript application/javascript application/json image/svg+xml;
+  # If the Brotli module is installed: brotli on; brotli_types text/html text/css text/javascript application/javascript application/json image/svg+xml;
 
   location / {
     proxy_pass http://furin;
@@ -322,7 +322,7 @@ Verify your actual proxy build supports Brotli before enabling it. Test both `Ac
 
 ### Health and graceful shutdown
 
-The generated Bun server exposes `/_furin/health/live` and `/_furin/health/ready`. Both return `Cache-Control: no-store`. Liveness means the process is running; readiness means it still accepts application traffic. On `SIGTERM` or `SIGINT`, readiness becomes 503 immediately and new application requests receive 503, while liveness remains 200 during the drain. After a five-second load-balancer propagation window, Furin closes its browser-event WebSockets, stops accepting connections, waits for in-flight HTTP requests, ISR regeneration, deferred request-log emissions, and Sync cursor unsubscriptions, then calls an optional application `onShutdown` export. Bun force-closes remaining sockets after 30 seconds. Configure your orchestrator's termination grace period above 35 seconds, plus any time needed by your `onShutdown` hook. The proxy must remove a replica when readiness fails; use liveness only to detect a stuck process, not to decide traffic routing.
+The generated Bun server exposes `/_furin/health/live` and `/_furin/health/ready`. Both return `Cache-Control: no-store`. Liveness means the process is running; readiness means it still accepts application traffic. On `SIGTERM` or `SIGINT`, readiness becomes 503 immediately and new application requests receive 503, while liveness remains 200 during the drain. After a five-second load-balancer propagation window, Furin closes its browser-event WebSockets, stops accepting connections, waits for in-flight HTTP requests, ISR regeneration, deferred request-log emissions, and Sync cursor unsubscriptions, then calls an optional application `onShutdown` export. The 30-second deadline covers this entire drain; when it expires, Bun force-closes remaining sockets and Furin stops waiting for unfinished drains. Configure your orchestrator's termination grace period above 35 seconds with an operational margin. The proxy must remove a replica when readiness fails; use liveness only to detect a stuck process, not to decide traffic routing.
 
 ```ts
 // src/server.ts — optional, for clients owned by the application

@@ -35,12 +35,13 @@ export type FurinEvlogOptions = BaseEvlogOptions;
 
 export const getRequestLogger = loggerStorage.useLogger;
 
-let runtimeWaitUntil: NonNullable<FurinEvlogOptions["waitUntil"]> | undefined;
+const runtimeWaitUntil = new Set<NonNullable<FurinEvlogOptions["waitUntil"]>>();
 
 export function setRuntimeEvlogWaitUntil(
   waitUntil: NonNullable<FurinEvlogOptions["waitUntil"]>
-): void {
-  runtimeWaitUntil = waitUntil;
+): () => void {
+  runtimeWaitUntil.add(waitUntil);
+  return () => runtimeWaitUntil.delete(waitUntil);
 }
 
 /** Elysia 2-native evlog integration built on evlog's public adapter toolkit. */
@@ -85,7 +86,13 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
         });
         // Register before the Vercel request context closes, even though the
         // emission itself starts after this response is returned.
-        (options.waitUntil ?? runtimeWaitUntil)?.(emission);
+        if (options.waitUntil) {
+          options.waitUntil(emission);
+        } else {
+          for (const waitUntil of runtimeWaitUntil) {
+            waitUntil(emission);
+          }
+        }
         return response;
       } catch (error) {
         await handle.finish({

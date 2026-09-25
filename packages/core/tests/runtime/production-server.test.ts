@@ -8,11 +8,13 @@ describe("Bun production lifecycle", () => {
   test("separates liveness and readiness while draining in-flight requests", async () => {
     const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
     const { promise: release, resolve } = Promise.withResolvers<void>();
-    const app = new Elysia().get("/slow", async () => {
-      markEntered();
-      await release;
-      return "finished";
-    });
+    const app = new Elysia()
+      .get("/slow", async () => {
+        markEntered();
+        await release;
+        return "finished";
+      })
+      .get("/_furin/health/admin", () => "private");
     const lifecycle = startProductionServer({
       app,
       port: 0,
@@ -30,6 +32,7 @@ describe("Bun production lifecycle", () => {
       expect((await fetch(`${origin}/_furin/health/ready`)).status).toBe(503);
       expect((await fetch(`${origin}/_furin/health/live`)).status).toBe(200);
       expect((await fetch(`${origin}/slow`)).status).toBe(503);
+      expect((await fetch(`${origin}/_furin/health/admin`)).status).toBe(503);
       resolve();
       expect(await (await slow).text()).toBe("finished");
       await shutdown;
@@ -50,15 +53,15 @@ describe("Bun production lifecycle", () => {
     const lifecycle = startProductionServer({
       app,
       port: 0,
-      preStopDelayMs: 200,
-      shutdownTimeoutMs: 200,
+      preStopDelayMs: 1000,
+      shutdownTimeoutMs: 500,
     });
 
     try {
       const slow = fetch(`http://localhost:${lifecycle.server.port}/slow`);
       await entered;
       const shutdown = lifecycle.shutdown();
-      await Bun.sleep(250);
+      await Bun.sleep(1050);
       resolve();
       expect(await (await slow).text()).toBe("finished");
       await shutdown;
@@ -67,6 +70,70 @@ describe("Bun production lifecycle", () => {
       await lifecycle.shutdown();
     }
   });
+});
+
+test("bounds application cleanup by the shutdown timeout", async () => {
+  const { promise: releaseCleanup, resolve } = Promise.withResolvers<void>();
+  const lifecycle = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    onShutdown: () => releaseCleanup,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+  });
+
+  try {
+    const result = await Promise.race([
+      lifecycle.shutdown().then(() => "stopped"),
+      Bun.sleep(200).then(() => "timed-out"),
+    ]);
+    expect(result).toBe("stopped");
+  } finally {
+    resolve();
+    await lifecycle.shutdown();
+  }
+});
+
+test("a second server does not steal the first server's pending log drains", async () => {
+  const { promise: releaseDrain, resolve } = Promise.withResolvers<void>();
+  const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();
+  const first = startProductionServer({
+    app: new Elysia()
+      .use(
+        createFurinEvlog({
+          drain: async () => {
+            markDrainStarted();
+            await releaseDrain;
+          },
+        })
+      )
+      .get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const second = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+
+  try {
+    await fetch(`http://localhost:${first.server.port}/`);
+    await drainStarted;
+    let completed = false;
+    const shutdown = first.shutdown().then(() => {
+      completed = true;
+    });
+    await Bun.sleep(20);
+    expect(completed).toBe(false);
+    resolve();
+    await shutdown;
+  } finally {
+    resolve();
+    await Promise.all([first.shutdown(), second.shutdown()]);
+  }
 });
 
 test("waits for deferred log drains before application resource cleanup", async () => {

@@ -24,7 +24,7 @@ export function startProductionServer(options: ProductionServerOptions): {
   const pendingEmissions = new Set<Promise<unknown>>();
   let draining = false;
 
-  setRuntimeEvlogWaitUntil((emission) => {
+  const unregisterWaitUntil = setRuntimeEvlogWaitUntil((emission) => {
     pendingEmissions.add(emission);
     emission.finally(() => pendingEmissions.delete(emission)).catch(() => undefined);
   });
@@ -32,7 +32,7 @@ export function startProductionServer(options: ProductionServerOptions): {
   app
     .wrap((fetch) => (request, ...rest) => {
       const path = new URL(request.url).pathname;
-      if (draining && !path.startsWith("/_furin/health/")) {
+      if (draining && path !== "/_furin/health/live" && path !== "/_furin/health/ready") {
         return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
       }
       return fetch(request, ...rest);
@@ -69,24 +69,32 @@ export function startProductionServer(options: ProductionServerOptions): {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         await Bun.sleep(delayMs);
-        timeout = setTimeout(() => {
-          server.stop(true).catch((error: unknown) => {
-            console.error("[furin] Forced server stop failed", error);
-          });
-        }, timeoutMs);
-        closeBrowserEventConnections(server);
-        server.closeIdleConnections();
-        await server.stop();
-        await waitForPendingISRRevalidations();
-        await Promise.allSettled([...pendingEmissions]);
-        await closeSyncCursorStates();
-        await options.onShutdown?.();
+        const deadline = new Promise<void>((resolve) => {
+          timeout = setTimeout(() => {
+            console.error("[furin] Shutdown deadline exceeded; forcing server stop");
+            server.stop(true).catch((error: unknown) => {
+              console.error("[furin] Forced server stop failed", error);
+            });
+            resolve();
+          }, timeoutMs);
+        });
+        const drain = async (): Promise<void> => {
+          closeBrowserEventConnections(server);
+          server.closeIdleConnections();
+          await server.stop();
+          await waitForPendingISRRevalidations();
+          await Promise.allSettled([...pendingEmissions]);
+          await closeSyncCursorStates();
+          await options.onShutdown?.();
+        };
+        await Promise.race([drain(), deadline]);
       } finally {
         if (timeout) {
           clearTimeout(timeout);
         }
         process.off("SIGTERM", signalShutdown);
         process.off("SIGINT", signalShutdown);
+        unregisterWaitUntil();
       }
     })();
     return shutdownPromise;
