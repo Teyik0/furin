@@ -1,4 +1,3 @@
-import { t } from "elysia";
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import { type FurinSchema, isTypeBoxObjectSchema } from "../../shared/elysia-contract.ts";
 
@@ -38,5 +37,11 @@ export function mergeRouteSchemas(
     )
   );
 
-  return t.Object(properties, options) as FurinSchema;
+  // Match t.Object's schema shape without importing TypeBox into schema-free bundles.
+  const required = Object.keys(properties).filter(
+    (name) => !(properties[name] as SchemaObject)["~optional"]
+  );
+  return Object.defineProperty({ ...options, properties, required, type: "object" }, "~kind", {
+    value: "Object",
+  }) as FurinSchema;
 }

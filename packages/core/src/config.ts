@@ -79,6 +79,8 @@ export const configSchema = t.Object({
   reactCompiler: t.Optional(t.Boolean()),
   rootDir: t.Optional(t.String()),
   serverEntry: t.Optional(t.String()),
+  /** Emit private server source maps for error-tool uploads. Off by default. */
+  serverSourceMaps: t.Optional(t.Boolean()),
   static: t.Optional(
     t.Object({
       basePath: t.Optional(t.String()),

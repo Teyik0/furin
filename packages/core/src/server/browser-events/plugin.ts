@@ -9,6 +9,7 @@ import { forbiddenDevelopmentRequest } from "../dev/request-security.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { FurinSyncOptions } from "../sync/config.ts";
 import { subscribeSyncCursor } from "../sync/stream.ts";
+import { registerBrowserEventConnection, unregisterBrowserEventConnection } from "./shutdown.ts";
 import type { BrowserEventSource, BrowserEventSubscription } from "./types.ts";
 
 const CLIENT_PATH = "/_furin/events/client.js";
@@ -23,6 +24,7 @@ interface BrowserEventsPluginOptions {
 }
 
 interface ConnectionState {
+  close: () => void;
   closed: boolean;
   heartbeat: ReturnType<typeof setInterval>;
   subscriptions: BrowserEventSubscription[];
@@ -33,6 +35,7 @@ function releaseConnection(state: ConnectionState): void {
     return;
   }
   state.closed = true;
+  unregisterBrowserEventConnection(state.close);
   clearInterval(state.heartbeat);
   for (const subscription of state.subscriptions) {
     subscription.unsubscribe();
@@ -107,6 +110,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
           }
         };
         const state: ConnectionState = {
+          close: () => ws.close(1001, "Server shutting down"),
           closed: false,
           heartbeat: setInterval(
             () => (ws as unknown as { ping: () => number }).ping(),
@@ -116,6 +120,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
         };
         state.heartbeat.unref?.();
         connections.set(ws.id, state);
+        registerBrowserEventConnection(state.close);
         const keep = (subscription: BrowserEventSubscription): void => {
           if (state.closed) {
             subscription.unsubscribe();

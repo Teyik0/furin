@@ -1,4 +1,4 @@
-import { type AnyElysia, type Context, Elysia, problem, t } from "elysia";
+import { type AnyElysia, type Context, Elysia, problem } from "elysia";
 import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
@@ -346,7 +346,7 @@ export function createDataEndpoint(
   plugin.get(
     "/_furin/data",
     {
-      query: t.Object({ path: t.Optional(t.String()) }),
+      // The transport path is validated below without requiring a TypeBox schema.
     },
     async (ctx) => {
       const rawPath = ctx.query.path;

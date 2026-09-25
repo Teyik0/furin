@@ -3,6 +3,7 @@ import { basename, dirname, extname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
 import { elysiaAot } from "../build/elysia-aot.ts";
+import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
@@ -695,6 +696,10 @@ export async function buildVercelTarget(
   const functionsDir = join(outputDir, "functions");
   const serverFunctionDir = join(functionsDir, "__server.func");
   rmSync(targetDir, { force: true, recursive: true });
+  rmSync(join(buildRoot, "private", "server-sourcemaps", "vercel"), {
+    force: true,
+    recursive: true,
+  });
   rmSync(outputDir, { force: true, recursive: true });
   ensureDir(targetDir);
   ensureDir(staticDir);
@@ -771,10 +776,19 @@ export async function buildVercelTarget(
       environmentGuardPlugin("ssr"),
       elysiaAot(appEntry),
     ],
-    sourcemap: "none",
+    sourcemap: options.serverSourceMaps ? "external" : "none",
     splitting: true,
     target: "bun",
   });
+  if (options.serverSourceMaps) {
+    movePrivateServerSourceMaps(
+      serverFunctionDir,
+      join(buildRoot, "private", "server-sourcemaps", "vercel"),
+      serverBuild.outputs
+        .filter((output) => output.kind === "sourcemap")
+        .map((output) => output.path)
+    );
+  }
   if (options.analyze) {
     if (serverBuild.metafile === undefined) {
       throw new Error("[furin] Vercel server build did not produce the requested metafile.");

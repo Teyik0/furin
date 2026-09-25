@@ -78,6 +78,38 @@ describe("mergeRouteSchemas", () => {
     expect(JSON.stringify(sharedSchema)).toContain('"child"');
   });
 
+  test("preserves TypeBox required, optional, and object options across a route chain", async () => {
+    const parent = t.Object(
+      { parentField: t.String(), shared: t.String() },
+      { additionalProperties: false, description: "parent" }
+    );
+    const child = t.Object(
+      { childField: t.String(), shared: t.Optional(t.String()) },
+      { description: "child" }
+    );
+    const chain: RuntimeRoute[] = [
+      { __type: "FURIN_ROUTE", query: parent },
+      { __type: "FURIN_ROUTE", query: child },
+    ];
+
+    const merged = mergeRouteSchemas(chain, "query") as ReturnType<typeof t.Object>;
+    const expected = t.Object(
+      { ...parent.properties, ...child.properties },
+      { additionalProperties: false, description: "child" }
+    );
+
+    expect(merged).toEqual(expected);
+    expect(
+      await parseRouteQuery(new URL("http://localhost/?parentField=p&childField=c"), merged)
+    ).toEqual({
+      ok: true,
+      query: { childField: "c", parentField: "p" },
+    });
+    expect((await parseRouteQuery(new URL("http://localhost/?childField=c"), merged)).ok).toBe(
+      false
+    );
+  });
+
   test("returns a single non-TypeBox schema unchanged", () => {
     const schema = { "~standard": {} };
     const chain = [{ __type: "FURIN_ROUTE" as const, query: schema }];

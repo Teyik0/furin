@@ -116,6 +116,8 @@ export interface BuildAppOptions {
   reactCompiler?: boolean;
   rootDir?: string;
   serverEntry?: string;
+  /** Emit server source maps outside deployable output directories. */
+  serverSourceMaps?: boolean;
   /** Configuration for the `static` build target. */
   staticConfig?: StaticExportConfig;
   target: BuildTarget | "all";

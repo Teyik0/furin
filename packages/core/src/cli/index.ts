@@ -184,6 +184,7 @@ if (command === "preview") {
     reactCompiler: config.reactCompiler,
     rootDir: config.rootDir,
     serverEntry: resolvedServerEntry,
+    serverSourceMaps: config.serverSourceMaps,
     staticConfig: config.static,
     target: target as BuildTarget | "all",
     vercelConfig: config.vercel,

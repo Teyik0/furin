@@ -105,6 +105,12 @@ export default app;
       const html = await response.text();
       expect(html).toContain("Home page");
 
+      const live = await fetch(`http://127.0.0.1:${port}/_furin/health/live`);
+      const ready = await fetch(`http://127.0.0.1:${port}/_furin/health/ready`);
+      expect(live.status).toBe(200);
+      expect(ready.status).toBe(200);
+      expect(ready.headers.get("cache-control")).toBe("no-store");
+
       const publicAsset = await fetch(`http://127.0.0.1:${port}/public/embed.txt`);
       expect(publicAsset.status).toBe(200);
       expect(await publicAsset.text()).toBe("embedded public asset");

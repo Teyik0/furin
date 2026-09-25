@@ -113,7 +113,7 @@
     },
     "packages/core": {
       "name": "@teyik0/furin",
-      "version": "0.5.0-alpha.1",
+      "version": "0.5.0-alpha.2",
       "bin": {
         "furin": "./src/cli/index.ts",
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",
@@ -127,7 +127,6 @@
         "magic-string": "^1.2.3",
         "react-server-dom-webpack": "19.2.8",
         "seroval": "^1.6.7",
-        "typebox": "catalog:",
         "yuku-ast": "0.9.5",
         "yuku-parser": "0.9.5",
       },
@@ -141,6 +140,7 @@
         "evlog": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
+        "typebox": "catalog:",
       },
     },
   },

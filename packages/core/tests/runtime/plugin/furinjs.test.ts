@@ -197,7 +197,9 @@ test.serial("furin() refreshes route types after a topology change", async () =>
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
-  await Promise.resolve();
+  await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+    timeoutMs: 3000,
+  });
   try {
     writeAppFile(
       app.path,

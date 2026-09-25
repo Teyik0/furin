@@ -51,6 +51,7 @@ await Promise.all([
   // Modules imported directly by the generated compile-entry (entry-template.ts).
   // Must exist as standalone files so the dist/ fallback path works.
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/internal.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/production-server.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/runtime-env.ts`] }),
 ]);
 

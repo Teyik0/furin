@@ -36,6 +36,20 @@ describeWithRedis("Redis page cache", () => {
     tags: ["posts"],
   };
 
+  async function makeLeaseLookLikeOlderReplica(): Promise<void> {
+    const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:lease:*"]);
+    if (!Array.isArray(keys) || keys.length !== 1 || typeof keys[0] !== "string") {
+      throw new Error("Expected one lease key");
+    }
+    const raw = await client.send("GET", [keys[0]]);
+    if (typeof raw !== "string") {
+      throw new Error("Expected a lease document");
+    }
+    const document = JSON.parse(raw) as { indexMember?: string };
+    document.indexMember = undefined;
+    await client.send("SET", [keys[0], JSON.stringify(document), "PX", "30000"]);
+  }
+
   beforeEach(async () => {
     const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:*"]);
     if (Array.isArray(keys) && keys.length > 0) {
@@ -52,7 +66,9 @@ describeWithRedis("Redis page cache", () => {
     if (lease === null) {
       throw new Error("Expected the render lease");
     }
-    await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" });
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: true, paths: ["/posts"] });
 
     expect(
       await cache.commit({
@@ -62,6 +78,31 @@ describeWithRedis("Redis page cache", () => {
       })
     ).toBe("superseded");
     expect(await cache.read(identity)).toBeNull();
+  });
+
+  test("reports a tag-invalidated render started on another replica", async () => {
+    const otherClient = new RedisClient(redisUrl as string);
+    const otherCache = redisPageCache({ client: otherClient, namespace: "page-cache-conformance" });
+    try {
+      const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+      if (lease === null) {
+        throw new Error("Expected the render lease");
+      }
+
+      expect(await otherCache.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual(
+        { invalidated: true, paths: ["/posts"] }
+      );
+      expect(
+        await cache.commit({
+          entry: { cachedAt: Date.now(), payload: "stale", revalidate: 60 },
+          identity,
+          lease,
+        })
+      ).toBe("superseded");
+      expect(await otherCache.read(identity)).toBeNull();
+    } finally {
+      otherClient.close();
+    }
   });
 
   test("shares entries and invalidates them by tag", async () => {
@@ -94,6 +135,34 @@ describeWithRedis("Redis page cache", () => {
       await cache.release({ identity, lease: first });
     }
     expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
+  });
+
+  test("releases a lease written by an older replica during a rolling deploy", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    await cache.release({ identity, lease });
+
+    expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
+  });
+
+  test("commits a lease written by an older replica during a rolling deploy", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    expect(
+      await cache.commit({
+        entry: { cachedAt: Date.now(), payload: "legacy", revalidate: 60 },
+        identity,
+        lease,
+      })
+    ).toBe("stored");
   });
 
   test("does not index a path when its render lease is abandoned", async () => {
