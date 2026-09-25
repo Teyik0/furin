@@ -1,0 +1,39 @@
+packages/core/src/server/production-server.ts
+  s_7c2a26ae7397db::t_debd6095f8cadd 107,110
+  s_7c2a26ae7397db::t_29baec87633586 26,36,73
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_28e418602c0b3a 2,19
+  s_7c2a26ae7397db::t_554fbb5b395994 8,12,18,20-30,35-38,42-43,47-53
+  s_7c2a26ae7397db::t_8ac6140f1b9b45 9-11,13-17,31-34,39-41,44-46
+  s_7c2a26ae7397db::t_7b36e161fa330c 64-65,82-83
+packages/core/src/server/cache/redis/index.ts
+  s_7c2a26ae7397db::t_812affa6e2c621 185,287,356-357
+  s_7c2a26ae7397db::t_0ad3f973c5bc6f 358-359
+packages/core/src/server/cache/redis/scripts.ts
+  s_7c2a26ae7397db::t_eb0b15fb559397 9-11,21-22,24,36-40,58,85,115,170,189-195
+apps/docs/src/content/docs/deployment.mdx
+  s_7c2a26ae7397db::t_fa227c42f9ddb1 325
+packages/core/tests/runtime/cache/redis-page-cache.test.ts
+  s_7c2a26ae7397db::t_7f503b81152648 57,144,146
+  s_7c2a26ae7397db::t_cace79a20a0c2a 48,79-82
+  s_7c2a26ae7397db::t_8ac6140f1b9b45 76-78,85-87,113-143,145
+  s_7c2a26ae7397db::t_6d5d5a8de4d093 55-56,83
+  s_7c2a26ae7397db::t_4b098d59235159 84,88-91
+  s_7c2a26ae7397db::t_5cce226efe464e 58,61,92-93,147-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1b44bb130e00d7322acbb5f5cbdfbc15d28586a2",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
