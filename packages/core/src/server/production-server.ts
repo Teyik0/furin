@@ -66,13 +66,14 @@ export function startProductionServer(options: ProductionServerOptions): {
     const timeoutMs = options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
     const delayMs = options.preStopDelayMs ?? DEFAULT_PRE_STOP_DELAY_MS;
     shutdownPromise = (async () => {
-      const timeout = setTimeout(() => {
-        server.stop(true).catch((error: unknown) => {
-          console.error("[furin] Forced server stop failed", error);
-        });
-      }, timeoutMs);
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         await Bun.sleep(delayMs);
+        timeout = setTimeout(() => {
+          server.stop(true).catch((error: unknown) => {
+            console.error("[furin] Forced server stop failed", error);
+          });
+        }, timeoutMs);
         closeBrowserEventConnections();
         server.closeIdleConnections();
         await server.stop();
@@ -81,7 +82,9 @@ export function startProductionServer(options: ProductionServerOptions): {
         await closeSyncCursorStates();
         await options.onShutdown?.();
       } finally {
-        clearTimeout(timeout);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
         process.off("SIGTERM", signalShutdown);
         process.off("SIGINT", signalShutdown);
       }

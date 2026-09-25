@@ -42,7 +42,7 @@ export function handleWSResponse(){return e()}
 /** Elysia AOT plugin with the no-WebSocket stub compatibility fix. */
 export function elysiaAot(entry: string): Bun.BunPlugin {
   const entryPath = resolve(entry);
-  const hooks = aotFactory({ entry, strip: "auto", target: "bun" });
+  const hooks = aotFactory({ entry, strip: false, target: "bun" });
   return {
     name: "elysia-aot",
     async setup(build) {

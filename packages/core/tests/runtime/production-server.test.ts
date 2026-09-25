@@ -36,6 +36,35 @@ describe("Bun production lifecycle", () => {
       await lifecycle.shutdown();
     }
   });
+
+  test("starts the connection-drain timeout after the pre-stop delay", async () => {
+    const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
+    const { promise: release, resolve } = Promise.withResolvers<void>();
+    const app = new Elysia().get("/slow", async () => {
+      markEntered();
+      await release;
+      return "finished";
+    });
+    const lifecycle = startProductionServer({
+      app,
+      port: 0,
+      preStopDelayMs: 200,
+      shutdownTimeoutMs: 200,
+    });
+
+    try {
+      const slow = fetch(`http://localhost:${lifecycle.server.port}/slow`);
+      await entered;
+      const shutdown = lifecycle.shutdown();
+      await Bun.sleep(250);
+      resolve();
+      expect(await (await slow).text()).toBe("finished");
+      await shutdown;
+    } finally {
+      resolve();
+      await lifecycle.shutdown();
+    }
+  });
 });
 
 test("waits for deferred log drains before application resource cleanup", async () => {
