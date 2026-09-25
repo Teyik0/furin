@@ -232,7 +232,9 @@ const documentState: DocumentState = {
   },
   dataJson: dataEl?.textContent ?? undefined,
   head,
-  routeFrames: frameTemplate?.content.textContent ?? undefined,
+  routeFrames: frameTemplate?.hasAttribute("data-furin-document-state")
+    ? (frameTemplate.content.textContent ?? "")
+    : undefined,
   syncJson: syncEl?.textContent ?? undefined,
 };
 

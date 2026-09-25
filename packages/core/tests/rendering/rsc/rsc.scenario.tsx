@@ -116,12 +116,15 @@ function createMockContext(path: string): Context {
 }
 
 function extractRouteFramePayload(html: string): string {
-  const startMarker = '<template id="__FURIN_ROUTE_FRAMES__">';
-  const start = html.indexOf(startMarker);
-  if (start === -1) {
+  const idIndex = html.indexOf('id="__FURIN_ROUTE_FRAMES__"');
+  const start = html.lastIndexOf("<template", idIndex);
+  if (idIndex === -1 || start === -1) {
     throw new Error("route frame template missing");
   }
-  const contentStart = start + startMarker.length;
+  const contentStart = html.indexOf(">", idIndex) + 1;
+  if (contentStart === 0) {
+    throw new Error("route frame template opening tag was not closed");
+  }
   const contentEnd = html.indexOf("</template>", contentStart);
   if (contentEnd === -1) {
     throw new Error("route frame template was not closed");

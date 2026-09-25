@@ -26,7 +26,8 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
     expect(process.env.NODE_ENV).toBe(previousNodeEnv);
     const fallbackPath = join(app.path, ".vercel/output/functions/rsc-isr.prerender-fallback.html");
     const html = readFileSync(fallbackPath, "utf8");
-    expect(html).toContain('<template id="__FURIN_ROUTE_FRAMES__">');
+    expect(html).toContain('id="__FURIN_ROUTE_FRAMES__"');
+    expect(html).toContain('data-furin-document-state=""');
     expect(html).toContain("RSC page");
 
     const parseModule = pathToFileURL(
@@ -35,8 +36,10 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
     const sourceModule = pathToFileURL(join(import.meta.dir, "../../../src/rsc/shared.tsx")).href;
     const script = `
       const html = await Bun.file(process.argv[1]).text();
-      const payload = html.split('<template id="__FURIN_ROUTE_FRAMES__">')[1]
-        .split('</template>')[0].replaceAll('&lt;', '<').replaceAll('&amp;', '&');
+      const templateId = html.indexOf('id="__FURIN_ROUTE_FRAMES__"');
+      const payloadStart = html.indexOf('>', templateId) + 1;
+      const payload = html.slice(payloadStart, html.indexOf('</template>', payloadStart))
+        .replaceAll('&lt;', '<').replaceAll('&amp;', '&');
       const { parseDeferredNdjson } = await import(${JSON.stringify(parseModule)});
       const { CompositeComponent, getRscSourceState } = await import(${JSON.stringify(sourceModule)});
       const { createElement } = await import('react');

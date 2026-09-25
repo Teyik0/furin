@@ -136,6 +136,7 @@ export function Scripts(): ReactNode {
           dangerouslySetInnerHTML={{
             __html: state.routeFrames.replaceAll("&", "&amp;").replaceAll("<", "&lt;"),
           }}
+          data-furin-document-state=""
           id="__FURIN_ROUTE_FRAMES__"
         />
       )}
