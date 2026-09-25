@@ -24,4 +24,22 @@ describe("private server source maps", () => {
       app.cleanup();
     }
   });
+
+  test("moves nested maps using their exact Bun output path", () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const output = join(app.path, "deploy");
+      const source = join(output, "chunks", "server.js.map");
+      const privateDir = join(app.path, ".furin/build/private/server-sourcemaps/bun");
+      mkdirSync(join(output, "chunks"), { recursive: true });
+      writeFileSync(source, "nested map");
+
+      movePrivateServerSourceMaps(output, privateDir, [source]);
+
+      expect(existsSync(source)).toBe(false);
+      expect(existsSync(join(privateDir, "chunks", "server.js.map"))).toBe(true);
+    } finally {
+      app.cleanup();
+    }
+  });
 });

@@ -6,8 +6,10 @@ import { startProductionServer } from "../../src/server/production-server.ts";
 
 describe("Bun production lifecycle", () => {
   test("separates liveness and readiness while draining in-flight requests", async () => {
+    const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
     const { promise: release, resolve } = Promise.withResolvers<void>();
     const app = new Elysia().get("/slow", async () => {
+      markEntered();
       await release;
       return "finished";
     });
@@ -23,7 +25,7 @@ describe("Bun production lifecycle", () => {
       expect((await fetch(`${origin}/_furin/health/live`)).status).toBe(200);
       expect((await fetch(`${origin}/_furin/health/ready`)).status).toBe(200);
       const slow = fetch(`${origin}/slow`);
-      await Bun.sleep(10);
+      await entered;
       const shutdown = lifecycle.shutdown();
       expect((await fetch(`${origin}/_furin/health/ready`)).status).toBe(503);
       expect((await fetch(`${origin}/_furin/health/live`)).status).toBe(200);
@@ -131,5 +133,44 @@ test("closes Furin browser-event WebSockets before stopping Bun", async () => {
   } finally {
     socket.close();
     await lifecycle.shutdown();
+  }
+});
+
+test("shutting down one server leaves another server's browser-event sockets open", async () => {
+  const first = startProductionServer({
+    app: new Elysia().use(createBrowserEventsPlugin({})),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const second = startProductionServer({
+    app: new Elysia().use(createBrowserEventsPlugin({})),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const firstSocket = new WebSocket(`ws://localhost:${first.server.port}/_furin/events`);
+  const secondSocket = new WebSocket(`ws://localhost:${second.server.port}/_furin/events`);
+  const firstClosed = new Promise<void>((resolve) =>
+    firstSocket.addEventListener("close", () => resolve(), { once: true })
+  );
+
+  try {
+    await Promise.all(
+      [firstSocket, secondSocket].map(
+        (socket) =>
+          new Promise<void>((resolve) =>
+            socket.addEventListener("open", () => resolve(), { once: true })
+          )
+      )
+    );
+    await first.shutdown();
+    await firstClosed;
+    expect(firstSocket.readyState).toBe(WebSocket.CLOSED);
+    expect(secondSocket.readyState).toBe(WebSocket.OPEN);
+  } finally {
+    firstSocket.close();
+    secondSocket.close();
+    await Promise.all([first.shutdown(), second.shutdown()]);
   }
 });

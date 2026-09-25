@@ -113,13 +113,13 @@ redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now)
 local members = redis.call('ZRANGE', KEYS[2], 0, -1)
 local seen = {}
 local affected = {}
+local function matches_path(path)
+  if path == ARGV[2] then return true end
+  return ARGV[3] == 'layout' and (ARGV[2] == '/' or string.sub(path, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. '/')
+end
 for _, member in ipairs(members) do
   local index = cjson.decode(member)
-  local matches = index.path == ARGV[2]
-  if ARGV[3] == 'layout' and not matches then
-    matches = ARGV[2] == '/' or string.sub(index.path, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. '/'
-  end
-  if matches then
+  if matches_path(index.path) then
     redis.call('DEL', index.entryKey)
     redis.call('ZREM', index.pathsKey, member)
     for _, tag_key in ipairs(index.tagKeys) do
@@ -134,11 +134,7 @@ end
 redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
 for _, member in ipairs(redis.call('ZRANGE', KEYS[3], 0, -1)) do
   local lease = cjson.decode(member)
-  local matches = lease.path == ARGV[2]
-  if ARGV[3] == 'layout' and not matches then
-    matches = ARGV[2] == '/' or string.sub(lease.path, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. '/'
-  end
-  if matches and not seen[lease.path] then
+  if matches_path(lease.path) and not seen[lease.path] then
     seen[lease.path] = true
     table.insert(affected, lease.path)
   end

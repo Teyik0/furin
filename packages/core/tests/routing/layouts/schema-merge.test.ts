@@ -110,6 +110,31 @@ describe("mergeRouteSchemas", () => {
     );
   });
 
+  test("preserves optional fields from legacy symbol-marked TypeBox schemas", async () => {
+    const legacyParent = {
+      [Symbol.for("TypeBox.Kind")]: "Object",
+      properties: {
+        legacy: {
+          [Symbol.for("TypeBox.Kind")]: "String",
+          [Symbol.for("TypeBox.Optional")]: "Optional",
+          type: "string",
+        },
+      },
+      type: "object",
+    };
+    const child = t.Object({ current: t.String() });
+    const chain = [
+      { __type: "FURIN_ROUTE" as const, query: legacyParent },
+      { __type: "FURIN_ROUTE" as const, query: child },
+    ];
+
+    const merged = mergeRouteSchemas(chain as RuntimeRoute[], "query") as ReturnType<
+      typeof t.Object
+    >;
+    expect(merged.required).toEqual(["current"]);
+    expect((await parseRouteQuery(new URL("http://localhost/?current=now"), merged)).ok).toBe(true);
+  });
+
   test("returns a single non-TypeBox schema unchanged", () => {
     const schema = { "~standard": {} };
     const chain = [{ __type: "FURIN_ROUTE" as const, query: schema }];

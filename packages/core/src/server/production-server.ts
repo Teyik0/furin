@@ -74,7 +74,7 @@ export function startProductionServer(options: ProductionServerOptions): {
             console.error("[furin] Forced server stop failed", error);
           });
         }, timeoutMs);
-        closeBrowserEventConnections();
+        closeBrowserEventConnections(server);
         server.closeIdleConnections();
         await server.stop();
         await waitForPendingISRRevalidations();

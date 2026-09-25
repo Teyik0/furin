@@ -27,6 +27,7 @@ interface ConnectionState {
   close: () => void;
   closed: boolean;
   heartbeat: ReturnType<typeof setInterval>;
+  server: Bun.Server<unknown>;
   subscriptions: BrowserEventSubscription[];
 }
 
@@ -35,7 +36,7 @@ function releaseConnection(state: ConnectionState): void {
     return;
   }
   state.closed = true;
-  unregisterBrowserEventConnection(state.close);
+  unregisterBrowserEventConnection(state.server, state.close);
   clearInterval(state.heartbeat);
   for (const subscription of state.subscriptions) {
     subscription.unsubscribe();
@@ -116,11 +117,12 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
             () => (ws as unknown as { ping: () => number }).ping(),
             HEARTBEAT_INTERVAL_MS
           ),
+          server: ws.server as Bun.Server<unknown>,
           subscriptions: [],
         };
         state.heartbeat.unref?.();
         connections.set(ws.id, state);
-        registerBrowserEventConnection(state.close);
+        registerBrowserEventConnection(state.server, state.close);
         const keep = (subscription: BrowserEventSubscription): void => {
           if (state.closed) {
             subscription.unsubscribe();

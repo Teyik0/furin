@@ -46,6 +46,13 @@ describeWithRedis("Redis page cache", () => {
       throw new Error("Expected a lease document");
     }
     const document = JSON.parse(raw) as { indexMember?: string };
+    if (document.indexMember) {
+      const indexes = await client.send("KEYS", ["furin:page:{page-cache-conformance}:leases:*"]);
+      if (!Array.isArray(indexes) || indexes.length !== 1 || typeof indexes[0] !== "string") {
+        throw new Error("Expected one lease index");
+      }
+      await client.send("ZREM", [indexes[0], document.indexMember]);
+    }
     document.indexMember = undefined;
     await client.send("SET", [keys[0], JSON.stringify(document), "PX", "30000"]);
   }
@@ -163,6 +170,25 @@ describeWithRedis("Redis page cache", () => {
         lease,
       })
     ).toBe("stored");
+  });
+
+  test("supersedes an unindexed lease from an older replica after invalidation", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: false, paths: [] });
+    expect(
+      await cache.commit({
+        entry: { cachedAt: Date.now(), payload: "stale", revalidate: 60 },
+        identity,
+        lease,
+      })
+    ).toBe("superseded");
   });
 
   test("does not index a path when its render lease is abandoned", async () => {

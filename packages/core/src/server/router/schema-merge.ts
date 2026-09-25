@@ -6,6 +6,7 @@ interface SchemaObject {
 }
 
 const TOBJECT_STRUCTURAL_KEYS = new Set(["type", "properties", "required"]);
+const TYPEBOX_OPTIONAL = Symbol.for("TypeBox.Optional");
 export function mergeRouteSchemas(
   routeChain: RuntimeRoute[],
   key: "params" | "query"
@@ -38,9 +39,10 @@ export function mergeRouteSchemas(
   );
 
   // Match t.Object's schema shape without importing TypeBox into schema-free bundles.
-  const required = Object.keys(properties).filter(
-    (name) => !(properties[name] as SchemaObject)["~optional"]
-  );
+  const required = Object.keys(properties).filter((name) => {
+    const property = properties[name] as SchemaObject & { [symbolName: symbol]: unknown };
+    return !(property["~optional"] || property[TYPEBOX_OPTIONAL]);
+  });
   return Object.defineProperty({ ...options, properties, required, type: "object" }, "~kind", {
     value: "Object",
   }) as FurinSchema;
