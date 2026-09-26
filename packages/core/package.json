@@ -149,7 +149,7 @@
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elysia/static": "2.0.0-beta.2",
+    "@elysia/static": "2.0.0-exp.0",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vercel/functions": "^3.9.7",
     "@yuku-toolchain/types": "0.9.5",
