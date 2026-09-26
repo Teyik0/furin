@@ -1,0 +1,30 @@
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_f2862c3e456ecb::t_6ada9a3557b80e 192-195
+  s_f2862c3e456ecb::t_e0942df6e5aa94 175-191,196-206
+packages/core/tests/rendering/rsc/rsc-vercel-build.test.ts
+  s_f2862c3e456ecb::t_e0942df6e5aa94 28-31,35
+packages/core/src/shared/production-build.ts
+  s_f2862c3e456ecb::t_bb620d7c853a45 2-4,7-12,16-19
+packages/core/tests/build/production-build.test.ts
+  s_f2862c3e456ecb::t_99a5b6f11292b3 3-18,20-22
+  s_f2862c3e456ecb::t_e0942df6e5aa94 1-2,23-42
+  s_f2862c3e456ecb::t_bf08b588fbf0e0 19
+packages/core/src/furin.ts
+  s_f2862c3e456ecb::t_013b599da450e4 440-441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "08ab27fa03f53ed5db4e7840653ccb9d8d7f074b",
+  "prompts": {},
+  "sessions": {
+    "s_f2862c3e456ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd0f-1cf2-7881-9b23-d41e62163c83",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
