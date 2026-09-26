@@ -36,6 +36,32 @@ describeWithRedis("Redis page cache", () => {
     tags: ["posts"],
   };
 
+  async function makeLeaseLookLikeOlderReplica(): Promise<void> {
+    const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:lease:*"]);
+    if (!Array.isArray(keys) || keys.length !== 1 || typeof keys[0] !== "string") {
+      throw new Error("Expected one lease key");
+    }
+    const raw = await client.send("GET", [keys[0]]);
+    if (typeof raw !== "string") {
+      throw new Error("Expected a lease document");
+    }
+    const document = JSON.parse(raw) as { indexMember?: string; tagLeaseKeys?: string[] };
+    if (document.indexMember) {
+      const indexes = await client.send("KEYS", ["furin:page:{page-cache-conformance}:leases:*"]);
+      if (!Array.isArray(indexes) || indexes.length !== 1 || typeof indexes[0] !== "string") {
+        throw new Error("Expected one lease index");
+      }
+      await client.send("ZREM", [indexes[0], document.indexMember]);
+      const member = document.indexMember;
+      await Promise.all(
+        (document.tagLeaseKeys ?? []).map((key) => client.send("ZREM", [key, member]))
+      );
+    }
+    document.indexMember = undefined;
+    document.tagLeaseKeys = undefined;
+    await client.send("SET", [keys[0], JSON.stringify(document), "PX", "30000"]);
+  }
+
   beforeEach(async () => {
     const keys = await client.send("KEYS", ["furin:page:{page-cache-conformance}:*"]);
     if (Array.isArray(keys) && keys.length > 0) {
@@ -47,12 +73,32 @@ describeWithRedis("Redis page cache", () => {
     client.close();
   });
 
+  test("indexes active leases by tag and removes them on release", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected a lease");
+    }
+    const indexes = await client.send("KEYS", ["furin:page:{page-cache-conformance}:tag-leases:*"]);
+    if (!Array.isArray(indexes) || indexes.length !== 1 || typeof indexes[0] !== "string") {
+      throw new Error("Expected one tag lease index");
+    }
+    const [tagIndex] = indexes;
+    expect(await client.send("ZCARD", [tagIndex])).toBe(1);
+    expect(
+      await cache.invalidate({ kind: "tags", scope: "shop", tags: ["posts", "posts"] })
+    ).toEqual({ invalidated: true, paths: ["/posts"] });
+    await cache.release({ identity, lease });
+    expect(await client.send("ZCARD", [tagIndex])).toBe(0);
+  });
+
   test("rejects a stale commit after path invalidation", async () => {
     const lease = await cache.acquire({ identity, leaseMs: 30_000 });
     if (lease === null) {
       throw new Error("Expected the render lease");
     }
-    await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" });
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: true, paths: ["/posts"] });
 
     expect(
       await cache.commit({
@@ -62,6 +108,67 @@ describeWithRedis("Redis page cache", () => {
       })
     ).toBe("superseded");
     expect(await cache.read(identity)).toBeNull();
+  });
+
+  test.each(["stored", "superseded"] as const)(
+    "cleans tag lease indexes after a %s commit",
+    async (result) => {
+      const tagged = { ...identity, tags: ["posts", "news"] };
+      const lease = await cache.acquire({ identity: tagged, leaseMs: 30_000 });
+      if (lease === null) {
+        throw new Error("Expected a lease");
+      }
+      await cache.acquire({
+        identity: { ...identity, key: "/other", path: "/other", tags: ["other"] },
+        leaseMs: 30_000,
+      });
+      if (result === "superseded") {
+        expect(await cache.invalidate({ kind: "tags", scope: "shop", tags: tagged.tags })).toEqual({
+          invalidated: true,
+          paths: ["/posts"],
+        });
+      }
+      expect(
+        await cache.commit({
+          entry: { cachedAt: Date.now(), payload: "ok", revalidate: 60 },
+          identity: tagged,
+          lease,
+        })
+      ).toBe(result);
+      const indexes = await client.send("KEYS", [
+        "furin:page:{page-cache-conformance}:tag-leases:*",
+      ]);
+      expect(indexes).toHaveLength(1);
+      expect(await cache.invalidate({ kind: "tags", scope: "shop", tags: ["other"] })).toEqual({
+        invalidated: true,
+        paths: ["/other"],
+      });
+    }
+  );
+
+  test("reports a tag-invalidated render started on another replica", async () => {
+    const otherClient = new RedisClient(redisUrl as string);
+    const otherCache = redisPageCache({ client: otherClient, namespace: "page-cache-conformance" });
+    try {
+      const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+      if (lease === null) {
+        throw new Error("Expected the render lease");
+      }
+
+      expect(await otherCache.invalidate({ kind: "tags", scope: "shop", tags: ["posts"] })).toEqual(
+        { invalidated: true, paths: ["/posts"] }
+      );
+      expect(
+        await cache.commit({
+          entry: { cachedAt: Date.now(), payload: "stale", revalidate: 60 },
+          identity,
+          lease,
+        })
+      ).toBe("superseded");
+      expect(await otherCache.read(identity)).toBeNull();
+    } finally {
+      otherClient.close();
+    }
   });
 
   test("shares entries and invalidates them by tag", async () => {
@@ -94,6 +201,53 @@ describeWithRedis("Redis page cache", () => {
       await cache.release({ identity, lease: first });
     }
     expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
+  });
+
+  test("releases a lease written by an older replica during a rolling deploy", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    await cache.release({ identity, lease });
+
+    expect(await cache.acquire({ identity, leaseMs: 30_000 })).not.toBeNull();
+  });
+
+  test("commits a lease written by an older replica during a rolling deploy", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    expect(
+      await cache.commit({
+        entry: { cachedAt: Date.now(), payload: "legacy", revalidate: 60 },
+        identity,
+        lease,
+      })
+    ).toBe("stored");
+  });
+
+  test("supersedes an unindexed lease from an older replica after invalidation", async () => {
+    const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+    if (lease === null) {
+      throw new Error("Expected the render lease");
+    }
+    await makeLeaseLookLikeOlderReplica();
+
+    expect(
+      await cache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" })
+    ).toEqual({ invalidated: false, paths: [] });
+    expect(
+      await cache.commit({
+        entry: { cachedAt: Date.now(), payload: "stale", revalidate: 60 },
+        identity,
+        lease,
+      })
+    ).toBe("superseded");
   });
 
   test("does not index a path when its render lease is abandoned", async () => {

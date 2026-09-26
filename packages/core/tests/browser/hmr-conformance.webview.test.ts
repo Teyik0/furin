@@ -397,6 +397,70 @@ function sectionLayoutSource(version: string): string {
   ].join("\n");
 }
 
+function sectionLayoutLoaderSource(value: string): string {
+  return [
+    'import { useState } from "react";',
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { route as rootRoute } from "../root";',
+    "",
+    "function SectionLayout({ children, label }: { children: React.ReactNode; label: string }) {",
+    "  const [count, setCount] = useState(0);",
+    "  return <section>",
+    '    <output data-testid="layout-loader">{label}</output>',
+    '    <output data-testid="layout-count">{count}</output>',
+    '    <button data-testid="layout-increment" onClick={() => setCount((value) => value + 1)}>Increment layout</button>',
+    "    {children}",
+    "  </section>;",
+    "}",
+    "",
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    `  .loader(() => ({ label: "loader-${value}" }))`,
+    "  .layout(SectionLayout);",
+  ].join("\n");
+}
+
+function sectionLayoutRequestLoaderSource(value: string): string {
+  return [
+    'import { Suspense, use, useState } from "react";',
+    'import { defineRoute } from "@teyik0/furin";',
+    'import { route as rootRoute } from "../root";',
+    "",
+    'function PrivateLabel({ data }: { data: Promise<{ label: string }> }) { return <output data-testid="request-loader">{use(data).label}</output>; }',
+    "function SectionLayout({ children, requestData }: { children: React.ReactNode; requestData: Promise<{ label: string }> }) {",
+    "  const [count, setCount] = useState(0);",
+    "  return <section>",
+    '    <Suspense fallback="Loading private data"><PrivateLabel data={requestData} /></Suspense>',
+    '    <output data-testid="layout-count">{count}</output>',
+    '    <button data-testid="layout-increment" onClick={() => setCount((current) => current + 1)}>Increment layout</button>',
+    "    {children}",
+    "  </section>;",
+    "}",
+    "",
+    "export const route = defineRoute()",
+    '  .config({ layout: rootRoute, mode: "ssr" })',
+    `  .requestLoader(() => ({ label: "private-${value}" }))`,
+    "  .layout(SectionLayout);",
+  ].join("\n");
+}
+
+function sectionLayoutConfigSource(queryType: "number" | "string"): string {
+  const schema = queryType === "number" ? "t.Number()" : "t.String()";
+  return sectionLayoutLoaderSource("config")
+    .replace(
+      'import { route as rootRoute } from "../root";',
+      'import { t } from "elysia";\nimport { route as rootRoute } from "../root";'
+    )
+    .replace(
+      '.config({ layout: rootRoute, mode: "ssr" })',
+      `.config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: ${schema} }), tags: ["${queryType}"] })`
+    )
+    .replace(
+      '.loader(() => ({ label: "loader-config" }))',
+      ".loader(({ query }) => ({ label: typeof query.page }))"
+    );
+}
+
 function sectionPageSource(version: string): string {
   return [
     'import { useState } from "react";',
@@ -1119,6 +1183,22 @@ afterEach(async () => {
 });
 
 browserTest(
+  "development head hydrates with its extension filter script",
+  async () => {
+    const harness = await createBrowserHarness(pageSource("v1", false), [], false);
+    activeHarness = harness;
+
+    await waitForStableDocument(harness.view);
+    const filter = await harness.view.evaluate(
+      'document.querySelector("[data-furin-extension-error-filter]")?.textContent'
+    );
+    expect(filter).toContain("unhandledrejection");
+    expect(harness.consoleErrors.some((error) => error.includes("Hydration failed"))).toBe(false);
+  },
+  30_000
+);
+
+browserTest(
   "a component edit preserves React state without reloading the document",
   async () => {
     const harness = await createBrowserHarness(pageSource("v1", false), [], false);
@@ -1543,6 +1623,145 @@ browserTest(
     const after = await readSnapshot(harness.view);
     expect(after.count).toBe("1");
     expect(after.documentId).toBe(documentId);
+  },
+  30_000
+);
+
+browserTest(
+  "editing a parent layout loader refreshes its data without reloading the document",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        {
+          contents: sectionLayoutLoaderSource("v1"),
+          relativePath: "src/pages/section/_route.tsx",
+        },
+        {
+          contents: sectionPageSource("section-v1"),
+          relativePath: "src/pages/section/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/section`);
+    await waitForElementText(harness.view, '[data-testid="layout-loader"]', "loader-v1");
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="layout-increment"]');
+
+    writeAppFile(harness.app.path, "src/pages/section/_route.tsx", sectionLayoutLoaderSource("v2"));
+
+    let serverHtml = "";
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      serverHtml = await (await fetch(`${harness.url}/section`)).text();
+      if (serverHtml.includes("loader-v2")) {
+        break;
+      }
+      await Bun.sleep(100);
+    }
+    expect(serverHtml).toContain("loader-v2");
+    await waitForElementText(harness.view, '[data-testid="layout-loader"]', "loader-v2");
+    expect(
+      (await harness.view.evaluate(
+        "document.querySelector('[data-testid=\"layout-count\"]')?.textContent"
+      )) as string | undefined
+    ).toBe("1");
+    expect((await harness.view.evaluate("window.__furinTestDocumentId")) as string).toBe(
+      documentId
+    );
+  },
+  30_000
+);
+
+browserTest(
+  "editing a parent layout requestLoader refreshes private data without reloading the document",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        {
+          contents: sectionLayoutRequestLoaderSource("v1"),
+          relativePath: "src/pages/section/_route.tsx",
+        },
+        {
+          contents: sectionPageSource("section-v1"),
+          relativePath: "src/pages/section/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/section`);
+    await waitForElementText(harness.view, '[data-testid="request-loader"]', "private-v1");
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="layout-increment"]');
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/section/_route.tsx",
+      sectionLayoutRequestLoaderSource("v2")
+    );
+
+    await waitForElementText(harness.view, '[data-testid="request-loader"]', "private-v2");
+    expect(
+      (await harness.view.evaluate(
+        "document.querySelector('[data-testid=\"layout-count\"]')?.textContent"
+      )) as string | undefined
+    ).toBe("1");
+    expect((await harness.view.evaluate("window.__furinTestDocumentId")) as string).toBe(
+      documentId
+    );
+  },
+  30_000
+);
+
+browserTest(
+  "editing parent layout config refreshes schema and tags without reloading the document",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        {
+          contents: sectionLayoutConfigSource("number"),
+          relativePath: "src/pages/section/_route.tsx",
+        },
+        {
+          contents: sectionPageSource("section-v1"),
+          relativePath: "src/pages/section/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/section?page=1`);
+    await waitForElementText(harness.view, '[data-testid="layout-loader"]', "number");
+    await waitForRouteConfig(harness.view, "/section", "ssr", "number");
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="layout-increment"]');
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/section/_route.tsx",
+      sectionLayoutConfigSource("string")
+    );
+
+    await waitForElementText(harness.view, '[data-testid="layout-loader"]', "string");
+    await waitForRouteConfig(harness.view, "/section", "ssr", "string");
+    expect(
+      (await harness.view.evaluate(
+        "document.querySelector('[data-testid=\"layout-count\"]')?.textContent"
+      )) as string | undefined
+    ).toBe("1");
+    expect((await harness.view.evaluate("window.__furinTestDocumentId")) as string).toBe(
+      documentId
+    );
   },
   30_000
 );
@@ -2267,6 +2486,7 @@ browserTest(
     )) as string;
     await waitForElementText(harness.view, '[data-testid="rsc-value"]', "rsc-rsc-v1");
     await harness.view.click('[data-testid="increment"]');
+    await waitForElementText(harness.view, '[data-testid="count"]', "1");
 
     writeAppFile(harness.app.path, "src/pages/index.tsx", rscPageSource("rsc-v2"));
 

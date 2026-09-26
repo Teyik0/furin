@@ -34,7 +34,7 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `optimizeImports` | `string[]` | Bun defaults | Extra package barrels for Bun import optimization |
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
-| `vercel.regions` | `string[]` | Vercel project default | Function compute regions |
+| `vercel.regions` | `VercelRegion[]` | Vercel project default | Function compute regions |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
 | `targets` | `BuildTarget[]` | None | Reserved schema field; the current CLI selects targets with `--target` |
 
@@ -110,7 +110,7 @@ export default defineConfig({
 });
 ```
 
-Place compute close to the application's database or upstream service. The list must contain at least one unique lowercase Vercel region code; malformed values fail configuration loading.
+Place compute close to the application's database or upstream service. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list). The list must contain at least one unique supported region code; unsupported values fail configuration loading.
 
 ## Static Export
 

@@ -1,9 +1,10 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { runBunBuild } from "../build/bun-build.ts";
 import { prepareCompileEntryApps } from "../build/compile-entry.ts";
 import { elysiaAot } from "../build/elysia-aot.ts";
 import type { BuildEntryOptions } from "../build/entry-template.ts";
+import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { materializeServerAppEntry, serverBootSource } from "../build/server-app-entry.ts";
 import { buildTargetManifest, copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
@@ -47,6 +48,63 @@ function collectEmbeddedAssets(
 
 function compiledServerFilename(platform: NodeJS.Platform): string {
   return platform === "win32" ? "server.exe" : "server";
+}
+
+function serverSourcemapMode(enabled: boolean | undefined): "external" | "none" {
+  return enabled ? "external" : "none";
+}
+
+function relocateServerMaps(
+  build: Bun.BuildOutput,
+  enabled: boolean | undefined,
+  targetDir: string,
+  buildRoot: string
+): void {
+  if (!enabled) {
+    return;
+  }
+  movePrivateServerSourceMaps(
+    targetDir,
+    join(buildRoot, "private", "server-sourcemaps", "bun"),
+    build.outputs.filter((output) => output.kind === "sourcemap").map((output) => output.path)
+  );
+}
+
+function writeServerMetafile(
+  build: Bun.BuildOutput,
+  analyze: boolean | undefined,
+  buildRoot: string
+): void {
+  if (!analyze) {
+    return;
+  }
+  if (build.metafile === undefined) {
+    throw new Error("[furin] Bun server build did not produce the requested metafile.");
+  }
+  const analysisDir = join(buildRoot, "analysis");
+  ensureDir(analysisDir);
+  const metafilePath = join(analysisDir, "bun-server.json");
+  writeFileSync(metafilePath, `${JSON.stringify(build.metafile, null, 2)}\n`);
+  console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
+}
+
+function finalizeEmbeddedAssets(
+  compile: BuildAppOptions["compile"],
+  apps: RuntimeTargetApp[],
+  targetDir: string,
+  manifest: TargetBuildManifest
+): void {
+  if (compile !== "embed") {
+    return;
+  }
+  for (const app of apps) {
+    rmSync(join(targetDir, clientDirNameForPrefix(app.prefix)), {
+      force: true,
+      recursive: true,
+    });
+  }
+  manifest.clientDir = null;
+  manifest.templatePath = null;
 }
 
 async function createBunAppEntry(
@@ -109,6 +167,10 @@ export async function buildBunTarget(
   const targetDir = resolve(rootDir, targetManifest.targetDir);
 
   rmSync(targetDir, { force: true, recursive: true });
+  rmSync(join(buildRoot, "private", "server-sourcemaps", "bun"), {
+    force: true,
+    recursive: true,
+  });
   ensureDir(targetDir);
 
   const publicDir = existsSync(join(rootDir, "public")) ? join(rootDir, "public") : undefined;
@@ -148,13 +210,14 @@ export async function buildBunTarget(
     const entry = generateBootEntry(appEntry, targetDir, "_compile-entry.ts");
     const embeddedAssets = collectEmbeddedAssets(entryApps, publicDir, options.compile);
 
-    await runBunBuild({
+    const serverBuild = await runBunBuild({
       bytecode: true,
       compile: { assets: embeddedAssets, outfile },
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
       entrypoints: [entry.entrypoint],
       files: entry.files,
       format: "esm",
+      metafile: options.analyze,
       minify: true,
       plugins: [
         entry.plugin,
@@ -166,33 +229,27 @@ export async function buildBunTarget(
         environmentGuardPlugin("ssr"),
         elysiaAot(appEntry),
       ],
-      sourcemap: "none",
+      sourcemap: serverSourcemapMode(options.serverSourceMaps),
       splitting: true,
       target: "bun",
     });
+    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
+    writeServerMetafile(serverBuild, options.analyze, buildRoot);
 
     console.log(`[furin] Server binary: ${outfile}`);
 
     targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, serverFilename));
 
     // Embed mode: assets are in the binary — clean up client dirs too.
-    if (options.compile === "embed") {
-      for (const app of apps) {
-        rmSync(join(targetDir, clientDirNameForPrefix(app.prefix)), {
-          force: true,
-          recursive: true,
-        });
-      }
-      targetManifest.clientDir = null;
-      targetManifest.templatePath = null;
-    }
+    finalizeEmbeddedAssets(options.compile, apps, targetDir, targetManifest);
   } else if (serverEntry && appEntry) {
     // Disk mode: generate server.ts then bundle it into self-contained server.js
     const entry = generateBootEntry(appEntry, targetDir, "server.ts");
 
-    await runBunBuild({
+    const serverBuild = await runBunBuild({
       entrypoints: [entry.entrypoint],
       files: entry.files,
+      metafile: options.analyze,
       minify: true,
       naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
       outdir: targetDir,
@@ -206,9 +263,11 @@ export async function buildBunTarget(
         environmentGuardPlugin("ssr"),
         elysiaAot(appEntry),
       ],
-      sourcemap: "none",
+      sourcemap: serverSourcemapMode(options.serverSourceMaps),
       target: "bun",
     });
+    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
+    writeServerMetafile(serverBuild, options.analyze, buildRoot);
     console.log(
       `[furin] Server bundle: ${toPosixPath(join(targetManifest.targetDir, "server.js"))}`
     );

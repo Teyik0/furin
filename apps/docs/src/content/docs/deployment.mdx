@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-Region identifiers must use Vercel's lowercase region-code format, such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and malformed identifiers fail config validation.
+The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail config validation.
 
 ### Cold-start diagnostics
 
@@ -285,10 +285,81 @@ For Sync, use file-backed SQLite only on one host. For replicas on separate host
 
 ## Production Checklist
 
+### Reverse proxy, compression, and streaming
+
+Put a reverse proxy or load balancer in front of Bun. Let it terminate TLS and negotiate Brotli/gzip; Furin deliberately does not compress responses in the application process. Brotli normally saves more bytes than gzip for HTML, JS, and CSS, while gzip remains the compatibility fallback. Do not compress already-compressed images or add buffering to streaming SSR, PPR, SSE, and Sync WebSockets. Preserve `Content-Encoding`, `Vary: Accept-Encoding`, cache headers, `Upgrade`, and forwarded host/protocol headers. An Nginx-style starting point is:
+
+```nginx
+# In the http block:
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+upstream furin { server 127.0.0.1:3000; keepalive 32; }
+
+server {
+  listen 443 ssl;
+  # Configure certificates and HTTP/2 for your environment.
+  gzip on;
+  gzip_vary on;
+  gzip_types text/css text/javascript application/javascript application/json image/svg+xml;
+  # If the Brotli module is installed: brotli on; brotli_types text/html text/css text/javascript application/javascript application/json image/svg+xml;
+
+  location / {
+    proxy_pass http://furin;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_buffering off;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+  }
+}
+```
+
+Verify your actual proxy build supports Brotli before enabling it. Test both `Accept-Encoding: br` and `Accept-Encoding: gzip`; with a gzip-only proxy, gzip is a valid production contract. Keep streaming responses unbuffered and set idle/read timeouts above the longest expected interval between chunks. Bun also has its own default 10-second `idleTimeout`: it counts silence while a loader is still running, so the 120-second proxy timeout above cannot prevent Bun from resetting a slow request. Export `idleTimeout` (seconds) from `src/server.ts` for the generated Bun boot, or pass it to `startProductionServer()` in a custom boot; choose it for your workload and test a response with a delayed first byte through the public endpoint. Restrict direct Bun access to trusted networks and never expose `.furin/build/private` as static content. See [Bun server timeouts](https://bun.sh/docs/runtime/http/server#idletimeout).
+
+### Health and graceful shutdown
+
+The generated Bun server exposes `/_furin/health/live` and `/_furin/health/ready`. Both return `Cache-Control: no-store`. Liveness means the process is running; readiness means it should receive application traffic. On `SIGTERM` or `SIGINT`, readiness becomes 503 immediately, while application requests continue to be served during the five-second load-balancer propagation window. Liveness remains 200 during the drain. After that window, Furin rejects new application requests, closes its browser-event WebSockets, stops accepting connections, waits for in-flight HTTP requests, ISR regeneration, deferred request-log emissions, and Sync cursor unsubscriptions, then calls an optional application `onShutdown` export. The 30-second deadline covers this entire drain; when it expires, Bun force-closes remaining sockets and Furin stops waiting for unfinished drains. Signal-triggered shutdown then exits the process with its existing exit code (or 0), or with 1 if cleanup throws. Calling `shutdown()` programmatically does not exit the process. Configure your orchestrator's termination grace period above 35 seconds with an operational margin. The proxy must remove a replica when readiness fails; use liveness only to detect a stuck process, not to decide traffic routing.
+
+```ts
+// src/server.ts — optional, for clients owned by the application
+export async function onShutdown() {
+  await redis.quit();
+  await database.end();
+}
+```
+
+Furin closes its own Sync subscriptions but does not close application-owned Redis or PostgreSQL clients; close those in `onShutdown` after the framework drain. An application exporting a custom `startServer()` owns its listener and signal handling instead of the generated boot path. It can use `startProductionServer()` from `@teyik0/furin/production-server` to adopt the same lifecycle, or implement equivalent probes and draining itself. A direct `bun src/server.ts` development start also uses the application's own `.listen()` path.
+
+### Private server source maps and error tools
+
+Server source maps are off by default. Enable them for Bun and Vercel builds:
+
+```ts
+import { defineConfig } from "@teyik0/furin/config";
+
+export default defineConfig({ serverSourceMaps: true });
+```
+
+Furin uses Bun's `external` mode, which does not add a public `sourceMappingURL` comment, and moves the maps to `.furin/build/private/server-sourcemaps/{bun,vercel}`. These maps are **not** included in `.furin/build/bun` or `.vercel/output`; upload them from CI before starting the new release. Keep that private directory restricted because maps can contain source content. For Sentry, stage the generated server `.js` files and their matching `.map` files together outside the deployable directory, then run `bunx @sentry/cli sourcemaps upload --org <org> --project <project> --release <release> <staging-dir>` with `SENTRY_AUTH_TOKEN` supplied by CI. Upload the same release identifier used by the server SDK and verify a test error is symbolicated. For another error tool, upload the same JS/map pairs using its supported artifact API; no credentials are embedded by Furin. Compiled executables can also emit private maps, but check your error tool's support for Bun executable stack frames before relying on remote symbolication.
+
+### Rolling deploys, state, and recovery
+
+Deploy code and its matching client assets as one immutable release. Build and upload source maps, run compatible database migrations, and ensure shared Redis/PostgreSQL dependencies are reachable before adding the new replica to the load balancer. Wait for readiness, gradually shift traffic, then send `SIGTERM` to old replicas and leave the full drain window before `SIGKILL`. Roll back the code and matching assets together. Keep the page-cache namespace stable across replicas and releases; invalidate incompatible entries explicitly rather than encoding a replica ID in the namespace. CDN caches need their own purge/TTL policy for on-demand invalidation.
+
+At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable `/_furin/data` responses may follow their headers. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
+
+Keep secrets in the deployment secret store; never put them in `FURIN_PUBLIC_*`, client build flags, source maps, or logs. Back up the authoritative PostgreSQL/Redis data, including Sync journals and any durable page-cache state you require, with point-in-time or AOF/snapshot recovery appropriate to the service. Test restoration and schema compatibility before relying on backups. An in-memory cache is disposable and should not be treated as a backup.
+
+For recovery, restore the application database and durable Sync journal to a consistent point, apply the required Sync schema migration, then start replicas against the restored store. Restore Redis page-cache state only when it is compatible with that application snapshot; otherwise let public pages regenerate from authoritative data. Rehearse the procedure in an isolated environment by reading a known Sync cursor and rendering an ISR page before admitting traffic. File-backed SQLite Sync requires a consistent snapshot of its database file on the single host.
+
 - Run type-checks and tests before the build.
 - Deploy the exact server and asset directories listed by the manifest.
 - Keep `NODE_ENV=production` behavior and server-only secrets consistent across replicas.
-- Configure health checks on an explicit Elysia API route.
+- Route load-balancer traffic using `/_furin/health/ready`; monitor `/_furin/health/live` separately.
 - For multiple Bun replicas, verify Redis connectivity and keep the page-cache namespace stable across releases.
 - Decide whether CDN invalidation is required before enabling long shared-cache lifetimes.
 - Roll back code and matching assets together; the build ID protects browsers from mixed deployments, not the origin from an incomplete rollout.

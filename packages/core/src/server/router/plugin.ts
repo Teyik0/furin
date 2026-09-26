@@ -1,4 +1,4 @@
-import { type AnyElysia, type Context, Elysia, problem, t } from "elysia";
+import { type AnyElysia, type Context, Elysia, problem } from "elysia";
 import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
@@ -27,7 +27,7 @@ import { extractTitle } from "../render/shell.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
-import { handleDevRequest } from "./hmr.ts";
+import { handleDevRequest, reportDevRouteFailure } from "./hmr.ts";
 import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import {
@@ -43,6 +43,12 @@ const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 type DataResolvedRoutesSource =
   | ResolvedRoutesSource
   | ((request: Request) => Promise<ResolvedRoute[]>);
+type RefreshDevRoute = (
+  route: ResolvedRoute
+) => Promise<{ route: ResolvedRoute; root: RootLayout }>;
+type DataRouteResolver = (
+  route: ResolvedRoute
+) => Promise<{ route: ResolvedRoute; root: RootLayout | undefined }>;
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -207,6 +213,48 @@ async function createRouteDataErrorResponse(
   });
 }
 
+async function resolveDataRoute(
+  route: ResolvedRoute,
+  resolveRoute: DataRouteResolver
+): Promise<{ route: ResolvedRoute; root: RootLayout | undefined } | Response> {
+  try {
+    return await resolveRoute(route);
+  } catch (error) {
+    getLogger().error(error instanceof Error ? error : new Error(String(error)));
+    if (IS_DEV) {
+      reportDevRouteFailure(error, route);
+    }
+    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+  }
+}
+
+async function resolveDataRoutes(
+  routesSource: DataResolvedRoutesSource,
+  request: Request
+): Promise<ResolvedRoute[] | Response> {
+  try {
+    return typeof routesSource === "function" ? await routesSource(request) : routesSource;
+  } catch (error) {
+    getLogger().error(error instanceof Error ? error : new Error(String(error)));
+    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+  }
+}
+
+function resolvedSearchRoutes(
+  routes: ResolvedRoute[],
+  matchedRoute: ResolvedRoute,
+  currentRoute: ResolvedRoute,
+  searchRoutes: SearchRouteMetadata[],
+  refreshDevRoute: RefreshDevRoute | undefined
+): SearchRouteMetadata[] {
+  if (refreshDevRoute === undefined) {
+    return searchRoutes;
+  }
+  return createSearchRouteMetadata(
+    routes.map((route) => (route === matchedRoute ? currentRoute : route))
+  );
+}
+
 /** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
 async function handleSSGRequest(
   route: ResolvedRoute,
@@ -336,17 +384,20 @@ export function renderResolvedRoute(
  */
 export function createDataEndpoint(
   routesSource: DataResolvedRoutesSource,
-  root?: RootLayout
+  root?: RootLayout,
+  refreshDevRoute?: RefreshDevRoute
 ): AnyElysia {
   const plugin = new Elysia();
   let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
   let searchRoutes = createSearchRouteMetadata(matchedRoutes);
+  const resolveRoute: DataRouteResolver =
+    refreshDevRoute ?? ((route: ResolvedRoute) => Promise.resolve({ root, route }));
 
   plugin.get(
     "/_furin/data",
     {
-      query: t.Object({ path: t.Optional(t.String()) }),
+      // The transport path is validated below without requiring a TypeBox schema.
     },
     async (ctx) => {
       const rawPath = ctx.query.path;
@@ -368,13 +419,9 @@ export function createDataEndpoint(
       const wideEventLog = getLogger();
       wideEventLog.set({ path: rawPath });
 
-      let currentRoutes: ResolvedRoute[];
-      try {
-        currentRoutes =
-          typeof routesSource === "function" ? await routesSource(ctx.request) : routesSource;
-      } catch (error) {
-        wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
-        return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+      const currentRoutes = await resolveDataRoutes(routesSource, ctx.request);
+      if (currentRoutes instanceof Response) {
+        return currentRoutes;
       }
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
@@ -390,6 +437,18 @@ export function createDataEndpoint(
       // Now that we know the matched pattern, add it as a stable aggregation
       // key for drains (e.g. "p99 latency by route").
       wideEventLog.set({ routePattern: matched.route.pattern });
+
+      const current = await resolveDataRoute(matched.route, resolveRoute);
+      if (current instanceof Response) {
+        return current;
+      }
+      const currentSearchRoutes = resolvedSearchRoutes(
+        matchedRoutes,
+        matched.route,
+        current.route,
+        searchRoutes,
+        refreshDevRoute
+      );
 
       // Build a synthetic Elysia-compatible context for the matched route.
       // Loaders receive request, params, query, set, headers, and cookie.
@@ -424,8 +483,8 @@ export function createDataEndpoint(
 
       // Normalize params and query through the route chain schemas so SPA and
       // document requests expose identical typed/defaulted inputs.
-      const mergedParams = mergeRouteSchemas(matched.route.routeChain, "params");
-      const mergedQuery = mergeRouteSchemas(matched.route.routeChain, "query");
+      const mergedParams = mergeRouteSchemas(current.route.routeChain, "params");
+      const mergedQuery = mergeRouteSchemas(current.route.routeChain, "query");
       const parsedParams = await parseRouteParams(matched.params, mergedParams);
       if (!parsedParams.ok) {
         return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
@@ -438,13 +497,13 @@ export function createDataEndpoint(
       syntheticCtx.query = parsedQuery.query as SearchParamsInput;
 
       const result = await runDataEndpointLoaders(
-        matched.route,
+        current.route,
         syntheticCtx as unknown as Context,
-        root,
-        searchRoutes
+        current.root,
+        currentSearchRoutes
       );
 
-      return createLoaderDataResponse(result, matched.route, syntheticRequest.url, syntheticCtx);
+      return createLoaderDataResponse(result, current.route, syntheticRequest.url, syntheticCtx);
     }
   );
 

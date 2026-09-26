@@ -197,8 +197,10 @@ test.serial("furin() refreshes route types after a topology change", async () =>
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
-  await Promise.resolve();
   try {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+      timeoutMs: 3000,
+    });
     writeAppFile(
       app.path,
       "src/pages/settings.tsx",
@@ -447,37 +449,41 @@ test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", 
   expect(await pageResponse.text()).toContain("Catch-all page");
 });
 
-test.serial("furin() built catch-all page coexists with a prefixed mount", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
-  writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
+test.serial(
+  "furin() built catch-all page coexists with a prefixed mount",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+    writeAppFile(app.path, "src/server.ts", MOUNTED_SERVER);
 
-  const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr || result.stdout);
-  }
-  const port = getTestPort();
-  const server = startProcess([process.execPath, join(app.path, ".furin/build/bun/server.js")], {
-    cwd: app.path,
-    env: { PORT: String(port) },
-  });
-  try {
-    const apiResponse = await waitForHttp(`http://127.0.0.1:${port}/api/auth/session`, {
-      timeoutMs: 10_000,
+    const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr || result.stdout);
+    }
+    const port = getTestPort();
+    const server = startProcess([process.execPath, join(app.path, ".furin/build/bun/server.js")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
     });
-    const pageResponse = await fetch(`http://127.0.0.1:${port}/some-page`);
-    const missingResponse = await fetch(`http://127.0.0.1:${port}/missing`);
+    try {
+      const apiResponse = await waitForHttp(`http://127.0.0.1:${port}/api/auth/session`, {
+        timeoutMs: 10_000,
+      });
+      const pageResponse = await fetch(`http://127.0.0.1:${port}/some-page`);
+      const missingResponse = await fetch(`http://127.0.0.1:${port}/missing`);
 
-    expect(pageResponse.status).toBe(200);
-    expect(await pageResponse.text()).toContain("Catch-all page");
-    expect(apiResponse.status).toBe(200);
-    expect(await apiResponse.text()).toBe("auth:/auth/session");
-    expect(missingResponse.status).toBe(404);
-  } finally {
-    server.kill();
-    await server.exitCode;
-  }
-});
+      expect(pageResponse.status).toBe(200);
+      expect(await pageResponse.text()).toContain("Catch-all page");
+      expect(apiResponse.status).toBe(200);
+      expect(await apiResponse.text()).toBe("auth:/auth/session");
+      expect(missingResponse.status).toBe(404);
+    } finally {
+      server.kill();
+      await server.exitCode;
+    }
+  },
+  30_000
+);
 
 test.serial(
   "furin() compiled server serves a prefixed mount and a catch-all page",

@@ -5,6 +5,10 @@ local now = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2]) / 
 if raw then
   local active = cjson.decode(raw)
   if active.expiresAt > now then return nil end
+  if active.indexMember then redis.call('ZREM', KEYS[4], active.indexMember) end
+  for _, key in ipairs(active.tagLeaseKeys or {}) do
+    redis.call('ZREM', key, active.indexMember)
+  end
 end
 local fence = redis.call('INCR', KEYS[2])
 redis.call('PEXPIRE', KEYS[2], ARGV[4])
@@ -14,14 +18,26 @@ for index, field in ipairs(fields) do
   values[index] = tonumber(redis.call('HGET', KEYS[3], field) or '0')
 end
 redis.call('PEXPIRE', KEYS[3], ARGV[4])
+local tag_lease_keys = {}
+for index = 5, #KEYS do table.insert(tag_lease_keys, KEYS[index]) end
 local lease = {
+  tagLeaseKeys = tag_lease_keys,
   expiresAt = now + tonumber(ARGV[2]),
   fence = fence,
   fields = fields,
   id = ARGV[1],
+  indexMember = cjson.encode({id = ARGV[1], path = ARGV[5], tags = cjson.decode(ARGV[6])}),
   values = values
 }
 redis.call('SET', KEYS[1], cjson.encode(lease), 'PX', ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now)
+redis.call('ZADD', KEYS[4], lease.expiresAt, lease.indexMember)
+redis.call('PEXPIRE', KEYS[4], ARGV[4])
+for _, key in ipairs(tag_lease_keys) do
+  redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
+  redis.call('ZADD', key, lease.expiresAt, lease.indexMember)
+  redis.call('PEXPIRE', key, ARGV[4])
+end
 return cjson.encode(lease)
 `;
 
@@ -38,6 +54,8 @@ for index, field in ipairs(lease.fields) do
   local current = tonumber(redis.call('HGET', KEYS[3], field) or '0')
   if current ~= lease.values[index] then
     redis.call('DEL', KEYS[1])
+    if lease.indexMember then redis.call('ZREM', KEYS[5], lease.indexMember) end
+    for _, key in ipairs(lease.tagLeaseKeys or {}) do redis.call('ZREM', key, lease.indexMember) end
     return 'superseded'
   end
 end
@@ -56,13 +74,15 @@ redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[5])
 redis.call('ZREMRANGEBYSCORE', KEYS[4], '-inf', now)
 redis.call('ZADD', KEYS[4], expires_at, ARGV[4])
 redis.call('PEXPIRE', KEYS[4], ARGV[6])
-for index = 5, #KEYS do
+for index = 6, #KEYS do
   redis.call('ZREMRANGEBYSCORE', KEYS[index], '-inf', now)
   redis.call('ZADD', KEYS[index], expires_at, ARGV[4])
   redis.call('PEXPIRE', KEYS[index], ARGV[6])
 end
 redis.call('PEXPIRE', KEYS[3], ARGV[6])
 redis.call('DEL', KEYS[1])
+if lease.indexMember then redis.call('ZREM', KEYS[5], lease.indexMember) end
+for _, key in ipairs(lease.tagLeaseKeys or {}) do redis.call('ZREM', key, lease.indexMember) end
 return 'stored'
 `;
 
@@ -91,6 +111,8 @@ local raw = redis.call('GET', KEYS[1])
 if not raw then return 0 end
 local lease = cjson.decode(raw)
 if lease.id == ARGV[1] and lease.fence == tonumber(ARGV[2]) then
+  if lease.indexMember then redis.call('ZREM', KEYS[2], lease.indexMember) end
+  for _, key in ipairs(lease.tagLeaseKeys or {}) do redis.call('ZREM', key, lease.indexMember) end
   return redis.call('DEL', KEYS[1])
 end
 return 0
@@ -105,13 +127,13 @@ redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now)
 local members = redis.call('ZRANGE', KEYS[2], 0, -1)
 local seen = {}
 local affected = {}
+local function matches_path(path)
+  if path == ARGV[2] then return true end
+  return ARGV[3] == 'layout' and (ARGV[2] == '/' or string.sub(path, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. '/')
+end
 for _, member in ipairs(members) do
   local index = cjson.decode(member)
-  local matches = index.path == ARGV[2]
-  if ARGV[3] == 'layout' and not matches then
-    matches = ARGV[2] == '/' or string.sub(index.path, 1, string.len(ARGV[2]) + 1) == ARGV[2] .. '/'
-  end
-  if matches then
+  if matches_path(index.path) then
     redis.call('DEL', index.entryKey)
     redis.call('ZREM', index.pathsKey, member)
     for _, tag_key in ipairs(index.tagKeys) do
@@ -121,6 +143,14 @@ for _, member in ipairs(members) do
       seen[index.path] = true
       table.insert(affected, index.path)
     end
+  end
+end
+redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
+for _, member in ipairs(redis.call('ZRANGE', KEYS[3], 0, -1)) do
+  local lease = cjson.decode(member)
+  if matches_path(lease.path) and not seen[lease.path] then
+    seen[lease.path] = true
+    table.insert(affected, lease.path)
   end
 end
 return affected
@@ -137,7 +167,7 @@ local now = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2]) / 
 local seen_members = {}
 local seen_paths = {}
 local affected = {}
-for key_index = 3, #KEYS do
+for key_index = 4, 3 + #tags do
   redis.call('ZREMRANGEBYSCORE', KEYS[key_index], '-inf', now)
   local members = redis.call('ZRANGE', KEYS[key_index], 0, -1)
   for _, member in ipairs(members) do
@@ -153,6 +183,16 @@ for key_index = 3, #KEYS do
         seen_paths[index.path] = true
         table.insert(affected, index.path)
       end
+    end
+  end
+end
+for key_index = 4 + #tags, #KEYS do
+  redis.call('ZREMRANGEBYSCORE', KEYS[key_index], '-inf', now)
+  for _, member in ipairs(redis.call('ZRANGE', KEYS[key_index], 0, -1)) do
+    local lease = cjson.decode(member)
+    if not seen_paths[lease.path] then
+      seen_paths[lease.path] = true
+      table.insert(affected, lease.path)
     end
   end
 end

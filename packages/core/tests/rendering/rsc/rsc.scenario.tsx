@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
-import { serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
+import { renderForPath, serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
@@ -17,6 +17,9 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 process.env.FURIN_RSC_CODEC_PATH = "";
 
 type RenderServerComponent = (node: ReactNode) => Promise<ReactNode>;
+
+const ROUTE_FRAME_TEMPLATE_PATTERN =
+  /<template\b(?=[^>]*\sid="__FURIN_ROUTE_FRAMES__"(?:\s|>))[^>]*>/;
 
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
@@ -82,6 +85,10 @@ function renderFooter(label: string): ReactNode {
   return <button type="button">{label}</button>;
 }
 
+function renderHydratedFooter(label: string): ReactNode {
+  return <button type="button">{`${label} after hydration`}</button>;
+}
+
 function ToolbarAction({ label }: { label: string }): ReactNode {
   return <button type="button">{label}</button>;
 }
@@ -112,12 +119,11 @@ function createMockContext(path: string): Context {
 }
 
 function extractRouteFramePayload(html: string): string {
-  const startMarker = '<template id="__FURIN_ROUTE_FRAMES__">';
-  const start = html.indexOf(startMarker);
-  if (start === -1) {
+  const openingTag = ROUTE_FRAME_TEMPLATE_PATTERN.exec(html);
+  if (openingTag === null) {
     throw new Error("route frame template missing");
   }
-  const contentStart = start + startMarker.length;
+  const contentStart = openingTag.index + openingTag[0].length;
   const contentEnd = html.indexOf("</template>", contentStart);
   if (contentEnd === -1) {
     throw new Error("route frame template was not closed");
@@ -154,6 +160,12 @@ try {
   const { CompositeComponent, createCompositeComponent, renderServerComponent } = await import(
     "furin/rsc"
   );
+
+  expect(
+    extractRouteFramePayload(
+      '<template data-id=\'id="__FURIN_ROUTE_FRAMES__"\'>decoy</template><template id="__FURIN_ROUTE_FRAMES__">payload</template>'
+    )
+  ).toBe("payload");
 
   let article = await renderServerComponent(<h1>Composite RSC</h1>);
   expect(await renderHtml(<main>{article}</main>)).toBe("<main><h1>Composite RSC</h1></main>");
@@ -327,6 +339,56 @@ try {
   ).toBe(
     '<article><h2>Profile</h2><footer><button type="button">Loaded</button></footer></article>'
   );
+
+  for (const mode of ["ssg", "isr"] as const) {
+    const bufferedRoute =
+      mode === "isr"
+        ? defineRoute()
+            .config({ layout: rootTerminal, mode: "isr", revalidate: 300 })
+            .loader(async () => ({
+              article: await renderServerComponent(<h1>Buffered article</h1>),
+              shell: Card,
+            }))
+            .page(({ article: pageArticle, shell }) => (
+              <>
+                <CompositeComponent footer={renderFooter} src={shell} />
+                {pageArticle}
+              </>
+            ))
+        : defineRoute()
+            .config({ layout: rootTerminal, mode: "ssg" })
+            .loader(async () => ({
+              article: await renderServerComponent(<h1>Buffered article</h1>),
+              shell: Card,
+            }))
+            .page(({ article: pageArticle, shell }) => (
+              <>
+                <CompositeComponent footer={renderFooter} src={shell} />
+                {pageArticle}
+              </>
+            ));
+    const bufferedResolved = resolveRoute(bufferedRoute, `/${mode}-rsc.tsx`, `/${mode}-rsc`);
+    // biome-ignore lint/performance/noAwaitInLoops: each render is checked before the next mode.
+    const result = await renderForPath(bufferedResolved, {}, root, "http://localhost", mode);
+    if (result instanceof Response) {
+      throw new Error("buffered RSC route returned a redirect");
+    }
+    expect(result.html).toContain('<article><footer><button type="button">Loaded</button>');
+    expect(result.html).toContain("<h1>Buffered article</h1>");
+    const initialData = await parseDeferredNdjson(
+      new Blob([extractRouteFramePayload(result.html)]).stream(),
+      undefined
+    );
+    expect(
+      await renderHtml(
+        <CompositeComponent
+          footer={renderHydratedFooter}
+          src={initialData.syncData.shell as typeof Card}
+        />
+      )
+    ).toContain('<button type="button">Loaded after hydration</button>');
+    expect(await renderHtml(initialData.syncData.article)).toBe("<h1>Buffered article</h1>");
+  }
 
   const Toolbar = await createCompositeComponent<{
     Action: (props: { label: string }) => ReactNode;

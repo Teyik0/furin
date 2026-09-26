@@ -26,6 +26,20 @@ interface SyncCursorState {
 
 const cursorStates = new Map<SyncAdapter, Promise<SyncCursorState>>();
 const resolvedStates = new Set<SyncCursorState>();
+const pendingUnsubscriptions = new Set<Promise<void>>();
+const unsubscriptions = new WeakMap<SyncSubscription, Promise<void>>();
+
+function trackUnsubscription(subscription: SyncSubscription): Promise<void> {
+  const existing = unsubscriptions.get(subscription);
+  if (existing) {
+    return existing;
+  }
+  const pending = subscription.unsubscribe();
+  unsubscriptions.set(subscription, pending);
+  pendingUnsubscriptions.add(pending);
+  pending.finally(() => pendingUnsubscriptions.delete(pending)).catch(() => undefined);
+  return pending;
+}
 
 function notifyState(state: SyncCursorState, cursor: string): void {
   if (state.cursor === cursor) {
@@ -93,7 +107,7 @@ export async function subscribeSyncCursor(
       if (state.safetyPoll) {
         clearInterval(state.safetyPoll);
       }
-      state.subscription.unsubscribe().catch(() => undefined);
+      trackUnsubscription(state.subscription);
     },
   };
 }
@@ -172,7 +186,7 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
 /** @internal — closes process-local stream state between tests. */
 export function __resetSyncState(): void {
   for (const state of resolvedStates) {
-    state.subscription.unsubscribe().catch(() => undefined);
+    trackUnsubscription(state.subscription);
     if (state.safetyPoll) {
       clearInterval(state.safetyPoll);
     }
@@ -180,4 +194,31 @@ export function __resetSyncState(): void {
   }
   cursorStates.clear();
   resolvedStates.clear();
+}
+
+/** Release process-local Sync subscriptions after Bun has drained HTTP traffic. */
+export async function closeSyncCursorStates(): Promise<void> {
+  const pending = [...cursorStates.values()];
+  cursorStates.clear();
+  const states = await Promise.allSettled(pending);
+  await Promise.allSettled(
+    states.flatMap((result) => {
+      if (result.status !== "fulfilled") {
+        return [];
+      }
+      const state = result.value;
+      if (state.safetyPoll) {
+        clearInterval(state.safetyPoll);
+      }
+      state.listeners.clear();
+      resolvedStates.delete(state);
+      return [trackUnsubscription(state.subscription)];
+    })
+  );
+  await waitForSyncCursorUnsubscriptions();
+}
+
+/** Wait for released connections without closing subscriptions owned by other servers. */
+export async function waitForSyncCursorUnsubscriptions(): Promise<void> {
+  await Promise.allSettled([...pendingUnsubscriptions]);
 }

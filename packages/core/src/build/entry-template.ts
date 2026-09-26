@@ -224,7 +224,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
           "",
           "// Force production mode — Bun may inline process.env.NODE_ENV at bundle time.",
           "__setDevMode(false);",
-          'process.env.NODE_ENV = "production";',
+          ...(mode === "boot" ? ['process.env.NODE_ENV = "production";'] : []),
         ]
       : []),
     ...contextBlocks,
@@ -254,7 +254,9 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
             `const __serverModule = await import(${JSON.stringify(serverEntry.replace(/\\/g, "/"))});`,
             "export const app = __serverModule.default;",
             "export const port = __serverModule.port;",
+            "export const idleTimeout = __serverModule.idleTimeout;",
             "export const startServer = __serverModule.startServer;",
+            "export const onShutdown = __serverModule.onShutdown;",
             "export default __serverModule.default;",
             "",
           ]

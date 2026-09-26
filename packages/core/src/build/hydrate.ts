@@ -206,6 +206,7 @@ const _match = routes.find((r) => r.regex.test(pathname));
 //     a matched loader threw notFound(). The latter still has a _match; the
 //     former does not — so the two cases fork on _match below.
 const dataEl = document.getElementById("__FURIN_DATA__");
+const frameTemplate = document.getElementById("__FURIN_ROUTE_FRAMES__") as HTMLTemplateElement | null;
 let loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
 const syncEl = document.getElementById("__FURIN_SYNC__");
 const syncConfig = syncEl ? JSON.parse(syncEl.textContent || "{}") : {};
@@ -222,6 +223,7 @@ const documentState: DocumentState = {
   assets: {
     buildId,
     entryModule: entryEl?.getAttribute("src") ?? undefined,
+    extensionErrorFilterScript: document.querySelector("[data-furin-extension-error-filter]")?.textContent ?? undefined,
     faviconHref,
     frameworkModules,
     staticMode: document.querySelector('meta[name="furin-mode"][content="static"]') !== null,
@@ -231,6 +233,9 @@ const documentState: DocumentState = {
   },
   dataJson: dataEl?.textContent ?? undefined,
   head,
+  routeFrames: frameTemplate?.hasAttribute("data-furin-document-state")
+    ? (frameTemplate.content.textContent ?? "")
+    : undefined,
   syncJson: syncEl?.textContent ?? undefined,
 };
 
@@ -305,7 +310,6 @@ if (__deferred && __deferred._chunks) {
 // Wrapped in an async IIFE to avoid top-level await, which causes Bun's HTML
 // bundler to misidentify which chunk to reference as the entry in index.html.
 (async () => {
-  const frameTemplate = document.getElementById("__FURIN_ROUTE_FRAMES__") as HTMLTemplateElement | null;
   if (frameTemplate) {
     const payload = frameTemplate.content.textContent || "";
     const routeFrameStream = (window as unknown as { __FURIN_ROUTE_FRAME_STREAM__?: FurinRouteFrameStream })

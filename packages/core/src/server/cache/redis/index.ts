@@ -181,6 +181,8 @@ export class RedisPageCache implements PageCacheAdapter {
       this.leaseKey(identity),
       this.fenceKey(identity),
       this.versionsKey(identity.scope),
+      this.leasesKey(identity.scope),
+      ...[...new Set(identity.tags)].map((tag) => this.tagLeasesKey(identity.scope, tag)),
     ];
     const raw = await this.client.send("EVAL", [
       ACQUIRE_PAGE_CACHE_LEASE_SCRIPT,
@@ -190,6 +192,8 @@ export class RedisPageCache implements PageCacheAdapter {
       String(leaseMs),
       JSON.stringify(selectorFields(identity)),
       String(this.metadataRetentionMs),
+      identity.path,
+      JSON.stringify(identity.tags),
     ]);
     if (raw === null) {
       return null;
@@ -234,6 +238,7 @@ export class RedisPageCache implements PageCacheAdapter {
       entryKey,
       this.versionsKey(identity.scope),
       pathsKey,
+      this.leasesKey(identity.scope),
       ...tagKeys,
     ];
     const result = await this.client.send("EVAL", [
@@ -259,9 +264,10 @@ export class RedisPageCache implements PageCacheAdapter {
       const result = stringArrayResult(
         await this.client.send("EVAL", [
           INVALIDATE_PAGE_CACHE_PATH_SCRIPT,
-          "2",
+          "3",
           this.versionsKey(input.scope),
           this.pathsKey(input.scope),
+          this.leasesKey(input.scope),
           `${input.type}:${path}`,
           path,
           input.type,
@@ -276,7 +282,9 @@ export class RedisPageCache implements PageCacheAdapter {
     const keys = [
       this.versionsKey(input.scope),
       this.pathsKey(input.scope),
+      this.leasesKey(input.scope),
       ...tags.map((tag) => this.tagPathsKey(input.scope, tag)),
+      ...tags.map((tag) => this.tagLeasesKey(input.scope, tag)),
     ];
     const result = stringArrayResult(
       await this.client.send("EVAL", [
@@ -313,8 +321,9 @@ export class RedisPageCache implements PageCacheAdapter {
   }): Promise<void> {
     await this.client.send("EVAL", [
       RELEASE_PAGE_CACHE_LEASE_SCRIPT,
-      "1",
+      "2",
       this.leaseKey(identity),
+      this.leasesKey(identity.scope),
       lease.id,
       String(lease.fence),
     ]);
@@ -336,8 +345,16 @@ export class RedisPageCache implements PageCacheAdapter {
     return `${this.prefix}:paths:${digest(scope)}`;
   }
 
+  private leasesKey(scope: string): string {
+    return `${this.prefix}:leases:${digest(scope)}`;
+  }
+
   private tagPathsKey(scope: string, tag: string): string {
     return `${this.prefix}:tag-paths:${digest(scope)}:${digest(tag)}`;
+  }
+
+  private tagLeasesKey(scope: string, tag: string): string {
+    return `${this.prefix}:tag-leases:${digest(scope)}:${digest(tag)}`;
   }
 
   private versionsKey(scope: string): string {

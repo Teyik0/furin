@@ -4,6 +4,7 @@ import type { HeadOptions, MetaDescriptor } from "../client.ts";
 export interface DocumentAssets {
   buildId: string | undefined;
   entryModule: string | undefined;
+  extensionErrorFilterScript?: string;
   faviconHref: string | undefined;
   frameworkModules: readonly string[];
   staticMode: boolean;
@@ -14,6 +15,7 @@ export interface DocumentState {
   assets: DocumentAssets;
   dataJson: string | undefined;
   head: HeadOptions | undefined;
+  routeFrames?: string;
   syncJson: string | undefined;
 }
 
@@ -70,6 +72,13 @@ export function HeadContent(): ReactNode {
 
   return (
     <>
+      {state.assets.extensionErrorFilterScript === undefined ? null : (
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: framework-owned development script.
+          dangerouslySetInnerHTML={{ __html: state.assets.extensionErrorFilterScript }}
+          data-furin-extension-error-filter=""
+        />
+      )}
       <meta charSet="utf-8" data-furin-head="" />
       <meta content="width=device-width, initial-scale=1.0" name="viewport" />
       {state.assets.buildId ? <meta content={state.assets.buildId} name="furin-build-id" /> : null}
@@ -127,6 +136,16 @@ export function Scripts(): ReactNode {
           dangerouslySetInnerHTML={{ __html: state.dataJson }}
           id="__FURIN_DATA__"
           type="application/json"
+        />
+      )}
+      {state.routeFrames === undefined ? null : (
+        <template
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: route frames are escaped before insertion.
+          dangerouslySetInnerHTML={{
+            __html: state.routeFrames.replaceAll("&", "&amp;").replaceAll("<", "&lt;"),
+          }}
+          data-furin-document-state=""
+          id="__FURIN_ROUTE_FRAMES__"
         />
       )}
       <script

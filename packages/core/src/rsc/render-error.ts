@@ -1,3 +1,5 @@
+import { isProductionBuild } from "../shared/production-build.ts";
+
 export type RscRenderOperation = "createCompositeComponent" | "renderServerComponent";
 
 interface FurinRscRenderErrorOptions {
@@ -53,7 +55,7 @@ function detectComponent(error: unknown, hook: string | undefined): string | und
 }
 
 function renderErrorMessage(options: FurinRscRenderErrorOptions): string {
-  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+  if (isProductionBuild()) {
     return `[furin/rsc] Server Component rendering failed inside ${options.operation}().`;
   }
   if (options.hook !== undefined && options.component !== undefined) {

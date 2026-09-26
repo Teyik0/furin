@@ -14,6 +14,15 @@ interface EmbeddedDiagnosticState {
   event: Extract<DevDiagnosticEvent, { type: "error" }>;
 }
 
+export const extensionErrorFilterScript = `window.addEventListener("unhandledrejection", (event) => {
+  const stack = event.reason?.stack;
+  if (typeof stack !== "string") return;
+  const firstFrame = stack.match(/^(?:\\s*at [^\\n]*|[^\\n]*@[^\\n]*)/m)?.[0];
+  if (firstFrame && /\\b(?:chrome|moz)-extension:\\/\\//.test(firstFrame)) {
+    event.stopImmediatePropagation();
+  }
+}, true);`;
+
 let overlayClientSource: string | undefined;
 
 async function clientSource(): Promise<string> {
@@ -118,7 +127,7 @@ export function renderDevDiagnosticResponse(
 ): Response {
   const state = serializeForHtml({ basePath, event });
   return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Furin development error</title>${browserEventsClientScript(basePath)}</head><body><script id="__FURIN_DEV_DIAGNOSTIC__" type="application/json">${state}</script><script type="module" src="${basePath}/_furin/dev/overlay.js"></script></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Furin development error</title><script data-furin-extension-error-filter="">${extensionErrorFilterScript}</script>${browserEventsClientScript(basePath)}</head><body><script id="__FURIN_DEV_DIAGNOSTIC__" type="application/json">${state}</script><script type="module" src="${basePath}/_furin/dev/overlay.js"></script></body></html>`,
     {
       headers: {
         "cache-control": "no-store",

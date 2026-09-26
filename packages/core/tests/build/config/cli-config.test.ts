@@ -83,6 +83,20 @@ describe("CLI config resolution", () => {
     await expect(loadCliConfig(app.path)).rejects.toThrow("path: /vercel/regions/0");
   });
 
+  test("loadCliConfig rejects unsupported Vercel regions", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      [
+        'import { defineConfig } from "@teyik0/furin/config";',
+        'export default defineConfig({ vercel: { regions: ["abc1"] } });',
+      ].join("\n")
+    );
+
+    await expect(loadCliConfig(app.path)).rejects.toThrow("path: /vercel/regions/0");
+  });
+
   // RED: plugins must survive TypeBox validation and be returned
   test("loadCliConfig preserves plugins array through TypeBox validation", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
