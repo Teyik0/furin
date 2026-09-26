@@ -25,16 +25,14 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
         'import { route as rootRoute } from "./root";',
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "isr", revalidate: 300 })',
-        "  .loader(async () => ({ shell: await createCompositeComponent<{ action: () => React.ReactNode }>(({ action }) => <main><h1>RSC page</h1>{action()}</main>) }))",
+        "  .loader(async () => {",
+        `    if ((process.env.NODE_ENV ?? null) !== ${JSON.stringify(previousNodeEnv ?? null)}) throw new Error("Build changed NODE_ENV during prerender");`,
+        "    return { shell: await createCompositeComponent<{ action: () => React.ReactNode }>(({ action }) => <main><h1>RSC page</h1>{action()}</main>) };",
+        "  })",
         '  .page(({ shell }) => <CompositeComponent src={shell} action={() => <button type="button">Action</button>} />);',
       ].join("\n")
     );
-    const building = buildApp({ rootDir: app.path, target: "vercel" });
-    try {
-      expect(process.env.NODE_ENV).toBe(previousNodeEnv);
-    } finally {
-      await building;
-    }
+    await buildApp({ rootDir: app.path, target: "vercel" });
     expect(process.env.NODE_ENV).toBe(previousNodeEnv);
     const fallbackPath = join(app.path, ".vercel/output/functions/rsc-isr.prerender-fallback.html");
     const html = readFileSync(fallbackPath, "utf8");

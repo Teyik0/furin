@@ -437,7 +437,8 @@ function createFurinPlugin(app: AnyElysia, hmrPrefix: string | undefined) {
   return <ParentApp extends AnyElysia>(parentApp: ParentApp) => {
     const mounted = parentApp.use(scopedApp);
     if (hmrPrefix !== undefined) {
-      const entryPath = `${hmrPrefix}/_bun_hmr_entry`;
+      const parentConfig = Reflect.get(parentApp, "~config") as { prefix?: string } | undefined;
+      const entryPath = `${parentConfig?.prefix ?? ""}${hmrPrefix}/_bun_hmr_entry`;
       const routes = Reflect.get(mounted, "~routes") as
         | [string, string, unknown, unknown, unknown, unknown, unknown?][]
         | undefined;

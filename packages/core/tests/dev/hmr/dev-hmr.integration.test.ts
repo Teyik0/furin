@@ -172,6 +172,38 @@ describe.serial("dev HMR", () => {
     }
   }, 30_000);
 
+  test("native HMR entry stays quiet with inherited hooks and nested prefixes", async () => {
+    const hookedApp = createTmpApp("cli-app");
+    const hookedPort = await getFreePort();
+    writeAppFile(
+      hookedApp.path,
+      "src/server.ts",
+      [
+        'import { furin } from "@teyik0/furin";',
+        'import Elysia from "elysia";',
+        'new Elysia({ prefix: "/api" }).beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/admin" })).listen(Number(process.env.PORT));',
+      ].join("\n")
+    );
+    const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
+      cwd: hookedApp.path,
+      env: { PORT: String(hookedPort) },
+    });
+    try {
+      const response = await waitForHttp(
+        `http://localhost:${hookedPort}/api/admin/_bun_hmr_entry`,
+        {}
+      );
+      expect(await response.text()).toContain("data-bun-dev-server-script");
+      expect(hookedServer.getStderr()).not.toContain(
+        "is an HTML bundle served natively, hooks do not run for it"
+      );
+    } finally {
+      hookedServer.kill();
+      await hookedServer.exitCode;
+      hookedApp.cleanup();
+    }
+  }, 30_000);
+
   test("dev HMR does not serve stale build HTML", async () => {
     const response = await fetch(`http://localhost:${port}/_bun_hmr_entry/build/vercel/client`);
     expect(response.status).toBe(404);
