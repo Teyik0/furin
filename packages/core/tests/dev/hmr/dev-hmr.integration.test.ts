@@ -19,6 +19,8 @@ describe.serial("dev HMR", () => {
   let port: number;
   let server: ReturnType<typeof startProcess>;
 
+  writeAppFile(app.path, ".furin/build/vercel/client/index.html", "<p>Old build</p>");
+
   writeAppFile(
     app.path,
     "src/components/mobile-nav.tsx",
@@ -136,6 +138,12 @@ describe.serial("dev HMR", () => {
     expect(hmrEntryHtml).toContain("data-bun-dev-server-script");
     expect(extractDevClientEntry(hmrEntryHtml)).toMatch(DEV_CLIENT_CHUNK_RE);
   }, 30_000);
+
+  test("dev HMR does not serve stale build HTML", async () => {
+    const response = await fetch(`http://localhost:${port}/_bun_hmr_entry/build/vercel/client`);
+    expect(response.status).toBe(404);
+    expect(server.getStderr()).not.toContain("/_bun_hmr_entry/build/vercel/client");
+  });
 
   test("after file edit, SSR returns updated content (no restart)", async () => {
     // Record logs before edit

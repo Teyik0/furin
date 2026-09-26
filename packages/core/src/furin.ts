@@ -40,7 +40,7 @@ import {
   setProductionTemplatePath,
 } from "./server/render/template.ts";
 import { loadProdRoutes } from "./server/router/discovery.ts";
-import { invalidateStampedRouteModules } from "./server/router/hmr.ts";
+import { invalidateStampedRouteModules, resolveCurrentDevRoute } from "./server/router/hmr.ts";
 import { buildRouteMatcher } from "./server/router/patterns.ts";
 import { createDataEndpoint, renderResolvedRoute } from "./server/router/plugin.ts";
 import { mergeRouteSchemas } from "./server/router/schema-merge.ts";
@@ -112,6 +112,7 @@ export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
 const MAX_BROWSER_INGEST_EVENTS = 100;
+const NESTED_FURIN_ASSET_PATTERN = /^[\\/][^\\/]+[\\/]/;
 function resolveClientDirFromArgv(prefix: string): string {
   const dirName = clientDirNameForPrefix(prefix);
   return (
@@ -796,7 +797,14 @@ export async function furin({
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
       })
-      .use(await staticPlugin({ assets: furinDir, bunFullstack: true, prefix: "/_bun_hmr_entry" }))
+      .use(
+        await staticPlugin({
+          assets: furinDir,
+          bunFullstack: true,
+          ignorePatterns: [".DS_Store", ".git", ".env", NESTED_FURIN_ASSET_PATTERN],
+          prefix: "/_bun_hmr_entry",
+        })
+      )
       .use(loggerPlugin)
       // Local scope (default) — a global hook would leak onto sibling furin
       // instances mounted on the same parent app.
@@ -837,12 +845,16 @@ export async function furin({
           : new Elysia()
       )
       .use(
-        createDataEndpoint(async (request) => {
-          if (request.headers.get("x-furin-hmr-refresh") === "1") {
-            await routeTopologyWatcher?.refresh();
-          }
-          return currentSnapshot().routes;
-        })
+        createDataEndpoint(
+          async (request) => {
+            if (request.headers.get("x-furin-hmr-refresh") === "1") {
+              await routeTopologyWatcher?.refresh();
+            }
+            return currentSnapshot().routes;
+          },
+          undefined,
+          (route) => resolveCurrentDevRoute(route, currentSnapshot().root)
+        )
       )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
       .use(nativeRoutesApp)

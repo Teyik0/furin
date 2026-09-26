@@ -399,7 +399,9 @@ async function resolveDefinedLayoutParent(
       if (!existsSync(candidate)) {
         continue;
       }
-      const layoutModule = (await import(candidate)) as { route?: unknown };
+      const layoutModule = (await import(
+        IS_DEV ? `${candidate}?furin-server&t=${routeModuleSourceVersion(candidate)}` : candidate
+      )) as { route?: unknown };
       const layout = layoutModule.route;
       if (isDefinedRouteTerminal(layout) && typeof layout.layout === "function") {
         parent = adaptDefinedLayout(layout, parent, candidate);

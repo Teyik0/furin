@@ -28,6 +28,7 @@ test("dev error response embeds diagnostics and the shared browser event client"
   expect(html).toContain("src/pages/index.tsx");
   expect(html).toContain("/admin/_furin/events/client.js");
   expect(html).toContain("/admin/_furin/dev/overlay.js");
+  expect(html).toContain("data-furin-extension-error-filter");
   expect(html).not.toContain("Check the server console");
 });
 

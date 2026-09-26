@@ -136,7 +136,11 @@ export async function getDevDocumentAssets(origin: string): Promise<DocumentAsse
   if (state.devAssets && Date.now() - state.devAssets.ts < DEV_TEMPLATE_TTL_MS) {
     return state.devAssets.assets;
   }
-  const assets = documentAssetsFromTemplate(await getDevTemplate(origin));
+  const { extensionErrorFilterScript } = await import("../dev/plugin.ts");
+  const assets = {
+    ...documentAssetsFromTemplate(await getDevTemplate(origin)),
+    extensionErrorFilterScript,
+  };
   state.devAssets = { assets, ts: Date.now() };
   return assets;
 }

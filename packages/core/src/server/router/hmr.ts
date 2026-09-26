@@ -270,6 +270,65 @@ export function rebuildDevRoute(
   };
 }
 
+/** Resolve the current source-version modules for both HTML and data requests. */
+export async function resolveCurrentDevRoute(
+  route: ResolvedRoute,
+  root: RootLayout
+): Promise<{ route: ResolvedRoute; root: RootLayout }> {
+  let currentRoot = root;
+  const rootMod = await importStampedRouteModule(root.path, routeModuleImport);
+  const rootExport = rootMod.route;
+  if (isDefinedRouteTerminal(rootExport) && typeof rootExport.layout === "function") {
+    // Preserve the RootLayout-level convention fields (error, notFound,
+    // errorPath, notFoundPath) populated by `scanRootLayout` from
+    // `pages/error.tsx` and `pages/not-found.tsx`.  Replacing the whole
+    // RootLayout with just `{ path, route }` would silently drop these
+    // fallbacks — `route.error ?? root.error` would resolve to `undefined`
+    // in dev after the first request, making custom 404/500 screens
+    // disappear after a HMR refresh.
+    currentRoot = {
+      ...currentRoot,
+      route: adaptDefinedLayout(rootExport, undefined, root.path),
+    };
+  }
+
+  const pageMod = await importStampedRouteModule(route.path, routeModuleImport);
+  let page: RuntimePage | undefined;
+  let chain: RuntimeRoute[] | undefined;
+  if (isDefinedRouteTerminal(pageMod.route) && typeof pageMod.route.page === "function") {
+    const currentChain = route.routeChain;
+    await refreshLayoutChain(currentChain, route.path, root.path, undefined);
+    const parent = currentChain.at(-2) ?? currentRoot.route;
+    const adaptedPage = adaptDefinedPage(pageMod.route, parent);
+    page = adaptedPage;
+    chain = collectRouteChainFromRoute(adaptedPage._route);
+  }
+  if (page && chain) {
+    // Patch chain[0] (the root) with the freshly-imported root's loader
+    // and layout.  `refreshLayoutChain` deliberately starts at chainIdx=1
+    // because the root is already loaded separately above; without this
+    // patch, chain[0] points to whatever object `_route.parent` captured
+    // at _route's first evaluation — a STALE reference if Bun --hot
+    // re-evaluated root.tsx without propagating the re-evaluation to
+    // _route.tsx (the standard ESM behaviour).  Mirroring the pattern
+    // used by patchRouteEntryFromFreshModule.
+    if (chain[0] && currentRoot.route) {
+      chain[0].layout = currentRoot.route.layout;
+      chain[0].loader = currentRoot.route.loader;
+      chain[0].staticParams = currentRoot.route.staticParams;
+    }
+
+    return { root: currentRoot, route: rebuildDevRoute(route, page, chain) };
+  }
+  const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
+  Reflect.set(invalidExport, "furinPosition", {
+    column: 1,
+    file: route.path,
+    line: 1,
+  });
+  throw new DevTransformFailure(invalidExport, { cause: invalidExport });
+}
+
 /** @internal Handles a request in dev mode using the current source-version modules. */
 export async function handleDevRequest(
   route: ResolvedRoute,
@@ -281,85 +340,24 @@ export async function handleDevRequest(
   // --hot's file watcher, then hand off to renderSSR which runs loaders,
   // renders React to HTML, and injects __FURIN_DATA__.
   try {
-    let currentRoot = root;
-    const rootMod = await importStampedRouteModule(root.path, routeModuleImport);
-    const rootExport = rootMod.route;
-    if (isDefinedRouteTerminal(rootExport) && typeof rootExport.layout === "function") {
-      // Preserve the RootLayout-level convention fields (error, notFound,
-      // errorPath, notFoundPath) populated by `scanRootLayout` from
-      // `pages/error.tsx` and `pages/not-found.tsx`.  Replacing the whole
-      // RootLayout with just `{ path, route }` would silently drop these
-      // fallbacks — `route.error ?? root.error` would resolve to `undefined`
-      // in dev after the first request, making custom 404/500 screens
-      // disappear after a HMR refresh.
-      currentRoot = {
-        ...currentRoot,
-        route: adaptDefinedLayout(rootExport, undefined, root.path),
-      };
-    }
+    const { route: refreshedRoute, root: currentRoot } = await resolveCurrentDevRoute(route, root);
 
-    const pageMod = await importStampedRouteModule(route.path, routeModuleImport);
-    let page: RuntimePage | undefined;
-    let chain: RuntimeRoute[] | undefined;
-    if (isDefinedRouteTerminal(pageMod.route) && typeof pageMod.route.page === "function") {
-      const currentChain = route.routeChain;
-      await refreshLayoutChain(currentChain, route.path, root.path, undefined);
-      const parent = currentChain.at(-2) ?? currentRoot.route;
-      const adaptedPage = adaptDefinedPage(pageMod.route, parent);
-      page = adaptedPage;
-      chain = collectRouteChainFromRoute(adaptedPage._route);
+    // Live ISR — the loader chain is short-circuited by the dev cache when
+    // a fresh entry exists.  HTML re-assembles every time so the dev shell
+    // chunk URL is always current.
+    let response: Response;
+    if (refreshedRoute.mode === "isr") {
+      response = await renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+    } else if (refreshedRoute.mode === "ssg") {
+      response = await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+    } else {
+      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
+      response = await runDevRender(() =>
+        renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
+      );
     }
-    if (page && chain) {
-      // Patch chain[0] (the root) with the freshly-imported root's loader
-      // and layout.  `refreshLayoutChain` deliberately starts at chainIdx=1
-      // because the root is already loaded separately above; without this
-      // patch, chain[0] points to whatever object `_route.parent` captured
-      // at _route's first evaluation — a STALE reference if Bun --hot
-      // re-evaluated root.tsx without propagating the re-evaluation to
-      // _route.tsx (the standard ESM behaviour).  Mirroring the pattern
-      // used by patchRouteEntryFromFreshModule.
-      if (chain[0] && currentRoot.route) {
-        chain[0].layout = currentRoot.route.layout;
-        chain[0].loader = currentRoot.route.loader;
-        chain[0].staticParams = currentRoot.route.staticParams;
-      }
-
-      const refreshedRoute = rebuildDevRoute(route, page, chain);
-
-      // Live ISR — the loader chain is short-circuited by the dev cache when
-      // a fresh entry exists.  HTML re-assembles every time so the dev shell
-      // chunk URL is always current.
-      let response: Response;
-      if (refreshedRoute.mode === "isr") {
-        response = await renderDevISRWithLoaderCache(
-          refreshedRoute,
-          ctx,
-          currentRoot,
-          searchRoutes
-        );
-      } else if (refreshedRoute.mode === "ssg") {
-        response = await renderDevSSGWithLoaderCache(
-          refreshedRoute,
-          ctx,
-          currentRoot,
-          searchRoutes
-        );
-      } else {
-        const loaderResult = await runDevLoaders(refreshedRoute, ctx);
-        response = await runDevRender(() =>
-          renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
-        );
-      }
-      devDiagnosticStore().markReady(route.pattern);
-      return response;
-    }
-    const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
-    Reflect.set(invalidExport, "furinPosition", {
-      column: 1,
-      file: route.path,
-      line: 1,
-    });
-    throw new DevTransformFailure(invalidExport, { cause: invalidExport });
+    devDiagnosticStore().markReady(route.pattern);
+    return response;
   } catch (err) {
     console.error(`[furin] Dev page load error for ${route.path}:`, err);
     const failure = devFailure(err);

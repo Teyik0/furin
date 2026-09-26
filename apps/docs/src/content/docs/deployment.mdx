@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-Region identifiers must use Vercel's lowercase region-code format, such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and malformed identifiers fail config validation.
+The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail config validation.
 
 ### Cold-start diagnostics
 

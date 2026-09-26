@@ -223,6 +223,7 @@ const documentState: DocumentState = {
   assets: {
     buildId,
     entryModule: entryEl?.getAttribute("src") ?? undefined,
+    extensionErrorFilterScript: document.querySelector("[data-furin-extension-error-filter]")?.textContent ?? undefined,
     faviconHref,
     frameworkModules,
     staticMode: document.querySelector('meta[name="furin-mode"][content="static"]') !== null,

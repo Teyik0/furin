@@ -6,6 +6,31 @@ export const BUILD_TARGETS = ["bun", "vercel", "static", "package"] as const;
 
 export type BuildTarget = (typeof BUILD_TARGETS)[number];
 
+// https://vercel.com/docs/regions#region-list
+const VERCEL_REGIONS = [
+  "arn1",
+  "bom1",
+  "cdg1",
+  "cle1",
+  "cpt1",
+  "dub1",
+  "fra1",
+  "gru1",
+  "hkg1",
+  "hnd1",
+  "iad1",
+  "icn1",
+  "kix1",
+  "lhr1",
+  "pdx1",
+  "sfo1",
+  "sin1",
+  "syd1",
+  "yul1",
+] as const;
+
+export type VercelRegion = (typeof VERCEL_REGIONS)[number];
+
 /**
  * Configuration for the `static` build target.
  * Produces a fully pre-rendered directory deployable to any static host
@@ -34,7 +59,7 @@ export interface StaticExportConfig {
 
 export interface VercelDeploymentConfig {
   /** Vercel compute regions, such as "cdg1" or "iad1". */
-  regions?: string[];
+  regions?: VercelRegion[];
 }
 
 const buildTargetSchema = t.Union(BUILD_TARGETS.map((v) => t.Literal(v)));
@@ -92,7 +117,7 @@ export const configSchema = t.Object({
   vercel: t.Optional(
     t.Object({
       regions: t.Optional(
-        t.Array(t.String({ pattern: "^[a-z]{3}[1-9][0-9]*$" }), {
+        t.Array(t.Enum(VERCEL_REGIONS), {
           minItems: 1,
           uniqueItems: true,
         })

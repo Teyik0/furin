@@ -43,6 +43,9 @@ const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 type DataResolvedRoutesSource =
   | ResolvedRoutesSource
   | ((request: Request) => Promise<ResolvedRoute[]>);
+type RefreshDevRoute = (
+  route: ResolvedRoute
+) => Promise<{ route: ResolvedRoute; root: RootLayout }>;
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -336,12 +339,15 @@ export function renderResolvedRoute(
  */
 export function createDataEndpoint(
   routesSource: DataResolvedRoutesSource,
-  root?: RootLayout
+  root?: RootLayout,
+  refreshDevRoute?: RefreshDevRoute
 ): AnyElysia {
   const plugin = new Elysia();
   let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
   let searchRoutes = createSearchRouteMetadata(matchedRoutes);
+  const resolveRoute =
+    refreshDevRoute ?? ((route: ResolvedRoute) => Promise.resolve({ root, route }));
 
   plugin.get(
     "/_furin/data",
@@ -391,6 +397,8 @@ export function createDataEndpoint(
       // key for drains (e.g. "p99 latency by route").
       wideEventLog.set({ routePattern: matched.route.pattern });
 
+      const current = await resolveRoute(matched.route);
+
       // Build a synthetic Elysia-compatible context for the matched route.
       // Loaders receive request, params, query, set, headers, and cookie.
       // Build the synthetic URL from the parsed `pathname + search` only —
@@ -424,8 +432,8 @@ export function createDataEndpoint(
 
       // Normalize params and query through the route chain schemas so SPA and
       // document requests expose identical typed/defaulted inputs.
-      const mergedParams = mergeRouteSchemas(matched.route.routeChain, "params");
-      const mergedQuery = mergeRouteSchemas(matched.route.routeChain, "query");
+      const mergedParams = mergeRouteSchemas(current.route.routeChain, "params");
+      const mergedQuery = mergeRouteSchemas(current.route.routeChain, "query");
       const parsedParams = await parseRouteParams(matched.params, mergedParams);
       if (!parsedParams.ok) {
         return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
@@ -438,13 +446,13 @@ export function createDataEndpoint(
       syntheticCtx.query = parsedQuery.query as SearchParamsInput;
 
       const result = await runDataEndpointLoaders(
-        matched.route,
+        current.route,
         syntheticCtx as unknown as Context,
-        root,
+        current.root,
         searchRoutes
       );
 
-      return createLoaderDataResponse(result, matched.route, syntheticRequest.url, syntheticCtx);
+      return createLoaderDataResponse(result, current.route, syntheticRequest.url, syntheticCtx);
     }
   );
 
