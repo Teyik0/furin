@@ -2486,6 +2486,7 @@ browserTest(
     )) as string;
     await waitForElementText(harness.view, '[data-testid="rsc-value"]', "rsc-rsc-v1");
     await harness.view.click('[data-testid="increment"]');
+    await waitForElementText(harness.view, '[data-testid="count"]', "1");
 
     writeAppFile(harness.app.path, "src/pages/index.tsx", rscPageSource("rsc-v2"));
 
