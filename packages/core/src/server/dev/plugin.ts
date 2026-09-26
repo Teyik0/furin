@@ -17,7 +17,7 @@ interface EmbeddedDiagnosticState {
 export const extensionErrorFilterScript = `window.addEventListener("unhandledrejection", (event) => {
   const stack = event.reason?.stack;
   if (typeof stack !== "string") return;
-  const firstFrame = stack.match(/^\\s*at [^\\n]*/m)?.[0];
+  const firstFrame = stack.match(/^(?:\\s*at [^\\n]*|[^\\n]*@[^\\n]*)/m)?.[0];
   if (firstFrame && /\\b(?:chrome|moz)-extension:\\/\\//.test(firstFrame)) {
     event.stopImmediatePropagation();
   }

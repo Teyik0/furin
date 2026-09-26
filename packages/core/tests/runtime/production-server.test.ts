@@ -77,7 +77,7 @@ describe("Bun production lifecycle", () => {
     const lifecycle = startProductionServer({
       app,
       port: 0,
-      preStopDelayMs: 100,
+      preStopDelayMs: 1000,
       shutdownTimeoutMs: 2000,
     });
     const origin = `http://localhost:${lifecycle.server.port}`;
@@ -345,6 +345,72 @@ test("shutting down one server leaves another server's browser-event sockets ope
     subscription.unsubscribe();
     firstSocket.close();
     secondSocket.close();
+    await Promise.all([first.shutdown(), second.shutdown()]);
+  }
+});
+
+test("concurrent server shutdowns close shared Sync cursor subscriptions", async () => {
+  const { promise: bothDrained, resolve: markBothDrained } = Promise.withResolvers<void>();
+  const { promise: releaseCleanup, resolve: release } = Promise.withResolvers<void>();
+  let drains = 0;
+  const onShutdown = () => {
+    drains += 1;
+    if (drains === 2) {
+      markBothDrained();
+    }
+    return releaseCleanup;
+  };
+  const first = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    onShutdown,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const second = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    onShutdown,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  let unsubscribed = false;
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.reject(new Error("not used")),
+    completeMutation: () => Promise.reject(new Error("not used")),
+    currentCursor: () => Promise.resolve("0"),
+    readChanges: () => Promise.reject(new Error("not used")),
+    renewMutation: () => Promise.reject(new Error("not used")),
+    scope: "host-local",
+  };
+  const subscription = await subscribeSyncCursor(
+    {
+      adapter,
+      notifier: {
+        publish: () => Promise.resolve(),
+        subscribe: () =>
+          Promise.resolve({
+            unsubscribe: () => {
+              unsubscribed = true;
+              return Promise.resolve();
+            },
+          }),
+      },
+      principal: () => "test",
+    },
+    () => undefined
+  );
+
+  try {
+    const shutdowns = Promise.all([first.shutdown(), second.shutdown()]);
+    await bothDrained;
+    release();
+    await shutdowns;
+    expect(unsubscribed).toBe(true);
+  } finally {
+    release();
+    subscription.unsubscribe();
     await Promise.all([first.shutdown(), second.shutdown()]);
   }
 });

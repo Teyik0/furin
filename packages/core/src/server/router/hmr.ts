@@ -90,6 +90,15 @@ function devFailure(error: unknown): {
   return { error, phase: "import" };
 }
 
+export function reportDevRouteFailure(error: unknown, route: ResolvedRoute): void {
+  const failure = devFailure(error);
+  publishDevDiagnostic(failure.error, {
+    entryPath: route.path,
+    phase: failure.phase,
+    route: route.pattern,
+  });
+}
+
 /**
  * Reuses one virtual ESM module per source version. A timestamp generated on
  * every request leaks module-registry entries because Bun cannot release old

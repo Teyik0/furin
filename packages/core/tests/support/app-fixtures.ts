@@ -33,7 +33,7 @@ export function createTmpApp(fixtureName: string): TmpApp {
   cpSync(source, path, { recursive: true });
 
   return {
-    cleanup: () => rmSync(path, { force: true, recursive: true }),
+    cleanup: () => rmSync(path, { force: true, maxRetries: 10, recursive: true, retryDelay: 100 }),
     path,
   };
 }

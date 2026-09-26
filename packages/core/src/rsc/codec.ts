@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isProductionBuild } from "../shared/production-build.ts";
 import { drainFlight, type FlightRenderSession } from "./flight-drain.ts";
 import type { RscRenderOperation } from "./render-error.ts";
 
@@ -9,7 +10,7 @@ interface ServerCodec {
   renderFlight: (model: unknown, signal: AbortSignal | undefined) => FlightRenderSession;
 }
 
-let serverCodecPromise: Promise<ServerCodec> | undefined;
+const serverCodecPromises = new Map<"development" | "production", Promise<ServerCodec>>();
 
 export function resolveConfiguredCodecPath(configuredPath: string | undefined): string | undefined {
   if (configuredPath === undefined || configuredPath.trim() === "") {
@@ -31,11 +32,13 @@ export function resolveBuiltCodecPath(
 }
 
 function loadServerCodec(): Promise<ServerCodec> {
-  if (serverCodecPromise !== undefined) {
-    return serverCodecPromise;
+  const mode = isProductionBuild() ? "production" : "development";
+  const existing = serverCodecPromises.get(mode);
+  if (existing !== undefined) {
+    return existing;
   }
 
-  serverCodecPromise = (async () => {
+  const codecPromise = (async () => {
     const configuredCodecPath = resolveConfiguredCodecPath(process.env.FURIN_RSC_CODEC_PATH);
     if (configuredCodecPath !== undefined) {
       return import(pathToFileURL(configuredCodecPath).href) as Promise<ServerCodec>;
@@ -44,7 +47,7 @@ function loadServerCodec(): Promise<ServerCodec> {
     if (builtCodecPath !== undefined) {
       return import(pathToFileURL(builtCodecPath).href) as Promise<ServerCodec>;
     }
-    const outdir = join(tmpdir(), `furin-rsc-${process.pid}-${Bun.hash(import.meta.url)}`);
+    const outdir = join(tmpdir(), `furin-rsc-${process.pid}-${Bun.hash(import.meta.url)}-${mode}`);
     mkdirSync(outdir, { recursive: true });
     const sourcePath = join(import.meta.dir, "server-codec.ts");
     if (!existsSync(sourcePath)) {
@@ -54,11 +57,7 @@ function loadServerCodec(): Promise<ServerCodec> {
     }
     const result = await Bun.build({
       conditions: ["react-server"],
-      define: {
-        "process.env.NODE_ENV": JSON.stringify(
-          process.env.NODE_ENV === "production" ? "production" : "development"
-        ),
-      },
+      define: { "process.env.NODE_ENV": JSON.stringify(mode) },
       entrypoints: [sourcePath],
       format: "esm",
       minify: false,
@@ -77,7 +76,8 @@ function loadServerCodec(): Promise<ServerCodec> {
     return import(pathToFileURL(output.path).href) as Promise<ServerCodec>;
   })();
 
-  return serverCodecPromise;
+  serverCodecPromises.set(mode, codecPromise);
+  return codecPromise;
 }
 
 export async function encodeFlight(

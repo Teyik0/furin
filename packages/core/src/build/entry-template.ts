@@ -224,7 +224,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
           "",
           "// Force production mode — Bun may inline process.env.NODE_ENV at bundle time.",
           "__setDevMode(false);",
-          'process.env.NODE_ENV = "production";',
+          ...(mode === "boot" ? ['process.env.NODE_ENV = "production";'] : []),
         ]
       : []),
     ...contextBlocks,

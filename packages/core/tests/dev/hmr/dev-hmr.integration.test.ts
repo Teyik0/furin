@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { DEV_CLIENT_CHUNK_RE, extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
+import { waitForHttp } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 /**
@@ -137,6 +138,38 @@ describe.serial("dev HMR", () => {
     const hmrEntryHtml = await (await fetch(`http://localhost:${port}/_bun_hmr_entry`)).text();
     expect(hmrEntryHtml).toContain("data-bun-dev-server-script");
     expect(extractDevClientEntry(hmrEntryHtml)).toMatch(DEV_CLIENT_CHUNK_RE);
+    expect(server.getStderr()).not.toContain(
+      "is an HTML bundle served natively, hooks do not run for it"
+    );
+  }, 30_000);
+
+  test("native HMR entry stays quiet with inherited application hooks", async () => {
+    const hookedApp = createTmpApp("cli-app");
+    const hookedPort = await getFreePort();
+    writeAppFile(
+      hookedApp.path,
+      "src/server.ts",
+      [
+        'import { furin } from "@teyik0/furin";',
+        'import Elysia from "elysia";',
+        'new Elysia().beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
+      ].join("\n")
+    );
+    const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
+      cwd: hookedApp.path,
+      env: { PORT: String(hookedPort) },
+    });
+    try {
+      const response = await waitForHttp(`http://localhost:${hookedPort}/_bun_hmr_entry`, {});
+      expect(await response.text()).toContain("data-bun-dev-server-script");
+      expect(hookedServer.getStderr()).not.toContain(
+        "is an HTML bundle served natively, hooks do not run for it"
+      );
+    } finally {
+      hookedServer.kill();
+      await hookedServer.exitCode;
+      hookedApp.cleanup();
+    }
   }, 30_000);
 
   test("dev HMR does not serve stale build HTML", async () => {

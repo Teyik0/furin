@@ -18,6 +18,7 @@ test("Vercel config suggests supported region codes", () => {
     "cdg1",
     "fra1",
   ]);
+  expect(defineConfig({ vercel: { regions: ["dxb1"] } }).vercel?.regions).toEqual(["dxb1"]);
 
   // @ts-expect-error — abc1 has the right shape but is not a Vercel region.
   defineConfig({ vercel: { regions: ["abc1"] } });

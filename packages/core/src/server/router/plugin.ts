@@ -27,7 +27,7 @@ import { extractTitle } from "../render/shell.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
-import { handleDevRequest } from "./hmr.ts";
+import { handleDevRequest, reportDevRouteFailure } from "./hmr.ts";
 import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import {
@@ -46,6 +46,9 @@ type DataResolvedRoutesSource =
 type RefreshDevRoute = (
   route: ResolvedRoute
 ) => Promise<{ route: ResolvedRoute; root: RootLayout }>;
+type DataRouteResolver = (
+  route: ResolvedRoute
+) => Promise<{ route: ResolvedRoute; root: RootLayout | undefined }>;
 
 interface DataRouteParamsInput {
   [key: string]: unknown;
@@ -210,6 +213,48 @@ async function createRouteDataErrorResponse(
   });
 }
 
+async function resolveDataRoute(
+  route: ResolvedRoute,
+  resolveRoute: DataRouteResolver
+): Promise<{ route: ResolvedRoute; root: RootLayout | undefined } | Response> {
+  try {
+    return await resolveRoute(route);
+  } catch (error) {
+    getLogger().error(error instanceof Error ? error : new Error(String(error)));
+    if (IS_DEV) {
+      reportDevRouteFailure(error, route);
+    }
+    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+  }
+}
+
+async function resolveDataRoutes(
+  routesSource: DataResolvedRoutesSource,
+  request: Request
+): Promise<ResolvedRoute[] | Response> {
+  try {
+    return typeof routesSource === "function" ? await routesSource(request) : routesSource;
+  } catch (error) {
+    getLogger().error(error instanceof Error ? error : new Error(String(error)));
+    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+  }
+}
+
+function resolvedSearchRoutes(
+  routes: ResolvedRoute[],
+  matchedRoute: ResolvedRoute,
+  currentRoute: ResolvedRoute,
+  searchRoutes: SearchRouteMetadata[],
+  refreshDevRoute: RefreshDevRoute | undefined
+): SearchRouteMetadata[] {
+  if (refreshDevRoute === undefined) {
+    return searchRoutes;
+  }
+  return createSearchRouteMetadata(
+    routes.map((route) => (route === matchedRoute ? currentRoute : route))
+  );
+}
+
 /** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
 async function handleSSGRequest(
   route: ResolvedRoute,
@@ -346,7 +391,7 @@ export function createDataEndpoint(
   let matchedRoutes = Array.isArray(routesSource) ? routesSource : [];
   let matchRoute = buildRouteMatcher(matchedRoutes);
   let searchRoutes = createSearchRouteMetadata(matchedRoutes);
-  const resolveRoute =
+  const resolveRoute: DataRouteResolver =
     refreshDevRoute ?? ((route: ResolvedRoute) => Promise.resolve({ root, route }));
 
   plugin.get(
@@ -374,13 +419,9 @@ export function createDataEndpoint(
       const wideEventLog = getLogger();
       wideEventLog.set({ path: rawPath });
 
-      let currentRoutes: ResolvedRoute[];
-      try {
-        currentRoutes =
-          typeof routesSource === "function" ? await routesSource(ctx.request) : routesSource;
-      } catch (error) {
-        wideEventLog.error(error instanceof Error ? error : new Error(String(error)));
-        return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+      const currentRoutes = await resolveDataRoutes(routesSource, ctx.request);
+      if (currentRoutes instanceof Response) {
+        return currentRoutes;
       }
       if (currentRoutes !== matchedRoutes) {
         matchedRoutes = currentRoutes;
@@ -397,7 +438,17 @@ export function createDataEndpoint(
       // key for drains (e.g. "p99 latency by route").
       wideEventLog.set({ routePattern: matched.route.pattern });
 
-      const current = await resolveRoute(matched.route);
+      const current = await resolveDataRoute(matched.route, resolveRoute);
+      if (current instanceof Response) {
+        return current;
+      }
+      const currentSearchRoutes = resolvedSearchRoutes(
+        matchedRoutes,
+        matched.route,
+        current.route,
+        searchRoutes,
+        refreshDevRoute
+      );
 
       // Build a synthetic Elysia-compatible context for the matched route.
       // Loaders receive request, params, query, set, headers, and cookie.
@@ -449,7 +500,7 @@ export function createDataEndpoint(
         current.route,
         syntheticCtx as unknown as Context,
         current.root,
-        searchRoutes
+        currentSearchRoutes
       );
 
       return createLoaderDataResponse(result, current.route, syntheticRequest.url, syntheticCtx);

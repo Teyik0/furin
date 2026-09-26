@@ -3,8 +3,27 @@ import { Elysia } from "elysia";
 import { createDevDiagnostic, DevDiagnosticStore } from "../../../src/server/dev/diagnostics.ts";
 import {
   createDevDiagnosticPlugin,
+  extensionErrorFilterScript,
   renderDevDiagnosticResponse,
 } from "../../../src/server/dev/plugin.ts";
+
+test("filters Firefox extension rejection stacks before diagnostics observe them", () => {
+  const listeners: Array<
+    (event: { reason: { stack: string }; stopImmediatePropagation: () => void }) => void
+  > = [];
+  new Function("window", extensionErrorFilterScript)({
+    addEventListener: (_name: string, listener: (typeof listeners)[number]) =>
+      listeners.push(listener),
+  });
+  let stopped = false;
+  listeners[0]?.({
+    reason: { stack: "Error: failed\nconnect@moz-extension://example/inpage.js:1:2" },
+    stopImmediatePropagation: () => {
+      stopped = true;
+    },
+  });
+  expect(stopped).toBe(true);
+});
 
 function renderFailure(store: DevDiagnosticStore) {
   return store.publish(

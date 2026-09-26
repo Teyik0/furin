@@ -2,13 +2,20 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createElement } from "react";
 import { buildApp } from "../../../src/build/index.ts";
+import { encodeFlight } from "../../../src/rsc/codec.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 test("Vercel prerenders production-compatible composite Flight for direct hydration", async () => {
   const app = createTmpApp("cli-app");
   const previousNodeEnv = process.env.NODE_ENV;
   try {
+    await encodeFlight(
+      createElement("p", null, "development warmup"),
+      undefined,
+      "renderServerComponent"
+    );
     writeAppFile(
       app.path,
       "src/pages/rsc.tsx",
@@ -22,7 +29,12 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
         '  .page(({ shell }) => <CompositeComponent src={shell} action={() => <button type="button">Action</button>} />);',
       ].join("\n")
     );
-    await buildApp({ rootDir: app.path, target: "vercel" });
+    const building = buildApp({ rootDir: app.path, target: "vercel" });
+    try {
+      expect(process.env.NODE_ENV).toBe(previousNodeEnv);
+    } finally {
+      await building;
+    }
     expect(process.env.NODE_ENV).toBe(previousNodeEnv);
     const fallbackPath = join(app.path, ".vercel/output/functions/rsc-isr.prerender-fallback.html");
     const html = readFileSync(fallbackPath, "utf8");

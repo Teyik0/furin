@@ -7,6 +7,7 @@ import { closeSyncCursorStates, waitForSyncCursorUnsubscriptions } from "./sync/
 const DEFAULT_PRE_STOP_DELAY_MS = 5000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 30_000;
 const activeShutdowns = new Set<() => Promise<void>>();
+const syncDrainsReached = new Set<() => Promise<void>>();
 
 const signalShutdown = (): void => {
   Promise.allSettled([...activeShutdowns].map((shutdown) => shutdown())).then((results) => {
@@ -100,7 +101,8 @@ export function startProductionServer(options: ProductionServerOptions): {
           await server.stop();
           await waitForPendingISRRevalidations();
           await Promise.allSettled([...pendingEmissions]);
-          if (activeShutdowns.size === 1) {
+          syncDrainsReached.add(shutdown);
+          if (syncDrainsReached.size === activeShutdowns.size) {
             await closeSyncCursorStates();
           } else {
             await waitForSyncCursorUnsubscriptions();
@@ -113,6 +115,7 @@ export function startProductionServer(options: ProductionServerOptions): {
           clearTimeout(timeout);
         }
         activeShutdowns.delete(shutdown);
+        syncDrainsReached.delete(shutdown);
         if (activeShutdowns.size === 0) {
           process.off("SIGTERM", signalShutdown);
           process.off("SIGINT", signalShutdown);

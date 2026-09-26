@@ -14,6 +14,7 @@ import type { RouterContextValue } from "../../client/router/types.ts";
 import type { HeadOptions } from "../../client.ts";
 import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
+import { isProductionBuild } from "../../shared/production-build.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
@@ -915,7 +916,7 @@ export async function renderSSR(
     }
   }
   if (
-    process.env.NODE_ENV !== "production" &&
+    !isProductionBuild() &&
     dataPayload.__furinError !== undefined &&
     dataPayload.__furinNotFound !== undefined
   ) {

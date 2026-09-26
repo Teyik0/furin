@@ -112,7 +112,6 @@ export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
 const MAX_BROWSER_INGEST_EVENTS = 100;
-const NESTED_FURIN_ASSET_PATTERN = /^[\\/][^\\/]+[\\/]/;
 function resolveClientDirFromArgv(prefix: string): string {
   const dirName = clientDirNameForPrefix(prefix);
   return (
@@ -433,9 +432,27 @@ function wrapWithRequestScope(app: AnyElysia): Elysia {
   });
 }
 
-function createFurinPlugin(app: AnyElysia) {
+function createFurinPlugin(app: AnyElysia, hmrPrefix: string | undefined) {
   const scopedApp = wrapWithRequestScope(app);
-  return <ParentApp extends AnyElysia>(parentApp: ParentApp) => parentApp.use(scopedApp);
+  return <ParentApp extends AnyElysia>(parentApp: ParentApp) => {
+    const mounted = parentApp.use(scopedApp);
+    if (hmrPrefix !== undefined) {
+      const entryPath = `${hmrPrefix}/_bun_hmr_entry`;
+      const routes = Reflect.get(mounted, "~routes") as
+        | [string, string, unknown, unknown, unknown, unknown, unknown?][]
+        | undefined;
+      for (const route of routes ?? []) {
+        if (
+          route[0] === "GET" &&
+          (route[1] === entryPath || route[1] === `${entryPath}/index.html`)
+        ) {
+          // Bun serves these HTML bundles natively; inherited Elysia hooks cannot run.
+          route[6] = undefined;
+        }
+      }
+    }
+    return mounted;
+  };
 }
 
 async function loadDevelopmentRoutes(resolvedPagesDir: string) {
@@ -723,6 +740,7 @@ export async function furin({
     };
     writeCurrentDevFiles(initialSnapshot);
     graph.commit(initialSnapshot);
+    const hmrEntry = (await import(join(furinDir, "index.html"))).default;
     const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
       withInstance(instance, async () => {
         invalidateStampedRouteModules();
@@ -797,14 +815,8 @@ export async function furin({
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
       })
-      .use(
-        await staticPlugin({
-          assets: furinDir,
-          bunFullstack: true,
-          ignorePatterns: [".DS_Store", ".git", ".env", NESTED_FURIN_ASSET_PATTERN],
-          prefix: "/_bun_hmr_entry",
-        })
-      )
+      .get("/_bun_hmr_entry/index.html", hmrEntry)
+      .get("/_bun_hmr_entry", hmrEntry)
       .use(loggerPlugin)
       // Local scope (default) — a global hook would leak onto sibling furin
       // instances mounted on the same parent app.
@@ -873,7 +885,7 @@ export async function furin({
         })
       );
     registerInstance(instance);
-    return createFurinPlugin(devApp);
+    return createFurinPlugin(devApp, prefix);
   }
 
   // ── Production ──────────────────────────────────────────────────────────
@@ -947,7 +959,7 @@ export async function furin({
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));
   registerInstance(instance);
-  return createFurinPlugin(prodApp);
+  return createFurinPlugin(prodApp, undefined);
 }
 
 /**
