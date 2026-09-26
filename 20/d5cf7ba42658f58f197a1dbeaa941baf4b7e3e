@@ -1,0 +1,86 @@
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_f2862c3e456ecb::t_707e83e148f6af 1657-1665
+  s_f2862c3e456ecb::t_5ced16aa4577e0 400-422,1630-1656,1666,1757-1761
+  s_f2862c3e456ecb::t_32dcbd4716a907 1186-1200
+  s_f2862c3e456ecb::t_6826ce4e2c2790 1762-1764
+  s_f2862c3e456ecb::t_dfb3104db28854 423-429,431-446,1667-1710
+  s_f2862c3e456ecb::t_40ae6920dda536 430,451-454,460,1749-1753
+  s_f2862c3e456ecb::t_5108aded4fdc00 447-450,455-459,461-463,1185,1711-1748,1754-1756,1765-1767
+  s_f2862c3e456ecb::t_fc8297ae7056b7 1768
+packages/core/tests/client/boundaries/extension-rejection.test.ts
+  s_5947081d1138dc::t_7cb1d24568af65 2-9,12-25,27-28,31-36,55-57,59-60
+  s_5947081d1138dc::t_0a0a087edda8a0 1,10-11,29-30,37-54,58,61-63
+  s_5947081d1138dc::t_772c93a4c5acd5 26
+apps/docs/src/content/docs/deployment.mdx
+  s_b53d43b18f2565::t_e50eb96c57f9f9 187
+packages/core/src/server/router/plugin.ts
+  s_f2862c3e456ecb::t_012bfa93b18532 46-48,342-343,401,435-436,449,451,455
+  s_f2862c3e456ecb::t_08db49cbe48f7f 349,400
+  s_f2862c3e456ecb::t_12ce54b88fea69 350
+packages/core/src/config.ts
+  s_b53d43b18f2565::t_9507c43c2b8d98 9-33,62
+  s_b53d43b18f2565::t_542b434edaeab4 120
+packages/core/src/client/document.tsx
+  s_5947081d1138dc::t_d9ecd9a3f89f67 7,75-81
+packages/core/src/server/router/discovery.ts
+  s_f2862c3e456ecb::t_e4fd95cd112321 402-404
+packages/core/tests/contract/vercel-regions.test.ts
+  s_b53d43b18f2565::t_e50eb96c57f9f9 1-24
+packages/core/src/server/router/hmr.production.ts
+  s_f2862c3e456ecb::t_a89f3e39d5cd22 5-8
+apps/docs/src/content/docs/configuration.mdx
+  s_b53d43b18f2565::t_e50eb96c57f9f9 37,113
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  s_5947081d1138dc::t_6a8e7127b33d2d 31
+packages/core/tests/build/config/cli-config.test.ts
+  s_b53d43b18f2565::t_2d8a5590eb1a1d 86-99
+packages/core/src/server/dev/plugin.ts
+  s_5947081d1138dc::t_34a469e3a6e11d 17-25,130
+packages/core/src/build/hydrate.ts
+  s_5947081d1138dc::t_4d9434475f8517 226
+packages/core/src/server/router/hmr.ts
+  s_f2862c3e456ecb::t_6826ce4e2c2790 278-318,321-329,343,345-357,359-360
+  s_f2862c3e456ecb::t_6f5705146e37f1 273-277,320,330
+  s_f2862c3e456ecb::t_5e6166fe870aaa 319,331
+packages/core/src/furin.ts
+  s_f2862c3e456ecb::t_41d4cb51a29640 800-803,805-807
+  s_f2862c3e456ecb::t_3764f8f2c0b4db 43,848-857
+  s_f2862c3e456ecb::t_f7fe8fd7957e8c 115,804
+packages/core/src/server/render/template.ts
+  s_5947081d1138dc::t_0abfcdd1f13a95 139-143
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_f2862c3e456ecb::t_477b7d27d6faa7 22-23,142-146
+  s_f2862c3e456ecb::t_b6d4e2768e20dd 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "20d5cf7ba42658f58f197a1dbeaa941baf4b7e3e",
+  "prompts": {},
+  "sessions": {
+    "s_5947081d1138dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd12-c132-7072-b456-b565a7ccbb16",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b53d43b18f2565": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd0a-9127-7671-b167-54924c8769d9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_f2862c3e456ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd0f-1cf2-7881-9b23-d41e62163c83",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
