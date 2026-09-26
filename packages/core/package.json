@@ -152,7 +152,7 @@
     "@elysia/static": "2.0.0-beta.2",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vercel/functions": "^3.9.7",
-    "@yuku-toolchain/types": "0.9.5",
+    "@yuku-toolchain/types": "0.10.2",
     "exact-mirror": "catalog:",
     "magic-string": "^1.2.3",
     "react-server-dom-webpack": "19.2.8",
