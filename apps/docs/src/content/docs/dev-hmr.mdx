@@ -183,8 +183,8 @@ on `window.__FURIN_ROOT__`, the object that survives Bun module re-evaluation.
 Subsequent updates call `root.render(app)`; they reconcile an already-owned DOM
 and never attempt to hydrate it a second time.
 
-After the component update, Furin schedules `window.__FURIN_HMR_REFRESH__` on the
-next animation frame. The router:
+When an edit requires fresh data, Furin schedules `window.__FURIN_HMR_REFRESH__`
+on the next animation frame after the component update. The router then:
 
 1. invalidates the current page's prefetch entry;
 2. requests fresh route data with `x-furin-hmr-refresh: 1`;

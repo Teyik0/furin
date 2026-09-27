@@ -182,7 +182,8 @@ export const route = defineRootRoute()
   .layout(({ children }) => <html><body className="${version}">{children}</body></html>);`;
       writeAppFile(app.path, "src/pages/root.tsx", source("v1", "loadData"));
       writeAppFile(app.path, "src/lib/loader.ts", 'export { loadData, otherLoader } from "./data";');
-      writeAppFile(app.path, "src/lib/data.ts", 'export const loadData = () => ({ message: "v1" });');
+      writeAppFile(app.path, "src/lib/data.ts", `export const loadData = () => ({ message: "v1" });
+export const otherLoader = () => ({ message: "other" });`);
       const signature = (version: string, imported: string) => {
         const output = transformForClient(source(version, imported), filename).code;
         return output.match(/const previousDataSignature = "([^"]+)"/u)?.[1];
@@ -193,7 +194,8 @@ export const route = defineRootRoute()
       expect(signature("v2", "loadData")).toBe(initial);
       expect(signature("v2", "otherLoader")).not.toBe(initial);
 
-      writeAppFile(app.path, "src/lib/data.ts", 'export const loadData = () => ({ message: "v2" });');
+      writeAppFile(app.path, "src/lib/data.ts", `export const loadData = () => ({ message: "v2" });
+export const otherLoader = () => ({ message: "other" });`);
       expect(signature("v2", "loadData")).not.toBe(initial);
     } finally {
       app.cleanup();
