@@ -29,6 +29,7 @@ function resolveRoute(
     page,
     path: `${pattern}.tsx`,
     pattern,
+    requestKeys: pattern === "/account" ? ["user"] : [],
     routeChain,
     segmentBoundaries: [],
     tags: collectRouteTags(routeChain, page),
@@ -107,7 +108,7 @@ describe("navigation data cache contract", () => {
     }
     const payload = await parseDeferredNdjson(response.body, undefined);
     expect(payload.syncData.value).toBe("public");
-    expect(await payload.deferredPromises.requestData).toEqual({ user: "alice" });
+    expect(await payload.deferredPromises.user).toBe("alice");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("cache-tag")).toBeNull();
   });

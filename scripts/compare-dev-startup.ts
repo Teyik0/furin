@@ -1,6 +1,7 @@
 export interface StartupSample {
   listenMs: number;
   readyMs: number;
+  secondRouteMs: number;
 }
 
 export interface StartupAppReport extends StartupSample {
@@ -13,7 +14,7 @@ export interface DevStartupReport {
     taskManager: StartupAppReport;
     weather: StartupAppReport;
   };
-  schemaVersion: 1;
+  schemaVersion: 2;
 }
 
 interface StartupBudgetRow {
@@ -35,7 +36,12 @@ const APPS = [
   { key: "taskManager", label: "Task Manager" },
   { key: "docs", label: "Documentation" },
 ] as const;
-const METRICS = ["listenMs", "readyMs"] as const;
+const METRICS = ["listenMs", "readyMs", "secondRouteMs"] as const;
+const METRIC_LABELS = {
+  listenMs: "Port open",
+  readyMs: "First HTML (from process start)",
+  secondRouteMs: "Second route (request duration)",
+};
 
 export function compareDevStartup(
   base: DevStartupReport,
@@ -63,13 +69,13 @@ export function formatDevStartupComparison(comparison: StartupComparison): strin
   return [
     "## Development cold-start budgets",
     "",
-    "Median of three new Bun processes per app. The first response reads `/_furin/devtools/snapshot` completely. Base and PR run on the same CI runner with filesystem caches retained. The allowance is the larger of 500 ms or 30% of the base.",
+    "Median of three new Bun processes per app. HTML is read completely and its content checked: Weather `/` then `/weather/london`, Task Manager `/` then `/rsc`, docs `/docs` then `/docs/routing`. Weather uses fixed Open-Meteo responses; Task Manager uses a fresh temporary database. Base and PR run on the same CI runner after builds, with filesystem and generated caches retained. These measurements do not include browser hydration. The allowance is the larger of 500 ms or 30% of the base.",
     "",
     "| App | Milestone | Base | PR | Allowed regression | Result |",
     "|---|---|---:|---:|---:|:---:|",
     ...comparison.rows.map(
       (row) =>
-        `| ${row.app} | ${row.metric === "listenMs" ? "Port open" : "First response"} | ${row.baseMs.toFixed(0)} ms | ${row.headMs.toFixed(0)} ms | ${row.allowedMs.toFixed(0)} ms | ${row.status === "pass" ? "✅" : "❌"} |`
+        `| ${row.app} | ${METRIC_LABELS[row.metric]} | ${row.baseMs.toFixed(0)} ms | ${row.headMs.toFixed(0)} ms | ${row.allowedMs.toFixed(0)} ms | ${row.status === "pass" ? "✅" : "❌"} |`
     ),
     "",
     comparison.regressions.length === 0
@@ -83,14 +89,17 @@ function isSample(value: unknown): value is StartupSample {
   if (typeof value !== "object" || value === null) {
     return false;
   }
-  const sample = value as { listenMs?: unknown; readyMs?: unknown };
+  const sample = value as { listenMs?: unknown; readyMs?: unknown; secondRouteMs?: unknown };
   return (
     typeof sample.listenMs === "number" &&
     Number.isFinite(sample.listenMs) &&
     sample.listenMs > 0 &&
     typeof sample.readyMs === "number" &&
     Number.isFinite(sample.readyMs) &&
-    sample.readyMs >= sample.listenMs
+    sample.readyMs >= sample.listenMs &&
+    typeof sample.secondRouteMs === "number" &&
+    Number.isFinite(sample.secondRouteMs) &&
+    sample.secondRouteMs > 0
   );
 }
 
@@ -111,7 +120,7 @@ function isDevStartupReport(value: unknown): value is DevStartupReport {
     schemaVersion?: unknown;
   };
   return (
-    report.schemaVersion === 1 &&
+    report.schemaVersion === 2 &&
     report.apps !== undefined &&
     isAppReport(report.apps.weather) &&
     isAppReport(report.apps.taskManager) &&

@@ -289,14 +289,27 @@ describe("buildPageElement", () => {
     };
     const route = makeRoute({ layout: PrivateLayout });
     const match = makeMatch(PrivatePage, route, undefined);
-    const requestData = Promise.resolve({ user: "Alice" });
+    const user = Promise.resolve("Alice");
 
     expect(
-      renderToStaticMarkup(buildPageElement(match, null, { requestData }, undefined, undefined))
+      renderToStaticMarkup(buildPageElement(match, null, { user }, undefined, undefined))
     ).toBe("<main><p>page</p></main>");
     expect(pageUser).toBe(layoutUser);
     expect(pageHasRequestData).toBe(false);
     expect(await pageUser).toBe("Alice");
+  });
+
+  test("keeps an absent optional public prop absent when request data is pending", () => {
+    let optional: unknown;
+    const PageWithOptional: React.FC<Record<string, unknown>> = ({ optional: value }) => {
+      optional = value;
+      return createElement("p", null, "page");
+    };
+    const match = makeMatch(PageWithOptional, makeRoute(undefined), undefined);
+    renderToStaticMarkup(
+      buildPageElement(match, null, { user: Promise.resolve("Alice") }, undefined, undefined)
+    );
+    expect(optional).toBeUndefined();
   });
 
   test("passes loader data to layout components as props", () => {

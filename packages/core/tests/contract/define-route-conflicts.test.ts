@@ -110,10 +110,6 @@ const createRoutesWithReservedLoaderKeys = () => {
     .config({ mode: "ssr" })
     // @ts-expect-error — public loader fields cannot use React's ref prop.
     .loader(() => ({ ref: "shadowed" }));
-  const requestData = defineRootRoute()
-    .config({ mode: "ssr" })
-    // @ts-expect-error — public loader fields cannot shadow private request data.
-    .loader(() => ({ requestData: "shadowed" }));
   const then = defineRootRoute()
     .config({ mode: "ssr" })
     // @ts-expect-error — thenable protocol keys are reserved by staticParams contexts.
@@ -127,7 +123,6 @@ const createRoutesWithReservedLoaderKeys = () => {
     query,
     querySchema,
     ref,
-    requestData,
     then,
   };
 };

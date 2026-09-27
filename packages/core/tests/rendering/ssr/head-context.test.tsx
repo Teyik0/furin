@@ -109,6 +109,7 @@ describe("SSR head context", () => {
       page,
       path: "/account.tsx",
       pattern: "/account",
+      requestKeys: ["user"],
       routeChain: collectRouteChainFromRoute(page._route),
       segmentBoundaries: [],
     };

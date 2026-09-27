@@ -299,7 +299,7 @@ describe.serial("Vercel deployment adapter", () => {
       "src/pages/root.tsx",
       readFileSync(rootPath, "utf8").replace(
         ".layout(",
-        '.requestLoader(() => { throw new Error("private loader ran during build"); })\n  .layout('
+        '.requestLoader((): { user: string } => { throw new Error("private loader ran during build"); })\n  .layout('
       )
     );
     await buildApp({ rootDir: app.path, target: "vercel" });
@@ -325,16 +325,6 @@ describe.serial("Vercel deployment adapter", () => {
           'furin({ pagesDir: "./src/pages", pageCache: createMemoryPageCache() })'
         )
     );
-    const rootPath = join(app.path, "src/pages/root.tsx");
-    writeAppFile(
-      app.path,
-      "src/pages/root.tsx",
-      readFileSync(rootPath, "utf8").replace(
-        ".layout(",
-        ".requestLoader(() => ({ viewer: \"test\" }))\n  .layout("
-      )
-    );
-
     await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
       "pageCache cannot be configured with the Vercel target"
     );

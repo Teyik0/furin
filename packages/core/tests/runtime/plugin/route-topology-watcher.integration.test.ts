@@ -140,7 +140,9 @@ test("the dev topology watcher skips installed packages but follows linked proje
 
   try {
     const linkedPath = join(linkedDir, "index.ts");
-    expect(realpathSync(Bun.resolveSync("linked", pagesDir))).toBe(realpathSync(linkedPath));
+    expect(realpathSync.native(Bun.resolveSync("linked", pagesDir))).toBe(
+      realpathSync.native(linkedPath)
+    );
     await Bun.sleep(100);
     const vendorPath = join(vendorDir, "index.ts");
     writeFileSync(vendorPath, 'export const vendor = "two";\n');
@@ -161,7 +163,7 @@ test("the dev topology watcher skips installed packages but follows linked proje
         { cause: error }
       );
     }
-    expect(touchedSources[0]).toContain(realpathSync(linkedPath));
+    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath));
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });

@@ -48,6 +48,35 @@ describe("createBuildFingerprint", () => {
     }
   });
 
+  test("includes inferred requestLoader field names", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-request-"));
+    try {
+      const rootPath = join(appDir, "root.tsx");
+      const pagePath = join(appDir, "account.tsx");
+      writeFileSync(rootPath, "root");
+      writeFileSync(pagePath, "account");
+      const routeDefinition = { __type: "FURIN_ROUTE" } satisfies RootLayout["route"];
+      const root: RootLayout = { path: rootPath, route: routeDefinition };
+      const route: ResolvedRoute = {
+        mode: "ssr",
+        page: { __type: "FURIN_PAGE", _route: routeDefinition, component: () => null },
+        path: pagePath,
+        pattern: "/account",
+        requestKeys: ["user"],
+        routeChain: [],
+        segmentBoundaries: [],
+      };
+
+      const first = await createBuildFingerprint("entry.js", [], [route], root, null, [], appDir);
+      const second = await createBuildFingerprint(
+        "entry.js", [], [{ ...route, requestKeys: ["permissions"] }], root, null, [], appDir
+      );
+      expect(first).not.toBe(second);
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
   test("orders route inputs without locale-sensitive collation", async () => {
     const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-"));
 

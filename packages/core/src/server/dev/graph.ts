@@ -280,10 +280,21 @@ export class DevGraph<Snapshot> {
   }
 
   recordImports(importer: string, imports: string[]): void {
-    this.#dependencies.set(
-      normalizeModulePath(importer),
-      new Set(imports.map(normalizeModulePath))
-    );
+    const path = normalizeModulePath(importer);
+    // Learning a module's dependencies during its first evaluation is not an
+    // edit. Rebase unchanged ancestors so contract and render imports share
+    // the same ESM instance. Actual edits must still advance their versions.
+    const unchanged = this.#dependencies.has(path)
+      ? []
+      : [...this.#moduleRevisions].filter(
+          ([modulePath, revision]) =>
+            this.dependsOn(modulePath, path) &&
+            revision.fingerprint === this.#sourceFingerprint(modulePath, new Set())
+        );
+    this.#dependencies.set(path, new Set(imports.map(normalizeModulePath)));
+    for (const [modulePath, revision] of unchanged) {
+      revision.fingerprint = this.#sourceFingerprint(modulePath, new Set());
+    }
   }
 
   recordSourceError(message: string, position: DevSourcePosition): void {

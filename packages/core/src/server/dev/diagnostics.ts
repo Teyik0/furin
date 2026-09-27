@@ -29,8 +29,9 @@ export interface ClientErrorReport {
   stack: string | undefined;
 }
 
-const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/|furin-dev-page:)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-page:/;
+const STACK_POSITION_RE =
+  /(?:^|\s)\(?((?:file:\/\/|furin-dev-(?:page|render):)?\S+):(\d+):(\d+)\)?$/;
+const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
 const QUERY_RE = /\?.*$/;
 const EVENT_LIMIT = 100;
 

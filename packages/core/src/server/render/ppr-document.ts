@@ -91,7 +91,22 @@ export async function prerenderPprDocument(
   }
   assertDeferredModeAllowed(route, result.deferredPromises);
   const controller = new AbortController();
-  const reason = new Error("[furin] PPR requestData must be consumed inside a Suspense boundary.");
+  const reason = new Error(
+    "[furin] PPR requestLoader fields must be consumed inside a Suspense boundary."
+  );
+  if (route.requestKeys === undefined) {
+    throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
+  }
+  for (const key of route.requestKeys) {
+    if (Object.hasOwn(result.syncData, key) || Object.hasOwn(result.deferredPromises ?? {}, key)) {
+      throw new Error(
+        `[furin] requestLoader field "${key}" collides with public loader data in ${route.pattern}.`
+      );
+    }
+  }
+  const postponed = Object.fromEntries(
+    route.requestKeys.map((key) => [key, postponedRequestData(controller, reason)])
+  );
   const prepared = await prepareRender(
     route,
     ctx,
@@ -100,7 +115,7 @@ export async function prerenderPprDocument(
     false,
     {
       ...result,
-      deferredPromises: { requestData: postponedRequestData(controller, reason) },
+      deferredPromises: postponed,
     },
     searchRoutes
   );
@@ -135,7 +150,7 @@ export async function prerenderPprDocument(
   if (!(html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END))) {
     throw new Error("[furin] PPR requires a complete root HTML document.");
   }
-  const scripts = buildSsrTransportScripts(result.syncData, ["requestData"], true, false);
+  const scripts = buildSsrTransportScripts(result.syncData, route.requestKeys, true, false);
   const openDocument = html.slice(0, -DOCUMENT_END.length);
   const shell = injectAfterEntry(
     openDocument,

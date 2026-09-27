@@ -82,6 +82,7 @@ function resolveRoute(
     page,
     path,
     pattern,
+    requestKeys: pattern === "/ppr-account" ? ["user"] : [],
     routeChain: collectRouteChainFromRoute(page._route),
     segmentBoundaries: [],
   };
@@ -419,7 +420,7 @@ describe("GET /_furin/data", () => {
     expect(resolvedStats).toBe(42);
   });
 
-  test("streams requestData for an ISR route during SPA navigation", async () => {
+  test("streams request fields for an ISR route during SPA navigation", async () => {
     const routeDefinition = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
       .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
@@ -440,8 +441,8 @@ describe("GET /_furin/data", () => {
       undefined
     );
     expect(syncData.catalog).toBe("Shoes");
-    expect(deferredPromises.requestData).toBeInstanceOf(Promise);
-    expect(await deferredPromises.requestData).toEqual({ user: "alice" });
+    expect(deferredPromises.user).toBeInstanceOf(Promise);
+    expect(await deferredPromises.user).toBe("alice");
   });
 
   test("forwards request headers to loaders reading request.headers", async () => {

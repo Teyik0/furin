@@ -37,6 +37,7 @@ export interface EntryAppContext {
   routeMetadata?: Record<
     string,
     {
+      requestKeys?: string[];
       segmentBoundaries: Array<{
         depth: number;
         path: string;

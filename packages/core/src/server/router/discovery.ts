@@ -36,6 +36,15 @@ export function isModuleNotFoundError(err: unknown): boolean {
   );
 }
 
+export async function annotateScannedRequestKeys(routes: ResolvedRoute[]): Promise<void> {
+  // Build and dev have source files; production routes receive serialized keys
+  // from CompileContext and never load the TypeScript compiler.
+  const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
+  const moduleUrl = new URL(`../../build/request-keys.${extension}`, import.meta.url).href;
+  const compiler = (await import(moduleUrl)) as typeof import("../../build/request-keys.ts");
+  await compiler.annotateRequestLoaderKeys(routes);
+}
+
 /** @internal Exported for unit testing. */
 export function collectRouteTags(
   routeChain: RuntimeRoute[],
@@ -115,6 +124,7 @@ export function loadProdRoutes(ctx: CompileContext): {
       page,
       path,
       pattern,
+      requestKeys: meta?.requestKeys,
       routeChain,
       segmentBoundaries: boundaries,
       tags: collectRouteTags(routeChain, page),
@@ -197,6 +207,9 @@ export async function scanPages(pagesDir: string): Promise<{
   const dir = toPosixPath(pagesDir);
   const root = await scanRootLayout(dir);
   const routes = await scanPageFiles(dir, root);
+  if (routes.some((route) => route.routeChain.some((entry) => entry.requestLoader))) {
+    await annotateScannedRequestKeys(routes);
+  }
   return { root, routes };
 }
 

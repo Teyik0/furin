@@ -139,7 +139,7 @@ describe("defineRoute", () => {
         const publicCatalog: string = catalog;
         const privateLocale: Promise<string> = locale;
         const privateUser: Promise<unknown> = user;
-        // @ts-expect-error requestData is an internal transport field, not a page prop.
+        // @ts-expect-error no grouped requestData prop is added implicitly.
         expect(props.requestData).toBeUndefined();
         return `${publicCatalog}:${String(privateLocale)}:${String(privateUser)}`;
       });
@@ -167,6 +167,27 @@ describe("defineRoute", () => {
       .page(({ title }) => String(title));
 
     expect(child.loader).toBeFunction();
+  });
+
+  test("passes inherited private fields to a child page as promises", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssr" })
+      .requestLoader(() => ({ session: "private" }))
+      .loader(() => ({ organization: "public" }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader((context) => {
+        // @ts-expect-error private data must not enter a public loader.
+        expect(context.session).toBeUndefined();
+        return { title: "Child" };
+      })
+      .page(({ session, organization, title }) => {
+        const privateSession: Promise<string> = session;
+        const publicOrganization: string = organization;
+        return `${title}:${publicOrganization}:${String(privateSession)}`;
+      });
+    expect(child.page).toBeFunction();
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {

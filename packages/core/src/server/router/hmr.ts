@@ -21,15 +21,26 @@ import { DevTransformFailure } from "../dev/transform-failure.ts";
 import { currentInstance } from "../instance.ts";
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { resolvePath } from "../render/assemble.ts";
-import { type LoaderResult, runLoaders } from "../render/loaders.ts";
+import {
+  hasRequestLoader,
+  type LoaderResult,
+  runLoaders,
+  withRequestLoaderData,
+} from "../render/loaders.ts";
 import { renderSSR } from "../render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
-import { collectRouteTags, getSourceModuleCandidates, isModuleNotFoundError } from "./discovery.ts";
+import {
+  annotateScannedRequestKeys,
+  collectRouteTags,
+  getSourceModuleCandidates,
+  isModuleNotFoundError,
+} from "./discovery.ts";
 import { collectIntermediateLayoutDirs, resolveMode, resolveRouteRevalidate } from "./patterns.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
 type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>;
+const requestKeyCache = new Map<string, { keys: string[]; version: string }>();
 
 const routeModuleImport: RouteModuleImport = (specifier) =>
   import(specifier) as Promise<Record<string, unknown>>;
@@ -68,9 +79,23 @@ async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<Loader
   return result;
 }
 
-async function runDevRender(operation: () => Promise<Response>): Promise<Response> {
+async function runDevRender(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  result: LoaderResult,
+  searchRoutes: SearchRouteMetadata[] | undefined
+): Promise<Response> {
   try {
-    return await operation();
+    let renderRoute = route;
+    if (result.type === "data") {
+      const loadRender = Reflect.get(route.page.component, Symbol.for("furin.dev.render"));
+      if (typeof loadRender === "function") {
+        const rendered = (await loadRender()) as { default: RuntimePage["component"] };
+        renderRoute = { ...route, page: { ...route.page, component: rendered.default } };
+      }
+    }
+    return await renderSSR(renderRoute, ctx, root, result, searchRoutes);
   } catch (error) {
     // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
     throw new DevPhaseFailure(error, "render", { cause: error });
@@ -324,10 +349,28 @@ export async function resolveCurrentDevRoute(
     if (chain[0] && currentRoot.route) {
       chain[0].layout = currentRoot.route.layout;
       chain[0].loader = currentRoot.route.loader;
+      chain[0].requestLoader = currentRoot.route.requestLoader;
       chain[0].staticParams = currentRoot.route.staticParams;
     }
 
-    return { root: currentRoot, route: rebuildDevRoute(route, page, chain) };
+    const refreshed = rebuildDevRoute(route, page, chain);
+    if (chain.some((entry) => entry.requestLoader)) {
+      const version = chain
+        .filter((entry) => entry.requestLoader)
+        .map((entry) => {
+          const path = entry.sourcePath ?? route.path;
+          return `${path}:${routeModuleSourceVersion(path)}`;
+        })
+        .join("|");
+      const cached = requestKeyCache.get(route.path);
+      if (cached?.version === version) {
+        refreshed.requestKeys = cached.keys;
+      } else {
+        await annotateScannedRequestKeys([refreshed]);
+        requestKeyCache.set(route.path, { keys: refreshed.requestKeys ?? [], version });
+      }
+    }
+    return { root: currentRoot, route: refreshed };
   }
   const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
   Reflect.set(invalidExport, "furinPosition", {
@@ -361,9 +404,7 @@ export async function handleDevRequest(
       response = await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
     } else {
       const loaderResult = await runDevLoaders(refreshedRoute, ctx);
-      response = await runDevRender(() =>
-        renderSSR(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes)
-      );
+      response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
     }
     devDiagnosticStore().markReady(route.pattern);
     return response;
@@ -402,7 +443,13 @@ export async function renderDevISRWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return runDevRender(() => renderSSR(route, ctx, root, precomputed, searchRoutes));
+    return runDevRender(
+      route,
+      ctx,
+      root,
+      hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed,
+      searchRoutes
+    );
   }
 
   const result = await runDevLoaders(route, ctx);
@@ -422,7 +469,7 @@ export async function renderDevISRWithLoaderCache(
       route.tags
     );
   }
-  return runDevRender(() => renderSSR(route, ctx, root, result, searchRoutes));
+  return runDevRender(route, ctx, root, result, searchRoutes);
 }
 
 /**
@@ -448,7 +495,13 @@ export async function renderDevSSGWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return runDevRender(() => renderSSR(route, ctx, root, precomputed, searchRoutes));
+    return runDevRender(
+      route,
+      ctx,
+      root,
+      hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed,
+      searchRoutes
+    );
   }
 
   const result = await runDevLoaders(route, ctx);
@@ -468,7 +521,7 @@ export async function renderDevSSGWithLoaderCache(
       route.tags
     );
   }
-  return runDevRender(() => renderSSR(route, ctx, root, result, searchRoutes));
+  return runDevRender(route, ctx, root, result, searchRoutes);
 }
 
 /**

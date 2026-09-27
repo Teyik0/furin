@@ -67,6 +67,7 @@ function resolveRoute(route: Parameters<typeof adaptDefinedPage>[0]): ResolvedRo
     page,
     path: "/account.tsx",
     pattern: "/account",
+    requestKeys: routeChain.some((entry) => entry.requestLoader) ? ["user"] : [],
     routeChain,
     segmentBoundaries: [],
     tags: collectRouteTags(routeChain, page),
@@ -110,19 +111,23 @@ test("SSR requestLoader responses stay private when a loader sets Cache-Control"
 });
 
 test("SSR exposes requestLoader fields as individual promises", async () => {
+  let optionalWasAbsent = false;
   const resolved = resolveRoute(
     defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
       .requestLoader(async () => ({ user: "Alice" }))
       .loader(() => ({ title: "Account" }))
-      .page(({ title, user }) => (
-        <main>
-          <h1>{title}</h1>
-          <Suspense fallback="Loading">
-            <PrivateUser user={user} />
-          </Suspense>
-        </main>
-      ))
+      .page((props) => {
+        optionalWasAbsent = (props as typeof props & { optional?: unknown }).optional === undefined;
+        return (
+          <main>
+            <h1>{props.title}</h1>
+            <Suspense fallback="Loading">
+              <PrivateUser user={props.user} />
+            </Suspense>
+          </main>
+        );
+      })
   );
   function PrivateUser({ user }: { user: Promise<string> }) {
     return <strong>{use(user)}</strong>;
@@ -133,6 +138,7 @@ test("SSR exposes requestLoader fields as individual promises", async () => {
 
   expect(response.status).toBe(200);
   expect(await response.text()).toContain("<strong>Alice</strong>");
+  expect(optionalWasAbsent).toBe(true);
 });
 
 describe.serial("partial prerendering", () => {
@@ -550,7 +556,7 @@ describe.serial("partial prerendering", () => {
     }
   });
 
-  test("streams a rejected requestData chunk instead of aborting the PPR response", async () => {
+  test("streams a rejected request field instead of aborting the PPR response", async () => {
     const route = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
       .requestLoader((): { user: string } => {
@@ -577,7 +583,7 @@ describe.serial("partial prerendering", () => {
 
     expect(html).toContain("Shoes");
     expect(html).toContain("__FURIN_ROUTE_FRAME_STREAM__");
-    expect(html).toContain('\\"key\\":\\"requestData\\"');
+    expect(html).toContain('\\"key\\":\\"user\\"');
     expect(html).toContain('\\"type\\":\\"defer-reject\\"');
   });
 });

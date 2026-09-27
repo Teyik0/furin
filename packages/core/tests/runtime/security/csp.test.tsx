@@ -57,6 +57,7 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
     page: definedPage,
     path: "/account.tsx",
     pattern: "/account",
+    requestKeys: ["user"],
     routeChain: collectRouteChainFromRoute(definedPage._route),
     segmentBoundaries: [],
   };

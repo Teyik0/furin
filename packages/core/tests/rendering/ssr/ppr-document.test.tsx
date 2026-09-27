@@ -73,6 +73,7 @@ test("a serialized public shell resumes independently for two sessions", async (
     page,
     path: "/account.tsx",
     pattern: "/account",
+    requestKeys: ["user"],
     routeChain: collectRouteChainFromRoute(page._route),
     segmentBoundaries: [],
   };

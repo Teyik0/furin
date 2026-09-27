@@ -1284,6 +1284,44 @@ browserTest(
 );
 
 browserTest(
+  "a deferred page hydrates and preserves React state after a render dependency edit",
+  async () => {
+    const harness = await createBrowserHarness(
+      `import { defineRoute } from "@teyik0/furin";
+       import { route as rootRoute } from "./root";
+       import { ChildCounter } from "../components/ChildCounter";
+       export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+         .page(() => <main data-version="deferred"><ChildCounter /></main>);`,
+      [
+        {
+          contents: importedChildSource("deferred-v1"),
+          relativePath: "src/components/ChildCounter.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="child-increment"]');
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "deferred-v1:1");
+    writeAppFile(
+      harness.app.path,
+      "src/components/ChildCounter.tsx",
+      importedChildSource("deferred-v2")
+    );
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "deferred-v2:1");
+    expect((await readSnapshot(harness.view)).documentId).toBe(documentId);
+    const response = await fetch(harness.url);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("deferred-v2");
+    expect(harness.consoleErrors).toEqual([]);
+  },
+  30_000
+);
+
+browserTest(
   "an imported child edit preserves parent and child React state",
   async () => {
     const harness = await createBrowserHarness(

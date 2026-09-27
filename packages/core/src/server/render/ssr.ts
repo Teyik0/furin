@@ -263,7 +263,9 @@ export function assertDeferredModeAllowed(
   route: ResolvedRoute,
   deferredPromises: Record<string, Promise<unknown>> | undefined
 ): void {
-  const deferredKeys = Object.keys(deferredPromises ?? {}).filter((key) => key !== "requestData");
+  const deferredKeys = Object.keys(deferredPromises ?? {}).filter(
+    (key) => !route.requestKeys?.includes(key)
+  );
   if (deferredKeys.length > 0 && route.mode !== "ssr") {
     throw new Error(
       `[furin] page "${route.pattern}" returned defer() but the route is rendered in "${route.mode}" mode. ` +

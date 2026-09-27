@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
+import { createElement, type ElementType, type ReactNode } from "react";
 import { wrapSegmentBoundaries } from "../../client/boundaries.tsx";
 import { DefaultErrorFallback, DefaultNotFoundFallback } from "../../client/default-screens.tsx";
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import { createRouteElement } from "../../client/request-props.tsx";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { FurinNotFoundError, NotFoundComponent } from "../../shared/not-found.ts";
 import type { ResolvedRoute, SegmentBoundary } from "../router/types.ts";
@@ -14,7 +13,7 @@ export function buildElement(
   rootLayout: RuntimeRoute
 ): ReactNode {
   const Component = route.page.component;
-  let element: ReactNode = createRouteElement(Component, data, undefined);
+  let element: ReactNode = createElement(Component, data);
 
   // Index segmentBoundaries by depth for O(1) lookup during the wrap loop.
   // Directory depth `d` maps 1:1 to routeChain[d] in Furin's model (routeChain
@@ -35,7 +34,7 @@ export function buildElement(
     const routeEntry = route.routeChain[i];
     if (routeEntry?.layout) {
       const Layout = routeEntry.layout;
-      element = createRouteElement(Layout, data, element);
+      element = createElement(Layout as ElementType, data, element);
     }
   }
 
@@ -45,7 +44,7 @@ export function buildElement(
 
   if (rootLayout.layout) {
     const RootLayoutComponent = rootLayout.layout;
-    element = createRouteElement(RootLayoutComponent, data, element);
+    element = createElement(RootLayoutComponent as ElementType, data, element);
   }
 
   return element;
@@ -60,7 +59,7 @@ export function wrapRootLayout(
     return element;
   }
   const RootLayoutComponent = rootLayout.layout;
-  return createRouteElement(RootLayoutComponent, data, element);
+  return createElement(RootLayoutComponent as ElementType, data, element);
 }
 
 export function buildNotFoundElement(

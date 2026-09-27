@@ -71,7 +71,6 @@ const ROUTE_CTX_RESERVED_KEYS = new Set([
   "path",
   "query",
   "ref",
-  "requestData",
   "then",
   "toJSON",
 ]);
@@ -201,7 +200,15 @@ function createRequestLoaderContext(ctx: Context): RequestLoaderContext {
   return Object.freeze({
     cookies: Object.freeze({
       get(name: string): unknown {
-        return ctx.cookie[name]?.value;
+        const value = ctx.cookie?.[name]?.value;
+        if (value !== undefined) {
+          return value;
+        }
+        const cookie = headers
+          .get("cookie")
+          ?.split(";")
+          .find((part) => part.trim().startsWith(`${name}=`));
+        return cookie?.trim().slice(name.length + 1);
       },
     }),
     headers: Object.freeze({
@@ -264,12 +271,15 @@ function observeLoader<T extends object>(
 export function runRequestLoaderData(
   route: ResolvedRoute,
   ctx: Context
-): Promise<object> | undefined {
+): Promise<Record<string, unknown>> | undefined {
   const loaders = route.routeChain
     .map((entry) => entry.requestLoader)
     .filter((loader) => loader !== undefined);
   if (loaders.length === 0) {
     return;
+  }
+  if (route.requestKeys === undefined) {
+    throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
   }
   const requestContext = createRequestLoaderContext(ctx);
   const requestData = Promise.all(
@@ -286,12 +296,38 @@ export function runRequestLoaderData(
         assertPublicLoaderKey(key);
       }
     }
-    return Object.assign({}, ...results);
+    const data = Object.assign({}, ...results) as Record<string, unknown>;
+    for (const key of Object.keys(data)) {
+      if (!route.requestKeys?.includes(key)) {
+        throw new Error(
+          `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`
+        );
+      }
+    }
+    return data;
   });
   requestData.catch(() => {
     /* React observes the original rejection through requestData. */
   });
   return requestData;
+}
+
+function requestFieldPromises(
+  route: ResolvedRoute,
+  requestData: Promise<Record<string, unknown>>,
+  syncData: Record<string, unknown>,
+  publicDeferred: Record<string, Promise<unknown>> | undefined
+): Record<string, Promise<unknown>> {
+  const promises: Record<string, Promise<unknown>> = {};
+  for (const key of route.requestKeys ?? []) {
+    if (Object.hasOwn(syncData, key) || Object.hasOwn(publicDeferred ?? {}, key)) {
+      throw new Error(
+        `[furin] requestLoader field "${key}" collides with public loader data in ${route.pattern}.`
+      );
+    }
+    promises[key] = requestData.then((data) => data[key]);
+  }
+  return promises;
 }
 
 export function withRequestLoaderData(
@@ -309,7 +345,12 @@ export function withRequestLoaderData(
     ...publicResult,
     deferredPromises: {
       ...(publicResult.deferredPromises ?? {}),
-      requestData,
+      ...requestFieldPromises(
+        route,
+        requestData,
+        publicResult.syncData,
+        publicResult.deferredPromises
+      ),
     },
   };
 }
@@ -534,7 +575,7 @@ async function runLoadersInternal(
     // since only an explicit `defer()` opts into streaming.
     const { allSync, allDeferred } = mergeLoaderResults(results);
     if (requestData !== undefined) {
-      allDeferred.requestData = requestData;
+      Object.assign(allDeferred, requestFieldPromises(route, requestData, allSync, allDeferred));
     }
 
     // Route context is always injected into syncData so components receive

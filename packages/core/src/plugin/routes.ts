@@ -13,6 +13,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { parseDynamicRouteSegment, routeSegmentToPattern } from "../server/router/patterns.ts";
+import { routeModuleSourceVersion } from "../server/router/source-version.ts";
 
 const ROUTES_NAMESPACE_PREFIX = "furin-routes";
 const ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry";
@@ -763,7 +764,9 @@ function resolveRouteModuleImports(dependencyPath: string, packageRoot: string):
       continue;
     }
     try {
-      const resolvedImport = realpathSync(Bun.resolveSync(imported.path, dirname(dependencyPath)));
+      const resolvedImport = realpathSync.native(
+        Bun.resolveSync(imported.path, dirname(dependencyPath))
+      );
       if (
         isAbsolute(resolvedImport) &&
         isWithinDirectory(resolvedImport, packageRoot) &&
@@ -779,7 +782,7 @@ function resolveRouteModuleImports(dependencyPath: string, packageRoot: string):
 }
 
 function collectRouteModuleDependencies(sourcePath: string): RouteModuleDependency[] {
-  const packageRoot = realpathSync(findPackageRoot(sourcePath));
+  const packageRoot = realpathSync.native(findPackageRoot(sourcePath));
   const pending = [sourcePath];
   const visited = new Set<string>();
   const dependencies: RouteModuleDependency[] = [];
@@ -877,7 +880,9 @@ async function loadRouteModule(sourcePath: string): Promise<{
 }
 
 async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | undefined> {
-  const module = await loadRouteModule(route.sourcePath);
+  const module = (await import(
+    `${route.sourcePath}?furin-server&t=${routeModuleSourceVersion(route.sourcePath)}`
+  )) as Awaited<ReturnType<typeof loadRouteModule>>;
   if (!module.route?.elysia) {
     return;
   }
@@ -936,7 +941,9 @@ async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
   };
 }
 
-function composeRuntimeInstance(instance: RouteInstanceSpec): Promise<DevRoutesApps> {
+async function composeRuntimeInstance(instance: RouteInstanceSpec): Promise<DevRoutesApps> {
+  const { registerDevPagePlugin } = await import("../server/dev-page-plugin.ts");
+  registerDevPagePlugin();
   const instanceId = Bun.hash(instanceKey(instance)).toString(16);
   return composeRuntimeNode(buildRouteTree(instance.pagesDir, instanceId));
 }

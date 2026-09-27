@@ -22,7 +22,7 @@ interface SourcePosition {
 }
 
 const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-page:/;
+const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
 const QUERY_RE = /\?.*$/;
 
 function errorMessage(error: unknown): string {

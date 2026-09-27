@@ -35,7 +35,6 @@ type ReservedRenderContextKey =
   | "path"
   | "query"
   | "ref"
-  | "requestData"
   | "then"
   | "toJSON";
 type PublicLoaderData = LoaderData & {
@@ -49,18 +48,31 @@ interface SchemaValues {
 type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSchema
   ? FurinUnwrap<Schema>
   : NoFields;
+declare const privateFieldBrand: unique symbol;
+type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
+type PublicParentData<Data extends LoaderData> = Omit<
+  Data,
+  {
+    [Key in keyof Data]: Data[Key] extends PrivateField<unknown> ? Key : never;
+  }[keyof Data]
+>;
+type RequestDataOfRoute<Route> = Route extends { requestLoader: infer RequestLoaderFn }
+  ? NonNullable<RequestLoaderFn> extends (...args: never[]) => infer Result
+    ? Awaited<Result>
+    : NoFields
+  : NoFields;
 type DataOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
   ? Props extends LoaderData
-    ? Omit<Props, ReservedRenderContextKey | RequestKeysOfRoute<Route>>
+    ? Omit<Props, ReservedRenderContextKey | RequestKeysOfRoute<Route>> & {
+        [Key in keyof RequestDataOfRoute<Route>]: PrivateField<
+          Awaited<RequestDataOfRoute<Route>[Key]>
+        >;
+      }
     : NoFields
   : NoFields;
-type RequestKeysOfRoute<Route> = Route extends { requestLoader: infer RequestLoaderFn }
-  ? NonNullable<RequestLoaderFn> extends (...args: never[]) => infer Result
-    ? keyof Awaited<Result>
-    : never
-  : never;
+type RequestKeysOfRoute<Route> = keyof RequestDataOfRoute<Route>;
 type ParamsOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
@@ -112,7 +124,7 @@ type ConfigFor = RenderingConfig;
 
 type StaticParamsContext<ParentParams, ParentData extends LoaderData> = {
   params: Partial<ParentParams>;
-} & PromisedData<ParentData>;
+} & PromisedData<PublicParentData<ParentData>>;
 
 type StaticParamsResult<Params, ParentParams> = Omit<Params, keyof ParentParams> & Partial<Params>;
 
@@ -138,7 +150,7 @@ type LoaderContext<Params, Query, ParentData extends LoaderData> = {
   query: Query;
   log: RequestLogger;
 } & Omit<Context<{ params: Params; query: Query }>, "params" | "query"> &
-  PromisedData<ParentData>;
+  PromisedData<PublicParentData<ParentData>>;
 
 type Loader<Params, Query, ParentData extends LoaderData, Data extends LoaderData> = (
   context: LoaderContext<Params, Query, ParentData>
@@ -209,7 +221,7 @@ type LayoutComponent<
 ) => React.ReactNode;
 
 type Head<Params, Query, ParentData extends LoaderData, Data extends LoaderData> = (
-  context: RenderContext<Params, Query, ParentData, Data, NoFields>
+  context: RenderContext<Params, Query, PublicParentData<ParentData>, Data, NoFields>
 ) => HeadOptions;
 
 export function getFurinRenderer(context: object): FurinRouteDispatcher | undefined {
@@ -493,7 +505,8 @@ class LoadedNoSchema<
       loader: this.loaderFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 
@@ -511,7 +524,8 @@ class LoadedNoSchema<
       layout: component,
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 }
@@ -660,7 +674,8 @@ class LoadedQuerySchema<
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 
@@ -679,7 +694,8 @@ class LoadedQuerySchema<
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 }
@@ -857,7 +873,8 @@ class LoadedSchema<
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 
@@ -876,7 +893,8 @@ class LoadedSchema<
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
-      useLoaderData: (): ParentData & Data => undefined as unknown as ParentData & Data,
+      useLoaderData: (): PublicParentData<ParentData> & Data =>
+        undefined as unknown as PublicParentData<ParentData> & Data,
     };
   }
 }

@@ -353,6 +353,58 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(removed).toBe(true);
   }, 20_000);
 
+  test("root requestLoader stays private on cached pages and refreshes after hot editing", async () => {
+    const rootSource = (field: string): string =>
+      [
+        'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
+        'import { Suspense, use } from "react";',
+        "",
+        "function Private({ value }: { value: Promise<string> }) { return <strong>{use(value)}</strong>; }",
+        "export const route = defineRootRoute()",
+        '  .config({ mode: "ssr" })',
+        `  .requestLoader(({ headers }) => ({ ${field}: headers.get("x-session") ?? "anonymous" }))`,
+        `  .layout(({ children, ${field} }) => <html lang="en"><head><HeadContent /></head><body><Suspense fallback="loading"><Private value={${field}} /></Suspense>{children}<Scripts /></body></html>);`,
+      ].join("\n");
+    writeAppFile(app.path, "src/pages/root.tsx", rootSource("user"));
+    writeAppFile(
+      app.path,
+      "src/pages/private-isr.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        'export const route = defineRoute().config({ layout: rootRoute, mode: "isr", revalidate: 60 }).page(() => <main>Private ISR</main>);',
+      ].join("\n")
+    );
+
+    const htmlFor = async (path: string, session: string): Promise<string> => {
+      const response = await fetch(`http://localhost:${port}${path}`, {
+        headers: { "x-session": session },
+      });
+      return response.status === 200 ? response.text() : "";
+    };
+    try {
+      for (const path of ["/", "/private-isr"]) {
+        const ready = await pollUntil(
+          async () => (await htmlFor(path, "Alice")).includes("<strong>Alice</strong>"),
+          40,
+          250
+        );
+        expect(ready, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+        expect(await htmlFor(path, "Bob")).toContain("<strong>Bob</strong>");
+      }
+
+      writeAppFile(app.path, "src/pages/root.tsx", rootSource("sessionUser"));
+      const updated = await pollUntil(
+        async () => (await htmlFor("/", "Charlie")).includes("<strong>Charlie</strong>"),
+        40,
+        250
+      );
+      expect(updated, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+    } finally {
+      removeAppPath(app.path, "src/pages/private-isr.tsx");
+    }
+  }, 30_000);
+
   test("hot-editing a legacy root layout applies the document layout autofix", async () => {
     const rootPath = join(app.path, "src/pages/root.tsx");
     writeAppFile(

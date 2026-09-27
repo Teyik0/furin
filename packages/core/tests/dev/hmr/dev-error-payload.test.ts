@@ -65,3 +65,17 @@ test("stack positions support source directories containing parentheses", () => 
   expect(payload.line).toBe(9);
   expect(payload.column).toBe(4);
 });
+
+test("deferred render errors point to the application source", () => {
+  const error = new Error("render failed");
+  error.stack =
+    "Error: render failed\n    at render (furin-dev-render:/workspace/src/page.tsx?furin-render&t=1:9:4)";
+  const payload = createDevErrorPayload(error, {
+    entryPath: "/workspace/src/page.tsx",
+    importChain: ["/workspace/src/page.tsx"],
+    phase: "render",
+    route: "/",
+  });
+  expect(payload.file).toBe("/workspace/src/page.tsx");
+  expect(payload.line).toBe(9);
+});

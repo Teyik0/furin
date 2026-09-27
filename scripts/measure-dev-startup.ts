@@ -4,9 +4,35 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { DevStartupReport, StartupAppReport, StartupSample } from "./compare-dev-startup.ts";
 
-const REQUEST_PATH = "/_furin/devtools/snapshot";
 const STARTUP_TIMEOUT_MS = 30_000;
 const SAMPLE_COUNT = 3;
+
+interface StartupPage {
+  contains: string;
+  path: string;
+}
+
+interface StartupTarget {
+  first: StartupPage;
+  preload: string | undefined;
+  second: StartupPage;
+}
+
+async function readPage(origin: string, page: StartupPage): Promise<void> {
+  const response = await fetch(`${origin}${page.path}`, {
+    signal: AbortSignal.timeout(STARTUP_TIMEOUT_MS),
+  });
+  const html = await response.text();
+  if (
+    !(
+      response.ok &&
+      response.headers.get("content-type")?.includes("text/html") &&
+      html.includes(page.contains)
+    )
+  ) {
+    throw new Error(`${page.path} did not render the expected HTML (HTTP ${response.status})`);
+  }
+}
 
 function reservePort(): number {
   const listener = Bun.listen({
@@ -21,15 +47,20 @@ function reservePort(): number {
 
 export async function measureAppStartup(
   projectDir: string,
-  requestPath: string,
+  target: StartupTarget,
   extraEnv: { TASK_MANAGER_DB_PATH?: string }
 ): Promise<StartupSample> {
   const port = reservePort();
   const startedAt = performance.now();
   const child = Bun.spawn({
-    cmd: [process.execPath, "--hot", "src/server.ts"],
+    cmd: [
+      process.execPath,
+      ...(target.preload ? ["--preload", target.preload] : []),
+      "--hot",
+      "src/server.ts",
+    ],
     cwd: projectDir,
-    env: { ...process.env, ...extraEnv, PORT: String(port) },
+    env: { ...process.env, ...extraEnv, NODE_ENV: "development", PORT: String(port) },
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -60,14 +91,12 @@ export async function measureAppStartup(
     if (listenMs === undefined) {
       throw new Error(`Port did not open within ${STARTUP_TIMEOUT_MS} ms`);
     }
-    const response = await fetch(`http://127.0.0.1:${port}${requestPath}`, {
-      signal: AbortSignal.timeout(STARTUP_TIMEOUT_MS),
-    });
-    await response.arrayBuffer();
-    if (!response.ok) {
-      throw new Error(`${requestPath} returned HTTP ${response.status}`);
-    }
-    sample = { listenMs, readyMs: performance.now() - startedAt };
+    const origin = `http://127.0.0.1:${port}`;
+    await readPage(origin, target.first);
+    const readyMs = performance.now() - startedAt;
+    const secondStartedAt = performance.now();
+    await readPage(origin, target.second);
+    sample = { listenMs, readyMs, secondRouteMs: performance.now() - secondStartedAt };
   } catch (error) {
     failure = error;
   } finally {
@@ -98,6 +127,7 @@ function median(values: number[]): number {
 
 async function measureApp(
   projectDir: string,
+  target: StartupTarget,
   databaseDirectory: string | undefined
 ): Promise<StartupAppReport> {
   const samples: StartupSample[] = [];
@@ -105,16 +135,17 @@ async function measureApp(
     const extraEnv = databaseDirectory
       ? { TASK_MANAGER_DB_PATH: join(databaseDirectory, `task-manager-${index}.sqlite`) }
       : {};
-    const sample = await measureAppStartup(projectDir, REQUEST_PATH, extraEnv);
+    const sample = await measureAppStartup(projectDir, target, extraEnv);
     samples.push(sample);
     console.log(
-      `${projectDir}: port ${sample.listenMs.toFixed(0)} ms, HTTP ${sample.readyMs.toFixed(0)} ms`
+      `${projectDir}: port ${sample.listenMs.toFixed(0)} ms, first HTML ${sample.readyMs.toFixed(0)} ms, second route ${sample.secondRouteMs.toFixed(0)} ms`
     );
   }
   return {
     listenMs: median(samples.map((sample) => sample.listenMs)),
     readyMs: median(samples.map((sample) => sample.readyMs)),
     samples,
+    secondRouteMs: median(samples.map((sample) => sample.secondRouteMs)),
   };
 }
 
@@ -127,11 +158,35 @@ if (import.meta.main) {
   const tempDir = mkdtempSync(join(tmpdir(), "furin-startup-"));
   try {
     const apps: DevStartupReport["apps"] = {
-      docs: await measureApp(join(checkout, "apps/docs"), undefined),
-      taskManager: await measureApp(join(checkout, "examples/task-manager"), tempDir),
-      weather: await measureApp(join(checkout, "examples/weather"), undefined),
+      docs: await measureApp(
+        join(checkout, "apps/docs"),
+        {
+          first: { contains: "<h1>Furin Documentation</h1>", path: "/docs" },
+          preload: undefined,
+          second: { contains: "<h1>File-Based Routing</h1>", path: "/docs/routing" },
+        },
+        undefined
+      ),
+      taskManager: await measureApp(
+        join(checkout, "examples/task-manager"),
+        {
+          first: { contains: "Project Alpha", path: "/" },
+          preload: undefined,
+          second: { contains: "Task Manager RSC", path: "/rsc" },
+        },
+        tempDir
+      ),
+      weather: await measureApp(
+        join(checkout, "examples/weather"),
+        {
+          first: { contains: "7-Day Forecast</h2>", path: "/" },
+          preload: join(import.meta.dir, "startup-weather-preload.ts"),
+          second: { contains: "7-Day Forecast</h2>", path: "/weather/london" },
+        },
+        undefined
+      ),
     };
-    const report: DevStartupReport = { apps, schemaVersion: 1 };
+    const report: DevStartupReport = { apps, schemaVersion: 2 };
     await Bun.write(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
   } finally {
     rmSync(tempDir, { force: true, recursive: true });

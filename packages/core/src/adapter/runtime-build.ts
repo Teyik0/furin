@@ -41,6 +41,7 @@ const REACT_STATIC_IMPORT_RE = /^react-dom\/static\.edge$/;
 const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry${_ext}`,
   `${_pkgSrcDir}/build/entry-template${_ext}`,
+  `${_pkgSrcDir}/build/request-keys${_ext}`,
   `${_pkgSrcDir}/plugin/routes${_ext}`,
   `${_pkgSrcDir}/server/render/document.tsx`,
   `${_pkgSrcDir}/server/render/element.tsx`,
@@ -129,6 +130,7 @@ export async function createBuildFingerprint(
         mode: route.mode,
         path: stableFingerprintPath(route.path, projectRoot),
         pattern: route.pattern,
+        requestKeys: route.requestKeys?.toSorted(),
       })
     )
     .sort(compareCodeUnits);
@@ -170,6 +172,7 @@ function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
   const routeMetadata: NonNullable<EntryAppContext["routeMetadata"]> = {};
   for (const route of routes) {
     routeMetadata[toPosixPath(route.path)] = {
+      requestKeys: route.requestKeys,
       segmentBoundaries: route.segmentBoundaries.map((boundary) => ({
         depth: boundary.depth,
         errorPath: boundary.errorPath ? toPosixPath(boundary.errorPath) : undefined,
