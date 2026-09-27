@@ -2299,14 +2299,23 @@ browserTest(
 browserTest(
   "a root UI edit with an imported loader does not refetch data",
   async () => {
-    const root = (version: string) =>
-      `import { loadData } from "../lib/loader";\n${rootSource(version)}`
-        .replace("  .layout(", "  .loader(loadData)\n  .layout(")
-        .replace("({ children })", "({ children, message })")
-        .replace(
-          "{children}<Scripts",
-          '{children}<output data-testid="root-data">{message}</output><Scripts'
-        );
+    const root = (version: string) => `
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+import { loadData } from "../lib/loader";
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(loadData)
+  .layout(({ children, message }) => (
+    <html lang="en">
+      <head><HeadContent /></head>
+      <body>
+        <output data-testid="root-version">${version}</output>
+        {children}
+        <output data-testid="root-data">{message}</output>
+        <Scripts />
+      </body>
+    </html>
+  ));`;
     const harness = await createBrowserHarness(
       pageSource("root-page", false),
       [
