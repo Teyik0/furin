@@ -128,6 +128,9 @@ describe("RouterProvider server-side redirect follow", () => {
   let chainedRedirect = false;
   let pageBAllowed = false;
   let pageBFetches = 0;
+  let pageCFetches = 0;
+  let delayPageCRefresh = false;
+  let releasePageCRefresh: (() => void) | undefined;
 
   beforeEach(() => {
     installDom();
@@ -143,6 +146,9 @@ describe("RouterProvider server-side redirect follow", () => {
     chainedRedirect = false;
     pageBAllowed = false;
     pageBFetches = 0;
+    pageCFetches = 0;
+    delayPageCRefresh = false;
+    releasePageCRefresh = undefined;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
@@ -165,10 +171,19 @@ describe("RouterProvider server-side redirect follow", () => {
         );
       }
       if (logicalPathname === "/page-c") {
+        pageCFetches += 1;
+        if (delayPageCRefresh && pageCFetches === 2) {
+          return new Promise<Response>((resolve) => {
+            releasePageCRefresh = () => resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
+          });
+        }
         if (chainedRedirect) {
           return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
         }
         return Promise.resolve(makeNdjsonResponse({ message: "page-c" }));
+      }
+      if (logicalPathname === "/page-a") {
+        return Promise.resolve(makeNdjsonResponse({ message: "page-a" }));
       }
       if (logicalPathname === "/page-d") {
         return Promise.resolve(makeNdjsonResponse({ message: "page-d" }));
@@ -343,6 +358,49 @@ describe("RouterProvider server-side redirect follow", () => {
 
     expect(pageBFetches).toBe(2);
     expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("ignores a redirect refresh after another navigation wins", async () => {
+    chainedRedirect = true;
+    delayPageCRefresh = true;
+    const routes = [
+      makeRoute("/page-a", "/page-c"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+      makeRoute("/page-d", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new FocusEvent("focusin", { bubbles: true })
+    );
+    expect(pageCFetches).toBe(1);
+
+    window.history.pushState(null, "", "/page-b");
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    try {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline && !releasePageCRefresh) {
+        // biome-ignore lint/performance/noAwaitInLoops: wait for the pending redirect fetch before superseding it.
+        await Bun.sleep(5);
+      }
+      expect(releasePageCRefresh).toBeDefined();
+
+      window.history.pushState(null, "", "/page-a");
+      await dispatchReactEvent(window, new PopStateEvent("popstate"));
+      await act(async () => {
+        releasePageCRefresh?.();
+        await Promise.resolve();
+      });
+
+      expect(window.location.pathname).toBe("/page-a");
+    } finally {
+      releasePageCRefresh?.();
+    }
   });
 
   test("follows chained guard redirects", async () => {

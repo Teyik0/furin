@@ -474,7 +474,7 @@ export function RouterProvider({
     if (useCached && isRedirectState(redirectState)) {
       redirectState = await fetchPageState(redirectLogical, signal, false);
     }
-    return redirectState;
+    return navVersion.current === myVersion ? redirectState : null;
   }
 
   async function followRedirects(
@@ -563,6 +563,9 @@ export function RouterProvider({
         }
 
         const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
+        if (navVersion.current !== myVersion) {
+          return;
+        }
         if (!resolved) {
           if (navVersion.current === myVersion) {
             window.location.href = basePath + logicalHref;
@@ -758,6 +761,9 @@ export function RouterProvider({
         }
 
         const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
+        if (navVersion.current !== myVersion) {
+          return;
+        }
         if (!resolved) {
           if (navVersion.current === myVersion) {
             window.location.reload();
