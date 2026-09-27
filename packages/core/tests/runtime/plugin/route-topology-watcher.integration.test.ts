@@ -139,6 +139,8 @@ test("the dev topology watcher skips installed packages but follows linked proje
   });
 
   try {
+    const linkedPath = join(linkedDir, "index.ts");
+    expect(realpathSync(Bun.resolveSync("linked", pagesDir))).toBe(realpathSync(linkedPath));
     await Bun.sleep(100);
     const vendorPath = join(vendorDir, "index.ts");
     writeFileSync(vendorPath, 'export const vendor = "two";\n');
@@ -146,10 +148,19 @@ test("the dev topology watcher skips installed packages but follows linked proje
     await Bun.sleep(150);
     expect(touchedSources).toHaveLength(0);
 
-    const linkedPath = join(linkedDir, "index.ts");
     writeFileSync(linkedPath, 'export const linked = "two";\n');
     utimesSync(linkedPath, new Date(Date.now() + 1000), new Date(Date.now() + 1000));
-    await waitForCount(() => touchedSources.length, 1);
+    try {
+      await waitForCount(() => touchedSources.length, 1);
+    } catch (error) {
+      await watcher.refresh();
+      throw new Error(
+        touchedSources.length === 0
+          ? "Linked source is absent from the route dependency graph"
+          : "Linked source is tracked, but its filesystem event was missed",
+        { cause: error }
+      );
+    }
     expect(touchedSources[0]).toContain(realpathSync(linkedPath));
   } finally {
     watcher.close();
