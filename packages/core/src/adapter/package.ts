@@ -111,6 +111,7 @@ export async function buildPackageTarget(
     string,
     {
       requestKeys?: string[];
+      requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;
@@ -122,6 +123,7 @@ export async function buildPackageTarget(
   for (const route of routes) {
     routeMetadata[toPosixPath(route.path)] = {
       requestKeys: route.requestKeys,
+      requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map((b) => ({
         depth: b.depth,
         errorPath: b.errorPath ? toPosixPath(b.errorPath) : undefined,

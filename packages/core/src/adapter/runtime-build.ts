@@ -173,6 +173,7 @@ function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
   for (const route of routes) {
     routeMetadata[toPosixPath(route.path)] = {
       requestKeys: route.requestKeys,
+      requestKeysByLoader: route.requestKeysByLoader,
       segmentBoundaries: route.segmentBoundaries.map((boundary) => ({
         depth: boundary.depth,
         errorPath: boundary.errorPath ? toPosixPath(boundary.errorPath) : undefined,

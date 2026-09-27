@@ -38,6 +38,7 @@ export interface EntryAppContext {
     string,
     {
       requestKeys?: string[];
+      requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;

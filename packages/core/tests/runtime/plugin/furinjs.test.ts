@@ -48,7 +48,7 @@ async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
   return new Elysia().use(await furin(options));
 }
 
-function resetState(): void {
+async function resetState(): Promise<void> {
   resetEvlogMock();
   resetFurinLoggerForTests();
   __setDevMode(true);
@@ -58,7 +58,23 @@ function resetState(): void {
   process.argv.length = 0;
   process.argv.push(...originalArgv);
   while (tmpApps.length > 0) {
-    tmpApps.pop()?.cleanup();
+    const app = tmpApps.at(-1);
+    if (!app) {
+      break;
+    }
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        app.cleanup();
+        tmpApps.pop();
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EBUSY" || attempt === 19) {
+          throw error;
+        }
+        // biome-ignore lint/performance/noAwaitInLoops: Windows can release compiled binaries after process exit.
+        await Bun.sleep(100);
+      }
+    }
   }
 }
 

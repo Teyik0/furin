@@ -52,6 +52,7 @@ export interface CompileContext {
     string,
     {
       requestKeys?: string[];
+      requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;

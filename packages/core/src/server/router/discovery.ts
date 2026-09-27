@@ -125,6 +125,7 @@ export function loadProdRoutes(ctx: CompileContext): {
       path,
       pattern,
       requestKeys: meta?.requestKeys,
+      requestKeysByLoader: meta?.requestKeysByLoader,
       routeChain,
       segmentBoundaries: boundaries,
       tags: collectRouteTags(routeChain, page),

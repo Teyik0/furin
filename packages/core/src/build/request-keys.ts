@@ -81,13 +81,13 @@ export async function annotateRequestLoaderKeys(routes: readonly ResolvedRoute[]
   const byPath = await extractRequestLoaderKeys([...paths]);
   for (const route of routes) {
     const keys = new Set<string>();
-    for (const entry of route.routeChain) {
-      if (entry.requestLoader) {
-        for (const key of byPath.get(entry.sourcePath ?? route.path) ?? []) {
-          keys.add(key);
-        }
+    route.requestKeysByLoader = route.routeChain.map((entry) => {
+      const own = entry.requestLoader ? byPath.get(entry.sourcePath ?? route.path) ?? [] : [];
+      for (const key of own) {
+        keys.add(key);
       }
-    }
+      return own;
+    });
     route.requestKeys = [...keys].sort();
   }
 }

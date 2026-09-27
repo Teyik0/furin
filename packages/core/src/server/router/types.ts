@@ -39,6 +39,8 @@ export interface ResolvedRoute {
   pattern: string;
   /** Finite private field names inferred from the request loaders in this chain. */
   requestKeys?: string[];
+  /** Request field names for each entry in routeChain, in the same order. */
+  requestKeysByLoader?: string[][];
   routeChain: RuntimeRoute[];
   /**
    * Per-directory boundary chain, ordered shallow → deep. Only directories

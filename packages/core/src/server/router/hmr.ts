@@ -40,7 +40,10 @@ import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from ".
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
 type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>;
-const requestKeyCache = new Map<string, { keys: string[]; version: string }>();
+const requestKeyCache = new Map<
+  string,
+  { keys: string[]; keysByLoader: string[][]; version: string }
+>();
 
 const routeModuleImport: RouteModuleImport = (specifier) =>
   import(specifier) as Promise<Record<string, unknown>>;
@@ -356,7 +359,6 @@ export async function resolveCurrentDevRoute(
     const refreshed = rebuildDevRoute(route, page, chain);
     if (chain.some((entry) => entry.requestLoader)) {
       const version = chain
-        .filter((entry) => entry.requestLoader)
         .map((entry) => {
           const path = entry.sourcePath ?? route.path;
           return `${path}:${routeModuleSourceVersion(path)}`;
@@ -365,9 +367,14 @@ export async function resolveCurrentDevRoute(
       const cached = requestKeyCache.get(route.path);
       if (cached?.version === version) {
         refreshed.requestKeys = cached.keys;
+        refreshed.requestKeysByLoader = cached.keysByLoader;
       } else {
         await annotateScannedRequestKeys([refreshed]);
-        requestKeyCache.set(route.path, { keys: refreshed.requestKeys ?? [], version });
+        requestKeyCache.set(route.path, {
+          keys: refreshed.requestKeys ?? [],
+          keysByLoader: refreshed.requestKeysByLoader ?? [],
+          version,
+        });
       }
     }
     return { root: currentRoot, route: refreshed };

@@ -268,66 +268,85 @@ function observeLoader<T extends object>(
   );
 }
 
-export function runRequestLoaderData(
+export function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
-): Promise<Record<string, unknown>> | undefined {
-  const loaders = route.routeChain
-    .map((entry) => entry.requestLoader)
-    .filter((loader) => loader !== undefined);
-  if (loaders.length === 0) {
+): Record<string, Promise<unknown>> | undefined {
+  const loaderIndexes = route.routeChain.flatMap((entry, index) =>
+    entry.requestLoader ? [index] : []
+  );
+  if (loaderIndexes.length === 0) {
     return;
   }
   if (route.requestKeys === undefined) {
     throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
   }
+  const declarations =
+    route.requestKeysByLoader ??
+    (loaderIndexes.length === 1
+      ? route.routeChain.map((_, index) =>
+          index === loaderIndexes[0] ? (route.requestKeys ?? []) : []
+        )
+      : undefined);
+  if (declarations?.length !== route.routeChain.length) {
+    throw new Error(`[furin] Missing per-loader request field metadata for ${route.pattern}.`);
+  }
   const requestContext = createRequestLoaderContext(ctx);
-  const requestData = Promise.all(
-    loaders.map((loader, index) =>
-      observeLoader(
-        () => Promise.resolve().then(() => loader(requestContext)),
-        `request:${index}`,
-        ctx.path
-      )
-    )
-  ).then((results) => {
-    for (const result of results) {
-      for (const key of Object.keys(result)) {
+  const results = loaderIndexes.map((index) => {
+    const loader = route.routeChain[index]?.requestLoader;
+    if (!loader) {
+      throw new Error(`[furin] Missing requestLoader at route index ${index}.`);
+    }
+    const invocation = Promise.resolve().then(() => loader(requestContext));
+    const result = observeLoader(() => invocation, `request:${index}`, ctx.path).then((value) => {
+      const data = value as Record<string, unknown>;
+      for (const key of Object.keys(data)) {
         assertPublicLoaderKey(key);
+        if (!declarations[index]?.includes(key)) {
+          throw new Error(
+            `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`
+          );
+        }
       }
+      return data;
+    });
+    result.catch(() => {
+      /* A declared field observes the rejection; empty loaders have no field to render. */
+    });
+    return { index, result };
+  });
+  const fields: Record<string, Promise<unknown>> = {};
+  for (const key of route.requestKeys) {
+    const candidates = results.filter(({ index }) => declarations[index]?.includes(key));
+    if (candidates.length === 0) {
+      throw new Error(`[furin] No requestLoader declares field "${key}" in ${route.pattern}.`);
     }
-    const data = Object.assign({}, ...results) as Record<string, unknown>;
-    for (const key of Object.keys(data)) {
-      if (!route.requestKeys?.includes(key)) {
-        throw new Error(
-          `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`
-        );
+    fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
+      for (let index = values.length - 1; index >= 0; index -= 1) {
+        const data = values[index];
+        if (data && Object.hasOwn(data, key)) {
+          return data[key];
+        }
       }
-    }
-    return data;
-  });
-  requestData.catch(() => {
-    /* React observes the original rejection through requestData. */
-  });
-  return requestData;
+    });
+  }
+  return fields;
 }
 
 function requestFieldPromises(
   route: ResolvedRoute,
-  requestData: Promise<Record<string, unknown>>,
+  fields: Record<string, Promise<unknown>>,
   syncData: Record<string, unknown>,
   publicDeferred: Record<string, Promise<unknown>> | undefined
 ): Record<string, Promise<unknown>> {
-  const promises: Record<string, Promise<unknown>> = {};
-  for (const key of route.requestKeys ?? []) {
+  for (const key of Object.keys(fields)) {
     if (Object.hasOwn(syncData, key) || Object.hasOwn(publicDeferred ?? {}, key)) {
       throw new Error(
         `[furin] requestLoader field "${key}" collides with public loader data in ${route.pattern}.`
       );
     }
-    promises[key] = requestData.then((data) => data[key]);
   }
-  return promises;
+  return fields;
 }
 
 export function withRequestLoaderData(
@@ -335,8 +354,8 @@ export function withRequestLoaderData(
   ctx: Context,
   publicResult: Extract<LoaderResult, { type: "data" }>
 ): Extract<LoaderResult, { type: "data" }> {
-  const requestData = runRequestLoaderData(route, ctx);
-  if (requestData === undefined) {
+  const requestFields = runRequestLoaderFields(route, ctx);
+  if (requestFields === undefined) {
     throw new Error(
       "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
     );
@@ -347,7 +366,7 @@ export function withRequestLoaderData(
       ...(publicResult.deferredPromises ?? {}),
       ...requestFieldPromises(
         route,
-        requestData,
+        requestFields,
         publicResult.syncData,
         publicResult.deferredPromises
       ),
@@ -495,7 +514,7 @@ async function runLoadersInternal(
   includeRequestData: boolean
 ): Promise<LoaderResult> {
   try {
-    const requestData = includeRequestData ? runRequestLoaderData(route, ctx) : undefined;
+    const requestFields = includeRequestData ? runRequestLoaderFields(route, ctx) : undefined;
     // Inject `log` so loaders can destructure it directly as `({ log })`.
     // getLogger() resolves the correct logger for every rendering context:
     // live request → evlog request-scoped logger, synthetic render → detached
@@ -574,8 +593,8 @@ async function runLoadersInternal(
     // Non-deferred loaders keep everything in `allSync` — even Promise values,
     // since only an explicit `defer()` opts into streaming.
     const { allSync, allDeferred } = mergeLoaderResults(results);
-    if (requestData !== undefined) {
-      Object.assign(allDeferred, requestFieldPromises(route, requestData, allSync, allDeferred));
+    if (requestFields !== undefined) {
+      Object.assign(allDeferred, requestFieldPromises(route, requestFields, allSync, allDeferred));
     }
 
     // Route context is always injected into syncData so components receive

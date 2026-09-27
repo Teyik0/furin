@@ -265,6 +265,44 @@ describe("runLoaders requestLoader", () => {
     expect(await result.deferredPromises?.slow).toBe("later");
   });
 
+  test("resolves one layout request field while another loader is still running", async () => {
+    const slow = Promise.withResolvers<void>();
+    const route = {
+      mode: "ssr",
+      page: {},
+      path: "/separate-loaders.tsx",
+      pattern: "/separate-loaders",
+      requestKeys: ["fast", "slow"],
+      requestKeysByLoader: [["fast"], ["slow"]],
+      routeChain: [
+        { __type: "FURIN_ROUTE", requestLoader: () => ({ fast: "ready" }) },
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: async () => {
+            await slow.promise;
+            return { slow: "later" };
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/separate-loaders" }));
+    expect(result.type).toBe("data");
+    if (result.type !== "data") {
+      slow.resolve();
+      return;
+    }
+    let fastSettled = false;
+    result.deferredPromises?.fast?.then(() => {
+      fastSettled = true;
+    });
+    await Bun.sleep(0);
+    expect(fastSettled).toBe(true);
+    slow.resolve();
+    expect(await result.deferredPromises?.slow).toBe("later");
+  });
+
   test("rejects a private field that would overwrite public loader data", async () => {
     const route = {
       mode: "ssr",

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: route refresh polling must wait between requests
 import { expect } from "bun:test";
 import { type AnyElysia, Elysia } from "elysia";
 import { furin } from "../../../src/furin.ts";
@@ -8,6 +9,23 @@ const previousCwd = process.cwd();
 let app: AnyElysia | undefined;
 let contentLoads = 0;
 const CONTENT_FILTER = /\.content$/;
+async function waitForArticle(
+  serverApp: AnyElysia,
+  expected: string,
+  status: number
+): Promise<void> {
+  const deadline = Date.now() + 3000;
+  let actual = "";
+  while (Date.now() < deadline) {
+    const response = await serverApp.handle(new Request("http://localhost/article"));
+    actual = await response.text();
+    if (response.status === status && actual.includes(expected)) {
+      return;
+    }
+    await Bun.sleep(20);
+  }
+  throw new Error(`Article did not reach ${status} with ${JSON.stringify(expected)}: ${actual}`);
+}
 Bun.plugin({
   name: "deferred-content-test",
   setup(build) {
@@ -138,15 +156,12 @@ try {
   expect(await firstArticle.text()).toContain("<article>First article version</article>");
   expect(contentLoads).toBe(1);
   writeAppFile(fixture.path, "src/article.content", "Updated article version");
-  const updatedArticle = await app.handle(new Request("http://localhost/article"));
-  expect(await updatedArticle.text()).toContain("<article>Updated article version</article>");
+  await waitForArticle(app, "<article>Updated article version</article>", 200);
   expect(contentLoads).toBe(2);
   writeAppFile(fixture.path, "src/article.content", "invalid content");
-  const brokenArticle = await app.handle(new Request("http://localhost/article"));
-  expect(brokenArticle.status).toBe(500);
+  await waitForArticle(app, "", 500);
   writeAppFile(fixture.path, "src/article.content", "Recovered article version");
-  const recoveredArticle = await app.handle(new Request("http://localhost/article"));
-  expect(await recoveredArticle.text()).toContain("<article>Recovered article version</article>");
+  await waitForArticle(app, "<article>Recovered article version</article>", 200);
   expect(contentLoads).toBe(4);
   writeAppFile(fixture.path, "src/token.ts", 'export const token = "edited-";');
   const updatedShared = await app.handle(new Request("http://localhost/heavy"));
