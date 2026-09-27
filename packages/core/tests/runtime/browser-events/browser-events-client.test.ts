@@ -107,7 +107,11 @@ test.serial("SSE reconnects after the stream closes permanently", async () => {
     const [first] = TestEventSource.instances;
     first?.open();
     first?.fail();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    const deadline = Date.now() + 2000;
+    while (TestEventSource.instances.length < 2 && Date.now() < deadline) {
+      // biome-ignore lint/performance/noAwaitInLoops: the retry timer must fire before this assertion.
+      await Bun.sleep(25);
+    }
     expect(TestEventSource.instances).toHaveLength(2);
     expect(TestEventSource.instances[1]?.url).toBe(first?.url);
   } finally {

@@ -25,6 +25,10 @@ export function furinCsp({ policy, reportOnly }: FurinCspOptions) {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     requestNonces.set(request, btoa(String.fromCharCode(...bytes)));
     const response = await fetch(request, ...rest);
+    // Bun returns undefined after a successful WebSocket upgrade.
+    if (!(response instanceof Response)) {
+      return response;
+    }
     const contentType = response.headers.get("content-type");
     if (contentType === null || !HTML_CONTENT_TYPE.test(contentType)) {
       return response;

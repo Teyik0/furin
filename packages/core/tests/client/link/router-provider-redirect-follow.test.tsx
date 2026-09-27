@@ -285,6 +285,18 @@ describe("RouterProvider server-side redirect follow", () => {
       container.querySelector("a") as HTMLAnchorElement,
       new MouseEvent("click", { bubbles: true, cancelable: true })
     );
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.location.pathname === "/page-d") {
+          clearInterval(interval);
+          resolve();
+        } else if (Date.now() - start > 2000) {
+          clearInterval(interval);
+          reject(new Error("Timed out waiting for chained guard redirects"));
+        }
+      }, 10);
+    });
     await flushReactUpdates();
     expect(window.location.pathname).toBe("/page-d");
   });

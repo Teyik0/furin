@@ -8,6 +8,7 @@ import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
+import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
@@ -186,7 +187,14 @@ export async function resumePprDocument(
   if (prepared instanceof Response) {
     return prepared;
   }
-  const tree = withDocumentState(prepared.element, prepared.assets, prepared.headData, undefined);
+  const nonce = artifact.html === "" ? useRequestCspNonce(ctx.request) : undefined;
+  const tree = withDocumentState(
+    prepared.element,
+    prepared.assets,
+    prepared.headData,
+    undefined,
+    nonce
+  );
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
@@ -195,6 +203,7 @@ export async function resumePprDocument(
     await writer.write(encoder.encode(artifact.html));
     if (artifact.state.postponed !== null) {
       const stream = await resume(tree, structuredClone(artifact.state.postponed), {
+        nonce,
         onError: (error) => {
           getLogger().error(error instanceof Error ? error : new Error(String(error)));
           return computeErrorDigest(error);
@@ -224,7 +233,7 @@ export async function resumePprDocument(
       reader.releaseLock();
       reader = undefined;
     }
-    await writeDeferredSsrChunks(writer, encoder, actual.deferredPromises ?? {}, true);
+    await writeDeferredSsrChunks(writer, encoder, actual.deferredPromises ?? {}, true, nonce);
     await writer.write(encoder.encode(DOCUMENT_END));
     await writer.close();
   })().catch((error: unknown) => Promise.allSettled([reader?.cancel(error), writer.abort(error)]));

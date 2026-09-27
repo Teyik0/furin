@@ -18,6 +18,7 @@ import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const previousDevMode = IS_DEV;
+const noncePattern = /'nonce-([^']+)'/;
 __setDevMode(false);
 afterAll(async () => {
   __setDevMode(previousDevMode);
@@ -95,7 +96,14 @@ test("a serialized public shell resumes independently for two sessions", async (
       if (!isPprArtifact(artifact)) {
         throw new Error("Prerender failed");
       }
-      return resumePprDocument(route, ctx, root, JSON.parse(JSON.stringify(artifact)), undefined);
+      const saved = JSON.parse(JSON.stringify(artifact)) as typeof artifact;
+      return resumePprDocument(
+        route,
+        ctx,
+        root,
+        ctx.request.headers.has("x-continuation") ? { ...saved, html: "" } : saved,
+        undefined
+      );
     });
   const alice = await app.handle(
     new Request("http://localhost/account", { headers: { cookie: "session=Alice" } })
@@ -135,8 +143,18 @@ test("a serialized public shell resumes independently for two sessions", async (
   expect(bob.headers.get("content-security-policy")).toBe(
     alice.headers.get("content-security-policy")
   );
+  const continuation = await app.handle(
+    new Request("http://localhost/account", {
+      headers: { cookie: "session=Eve", "x-continuation": "1" },
+    })
+  );
+  const continuationNonce = continuation.headers
+    .get("content-security-policy")
+    ?.match(noncePattern)?.[1];
+  expect(continuationNonce).toBeTruthy();
+  expect(await continuation.text()).toContain(`nonce="${continuationNonce}"`);
   expect(bobHtml.match(/<\/html>/g)).toHaveLength(1);
   expect(bob.headers.get("cache-control")).toBe("private, no-store");
   expect(publicCalls).toBe(1);
-  expect(privateCalls).toBe(2);
+  expect(privateCalls).toBe(3);
 });

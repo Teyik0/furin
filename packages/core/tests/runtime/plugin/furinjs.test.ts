@@ -273,9 +273,10 @@ test.serial(
         "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })',
-        "  .loader(({ query }) => {",
+        "  .loader(({ path, query, redirect }) => {",
         "    testGlobal[loaderRunsKey] = Number(testGlobal[loaderRunsKey] ?? 0) + 1;",
-        '    return { secret: "protected", page: query.page };',
+        '    if (query.page === 3) throw redirect("/admin/login", 302);',
+        '    return { secret: "protected", page: query.page, logicalPath: path };',
         "  })",
         "  .page(({ secret }) => <main>{secret}</main>);",
       ].join("\n")
@@ -329,8 +330,16 @@ test.serial(
     );
     expect(allowed.status).toBe(200);
     expect(allowed.headers.get("content-type")).toContain("application/x-ndjson");
-    expect(await allowed.text()).toContain('"page":2');
-    expect((globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]).toBe(1);
+    const allowedBody = await allowed.text();
+    expect(allowedBody).toContain('"page":2');
+    expect(allowedBody).toContain('"logicalPath":"/secret"');
+    const redirected = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D3", {
+        headers: { "x-test-user": "admin" },
+      })
+    );
+    expect(await redirected.text()).toContain("__furinRedirect");
+    expect((globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]).toBe(2);
   }
 );
 
