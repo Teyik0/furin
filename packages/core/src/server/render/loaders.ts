@@ -338,6 +338,9 @@ export function runRequestLoaderFields(
         }
       }
     });
+    fields[key].catch(() => {
+      /* React or the transport observes the original rejection after public loaders settle. */
+    });
   }
   const noFieldCompletion = Promise.all(
     results.filter(({ index }) => declarations[index]?.length === 0).map(({ result }) => result)

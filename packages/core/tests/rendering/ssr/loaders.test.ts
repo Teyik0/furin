@@ -89,6 +89,45 @@ describe("runLoaders requestLoader", () => {
     }
   });
 
+  test("preserves request field failures without unhandled rejections while public loaders run", async () => {
+    const failure = new Error("Request loader unavailable");
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => unhandled.push(error);
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async () => {
+          await Bun.sleep(30);
+          return {};
+        },
+      },
+      path: "/request-failure.tsx",
+      pattern: "/request-failure",
+      requestKeys: ["user", "permissions"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: () => {
+            throw failure;
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const result = await runLoaders(route, createMockLoaderContext({ path: "/request-failure" }));
+      expect(result.type).toBe("data");
+      if (result.type === "data") {
+        await expect(result.deferredPromises?.user).rejects.toBe(failure);
+        await expect(result.deferredPromises?.permissions).rejects.toBe(failure);
+      }
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   test("rejects loader data that uses framework-reserved keys", async () => {
     const route = {
       mode: "ssr",
