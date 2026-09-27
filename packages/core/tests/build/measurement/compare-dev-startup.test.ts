@@ -43,3 +43,13 @@ test("opening the port sooner cannot hide slower page rendering", () => {
   expect(comparison.regressions.map((row) => row.metric)).not.toContain("listenMs");
   expect(comparison.regressions).toHaveLength(6);
 });
+
+test("the second route budget catches a short request that slows substantially", () => {
+  const comparison = compareDevStartup(report(1000, 1500, 100), report(1000, 1500, 250));
+  expect(comparison.regressions.map((row) => row.metric)).toEqual([
+    "secondRouteMs",
+    "secondRouteMs",
+    "secondRouteMs",
+  ]);
+  expect(comparison.rows.find((row) => row.metric === "secondRouteMs")?.allowedMs).toBe(100);
+});

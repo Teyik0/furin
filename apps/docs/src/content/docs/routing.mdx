@@ -41,6 +41,8 @@ defineRoute()
 
 `config()` and the terminal `page()` or `layout()` are required. Optional stages disappear from the builder once used, preventing duplicate or out-of-order declarations. `staticParams()` is restricted to SSG/ISR and must precede both loader stages; see [Rendering Modes](/docs/rendering) for nested build-time params and lazy parent loader data.
 
+An SSR page cannot declare its own `requestLoader()`; use its `loader()` for request data. Shared layouts may still use `requestLoader()` so their private fields reach nested pages.
+
 ## Dynamic Parameters
 
 Filename brackets declare a parameter. Add a TypeBox schema to validate it at runtime and infer it everywhere else:

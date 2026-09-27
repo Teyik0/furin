@@ -280,7 +280,7 @@ function observeLoader<T extends object>(
 export function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
-): Record<string, Promise<unknown>> | undefined {
+): { fields: Record<string, Promise<unknown>>; noFieldCompletion: Promise<void> } | undefined {
   const loaderIndexes = route.routeChain.flatMap((entry, index) =>
     entry.requestLoader ? [index] : []
   );
@@ -339,7 +339,13 @@ export function runRequestLoaderFields(
       }
     });
   }
-  return fields;
+  const noFieldCompletion = Promise.all(
+    results.filter(({ index }) => declarations[index]?.length === 0).map(({ result }) => result)
+  ).then(() => undefined);
+  noFieldCompletion.catch(() => {
+    /* The caller observes this after the public loaders settle. */
+  });
+  return { fields, noFieldCompletion };
 }
 
 function requestFieldPromises(
@@ -358,24 +364,25 @@ function requestFieldPromises(
   return fields;
 }
 
-export function withRequestLoaderData(
+export async function withRequestLoaderData(
   route: ResolvedRoute,
   ctx: Context,
   publicResult: Extract<LoaderResult, { type: "data" }>
-): Extract<LoaderResult, { type: "data" }> {
+): Promise<Extract<LoaderResult, { type: "data" }>> {
   const requestFields = runRequestLoaderFields(route, ctx);
   if (requestFields === undefined) {
     throw new Error(
       "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
     );
   }
+  await requestFields.noFieldCompletion;
   return {
     ...publicResult,
     deferredPromises: {
       ...(publicResult.deferredPromises ?? {}),
       ...requestFieldPromises(
         route,
-        requestFields,
+        requestFields.fields,
         publicResult.syncData,
         publicResult.deferredPromises
       ),
@@ -594,6 +601,7 @@ async function runLoadersInternal(
     // overwrite earlier ones on key collision — same semantic as the previous
     // non-deferred `Object.assign({}, ...results)` flat merge.
     const results = await Promise.all([...loaderMap.values(), pagePromise]);
+    await requestFields?.noFieldCompletion;
     const headers: Record<string, string> = {};
     Object.assign(headers, ctx.set.headers);
 
@@ -603,7 +611,10 @@ async function runLoadersInternal(
     // since only an explicit `defer()` opts into streaming.
     const { allSync, allDeferred } = mergeLoaderResults(results);
     if (requestFields !== undefined) {
-      Object.assign(allDeferred, requestFieldPromises(route, requestFields, allSync, allDeferred));
+      Object.assign(
+        allDeferred,
+        requestFieldPromises(route, requestFields.fields, allSync, allDeferred)
+      );
     }
 
     // Route context is always injected into syncData so components receive

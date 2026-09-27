@@ -106,7 +106,7 @@ async function serializeLoaderDataResponse(
   if (result.type === "redirect") {
     const redirectUrl = new URL(result.response.headers.get("location") ?? "/", requestUrl);
     const serialized = await toCrossJSONAsync({
-      __furinRedirect: redirectUrl.pathname + redirectUrl.search,
+      __furinRedirect: redirectUrl.pathname + redirectUrl.search + redirectUrl.hash,
     });
     return new Response(`${JSON.stringify(serialized)}\n`, {
       headers: { "content-type": "application/x-ndjson" },
@@ -169,7 +169,7 @@ export async function serializeGuardRedirect(
     prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
   const href =
     target.origin === requestUrl.origin && withinMount
-      ? (target.pathname.slice(prefix.length) || "/") + target.search
+      ? (target.pathname.slice(prefix.length) || "/") + target.search + target.hash
       : target.href;
   const serialized = await toCrossJSONAsync({ __furinRedirect: href });
   const headers = new Headers(response.headers);

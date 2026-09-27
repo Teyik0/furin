@@ -33,3 +33,12 @@ test("recognizes aliased Furin imports and preserves explicit startup effects", 
   expect(renderImports).toContain("./heavy");
   expect(renderImports).not.toContain("./startup");
 });
+
+test("keeps an import eager when a page parameter shadows its name", () => {
+  const source = `
+    import { defineRoute } from "furin";
+    import { Foo } from "./startup";
+    export const route = defineRoute().page(({ Foo }) => <Foo />);
+  `;
+  expect(splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1")).toBeUndefined();
+});

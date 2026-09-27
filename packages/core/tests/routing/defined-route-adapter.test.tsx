@@ -130,7 +130,7 @@ describe("defineRoute renderer adapter", () => {
   test("keeps requestLoader data outside public loader data", async () => {
     const parent = { __type: "FURIN_ROUTE" as const };
     const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+      .config({ layout: parent, mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ public: "catalog" }))
       .page(({ public: catalog, user }) => `${String(catalog)}:${String(user)}`);

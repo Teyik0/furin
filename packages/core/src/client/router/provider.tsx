@@ -335,7 +335,12 @@ export function RouterProvider({
           ) {
             return null;
           }
-          return { data: {}, finalHref: targetPath + target.search, match: null, title: "" };
+          return {
+            data: {},
+            finalHref: targetPath + target.search + target.hash,
+            match: null,
+            title: "",
+          };
         }
 
         // Merge sync data + deferred Promises.

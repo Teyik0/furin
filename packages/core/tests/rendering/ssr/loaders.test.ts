@@ -64,6 +64,31 @@ describe("runLoaders requestLoader", () => {
     await result;
   });
 
+  test("propagates a requestLoader failure with no declared fields", async () => {
+    const route = {
+      mode: "ssr",
+      page: {},
+      path: "/check.tsx",
+      pattern: "/check",
+      requestKeys: [],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: () => {
+            throw new Error("Access denied");
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/check" }));
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect((result.error as Error).message).toBe("Access denied");
+    }
+  });
+
   test("rejects loader data that uses framework-reserved keys", async () => {
     const route = {
       mode: "ssr",

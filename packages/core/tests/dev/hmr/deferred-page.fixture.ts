@@ -105,7 +105,7 @@ try {
     import { route as rootRoute } from "./root";
     export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", query: t.Object({ q: t.Optional(t.String({ minLength: 2 })) }) })
       .loader(() => ({ message: "loader intact", token: identity }))
-      .page(({ message, token }) => <main><Heavy /><p>{message}</p><p>{token === identity ? "same identity" : "duplicated identity"}</p></main>);
+      .page(({ message, token }) => <main><Heavy /><p>{message}</p><p>{token === identity ? "same identity" : "duplicated identity"}</p><p>{token}</p></main>);
   `
   );
   writeAppFile(
@@ -168,8 +168,17 @@ try {
     expect(contentLoads).toBe(4);
   }
   writeAppFile(fixture.path, "src/token.ts", 'export const token = "edited-";');
-  const updatedShared = await app.handle(new Request("http://localhost/heavy"));
-  expect(await updatedShared.text()).toContain("<p>same identity</p>");
+  let updatedHtml = "";
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const updatedShared = await app.handle(new Request("http://localhost/heavy"));
+    updatedHtml = await updatedShared.text();
+    if (updatedHtml.includes("<p>edited-")) {
+      break;
+    }
+    await Bun.sleep(20);
+  }
+  expect(updatedHtml).toContain("<p>edited-");
+  expect(updatedHtml).toContain("<p>same identity</p>");
 } finally {
   await app?.stop();
   process.chdir(previousCwd);

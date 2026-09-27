@@ -22,6 +22,8 @@ export const route = defineRoute()
 
 SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. It is the only mode that supports public `defer()` streaming and direct request access in `loader()`.
 
+An SSR page cannot declare `requestLoader()`; return request data from `loader()` and wrap slow fields with `defer()` when they should stream.
+
 ## SSG
 
 ```tsx

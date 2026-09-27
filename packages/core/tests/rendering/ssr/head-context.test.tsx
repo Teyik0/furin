@@ -69,6 +69,7 @@ describe("SSR head context", () => {
   test("keeps deferred and request data out of head while exposing them to the page", async () => {
     const rootTerminal = defineRootRoute()
       .config({ mode: "ssr" })
+      .requestLoader(() => ({ user: "alice" }))
       .layout(({ children }) => (
         <html lang="en">
           <head>
@@ -89,7 +90,6 @@ describe("SSR head context", () => {
     let pageReceivedUser = false;
     const terminal = defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
-      .requestLoader(() => ({ user: "alice" }))
       .loader(() => defer({ catalog: "Shoes", stock: Promise.resolve(42) }))
       .head((props) => {
         headReceivedCatalog = props.catalog === "Shoes";

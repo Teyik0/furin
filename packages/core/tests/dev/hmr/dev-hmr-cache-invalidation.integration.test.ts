@@ -55,6 +55,34 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
 
   writeAppFile(
     app.path,
+    "src/pages/private.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      '  .loader(({ request }) => ({ session: request.headers.get("cookie") }))',
+      "  .page(({ session }) => <main>{session}</main>);",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/personal.tsx",
+    [
+      'import { Await, defineRoute } from "@teyik0/furin";',
+      'import { Suspense } from "react";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      '  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))',
+      '  .loader(() => ({ catalog: "shared" }))',
+      '  .page(({ catalog, session }) => <main>{catalog}<Suspense fallback="Loading"><Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await></Suspense></main>);',
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
     "src/pages/sub/_route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
@@ -109,6 +137,28 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     server?.kill();
     await server?.exitCode;
     app.cleanup();
+  });
+
+  test("dev cache rejects request data in a public SSG loader", async () => {
+    const response = await fetch(`http://localhost:${port}/private`, {
+      headers: { cookie: "session=alice" },
+    });
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("session=alice");
+  });
+
+  test("dev SSG keeps cached public data while refreshing request fields", async () => {
+    const alice = await fetch(`http://localhost:${port}/personal`, {
+      headers: { cookie: "session=alice" },
+    });
+    const bob = await fetch(`http://localhost:${port}/personal`, {
+      headers: { cookie: "session=bob" },
+    });
+
+    expect(alice.status).toBe(200);
+    expect(bob.status).toBe(200);
+    expect(await alice.text()).toContain("<strong>alice</strong>");
+    expect(await bob.text()).toContain("<strong>bob</strong>");
   });
 
   test("editing pages/sub/_route.tsx invalidates the cached ISR home page so the next reload embeds the fresh chunk URL", async () => {

@@ -126,9 +126,25 @@ describe("defineRoute", () => {
     await Promise.resolve();
   });
 
+  test("rejects a page-owned requestLoader in SSR at runtime", () => {
+    const chain = defineRoute()
+      .config({ layout: rootRoute, mode: "ssr" })
+      .requestLoader(() => ({ user: "private" }));
+    const untypedChain = chain as unknown as { page: (component: () => null) => unknown };
+
+    expect(() => untypedChain.page(() => null)).toThrow(
+      "[furin] SSR pages cannot declare requestLoader(); use loader() and defer()."
+    );
+  });
+
   test("types request-specific data through the requestLoader stage", async () => {
     const privateRoute = defineRoute()
-      .config({ layout: rootRoute, mode: "ssr", query: t.Object({ locale: t.String() }) })
+      .config({
+        layout: rootRoute,
+        mode: "isr",
+        query: t.Object({ locale: t.String() }),
+        revalidate: 60,
+      })
       .requestLoader(({ cookies, query }) => ({
         locale: query.locale,
         user: cookies.get("session"),

@@ -25,6 +25,46 @@ afterAll(async () => {
   await Promise.resolve();
 });
 
+test("prerenders a route without requestLoader fields", async () => {
+  const rootRoute = defineRootRoute()
+    .config({ mode: "ssr" })
+    .layout(({ children }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+  const terminal = defineRoute()
+    .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+    .page(() => <main>Public page</main>);
+  const root = { path: "/root.tsx", route: adaptDefinedLayout(rootRoute, undefined) };
+  const page = adaptDefinedPage(terminal, root.route);
+  const route = {
+    mode: "isr" as const,
+    page,
+    path: "/public.tsx",
+    pattern: "/public",
+    routeChain: collectRouteChainFromRoute(page._route),
+    segmentBoundaries: [],
+  };
+  const app = new Elysia().get("/public", async (ctx) => {
+    const artifact = await prerenderPprDocument(route, ctx, root, "build-1", undefined, undefined);
+    expect(isPprArtifact(artifact)).toBe(true);
+    if (!isPprArtifact(artifact)) {
+      throw new Error("Prerender failed");
+    }
+    return resumePprDocument(route, ctx, root, artifact, undefined);
+  });
+  const response = await app.handle(new Request("http://localhost/public"));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("Public page");
+});
+
 test("a serialized public shell resumes independently for two sessions", async () => {
   let publicCalls = 0;
   let privateCalls = 0;

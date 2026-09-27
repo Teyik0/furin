@@ -43,8 +43,9 @@ Unverified pull requests will not be reviewed until the checks are green.
 
 ## Development startup budgets
 
-The performance CI job measures Weather, Task Manager, and the documentation on
-both the base and PR revisions, using three new `bun --hot` processes per app.
+When the base revision supports the performance-report CLI, the performance CI
+job measures Weather, Task Manager, and the documentation on both the base and
+PR revisions, using three new `bun --hot` processes per app.
 It compares medians for process-to-port, process-to-complete-first-HTML, and the
 request duration of a first visit to another route. Responses must contain the
 expected rendered content; an empty page or diagnostic response cannot pass.

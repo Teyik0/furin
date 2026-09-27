@@ -143,24 +143,25 @@ describe("RouterProvider server-side redirect follow", () => {
       const url = new URL(input.toString(), window.location.origin);
       const logicalPath =
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
+      const logicalPathname = new URL(logicalPath, window.location.origin).pathname;
 
-      if (logicalPath === "/page-b") {
+      if (logicalPathname === "/page-b") {
         if (guardRedirect) {
           expect(init?.redirect).toBe("manual");
-          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-c" }));
+          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-c#section" }));
         }
         // Simulate a server-side redirect: /page-b -> /page-c
         return Promise.resolve(
           makeNdjsonResponse({ __furinRedirect: "/page-c", message: "redirected" })
         );
       }
-      if (logicalPath === "/page-c") {
+      if (logicalPathname === "/page-c") {
         if (chainedRedirect) {
           return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
         }
         return Promise.resolve(makeNdjsonResponse({ message: "page-c" }));
       }
-      if (logicalPath === "/page-d") {
+      if (logicalPathname === "/page-d") {
         return Promise.resolve(makeNdjsonResponse({ message: "page-d" }));
       }
       return Promise.resolve(new Response(null, { status: 404 }));
@@ -263,6 +264,7 @@ describe("RouterProvider server-side redirect follow", () => {
     });
     await flushReactUpdates();
     expect(window.location.pathname).toBe("/page-c");
+    expect(window.location.hash).toBe("#section");
   });
 
   test("follows chained guard redirects", async () => {

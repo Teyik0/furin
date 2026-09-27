@@ -363,7 +363,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
         "export const route = defineRootRoute()",
         '  .config({ mode: "ssr" })',
         `  .requestLoader(({ headers }) => ({ ${field}: headers.get("x-session") ?? "anonymous" }))`,
-        `  .layout(({ children, ${field} }) => <html lang="en"><head><HeadContent /></head><body><Suspense fallback="loading"><Private value={${field}} /></Suspense>{children}<Scripts /></body></html>);`,
+        `  .layout(({ children, ${field} }) => <html lang="en"><head><HeadContent /></head><body><span>field: ${field}</span><Suspense fallback="loading"><Private value={${field}} /></Suspense>{children}<Scripts /></body></html>);`,
       ].join("\n");
     writeAppFile(app.path, "src/pages/root.tsx", rootSource("user"));
     writeAppFile(
@@ -395,7 +395,10 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
 
       writeAppFile(app.path, "src/pages/root.tsx", rootSource("sessionUser"));
       const updated = await pollUntil(
-        async () => (await htmlFor("/", "Charlie")).includes("<strong>Charlie</strong>"),
+        async () => {
+          const html = await htmlFor("/", "Charlie");
+          return html.includes("<strong>Charlie</strong>") && html.includes("field: sessionUser");
+        },
         40,
         250
       );
@@ -403,6 +406,12 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     } finally {
       removeAppPath(app.path, "src/pages/private-isr.tsx");
     }
+    const removed = await pollUntil(
+      async () => (await fetch(`http://localhost:${port}/private-isr`)).status === 404,
+      40,
+      250
+    );
+    expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
   }, 30_000);
 
   test("hot-editing a legacy root layout applies the document layout autofix", async () => {

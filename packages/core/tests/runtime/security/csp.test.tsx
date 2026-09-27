@@ -23,6 +23,7 @@ afterAll(() => __setDevMode(previousDevMode));
 test("SSR emits a fresh CSP nonce on framework and authored scripts", async () => {
   const rootRoute = defineRootRoute()
     .config({ mode: "ssr" })
+    .requestLoader(() => ({ user: "Alice" }))
     .layout(({ children }) => (
       <html lang="en">
         <head>
@@ -36,7 +37,6 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
     ));
   const page = defineRoute()
     .config({ layout: rootRoute, mode: "ssr" })
-    .requestLoader(() => ({ user: "Alice" }))
     .loader(() => ({ title: "Account" }))
     .head(() => ({ scripts: [{ children: "window.accountReady = true" }] }))
     .page(({ title, user }) => (

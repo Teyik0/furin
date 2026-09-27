@@ -51,7 +51,7 @@ export function compareDevStartup(
     METRICS.map((metric): StartupBudgetRow => {
       const baseMs = base.apps[key][metric];
       const headMs = head.apps[key][metric];
-      const allowedMs = Math.max(500, Math.ceil(baseMs * 0.3));
+      const allowedMs = Math.max(metric === "secondRouteMs" ? 100 : 500, Math.ceil(baseMs * 0.3));
       return {
         allowedMs,
         app: label,
@@ -69,7 +69,7 @@ export function formatDevStartupComparison(comparison: StartupComparison): strin
   return [
     "## Development cold-start budgets",
     "",
-    "Median of three new Bun processes per app. HTML is read completely and its content checked: Weather `/` then `/weather/london`, Task Manager `/` then `/rsc`, docs `/docs` then `/docs/routing`. Weather uses fixed Open-Meteo responses; Task Manager uses a fresh temporary database. Base and PR run on the same CI runner after builds, with filesystem and generated caches retained. These measurements do not include browser hydration. The allowance is the larger of 500 ms or 30% of the base.",
+    "Median of three new Bun processes per app. HTML is read completely and its content checked: Weather `/` then `/weather/london`, Task Manager `/` then `/rsc`, docs `/docs` then `/docs/routing`. Weather uses fixed Open-Meteo responses; Task Manager uses a fresh temporary database. Base and PR run on the same CI runner after builds, with filesystem and generated caches retained. These measurements do not include browser hydration. The allowance is the larger of 30% of the base or 500 ms for startup, 100 ms for the second route.",
     "",
     "| App | Milestone | Base | PR | Allowed regression | Result |",
     "|---|---|---:|---:|---:|:---:|",

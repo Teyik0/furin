@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
+import { defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
@@ -83,14 +84,16 @@ afterAll(async () => {
   await Promise.resolve();
 });
 
-test("SSR requestLoader responses stay private when a loader sets Cache-Control", async () => {
+test("SSR deferred responses stay private when a loader sets Cache-Control", async () => {
   const resolved = resolveRoute(
     defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
-      .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
-      .loader(({ set }) => {
+      .loader(({ request, set }) => {
         set.headers["Cache-Control"] = "public, s-maxage=60";
-        return { title: "Account" };
+        return defer({
+          title: "Account",
+          user: Promise.resolve(request.headers.get("cookie")?.replace("session=", "")),
+        });
       })
       .page(({ user }) => (
         <Suspense fallback="Loading">
@@ -110,13 +113,12 @@ test("SSR requestLoader responses stay private when a loader sets Cache-Control"
   expect(await response.text()).toContain("Alice");
 });
 
-test("SSR exposes requestLoader fields as individual promises", async () => {
+test("SSR exposes deferred fields as individual promises", async () => {
   let optionalWasAbsent = false;
   const resolved = resolveRoute(
     defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
-      .requestLoader(async () => ({ user: "Alice" }))
-      .loader(() => ({ title: "Account" }))
+      .loader(() => defer({ title: "Account", user: Promise.resolve("Alice") }))
       .page((props) => {
         optionalWasAbsent = (props as typeof props & { optional?: unknown }).optional === undefined;
         return (

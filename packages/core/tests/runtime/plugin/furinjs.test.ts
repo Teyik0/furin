@@ -316,7 +316,7 @@ test.serial(
         adminArea: {
           beforeHandle: ({ path, redirect, request }) => {
             if (path !== "/admin/login" && request.headers.get("x-test-user") !== "admin") {
-              return redirect("/admin/login", 302);
+              return redirect("/admin/login#section", 302);
             }
           },
         },
@@ -332,14 +332,14 @@ test.serial(
     expect(denied.headers.get("location")).toBeNull();
     const deniedBody = await denied.text();
     expect(deniedBody).toContain('"__furinRedirect"');
-    expect(deniedBody).toContain('"/login"');
+    expect(deniedBody).toContain('"/login#section"');
     expect(
       (globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]
     ).toBeUndefined();
 
     const deniedDocument = await instance.handle(new Request("http://furin/admin/secret"));
     expect(deniedDocument.status).toBe(302);
-    expect(deniedDocument.headers.get("location")).toBe("/admin/login");
+    expect(deniedDocument.headers.get("location")).toBe("/admin/login#section");
 
     const login = await instance.handle(
       new Request("http://furin/admin/_furin/data?path=%2Flogin")

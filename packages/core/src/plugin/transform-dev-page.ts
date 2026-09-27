@@ -32,6 +32,32 @@ function namesIn(value: unknown): Set<string> {
   return names;
 }
 
+const CALLBACK_BINDING_TYPES = new Set([
+  "ArrowFunctionExpression",
+  "CatchClause",
+  "ClassDeclaration",
+  "ClassExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "VariableDeclarator",
+]);
+
+function callbackBindings(callback: AstNode): Set<string> {
+  const bindings = new Set<string>();
+  walkAST(callback, (entry) => {
+    if (!CALLBACK_BINDING_TYPES.has(entry.type)) {
+      return;
+    }
+    const patterns = [entry.id, entry.param, ...(Array.isArray(entry.params) ? entry.params : [])];
+    for (const pattern of patterns) {
+      for (const name of namesIn(pattern)) {
+        bindings.add(name);
+      }
+    }
+  });
+  return bindings;
+}
+
 function defineRouteBindings(imports: AstNode[]): Set<string> {
   const bindings = new Set<string>();
   for (const declaration of imports) {
@@ -157,6 +183,16 @@ export function splitDevPage(
   const { imports, localBindings, terminal } = inspectModule(statements);
   const callback = inlinePage(terminal, defineRouteBindings(imports));
   if (!callback || hasLexicalCapture(callback, program)) {
+    return;
+  }
+  const shadowed = callbackBindings(callback);
+  if (
+    imports.some((entry) =>
+      (entry.specifiers as AstNode[]).some((specifier) =>
+        shadowed.has(String(node(specifier.local)?.name))
+      )
+    )
+  ) {
     return;
   }
   const references = namesIn(callback);

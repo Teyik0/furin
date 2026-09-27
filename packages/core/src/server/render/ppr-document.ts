@@ -94,10 +94,11 @@ export async function prerenderPprDocument(
   const reason = new Error(
     "[furin] PPR requestLoader fields must be consumed inside a Suspense boundary."
   );
-  if (route.requestKeys === undefined) {
+  if (route.requestKeys === undefined && route.routeChain.some((entry) => entry.requestLoader)) {
     throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
   }
-  for (const key of route.requestKeys) {
+  const requestKeys = route.requestKeys ?? [];
+  for (const key of requestKeys) {
     if (Object.hasOwn(result.syncData, key) || Object.hasOwn(result.deferredPromises ?? {}, key)) {
       throw new Error(
         `[furin] requestLoader field "${key}" collides with public loader data in ${route.pattern}.`
@@ -105,7 +106,7 @@ export async function prerenderPprDocument(
     }
   }
   const postponed = Object.fromEntries(
-    route.requestKeys.map((key) => [key, postponedRequestData(controller, reason)])
+    requestKeys.map((key) => [key, postponedRequestData(controller, reason)])
   );
   const prepared = await prepareRender(
     route,
@@ -150,7 +151,7 @@ export async function prerenderPprDocument(
   if (!(html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END))) {
     throw new Error("[furin] PPR requires a complete root HTML document.");
   }
-  const scripts = buildSsrTransportScripts(result.syncData, route.requestKeys, true, false);
+  const scripts = buildSsrTransportScripts(result.syncData, requestKeys, true, false);
   const openDocument = html.slice(0, -DOCUMENT_END.length);
   const shell = injectAfterEntry(
     openDocument,
@@ -189,7 +190,9 @@ export async function resumePprDocument(
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<Response> {
   const publicResult = await pprPublicResult(artifact.state);
-  const actual = withRequestLoaderData(route, ctx, publicResult);
+  const actual = route.routeChain.some((entry) => entry.requestLoader)
+    ? await withRequestLoaderData(route, ctx, publicResult)
+    : publicResult;
   const prepared = await prepareRender(
     route,
     ctx,

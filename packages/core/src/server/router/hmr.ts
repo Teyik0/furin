@@ -25,6 +25,7 @@ import {
   hasRequestLoader,
   type LoaderResult,
   runLoaders,
+  runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
 import { renderSSR } from "../render/ssr.ts";
@@ -62,7 +63,7 @@ class DevPhaseFailure extends Error {
 async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
   let result: LoaderResult;
   try {
-    result = await runLoaders(route, ctx);
+    result = await (route.mode === "ssr" ? runLoaders(route, ctx) : runPublicLoaders(route, ctx));
   } catch (error) {
     // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
     throw new DevPhaseFailure(error, "loader", { cause: error });
@@ -454,7 +455,7 @@ export async function renderDevISRWithLoaderCache(
       route,
       ctx,
       root,
-      hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed,
+      hasRequestLoader(route) ? await withRequestLoaderData(route, ctx, precomputed) : precomputed,
       searchRoutes
     );
   }
@@ -476,7 +477,15 @@ export async function renderDevISRWithLoaderCache(
       route.tags
     );
   }
-  return runDevRender(route, ctx, root, result, searchRoutes);
+  return runDevRender(
+    route,
+    ctx,
+    root,
+    result.type === "data" && hasRequestLoader(route)
+      ? await withRequestLoaderData(route, ctx, result)
+      : result,
+    searchRoutes
+  );
 }
 
 /**
@@ -506,7 +515,7 @@ export async function renderDevSSGWithLoaderCache(
       route,
       ctx,
       root,
-      hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed,
+      hasRequestLoader(route) ? await withRequestLoaderData(route, ctx, precomputed) : precomputed,
       searchRoutes
     );
   }
@@ -528,7 +537,15 @@ export async function renderDevSSGWithLoaderCache(
       route.tags
     );
   }
-  return runDevRender(route, ctx, root, result, searchRoutes);
+  return runDevRender(
+    route,
+    ctx,
+    root,
+    result.type === "data" && hasRequestLoader(route)
+      ? await withRequestLoaderData(route, ctx, result)
+      : result,
+    searchRoutes
+  );
 }
 
 /**

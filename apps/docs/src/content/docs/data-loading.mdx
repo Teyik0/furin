@@ -61,7 +61,7 @@ For SSR routes, `loader()` receives the Elysia context plus typed route values a
 | `log` | Request-scoped evlog logger |
 | ancestor fields | `Promise<T>` values from layout loaders |
 
-On SSG and ISR public renders, request-bound properties (`request`, `cookie`, `headers`, and `set`) throw if accessed. This prevents accidental personalization from entering a shared cache.
+On SSG and ISR pages, `loader()` exposes only public route values (`params`, `query`, `path`, `log`, `redirect`, and public ancestor fields). Request-bound properties (`request`, `cookie`, `headers`, and `set`) are absent from its TypeScript context and throw if accessed dynamically, including in development. A layout declared SSR can also serve a cached child page; keep shared layout loaders public because the child page determines the effective rendering mode.
 
 ## Params And Query
 
@@ -91,6 +91,8 @@ The schemas are both runtime validators and TypeScript sources. Furin checks tha
 
 `requestLoader()` receives a restricted request context. Each returned field is exposed as an individual promise to `page()` and `layout()`:
 
+Use it on cached SSG/ISR pages or shared layouts. An SSR page can read the request directly in `loader()` and stream fields with `defer()`.
+
 ```tsx
 import { Await, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
@@ -117,6 +119,8 @@ export const route = defineRoute()
 The context exposes `cookies.get(name)`, a read-only snapshot of `headers`, `log`, `params`, `path`, `query`, and the original `request`. Request loaders across the route chain run in parallel. Furin infers their field names from TypeScript at build time, so the return type must have a finite set of keys. Each field becomes a real promise prop and streams separately; a missing optional public prop remains `undefined`. If an `async` request loader waits for several values before returning its object, those fields start streaming only after that wait. Their fields use the same reserved names as public loaders. The context object is shallowly frozen; the `request`, `params`, and `query` values are not immutable. Return only data safe to send to the current browser: request-loader output is serialized into the HTML stream or route-data response, so never return session tokens or server secrets.
 
 For SSG or ISR on a Bun server, Furin caches only the public loader result, renders request data per request, and marks the final document `private, no-store`. Pure static export rejects every `requestLoader()` because no request runtime exists.
+
+An SSR page cannot declare its own `requestLoader()`: use `loader()` for request data and `defer()` when some fields should stream independently. An SSR page can still inherit `requestLoader()` fields from a shared layout that also serves SSG or ISR pages.
 
 ## Redirects, Missing Data, And Headers
 

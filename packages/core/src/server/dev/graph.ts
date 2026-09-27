@@ -122,6 +122,7 @@ function transformErrorPosition(
  */
 export class DevGraph<Snapshot> {
   readonly #dependencies = new Map<string, Set<string>>();
+  readonly #dependents = new Map<string, Set<string>>();
   readonly #events: DevGraphEvent[] = [];
   readonly #listeners = new Set<(event: DevGraphEvent) => void>();
   readonly #moduleCaches = new WeakMap<
@@ -290,14 +291,45 @@ export class DevGraph<Snapshot> {
     // Learning a module's dependencies during its first evaluation is not an
     // edit. Rebase unchanged ancestors so contract and render imports share
     // the same ESM instance. Actual edits must still advance their versions.
+    const ancestors = new Set([path]);
+    const pending = [path];
+    while (pending.length > 0) {
+      const dependency = pending.pop();
+      if (dependency === undefined) {
+        break;
+      }
+      for (const parent of this.#dependents.get(dependency) ?? []) {
+        if (!ancestors.has(parent)) {
+          ancestors.add(parent);
+          pending.push(parent);
+        }
+      }
+    }
     const unchanged = this.#dependencies.has(path)
       ? []
-      : [...this.#moduleRevisions].filter(
-          ([modulePath, revision]) =>
-            this.dependsOn(modulePath, path) &&
-            revision.fingerprint === this.#sourceFingerprint(modulePath, new Set())
-        );
-    this.#dependencies.set(path, new Set(imports.map(normalizeModulePath)));
+      : [...ancestors].flatMap((modulePath) => {
+          const revision = this.#moduleRevisions.get(modulePath);
+          return revision?.fingerprint === this.#sourceFingerprint(modulePath, new Set())
+            ? [[modulePath, revision] as const]
+            : [];
+        });
+    for (const dependency of this.#dependencies.get(path) ?? []) {
+      const dependents = this.#dependents.get(dependency);
+      dependents?.delete(path);
+      if (dependents?.size === 0) {
+        this.#dependents.delete(dependency);
+      }
+    }
+    const nextImports = new Set(imports.map(normalizeModulePath));
+    this.#dependencies.set(path, nextImports);
+    for (const dependency of nextImports) {
+      let dependents = this.#dependents.get(dependency);
+      if (!dependents) {
+        dependents = new Set();
+        this.#dependents.set(dependency, dependents);
+      }
+      dependents.add(path);
+    }
     for (const [modulePath, revision] of unchanged) {
       revision.fingerprint = this.#sourceFingerprint(modulePath, new Set());
     }

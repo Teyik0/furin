@@ -70,7 +70,7 @@ const createParentlessRoute = () =>
 
 const createPrivatePublicConflict = () =>
   defineRootRoute()
-    .config({ mode: "ssr" })
+    .config({ mode: "isr", revalidate: 60 })
     .requestLoader(() => ({ user: "private" }))
     .loader(() => ({ user: "public" }))
     .page(({ user }) => {
@@ -80,6 +80,25 @@ const createPrivatePublicConflict = () =>
       const publicUser: string = user;
       return String(privateUser) + publicUser;
     });
+
+const createDescendantOfPrivateConflict = () => {
+  const parent = defineRootRoute()
+    .config({ mode: "ssr" })
+    .requestLoader(() => ({ user: "private" }))
+    .layout(({ children }) => children);
+  const child = defineRoute()
+    .config({ layout: parent, mode: "ssr" })
+    .loader(() => ({ user: "public" }))
+    .layout(({ children }) => children);
+  return defineRoute()
+    .config({ layout: child, mode: "ssr" })
+    .loader((context) => {
+      // @ts-expect-error the conflict contains private data and must not reach a public loader.
+      context.user;
+      return {};
+    })
+    .page(() => "done");
+};
 
 const createRoutesWithReservedLoaderKeys = () => {
   const noSchema = defineRootRoute()
@@ -146,6 +165,10 @@ describe("defineRoute parentData conflicts", () => {
 
   test("private and public fields with the same name conflict", () => {
     expectTypeOf<ReturnType<typeof createPrivatePublicConflict>>().not.toBeNever();
+  });
+
+  test("private conflict markers do not enter descendant public loaders", () => {
+    expectTypeOf<ReturnType<typeof createDescendantOfPrivateConflict>>().not.toBeNever();
   });
 
   test("reserved render-context keys are rejected by every loader chain", () => {
