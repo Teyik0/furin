@@ -55,6 +55,13 @@ const createGeneratedOptionalBoardRoute = () =>
 
 declare const generatedOptionalBoardRoute: ReturnType<typeof createGeneratedOptionalBoardRoute>;
 
+const createGeneratedSlugRoute = () =>
+  defineRoute()
+    .config({ layout: rootLayout, mode: "ssr", params: t.Object({ slug: t.String() }) })
+    .page(({ params }) => params.slug);
+
+declare const generatedSlugRoute: ReturnType<typeof createGeneratedSlugRoute>;
+
 declare const generatedRoute: ReturnType<typeof createGeneratedRoute>;
 
 declare module "@teyik0/furin/routes" {
@@ -62,6 +69,7 @@ declare module "@teyik0/furin/routes" {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
     "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
     "/elysia-products": typeof generatedRoute;
+    "/elysia-slugs/:slug": typeof generatedSlugRoute;
   }
 }
 const assertRouteMapBridge = () => {
@@ -95,12 +103,23 @@ const assertTypedLinkParams = () => {
   >();
 };
 
-const assertTypedNavigate = (navigate: Navigate) => {
+const assertTypedNavigate = (
+  navigate: Navigate,
+  to: "/elysia-boards/:boardId" | "/elysia-slugs/:slug"
+) => {
   navigate({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
   navigate({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ params: { boardId: "42", locale: "fr" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ search: { page: 2, tag: "bun" }, to: "/elysia-products" });
   navigate({ to: "https://example.com" });
+  navigate(
+    to === "/elysia-boards/:boardId"
+      ? { params: { boardId: 42 }, to }
+      : { params: { slug: "bun" }, to }
+  );
+
+  // @ts-expect-error union destinations must remain paired with their own params
+  navigate({ params: { slug: "bun" }, to });
 
   // @ts-expect-error required path params must be supplied
   navigate({ to: "/elysia-boards/:boardId" });

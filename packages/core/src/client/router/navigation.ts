@@ -28,13 +28,15 @@ type NavigateParams<To extends NavigateTo> = keyof RouteManifest extends never
           Required<Pick<RouteParamsOf<To>, Extract<PathParamKeys<To>, keyof RouteParamsOf<To>>>>;
       };
 
-export type NavigateInput<To extends NavigateTo> = {
-  hash?: string;
-  replace?: boolean;
-  resetScroll?: boolean;
-  search?: RouteSearch<NoInfer<To>>;
-  to: To;
-} & NavigateParams<NoInfer<To>>;
+export type NavigateInput<To extends NavigateTo> = To extends NavigateTo
+  ? {
+      hash?: string;
+      replace?: boolean;
+      resetScroll?: boolean;
+      search?: RouteSearch<NoInfer<To>>;
+      to: To;
+    } & NavigateParams<NoInfer<To>>
+  : never;
 
 export type Navigate = <To extends NavigateTo>(next: NavigateInput<To>) => Promise<void>;
 type NavigateOptions = Parameters<ReturnType<typeof useRouter>["navigate"]>[1];
