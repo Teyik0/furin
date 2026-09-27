@@ -6,9 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Typed imperative navigation** — `useNavigate()` accepts schema-checked path parameters and expands them with the same encoding as links.
+
 ### Fixed
 - **Development HMR** — component-only route edits retain loader data when imported server dependencies are unchanged; server edits still refresh data.
-- **Typed imperative navigation** — `useNavigate()` accepts schema-checked path parameters and expands them with the same encoding as links.
 - **Eden loader errors** — thrown Problem Details retain their HTTP status and public message, including error boundaries and uncached ISR failures.
 
 ## [0.6.0-alpha.1] — 2026-09-27

@@ -15,7 +15,7 @@ type NavigateParams<To extends NavigateTo> = keyof RouteManifest extends never
   ? { params?: RouteParamsOf<To> }
   : RouteParamsOf<To> extends undefined
     ? { params?: never }
-    : { params: RouteParamsOf<To> };
+    : { params: Required<RouteParamsOf<To>> };
 
 export type NavigateInput<To extends NavigateTo> = {
   hash?: string;

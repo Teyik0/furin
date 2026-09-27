@@ -104,6 +104,10 @@ const assertTypedNavigate = (navigate: Navigate) => {
   navigate({ to: "/elysia-boards/:boardId" });
   // @ts-expect-error path params retain their schema-derived types
   navigate({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  // @ts-expect-error a required URL segment cannot be omitted even with an optional schema
+  navigate({ params: {}, to: "/elysia-optional-boards/:boardId" });
+  // @ts-expect-error undefined cannot fill a required URL segment
+  navigate({ params: { boardId: undefined }, to: "/elysia-optional-boards/:boardId" });
   // @ts-expect-error search retains its schema-derived types
   navigate({ search: { page: "two" }, to: "/elysia-products" });
   // @ts-expect-error generated manifests reject unknown internal destinations
