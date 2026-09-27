@@ -1,0 +1,21 @@
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_3295c4a2d42648::t_a7f9a6c857a4d3 92-130
+packages/core/src/server/render/loaders.ts
+  s_3295c4a2d42648::t_6574c962d0db59 341-343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0cfd358dc741bff4e7ea1956f5b0c379eddbcfc1",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
