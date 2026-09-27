@@ -342,6 +342,11 @@ function recordDevImports(source: string, filePath: string): void {
     const previous = pluginSourceStamps.get(path);
     if (previous !== undefined && previous !== stamp) {
       Reflect.deleteProperty(require.cache, path);
+      for (const cachedPath of Object.keys(require.cache)) {
+        if (toImportSpecifier(cachedPath) === toImportSpecifier(path)) {
+          Reflect.deleteProperty(require.cache, cachedPath);
+        }
+      }
     }
     pluginSourceStamps.set(path, stamp);
   }

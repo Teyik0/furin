@@ -131,6 +131,7 @@ export async function createBuildFingerprint(
         path: stableFingerprintPath(route.path, projectRoot),
         pattern: route.pattern,
         requestKeys: route.requestKeys?.toSorted(),
+        requestKeysByLoader: route.requestKeysByLoader?.map((keys) => keys.toSorted()),
       })
     )
     .sort(compareCodeUnits);

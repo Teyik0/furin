@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { dirname, extname } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { currentInstance, type FurinInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -77,7 +77,11 @@ export function resolveDevSourceImports(
   const transpiler = new Bun.Transpiler({ loader });
   for (const imported of transpiler.scanImports(source)) {
     try {
-      const resolved = normalizeModulePath(Bun.resolveSync(imported.path, dirname(path)));
+      const absolute =
+        imported.path.startsWith(".") && extname(imported.path)
+          ? resolve(dirname(path), imported.path)
+          : Bun.resolveSync(imported.path, dirname(path));
+      const resolved = normalizeModulePath(absolute);
       if (!resolved.includes("/node_modules/")) {
         imports.push(resolved);
       }

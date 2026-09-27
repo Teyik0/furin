@@ -72,6 +72,16 @@ describe("createBuildFingerprint", () => {
         "entry.js", [], [{ ...route, requestKeys: ["permissions"] }], root, null, [], appDir
       );
       expect(first).not.toBe(second);
+      const byLoader = await createBuildFingerprint(
+        "entry.js",
+        [],
+        [{ ...route, requestKeysByLoader: [["user"]] }],
+        root,
+        null,
+        [],
+        appDir
+      );
+      expect(first).not.toBe(byLoader);
     } finally {
       rmSync(appDir, { force: true, recursive: true });
     }
