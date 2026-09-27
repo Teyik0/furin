@@ -117,6 +117,7 @@ test("the dev topology watcher skips installed packages but follows linked proje
   writeFileSync(join(projectRoot, "package.json"), "{}\n");
   writeFileSync(join(vendorDir, "package.json"), '{"main":"index.ts"}\n');
   writeFileSync(join(vendorDir, "index.ts"), 'export const vendor = "one";\n');
+  writeFileSync(join(linkedDir, "package.json"), '{"main":"index.ts"}\n');
   writeFileSync(join(linkedDir, "index.ts"), 'export const linked = "one";\n');
   symlinkSync(
     linkedDir,
