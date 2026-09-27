@@ -169,6 +169,15 @@ without replacing surviving entries.
 
 ### Reconcile, then refresh data
 
+Component-only route edits preserve loader data, including when a loader uses
+imported helpers. Furin compares the server stages and the contents of their
+transitive application imports before requesting fresh data. Import bindings
+and paths participate in this comparison; server code stays out of the client
+bundle. Unresolved dependencies still trigger a conservative refresh. Bun can
+also re-evaluate a route after an import update without rerunning the transform;
+those updates refresh data because the embedded dependency fingerprint may be
+stale.
+
 The initial document calls `hydrateRoot(document, app)`. The React root is kept
 on `window.__FURIN_ROOT__`, the object that survives Bun module re-evaluation.
 Subsequent updates call `root.render(app)`; they reconcile an already-owned DOM

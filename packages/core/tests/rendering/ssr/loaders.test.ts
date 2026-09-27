@@ -89,6 +89,39 @@ describe("runLoaders requestLoader", () => {
     }
   });
 
+  test("preserves an Eden problem thrown by a public loader", async () => {
+    const error = Object.assign(new Error("Eden response"), {
+      status: 404,
+      value: {
+        detail: "Content not found",
+        status: 404,
+        title: "Not Found",
+        type: "about:blank",
+      },
+    });
+    const route = {
+      mode: "isr",
+      page: {
+        loader: () => {
+          throw error;
+        },
+      },
+      path: "/content.tsx",
+      pattern: "/content",
+      routeChain: [],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runPublicLoaders(route, createMockLoaderContext({ path: "/content" }));
+
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect(result.error).toBe(error);
+      expect(result.status).toBe(404);
+      expect(result.message).toBe("Content not found");
+    }
+  });
+
   test("preserves request field failures without unhandled rejections while public loaders run", async () => {
     const failure = new Error("Request loader unavailable");
     const unhandled: unknown[] = [];

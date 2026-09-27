@@ -38,12 +38,13 @@ export type LoaderResult =
        * has already been consumed by `runLoaders` (do NOT read it again).
        */
       error: unknown;
-      /** HTTP status to return. Default 500; sourced from `Response.status` for thrown Response objects. */
+      /** HTTP status to return. Default 500; sourced from thrown Responses and Eden problems. */
       status: number;
       /**
        * Safe public message extracted at the loader boundary. For thrown
        * `Response` objects: response body or `statusText`. For thrown `Error`
-       * / non-Error values: a generic "Something went wrong" string (the raw
+       * values carrying an Eden problem: its detail or title. For other
+       * `Error` / non-Error values: a generic "Something went wrong" string (the raw
        * error/message is never leaked here — `errorMessageOf` decides what to
        * surface from the original `error` value when an `error.tsx` fallback
        * exists).
@@ -511,6 +512,28 @@ async function normalizeLoaderError(
     const body = await readResponseMessage(err);
     const message = body || "Something went wrong";
     return { error: err, headers, message, status, type: "error" };
+  }
+  if (
+    err instanceof Error &&
+    "status" in err &&
+    typeof err.status === "number" &&
+    err.status >= 400 &&
+    err.status <= 599 &&
+    "value" in err &&
+    err.value !== null &&
+    typeof err.value === "object" &&
+    "status" in err.value &&
+    err.value.status === err.status &&
+    "type" in err.value &&
+    typeof err.value.type === "string"
+  ) {
+    let message = "Something went wrong";
+    if ("detail" in err.value && typeof err.value.detail === "string") {
+      message = err.value.detail;
+    } else if ("title" in err.value && typeof err.value.title === "string") {
+      message = err.value.title;
+    }
+    return { error: err, headers, message, status: err.status, type: "error" };
   }
   if (isFurinRscRenderError(err)) {
     getLogger().error(err);

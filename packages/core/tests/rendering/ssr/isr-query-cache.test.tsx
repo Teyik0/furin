@@ -129,6 +129,43 @@ test("ISR cached loaders reject request-specific context", async () => {
   expect(await bob.text()).not.toContain("bob");
 });
 
+test("a thrown Eden problem reaches the error boundary without entering the ISR cache", async () => {
+  let loaderCalls = 0;
+  const error = Object.assign(new Error("Eden response"), {
+    status: 404,
+    value: {
+      detail: "Content not found",
+      status: 404,
+      title: "Not Found",
+      type: "about:blank",
+    },
+  });
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    .loader(() => {
+      loaderCalls += 1;
+      throw error;
+    })
+    .page(() => <main>content</main>);
+  const rootWithError = {
+    ...root,
+    error: ({ error: boundaryError }) => (
+      <main>{`${boundaryError.status}: ${boundaryError.message}`}</main>
+    ),
+  } satisfies RootLayout;
+  const resolved = resolveRoute(route, "/content.tsx", "/content", rootWithError);
+  const app = new Elysia().use(createRoutePlugin(resolved, rootWithError, "build-1"));
+
+  const first = await app.handle(new Request("http://localhost/content"));
+  const second = await app.handle(new Request("http://localhost/content"));
+
+  expect(first.status).toBe(404);
+  expect(first.headers.get("cache-control")).toBe("no-store");
+  expect(await first.text()).toContain("404: Content not found");
+  expect(second.status).toBe(404);
+  expect(loaderCalls).toBe(2);
+});
+
 test("synthetic ISR renders preserve repeated query values for loaders", async () => {
   let observedQuery: unknown;
   const route = defineRoute()

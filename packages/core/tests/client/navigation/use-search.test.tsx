@@ -155,6 +155,29 @@ describe("useSearch", () => {
 describe("useNavigate", () => {
   useDomTests();
 
+  test("interpolates path params before navigation", async () => {
+    const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
+
+    function Page(): React.ReactElement {
+      const go = useNavigate();
+      useEffect(() => {
+        go({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+      }, [go]);
+      return createElement("output");
+    }
+
+    const rendered = await renderWithRouter(createElement(Page), makeRouterContext({ navigate }));
+
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42", undefined);
+    } finally {
+      await rendered.cleanup();
+    }
+  });
+
   test("navigates with typed search and omits default-equivalent values", async () => {
     const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
 

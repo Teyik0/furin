@@ -13,9 +13,9 @@ export interface ErrorProps {
     digest: string;
     /**
      * HTTP status associated with the error.
-     * - For thrown `Response` objects with a 4xx/5xx status: the response's
+     * - For thrown `Response` objects and Eden problem errors: their HTTP
      *   status (e.g. 401, 403, 404, 500).
-     * - For all other errors (thrown `Error`, non-Error throws, shell-render
+     * - For other errors (thrown `Error`, non-Error throws, shell-render
      *   crashes): always `500`.
      *
      * Always present so consumers never need a `?? 500` fallback. Note that

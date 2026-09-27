@@ -1,7 +1,13 @@
 // biome-ignore-all lint/suspicious/noUnusedExpressions: expect-type assertions are compile-time only
 
 import { describe, test } from "bun:test";
-import type { LinkProps, RouteManifest, RouteParamsOf, RouteSearch } from "@teyik0/furin/link";
+import type {
+  LinkProps,
+  Navigate,
+  RouteManifest,
+  RouteParamsOf,
+  RouteSearch,
+} from "@teyik0/furin/link";
 import type { useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
 
@@ -88,7 +94,26 @@ const assertTypedLinkParams = () => {
   >();
 };
 
+const assertTypedNavigate = (navigate: Navigate) => {
+  navigate({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  navigate({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
+  navigate({ search: { page: 2, tag: "bun" }, to: "/elysia-products" });
+  navigate({ to: "https://example.com" });
+
+  // @ts-expect-error required path params must be supplied
+  navigate({ to: "/elysia-boards/:boardId" });
+  // @ts-expect-error path params retain their schema-derived types
+  navigate({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  // @ts-expect-error search retains its schema-derived types
+  navigate({ search: { page: "two" }, to: "/elysia-products" });
+  // @ts-expect-error generated manifests reject unknown internal destinations
+  navigate({ to: "/not-a-route" });
+};
+
 describe("Elysia RouteMap bridge", () => {
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
+  test("types imperative navigation destinations, params, and search", () => {
+    expectTypeOf(assertTypedNavigate).toBeFunction();
+  });
 });

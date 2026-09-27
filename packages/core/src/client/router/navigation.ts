@@ -4,18 +4,28 @@ import {
   type SearchParamsInput,
 } from "../../shared/search-params.ts";
 import { useRouter } from "./context.ts";
-import { buildHref, navigationHrefPolicy } from "./link-utils.ts";
-import type { RouteSearch, RouteTo } from "./types.ts";
+import { applyLinkParams, buildHref, navigationHrefPolicy } from "./link-utils.ts";
+import type { RouteManifest, RouteParamsOf, RouteSearch } from "./types.ts";
 
-export interface NavigateInput<To extends RouteTo> {
+type NavigateTo = keyof RouteManifest extends never
+  ? string
+  : keyof RouteManifest | `https://${string}` | `http://${string}`;
+
+type NavigateParams<To extends NavigateTo> = keyof RouteManifest extends never
+  ? { params?: RouteParamsOf<To> }
+  : RouteParamsOf<To> extends undefined
+    ? { params?: never }
+    : { params: RouteParamsOf<To> };
+
+export type NavigateInput<To extends NavigateTo> = {
   hash?: string;
   replace?: boolean;
   resetScroll?: boolean;
-  search?: RouteSearch<To>;
+  search?: RouteSearch<NoInfer<To>>;
   to: To;
-}
+} & NavigateParams<NoInfer<To>>;
 
-export type Navigate = <To extends RouteTo>(next: NavigateInput<To>) => Promise<void>;
+export type Navigate = <To extends NavigateTo>(next: NavigateInput<To>) => Promise<void>;
 type NavigateOptions = Parameters<ReturnType<typeof useRouter>["navigate"]>[1];
 
 export function useNavigate(): Navigate {
@@ -23,12 +33,13 @@ export function useNavigate(): Navigate {
 
   return useCallback<Navigate>(
     (next) => {
-      const searchDefaults = findSearchDefaultsForRouteTarget(
+      const resolvedTo = applyLinkParams(
         next.to as string,
-        router.searchRoutes
+        next.params as Record<string, string | number> | null | undefined
       );
+      const searchDefaults = findSearchDefaultsForRouteTarget(resolvedTo, router.searchRoutes);
       const href = buildHref(
-        next.to as string,
+        resolvedTo,
         next.search as SearchParamsInput | null | undefined,
         next.hash,
         searchDefaults
