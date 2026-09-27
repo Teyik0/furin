@@ -131,6 +131,7 @@ describe("RouterProvider server-side redirect follow", () => {
   let pageCFetches = 0;
   let delayPageCRefresh = false;
   let releasePageCRefresh: (() => void) | undefined;
+  let pageCRefreshResponse: Response | undefined;
 
   beforeEach(() => {
     installDom();
@@ -149,6 +150,7 @@ describe("RouterProvider server-side redirect follow", () => {
     pageCFetches = 0;
     delayPageCRefresh = false;
     releasePageCRefresh = undefined;
+    pageCRefreshResponse = undefined;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
@@ -174,7 +176,10 @@ describe("RouterProvider server-side redirect follow", () => {
         pageCFetches += 1;
         if (delayPageCRefresh && pageCFetches === 2) {
           return new Promise<Response>((resolve) => {
-            releasePageCRefresh = () => resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
+            releasePageCRefresh = () => {
+              pageCRefreshResponse = makeNdjsonResponse({ __furinRedirect: "/page-d" });
+              resolve(pageCRefreshResponse);
+            };
           });
         }
         if (chainedRedirect) {
@@ -394,7 +399,16 @@ describe("RouterProvider server-side redirect follow", () => {
       await dispatchReactEvent(window, new PopStateEvent("popstate"));
       await act(async () => {
         releasePageCRefresh?.();
-        await Promise.resolve();
+        const responseDeadline = Date.now() + 2000;
+        while (
+          Date.now() < responseDeadline &&
+          (!pageCRefreshResponse?.bodyUsed || pageCRefreshResponse.body?.locked)
+        ) {
+          // biome-ignore lint/performance/noAwaitInLoops: wait until the delayed response is parsed and its reader released.
+          await Bun.sleep(5);
+        }
+        expect(pageCRefreshResponse?.bodyUsed).toBe(true);
+        expect(pageCRefreshResponse?.body?.locked).toBe(false);
       });
 
       expect(window.location.pathname).toBe("/page-a");
