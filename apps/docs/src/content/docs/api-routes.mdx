@@ -86,6 +86,8 @@ Plugin order matters when hooks or macros must exist before a route is declared.
 
 For a guarded page, use `beforeHandle` to return a redirect or denial. Furin dispatches `/_furin/data?path=...` through a registered page route, so the same Elysia guard runs before loaders for both document requests and SPA navigation. The browser follows an HTTP redirect to another Furin page as a client navigation. A `derive` hook can add context such as `user`, but returning a redirect from `derive` does not stop Elysia's handler.
 
+A parent Elysia guard also runs for public assets and framework endpoints. Use `isFurinPageRequest(request, prefix)` from `@teyik0/furin` when the guard should protect only registered pages in a mount. This covers both document requests and SPA navigation without listing Furin's internal URLs in your application.
+
 Only use this guard as an access boundary for registered SSR page routes. Root catch-all pages and pages added at runtime in development can be rendered through Furin's 404 fallback without running the parent guard. SSG and ISR output can be served from a cache without reaching Elysia. Authorize sensitive loaders and API routes directly in those cases.
 
 ## Cookie-Authenticated Mutations And CSRF

@@ -12,7 +12,7 @@ import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../su
 import { getTestPort, waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
-const { furin } = await import("../../../src/furin");
+const { furin, isFurinPageRequest } = await import("../../../src/furin");
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
 const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
@@ -366,6 +366,36 @@ test.serial(
     expect((globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]).toBe(2);
   }
 );
+
+test.serial("page authorization leaves public assets accessible", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  writeAppFile(app.path, "public/logo.txt", "logo");
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .macro({
+      protectedPage: {
+        derive: ({ request, status }) => (isFurinPageRequest(request, "/admin") ? status(401) : {}),
+      },
+    })
+    .guard({ protectedPage: true })
+    .use(await furin({ pagesDir: join(app.path, "src/pages"), prefix: "/admin" }));
+
+  const document = await instance.handle(new Request("http://furin/admin/"));
+  expect(document.status).toBe(401);
+
+  expect(isFurinPageRequest(new Request("http://furin/admin/_furin/data?path=%2F"), "/admin")).toBe(
+    true
+  );
+
+  const navigation = await instance.handle(new Request("http://furin/admin/_furin/data?path=%2F"));
+  expect(navigation.status).toBe(401);
+
+  const asset = await instance.handle(new Request("http://furin/admin/public/logo.txt"));
+  expect(asset.status).toBe(200);
+  expect(await asset.text()).toBe("logo");
+});
 
 test.serial("SPA data does not dispatch an API path without a matching page", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));

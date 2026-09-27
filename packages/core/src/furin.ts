@@ -432,6 +432,34 @@ const navigationDataRequests = new WeakSet<Request>();
 const navigationDataRefreshers = new WeakMap<FurinInstance, () => Promise<void>>();
 const navigationDataMatchers = new WeakMap<FurinInstance, (path: string) => boolean>();
 
+/** Whether a request targets a registered page in the specified Furin mount. */
+export function isFurinPageRequest(request: Request, prefix: string): boolean {
+  const url = new URL(request.url);
+  const { pathname } = url;
+  const mountPrefix = normalizePrefix(prefix);
+  const instance = resolveInstanceByPath(pathname);
+  if (instance.prefix !== mountPrefix) {
+    return false;
+  }
+  const path = pathname.slice(mountPrefix.length) || "/";
+  if (path === "/_furin/data" && request.method === "GET") {
+    const dataPath = parseDataEndpointPath(url.searchParams.get("path") ?? "");
+    return (
+      dataPath !== undefined && (navigationDataMatchers.get(instance)?.(dataPath.pathname) ?? false)
+    );
+  }
+  if (
+    path.startsWith("/_client/") ||
+    path.startsWith("/_furin/") ||
+    path.startsWith("/_bun_hmr_entry") ||
+    path.startsWith("/public/") ||
+    path === "/favicon.ico"
+  ) {
+    return false;
+  }
+  return navigationDataMatchers.get(instance)?.(path) ?? false;
+}
+
 function rewriteNavigationDataRequest(
   request: Request,
   instance: FurinInstance
