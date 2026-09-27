@@ -43,7 +43,11 @@ import {
 import { loadProdRoutes } from "./server/router/discovery.ts";
 import { invalidateStampedRouteModules, resolveCurrentDevRoute } from "./server/router/hmr.ts";
 import { buildRouteMatcher } from "./server/router/patterns.ts";
-import { renderResolvedRoute, renderRouteData } from "./server/router/plugin.ts";
+import {
+  renderResolvedRoute,
+  renderRouteData,
+  serializeGuardRedirect,
+} from "./server/router/plugin.ts";
 import { mergeRouteSchemas } from "./server/router/schema-merge.ts";
 import {
   createSearchRouteMetadata,
@@ -468,10 +472,17 @@ function wrapWithRequestScope(app: AnyElysia): Elysia {
         if (rewritten instanceof Response) {
           return rewritten;
         }
-        if (!shouldInstrumentRequest(pathname, instance.prefix)) {
-          return fetch(rewritten, ...rest);
+        const response = shouldInstrumentRequest(pathname, instance.prefix)
+          ? runWithRequestInstrumentation(request, () => fetch(rewritten, ...rest))
+          : fetch(rewritten, ...rest);
+        if (rewritten === request) {
+          return response;
         }
-        return runWithRequestInstrumentation(request, () => fetch(rewritten, ...rest));
+        return Promise.resolve(response).then((resolved) =>
+          resolved.status >= 300 && resolved.status < 400
+            ? serializeGuardRedirect(resolved, request)
+            : resolved
+        );
       };
       const dataPath =
         pathname === `${instance.prefix}/_furin/data`

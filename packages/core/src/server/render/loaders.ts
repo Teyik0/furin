@@ -204,11 +204,20 @@ function createRequestLoaderContext(ctx: Context): RequestLoaderContext {
         if (value !== undefined) {
           return value;
         }
-        const cookie = headers
-          .get("cookie")
-          ?.split(";")
-          .find((part) => part.trim().startsWith(`${name}=`));
-        return cookie?.trim().slice(name.length + 1);
+        for (const part of headers.get("cookie")?.split(";") ?? []) {
+          const separator = part.indexOf("=");
+          if (separator < 0 || part.slice(0, separator).trim() !== name) {
+            continue;
+          }
+          const raw = part.slice(separator + 1).trim();
+          const unquoted = raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
+          try {
+            return decodeURIComponent(unquoted);
+          } catch {
+            return unquoted;
+          }
+        }
+        return undefined;
       },
     }),
     headers: Object.freeze({

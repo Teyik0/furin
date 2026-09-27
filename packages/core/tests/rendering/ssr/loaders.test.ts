@@ -222,13 +222,13 @@ describe("runLoaders requestLoader", () => {
       createMockLoaderContext({
         cookie: undefined,
         request: new Request("http://localhost/with-loader", {
-          headers: { cookie: "other=unused; session=bob" },
+          headers: { cookie: 'other=unused; session="Alice%20Bob"' },
         }),
       })
     );
     expect(rawCookieResult.type).toBe("data");
     if (rawCookieResult.type === "data") {
-      expect(await rawCookieResult.deferredPromises?.user).toBe("bob");
+      expect(await rawCookieResult.deferredPromises?.user).toBe("Alice Bob");
     }
     expect(calls).toBe(2);
   });

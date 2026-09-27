@@ -149,6 +149,36 @@ async function serializeLoaderDataResponse(
   });
 }
 
+export async function serializeGuardRedirect(
+  response: Response,
+  request: Request
+): Promise<Response> {
+  const location = response.headers.get("location");
+  if (!location) {
+    return response;
+  }
+  const requestUrl = new URL(request.url);
+  const prefix = requestUrl.pathname.slice(0, -"/_furin/data".length);
+  const rawPath = requestUrl.searchParams.get("path");
+  const logicalPath = rawPath ? parseDataEndpointPath(rawPath) : undefined;
+  const pageUrl = logicalPath
+    ? new URL(prefix + logicalPath.pathname + logicalPath.url.search, requestUrl)
+    : requestUrl;
+  const target = new URL(location, pageUrl);
+  const withinMount =
+    prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
+  const href =
+    target.origin === requestUrl.origin && withinMount
+      ? (target.pathname.slice(prefix.length) || "/") + target.search
+      : target.href;
+  const serialized = await toCrossJSONAsync({ __furinRedirect: href });
+  const headers = new Headers(response.headers);
+  headers.delete("location");
+  headers.set("content-type", "application/x-ndjson");
+  headers.set("cache-control", "private, no-store");
+  return new Response(`${JSON.stringify(serialized)}\n`, { headers });
+}
+
 function navigationDataCacheControl(route: ResolvedRoute): string {
   if (route.mode === "ssg") {
     return "public, max-age=0, must-revalidate, s-maxage=31536000";

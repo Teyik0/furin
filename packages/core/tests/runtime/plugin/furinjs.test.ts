@@ -327,11 +327,19 @@ test.serial(
     const denied = await instance.handle(
       new Request("http://furin/admin/_furin/data?path=%2Fsecret")
     );
-    expect(denied.status).toBe(302);
-    expect(denied.headers.get("location")).toBe("/admin/login");
+    expect(denied.status).toBe(200);
+    expect(denied.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(denied.headers.get("location")).toBeNull();
+    const deniedBody = await denied.text();
+    expect(deniedBody).toContain('"__furinRedirect"');
+    expect(deniedBody).toContain('"/login"');
     expect(
       (globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]
     ).toBeUndefined();
+
+    const deniedDocument = await instance.handle(new Request("http://furin/admin/secret"));
+    expect(deniedDocument.status).toBe(302);
+    expect(deniedDocument.headers.get("location")).toBe("/admin/login");
 
     const login = await instance.handle(
       new Request("http://furin/admin/_furin/data?path=%2Flogin")

@@ -265,36 +265,6 @@ export function RouterProvider({
           return null;
         }
 
-        if (res.status >= 300 && res.status < 400) {
-          const location = res.headers.get("location");
-          if (!location) {
-            return null;
-          }
-          const target = new URL(
-            location,
-            res.url || new URL(dataEndpoint, window.location.origin)
-          );
-          const withinMount =
-            basePath === "" ||
-            target.pathname === basePath ||
-            target.pathname.startsWith(`${basePath}/`);
-          const targetPath = toLogical(target.pathname, basePath);
-          if (
-            target.origin === window.location.origin &&
-            withinMount &&
-            routes.some((route) => route.regex.test(targetPath))
-          ) {
-            await res.body?.cancel();
-            return {
-              data: {},
-              finalHref: targetPath + target.search,
-              match: null,
-              title: "",
-            };
-          }
-          return null;
-        }
-
         const contentType = res.headers.get("content-type") ?? "";
         if (
           !(
@@ -348,8 +318,25 @@ export function RouterProvider({
           [key: string]: unknown;
         };
 
-        const finalHref: string | undefined =
-          typeof __furinRedirect === "string" ? __furinRedirect : undefined;
+        if (typeof __furinRedirect === "string") {
+          const target = new URL(__furinRedirect, window.location.origin);
+          const isLogicalPath =
+            __furinRedirect.startsWith("/") && !__furinRedirect.startsWith("//");
+          const withinMount =
+            isLogicalPath ||
+            basePath === "" ||
+            target.pathname === basePath ||
+            target.pathname.startsWith(`${basePath}/`);
+          const targetPath = isLogicalPath ? target.pathname : toLogical(target.pathname, basePath);
+          if (
+            target.origin !== window.location.origin ||
+            !withinMount ||
+            !routes.some((route) => route.regex.test(targetPath))
+          ) {
+            return null;
+          }
+          return { data: {}, finalHref: targetPath + target.search, match: null, title: "" };
+        }
 
         // Merge sync data + deferred Promises.
         const data = { ...cleanSyncData, ...deferredPromises };
@@ -373,7 +360,6 @@ export function RouterProvider({
           return {
             data,
             error: __furinError,
-            finalHref,
             head: __furinHead,
             match: loadedMatch,
             title,
@@ -393,7 +379,6 @@ export function RouterProvider({
               : {};
           return {
             data,
-            finalHref,
             head: __furinHead,
             match: loadedMatch,
             notFound,
@@ -401,12 +386,7 @@ export function RouterProvider({
           };
         }
 
-        // Server-side redirect: do not mount the pre-redirect route.
-        if (finalHref) {
-          return { data, finalHref, match: null, title };
-        }
-
-        return { data, finalHref, head: __furinHead, match: loadedMatch, title };
+        return { data, head: __furinHead, match: loadedMatch, title };
       } catch (err: unknown) {
         if (!isAbortError(err)) {
           log.error({

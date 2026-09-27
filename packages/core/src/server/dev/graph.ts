@@ -77,8 +77,10 @@ export function resolveDevSourceImports(
   const transpiler = new Bun.Transpiler({ loader });
   for (const imported of transpiler.scanImports(source)) {
     try {
+      const extension = extname(imported.path);
+      const isSourceExtension = [".js", ".jsx", ".ts", ".tsx"].includes(extension);
       const absolute =
-        imported.path.startsWith(".") && extname(imported.path)
+        imported.path.startsWith(".") && extension && !isSourceExtension
           ? resolve(dirname(path), imported.path)
           : Bun.resolveSync(imported.path, dirname(path));
       const resolved = normalizeModulePath(absolute);

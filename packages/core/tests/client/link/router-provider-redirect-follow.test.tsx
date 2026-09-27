@@ -123,7 +123,7 @@ describe("RouterProvider server-side redirect follow", () => {
   let originalReplaceState: typeof window.history.replaceState | undefined;
   let replaceStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
-  let httpRedirect = false;
+  let guardRedirect = false;
   let chainedRedirect = false;
 
   beforeEach(() => {
@@ -136,7 +136,7 @@ describe("RouterProvider server-side redirect follow", () => {
         : undefined;
     replaceStateCalls = [];
     currentCleanup = undefined;
-    httpRedirect = false;
+    guardRedirect = false;
     chainedRedirect = false;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,11 +145,9 @@ describe("RouterProvider server-side redirect follow", () => {
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
 
       if (logicalPath === "/page-b") {
-        if (httpRedirect) {
+        if (guardRedirect) {
           expect(init?.redirect).toBe("manual");
-          return Promise.resolve(
-            new Response(null, { headers: { location: "/page-c" }, status: 302 })
-          );
+          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-c" }));
         }
         // Simulate a server-side redirect: /page-b -> /page-c
         return Promise.resolve(
@@ -158,9 +156,7 @@ describe("RouterProvider server-side redirect follow", () => {
       }
       if (logicalPath === "/page-c") {
         if (chainedRedirect) {
-          return Promise.resolve(
-            new Response(null, { headers: { location: "/page-d" }, status: 302 })
-          );
+          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
         }
         return Promise.resolve(makeNdjsonResponse({ message: "page-c" }));
       }
@@ -238,8 +234,8 @@ describe("RouterProvider server-side redirect follow", () => {
     { timeout: 5000 }
   );
 
-  test("follows an HTTP guard redirect after the data fetch", async () => {
-    httpRedirect = true;
+  test("follows a guard redirect from the data endpoint", async () => {
+    guardRedirect = true;
     const routes = [
       makeRoute("/page-a", "/page-b"),
       makeRoute("/page-b", "/page-a"),
@@ -261,7 +257,7 @@ describe("RouterProvider server-side redirect follow", () => {
           resolve();
         } else if (Date.now() - start > 2000) {
           clearInterval(interval);
-          reject(new Error("Timed out waiting for HTTP guard redirect"));
+          reject(new Error("Timed out waiting for guard redirect"));
         }
       }, 10);
     });
@@ -269,8 +265,8 @@ describe("RouterProvider server-side redirect follow", () => {
     expect(window.location.pathname).toBe("/page-c");
   });
 
-  test("follows chained HTTP guard redirects", async () => {
-    httpRedirect = true;
+  test("follows chained guard redirects", async () => {
+    guardRedirect = true;
     chainedRedirect = true;
     const routes = [
       makeRoute("/page-a", "/page-b"),

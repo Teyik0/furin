@@ -374,7 +374,11 @@ jobs:
             "$RUNNER_TEMP/furin-performance/startup-budgets.md"
           startup_status=$?
           set -e
-          cat "$RUNNER_TEMP/furin-performance/startup-budgets.md" >> "$RUNNER_TEMP/furin-performance/budgets.md"
+          if [ -f "$RUNNER_TEMP/furin-performance/startup-budgets.md" ]; then
+            cat "$RUNNER_TEMP/furin-performance/startup-budgets.md" >> "$RUNNER_TEMP/furin-performance/budgets.md"
+          else
+            printf '\nDevelopment startup comparison produced no report.\n' >> "$RUNNER_TEMP/furin-performance/budgets.md"
+          fi
           cat "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
           if [ "$startup_status" -ne 0 ]; then
             comparison_status=1
