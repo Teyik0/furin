@@ -3,11 +3,19 @@ import { developmentGraphs, devGraph } from "../dev/graph.ts";
 export function routeModuleSourceVersion(path: string): string {
   const current = devGraph(undefined);
   // Bun's runtime plugin may lose the request scope while loading a transitive
-  // import. Every development graph records those imports, so use the newest
-  // revision across them to keep the virtual module identity consistent.
+  // import. Include the unscoped graph and graphs whose routes depend on this
+  // source so an unrelated app's refresh cannot change its virtual identity.
+  const relevant = developmentGraphs().filter((graph) => {
+    const { snapshot } = graph;
+    return (
+      snapshot === null ||
+      graph.dependsOn(snapshot.root.path, path) ||
+      snapshot.routes.some((route) => graph.dependsOn(route.path, path))
+    );
+  });
   return String(
     Math.max(
-      ...[...new Set([current, ...developmentGraphs()])].map((graph) =>
+      ...(relevant.length > 0 ? relevant : [current]).map((graph) =>
         Number(graph.sourceVersion(path))
       )
     )
@@ -15,7 +23,5 @@ export function routeModuleSourceVersion(path: string): string {
 }
 
 export function invalidateRouteModuleSourceVersions(): void {
-  for (const graph of new Set([devGraph(undefined), ...developmentGraphs()])) {
-    graph.invalidateModules();
-  }
+  devGraph(undefined).invalidateModules();
 }

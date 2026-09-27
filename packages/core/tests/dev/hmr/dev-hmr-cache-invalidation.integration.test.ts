@@ -5,6 +5,8 @@ import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
 import { startProcess } from "../../support/process.ts";
 
+const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
+
 /**
  * Regression test for issue: editing a `_route.tsx` in a sibling subdirectory
  * (one that is NOT a dependency of the currently-cached page) used to leave
@@ -73,11 +75,12 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
       'import { Await, defineRoute } from "@teyik0/furin";',
       'import { Suspense } from "react";',
       'import { route as rootRoute } from "./root";',
+      "let catalogRuns = 0;",
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "ssg" })',
       '  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))',
-      '  .loader(() => ({ catalog: "shared" }))',
-      '  .page(({ catalog, session }) => <main>{catalog}<Suspense fallback="Loading"><Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await></Suspense></main>);',
+      '  .loader(() => ({ catalog: "shared", catalogRuns: ++catalogRuns }))',
+      '  .page(({ catalog, catalogRuns, session }) => <main>{catalog}<span data-test="catalog-runs">{catalogRuns}</span><Suspense fallback="Loading"><Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await></Suspense></main>);',
     ].join("\n")
   );
 
@@ -157,8 +160,14 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
 
     expect(alice.status).toBe(200);
     expect(bob.status).toBe(200);
-    expect(await alice.text()).toContain("<strong>alice</strong>");
-    expect(await bob.text()).toContain("<strong>bob</strong>");
+    const aliceHtml = await alice.text();
+    const bobHtml = await bob.text();
+    expect(aliceHtml).toContain("<strong>alice</strong>");
+    expect(bobHtml).toContain("<strong>bob</strong>");
+    expect(aliceHtml).toContain("shared");
+    expect(bobHtml).toContain("shared");
+    expect(aliceHtml.match(CATALOG_RUNS)?.[1]).toBeDefined();
+    expect(bobHtml.match(CATALOG_RUNS)?.[1]).toBe(aliceHtml.match(CATALOG_RUNS)?.[1]);
   });
 
   test("editing pages/sub/_route.tsx invalidates the cached ISR home page so the next reload embeds the fresh chunk URL", async () => {

@@ -14,7 +14,8 @@ function makePage(linkTo: string): React.ComponentType<Record<string, unknown>> 
     createElement(
       "div",
       { style: { height: "2000px" } },
-      createElement(Link, { to: linkTo }, `Go to ${linkTo}`)
+      createElement(Link, { to: linkTo }, `Go to ${linkTo}`),
+      createElement("span", { id: "section" }, "Section")
     );
 }
 
@@ -265,6 +266,28 @@ describe("RouterProvider server-side redirect follow", () => {
     await flushReactUpdates();
     expect(window.location.pathname).toBe("/page-c");
     expect(window.location.hash).toBe("#section");
+  });
+
+  test("scrolls to a guard redirect fragment on the current page", async () => {
+    guardRedirect = true;
+    const routes = [makeRoute("/page-b", "/page-c"), makeRoute("/page-c", "/page-b")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-c");
+    currentCleanup = cleanup;
+    const scrollIntoView = mock(() => undefined);
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      await dispatchReactEvent(
+        container.querySelector("a") as HTMLAnchorElement,
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      );
+      await flushReactUpdates();
+
+      expect(window.location.hash).toBe("#section");
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 
   test("follows chained guard redirects", async () => {

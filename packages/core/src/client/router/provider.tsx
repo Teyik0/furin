@@ -566,6 +566,11 @@ export function RouterProvider({
           return;
         }
         opts?.beforeCommit?.();
+        const effectiveLogical = newState.finalHref ?? resolved.href;
+        const physicalEffective = basePath + effectiveLogical;
+        if (opts?.resetScroll ?? true) {
+          pendingScrollRef.current = { href: physicalEffective, type: "reset" };
+        }
         currentMatchRef.current = newState.match;
         if (!newState.error) {
           setBoundaryResetVersion((version) => version + 1);
@@ -574,8 +579,6 @@ export function RouterProvider({
         if (newState.title) {
           document.title = newState.title;
         }
-        const effectiveLogical = newState.finalHref ?? resolved.href;
-        const physicalEffective = basePath + effectiveLogical;
         if (opts?.replace) {
           window.history.replaceState(
             {
@@ -595,9 +598,6 @@ export function RouterProvider({
         const effectiveUrl = new URL(physicalEffective, window.location.origin);
         const logicalPath = normalizeHref(toLogical(effectiveUrl.pathname, basePath));
         setCurrentHref(logicalPath + effectiveUrl.search);
-        if (opts?.resetScroll ?? true) {
-          pendingScrollRef.current = { href: physicalEffective, type: "reset" };
-        }
       } finally {
         finishUserNavigation?.();
         if (navVersion.current === myVersion) {
@@ -819,7 +819,7 @@ export function RouterProvider({
     } else {
       window.scrollTo({ behavior: "instant", top: 0 });
     }
-  }, [currentHref]);
+  }, [currentHref, state]);
 
   // Handle browser back/forward
   useEffect(() => {
