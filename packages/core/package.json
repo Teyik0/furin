@@ -162,6 +162,7 @@
     "magic-string": "^1.4.2",
     "react-server-dom-webpack": "19.3.0",
     "seroval": "^1.6.7",
+    "typescript": "7.0.2",
     "yuku-ast": "0.12.0",
     "yuku-parser": "0.12.0"
   },
