@@ -205,7 +205,6 @@ export function RouterProvider({
     async (physicalHref: string, signal: AbortSignal | undefined): Promise<RouterState | null> => {
       const res = await fetch(physicalHref, { signal });
       if (isStaleDeployResponse(res)) {
-        window.location.href = physicalHref;
         return null;
       }
       const { data, finalHref, title } = await parsePageResponse(res, basePath);
@@ -255,6 +254,7 @@ export function RouterProvider({
         const [res, loadedMod] = await Promise.all([
           fetch(dataEndpoint, {
             headers: hmrRefresh ? { "x-furin-hmr-refresh": "1" } : undefined,
+            redirect: "manual",
             signal,
           }),
           loadedModule,
@@ -262,12 +262,18 @@ export function RouterProvider({
 
         // Stale-deploy detection: force a full page reload to pick up the new bundle.
         if (isStaleDeployResponse(res)) {
-          window.location.href = physicalHref;
           return null;
         }
 
-        if (res.redirected) {
-          const target = new URL(res.url);
+        if (res.status >= 300 && res.status < 400) {
+          const location = res.headers.get("location");
+          if (!location) {
+            return null;
+          }
+          const target = new URL(
+            location,
+            res.url || new URL(dataEndpoint, window.location.origin)
+          );
           const withinMount =
             basePath === "" ||
             target.pathname === basePath ||
@@ -286,7 +292,6 @@ export function RouterProvider({
               title: "",
             };
           }
-          window.location.href = target.href;
           return null;
         }
 
@@ -298,7 +303,6 @@ export function RouterProvider({
             contentType.includes("application/x-furin-route")
           )
         ) {
-          window.location.href = physicalHref;
           return null;
         }
 
@@ -480,6 +484,35 @@ export function RouterProvider({
     return redirectState;
   }
 
+  async function followRedirects(
+    initialState: RouterState,
+    initialHref: string,
+    myVersion: number,
+    signal: AbortSignal | undefined
+  ): Promise<{ href: string; state: RouterState } | null> {
+    let redirectState = initialState;
+    let href = initialHref;
+    const visited = new Set([href]);
+    for (
+      let count = 0;
+      redirectState.finalHref && !redirectState.match && !redirectState.notFound;
+      count += 1
+    ) {
+      href = normalizeHref(redirectState.finalHref);
+      if (count >= 10 || visited.has(href)) {
+        return null;
+      }
+      visited.add(href);
+      // biome-ignore lint/performance/noAwaitInLoops: each redirect target depends on the previous response.
+      const next = await resolveRedirectState(href, myVersion, signal);
+      if (!next) {
+        return null;
+      }
+      redirectState = next;
+    }
+    return { href, state: redirectState };
+  }
+
   const navigate = useCallback(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — redirect follow, history management, and scroll handling require this depth
     async function navigateTo(
@@ -535,29 +568,14 @@ export function RouterProvider({
           return;
         }
 
-        // Server-side redirect: replace current history entry and load target
-        let redirectLogical: string | undefined;
-        if (newState.finalHref && !newState.match && !newState.notFound) {
-          redirectLogical = normalizeHref(newState.finalHref);
-          const redirectPhysical = basePath + redirectLogical;
-          window.history.replaceState(
-            {
-              ...getHistoryStateObject(),
-              _furinKey: getHistoryKey(history.state) ?? generateHistoryKey(),
-            },
-            "",
-            redirectPhysical
-          );
-          setCurrentHref(redirectLogical);
-          const redirectState = await resolveRedirectState(redirectLogical, myVersion, navSignal);
-          if (!redirectState) {
-            if (navVersion.current === myVersion) {
-              window.location.href = redirectPhysical;
-            }
-            return;
+        const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
+        if (!resolved) {
+          if (navVersion.current === myVersion) {
+            window.location.href = basePath + logicalHref;
           }
-          newState = redirectState;
+          return;
         }
+        newState = resolved.state;
 
         if (opts?.shouldCommit?.() === false) {
           return;
@@ -571,7 +589,7 @@ export function RouterProvider({
         if (newState.title) {
           document.title = newState.title;
         }
-        const effectiveLogical = newState.finalHref ?? redirectLogical ?? logicalHref;
+        const effectiveLogical = newState.finalHref ?? resolved.href;
         const physicalEffective = basePath + effectiveLogical;
         if (opts?.replace) {
           window.history.replaceState(
@@ -675,7 +693,6 @@ export function RouterProvider({
       ) => {
         hmrVersion.current += 1;
         const myHmrVersion = hmrVersion.current;
-        // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref persists invalidation from an earlier HMR callback
         const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
         if (!shouldRefreshData) {
           beforeCommit?.();
@@ -743,21 +760,14 @@ export function RouterProvider({
           return;
         }
 
-        // Server-side redirect: replace history entry and load target
-        let redirectLogical: string | undefined;
-        if (newState.finalHref && !newState.match && !newState.notFound) {
-          redirectLogical = normalizeHref(newState.finalHref);
-          window.history.replaceState(history.state, "", basePath + redirectLogical);
-          setCurrentHref(redirectLogical);
-          const redirectState = await resolveRedirectState(redirectLogical, myVersion, navSignal);
-          if (!redirectState) {
-            if (navVersion.current === myVersion) {
-              window.location.reload();
-            }
-            return;
+        const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
+        if (!resolved) {
+          if (navVersion.current === myVersion) {
+            window.location.reload();
           }
-          newState = redirectState;
+          return;
         }
+        newState = resolved.state;
 
         currentMatchRef.current = newState.match;
         if (!newState.error) {
@@ -767,8 +777,8 @@ export function RouterProvider({
         if (newState.title) {
           document.title = newState.title;
         }
-        const effectiveLogical = newState.finalHref ?? redirectLogical ?? logicalHref;
-        if (newState.finalHref) {
+        const effectiveLogical = newState.finalHref ?? resolved.href;
+        if (effectiveLogical !== logicalHref) {
           window.history.replaceState(history.state, "", basePath + effectiveLogical);
         }
         setCurrentHref(normalizeHref(effectiveLogical));
@@ -797,7 +807,6 @@ export function RouterProvider({
   // Render-synchronous scroll restoration.
   useLayoutEffect(() => {
     const instruction = pendingScrollRef.current;
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null until navigation schedules scrolling
     if (!instruction) {
       return;
     }

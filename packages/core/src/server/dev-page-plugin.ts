@@ -457,6 +457,7 @@ export function registerDevPagePlugin(): void {
       build.onResolve({ filter: FURIN_SERVER_FILTER }, (args) => {
         const tMatch = T_PARAM_RE.exec(args.path);
         const filePath = args.path.replace(STRIP_FURIN_SERVER_RE, "");
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: the timestamp query is optional.
         const resolvedPath = tMatch ? `${filePath}?t=${tMatch[1]}` : filePath;
         return { namespace: "furin-dev-page", path: resolvedPath };
       });

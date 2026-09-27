@@ -6,6 +6,7 @@ const MINIMUM_REACT_19_PATCH = new Map([
   [0, 6],
   [1, 7],
   [2, 6],
+  [3, 0],
 ]);
 
 export interface RscVersions {
@@ -23,10 +24,14 @@ export function assertCompatibleRscVersions(versions: RscVersions): void {
     );
   }
   const match = STABLE_REACT_VERSION.exec(versions.react);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null for unsupported versions.
   const major = Number(match?.[1]);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null for unsupported versions.
   const minor = Number(match?.[2]);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null for unsupported versions.
   const patch = Number(match?.[3]);
   const minimumPatch = MINIMUM_REACT_19_PATCH.get(minor);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null for unsupported versions.
   if (!match || major !== 19 || minimumPatch === undefined || patch < minimumPatch) {
     throw new Error("[furin/rsc] RSC requires a supported patched React 19 version.");
   }

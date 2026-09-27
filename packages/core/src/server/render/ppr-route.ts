@@ -14,6 +14,7 @@ import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
+import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
 import { type LoaderResult, runPublicLoaders } from "./loaders.ts";
 import {
@@ -413,6 +414,10 @@ export async function renderPprRoute(
   buildId: string,
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<Response> {
+  // A cached shell cannot contain a fresh per-request nonce.
+  if (useRequestCspNonce(ctx.request) !== undefined) {
+    return renderSSR(route, ctx, root, undefined, searchRoutes);
+  }
   const state = getPprResumeState(ctx.request);
   if (state !== undefined) {
     return resumePprDocument(route, ctx, root, { html: "", state }, searchRoutes);

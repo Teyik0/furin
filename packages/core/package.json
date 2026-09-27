@@ -156,14 +156,14 @@
   "dependencies": {
     "@elysia/static": "2.0.0-beta.2",
     "@jridgewell/trace-mapping": "^0.3.31",
-    "@vercel/functions": "^3.9.7",
-    "@yuku-toolchain/types": "0.9.5",
+    "@vercel/functions": "^3.9.9",
+    "@yuku-toolchain/types": "0.12.0",
     "exact-mirror": "catalog:",
-    "magic-string": "^1.2.3",
-    "react-server-dom-webpack": "19.2.8",
+    "magic-string": "^1.4.2",
+    "react-server-dom-webpack": "19.3.0",
     "seroval": "^1.6.7",
-    "yuku-ast": "0.9.5",
-    "yuku-parser": "0.9.5"
+    "yuku-ast": "0.12.0",
+    "yuku-parser": "0.12.0"
   },
   "devDependencies": {
     "@types/react": "catalog:",

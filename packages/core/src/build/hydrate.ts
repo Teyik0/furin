@@ -233,6 +233,7 @@ const documentState: DocumentState = {
   },
   dataJson: dataEl?.textContent ?? undefined,
   head,
+  nonce: entryEl?.nonce || undefined,
   routeFrames: frameTemplate?.hasAttribute("data-furin-document-state")
     ? (frameTemplate.content.textContent ?? "")
     : undefined,

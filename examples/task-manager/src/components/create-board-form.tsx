@@ -12,7 +12,6 @@ export function CreateBoardForm() {
   const createBoard = useSync(apiClient.api.boards.post);
 
   const handleCreate = async () => {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: concurrent submissions can observe the async lock as true
     if (inFlightRef.current) {
       return;
     }

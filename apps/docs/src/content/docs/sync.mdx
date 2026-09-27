@@ -138,7 +138,7 @@ After a commit, the notifier wakes connected browsers with the latest cursor. Th
 
 The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
-Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page. Bun servers use WebSocket; the Vercel adapter uses Server-Sent Events so notifications work through its HTTP handler. The browser reconnects automatically when Vercel ends a Function invocation and catches up through the durable journal. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
+Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
 
 ## Adapter Choice
 

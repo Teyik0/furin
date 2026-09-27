@@ -223,7 +223,9 @@ describe.serial("development diagnostics", () => {
 
     expect(response?.status).toBe(500);
     const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: the assertion reports a missing diagnostic state.
     expect(stateMatch?.[1]).toBeDefined();
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: a missing state must still parse safely before the assertion fails.
     const state = JSON.parse(stateMatch?.[1] ?? "{}") as EmbeddedDiagnosticState;
     expect(state.event.version).toBe(1);
     expect(state.event.type).toBe("error");
@@ -389,6 +391,7 @@ throw new Error("recovery exploded");`
       response = await fetch(`http://localhost:${port}/`);
       const html = await response.text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message === "loader exploded") {
@@ -411,6 +414,7 @@ throw new Error("recovery exploded");`
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const html = await (await fetch(`http://localhost:${port}/`)).text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message === "response exploded") {
@@ -434,6 +438,7 @@ throw new Error("recovery exploded");`
       response = await fetch(`http://localhost:${port}/`);
       const html = await response.text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message === "render exploded") {
@@ -456,6 +461,7 @@ throw new Error("recovery exploded");`
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const html = await (await fetch(`http://localhost:${port}/`)).text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message === "render exploded") {
@@ -480,6 +486,7 @@ throw new Error("recovery exploded");`
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const html = await (await fetch(`http://localhost:${port}/`)).text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message === "component module exploded") {
@@ -506,6 +513,7 @@ throw new Error("recovery exploded");`
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const html = await (await fetch(`http://localhost:${port}/`)).text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (
@@ -540,6 +548,7 @@ throw new Error("recovery exploded");`
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const html = await (await fetch(`http://localhost:${port}/`)).text();
       const stateMatch = DIAGNOSTIC_STATE_RE.exec(html);
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
       if (stateMatch?.[1]) {
         state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
         if (state.event.diagnostic.message.includes("valid Furin page export")) {

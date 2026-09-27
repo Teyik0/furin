@@ -199,8 +199,14 @@ export async function renderRouteData(
   searchRoutes: SearchRouteMetadata[],
   logicalHref: string
 ): Promise<Response> {
-  const result = await runDataEndpointLoaders(route, ctx, root, searchRoutes);
-  return createLoaderDataResponse(result, route, new URL(logicalHref, ctx.request.url).href, ctx);
+  const logicalContext = { ...ctx, path: new URL(logicalHref, ctx.request.url).pathname };
+  const result = await runDataEndpointLoaders(route, logicalContext, root, searchRoutes);
+  return createLoaderDataResponse(
+    result,
+    route,
+    new URL(logicalHref, ctx.request.url).href,
+    logicalContext
+  );
 }
 
 async function createRouteDataErrorResponse(

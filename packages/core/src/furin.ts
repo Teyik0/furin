@@ -473,8 +473,15 @@ function wrapWithRequestScope(app: AnyElysia): Elysia {
         }
         return runWithRequestInstrumentation(request, () => fetch(rewritten, ...rest));
       };
+      const dataPath =
+        pathname === `${instance.prefix}/_furin/data`
+          ? parseDataEndpointPath(new URL(request.url).searchParams.get("path") ?? "")
+          : undefined;
       const refresh =
         pathname === `${instance.prefix}/_furin/data` &&
+        request.method === "GET" &&
+        dataPath !== undefined &&
+        navigationDataMatchers.get(instance)?.(dataPath.pathname) === true &&
         request.headers.get("x-furin-hmr-refresh") === "1"
           ? navigationDataRefreshers.get(instance)
           : undefined;

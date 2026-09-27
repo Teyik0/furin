@@ -21,22 +21,22 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.3",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "exact-mirror": "catalog:",
-    "framer-motion": "^13.2.0",
-    "lucide-react": "^1.43.0",
+    "framer-motion": "^13.4.4",
+    "lucide-react": "^1.48.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-icons": "^5.6.0",
-    "tailwind-merge": "^3.6.0",
+    "tailwind-merge": "^3.7.0",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "drizzle-kit": "^0.31.0",
+    "drizzle-kit": "^0.31.11",
     "tailwindcss": "^4.3.3"
   }
 }

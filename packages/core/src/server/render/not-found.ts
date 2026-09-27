@@ -11,6 +11,7 @@ import { currentInstance } from "../instance.ts";
 import { parseRouteQuery } from "../router/schemas.ts";
 import type { RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import { buildNotFoundElement, wrapRootLayout } from "./element.tsx";
@@ -45,6 +46,7 @@ export async function renderRootNotFound(
     assets = productionAssets;
   }
   const notFoundError = new FurinNotFoundError(undefined);
+  const nonce = request ? useRequestCspNonce(request) : undefined;
 
   // The request-scope wrap binds the path-resolved instance before this
   // handler runs, so its prefix is the basePath — SSR'd links on the 404
@@ -110,8 +112,10 @@ export async function renderRootNotFound(
         ),
         assets,
         undefined,
-        data
-      )
+        data,
+        nonce
+      ),
+      { nonce }
     );
   } catch (renderError) {
     // The user's not-found component itself threw. Fall back to the built-in
@@ -133,8 +137,10 @@ export async function renderRootNotFound(
         ),
         assets,
         undefined,
-        data
-      )
+        data,
+        nonce
+      ),
+      { nonce }
     );
   }
   await reactStream.allReady;

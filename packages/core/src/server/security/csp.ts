@@ -7,6 +7,7 @@ export interface FurinCspOptions {
 
 const requestNonces = new WeakMap<Request, string>();
 const usedNonces = new WeakSet<Request>();
+const HTML_CONTENT_TYPE = /^text\/html(?:\s*;|\s*$)/i;
 
 /** @internal Called only by live SSR, never by public SSG/ISR prerenders. */
 export function useRequestCspNonce(request: Request): string | undefined {
@@ -20,23 +21,20 @@ export function useRequestCspNonce(request: Request): string | undefined {
 /** Install before Furin routes to attach an application-owned CSP to HTML responses. */
 export function furinCsp({ policy, reportOnly }: FurinCspOptions) {
   const header = reportOnly ? "content-security-policy-report-only" : "content-security-policy";
-  return new Elysia()
-    .beforeHandle("plugin", ({ request }) => {
-      const bytes = crypto.getRandomValues(new Uint8Array(16));
-      requestNonces.set(request, btoa(String.fromCharCode(...bytes)));
-    })
-    .afterHandle("plugin", ({ request, responseValue, set }) => {
-      const contentType =
-        responseValue instanceof Response
-          ? (responseValue.headers.get("content-type") ??
-            set.headers["content-type"] ??
-            set.headers["Content-Type"])
-          : (set.headers["content-type"] ?? set.headers["Content-Type"]);
-      if (typeof contentType !== "string" || !contentType.startsWith("text/html")) {
-        return;
-      }
-      set.headers[header] = policy(
-        usedNonces.has(request) ? requestNonces.get(request) : undefined
-      );
+  return new Elysia().wrap((fetch) => async (request, ...rest) => {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    requestNonces.set(request, btoa(String.fromCharCode(...bytes)));
+    const response = await fetch(request, ...rest);
+    const contentType = response.headers.get("content-type");
+    if (contentType === null || !HTML_CONTENT_TYPE.test(contentType)) {
+      return response;
+    }
+    const headers = new Headers(response.headers);
+    headers.set(header, policy(usedNonces.has(request) ? requestNonces.get(request) : undefined));
+    return new Response(response.body, {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
     });
+  });
 }

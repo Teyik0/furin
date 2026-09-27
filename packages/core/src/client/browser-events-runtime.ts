@@ -146,12 +146,29 @@ export function installBrowserEventsRuntime(
       }
       const connection = new runtimeWindow.EventSource(eventsUrl().href);
       eventSource = connection;
-      connection.addEventListener("open", () => updateStatus("connected"));
+      connection.addEventListener("open", () => {
+        reconnectAttempt = 0;
+        updateStatus("connected");
+      });
       connection.addEventListener("message", (message) => onMessageData(message.data));
       connection.addEventListener("error", () => {
-        if (eventSource === connection && !suspended) {
-          updateStatus("reconnecting");
+        if (eventSource !== connection || suspended) {
+          return;
         }
+        updateStatus("reconnecting");
+        if (
+          connection.readyState !== runtimeWindow.EventSource.CLOSED ||
+          reconnectTimer !== undefined
+        ) {
+          return;
+        }
+        eventSource = undefined;
+        const delay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
+        reconnectAttempt += 1;
+        reconnectTimer = browser.setTimeout(() => {
+          reconnectTimer = undefined;
+          connect();
+        }, delay);
       });
       return;
     }

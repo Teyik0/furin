@@ -27,12 +27,18 @@ export function createRouteElement(
   }
   const privateProps = new Proxy(props, {
     get(target, key: string | symbol) {
-      if (typeof key !== "string" || reservedKeys.has(key) || Object.hasOwn(target, key)) {
+      if (
+        typeof key !== "string" ||
+        reservedKeys.has(key) ||
+        key.startsWith("__furin") ||
+        key in target
+      ) {
         return Reflect.get(target, key);
       }
       let promise = fields.get(key);
       if (promise === undefined) {
         promise = source.then((resolved) => resolved[key]);
+        promise.catch(() => undefined);
         fields.set(key, promise);
       }
       return promise;

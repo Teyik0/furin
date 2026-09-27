@@ -90,7 +90,33 @@ class TestEventSource extends EventTarget {
     this.readyState = TestEventSource.CONNECTING;
     this.dispatchEvent(new TestRuntimeEvent("error"));
   }
+
+  fail(): void {
+    this.readyState = TestEventSource.CLOSED;
+    this.dispatchEvent(new TestRuntimeEvent("error"));
+  }
 }
+
+test.serial("SSE reconnects after the stream closes permanently", async () => {
+  installDom();
+  TestEventSource.instances.length = 0;
+  const originalEventSource = window.EventSource;
+  window.EventSource = TestEventSource as unknown as typeof EventSource;
+  try {
+    installBrowserEventsRuntime(window, "https://example.com/_furin/events/client.js", "sse");
+    const [first] = TestEventSource.instances;
+    first?.open();
+    first?.fail();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(TestEventSource.instances).toHaveLength(2);
+    expect(TestEventSource.instances[1]?.url).toBe(first?.url);
+  } finally {
+    window.dispatchEvent(new window.Event("pagehide"));
+    Reflect.deleteProperty(window, RUNTIME_KEY);
+    window.EventSource = originalEventSource;
+    await uninstallDom();
+  }
+});
 
 test.serial("SSE browser events reconnect and keep the sync subscription", async () => {
   installDom();

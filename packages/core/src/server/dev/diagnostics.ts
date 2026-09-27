@@ -91,6 +91,7 @@ function stackLocation(
   const locations: DevSourceLocation[] = [];
   for (const line of stack.split("\n")) {
     const match = STACK_POSITION_RE.exec(line.trim());
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the position pattern.
     if (!(match?.[1] && match[2] && match[3])) {
       continue;
     }

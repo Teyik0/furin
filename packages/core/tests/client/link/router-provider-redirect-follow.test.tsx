@@ -124,6 +124,7 @@ describe("RouterProvider server-side redirect follow", () => {
   let replaceStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
   let httpRedirect = false;
+  let chainedRedirect = false;
 
   beforeEach(() => {
     installDom();
@@ -136,22 +137,19 @@ describe("RouterProvider server-side redirect follow", () => {
     replaceStateCalls = [];
     currentCleanup = undefined;
     httpRedirect = false;
+    chainedRedirect = false;
 
-    globalThis.fetch = mock((input: RequestInfo | URL) => {
+    globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
       const logicalPath =
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
 
       if (logicalPath === "/page-b") {
         if (httpRedirect) {
-          const response = new Response("<html>Redirected</html>", {
-            headers: { "content-type": "text/html" },
-          });
-          Object.defineProperties(response, {
-            redirected: { value: true },
-            url: { value: "http://localhost:3000/page-c" },
-          });
-          return Promise.resolve(response);
+          expect(init?.redirect).toBe("manual");
+          return Promise.resolve(
+            new Response(null, { headers: { location: "/page-c" }, status: 302 })
+          );
         }
         // Simulate a server-side redirect: /page-b -> /page-c
         return Promise.resolve(
@@ -159,7 +157,15 @@ describe("RouterProvider server-side redirect follow", () => {
         );
       }
       if (logicalPath === "/page-c") {
+        if (chainedRedirect) {
+          return Promise.resolve(
+            new Response(null, { headers: { location: "/page-d" }, status: 302 })
+          );
+        }
         return Promise.resolve(makeNdjsonResponse({ message: "page-c" }));
+      }
+      if (logicalPath === "/page-d") {
+        return Promise.resolve(makeNdjsonResponse({ message: "page-d" }));
       }
       return Promise.resolve(new Response(null, { status: 404 }));
     }) as unknown as typeof globalThis.fetch;
@@ -261,5 +267,25 @@ describe("RouterProvider server-side redirect follow", () => {
     });
     await flushReactUpdates();
     expect(window.location.pathname).toBe("/page-c");
+  });
+
+  test("follows chained HTTP guard redirects", async () => {
+    httpRedirect = true;
+    chainedRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+      makeRoute("/page-d", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+    await flushReactUpdates();
+    expect(window.location.pathname).toBe("/page-d");
   });
 });

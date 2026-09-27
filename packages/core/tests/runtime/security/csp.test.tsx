@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { Elysia } from "elysia";
+import { Elysia, NotFound } from "elysia";
 import { Suspense, use } from "react";
 import {
   defineRootRoute,
@@ -8,6 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "../../../src/furin.ts";
+import { renderRootNotFound } from "../../../src/server/render/not-found.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
@@ -66,7 +67,8 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
           `default-src 'self'; script-src 'self'${nonce ? ` 'nonce-${nonce}'` : ""}; object-src 'none'`,
       })
     )
-    .use(createRoutePlugin(route, root, "build-1"));
+    .use(createRoutePlugin(route, root, "build-1"))
+    .error("global", NotFound, ({ request }) => renderRootNotFound(root, request));
 
   const first = await app.handle(new Request("http://localhost/account"));
   const second = await app.handle(new Request("http://localhost/account"));
@@ -85,4 +87,10 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
       expect(tag).toContain(`nonce="${firstNonce}"`);
     }
   }
+
+  const missing = await app.handle(new Request("http://localhost/missing"));
+  const missingNonce = missing.headers.get("content-security-policy")?.match(noncePattern)?.[1];
+  expect(missing.status).toBe(404);
+  expect(missingNonce).toBeTruthy();
+  expect(await missing.text()).toContain(`nonce="${missingNonce}"`);
 });

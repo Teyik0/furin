@@ -76,7 +76,9 @@ const createPrivatePublicConflict = () =>
     .page(({ user }) => {
       // @ts-expect-error — one prop cannot be both a public value and a private promise.
       const privateUser: Promise<string> = user;
-      return String(privateUser);
+      // @ts-expect-error — a conflicting prop is not a public value either.
+      const publicUser: string = user;
+      return String(privateUser) + publicUser;
     });
 
 const createRoutesWithReservedLoaderKeys = () => {

@@ -101,7 +101,7 @@ export function HeadContent(): ReactNode {
           {...attributes}
           // biome-ignore lint/security/noDangerouslySetInnerHtml: HeadOptions scripts are an explicit raw HTML API.
           dangerouslySetInnerHTML={children === undefined ? undefined : { __html: children }}
-          nonce={state.nonce}
+          nonce={state.nonce ?? attributes.nonce}
         />
       ))}
       {state.head?.styles?.map(({ children, type }, index) => (

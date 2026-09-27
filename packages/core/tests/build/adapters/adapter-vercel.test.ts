@@ -701,7 +701,7 @@ export const route = defineRoute()
     expect(result.flightBody).toContain("Flight article");
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
-    expect(result.renderer).toBe("undefined");
+    expect(result.renderer).toBe("function");
     expect(result.tagged).toBe("/blog/tagged,specific");
     expect(result.untagged).toBe("/blog/untagged");
     expect(result.apiBody).toBe("user hydrate");
