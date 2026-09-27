@@ -30,12 +30,14 @@ export interface PerformanceComparisonRow {
 }
 
 export interface PerformanceComparison {
+  reactMigration: boolean;
   regressions: PerformanceComparisonRow[];
   rows: PerformanceComparisonRow[];
 }
 
 const KIBIBYTE = 1024;
 const MEBIBYTE = 1024 * KIBIBYTE;
+const REACT_19_3_GZIP_ALLOWANCE = 8 * KIBIBYTE;
 const PERFORMANCE_BUDGETS: PerformanceBudget[] = [
   {
     absoluteBytes: KIBIBYTE,
@@ -102,16 +104,22 @@ function isPerformanceReport(value: unknown): value is PerformanceReport {
 
 export function comparePerformanceReports(
   base: PerformanceReport,
-  head: PerformanceReport
+  head: PerformanceReport,
+  baseReactVersion: string,
+  headReactVersion: string
 ): PerformanceComparison {
+  const reactMigration =
+    baseReactVersion.startsWith("19.2.") && headReactVersion.startsWith("19.3.");
   const rows = PERFORMANCE_BUDGETS.map((budget): PerformanceComparisonRow => {
     const baseBytes = base.metrics[budget.metric];
     const headBytes = head.metrics[budget.metric];
     const deltaBytes = headBytes - baseBytes;
-    const allowedDeltaBytes = Math.max(
-      budget.absoluteBytes,
-      Math.ceil(baseBytes * budget.relativeRatio)
-    );
+    const allowedDeltaBytes =
+      Math.max(budget.absoluteBytes, Math.ceil(baseBytes * budget.relativeRatio)) +
+      (reactMigration &&
+      (budget.metric === "initialJavaScriptGzipBytes" || budget.metric === "totalClientGzipBytes")
+        ? REACT_19_3_GZIP_ALLOWANCE
+        : 0);
     return {
       allowedDeltaBytes,
       baseBytes,
@@ -122,6 +130,7 @@ export function comparePerformanceReports(
     };
   });
   return {
+    reactMigration,
     regressions: rows.filter((row) => row.status === "fail"),
     rows,
   };
@@ -154,6 +163,12 @@ export function formatPerformanceComparison(comparison: PerformanceComparison): 
     comparison.regressions.length === 0
       ? "All deterministic performance budgets passed."
       : `${comparison.regressions.length} performance budget(s) regressed beyond the allowed threshold.`,
+    ...(comparison.reactMigration
+      ? [
+          "",
+          `The React 19.2 → 19.3 upgrade adds a one-time ${formatBytes(REACT_19_3_GZIP_ALLOWANCE)} allowance to initial and total JavaScript gzip. Later changes use the normal budgets.`,
+        ]
+      : []),
     "",
   ];
   return lines.join("\n");
@@ -168,16 +183,23 @@ async function readReport(path: string): Promise<PerformanceReport> {
 }
 
 async function main(): Promise<void> {
-  const [, , basePath, headPath, markdownPath] = Bun.argv;
-  if (basePath === undefined || headPath === undefined) {
+  const [, , basePath, headPath, markdownPath, baseReactVersion, headReactVersion] = Bun.argv;
+  if (
+    basePath === undefined ||
+    headPath === undefined ||
+    baseReactVersion === undefined ||
+    headReactVersion === undefined
+  ) {
     console.error(
-      "Usage: bun scripts/compare-performance-reports.ts <base.json> <head.json> [summary.md]"
+      "Usage: bun scripts/compare-performance-reports.ts <base.json> <head.json> <summary.md> <base-react> <head-react>"
     );
     process.exit(1);
   }
   const comparison = comparePerformanceReports(
     await readReport(basePath),
-    await readReport(headPath)
+    await readReport(headPath),
+    baseReactVersion,
+    headReactVersion
   );
   const markdown = formatPerformanceComparison(comparison);
   console.log(markdown);

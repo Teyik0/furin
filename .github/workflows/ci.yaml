@@ -240,13 +240,17 @@ jobs:
         run: |
           base_elysia_version="$(bun -e 'const path = process.argv.at(-1); const pkg = await Bun.file(path).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           head_elysia_version="$(bun -e 'const path = process.argv.at(-1); const pkg = await Bun.file(path).json(); console.log(pkg.catalog.elysia)' "$GITHUB_WORKSPACE/package.json")"
+          base_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
+          head_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
           set +e
           bun "$GITHUB_WORKSPACE/scripts/compare-vercel-framework-reports.ts" \
             "$RUNNER_TEMP/vercel-benchmark-base.json" \
             "$RUNNER_TEMP/vercel-benchmark-head.json" \
             "$RUNNER_TEMP/vercel-benchmark.md" \
             "$base_elysia_version" \
-            "$head_elysia_version"
+            "$head_elysia_version" \
+            "$base_react_version" \
+            "$head_react_version"
           comparison_status=$?
           set -e
           {
@@ -347,11 +351,15 @@ jobs:
       - name: Enforce performance budgets
         if: steps.baseline.outputs.available == 'true'
         run: |
+          base_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-base/package.json")"
+          head_react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$GITHUB_WORKSPACE/package.json")"
           set +e
           bun scripts/compare-performance-reports.ts \
             "$RUNNER_TEMP/furin-performance/base.json" \
             "$RUNNER_TEMP/furin-performance/head.json" \
-            "$RUNNER_TEMP/furin-performance/budgets.md"
+            "$RUNNER_TEMP/furin-performance/budgets.md" \
+            "$base_react_version" \
+            "$head_react_version"
           comparison_status=$?
           set -e
           cat "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"

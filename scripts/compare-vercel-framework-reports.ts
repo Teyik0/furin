@@ -19,6 +19,7 @@ type UnknownVercelFrameworkReport = Partial<{
 }>;
 
 const ELYSIA_2_MIGRATION_SERVER_LIMIT = 1_000_000;
+const REACT_19_3_CLIENT_ALLOWANCE = 20 * 1024;
 const MAJOR_VERSION_PATTERN = /\d+/;
 const budgets: Budget[] = [
   { absoluteAllowance: 4096, key: "serverHandlerBytes", relativeAllowance: 0.05 },
@@ -47,17 +48,26 @@ function majorVersion(version: string): number | undefined {
   return match === null ? undefined : Number(match[0]);
 }
 
-const [basePath, headPath, markdownPath, baseElysiaVersion, headElysiaVersion] =
-  process.argv.slice(2);
+const [
+  basePath,
+  headPath,
+  markdownPath,
+  baseElysiaVersion,
+  headElysiaVersion,
+  baseReactVersion,
+  headReactVersion,
+] = process.argv.slice(2);
 if (
   basePath === undefined ||
   headPath === undefined ||
   markdownPath === undefined ||
   baseElysiaVersion === undefined ||
-  headElysiaVersion === undefined
+  headElysiaVersion === undefined ||
+  baseReactVersion === undefined ||
+  headReactVersion === undefined
 ) {
   throw new Error(
-    "Usage: bun scripts/compare-vercel-framework-reports.ts <base.json> <head.json> <report.md> <base-elysia> <head-elysia>"
+    "Usage: bun scripts/compare-vercel-framework-reports.ts <base.json> <head.json> <report.md> <base-elysia> <head-elysia> <base-react> <head-react>"
   );
 }
 
@@ -65,6 +75,8 @@ const base = readReport(basePath);
 const head = readReport(headPath);
 const isElysia2Migration =
   majorVersion(baseElysiaVersion) === 1 && majorVersion(headElysiaVersion) === 2;
+const isReact19_3Migration =
+  baseReactVersion.startsWith("19.2.") && headReactVersion.startsWith("19.3.");
 let failed = false;
 const lines = [
   "## Vercel framework benchmark budgets",
@@ -82,7 +94,10 @@ for (const budget of budgets) {
   const limit =
     budget.key === "serverHandlerBytes" && isElysia2Migration
       ? ELYSIA_2_MIGRATION_SERVER_LIMIT
-      : relativeLimit;
+      : relativeLimit +
+        (budget.key === "clientJavaScriptBytes" && isReact19_3Migration
+          ? REACT_19_3_CLIENT_ALLOWANCE
+          : 0);
   const passed = headValue <= limit;
   failed ||= !passed;
   lines.push(
@@ -94,6 +109,13 @@ if (isElysia2Migration) {
   lines.push(
     "",
     `The server handler uses the one-time Elysia 1 → 2 migration cap (${ELYSIA_2_MIGRATION_SERVER_LIMIT} bytes). Subsequent Elysia 2 changes use the normal relative budget.`
+  );
+}
+
+if (isReact19_3Migration) {
+  lines.push(
+    "",
+    `The React 19.2 → 19.3 upgrade adds a one-time ${REACT_19_3_CLIENT_ALLOWANCE} byte client JavaScript allowance. Later changes use the normal relative budget.`
   );
 }
 
