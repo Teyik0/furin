@@ -396,10 +396,8 @@ Furin does not hide these cases behind a global reload because that would make
 the passing Fast Refresh cases lose state and would conceal graph invalidation
 regressions.
 
-Loader-backed edits are not atomic: code can render once with the previous data
-before the refresh resolves. Large-project cold start, warm start, memory, and
-edit-to-paint performance also need published reproducible benchmarks before
-making comparative speed claims.
+Large-project cold start, warm start, memory, and edit-to-paint performance need
+published reproducible benchmarks before making comparative speed claims.
 
 ## Verification
 
