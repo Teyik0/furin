@@ -50,6 +50,10 @@ import type {
 
 const EMPTY_SEARCH: SearchParamsInput = {};
 
+function isRedirectState(state: RouterState | null): state is RouterState & { finalHref: string } {
+  return Boolean(state?.finalHref && !state.match && !state.notFound);
+}
+
 function getHistoryStateObject(): object {
   const value = history.state;
   return value !== null && typeof value === "object" ? value : {};
@@ -459,12 +463,16 @@ export function RouterProvider({
     signal: AbortSignal | undefined
   ): Promise<RouterState | null> {
     const cached = prefetchCache.current.get(redirectLogical);
-    const redirectState =
-      cached && !shouldRefetch(cached)
+    const useCached = cached !== undefined && !shouldRefetch(cached);
+    let redirectState =
+      useCached && cached
         ? await cached.promise
         : await fetchPageState(redirectLogical, signal, false);
     if (navVersion.current !== myVersion) {
       return null;
+    }
+    if (useCached && isRedirectState(redirectState)) {
+      redirectState = await fetchPageState(redirectLogical, signal, false);
     }
     return redirectState;
   }
@@ -478,11 +486,7 @@ export function RouterProvider({
     let redirectState = initialState;
     let href = initialHref;
     const visited = new Set([href]);
-    for (
-      let count = 0;
-      redirectState.finalHref && !redirectState.match && !redirectState.notFound;
-      count += 1
-    ) {
+    for (let count = 0; isRedirectState(redirectState); count += 1) {
       href = normalizeHref(redirectState.finalHref);
       if (count >= 10 || visited.has(href)) {
         return null;
@@ -524,14 +528,19 @@ export function RouterProvider({
       setIsNavigating(true);
       try {
         const cached = prefetchCache.current.get(logicalHref);
+        const useCached = cached !== undefined && !shouldRefetch(cached);
         let newState =
-          cached && !shouldRefetch(cached)
+          useCached && cached
             ? await cached.promise
             : await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
+        const cachedRedirect = useCached && isRedirectState(newState);
+        if (cachedRedirect) {
+          newState = await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
+        }
         if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
-        if (newState && (!cached || shouldRefetch(cached))) {
+        if (newState && (!useCached || cachedRedirect)) {
           setPrefetchCacheEntry(
             prefetchCache.current,
             logicalHref,
@@ -729,6 +738,9 @@ export function RouterProvider({
         let newState: RouterState | null;
         if (cached && !shouldRefetch(cached)) {
           newState = await cached.promise;
+          if (isRedirectState(newState)) {
+            newState = await fetchPageState(logicalHref, navSignal, false);
+          }
         } else {
           newState = await fetchPageState(logicalHref, navSignal, false);
         }

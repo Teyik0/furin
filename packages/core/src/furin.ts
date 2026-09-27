@@ -434,6 +434,9 @@ const navigationDataMatchers = new WeakMap<FurinInstance, (path: string) => bool
 
 /** Whether a request targets a registered page in the specified Furin mount. */
 export function isFurinPageRequest(request: Request, prefix: string): boolean {
+  if (request.method !== "GET") {
+    return false;
+  }
   const url = new URL(request.url);
   const { pathname } = url;
   const mountPrefix = normalizePrefix(prefix);
@@ -442,7 +445,7 @@ export function isFurinPageRequest(request: Request, prefix: string): boolean {
     return false;
   }
   const path = pathname.slice(mountPrefix.length) || "/";
-  if (path === "/_furin/data" && request.method === "GET") {
+  if (path === "/_furin/data") {
     const dataPath = parseDataEndpointPath(url.searchParams.get("path") ?? "");
     return (
       dataPath !== undefined && (navigationDataMatchers.get(instance)?.(dataPath.pathname) ?? false)

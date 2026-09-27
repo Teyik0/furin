@@ -126,6 +126,8 @@ describe("RouterProvider server-side redirect follow", () => {
   let currentCleanup: (() => void) | undefined;
   let guardRedirect = false;
   let chainedRedirect = false;
+  let pageBAllowed = false;
+  let pageBFetches = 0;
 
   beforeEach(() => {
     installDom();
@@ -139,6 +141,8 @@ describe("RouterProvider server-side redirect follow", () => {
     currentCleanup = undefined;
     guardRedirect = false;
     chainedRedirect = false;
+    pageBAllowed = false;
+    pageBFetches = 0;
 
     globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
@@ -147,6 +151,10 @@ describe("RouterProvider server-side redirect follow", () => {
       const logicalPathname = new URL(logicalPath, window.location.origin).pathname;
 
       if (logicalPathname === "/page-b") {
+        pageBFetches += 1;
+        if (pageBAllowed) {
+          return Promise.resolve(makeNdjsonResponse({ message: "page-b" }));
+        }
         if (guardRedirect) {
           expect(init?.redirect).toBe("manual");
           return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-c#section" }));
@@ -288,6 +296,53 @@ describe("RouterProvider server-side redirect follow", () => {
     } finally {
       HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
     }
+  });
+
+  test("rechecks a prefetched guard redirect when the link is clicked", async () => {
+    guardRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
+    expect(pageBFetches).toBe(1);
+    pageBAllowed = true;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushReactUpdates();
+
+    expect(pageBFetches).toBe(2);
+    expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("rechecks a prefetched guard redirect on browser history navigation", async () => {
+    guardRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new FocusEvent("focusin", { bubbles: true })
+    );
+    expect(pageBFetches).toBe(1);
+    pageBAllowed = true;
+
+    window.history.pushState(null, "", "/page-b");
+    await dispatchReactEvent(window, new PopStateEvent("popstate"));
+    await flushReactUpdates();
+
+    expect(pageBFetches).toBe(2);
+    expect(window.location.pathname).toBe("/page-b");
   });
 
   test("follows chained guard redirects", async () => {

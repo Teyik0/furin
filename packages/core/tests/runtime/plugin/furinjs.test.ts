@@ -376,10 +376,12 @@ test.serial("page authorization leaves public assets accessible", async () => {
   const instance = new Elysia()
     .macro({
       protectedPage: {
-        derive: ({ request, status }) => (isFurinPageRequest(request, "/admin") ? status(401) : {}),
+        beforeHandle: ({ request, status }) =>
+          isFurinPageRequest(request, "/admin") ? status(401) : undefined,
       },
     })
     .guard({ protectedPage: true })
+    .post("/admin/", () => "mutation")
     .use(await furin({ pagesDir: join(app.path, "src/pages"), prefix: "/admin" }));
 
   const document = await instance.handle(new Request("http://furin/admin/"));
@@ -388,6 +390,12 @@ test.serial("page authorization leaves public assets accessible", async () => {
   expect(isFurinPageRequest(new Request("http://furin/admin/_furin/data?path=%2F"), "/admin")).toBe(
     true
   );
+  expect(isFurinPageRequest(new Request("http://furin/admin/", { method: "POST" }), "/admin")).toBe(
+    false
+  );
+  const mutation = await instance.handle(new Request("http://furin/admin/", { method: "POST" }));
+  expect(mutation.status).toBe(200);
+  expect(await mutation.text()).toBe("mutation");
 
   const navigation = await instance.handle(new Request("http://furin/admin/_furin/data?path=%2F"));
   expect(navigation.status).toBe(401);
