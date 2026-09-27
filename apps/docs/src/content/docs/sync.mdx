@@ -178,7 +178,7 @@ const sync = {
 };
 ```
 
-Use a direct PostgreSQL connection for the notifier's `LISTEN` subscription. A transaction pooler may accept `LISTEN` without forwarding notifications. Furin checks the durable cursor every 15 seconds to recover missed wake-ups, but a direct connection is needed for immediate delivery. The adapter's SQL connection may use a pooler.
+Use a direct PostgreSQL connection for the notifier's `LISTEN`; a transaction pooler may drop immediate notifications. Furin checks the durable cursor every 15 seconds to recover missed wake-ups. The adapter's SQL connection may use a pooler.
 
 ### Redis Notifier
 

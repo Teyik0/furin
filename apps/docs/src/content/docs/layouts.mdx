@@ -82,8 +82,6 @@ Do not skip a parent to reuse an unrelated layout. Extract ordinary React compon
 
 ## Rendering Modes Across A Chain
 
-Each layout and page keeps its own mode. An SSR layout loader can read `request`, cookies, and headers even when an SSG or ISR page uses that layout. Furin runs the SSR loader on every request, caches each public loader according to its own mode, and serves the combined document as `private, no-store`. For example, a dashboard layout can load the current user in SSR while an ISR child caches its public catalog for 300 seconds. The ISR child's loader cannot read request-bound values or inherit the SSR layout's private fields.
-
-If the whole branch can stay public, use SSG or ISR layouts and put request-specific work in `requestLoader()` with `<Suspense>`. An SSR child can inherit those fields even though an SSR page cannot declare its own `requestLoader()`.
+Each segment keeps its mode. An SSR layout can read request data above an SSG or ISR page: its loader runs per request, the public child's loader stays cached, and the document is `private, no-store`. The child cannot read the layout's private fields. For a cached HTML shell, move private work to `requestLoader()` and `<Suspense>`; see [Rendering Modes](/docs/rendering). SSR children can inherit layout `requestLoader()` fields but cannot declare their own.
 
 Deferred fields also flow through layouts. Render them with `<Await>` inside `<Suspense>` exactly as you would in a page; see [Deferred Data](/docs/defer).

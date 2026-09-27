@@ -23,6 +23,7 @@ import type { ResolvedRoute } from "../server/router/types.ts";
 import { physicalPath } from "../shared/prefix.ts";
 import {
   buildRuntimeAppsSequentially,
+  mixedRuntimePlugin,
   pprRuntimePlugin,
   type RuntimeAppBuild,
   type RuntimeTargetApp,
@@ -776,6 +777,7 @@ export async function buildVercelTarget(
       vercelRuntimePlugin(),
       productionInstrumentationPlugin(),
       pprRuntimePlugin(apps),
+      mixedRuntimePlugin(apps),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),

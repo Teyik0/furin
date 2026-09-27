@@ -8,7 +8,7 @@ Every layout and page chooses its rendering mode explicitly in `config()`. The m
 | `ssg` | Pre-rendered and cached without a time limit | Stable public content |
 | `isr` | Cached, then regenerated after `revalidate` seconds | Public content that can be briefly stale |
 
-Modes can be mixed in one route chain. Each loader follows its own mode: SSR runs per request and can read the Elysia request context; SSG and ISR loaders use a public context. When modes differ, Furin caches public loader results by segment. An SSR page or a page with an SSR ancestor loader serves a private document. Otherwise, any ISR loader makes the document ISR with the shortest declared revalidation interval; all SSG loaders produce an SSG document. Public segment data can still be reused inside a private document.
+Modes can mix. SSR loaders run per request with Elysia context; SSG and ISR loaders use public context and can be cached by segment. An SSR page or ancestor loader makes the HTML private, while public loader data remains reusable. Otherwise, the shortest ISR interval controls HTML revalidation; an all-SSG chain produces SSG HTML.
 
 ## SSR
 
@@ -22,9 +22,7 @@ export const route = defineRoute()
   .page(({ user }) => <Dashboard user={user} />);
 ```
 
-SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. It is the only mode that supports public `defer()` streaming and direct request access in `loader()`.
-
-An SSR page cannot declare `requestLoader()`; return request data from `loader()` and wrap slow fields with `defer()` when they should stream.
+SSR returns `Cache-Control: no-store, no-cache, must-revalidate`. Its `loader()` can read the request and stream slow fields with `defer()`. An SSR page cannot declare `requestLoader()`.
 
 ## SSG
 

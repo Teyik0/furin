@@ -14,7 +14,7 @@ import type { BuildAppOptions } from "../build/types.ts";
 import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
-import { hasRequestLoader } from "../server/render/loaders.ts";
+import { hasMixedLoaderModes, hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
@@ -36,6 +36,7 @@ const _pkgSrcDir = existsSync(join(_pkgRoot, "src", "furin.ts"))
 // copy would point at files that don't exist and silently weaken the build ID.
 const _ext = ".ts";
 const PPR_ROUTE_IMPORT_RE = /ppr-route(?:\.ts)?$/;
+const MIXED_CACHE_IMPORT_RE = /mixed-cache(?:\.ts)?$/;
 const ANY_MODULE_RE = /.*/;
 const REACT_SERVER_IMPORT_RE = /^react-dom\/server(?:\.edge)?$/;
 const REACT_STATIC_IMPORT_RE = /^react-dom\/static\.edge$/;
@@ -49,6 +50,7 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/server/render/index${_ext}`,
   `${_pkgSrcDir}/server/render/isr${_ext}`,
   `${_pkgSrcDir}/server/render/loaders${_ext}`,
+  `${_pkgSrcDir}/server/render/mixed-cache${_ext}`,
   `${_pkgSrcDir}/server/render/not-found${_ext}`,
   `${_pkgSrcDir}/server/render/ppr-route${_ext}`,
   `${_pkgSrcDir}/server/render/ppr-document${_ext}`,
@@ -236,6 +238,32 @@ export function pprRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
 export function invalidatePprRoute() { return false; }
 export function renderPprRoute() { throw new Error("[furin] PPR route missing from the build manifest."); }
 export const runPprPublicLoaders = renderPprRoute;`,
+        loader: "js",
+      }));
+    },
+  };
+}
+
+/** Keep mixed-mode cache code out of builds whose route graph cannot use it. */
+export function mixedRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
+  const enabled = apps.some((app) => app.routes.some(hasMixedLoaderModes));
+  const mixedPath = resolve(_pkgSrcDir, "server/render/mixed-cache.ts");
+  return {
+    name: "furin-mixed-runtime",
+    setup(build) {
+      if (enabled) {
+        return;
+      }
+      build.onResolve({ filter: MIXED_CACHE_IMPORT_RE }, ({ path, importer }) => {
+        const absolute = resolve(dirname(importer.split("?")[0] as string), path);
+        if (absolute !== mixedPath && `${absolute}.ts` !== mixedPath) {
+          return;
+        }
+        return { namespace: "furin-no-mixed", path: "mixed" };
+      });
+      build.onLoad({ filter: ANY_MODULE_RE, namespace: "furin-no-mixed" }, () => ({
+        contents: `export function clearMixedPublicCache() {}
+export function cacheMixedPublicLoader() { throw new Error("[furin] Mixed route missing from the build manifest."); }`,
         loader: "js",
       }));
     },

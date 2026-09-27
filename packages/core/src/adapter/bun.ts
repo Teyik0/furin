@@ -17,6 +17,7 @@ import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 import {
   buildRuntimeAppsSequentially,
+  mixedRuntimePlugin,
   pprRuntimePlugin,
   type RuntimeTargetApp,
 } from "./runtime-build.ts";
@@ -223,6 +224,7 @@ export async function buildBunTarget(
         entry.plugin,
         productionInstrumentationPlugin(),
         pprRuntimePlugin(apps),
+        mixedRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
@@ -257,6 +259,7 @@ export async function buildBunTarget(
         entry.plugin,
         productionInstrumentationPlugin(),
         pprRuntimePlugin(apps),
+        mixedRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
         isomorphicTransformPlugin("server"),
