@@ -11,7 +11,13 @@ import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
+import {
+  hasMixedLoaderModes,
+  type LoaderResult,
+  runPublicLoaders,
+  runSegmentPublicLoaders,
+  withRequestLoaderData,
+} from "./loaders.ts";
 import { isPprResumeState, type PprResumeState } from "./ppr-request.ts";
 import {
   assertDeferredModeAllowed,
@@ -85,7 +91,9 @@ export async function prerenderPprDocument(
   searchRoutes: SearchRouteMetadata[] | undefined,
   basePath: string | undefined
 ): Promise<PprResult> {
-  const result = await runPublicLoaders(route, ctx);
+  const result = await (hasMixedLoaderModes(route)
+    ? runSegmentPublicLoaders(route, ctx)
+    : runPublicLoaders(route, ctx));
   if (result.type !== "data") {
     return result;
   }

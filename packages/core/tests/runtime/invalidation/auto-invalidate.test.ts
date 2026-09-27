@@ -7,6 +7,7 @@ import {
   furinInvalidate,
   revalidateTag,
 } from "../../../src/server/auto-invalidate/index.ts";
+import { AutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
   __resetCacheState,
   __resetDevLoaderCacheState,
@@ -36,6 +37,16 @@ afterEach(async () => {
 });
 
 describe("revalidateTag", () => {
+  test("keeps a tag path while another cache still owns it", () => {
+    const registry = new AutoInvalidateRegistry();
+    registry.registerLoaderTags("/catalog", ["catalog"], "render:isr-html");
+    registry.registerLoaderTags("/catalog", ["catalog"], "render:mixed-public-loader");
+
+    registry.unregisterPath("/catalog", "render:mixed-public-loader");
+
+    expect(registry.pathsForTags(["catalog"])).toEqual(["/catalog"]);
+  });
+
   test("invalidates every production cache path registered under a tag", async () => {
     setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
     setSSGCache("/", { cachedAt: Date.now(), html: "home", ndjson: "{}\n", status: 200 });
@@ -152,8 +163,8 @@ describe("revalidateTag", () => {
         mode: "isr",
         revalidate: 60,
       });
-      autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
-      autoInvalidateRegistry.registerLoaderTags("/y", ["shared"]);
+      autoInvalidateRegistry.registerLoaderTags("/x", ["shared"], "render:isr-html");
+      autoInvalidateRegistry.registerLoaderTags("/y", ["shared"], "render:dev-isr-loader");
     });
 
     __resetCacheState();
@@ -250,6 +261,7 @@ describe("furinInvalidate macro", () => {
     const route = {
       mode: "isr",
       page: {
+        _route: {},
         loader: () => ({ pageData: "from-page" }),
       },
       path: "/items/[id].tsx",

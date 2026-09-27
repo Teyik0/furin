@@ -13,6 +13,7 @@ import {
   runWithInstanceScope,
   withInstance,
 } from "../instance.ts";
+import { clearMixedPublicCache } from "../render/mixed-cache.ts";
 import { clearPprRouteCache } from "../render/ppr-route.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { clearDevLoaderCaches } from "./dev-loader";
@@ -188,6 +189,7 @@ export function __resetCacheState(): void {
       ssgRouteCache(instance).clear();
       clearDevLoaderCaches(instance);
       clearPprRouteCache(instance);
+      clearMixedPublicCache(instance);
       clearPendingISRRevalidations(instance);
       resetPageCacheAdapter(instance);
     });

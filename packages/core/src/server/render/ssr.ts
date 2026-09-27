@@ -42,9 +42,12 @@ import {
   wrapRootLayout,
 } from "./element.tsx";
 import {
+  hasMixedLoaderModes,
+  hasSsrLoaderAncestor,
   type LoaderResult,
-  runLoaders,
   runPublicLoaders,
+  runRouteLoaders,
+  runSegmentPublicLoaders,
   serializeDeferredRejection,
 } from "./loaders.ts";
 import { serializeDeferredRouteFrame } from "./route-frame-transport.ts";
@@ -266,7 +269,7 @@ export function assertDeferredModeAllowed(
   const deferredKeys = Object.keys(deferredPromises ?? {}).filter(
     (key) => !route.requestKeys?.includes(key)
   );
-  if (deferredKeys.length > 0 && route.mode !== "ssr") {
+  if (deferredKeys.length > 0 && route.mode !== "ssr" && !hasSsrLoaderAncestor(route)) {
     throw new Error(
       `[furin] page "${route.pattern}" returned defer() but the route is rendered in "${route.mode}" mode. ` +
         "defer() streams data progressively and is only supported in SSR. " +
@@ -358,7 +361,7 @@ export async function prepareRender(
   searchRoutes?: SearchRouteMetadata[]
 ): Promise<PreparedRender | Response> {
   const loaderStart = Date.now();
-  const loaderResult = precomputedLoaderResult ?? (await runLoaders(route, ctx));
+  const loaderResult = precomputedLoaderResult ?? (await runRouteLoaders(route, ctx));
   const loader_ms = Date.now() - loaderStart;
 
   if (loaderResult.type === "redirect") {
@@ -550,7 +553,9 @@ export function renderForPath(
           set: { headers: {} },
         } as Context);
 
-      const loaderResult = await runPublicLoaders(route, ctx);
+      const loaderResult = await (hasMixedLoaderModes(route)
+        ? runSegmentPublicLoaders(route, ctx)
+        : runPublicLoaders(route, ctx));
       const prepared = await prepareRender(
         route,
         ctx,

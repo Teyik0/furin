@@ -1,5 +1,5 @@
 import type { Context } from "elysia";
-import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import { isDeferred } from "../../client.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
@@ -7,8 +7,10 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
+import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { cacheMixedPublicLoader } from "./mixed-cache.ts";
 
 export type LoaderResult =
   | {
@@ -126,7 +128,8 @@ async function readResponseMessage(res: Response): Promise<string> {
  */
 function createLoaderCtx(
   ctx: Record<string, unknown>,
-  accumulatedParentPromise: Promise<Record<string, unknown>>
+  accumulatedParentPromise: Promise<Record<string, unknown>>,
+  onParentFieldAccess?: (key: string) => void
 ): Record<string, unknown> {
   const cache = new Map<string, Promise<unknown>>();
   return new Proxy(ctx, {
@@ -150,6 +153,7 @@ function createLoaderCtx(
         return target[prop];
       }
       // Everything else is a parent-data field → individual lazy Promise.
+      onParentFieldAccess?.(prop);
       let entry = cache.get(prop);
       if (!entry) {
         entry = accumulatedParentPromise.then((data) => data[prop]);
@@ -527,10 +531,59 @@ async function normalizeLoaderError(
   };
 }
 
+function mergeParentData(
+  parent: Record<string, unknown>,
+  own: Record<string, unknown>,
+  path: string
+): Record<string, unknown> {
+  if (IS_DEV) {
+    for (const key of Object.keys(own)) {
+      if (Object.hasOwn(parent, key)) {
+        getLogger().warn(
+          `[furin] Loader data collision on "${key}" for ${path}: a deeper loader overwrites the value inherited from its layout chain (deepest wins).`
+        );
+      }
+    }
+  }
+  return { ...parent, ...own };
+}
+
+function startSegmentLoader(
+  route: ResolvedRoute,
+  ctx: Context,
+  segment: RuntimeRoute | RuntimePage,
+  index: number,
+  label: string,
+  parent: Promise<Record<string, unknown>>,
+  publicParent: Promise<Record<string, unknown>>,
+  ctxRecord: Record<string, unknown>,
+  publicCtxRecord: Record<string, unknown>,
+  mixed: boolean
+): Promise<Record<string, unknown>> {
+  const publicSegment = mixed && segment.mode !== "ssr";
+  const parentFieldsRead = new Set<string>();
+  const loaderCtx = createLoaderCtx(
+    publicSegment ? publicCtxRecord : ctxRecord,
+    publicSegment ? publicParent : parent,
+    publicSegment ? (key) => parentFieldsRead.add(key) : undefined
+  );
+  return observeLoader(
+    () => {
+      const run = async () => (await segment.loader?.(loaderCtx)) ?? {};
+      return publicSegment
+        ? cacheMixedPublicLoader(route, ctx, segment, index, publicParent, parentFieldsRead, run)
+        : run();
+    },
+    label,
+    ctx.path
+  );
+}
+
 async function runLoadersInternal(
   route: ResolvedRoute,
   ctx: Context,
-  includeRequestData: boolean
+  includeRequestData: boolean,
+  mixed: boolean
 ): Promise<LoaderResult> {
   try {
     const requestFields = includeRequestData ? runRequestLoaderFields(route, ctx) : undefined;
@@ -541,6 +594,7 @@ async function runLoadersInternal(
     const ctxRecord = includeRequestData
       ? Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { log: getLogger() })
       : createPublicLoaderContext(ctx);
+    const publicCtxRecord = mixed ? createPublicLoaderContext(ctx) : ctxRecord;
     const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
 
     // All loaders in the chain start immediately. Each receives a Proxy where
@@ -548,17 +602,27 @@ async function runLoadersInternal(
     // in to waiting by doing `await user` (or `Promise.all([user, org])`);
     // if it never awaits a parent field it runs in full parallel.
     let accumulatedParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
+    let publicParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
 
     let loaderIndex = 0;
     for (const r of route.routeChain) {
       const parentAccum = accumulatedParentPromise; // capture for closure
+      const publicParent = publicParentPromise;
+      const privateSegment = mixed && r.mode === "ssr";
 
       if (r.loader) {
-        const loaderCtx = createLoaderCtx(ctxRecord, parentAccum);
-        const loaderPromise = observeLoader(
-          async () => (await r.loader?.(loaderCtx)) ?? {},
+        const index = loaderIndex;
+        const loaderPromise = startSegmentLoader(
+          route,
+          ctx,
+          r,
+          index,
           `layout:${loaderIndex}`,
-          ctx.path
+          parentAccum,
+          publicParent,
+          ctxRecord,
+          publicCtxRecord,
+          mixed
         );
         loaderIndex += 1;
         loaderMap.set(r, loaderPromise);
@@ -570,33 +634,38 @@ async function runLoadersInternal(
         // field-accesses via createLoaderCtx still receive the rejection
         // instead of silently resolving to undefined. The real rejection is
         // re-thrown by the Promise.all below.
-        accumulatedParentPromise = Promise.all([parentAccum, loaderPromise]).then(([acc, own]) => {
-          if (IS_DEV) {
-            // Flattened parent data means a deeper loader silently shadows an
-            // ancestor's field (deepest wins). Surface the collision instead.
-            for (const key of Object.keys(own)) {
-              if (Object.hasOwn(acc, key)) {
-                getLogger().warn(
-                  `[furin] Loader data collision on "${key}" for ${ctx.path}: a deeper loader overwrites the value inherited from its layout chain (deepest wins).`
-                );
-              }
-            }
-          }
-          return {
-            ...acc,
-            ...own,
-          };
-        });
+        accumulatedParentPromise = Promise.all([parentAccum, loaderPromise]).then(([acc, own]) =>
+          mergeParentData(acc, own, ctx.path)
+        );
         accumulatedParentPromise.catch(() => {
           /* suppress unhandled-rejection warning */
         });
+        if (mixed && !privateSegment) {
+          publicParentPromise = Promise.all([publicParent, loaderPromise]).then(([acc, own]) => ({
+            ...acc,
+            ...own,
+          }));
+          publicParentPromise.catch(() => {
+            /* suppress unhandled-rejection warning */
+          });
+        }
       }
     }
 
     // Page loader receives all route-chain fields as individual Promises.
-    const pageCtx = createLoaderCtx(ctxRecord, accumulatedParentPromise);
     const pagePromise: Promise<Record<string, unknown>> = route.page.loader
-      ? observeLoader(async () => (await route.page.loader?.(pageCtx)) ?? {}, "page", ctx.path)
+      ? startSegmentLoader(
+          route,
+          ctx,
+          route.page,
+          route.routeChain.length,
+          "page",
+          accumulatedParentPromise,
+          publicParentPromise,
+          ctxRecord,
+          publicCtxRecord,
+          mixed
+        )
       : Promise.resolve({});
 
     // Await everything in parallel. `results` is ordered layout1 → … → page;
@@ -661,11 +730,39 @@ function createPublicLoaderContext(ctx: Context): { [key: string]: unknown } {
 }
 
 export function runLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, true);
+  return runLoadersInternal(route, ctx, true, false);
 }
 
 export function runPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, false);
+  return runLoadersInternal(route, ctx, false, false);
+}
+
+export function hasSsrLoaderAncestor(route: ResolvedRoute): boolean {
+  return route.routeChain.some((entry) => entry.mode === "ssr" && entry.loader !== undefined);
+}
+
+export function hasMixedLoaderModes(route: ResolvedRoute): boolean {
+  const pageRevalidate =
+    route.mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : undefined;
+  return route.routeChain.some(
+    (entry) =>
+      entry.loader !== undefined &&
+      entry.mode !== undefined &&
+      (entry.mode !== route.mode ||
+        (entry.mode === "isr" && (entry.revalidate ?? 60) !== pageRevalidate))
+  );
+}
+
+export function runMixedLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  return runLoadersInternal(route, ctx, true, true);
+}
+
+export function runRouteLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  return hasMixedLoaderModes(route) ? runMixedLoaders(route, ctx) : runLoaders(route, ctx);
+}
+
+export function runSegmentPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  return runLoadersInternal(route, ctx, false, true);
 }
 
 export function hasRequestLoader(route: ResolvedRoute): boolean {

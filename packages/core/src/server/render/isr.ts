@@ -27,7 +27,7 @@ import { pathWithRequestSearch } from "../cache/route-cache.ts";
 import { createLogger, getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance, withInstance } from "../instance.ts";
-import { resolveRouteRevalidate } from "../router/patterns.ts";
+import { resolveDocumentRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import {
   injectSyncRuntimeScript,
@@ -36,7 +36,7 @@ import {
   streamToString,
 } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { runPublicLoaders } from "./loaders.ts";
+import { hasMixedLoaderModes, runPublicLoaders, runSegmentPublicLoaders } from "./loaders.ts";
 import {
   type PreparedRender,
   prepareRender,
@@ -389,7 +389,9 @@ async function releaseISRRenderLocks(input: ISRCacheMissInput): Promise<void> {
 async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | string> {
   try {
     const renderStart = Date.now();
-    const loaderResult = await runPublicLoaders(input.route, input.ctx);
+    const loaderResult = await (hasMixedLoaderModes(input.route)
+      ? runSegmentPublicLoaders(input.route, input.ctx)
+      : runPublicLoaders(input.route, input.ctx));
     const prepared = await prepareRender(
       input.route,
       input.ctx,
@@ -452,7 +454,11 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
     });
     const cacheStored = await storeRenderedISR(input, html, generatedAt);
     if (cacheStored && input.pageCache === undefined) {
-      autoInvalidateRegistry.registerLoaderTags(input.cacheKey, input.route.tags);
+      autoInvalidateRegistry.registerLoaderTags(
+        input.cacheKey,
+        input.route.tags,
+        "render:isr-html"
+      );
     }
 
     for (const [key, value] of Object.entries(headers)) {
@@ -478,7 +484,7 @@ export async function handleISR(
   buildId: string | undefined,
   searchRoutes?: SearchRouteMetadata[]
 ) {
-  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
+  const revalidate = resolveDocumentRevalidate(route) ?? 60;
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
   const cacheKey = pathWithRequestSearch(resolvedPath, ctx.request.url);

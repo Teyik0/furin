@@ -12,11 +12,16 @@ import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
-import { resolveRouteRevalidate } from "../router/patterns.ts";
+import { resolveDocumentMode, resolveDocumentRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
-import { type LoaderResult, runPublicLoaders } from "./loaders.ts";
+import {
+  hasMixedLoaderModes,
+  type LoaderResult,
+  runPublicLoaders,
+  runSegmentPublicLoaders,
+} from "./loaders.ts";
 import {
   isPprArtifact,
   type PprArtifact,
@@ -70,7 +75,7 @@ function createPprRouteState(instance: FurinInstance): PprRouteState {
       if (path === null || hasPprEntryForPath(cache, path)) {
         return;
       }
-      registry.unregisterPath(path);
+      registry.unregisterPath(path, "render:ppr-public-shell");
     },
     pathFromKey: pathFromPprCacheKey,
   });
@@ -204,7 +209,7 @@ async function renderSharedPpr(
         entry: {
           cachedAt: result.cachedAt,
           payload: JSON.stringify(result),
-          revalidate: input.route.mode === "isr" ? revalidate : null,
+          revalidate: resolveDocumentMode(input.route) === "isr" ? revalidate : null,
         },
         identity,
         lease,
@@ -284,7 +289,7 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
     scope: prefix,
     tags: input.route.tags ?? [],
   };
-  const revalidate = resolveRouteRevalidate(input.route.page) ?? 60;
+  const revalidate = resolveDocumentRevalidate(input.route) ?? 60;
   const lookup = await lookupSharedPpr(input, identity);
   if (!lookup.available) {
     return renderFreshPpr(input);
@@ -292,7 +297,8 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
   const cachedArtifact = lookup.artifact;
   if (
     cachedArtifact !== undefined &&
-    (input.route.mode !== "isr" || Date.now() - cachedArtifact.cachedAt < revalidate * 1000)
+    (resolveDocumentMode(input.route) !== "isr" ||
+      Date.now() - cachedArtifact.cachedAt < revalidate * 1000)
   ) {
     return cachedArtifact;
   }
@@ -338,7 +344,8 @@ async function getPprArtifact(
 ): Promise<PprResult> {
   const requestUrl = new URL(ctx.request.url);
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
-  const cacheKey = `${route.mode}:${resolvedPath}${requestUrl.search}`;
+  const documentMode = resolveDocumentMode(route);
+  const cacheKey = `${documentMode}:${resolvedPath}${requestUrl.search}`;
   const externalPrerender = isExternalPrerenderRequest(ctx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   if (pageCache !== undefined) {
@@ -365,7 +372,7 @@ async function getPprArtifact(
       key,
       result,
       physicalPath(prefix, resolvedPath),
-      route.mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : undefined
+      documentMode === "isr" ? (resolveDocumentRevalidate(route) ?? 60) : undefined
     );
     return result;
   }
@@ -378,13 +385,13 @@ async function getPprArtifact(
     }
     pprRoutes.set(cacheKey, {
       artifact: result,
-      revalidate: resolveRouteRevalidate(route.page) ?? 60,
+      revalidate: resolveDocumentRevalidate(route) ?? 60,
     });
-    autoInvalidateRegistry.registerLoaderTags(resolvedPath, route.tags);
+    autoInvalidateRegistry.registerLoaderTags(resolvedPath, route.tags, "render:ppr-public-shell");
     return result;
   }
 
-  if (route.mode !== "isr" || Date.now() - cached.artifact.cachedAt < cached.revalidate * 1000) {
+  if (documentMode !== "isr" || Date.now() - cached.artifact.cachedAt < cached.revalidate * 1000) {
     return cached.artifact;
   }
   revalidatePprArtifact(pprRoutes, cacheKey, cached, () =>
@@ -401,7 +408,9 @@ export async function runPprPublicLoaders(
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<LoaderResult> {
   if (root === undefined) {
-    return runPublicLoaders(route, ctx);
+    return hasMixedLoaderModes(route)
+      ? runSegmentPublicLoaders(route, ctx)
+      : runPublicLoaders(route, ctx);
   }
   const result = await getPprArtifact(route, ctx, root, buildId, searchRoutes);
   return isPprArtifact(result) ? pprPublicResult(result.state) : result;

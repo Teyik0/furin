@@ -1,5 +1,6 @@
 import { parse } from "node:path";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import type { ResolvedRoute } from "./types.ts";
 
 export function collectIntermediateLayoutDirs(pagePath: string, rootPath: string): string[] {
   const pageDir = pagePath.slice(0, pagePath.lastIndexOf("/"));
@@ -17,6 +18,32 @@ export function collectIntermediateLayoutDirs(pagePath: string, rootPath: string
 
 export function resolveRouteRevalidate(page: RuntimePage): number | undefined {
   return page.revalidate ?? page._route.revalidate;
+}
+
+export function resolveDocumentMode(route: ResolvedRoute): "ssr" | "ssg" | "isr" {
+  if (
+    route.mode === "ssr" ||
+    route.routeChain.some((entry) => entry.mode === "ssr" && entry.loader !== undefined)
+  ) {
+    return "ssr";
+  }
+  return route.mode === "isr" ||
+    route.routeChain.some((entry) => entry.mode === "isr" && entry.loader !== undefined)
+    ? "isr"
+    : "ssg";
+}
+
+export function resolveDocumentRevalidate(route: ResolvedRoute): number | undefined {
+  if (resolveDocumentMode(route) !== "isr") {
+    return;
+  }
+  const intervals = route.routeChain
+    .filter((entry) => entry.mode === "isr" && entry.loader !== undefined)
+    .map((entry) => entry.revalidate ?? 60);
+  if (route.mode === "isr") {
+    intervals.push(resolveRouteRevalidate(route.page) ?? 60);
+  }
+  return Math.min(...intervals);
 }
 
 export function resolveMode(page: RuntimePage, routeChain: RuntimeRoute[]): "ssr" | "ssg" | "isr" {

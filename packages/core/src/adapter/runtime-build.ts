@@ -17,6 +17,7 @@ import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
+import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 
@@ -200,7 +201,7 @@ export function pprRuntimePlugin(apps: RuntimeTargetApp[]): Bun.BunPlugin {
   const enabled = apps.some((app) =>
     app.routes.some(
       (route) =>
-        route.mode !== "ssr" &&
+        resolveDocumentMode(route) !== "ssr" &&
         (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
     )
   );

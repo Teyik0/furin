@@ -22,9 +22,11 @@ import { currentInstance } from "../instance.ts";
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { resolvePath } from "../render/assemble.ts";
 import {
+  hasMixedLoaderModes,
   hasRequestLoader,
   type LoaderResult,
   runLoaders,
+  runMixedLoaders,
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
@@ -63,7 +65,13 @@ class DevPhaseFailure extends Error {
 async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
   let result: LoaderResult;
   try {
-    result = await (route.mode === "ssr" ? runLoaders(route, ctx) : runPublicLoaders(route, ctx));
+    if (hasMixedLoaderModes(route)) {
+      result = await runMixedLoaders(route, ctx);
+    } else if (route.mode === "ssr") {
+      result = await runLoaders(route, ctx);
+    } else {
+      result = await runPublicLoaders(route, ctx);
+    }
   } catch (error) {
     // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
     throw new DevPhaseFailure(error, "loader", { cause: error });
@@ -406,7 +414,10 @@ export async function handleDevRequest(
     // a fresh entry exists.  HTML re-assembles every time so the dev shell
     // chunk URL is always current.
     let response: Response;
-    if (refreshedRoute.mode === "isr") {
+    if (hasMixedLoaderModes(refreshedRoute)) {
+      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
+      response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
+    } else if (refreshedRoute.mode === "isr") {
       response = await renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
     } else if (refreshedRoute.mode === "ssg") {
       response = await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
@@ -474,7 +485,8 @@ export async function renderDevISRWithLoaderCache(
     setDevISRLoaderCache(cacheKey, entry);
     autoInvalidateRegistry.registerLoaderTags(
       pathWithRequestSearch(resolvedPath, ctx.request.url),
-      route.tags
+      route.tags,
+      "render:dev-isr-loader"
     );
   }
   return runDevRender(
@@ -534,7 +546,8 @@ export async function renderDevSSGWithLoaderCache(
     setDevSSGLoaderCache(cacheKey, entry);
     autoInvalidateRegistry.registerLoaderTags(
       resolvePath(route.pattern, ctx.params ?? {}),
-      route.tags
+      route.tags,
+      "render:dev-ssg-loader"
     );
   }
   return runDevRender(

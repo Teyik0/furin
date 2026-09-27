@@ -74,6 +74,34 @@ describe("static params", () => {
     expect(loaderCalls).toBe(0);
   });
 
+  test("static params can read public ancestors without running an SSR layout", async () => {
+    let privateCalls = 0;
+    const root: RuntimeRoute = {
+      __type: "FURIN_ROUTE",
+      loader: () => ({ cities: ["paris"] }),
+      mode: "ssg",
+    };
+    const account: RuntimeRoute = {
+      __type: "FURIN_ROUTE",
+      loader: () => {
+        privateCalls += 1;
+        return { session: "private" };
+      },
+      mode: "ssr",
+    };
+    const page: RuntimePage = {
+      __type: "FURIN_PAGE",
+      _route: { __type: "FURIN_ROUTE" },
+      component: () => null,
+      staticParams: async ({ cities }) => ((await cities) as string[]).map((city) => ({ city })),
+    };
+
+    expect(
+      await resolveStaticParams(createRoute([root, account], page), "http://localhost")
+    ).toEqual([{ city: "paris" }]);
+    expect(privateCalls).toBe(0);
+  });
+
   test("uses one ancestor-loader promise per branch", async () => {
     let loaderCalls = 0;
     const root: RuntimeRoute = {

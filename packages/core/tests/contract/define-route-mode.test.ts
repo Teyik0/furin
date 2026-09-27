@@ -1,6 +1,7 @@
 // biome-ignore-all lint/suspicious/noUnusedExpressions: type-level assertions are compile-time only
 
 import { describe, expectTypeOf, test } from "bun:test";
+import type { RouteLoaderData } from "../../src/furin.ts";
 
 declare const defineRoute: typeof import("../../src/furin.ts").defineRoute;
 declare const defineRootRoute: typeof import("../../src/furin.ts").defineRootRoute;
@@ -135,6 +136,100 @@ const createSsrLayoutWithRequestLoader = () =>
     .requestLoader(() => ({ user: "private" }))
     .layout(({ children }) => children);
 
+const createPublicChildOfSsrLayout = () => {
+  const root = defineRootRoute()
+    .config({ mode: "ssr" })
+    .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+    .layout(({ children }) => children);
+  return defineRoute()
+    .config({ layout: root, mode: "isr", revalidate: 60 })
+    .staticParams((context) => {
+      // @ts-expect-error request-scoped parent data cannot generate static paths.
+      context.session;
+      return [{}];
+    })
+    .loader((context) => {
+      // @ts-expect-error request-scoped parent data cannot enter an ISR loader.
+      context.session;
+      return { catalog: "Coffee" };
+    })
+    .head((context) => {
+      // @ts-expect-error request-scoped parent data cannot enter public metadata.
+      context.session;
+      return { meta: [] };
+    })
+    .page(({ session, catalog }) => {
+      expectTypeOf(session).toEqualTypeOf<string | null>();
+      expectTypeOf(catalog).toEqualTypeOf<string>();
+      return null;
+    });
+};
+
+const createPublicDataAcrossSsrLayout = () => {
+  const root = defineRootRoute()
+    .config({ mode: "ssg" })
+    .loader(() => ({ siteName: "Furin" }))
+    .layout(({ children }) => children);
+  const privateLayout = defineRoute()
+    .config({ layout: root, mode: "ssr" })
+    .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+    .layout(({ children }) => children);
+  return defineRoute()
+    .config({ layout: privateLayout, mode: "isr", revalidate: 60 })
+    .loader(async ({ siteName, ...context }) => {
+      expectTypeOf(siteName).toEqualTypeOf<Promise<string>>();
+      // @ts-expect-error the SSR segment's own result cannot enter public work.
+      context.session;
+      return { title: await siteName };
+    })
+    .page(({ siteName, session, title }) => {
+      expectTypeOf(siteName).toEqualTypeOf<string>();
+      expectTypeOf(session).toEqualTypeOf<string | null>();
+      expectTypeOf(title).toEqualTypeOf<string>();
+      return null;
+    });
+};
+
+const createPublicOverrideOfSsrField = () => {
+  const root = defineRootRoute()
+    .config({ mode: "ssr" })
+    .loader(() => ({ title: "private" as string }))
+    .layout(({ children }) => children);
+  const publicLayout = defineRoute()
+    .config({ layout: root, mode: "isr", revalidate: 60 })
+    .loader(() => ({ title: "public" as string }))
+    .layout(({ children, title }) => {
+      expectTypeOf(title).toEqualTypeOf<string>();
+      return children;
+    });
+  return defineRoute()
+    .config({ layout: publicLayout, mode: "isr", revalidate: 60 })
+    .loader(({ title }) => {
+      expectTypeOf(title).toEqualTypeOf<Promise<string>>();
+      return {};
+    })
+    .page(() => null);
+};
+
+const createPrivateOverrideOfPublicField = () => {
+  const root = defineRootRoute()
+    .config({ mode: "ssg" })
+    .loader(() => ({ title: "public" as string }))
+    .layout(({ children }) => children);
+  const privateLayout = defineRoute()
+    .config({ layout: root, mode: "ssr" })
+    .loader(() => ({ title: 42 }))
+    .layout(({ children }) => children);
+  return defineRoute()
+    .config({ layout: privateLayout, mode: "isr", revalidate: 60 })
+    .loader((context) => {
+      // @ts-expect-error an override from an SSR loader remains private.
+      context.title;
+      return {};
+    })
+    .page(() => null);
+};
+
 describe("defineRoute rendering mode config", () => {
   test("rejects revalidate outside ISR", () => {
     expectTypeOf<ReturnType<typeof createSsrWithRevalidate>>().not.toBeNever();
@@ -172,5 +267,15 @@ describe("defineRoute rendering mode config", () => {
     expectTypeOf<ReturnType<typeof createSsrPageWithOwnRequestLoader>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createSsrPageWithEmptyRequestLoader>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createSsrLayoutWithRequestLoader>>().not.toBeNever();
+  });
+
+  test("keeps SSR ancestor data in rendering but excludes it from public work", () => {
+    expectTypeOf<ReturnType<typeof createPublicChildOfSsrLayout>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createPublicDataAcrossSsrLayout>>().not.toBeNever();
+    expectTypeOf<
+      RouteLoaderData<ReturnType<typeof createPublicChildOfSsrLayout>>["session"]
+    >().toEqualTypeOf<string | null>();
+    expectTypeOf<ReturnType<typeof createPublicOverrideOfSsrField>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createPrivateOverrideOfPublicField>>().not.toBeNever();
   });
 });

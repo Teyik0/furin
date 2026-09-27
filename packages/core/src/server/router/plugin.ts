@@ -15,9 +15,11 @@ import { currentInstance } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { handleISR } from "../render/isr.ts";
 import {
+  hasMixedLoaderModes,
   hasRequestLoader,
   type LoaderResult,
   runLoaders,
+  runMixedLoaders,
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
@@ -28,7 +30,7 @@ import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest, reportDevRouteFailure } from "./hmr.ts";
-import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
+import { buildRouteMatcher, resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import {
   createSearchRouteMetadata,
@@ -84,7 +86,10 @@ async function runDataEndpointLoaders(
   root: RootLayout | undefined,
   searchRoutes: SearchRouteMetadata[]
 ): Promise<LoaderResult> {
-  if (route.mode !== "isr" && route.mode !== "ssg") {
+  if (hasMixedLoaderModes(route)) {
+    return runMixedLoaders(route, ctx);
+  }
+  if (resolveDocumentMode(route) === "ssr") {
     return runLoaders(route, ctx);
   }
 
@@ -180,10 +185,10 @@ export async function serializeGuardRedirect(
 }
 
 function navigationDataCacheControl(route: ResolvedRoute): string {
-  if (route.mode === "ssg") {
+  if (resolveDocumentMode(route) === "ssg") {
     return "public, max-age=0, must-revalidate, s-maxage=31536000";
   }
-  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
+  const revalidate = resolveDocumentRevalidate(route) ?? 60;
   return `public, max-age=0, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
 }
 
@@ -195,7 +200,7 @@ function applyNavigationDataCache(
 ): Response {
   const cacheable =
     !IS_DEV &&
-    (route.mode === "ssg" || route.mode === "isr") &&
+    resolveDocumentMode(route) !== "ssr" &&
     !hasRequestLoader(route) &&
     result.type === "data" &&
     result.deferredPromises === undefined;
@@ -403,15 +408,20 @@ export function renderResolvedRoute(
     return handleDevRequest(route, ctx, root, searchRoutes);
   }
 
-  if ((route.mode === "ssg" || route.mode === "isr") && hasRequestLoader(route)) {
+  const documentMode = resolveDocumentMode(route);
+  if (documentMode === "ssr") {
+    return renderSSR(route, ctx, root, undefined, searchRoutes);
+  }
+
+  if (hasRequestLoader(route)) {
     return renderPprRoute(route, ctx, root, buildId, searchRoutes);
   }
 
-  if (route.mode === "ssg") {
+  if (documentMode === "ssg") {
     return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
   }
 
-  if (route.mode === "isr") {
+  if (documentMode === "isr") {
     ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
     return handleISR(route, ctx, root, buildId, searchRoutes);
   }

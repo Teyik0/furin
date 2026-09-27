@@ -1,6 +1,6 @@
 # Data Loading
 
-Furin runs loaders on the server and passes their results into the matched layout and page tree. Use `loader()` for public route data and `requestLoader()` for request-private data that must not enter a cached payload.
+Furin runs loaders on the server and passes their results into the matched layout and page tree. An SSR `loader()` may read request data. SSG and ISR `loader()` results are public and cacheable; use `requestLoader()` for request-private data beside those results.
 
 ## Public Loaders
 
@@ -61,7 +61,7 @@ For SSR routes, `loader()` receives the Elysia context plus typed route values a
 | `log` | Request-scoped evlog logger |
 | ancestor fields | `Promise<T>` values from layout loaders |
 
-On SSG and ISR pages, `loader()` exposes only public route values (`params`, `query`, `path`, `log`, `redirect`, and public ancestor fields). Request-bound properties (`request`, `cookie`, `headers`, and `set`) are absent from its TypeScript context and throw if accessed dynamically, including in development. A layout declared SSR can also serve a cached child page; keep shared layout loaders public because the child page determines the effective rendering mode.
+On SSG and ISR segments, `loader()` exposes only public route values (`params`, `query`, `path`, `log`, `redirect`, and public ancestor fields). Request-bound properties (`request`, `cookie`, `headers`, and `set`) are absent from its TypeScript context and throw if accessed dynamically, including in development. An SSR layout keeps its request context when it serves an SSG or ISR child; the child's public loader cannot access the layout's private fields, and the combined document is served without public caching.
 
 ## Params And Query
 

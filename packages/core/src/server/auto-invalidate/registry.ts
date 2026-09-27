@@ -2,17 +2,31 @@ import { type FurinInstance, instanceSlot } from "../instance.ts";
 
 export class AutoInvalidateRegistry {
   private readonly pathToTags = new Map<string, Set<string>>();
+  private readonly pathOwners = new Map<string, Map<string, Set<string>>>();
   private readonly tagToPaths = new Map<string, Set<string>>();
 
-  registerLoaderTags(urlPath: string, tags: readonly string[] | undefined): void {
-    if (!tags || tags.length === 0) {
-      this.unregisterPath(urlPath);
-      return;
+  private reindexPath(urlPath: string): void {
+    const previous = this.pathToTags.get(urlPath);
+    if (previous) {
+      for (const tag of previous) {
+        const paths = this.tagToPaths.get(tag);
+        paths?.delete(urlPath);
+        if (paths?.size === 0) {
+          this.tagToPaths.delete(tag);
+        }
+      }
     }
 
-    this.unregisterPath(urlPath);
-
-    const uniqueTags = new Set(tags);
+    const uniqueTags = new Set<string>();
+    for (const tags of this.pathOwners.get(urlPath)?.values() ?? []) {
+      for (const tag of tags) {
+        uniqueTags.add(tag);
+      }
+    }
+    if (uniqueTags.size === 0) {
+      this.pathToTags.delete(urlPath);
+      return;
+    }
     this.pathToTags.set(urlPath, uniqueTags);
     for (const tag of uniqueTags) {
       let paths = this.tagToPaths.get(tag);
@@ -22,6 +36,24 @@ export class AutoInvalidateRegistry {
       }
       paths.add(urlPath);
     }
+  }
+
+  registerLoaderTags(urlPath: string, tags: readonly string[] | undefined, owner?: string): void {
+    const ownerKey = owner ?? "default";
+    let owners = this.pathOwners.get(urlPath);
+    if (tags === undefined || tags.length === 0) {
+      owners?.delete(ownerKey);
+      if (owners?.size === 0) {
+        this.pathOwners.delete(urlPath);
+      }
+    } else {
+      if (!owners) {
+        owners = new Map<string, Set<string>>();
+        this.pathOwners.set(urlPath, owners);
+      }
+      owners.set(ownerKey, new Set(tags));
+    }
+    this.reindexPath(urlPath);
   }
 
   pathsForTags(tags: readonly string[]): string[] {
@@ -34,27 +66,22 @@ export class AutoInvalidateRegistry {
     return [...paths];
   }
 
-  unregisterPath(urlPath: string): void {
-    const tags = this.pathToTags.get(urlPath);
-    if (!tags) {
-      return;
-    }
-
-    for (const tag of tags) {
-      const paths = this.tagToPaths.get(tag);
-      if (!paths) {
-        continue;
-      }
-      paths.delete(urlPath);
-      if (paths.size === 0) {
-        this.tagToPaths.delete(tag);
+  unregisterPath(urlPath: string, owner?: string): void {
+    if (owner === undefined) {
+      this.pathOwners.delete(urlPath);
+    } else {
+      const owners = this.pathOwners.get(urlPath);
+      owners?.delete(owner);
+      if (owners?.size === 0) {
+        this.pathOwners.delete(urlPath);
       }
     }
-    this.pathToTags.delete(urlPath);
+    this.reindexPath(urlPath);
   }
 
   reset(): void {
     this.pathToTags.clear();
+    this.pathOwners.clear();
     this.tagToPaths.clear();
   }
 }
@@ -75,8 +102,9 @@ export const autoInvalidateRegistry: Pick<
   "registerLoaderTags" | "pathsForTags" | "unregisterPath" | "reset"
 > = {
   pathsForTags: (tags) => instanceAutoInvalidateRegistry().pathsForTags(tags),
-  registerLoaderTags: (urlPath, tags) =>
-    instanceAutoInvalidateRegistry().registerLoaderTags(urlPath, tags),
+  registerLoaderTags: (urlPath, tags, owner) =>
+    instanceAutoInvalidateRegistry().registerLoaderTags(urlPath, tags, owner),
   reset: () => instanceAutoInvalidateRegistry().reset(),
-  unregisterPath: (urlPath) => instanceAutoInvalidateRegistry().unregisterPath(urlPath),
+  unregisterPath: (urlPath, owner) =>
+    instanceAutoInvalidateRegistry().unregisterPath(urlPath, owner),
 };

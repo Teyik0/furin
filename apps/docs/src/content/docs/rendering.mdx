@@ -1,12 +1,14 @@
 # Rendering Modes
 
-Every route chooses its rendering mode explicitly in `config()`. That decision controls when public loaders run, where their HTML is cached, and which request APIs are safe to use.
+Every layout and page chooses its rendering mode explicitly in `config()`. The mode controls when its loader runs and which request APIs it can use.
 
 | Mode | Public render | Best fit |
 |---|---|---|
 | `ssr` | Every request | Personalized or request-time pages; progressive streaming |
 | `ssg` | Pre-rendered and cached without a time limit | Stable public content |
 | `isr` | Cached, then regenerated after `revalidate` seconds | Public content that can be briefly stale |
+
+Modes can be mixed in one route chain. Each loader follows its own mode: SSR runs per request and can read the Elysia request context; SSG and ISR loaders use a public context. When modes differ, Furin caches public loader results by segment. An SSR page or a page with an SSR ancestor loader serves a private document. Otherwise, any ISR loader makes the document ISR with the shortest declared revalidation interval; all SSG loaders produce an SSG document. Public segment data can still be reused inside a private document.
 
 ## SSR
 
