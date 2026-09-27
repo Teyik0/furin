@@ -1,0 +1,34 @@
+scripts/compare-performance-reports.ts
+  s_3295c4a2d42648::t_c4fe0dabdc7805 40,107-109,111-112,117-119,121-122,186-192,194,200-202
+  s_3295c4a2d42648::t_0227ce20cf9931 33,133,166-171
+  s_3295c4a2d42648::t_2069399ab7c428 120
+scripts/compare-vercel-framework-reports.ts
+  s_3295c4a2d42648::t_2069399ab7c428 51-59
+  s_3295c4a2d42648::t_93ada5e1115241 22,65-67,70,78-79,97-100,115-118
+  s_3295c4a2d42648::t_3b5bb38a2378d4 119-121
+packages/core/tests/build/measurement/compare-vercel-framework-reports.test.ts
+  s_3295c4a2d42648::t_2d890d92c6f712 26-28,37,46,75-93
+  s_3295c4a2d42648::t_aee29496fd6ff6 94-95
+packages/core/tests/build/measurement/compare-performance-reports.test.ts
+  s_3295c4a2d42648::t_0227ce20cf9931 29,48,68-70,77-95
+  s_3295c4a2d42648::t_c048509b1ccab6 96
+.github/workflows/ci.yaml
+  s_3295c4a2d42648::t_93ada5e1115241 243-244,251-253
+  s_3295c4a2d42648::t_c4fe0dabdc7805 354-355,360-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "050ed188244f820ad6a0591fb60b8669a8511e56",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
