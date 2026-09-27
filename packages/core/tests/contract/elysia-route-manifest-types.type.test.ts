@@ -49,7 +49,7 @@ const createGeneratedOptionalBoardRoute = () =>
     .config({
       layout: rootLayout,
       mode: "ssr",
-      params: t.Object({ boardId: t.Optional(t.Number()) }),
+      params: t.Object({ boardId: t.Optional(t.Number()), locale: t.Optional(t.String()) }),
     })
     .page(({ params }) => params.boardId);
 
@@ -85,6 +85,7 @@ const assertTypedLinkParams = () => {
   }>();
   expectTypeOf<RouteParamsOf<"/elysia-optional-boards/:boardId">>().toEqualTypeOf<{
     boardId?: string | number;
+    locale?: string;
   }>();
   // Routes without path params expose `undefined` params.
   expectTypeOf<RouteParamsOf<"/elysia-products">>().toEqualTypeOf<undefined>();
@@ -97,6 +98,7 @@ const assertTypedLinkParams = () => {
 const assertTypedNavigate = (navigate: Navigate) => {
   navigate({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
   navigate({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
+  navigate({ params: { boardId: "42", locale: "fr" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ search: { page: 2, tag: "bun" }, to: "/elysia-products" });
   navigate({ to: "https://example.com" });
 

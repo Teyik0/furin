@@ -11,11 +11,22 @@ type NavigateTo = keyof RouteManifest extends never
   ? string
   : keyof RouteManifest | `https://${string}` | `http://${string}`;
 
+type PathParamKeys<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
+  ? PathParamKeys<Segment> | PathParamKeys<Rest>
+  : Path extends `:${infer Key}`
+    ? Key
+    : Path extends "*"
+      ? "*"
+      : never;
+
 type NavigateParams<To extends NavigateTo> = keyof RouteManifest extends never
   ? { params?: RouteParamsOf<To> }
   : RouteParamsOf<To> extends undefined
     ? { params?: never }
-    : { params: Required<RouteParamsOf<To>> };
+    : {
+        params: RouteParamsOf<To> &
+          Required<Pick<RouteParamsOf<To>, Extract<PathParamKeys<To>, keyof RouteParamsOf<To>>>>;
+      };
 
 export type NavigateInput<To extends NavigateTo> = {
   hash?: string;
