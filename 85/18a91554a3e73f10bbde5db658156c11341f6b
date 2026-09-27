@@ -1,0 +1,43 @@
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_fdc8f13fd1baad 17-18,271-272,274-275,285
+  s_3295c4a2d42648::t_7ba20696cfdd6b 273
+  s_3295c4a2d42648::t_c396bb93e0562c 276
+  s_3295c4a2d42648::t_7cf18de3c704c6 277-284,286-290
+  s_3295c4a2d42648::t_26fb54e101e312 291-292
+packages/core/tests/routing/cache/dev-route-module-cache.test.ts
+  s_3295c4a2d42648::t_1a592ac874d608 74-83
+  s_3295c4a2d42648::t_ab4d067a0cdde1 5-6,11,65-73,84-92
+  s_3295c4a2d42648::t_3c4eeadbd5c741 93-95
+  s_3295c4a2d42648::t_56f14940fb9824 96
+packages/core/src/plugin/route-config-autofix.ts
+  s_3295c4a2d42648::t_c396bb93e0562c 179,305
+packages/core/src/client/router/provider.tsx
+  s_3295c4a2d42648::t_a2e2f0e85487f9 822
+  s_3295c4a2d42648::t_5ab709c46c56e1 569-573
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_3295c4a2d42648::t_867c0ad877cf69 82-83
+  s_3295c4a2d42648::t_12fededc1ebf8a 163-168
+  s_3295c4a2d42648::t_64bb884b5e5dc8 78
+  s_3295c4a2d42648::t_c396bb93e0562c 8-9,169-170
+packages/core/src/server/router/source-version.ts
+  s_3295c4a2d42648::t_a306bf1a25d736 6-7,11-12,18
+  s_3295c4a2d42648::t_702cf15dbd3de8 8,10,14-15,26
+  s_3295c4a2d42648::t_4fe9b4954fb998 13
+  s_3295c4a2d42648::t_c396bb93e0562c 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8518a91554a3e73f10bbde5db658156c11341f6b",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
