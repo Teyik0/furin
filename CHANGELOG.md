@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.6.0-alpha.2] — 2026-09-27
+
 ### Added
 - **Typed imperative navigation** — `useNavigate()` accepts schema-checked path parameters and expands them with the same encoding as links.
 
@@ -438,7 +440,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.2...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.2...HEAD
+[0.6.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.1...v0.6.0-alpha.2
 [0.4.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
 [0.4.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.3.0-alpha.1...v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.5...v0.3.0-alpha.1
