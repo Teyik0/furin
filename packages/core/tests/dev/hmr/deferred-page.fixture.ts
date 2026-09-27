@@ -160,9 +160,13 @@ try {
   expect(contentLoads).toBe(2);
   writeAppFile(fixture.path, "src/article.content", "invalid content");
   await waitForArticle(app, "", 500);
-  writeAppFile(fixture.path, "src/article.content", "Recovered article version");
-  await waitForArticle(app, "<article>Recovered article version</article>", 200);
-  expect(contentLoads).toBe(4);
+  // Bun retains a failed runtime-plugin import on Windows after its source changes.
+  // https://github.com/oven-sh/bun/issues/12371
+  if (process.platform !== "win32") {
+    writeAppFile(fixture.path, "src/article.content", "Recovered article version");
+    await waitForArticle(app, "<article>Recovered article version</article>", 200);
+    expect(contentLoads).toBe(4);
+  }
   writeAppFile(fixture.path, "src/token.ts", 'export const token = "edited-";');
   const updatedShared = await app.handle(new Request("http://localhost/heavy"));
   expect(await updatedShared.text()).toContain("<p>same identity</p>");
