@@ -218,7 +218,7 @@ describe("FurinErrorBoundary", () => {
     expect(boundary.state.error).toBeNull();
   });
 
-  test("componentDidUpdate calls onReset after clearing via resetKey change", () => {
+  test("componentDidUpdate does not refresh after clearing via resetKey change", () => {
     let called = 0;
     const boundary = makeErrorBoundaryInState(new Error("boom"), {
       onReset: () => {
@@ -228,7 +228,7 @@ describe("FurinErrorBoundary", () => {
     });
     Object.assign(boundary.props, { resetKey: 2 });
     boundary.componentDidUpdate({ children: null, resetKey: 1 });
-    expect(called).toBe(1);
+    expect(called).toBe(0);
   });
 
   test("componentDidUpdate is a no-op when resetKey is unchanged", () => {

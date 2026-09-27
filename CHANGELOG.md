@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 - **SPA navigation** — prefetched redirects are checked again during active navigation, and superseded responses cannot override newer navigation.
+- **Error recovery** — changing route data clears an error boundary without triggering another automatic refresh; manual retry still refreshes the route.
 - **PostgreSQL sync recovery** — a durable cursor check recovers notifications missed by a transaction pooler, while failed reads keep their retry backoff.
 - **Development and build reliability** — private request fields stream independently, source changes refresh pages, and Windows path handling remains stable.
 
