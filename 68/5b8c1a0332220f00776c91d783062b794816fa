@@ -1,0 +1,177 @@
+packages/core/src/define-route.ts
+  s_c4a1ae9cc2cd6c::t_8559cbf618b3bb 78,104-110,114,333,363,387,461
+  s_c4a1ae9cc2cd6c::t_45209eb7b9b25a 52,60,62,76
+  s_c4a1ae9cc2cd6c::t_584dfae4a488b0 599,607,617,772,782,793,987,999,1011
+  s_c4a1ae9cc2cd6c::t_81e78644acd1fd 56-58
+  s_c4a1ae9cc2cd6c::t_cf9929b4330702 250-253,257,260,272
+  s_c4a1ae9cc2cd6c::t_890c417088f664 636-637,655-656,822-823,842-843,1042-1043,1062-1063
+  s_c4a1ae9cc2cd6c::t_0e04783913fe2f 53,92-93,95-96,99-101,469-471,477-482
+  s_c4a1ae9cc2cd6c::t_e4d17b10c73d7d 63,67,206,473
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 64-66,111-113,321,580-584,737-740
+  s_c4a1ae9cc2cd6c::t_62171a36571641 567,578,629,644,735,750,811,830,947,963,1030,1050
+  s_c4a1ae9cc2cd6c::t_efa5cb3750d738 569,631,646,752,813,832,949,965,1032,1052
+  s_c4a1ae9cc2cd6c::t_97fe797a16bb5d 315-320,346,350,374-375,432-438,441
+  s_c4a1ae9cc2cd6c::t_54e28c252920b0 59,61,79-80,239-243,254-255
+  s_c4a1ae9cc2cd6c::t_dbbee9e240ef2e 294-307
+  s_c4a1ae9cc2cd6c::t_c8221fffd9c88c 102-103,256
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_c4a1ae9cc2cd6c::t_5f03260d86f89a 112-135
+  s_c4a1ae9cc2cd6c::t_52343e4449a290 136-143
+packages/core/src/server/render/mixed-cache.ts
+  s_c4a1ae9cc2cd6c::t_cf9929b4330702 7,72
+  s_c4a1ae9cc2cd6c::t_8cbcf087c9b1c7 281-288
+  s_c4a1ae9cc2cd6c::t_7662ae7e840c58 136-139
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 57
+  s_c4a1ae9cc2cd6c::t_df10e84fc141ee 202-227,248-249
+  s_c4a1ae9cc2cd6c::t_ba04985af4bd61 6,12,34-35,38-44,47,54-56,58-59,61-62,78-83,85,87,117,121
+  s_c4a1ae9cc2cd6c::t_7a87e93b10c3b0 245
+  s_c4a1ae9cc2cd6c::t_751338a2617082 13,242-244
+  s_c4a1ae9cc2cd6c::t_229c3d2605d372 8,131-134
+  s_c4a1ae9cc2cd6c::t_203daeb5edc368 11,104-116,118-120,159,161
+  s_c4a1ae9cc2cd6c::t_01543a984d83fb 129-130,135,143,156,158,163-165
+  s_c4a1ae9cc2cd6c::t_86995541ff96ec 166-201,261-266,290
+  s_c4a1ae9cc2cd6c::t_cfd24e75599224 4,241
+  s_c4a1ae9cc2cd6c::t_0690693d0d1639 142,144-155,157,160,162,269-280,289,291-296
+  s_c4a1ae9cc2cd6c::t_6a193b8fd8fc2a 36-37,49,65-71,73-77,84,86,246-247
+  s_c4a1ae9cc2cd6c::t_ff56f31c402387 1-3,5,9-10,14,16-21,32-33,45-46,48,50-53,60,63-64,122-123,140-141,228-232,235-240,251-260,267-268,297-298
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 15
+  s_c4a1ae9cc2cd6c::t_b5b2cab505bb01 22-31,88-103,124-128,233-234,250
+packages/core/src/server/auto-invalidate/registry.ts
+  s_c4a1ae9cc2cd6c::t_d7908883460ea4 5,8-17,20-29,41-58,69-76,79,84,105-106
+  s_c4a1ae9cc2cd6c::t_cf9929b4330702 108-109
+packages/core/src/server/cache/isr-ssg.ts
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 45
+packages/core/src/server/cache/ssg.ts
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 29
+apps/docs/src/content/docs/rendering.mdx
+  s_c4a1ae9cc2cd6c::t_3278f7912d4737 11
+  s_c4a1ae9cc2cd6c::t_fdb65ac506d300 3
+  s_c246a15c2805fc::t_463ba5cc6e1d80 12
+packages/core/src/adapter/static.ts
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 230-233
+  s_c4a1ae9cc2cd6c::t_2d0cc0b6bdd025 15,222,245,250
+  s_c4a1ae9cc2cd6c::t_82062d7a9cf3ce 229,234
+packages/core/src/server/router/patterns.ts
+  s_c4a1ae9cc2cd6c::t_890d348a7f2291 3,23-47
+  s_c4a1ae9cc2cd6c::t_de68d1775b4958 48
+packages/core/src/server/render/isr.ts
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 457-461
+  s_c4a1ae9cc2cd6c::t_a75df99f8dd66b 30,39,392-394,487
+packages/core/src/server/render/ssr.ts
+  s_c4a1ae9cc2cd6c::t_35d51114b4f145 46,272
+  s_c4a1ae9cc2cd6c::t_3c17aa29703fab 50,556-558
+  s_c4a1ae9cc2cd6c::t_15e772b8650e09 45
+  s_c4a1ae9cc2cd6c::t_f089d7ac5dd774 49,364
+packages/core/src/server/router/hmr.ts
+  s_c4a1ae9cc2cd6c::t_0225fad5f787d2 68-74
+  s_c4a1ae9cc2cd6c::t_ede18e570871a8 29,418-420
+  s_c4a1ae9cc2cd6c::t_c09b5deb0800bb 25,417
+  s_c4a1ae9cc2cd6c::t_7fef8c11040b05 488-489,549-550
+packages/core/src/adapter/runtime-build.ts
+  s_c4a1ae9cc2cd6c::t_f4bcc37d5efa3e 204
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 20
+packages/core/src/build/ssg-cache.ts
+  s_c4a1ae9cc2cd6c::t_3f6319c33e0d8b 7,46-47,73,102
+  s_c4a1ae9cc2cd6c::t_73a4f3f9c7ca90 101,103-105
+packages/core/src/server/cache/invalidation.ts
+  s_c4a1ae9cc2cd6c::t_8f16451a505c9f 16,192
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_c4a1ae9cc2cd6c::t_3d51a7b5dd0eaa 166-167,264
+  s_c4a1ae9cc2cd6c::t_e7272417a567df 10,40-49
+packages/core/src/server/router/plugin.ts
+  s_c4a1ae9cc2cd6c::t_d83300745b1d4e 92,188,191,203,411-412,416,420,424
+  s_c4a1ae9cc2cd6c::t_21154c007e25c4 22,90-91,413-414
+  s_c4a1ae9cc2cd6c::t_2cdbbf4d0828fb 18,89
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 33
+  s_c4a1ae9cc2cd6c::t_01b874d0e20021 415
+packages/core/src/server/render/ppr-route.ts
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 300-301
+  s_c4a1ae9cc2cd6c::t_321ee08b518b00 15,19-24,212,292,347-348,375,388,394,411-413
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 78,390
+packages/core/src/server/cache/dev-loader.ts
+  s_c4a1ae9cc2cd6c::t_12b325bfb73728 79
+apps/docs/src/content/docs/layouts.mdx
+  s_c4a1ae9cc2cd6c::t_fdb65ac506d300 85,87
+packages/core/src/server/render/ssg.ts
+  s_c4a1ae9cc2cd6c::t_6875324b382cd4 12
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 238
+packages/core/tests/contract/define-route-mode.test.ts
+  s_c4a1ae9cc2cd6c::t_c0f10f6ff76113 139-167,271-273
+  s_c4a1ae9cc2cd6c::t_c61f0b50185f69 168-192,274
+  s_c4a1ae9cc2cd6c::t_a9e40b7aad2a39 4,193-232,275-279
+  s_c4a1ae9cc2cd6c::t_166480c96ef3a0 280
+packages/core/src/server/render/loaders.ts
+  s_c4a1ae9cc2cd6c::t_f90a9997383aac 13,614
+  s_c4a1ae9cc2cd6c::t_4b53bbad3d058b 585-586,597,605,610-611,643-651,662,668,733,737-743,756-757
+  s_c4a1ae9cc2cd6c::t_7f91f8623eddc0 131-132,156
+  s_c4a1ae9cc2cd6c::t_bf92ae001aa6a9 744,753-755
+  s_c4a1ae9cc2cd6c::t_6a2e07f353f3b6 2,551-581,615-619,621-625,657-661,663-667
+  s_c4a1ae9cc2cd6c::t_9a98ea5116796e 747-748,758-759,764-765
+  s_c4a1ae9cc2cd6c::t_e0790a96467ec3 760-763
+  s_c4a1ae9cc2cd6c::t_31fa7df9f367bf 534-550,637-639
+  s_c4a1ae9cc2cd6c::t_ec8481b0a9672a 10,749-752
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 745-746
+apps/docs/src/content/docs/data-loading.mdx
+  s_c4a1ae9cc2cd6c::t_fdb65ac506d300 3,64
+packages/core/tests/rendering/ssr/static-params.test.ts
+  s_c4a1ae9cc2cd6c::t_3766ae0ca690ce 77-81,83-89,91-95,97-98,102-104
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 82,90,96,99-101
+packages/core/src/server/render/static-params.ts
+  s_c4a1ae9cc2cd6c::t_f43f4d6b89c4fc 76
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_c4a1ae9cc2cd6c::t_929072fa4dcae7 123-142,201
+  s_c4a1ae9cc2cd6c::t_c5e04b4a6fa146 197-200
+  s_c4a1ae9cc2cd6c::t_f95a07a65c150f 321
+  s_c4a1ae9cc2cd6c::t_749e6d3e01609d 143-162,202-206
+packages/core/src/server/render/ppr-document.ts
+  s_c4a1ae9cc2cd6c::t_bdab30104182ef 14-20,94-96
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_c4a1ae9cc2cd6c::t_ddd3fe15fe4e88 313-315,319-322,324-330,336-357,362-377,401-402
+  s_c4a1ae9cc2cd6c::t_98b421b638e747 30,44,624-630,642-644,646-676
+  s_c4a1ae9cc2cd6c::t_f9e6ffa74ac0bf 316-318,332-334
+  s_c4a1ae9cc2cd6c::t_31dbb07f0047ed 550-554,556-559,561-563,570-583
+  s_c4a1ae9cc2cd6c::t_50fb7b2a1f249f 323,331,335
+  s_c4a1ae9cc2cd6c::t_4226bbd1fd3262 849-854,864-904
+  s_c4a1ae9cc2cd6c::t_80e3bb14b17782 455-456
+  s_c4a1ae9cc2cd6c::t_7f78da9bfb0c72 791-848
+  s_c4a1ae9cc2cd6c::t_cf9929b4330702 632-640,692-700,855-863
+  s_c4a1ae9cc2cd6c::t_f8f221e0d3ce0a 737-790
+  s_c4a1ae9cc2cd6c::t_321ff209bf6562 631,641,691,701
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 8,431-435,470-477,487-492,514-521,531-536,564-569
+  s_c4a1ae9cc2cd6c::t_8aedc4ab59d140 34,358-361,378-396
+  s_c4a1ae9cc2cd6c::t_7b17c43673fc24 403-430,436-454,457-461
+  s_c4a1ae9cc2cd6c::t_536de941a9190b 462-466,468-469,478-482,484-486,493-510,512-513,522-526,528-530,537-549
+  s_c4a1ae9cc2cd6c::t_0b7a2b3b1b39bb 467,483,511,527,555,560
+  s_c4a1ae9cc2cd6c::t_86995541ff96ec 645
+  s_c4a1ae9cc2cd6c::t_c194f3bf1b3fa3 584-623,677-678
+  s_c4a1ae9cc2cd6c::t_c4e372d8bf038e 679-690,702-736
+  s_c4a1ae9cc2cd6c::t_be650ea10e8c0a 26,397-400
+packages/core/src/adapter/vercel.ts
+  s_c4a1ae9cc2cd6c::t_45f12a7be7f29e 875
+  s_c4a1ae9cc2cd6c::t_3940e0fce40a95 17-21,237,299,306,326-327,334,343,852,882
+  s_c4a1ae9cc2cd6c::t_6a4fdb0811bba4 238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "685b8c1a0332220f00776c91d783062b794816fa",
+  "prompts": {},
+  "sessions": {
+    "s_c246a15c2805fc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e30a-07e7-7320-a1e2-8adbc1ac4d84",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
