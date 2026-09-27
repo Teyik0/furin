@@ -86,6 +86,7 @@ describe("SSR head context", () => {
     let headReceivedRequestData = false;
     let pageReceivedDeferredData = false;
     let pageReceivedRequestData = false;
+    let pageReceivedUser = false;
     const terminal = defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
       .requestLoader(() => ({ user: "alice" }))
@@ -99,6 +100,7 @@ describe("SSR head context", () => {
       .page((props) => {
         pageReceivedDeferredData = "stock" in props;
         pageReceivedRequestData = "requestData" in props;
+        pageReceivedUser = props.user instanceof Promise;
         return null;
       });
     const page = adaptDefinedPage(terminal, rootRoute);
@@ -117,6 +119,7 @@ describe("SSR head context", () => {
     expect(headReceivedDeferredData).toBe(false);
     expect(headReceivedRequestData).toBe(false);
     expect(pageReceivedDeferredData).toBe(true);
-    expect(pageReceivedRequestData).toBe(true);
+    expect(pageReceivedRequestData).toBe(false);
+    expect(pageReceivedUser).toBe(true);
   });
 });

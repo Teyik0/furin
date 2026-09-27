@@ -519,14 +519,14 @@ export const route = defineRoute()
 import { Suspense, use } from "react";
 import { route as rootRoute } from "./root";
 let calls = 0;
-function User({ data }: { data: Promise<{ user: string }> }) {
-  return <strong>{use(data).user}</strong>;
+function User({ data }: { data: Promise<unknown> }) {
+  return <strong>{String(use(data))}</strong>;
 }
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
-  .page(({ count, requestData }) => <main>public:{count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
+  .page(({ count, user }) => <main>public:{count}<Suspense fallback="loading"><User data={user} /></Suspense></main>);`
     );
     await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 

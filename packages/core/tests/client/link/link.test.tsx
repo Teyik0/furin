@@ -272,6 +272,33 @@ describe("buildPageElement", () => {
     ).toBe("<h1>Hello World</h1>");
   });
 
+  test("exposes request fields as stable promises to pages and layouts", async () => {
+    let pageUser: unknown;
+    let layoutUser: unknown;
+    let pageHasRequestData = false;
+    const PrivatePage: React.FC<Record<string, unknown>> = (props) => {
+      pageUser = props.user;
+      pageHasRequestData = "requestData" in props;
+      return createElement("p", null, "page");
+    };
+    const PrivateLayout: React.FC<Record<string, unknown> & { children: React.ReactNode }> = (
+      props
+    ) => {
+      layoutUser = props.user;
+      return createElement("main", null, props.children);
+    };
+    const route = makeRoute({ layout: PrivateLayout });
+    const match = makeMatch(PrivatePage, route, undefined);
+    const requestData = Promise.resolve({ user: "Alice" });
+
+    expect(
+      renderToStaticMarkup(buildPageElement(match, null, { requestData }, undefined, undefined))
+    ).toBe("<main><p>page</p></main>");
+    expect(pageUser).toBe(layoutUser);
+    expect(pageHasRequestData).toBe(false);
+    expect(await pageUser).toBe("Alice");
+  });
+
   test("passes loader data to layout components as props", () => {
     const Layout: React.FC<Record<string, unknown>> = ({ title, children }) =>
       createElement("div", { "data-title": String(title) }, children as React.ReactNode);

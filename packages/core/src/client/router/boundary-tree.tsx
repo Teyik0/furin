@@ -2,6 +2,7 @@ import type React from "react";
 import { createElement } from "react";
 import { type BoundaryOptions, FurinErrorBoundary, wrapSegmentBoundaries } from "../boundaries.tsx";
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
+import { createRouteElement } from "../request-props.tsx";
 import { FurinServerError } from "../server-error.ts";
 import { RouterContext } from "./context.ts";
 import type {
@@ -61,7 +62,7 @@ export function buildPageElement(
 ): React.ReactNode {
   let element: React.ReactNode = error
     ? createElement(RouteErrorThrower, { error })
-    : createElement(match.component, data);
+    : createRouteElement(match.component, data, undefined);
 
   // Reconstruct the FULL route chain (shallow→deep, index 0 = root) by walking
   // parents. We keep every route — not only the ones declaring a layout — so a
@@ -98,8 +99,7 @@ export function buildPageElement(
     element = wrapSegmentBoundaries(element, byDepth.get(i), options);
     const Layout = chain[i]?.layout;
     if (Layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
-      element = createElement(Layout, data as any, element);
+      element = createRouteElement(Layout, data, element);
     }
   }
 
@@ -107,8 +107,7 @@ export function buildPageElement(
     // Depth 0 boundary wraps EVERYTHING below the root layout.
     element = wrapSegmentBoundaries(element, byDepth.get(0), options);
     if (root.layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
-      element = createElement(root.layout, data as any, element);
+      element = createRouteElement(root.layout, data, element);
     }
   }
 

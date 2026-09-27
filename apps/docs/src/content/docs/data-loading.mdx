@@ -89,11 +89,11 @@ The schemas are both runtime validators and TypeScript sources. Furin checks tha
 
 ## Request-Private Data
 
-`requestLoader()` receives a small read-only request context and returns a separate promise named `requestData`:
+`requestLoader()` receives a restricted request context. Each returned field is exposed as an individual promise to `page()` and `layout()`:
 
 ```tsx
-import { defineRoute } from "@teyik0/furin";
-import { Suspense, use } from "react";
+import { Await, defineRoute } from "@teyik0/furin";
+import { Suspense } from "react";
 import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
@@ -102,17 +102,19 @@ export const route = defineRoute()
     session: await readSession(cookies.get("session"), request.signal),
   }))
   .loader(async () => ({ catalog: await getPublicCatalog() }))
-  .page(({ catalog, requestData }) => (
+  .page(({ catalog, session }) => (
     <>
       <Catalog items={catalog} />
       <Suspense fallback={<AccountSkeleton />}>
-        <Account session={use(requestData).session} />
+        <Await resolve={session}>
+          {(resolvedSession) => <Account session={resolvedSession} />}
+        </Await>
       </Suspense>
     </>
   ));
 ```
 
-The context exposes `cookies.get(name)`, read-only `headers`, `log`, `params`, `path`, `query`, and `request`. Request loaders across the route chain run in parallel and their results are merged into the same `requestData` promise.
+The context exposes `cookies.get(name)`, a read-only snapshot of `headers`, `log`, `params`, `path`, `query`, and the original `request`. Request loaders across the route chain run in parallel and their results are merged before each field promise resolves. Their fields use the same reserved names as public loaders. Access private fields by name; they are lazy and do not appear in `Object.keys(props)` or object spreads. The context object is shallowly frozen; the `request`, `params`, and `query` values are not immutable. Return only data safe to send to the current browser: request-loader output is serialized into the HTML stream or route-data response, so never return session tokens or server secrets.
 
 For SSG or ISR on a Bun server, Furin caches only the public loader result, renders request data per request, and marks the final document `private, no-store`. Pure static export rejects every `requestLoader()` because no request runtime exists.
 
@@ -121,6 +123,6 @@ For SSG or ISR on a Bun server, Furin caches only the public loader result, rend
 - Use Elysia's redirect response from a loader for navigation redirects.
 - Call `notFound()` when the URL is valid but the resource is missing.
 - Set response headers through the Elysia context on SSR routes.
-- Throwing from any public loader selects the nearest `error.tsx`; rejecting `requestData` is observed by React's Suspense/error boundaries.
+- Throwing from any public loader selects the nearest `error.tsx`; rejecting a request-loader field is observed by React's Suspense/error boundaries.
 
 For progressive public data, continue with [Deferred Data](/docs/defer).

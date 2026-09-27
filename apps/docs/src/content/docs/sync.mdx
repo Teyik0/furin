@@ -47,7 +47,7 @@ new Elysia()
 
 Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport automatically.
 
-The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. The shared WebSocket remains at `/_furin/events` under the Furin instance prefix.
+The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. Browser notifications use `/_furin/events` under the Furin instance prefix.
 
 ## Declare Synced Mutations
 
@@ -136,9 +136,9 @@ The adapter atomically commits the replay response and its invalidation journal 
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
-The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed WebSocket event or notifier outage delays discovery but does not erase committed changes.
+The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
-Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` WebSocket per page. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
+Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page. Bun servers use WebSocket; the Vercel adapter uses Server-Sent Events so notifications work through its HTTP handler. The browser reconnects automatically when Vercel ends a Function invocation and catches up through the durable journal. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
 
 ## Adapter Choice
 

@@ -134,16 +134,39 @@ describe("defineRoute", () => {
         user: cookies.get("session"),
       }))
       .loader(() => ({ catalog: "Shoes" }))
-      .page(({ catalog, requestData }) => {
+      .page((props) => {
+        const { catalog, locale, user } = props;
         const publicCatalog: string = catalog;
-        const privateData: Promise<{ locale: string; user: unknown }> = requestData;
-        return `${publicCatalog}:${String(privateData)}`;
+        const privateLocale: Promise<string> = locale;
+        const privateUser: Promise<unknown> = user;
+        // @ts-expect-error requestData is an internal transport field, not a page prop.
+        expect(props.requestData).toBeUndefined();
+        return `${publicCatalog}:${String(privateLocale)}:${String(privateUser)}`;
       });
 
     if (typeof privateRoute.requestLoader !== "function") {
       throw new Error("requestLoader was not retained on the route terminal");
     }
     await Promise.resolve();
+  });
+
+  test("does not expose parent request fields to a public child loader", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssr" })
+      .requestLoader(() => ({ session: "private" }))
+      .loader(() => ({ organization: "public" }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader((context) => {
+        const organization: Promise<string> = context.organization;
+        // @ts-expect-error Request loader data must not enter a public loader.
+        expect(context.session).toBeUndefined();
+        return { title: organization };
+      })
+      .page(({ title }) => String(title));
+
+    expect(child.loader).toBeFunction();
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {

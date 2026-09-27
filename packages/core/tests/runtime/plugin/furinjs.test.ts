@@ -256,6 +256,99 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
   ).toBe(importsAfterBoot);
 });
 
+test.serial(
+  "SPA data runs the parent Elysia guard for the logical page before loaders",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const pagesDir = join(app.path, "src/pages");
+    const loaderRunsKey = `__furin_guard_loader_runs_${Date.now()}`;
+    writeAppFile(
+      app.path,
+      "src/pages/secret.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'import { route as rootRoute } from "./root";',
+        `const loaderRunsKey = ${JSON.stringify(loaderRunsKey)};`,
+        "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })',
+        "  .loader(({ query }) => {",
+        "    testGlobal[loaderRunsKey] = Number(testGlobal[loaderRunsKey] ?? 0) + 1;",
+        '    return { secret: "protected", page: query.page };',
+        "  })",
+        "  .page(({ secret }) => <main>{secret}</main>);",
+      ].join("\n")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/login.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <main>Login</main>);",
+      ].join("\n")
+    );
+    __setDevMode(true);
+    process.chdir(app.path);
+
+    const instance = new Elysia()
+      .macro({
+        adminArea: {
+          beforeHandle: ({ path, redirect, request }) => {
+            if (path !== "/admin/login" && request.headers.get("x-test-user") !== "admin") {
+              return redirect("/admin/login", 302);
+            }
+          },
+        },
+      })
+      .guard({ adminArea: true })
+      .use(await furin({ pagesDir, prefix: "/admin" }));
+
+    const denied = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret")
+    );
+    expect(denied.status).toBe(302);
+    expect(denied.headers.get("location")).toBe("/admin/login");
+    expect(
+      (globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]
+    ).toBeUndefined();
+
+    const login = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Flogin")
+    );
+    expect(login.status).toBe(200);
+    expect(login.headers.get("content-type")).toContain("application/x-ndjson");
+
+    const allowed = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D2", {
+        headers: { "x-test-user": "admin" },
+      })
+    );
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(await allowed.text()).toContain('"page":2');
+    expect((globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]).toBe(1);
+  }
+);
+
+test.serial("SPA data does not dispatch an API path without a matching page", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .get("/api/private", () => ({ secret: true }))
+    .use(await furin({ pagesDir: join(app.path, "src/pages") }));
+
+  const response = await instance.handle(
+    new Request("http://furin/_furin/data?path=%2Fapi%2Fprivate")
+  );
+  expect(response.status).toBe(404);
+});
+
 test.serial("furin() preserves route data while an edited route is invalid", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");

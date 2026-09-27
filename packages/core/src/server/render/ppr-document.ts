@@ -54,7 +54,7 @@ export async function pprPublicResult(
   await parsed.completion;
   return {
     deferredPromises: undefined,
-    headers: state.headers,
+    headers: {},
     syncData: parsed.syncData,
     type: "data",
   };
@@ -155,7 +155,7 @@ export async function prerenderPprDocument(
     state: {
       buildId,
       data,
-      headers: result.headers,
+      headers: {},
       path: url.pathname + url.search,
       postponed: output.postponed,
       prefix,

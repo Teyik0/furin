@@ -68,6 +68,17 @@ const createParentlessRoute = () =>
       return String(user);
     });
 
+const createPrivatePublicConflict = () =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .requestLoader(() => ({ user: "private" }))
+    .loader(() => ({ user: "public" }))
+    .page(({ user }) => {
+      // @ts-expect-error — one prop cannot be both a public value and a private promise.
+      const privateUser: Promise<string> = user;
+      return String(privateUser);
+    });
+
 const createRoutesWithReservedLoaderKeys = () => {
   const noSchema = defineRootRoute()
     .config({ mode: "ssr" })
@@ -134,6 +145,10 @@ describe("defineRoute parentData conflicts", () => {
 
   test("no parent means no conflict surface", () => {
     expectTypeOf<ReturnType<typeof createParentlessRoute>>().not.toBeNever();
+  });
+
+  test("private and public fields with the same name conflict", () => {
+    expectTypeOf<ReturnType<typeof createPrivatePublicConflict>>().not.toBeNever();
   });
 
   test("reserved render-context keys are rejected by every loader chain", () => {

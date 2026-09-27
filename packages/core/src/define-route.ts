@@ -53,9 +53,14 @@ type DataOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
   ? Props extends LoaderData
-    ? Omit<Props, ReservedRenderContextKey>
+    ? Omit<Props, ReservedRenderContextKey | RequestKeysOfRoute<Route>>
     : NoFields
   : NoFields;
+type RequestKeysOfRoute<Route> = Route extends { requestLoader: infer RequestLoaderFn }
+  ? NonNullable<RequestLoaderFn> extends (...args: never[]) => infer Result
+    ? keyof Awaited<Result>
+    : never
+  : never;
 type ParamsOfRoute<Route> = Route extends {
   component: (props: infer Props) => unknown;
 }
@@ -141,7 +146,7 @@ type Loader<Params, Query, ParentData extends LoaderData, Data extends LoaderDat
 
 type RequestDataContext<RequestData extends LoaderData> = keyof RequestData extends never
   ? NoFields
-  : { requestData: Promise<RequestData> };
+  : PromisedData<RequestData>;
 
 type RequestLoader<Params, Query, Data extends LoaderData> = (
   context: RequestLoaderContext<Params, Query>
@@ -178,8 +183,10 @@ type RenderContext<
   params: Params;
   path: string;
   query: Query;
-} & WithoutParentDataConflicts<ParentData, Data> &
-  RequestDataContext<RequestData>;
+} & WithoutParentDataConflicts<
+  WithoutParentDataConflicts<ParentData, Data>,
+  RequestDataContext<RequestData>
+>;
 
 type Component<
   Params,
@@ -402,7 +409,7 @@ class NoSchemaChain<
     this.requestLoaderFunction = requestLoader;
   }
 
-  requestLoader<Data extends LoaderData>(
+  requestLoader<Data extends PublicLoaderData>(
     requestLoader: RequestLoader<Params, Query, Data>
   ): Omit<NoSchemaChain<Params, Query, ParentData, Data, ParentParams>, "staticParams"> {
     return new NoSchemaChain(this.metadata, requestLoader);
@@ -540,7 +547,7 @@ class QuerySchemaChain<
     this.requestLoaderFunction = requestLoader;
   }
 
-  requestLoader<Data extends LoaderData>(
+  requestLoader<Data extends PublicLoaderData>(
     requestLoader: RequestLoader<NoFields, Query, Data>
   ): Omit<QuerySchemaChain<Query, QuerySchema, ParentData, Data, ParentParams>, "staticParams"> {
     return new QuerySchemaChain(this.metadata, this.querySchema, requestLoader);
@@ -713,7 +720,7 @@ class SchemaChain<
     this.requestLoaderFunction = requestLoader;
   }
 
-  requestLoader<RequestLoaderData extends LoaderData>(
+  requestLoader<RequestLoaderData extends PublicLoaderData>(
     requestLoader: RequestLoader<Params, Query, RequestLoaderData>
   ): Omit<
     SchemaChain<

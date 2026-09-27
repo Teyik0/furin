@@ -5,7 +5,6 @@ interface ClientRuntimeProps {
   params?: unknown;
   path?: unknown;
   query?: unknown;
-  requestData?: unknown;
   [key: string]: unknown;
 }
 

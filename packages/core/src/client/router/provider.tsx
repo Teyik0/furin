@@ -266,6 +266,42 @@ export function RouterProvider({
           return null;
         }
 
+        if (res.redirected) {
+          const target = new URL(res.url);
+          const withinMount =
+            basePath === "" ||
+            target.pathname === basePath ||
+            target.pathname.startsWith(`${basePath}/`);
+          const targetPath = toLogical(target.pathname, basePath);
+          if (
+            target.origin === window.location.origin &&
+            withinMount &&
+            routes.some((route) => route.regex.test(targetPath))
+          ) {
+            await res.body?.cancel();
+            return {
+              data: {},
+              finalHref: targetPath + target.search,
+              match: null,
+              title: "",
+            };
+          }
+          window.location.href = target.href;
+          return null;
+        }
+
+        const contentType = res.headers.get("content-type") ?? "";
+        if (
+          !(
+            staticMode ||
+            contentType.includes("application/x-ndjson") ||
+            contentType.includes("application/x-furin-route")
+          )
+        ) {
+          window.location.href = physicalHref;
+          return null;
+        }
+
         const body = res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() });
         let parsed: {
           syncData: Record<string, unknown>;

@@ -14,7 +14,8 @@ export function withDocumentState(
   element: ReactNode,
   assets: DocumentAssets,
   head: HeadOptions | undefined,
-  data: object | undefined
+  data: object | undefined,
+  nonce?: string
 ): ReactNode {
   const syncPath = getSyncPath();
   const browserEventsClientPath = `${currentInstance().prefix}/_furin/events/client.js`;
@@ -33,6 +34,7 @@ export function withDocumentState(
     assets: resolvedAssets,
     dataJson: data === undefined || routeFrames !== undefined ? undefined : safeJson(data),
     head,
+    nonce,
     routeFrames,
     syncJson: syncPath === undefined ? undefined : safeJson({ path: syncPath }),
   };

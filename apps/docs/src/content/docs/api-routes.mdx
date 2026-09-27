@@ -84,6 +84,14 @@ export const accountApi = new Elysia({ prefix: "/api/account" })
 
 Plugin order matters when hooks or macros must exist before a route is declared. Keep related dependencies and routes inside one plugin where possible. Use Elysia's `local`, `plugin`, and `global` lifecycle scope intentionally; a global hook can affect pages and sibling plugins.
 
+For a guarded page, use `beforeHandle` to return a redirect or denial. Furin dispatches `/_furin/data?path=...` through a registered page route, so the same Elysia guard runs before loaders for both document requests and SPA navigation. The browser follows an HTTP redirect to another Furin page as a client navigation. A `derive` hook can add context such as `user`, but returning a redirect from `derive` does not stop Elysia's handler.
+
+Only use this guard as an access boundary for registered SSR page routes. Root catch-all pages and pages added at runtime in development can be rendered through Furin's 404 fallback without running the parent guard. SSG and ISR output can be served from a cache without reaching Elysia. Authorize sensitive loaders and API routes directly in those cases.
+
+## Cookie-Authenticated Mutations And CSRF
+
+Furin does not add CSRF protection to arbitrary Elysia routes. For mutations authenticated with cookies, install an Elysia-compatible CSRF plugin on the API instance before declaring those routes, and verify its compatibility with the Elysia version used by your app. Elysia [lists community CSRF plugins](https://elysiajs.com/plugins/overview). Keep cross-origin webhooks and token-authenticated endpoints in separate plugins so their policies can differ. Authenticate and authorize each mutation; CSRF protection does not grant access. Use `HttpOnly`, `Secure`, and `SameSite=Lax` or `Strict` for session cookies, but do not rely on `SameSite` alone. Do not perform mutations with `GET`.
+
 ## Typed Browser Client
 
 Eden Treaty can derive a client from the exported Elysia type:

@@ -123,6 +123,7 @@ describe("RouterProvider server-side redirect follow", () => {
   let originalReplaceState: typeof window.history.replaceState | undefined;
   let replaceStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
+  let httpRedirect = false;
 
   beforeEach(() => {
     installDom();
@@ -134,6 +135,7 @@ describe("RouterProvider server-side redirect follow", () => {
         : undefined;
     replaceStateCalls = [];
     currentCleanup = undefined;
+    httpRedirect = false;
 
     globalThis.fetch = mock((input: RequestInfo | URL) => {
       const url = new URL(input.toString(), window.location.origin);
@@ -141,6 +143,16 @@ describe("RouterProvider server-side redirect follow", () => {
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
 
       if (logicalPath === "/page-b") {
+        if (httpRedirect) {
+          const response = new Response("<html>Redirected</html>", {
+            headers: { "content-type": "text/html" },
+          });
+          Object.defineProperties(response, {
+            redirected: { value: true },
+            url: { value: "http://localhost:3000/page-c" },
+          });
+          return Promise.resolve(response);
+        }
         // Simulate a server-side redirect: /page-b -> /page-c
         return Promise.resolve(
           makeNdjsonResponse({ __furinRedirect: "/page-c", message: "redirected" })
@@ -219,4 +231,35 @@ describe("RouterProvider server-side redirect follow", () => {
     },
     { timeout: 5000 }
   );
+
+  test("follows an HTTP guard redirect after the data fetch", async () => {
+    httpRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.location.pathname === "/page-c") {
+          clearInterval(interval);
+          resolve();
+        } else if (Date.now() - start > 2000) {
+          clearInterval(interval);
+          reject(new Error("Timed out waiting for HTTP guard redirect"));
+        }
+      }, 10);
+    });
+    await flushReactUpdates();
+    expect(window.location.pathname).toBe("/page-c");
+  });
 });

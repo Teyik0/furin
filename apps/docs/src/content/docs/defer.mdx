@@ -61,7 +61,7 @@ Layouts use the same API. Their synchronous and deferred fields merge with desce
 
 - Deferred public data is supported only by `mode: "ssr"`.
 - SSG and ISR fail fast when a public loader returns deferred promise fields.
-- `requestLoader()` is a different mechanism: it isolates per-request data from a cached public result and exposes one `requestData` promise.
+- `requestLoader()` is a different mechanism: it isolates per-request data from a cached public result and exposes each returned field as a promise.
 - Do not call `defer()` twice on the same object.
 - Keep the shell useful without the deferred result; otherwise a normal awaited loader is simpler.
 

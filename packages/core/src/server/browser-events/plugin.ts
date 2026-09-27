@@ -1,6 +1,9 @@
 import { type AnyElysia, Elysia } from "elysia";
 import { websocket } from "elysia/websocket";
-import { browserEventsClientSource } from "../../client/browser-events-runtime.ts";
+import {
+  browserEventsClientSource,
+  browserEventsSseClientSource,
+} from "../../client/browser-events-runtime.ts";
 import {
   BROWSER_EVENT_PROTOCOL_VERSION,
   type BrowserEventEnvelope,
@@ -15,8 +18,11 @@ import type { BrowserEventSource, BrowserEventSubscription } from "./types.ts";
 const CLIENT_PATH = "/_furin/events/client.js";
 const SOCKET_PATH = "/_furin/events";
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const SSE_CONNECTION_LIFETIME_MS = 60_000;
 const MAX_BROWSER_EVENT_CONNECTIONS = 100;
 const CLIENT_SOURCE = browserEventsClientSource();
+const SSE_CLIENT_SOURCE = browserEventsSseClientSource();
+const SSE_ENCODER = new TextEncoder();
 
 interface BrowserEventsPluginOptions {
   sources?: readonly BrowserEventSource[];
@@ -162,6 +168,111 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
           ws.close(1011, "Furin browser event subscription failed");
         }
       },
+    });
+}
+
+export function createSseBrowserEventsPlugin({ sync }: { sync: FurinSyncOptions }): AnyElysia {
+  const connections = new Set<() => void>();
+  return new Elysia({ name: "furin-browser-events-sse" })
+    .get(CLIENT_PATH, ({ request, server }) => {
+      const forbidden = forbiddenBrowserRequest(request, server);
+      if (forbidden) {
+        return forbidden;
+      }
+      return new Response(SSE_CLIENT_SOURCE, {
+        headers: {
+          "cache-control": "no-store",
+          "content-type": "text/javascript; charset=utf-8",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    })
+    .get(SOCKET_PATH, ({ request, server }) => {
+      const forbidden = forbiddenBrowserRequest(request, server);
+      if (forbidden) {
+        return forbidden;
+      }
+      if (connections.size >= MAX_BROWSER_EVENT_CONNECTIONS) {
+        return new Response("retry: 5000\n\n", {
+          headers: {
+            "cache-control": "no-cache, no-transform",
+            "content-type": "text/event-stream; charset=utf-8",
+          },
+        });
+      }
+
+      let release = (): void => undefined;
+      const stream = new ReadableStream<Uint8Array>({
+        cancel() {
+          release();
+        },
+        start(controller) {
+          let closed = false;
+          let subscription: BrowserEventSubscription | undefined;
+          let lifetime: ReturnType<typeof setTimeout> | undefined;
+          const send = (event: BrowserEventEnvelope): void => {
+            if (!closed) {
+              controller.enqueue(SSE_ENCODER.encode(`data: ${serialized(event)}\n\n`));
+            }
+          };
+          const heartbeat = setInterval(() => {
+            if (!closed) {
+              controller.enqueue(SSE_ENCODER.encode(": ping\n\n"));
+            }
+          }, HEARTBEAT_INTERVAL_MS);
+          heartbeat.unref?.();
+          const finish = (): void => {
+            if (closed) {
+              return;
+            }
+            release();
+            controller.close();
+          };
+          const onAbort = finish;
+          release = () => {
+            if (closed) {
+              return;
+            }
+            closed = true;
+            clearInterval(heartbeat);
+            if (lifetime) {
+              clearTimeout(lifetime);
+            }
+            request.signal.removeEventListener("abort", onAbort);
+            subscription?.unsubscribe();
+            connections.delete(release);
+          };
+          connections.add(release);
+          request.signal.addEventListener("abort", onAbort, { once: true });
+          if (request.signal.aborted) {
+            finish();
+            return;
+          }
+          // Bun Vercel Functions do not expose request cancellation; bound the subscription.
+          lifetime = setTimeout(finish, SSE_CONNECTION_LIFETIME_MS);
+          lifetime.unref?.();
+          controller.enqueue(SSE_ENCODER.encode(": connected\n\n"));
+          subscribeSyncCursor(sync, (cursor) =>
+            send({ channel: "sync", data: { cursor }, version: BROWSER_EVENT_PROTOCOL_VERSION })
+          )
+            .then((next) => {
+              if (closed) {
+                next.unsubscribe();
+              } else {
+                subscription = next;
+              }
+            })
+            .catch(() => {
+              finish();
+            });
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream; charset=utf-8",
+        },
+      });
     });
 }
 

@@ -191,6 +191,18 @@ async function createLoaderDataResponse(
   return applyNavigationDataCache(response, result, route, requestUrl);
 }
 
+/** Serialise navigation data after Elysia has run the matched page's hooks. */
+export async function renderRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[],
+  logicalHref: string
+): Promise<Response> {
+  const result = await runDataEndpointLoaders(route, ctx, root, searchRoutes);
+  return createLoaderDataResponse(result, route, new URL(logicalHref, ctx.request.url).href, ctx);
+}
+
 async function createRouteDataErrorResponse(
   error: unknown,
   message: string,

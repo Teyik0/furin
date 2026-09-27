@@ -105,8 +105,8 @@ The first request renders and stores a healthy response. After 60 seconds, the n
 SSG and ISR can cache public data while rendering a request-private section on each request:
 
 ```tsx
-import { defineRoute } from "@teyik0/furin";
-import { Suspense, use } from "react";
+import { Await, defineRoute } from "@teyik0/furin";
+import { Suspense } from "react";
 import { route as rootRoute } from "../root";
 
 export const route = defineRoute()
@@ -115,11 +115,13 @@ export const route = defineRoute()
     account: getAccount(cookies.get("session")),
   }))
   .loader(async () => ({ catalog: await getCatalog() }))
-  .page(({ catalog, requestData }) => (
+  .page(({ account, catalog }) => (
     <>
       <Catalog value={catalog} />
       <Suspense fallback={<AccountSkeleton />}>
-        <Account value={use(requestData).account} />
+        <Await resolve={account}>
+          {(resolvedAccount) => <Account value={resolvedAccount} />}
+        </Await>
       </Suspense>
     </>
   ));
@@ -132,5 +134,39 @@ Furin caches the public loader result, not the personalized document. The final 
 React server-component transport is a loader value, not another route mode. `createCompositeComponent()` encodes server-rendered markup and `<CompositeComponent>` fills declared interactive slots in the browser. Use it when a server-only component tree materially reduces client code; use ordinary React components for the common case.
 
 Furin's composite API is intentionally narrower than the Next.js React Server Component model: it does not provide Server Actions, and mutations remain Elysia routes.
+
+## Content Security Policy
+
+Install `furinCsp()` before Furin routes. Its `policy` callback receives a fresh nonce for live SSR and `undefined` for cached SSG/ISR HTML. Furin adds the SSR nonce to its own scripts, React's streaming scripts, and scripts and styles declared through `head()`. The callback lets the application choose the rest of the policy.
+
+```ts
+// src/server.ts
+import { furin, furinCsp } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+export const app = new Elysia()
+  .use(furinCsp({
+    policy: (nonce) => [
+      "default-src 'self'",
+      `script-src 'self' ${nonce ? `'nonce-${nonce}'` : "'unsafe-inline'"}`,
+      `style-src 'self' ${nonce ? `'nonce-${nonce}'` : "'unsafe-inline'"}`,
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join("; "),
+  }))
+  .use(await furin({ pagesDir: "./src/pages" }));
+```
+
+```tsx
+// src/pages/account.tsx
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .head(() => ({ scripts: [{ children: "window.accountReady = true" }] }))
+  .page(() => <main>Account</main>);
+```
+
+The sample keeps inline scripts working on cached pages with `'unsafe-inline'`; that branch of the policy is weaker than the SSR nonce branch. A nonce changes for every request, so it cannot match scripts in reusable HTML. This is the same cache tradeoff documented by [Next.js](https://nextjs.org/docs/app/guides/content-security-policy). For a stronger policy on cached pages, move their executable inline scripts to external files or use stable hashes and serve the corresponding header with the cached HTML. That requires a separate review of Furin's cached transport scripts. Pure static exports do not run the Elysia plugin: configure the CSP header at the static host.
+
+Inline scripts or styles written directly in a custom root document do not automatically receive a nonce. Move them into `head()` or provide your own nonce handling. `furinCsp()` is opt-in; other directives, third-party hosts, and reporting endpoints remain application choices. Set `reportOnly: true` to emit `Content-Security-Policy-Report-Only` while checking a new policy.
 
 Continue with [Caching](/docs/caching) for headers and on-demand invalidation.

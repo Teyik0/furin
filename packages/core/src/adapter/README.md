@@ -33,6 +33,9 @@ and keeps background ISR work alive with `waitUntil`.
 The Function bundle uses the same Elysia AOT capture path with the Bun target.
 No custom Elysia runtime adapter is needed: Vercel invokes the application's
 Web-standard `handle(Request)` API inside its Bun runtime.
+For Furin Sync, the Vercel target streams browser cursor notifications through
+Server-Sent Events at `/_furin/events`. Bun servers keep the WebSocket transport.
+Both transports use the durable `/_furin/sync/changes` endpoint after reconnects.
 
 Vercel Prerender Function invocations bypass Furin's process-local SSG/ISR
 cache. The CDN owns freshness and each regeneration returns newly rendered

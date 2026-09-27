@@ -50,7 +50,7 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
 
   return new Elysia({ name: "furin-evlog" })
     .derive("global", ({ request }) => {
-      const log = requestLoggers.get(request);
+      const log = requestLoggers.get(request) ?? loggerStorage.useLogger();
       if (log === undefined) {
         throw new Error("[furin] Request logger was not initialized");
       }

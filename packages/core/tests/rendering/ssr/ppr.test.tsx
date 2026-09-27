@@ -82,6 +82,59 @@ afterAll(async () => {
   await Promise.resolve();
 });
 
+test("SSR requestLoader responses stay private when a loader sets Cache-Control", async () => {
+  const resolved = resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
+      .loader(({ set }) => {
+        set.headers["Cache-Control"] = "public, s-maxage=60";
+        return { title: "Account" };
+      })
+      .page(({ user }) => (
+        <Suspense fallback="Loading">
+          <User data={user} />
+        </Suspense>
+      ))
+  );
+  function User({ data }: { data: Promise<unknown> }) {
+    return <strong>{String(use(data))}</strong>;
+  }
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const response = await app.handle(
+    new Request("http://localhost/account", { headers: { cookie: "session=Alice" } })
+  );
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  expect(response.headers.get("cache-control")).not.toContain("public");
+  expect(await response.text()).toContain("Alice");
+});
+
+test("SSR exposes requestLoader fields as individual promises", async () => {
+  const resolved = resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .requestLoader(async () => ({ user: "Alice" }))
+      .loader(() => ({ title: "Account" }))
+      .page(({ title, user }) => (
+        <main>
+          <h1>{title}</h1>
+          <Suspense fallback="Loading">
+            <PrivateUser user={user} />
+          </Suspense>
+        </main>
+      ))
+  );
+  function PrivateUser({ user }: { user: Promise<string> }) {
+    return <strong>{use(user)}</strong>;
+  }
+
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const response = await app.handle(new Request("http://localhost/account"));
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("<strong>Alice</strong>");
+});
+
 describe.serial("partial prerendering", () => {
   for (const failure of ["unavailable", "invalid-json", "invalid-payload"]) {
     test(`serves PPR when the deployment cache is ${failure}`, async () => {
@@ -147,15 +200,15 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: publicCalls, date: new Date("2026-01-01") };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
     const resolved = resolveRoute(
-      route.page(({ catalog, date, requestData }) => (
+      route.page(({ catalog, date, user }) => (
         <main>
           {catalog}:{date.toISOString()}
           <Suspense fallback="loading">
-            <User data={requestData} />
+            <User data={user} />
           </Suspense>
         </main>
       ))
@@ -215,14 +268,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: "Shoes" };
       });
-    function User({ data }: { data: Promise<{ user: unknown }> }) {
-      return <strong>{String(use(data).user)}</strong>;
+    function User({ data }: { data: Promise<unknown> }) {
+      return <strong>{String(use(data))}</strong>;
     }
-    const page = route.page(({ catalog, requestData }) => (
+    const page = route.page(({ catalog, user }) => (
       <main>
         <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -259,14 +312,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { view: query.view ?? "" };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
-    const page = route.page(({ requestData, view }) => (
+    const page = route.page(({ user, view }) => (
       <main>
         <h1>{view}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -299,14 +352,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
-    const page = route.page(({ catalog: loadedCatalog, requestData }) => (
+    const page = route.page(({ catalog: loadedCatalog, user }) => (
       <main>
         <h1>{loadedCatalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -500,18 +553,18 @@ describe.serial("partial prerendering", () => {
   test("streams a rejected requestData chunk instead of aborting the PPR response", async () => {
     const route = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
-      .requestLoader(() => {
+      .requestLoader((): { user: string } => {
         throw new Error("private boom");
       })
       .loader(() => ({ catalog: "Shoes" }));
-    function User({ data }: { data: Promise<{ user: unknown }> }) {
-      return <strong>{String(use(data).user)}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{String(use(data))}</strong>;
     }
-    const page = route.page(({ catalog, requestData }) => (
+    const page = route.page(({ catalog, user }) => (
       <main>
         <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));

@@ -22,6 +22,7 @@ import { currentInstance } from "../instance.ts";
 // FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { useRequestCspNonce } from "../security/csp.ts";
 import {
   buildDeferredResolution,
   buildDeferredScript,
@@ -208,10 +209,12 @@ export async function renderElementWithShellFallback(
   element: ReactNode,
   errorComponent: Parameters<typeof buildErrorElement>[0],
   ssrContext: RouterContextValue,
-  wrapFallbackDocument: (element: ReactNode, digest: string, message: string) => ReactNode
+  wrapFallbackDocument: (element: ReactNode, digest: string, message: string) => ReactNode,
+  nonce?: string
 ): Promise<ShellFallbackResult> {
+  const options = nonce === undefined ? undefined : { nonce };
   try {
-    const stream = await renderToReadableStream(element);
+    const stream = await renderToReadableStream(element, options);
     return { shellError: undefined, stream: await requireDocumentStream(stream) };
   } catch (error) {
     if (IS_DEV) {
@@ -228,7 +231,8 @@ export async function renderElementWithShellFallback(
           ),
           digest,
           message
-        )
+        ),
+        options
       );
       return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
     } catch {
@@ -241,7 +245,8 @@ export async function renderElementWithShellFallback(
           ),
           digest,
           message
-        )
+        ),
+        options
       );
       return { shellError: { digest, message }, stream: await requireDocumentStream(stream) };
     }
@@ -719,18 +724,19 @@ export function buildSsrTransportScripts(
   dataPayload: Record<string, unknown>,
   deferredKeys: string[],
   hasDeferred: boolean,
-  shellErrored: boolean
+  shellErrored: boolean,
+  nonce?: string
 ): SsrTransportScripts {
   const usesRouteFrames = !shellErrored && (containsRscSource(dataPayload) || hasDeferred);
   const deferredSetupScript =
-    hasDeferred && !usesRouteFrames ? buildDeferredScript(deferredKeys) : "";
+    hasDeferred && !usesRouteFrames ? buildDeferredScript(deferredKeys, nonce) : "";
   const dataScript = usesRouteFrames
     ? buildRouteFrameTemplate(
         serializeRouteFrames(dataPayload, hasDeferred ? deferredKeys : undefined)
       )
     : `<script id="__FURIN_DATA__" type="application/json">${safeJson(dataPayload)}</script>`;
   const routeFrameStreamScript =
-    hasDeferred && usesRouteFrames ? buildRouteFrameStreamScript() : "";
+    hasDeferred && usesRouteFrames ? buildRouteFrameStreamScript(nonce) : "";
 
   return {
     deferredSetupScript,
@@ -745,22 +751,23 @@ async function writeDeferredSsrChunk(
   key: string,
   promise: Promise<unknown>,
   index: number,
-  usesRouteFrames: boolean
+  usesRouteFrames: boolean,
+  nonce?: string
 ): Promise<void> {
   if (usesRouteFrames) {
     const frames = await serializeDeferredRouteFrame(key, promise, `defer-${index}`);
-    await writer.write(enc.encode(buildRouteFramePushScript(frames)));
+    await writer.write(enc.encode(buildRouteFramePushScript(frames, nonce)));
     return;
   }
 
   try {
     const resolvedValue = await promise;
     const chunk = toCrossJSON(resolvedValue);
-    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "resolve")));
+    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "resolve", nonce)));
   } catch (err) {
     const normalized = await serializeDeferredRejection(err);
     const chunk = toCrossJSON(normalized);
-    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "reject")));
+    await writer.write(enc.encode(buildDeferredResolution(key, chunk, "reject", nonce)));
   }
 }
 
@@ -768,15 +775,16 @@ export async function writeDeferredSsrChunks(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   deferredPromises: Record<string, Promise<unknown>>,
-  usesRouteFrames: boolean
+  usesRouteFrames: boolean,
+  nonce?: string
 ): Promise<void> {
   await Promise.all(
     Object.entries(deferredPromises).map(([key, promise], index) =>
-      writeDeferredSsrChunk(writer, enc, key, promise, index, usesRouteFrames)
+      writeDeferredSsrChunk(writer, enc, key, promise, index, usesRouteFrames, nonce)
     )
   );
   if (usesRouteFrames) {
-    await writer.write(enc.encode(buildRouteFrameCloseScript()));
+    await writer.write(enc.encode(buildRouteFrameCloseScript(nonce)));
   }
 }
 
@@ -837,6 +845,7 @@ export async function renderSSR(
   precomputedLoaderResult: LoaderResult | undefined,
   searchRoutes?: SearchRouteMetadata[]
 ): Promise<Response> {
+  const nonce = useRequestCspNonce(ctx.request);
   const prepared = await prepareRender(
     route,
     ctx,
@@ -882,15 +891,23 @@ export async function renderSSR(
       element,
       assets,
       headData,
-      requiresTransport ? undefined : initialDataPayload
+      requiresTransport ? undefined : initialDataPayload,
+      nonce
     ),
     route.error ?? root.error,
     prepared.ssrContext,
     (fallback, digest, message) =>
-      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        __furinError: { digest, message, status: 500 },
-        __furinStatus: 500,
-      })
+      withDocumentState(
+        createElement(FurinDocumentFallback, null, fallback),
+        assets,
+        headData,
+        {
+          __furinError: { digest, message, status: 500 },
+          __furinStatus: 500,
+        },
+        nonce
+      ),
+    nonce
   );
   const shellErrored = shellError !== undefined;
   let { errorDigest: finalDigest, status } = prepared;
@@ -932,7 +949,8 @@ export async function renderSSR(
     dataPayload,
     deferredKeys,
     hasDeferred,
-    shellErrored
+    shellErrored,
+    nonce
   );
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -957,7 +975,7 @@ export async function renderSSR(
         >();
         const chunkWriter = chunkWritable.getWriter();
         const chunkText = streamToString(chunkReadable);
-        await writeDeferredSsrChunks(chunkWriter, enc, deferredPromises, usesRouteFrames);
+        await writeDeferredSsrChunks(chunkWriter, enc, deferredPromises, usesRouteFrames, nonce);
         await chunkWriter.close();
         return chunkText;
       }
@@ -965,12 +983,11 @@ export async function renderSSR(
     await writer.close();
   })().catch((err) => writer.abort(err));
 
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  responseHeaders.set("Content-Type", "text/html; charset=utf-8");
   return new Response(readable, {
-    headers: {
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      "Content-Type": "text/html; charset=utf-8",
-      ...headers,
-    },
+    headers: responseHeaders,
     status,
   });
 }

@@ -280,7 +280,14 @@ export function runRequestLoaderData(
         ctx.path
       )
     )
-  ).then((results) => Object.assign({}, ...results));
+  ).then((results) => {
+    for (const result of results) {
+      for (const key of Object.keys(result)) {
+        assertPublicLoaderKey(key);
+      }
+    }
+    return Object.assign({}, ...results);
+  });
   requestData.catch(() => {
     /* React observes the original rejection through requestData. */
   });
