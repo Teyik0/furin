@@ -95,9 +95,11 @@ test("reads the durable cursor after the initial LISTEN and every reconnect", as
   );
 
   const received: string[] = [];
-  await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe((nextCursor) => {
-    received.push(nextCursor);
-  });
+  const subscription = await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe(
+    (nextCursor) => {
+      received.push(nextCursor);
+    }
+  );
 
   listenCallback?.();
   await Bun.sleep(0);
@@ -107,6 +109,46 @@ test("reads the durable cursor after the initial LISTEN and every reconnect", as
 
   expect(received).toEqual(["3", "4"]);
   expect(queriedNamespaces).toEqual(["task-manager", "task-manager"]);
+  await subscription.unsubscribe();
+});
+
+test("recovers a cursor change when LISTEN succeeds but a pooler drops notifications", async () => {
+  let cursor = "3";
+  let checkCursor: (() => void) | undefined;
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((callback: () => void, delay: number) => {
+    expect(delay).toBe(15_000);
+    checkCursor = callback;
+    return originalSetInterval(callback, delay);
+  }) as typeof setInterval;
+
+  const sql = (() => Promise.resolve([{ current_cursor: cursor }])) as unknown as SQL;
+  sql.listen = mock(() => {
+    const unlisten = () => Promise.resolve();
+    return Promise.resolve({ channel: "test", unlisten, [Symbol.asyncDispose]: unlisten });
+  });
+
+  const received: string[] = [];
+  try {
+    const subscription = await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe(
+      (nextCursor) => received.push(nextCursor)
+    );
+    try {
+      cursor = "4";
+      checkCursor?.();
+      await Bun.sleep(0);
+
+      expect(received).toEqual(["4"]);
+    } finally {
+      await subscription.unsubscribe();
+    }
+    cursor = "5";
+    checkCursor?.();
+    await Bun.sleep(0);
+    expect(received).toEqual(["4"]);
+  } finally {
+    globalThis.setInterval = originalSetInterval;
+  }
 });
 
 test("does not regress after a newer notification overtakes reconnect recovery", async () => {
@@ -135,9 +177,11 @@ test("does not regress after a newer notification overtakes reconnect recovery",
   );
 
   const received: string[] = [];
-  await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe((cursor) => {
-    received.push(cursor);
-  });
+  const subscription = await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe(
+    (cursor) => {
+      received.push(cursor);
+    }
+  );
 
   listenCallback?.();
   notifyListener?.("4");
@@ -145,6 +189,7 @@ test("does not regress after a newer notification overtakes reconnect recovery",
   await Bun.sleep(0);
 
   expect(received).toEqual(["4"]);
+  await subscription.unsubscribe();
 });
 
 test("retries a failed reconnect cursor read", async () => {
