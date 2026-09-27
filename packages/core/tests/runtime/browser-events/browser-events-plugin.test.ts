@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { Elysia } from "elysia";
-import { createBrowserEventsPlugin } from "../../../src/server/browser-events/plugin.ts";
+import {
+  createBrowserEventsPlugin,
+  createSseBrowserEventsPlugin,
+} from "../../../src/server/browser-events/plugin.ts";
 import type { SyncAdapter, SyncNotifier } from "../../../src/server/sync/adapter.ts";
 import { __resetSyncState } from "../../../src/server/sync/stream.ts";
 
@@ -22,6 +25,181 @@ const notifier: SyncNotifier = {
   publish: () => Promise.resolve(),
   subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
 };
+
+test("SSE delivers sync cursors through app.handle without a listening server", async () => {
+  let notify: ((cursor: string) => void) | undefined;
+  let unsubscribed = false;
+  const app = new Elysia().use(
+    createSseBrowserEventsPlugin({
+      sync: {
+        adapter,
+        notifier: {
+          publish: () => Promise.resolve(),
+          subscribe(listener) {
+            notify = listener;
+            return Promise.resolve({
+              unsubscribe: () => {
+                unsubscribed = true;
+                return Promise.resolve();
+              },
+            });
+          },
+        },
+        principal: () => "test",
+      },
+    })
+  );
+  const response = await app.handle(new Request("http://localhost/_furin/events"));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toStartWith("text/event-stream");
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Expected an SSE response body");
+  }
+  try {
+    const initial = await reader.read();
+    const cursor = await reader.read();
+    expect(new TextDecoder().decode(initial.value)).toBe(": connected\n\n");
+    expect(new TextDecoder().decode(cursor.value)).toContain('"cursor":"7"');
+    notify?.("8");
+    const update = await reader.read();
+    expect(new TextDecoder().decode(update.value)).toContain('"cursor":"8"');
+  } finally {
+    await reader.cancel();
+  }
+  expect(unsubscribed).toBe(true);
+});
+
+test("SSE routes stay independent when Furin apps use different prefixes", async () => {
+  const root = createSseBrowserEventsPlugin({
+    sync: { adapter, notifier, principal: () => "test" },
+  });
+  const admin = new Elysia({ prefix: "/admin" }).use(
+    createSseBrowserEventsPlugin({
+      sync: {
+        adapter: { ...adapter, currentCursor: () => Promise.resolve("9") },
+        notifier,
+        principal: () => "test",
+      },
+    })
+  );
+  const app = new Elysia().use(root).use(admin);
+  const rootResponse = await app.handle(new Request("http://localhost/_furin/events"));
+  const adminResponse = await app.handle(new Request("http://localhost/admin/_furin/events"));
+  const rootReader = rootResponse.body?.getReader();
+  const adminReader = adminResponse.body?.getReader();
+  if (!(rootReader && adminReader)) {
+    throw new Error("Expected both SSE response bodies");
+  }
+  try {
+    await rootReader.read();
+    await adminReader.read();
+    const rootCursor = await rootReader.read();
+    const adminCursor = await adminReader.read();
+    expect(new TextDecoder().decode(rootCursor.value)).toContain('"cursor":"7"');
+    expect(new TextDecoder().decode(adminCursor.value)).toContain('"cursor":"9"');
+  } finally {
+    await rootReader.cancel();
+    await adminReader.cancel();
+  }
+});
+
+test("SSE tells a browser to retry when connection capacity is full", async () => {
+  const app = new Elysia().use(
+    createSseBrowserEventsPlugin({
+      sync: { adapter, notifier, principal: () => "test" },
+    })
+  );
+  const connections = await Promise.all(
+    Array.from({ length: 100 }, () => app.handle(new Request("http://localhost/_furin/events")))
+  );
+  try {
+    const retry = await app.handle(new Request("http://localhost/_furin/events"));
+    expect(retry.status).toBe(200);
+    expect(retry.headers.get("content-type")).toStartWith("text/event-stream");
+    expect(await retry.text()).toContain("retry: 5000");
+  } finally {
+    await Promise.all(connections.map((response) => response.body?.cancel()));
+  }
+});
+
+test.serial("SSE expires and releases its notifier subscription", async () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  let expire: (() => void) | undefined;
+  let unsubscribed = false;
+  globalThis.setTimeout = ((...args: Parameters<typeof setTimeout>) => {
+    const [callback, delay] = args;
+    if (delay === 60_000 && typeof callback === "function") {
+      expire = () => callback();
+    }
+    return originalSetTimeout(...args);
+  }) as typeof setTimeout;
+
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const app = new Elysia().use(
+      createSseBrowserEventsPlugin({
+        sync: {
+          adapter,
+          notifier: {
+            publish: () => Promise.resolve(),
+            subscribe: () =>
+              Promise.resolve({
+                unsubscribe: () => {
+                  unsubscribed = true;
+                  return Promise.resolve();
+                },
+              }),
+          },
+          principal: () => "test",
+        },
+      })
+    );
+    const response = await app.handle(new Request("http://localhost/_furin/events"));
+    reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Expected an SSE response body");
+    }
+    await reader.read();
+    await reader.read();
+    if (!expire) {
+      throw new Error("Expected an SSE connection lifetime timer");
+    }
+    expire();
+    expect((await reader.read()).done).toBe(true);
+    expect(unsubscribed).toBe(true);
+  } finally {
+    await reader?.cancel();
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
+test("SSE closes a request that was already aborted", async () => {
+  let subscribed = false;
+  const app = new Elysia().use(
+    createSseBrowserEventsPlugin({
+      sync: {
+        adapter,
+        notifier: {
+          publish: () => Promise.resolve(),
+          subscribe: () => {
+            subscribed = true;
+            return Promise.resolve({ unsubscribe: () => Promise.resolve() });
+          },
+        },
+        principal: () => "test",
+      },
+    })
+  );
+  const abort = new AbortController();
+  abort.abort();
+  const response = await app.handle(
+    new Request("http://localhost/_furin/events", { signal: abort.signal })
+  );
+  const reader = response.body?.getReader();
+  expect((await reader?.read())?.done).toBe(true);
+  expect(subscribed).toBe(false);
+});
 
 test("browser event socket sends the current durable sync cursor", async () => {
   const app = new Elysia()

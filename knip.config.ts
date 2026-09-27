@@ -7,7 +7,11 @@ const config: KnipConfig = {
       // doctor.config.ts is consumed by the react-doctor CLI (not imported by
       // app code); list it as an entry so its `react-doctor/api` type import
       // also marks the dependency as used.
-      entry: ["doctor.config.ts", "scripts/compare-vercel-framework-reports.ts"],
+      entry: [
+        "doctor.config.ts",
+        "scripts/compare-vercel-framework-reports.ts",
+        "scripts/startup-weather-preload.ts",
+      ],
       // @biomejs/biome is used via biome.jsonc but not directly imported in JS/TS
       // @commitlint/cli is the CLI runner; commitlint plugin detects config-conventional
       ignoreDependencies: ["@biomejs/biome", "@commitlint/cli", "@happy-dom/global-registrator"],
@@ -50,6 +54,8 @@ const config: KnipConfig = {
       ],
       ignoreDependencies: ["expect-type"],
       ignoreIssues: {
+        // discovery.ts loads this export through a runtime-computed module URL.
+        "src/build/request-keys.ts": ["exports"],
         "src/server/auto-invalidate/index.ts": ["exports"],
         "src/server/cache/index.ts": ["exports", "types"],
         "src/server/devtools/hub.ts": ["exports"],

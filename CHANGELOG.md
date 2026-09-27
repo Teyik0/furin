@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.6.0-alpha.1] — 2026-09-27
+
+### Breaking
+- **Request-private loader fields** — SSG/ISR `requestLoader()` fields are inferred from its return object and exposed as individual promises beside public loader props, without a `requestData` wrapper. SSR pages use `loader()` and `defer()` instead of declaring their own `requestLoader()`.
+- **Loader context by segment mode** — SSR loaders retain the Elysia request context; SSG/ISR loaders receive only public route data and cannot read request-bound fields or private ancestor results.
+
+### Added
+- **Mixed rendering modes** — each layout and page keeps its own mode. Public SSG/ISR loader results remain cacheable under an SSR layout, while the combined HTML stays private. Public shells with request-private Suspense sections continue to use PPR.
+- **Vercel sync notifications** — the Vercel adapter streams sync cursor events over Server-Sent Events; Bun servers continue to use the shared WebSocket channel.
+- **Scoped Elysia guards for page requests** — page rendering and SPA navigation carry the request context needed by route guards.
+- **Application CSP policy** — `furinCsp()` attaches an application-defined Content Security Policy to HTML responses and supplies a per-request nonce to SSR scripts.
+
+### Fixed
+- **SPA navigation** — prefetched redirects are checked again during active navigation, and superseded responses cannot override newer navigation.
+- **Error recovery** — changing route data clears an error boundary without triggering another automatic refresh; manual retry still refreshes the route.
+- **PostgreSQL sync recovery** — a durable cursor check recovers notifications missed by a transaction pooler, while failed reads keep their retry backoff.
+- **Development and build reliability** — private request fields stream independently, source changes refresh pages, and Windows path handling remains stable.
+
+## [0.5.0-alpha.2] — 2026-09-26
+
 ### Breaking
 - **Elysia 2 Kiana contracts** — Furin now targets Elysia 2 and TypeBox 1 with the hook-first route signature. Run the official Elysia codemod before applying the Furin-specific migration steps.
 - **Supported build targets** — `node` and `cloudflare` have been removed from `BUILD_TARGETS`; existing configurations using them now fail validation. Use the Bun or Vercel adapters described in the deployment guide.

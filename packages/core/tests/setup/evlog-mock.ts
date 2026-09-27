@@ -91,7 +91,7 @@ mock.module(join(import.meta.dir, "../../src/server/evlog.ts"), () => ({
     const requestLoggers = new WeakMap<Request, RequestLogger>();
     return new Elysia({ name: "furin-evlog-test" })
       .derive("global", ({ request }) => {
-        const log = requestLoggers.get(request);
+        const log = requestLoggers.get(request) ?? requestLoggerStorage.getStore();
         if (log === undefined) {
           throw new Error("No request logger");
         }

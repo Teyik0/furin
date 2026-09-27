@@ -1,4 +1,5 @@
 import type React from "react";
+import type { ElementType } from "react";
 import { createElement } from "react";
 import { type BoundaryOptions, FurinErrorBoundary, wrapSegmentBoundaries } from "../boundaries.tsx";
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
@@ -98,8 +99,7 @@ export function buildPageElement(
     element = wrapSegmentBoundaries(element, byDepth.get(i), options);
     const Layout = chain[i]?.layout;
     if (Layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
-      element = createElement(Layout, data as any, element);
+      element = createElement(Layout as ElementType, data, element);
     }
   }
 
@@ -107,8 +107,7 @@ export function buildPageElement(
     // Depth 0 boundary wraps EVERYTHING below the root layout.
     element = wrapSegmentBoundaries(element, byDepth.get(0), options);
     if (root.layout) {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic route layouts have inferred props
-      element = createElement(root.layout, data as any, element);
+      element = createElement(root.layout as ElementType, data, element);
     }
   }
 

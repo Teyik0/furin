@@ -25,11 +25,14 @@ export const FURIN_DEFERRED_GLOBAL = "__FURIN_DEFERRED__";
  * Synchronous loader data is NOT carried here — it lives exclusively in the
  * `__FURIN_DATA__` JSON script that the hydrate entry reads.
  *
- * CSP note: this is an inline `<script>` — nonce support is a v2 concern.
  */
-export function buildDeferredScript(deferredKeys: string[]): string {
+export function nonceAttribute(nonce?: string): string {
+  return nonce === undefined ? "" : ` nonce="${nonce}"`;
+}
+
+export function buildDeferredScript(deferredKeys: string[], nonce?: string): string {
   const keysJson = safeJson(deferredKeys);
-  return `<script id="${FURIN_DEFERRED_GLOBAL}">
+  return `<script id="${FURIN_DEFERRED_GLOBAL}"${nonceAttribute(nonce)}>
 window.${FURIN_DEFERRED_GLOBAL} = {
   _deferredKeys: ${keysJson},
   _chunks: {},
@@ -63,10 +66,11 @@ window.${FURIN_DEFERRED_GLOBAL} = {
 export function buildDeferredResolution(
   key: string,
   chunk: ReturnType<typeof toCrossJSON>,
-  action: "resolve" | "reject"
+  action: "resolve" | "reject",
+  nonce?: string
 ): string {
   const chunkJson = safeJson(chunk);
-  return `<script>window.${FURIN_DEFERRED_GLOBAL}.${action}(${safeJson(key)},${chunkJson})</script>`;
+  return `<script${nonceAttribute(nonce)}>window.${FURIN_DEFERRED_GLOBAL}.${action}(${safeJson(key)},${chunkJson})</script>`;
 }
 
 /** Minimal context passed to background / synthetic render helpers — only `request` is needed. */
@@ -108,8 +112,8 @@ export function buildRouteFrameTemplate(payload: string): string {
   return `<template id="__FURIN_ROUTE_FRAMES__">${escaped}</template>`;
 }
 
-export function buildRouteFrameStreamScript(): string {
-  return `<script id="__FURIN_ROUTE_FRAME_STREAM__">
+export function buildRouteFrameStreamScript(nonce?: string): string {
+  return `<script id="__FURIN_ROUTE_FRAME_STREAM__"${nonceAttribute(nonce)}>
 window.__FURIN_ROUTE_FRAME_STREAM__ = {
   _chunks: [],
   _closed: false,
@@ -149,12 +153,12 @@ window.__FURIN_ROUTE_FRAME_STREAM__ = {
 </script>`;
 }
 
-export function buildRouteFramePushScript(payload: string): string {
-  return `<script>window.__FURIN_ROUTE_FRAME_STREAM__.push(${safeJson(payload)})</script>`;
+export function buildRouteFramePushScript(payload: string, nonce?: string): string {
+  return `<script${nonceAttribute(nonce)}>window.__FURIN_ROUTE_FRAME_STREAM__.push(${safeJson(payload)})</script>`;
 }
 
-export function buildRouteFrameCloseScript(): string {
-  return "<script>window.__FURIN_ROUTE_FRAME_STREAM__.close()</script>";
+export function buildRouteFrameCloseScript(nonce?: string): string {
+  return `<script${nonceAttribute(nonce)}>window.__FURIN_ROUTE_FRAME_STREAM__.close()</script>`;
 }
 
 export function buildSyncRuntimeScript(): string {

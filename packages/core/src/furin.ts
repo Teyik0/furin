@@ -10,6 +10,7 @@ import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
 import { setSSGCache } from "./server/cache/ssg.ts";
+import { getLogger } from "./server/context-logger.ts";
 import type { DevelopmentRouteSnapshot, DevGraph } from "./server/dev/graph.ts";
 import {
   createInstrumentationPlugin,
@@ -42,16 +43,22 @@ import {
 import { loadProdRoutes } from "./server/router/discovery.ts";
 import { invalidateStampedRouteModules, resolveCurrentDevRoute } from "./server/router/hmr.ts";
 import { buildRouteMatcher } from "./server/router/patterns.ts";
-import { createDataEndpoint, renderResolvedRoute } from "./server/router/plugin.ts";
+import {
+  renderResolvedRoute,
+  renderRouteData,
+  serializeGuardRedirect,
+} from "./server/router/plugin.ts";
 import { mergeRouteSchemas } from "./server/router/schema-merge.ts";
 import {
   createSearchRouteMetadata,
+  parseDataEndpointPath,
   parseRouteParams,
   parseRouteQuery,
 } from "./server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "./server/router/types.ts";
 import { IS_DEV } from "./server/runtime-env.ts";
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
+import { physicalPath } from "./shared/prefix.ts";
 
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmentable via furin-env.d.ts
 export interface FurinCacheTags {}
@@ -59,11 +66,17 @@ export interface FurinCacheTags {}
 export type CacheTag = keyof FurinCacheTags extends never ? string : keyof FurinCacheTags;
 
 async function createProductionBrowserEventsPlugin(
-  sync: FurinSyncOption | undefined
+  sync: FurinSyncOption | undefined,
+  deploymentTarget: "vercel" | undefined
 ): Promise<AnyElysia> {
-  return sync
-    ? (await import("./server/browser-events/plugin.ts")).createBrowserEventsPlugin({ sync })
-    : new Elysia();
+  if (!sync) {
+    return new Elysia();
+  }
+  const browserEvents = await import("./server/browser-events/plugin.ts");
+  // Vercel invokes app.handle(Request), so Elysia's Bun.Server WebSocket upgrade is unavailable.
+  return deploymentTarget === "vercel"
+    ? browserEvents.createSseBrowserEventsPlugin({ sync })
+    : browserEvents.createBrowserEventsPlugin({ sync });
 }
 
 function repairedDevelopmentRoutes(
@@ -108,6 +121,7 @@ export {
   type IsomorphicFnBuilder,
   type ServerIsomorphicFn,
 } from "./isomorphic.ts";
+export { type FurinCspOptions, furinCsp } from "./server/security/csp.ts";
 export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 const MAX_BROWSER_INGEST_BYTES = 64 * 1024;
@@ -336,8 +350,7 @@ function createLoggerPlugin(
         `${prefix}/_bun_hmr_entry/**`,
         ...instrumentationLoggerExclusions(prefix),
         ...(syncPath ? [`${prefix}${syncPath}/**`] : []),
-        // Note: /_furin/data is logged with the *logical* path rewritten by
-        // createDataEndpoint via getLogger().set({ path }), so SPA navigations
+        // Note: /_furin/data is logged with the logical page path, so SPA navigations
         // appear as "GET /board/123 200" — same shape as a normal SSR nav.
         // /_furin/ingest remains loggable when browser logging is explicitly
         // enabled so browser-side events show up.
@@ -415,6 +428,67 @@ function initializeLogger(logger: FurinLoggerOptions | undefined): FurinEvlogOpt
  * owning instance is resolved from the request PATH, never from this
  * closure — which wrap executes first is therefore irrelevant.
  */
+const navigationDataRequests = new WeakSet<Request>();
+const navigationDataRefreshers = new WeakMap<FurinInstance, () => Promise<void>>();
+const navigationDataMatchers = new WeakMap<FurinInstance, (path: string) => boolean>();
+
+/** Whether a request targets a registered page in the specified Furin mount. */
+export function isFurinPageRequest(request: Request, prefix: string): boolean {
+  if (request.method !== "GET") {
+    return false;
+  }
+  const url = new URL(request.url);
+  const { pathname } = url;
+  const mountPrefix = normalizePrefix(prefix);
+  const instance = resolveInstanceByPath(pathname);
+  if (instance.prefix !== mountPrefix) {
+    return false;
+  }
+  const path = pathname.slice(mountPrefix.length) || "/";
+  if (path === "/_furin/data") {
+    const dataPath = parseDataEndpointPath(url.searchParams.get("path") ?? "");
+    return (
+      dataPath !== undefined && (navigationDataMatchers.get(instance)?.(dataPath.pathname) ?? false)
+    );
+  }
+  if (
+    path.startsWith("/_client/") ||
+    path.startsWith("/_furin/") ||
+    path.startsWith("/_bun_hmr_entry") ||
+    path.startsWith("/public/") ||
+    path === "/favicon.ico"
+  ) {
+    return false;
+  }
+  return navigationDataMatchers.get(instance)?.(path) ?? false;
+}
+
+function rewriteNavigationDataRequest(
+  request: Request,
+  instance: FurinInstance
+): Request | Response {
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.pathname !== `${instance.prefix}/_furin/data`) {
+    return request;
+  }
+  const rawPath = url.searchParams.get("path");
+  if (!rawPath) {
+    return new Response("Missing required query param: path", { status: 400 });
+  }
+  const parsed = parseDataEndpointPath(rawPath);
+  if (!parsed) {
+    return new Response("Invalid path", { status: 400 });
+  }
+  if (!navigationDataMatchers.get(instance)?.(parsed.pathname)) {
+    return new Response("Not Found", { status: 404 });
+  }
+  url.pathname = physicalPath(instance.prefix, parsed.pathname);
+  url.search = parsed.url.search;
+  const rewritten = new Request(url, request);
+  navigationDataRequests.add(rewritten);
+  return rewritten;
+}
+
 function wrapWithRequestScope(app: AnyElysia): Elysia {
   return app.wrap((fetch) => (request, ...rest) => {
     if (hasRequestScope()) {
@@ -424,10 +498,36 @@ function wrapWithRequestScope(app: AnyElysia): Elysia {
     const { pathname } = new URL(request.url);
     const instance = resolveInstanceByPath(pathname);
     return runWithInstanceScope(instance, () => {
-      if (!shouldInstrumentRequest(pathname, instance.prefix)) {
-        return fetch(request, ...rest);
-      }
-      return runWithRequestInstrumentation(request, () => fetch(request, ...rest));
+      const dispatch = () => {
+        const rewritten = rewriteNavigationDataRequest(request, instance);
+        if (rewritten instanceof Response) {
+          return rewritten;
+        }
+        const response = shouldInstrumentRequest(pathname, instance.prefix)
+          ? runWithRequestInstrumentation(request, () => fetch(rewritten, ...rest))
+          : fetch(rewritten, ...rest);
+        if (rewritten === request) {
+          return response;
+        }
+        return Promise.resolve(response).then((resolved) =>
+          resolved.status >= 300 && resolved.status < 400
+            ? serializeGuardRedirect(resolved, request)
+            : resolved
+        );
+      };
+      const dataPath =
+        pathname === `${instance.prefix}/_furin/data`
+          ? parseDataEndpointPath(new URL(request.url).searchParams.get("path") ?? "")
+          : undefined;
+      const refresh =
+        pathname === `${instance.prefix}/_furin/data` &&
+        request.method === "GET" &&
+        dataPath !== undefined &&
+        navigationDataMatchers.get(instance)?.(dataPath.pathname) === true &&
+        request.headers.get("x-furin-hmr-refresh") === "1"
+          ? navigationDataRefreshers.get(instance)
+          : undefined;
+      return refresh ? refresh().then(dispatch) : dispatch();
     });
   });
 }
@@ -499,6 +599,22 @@ function createNativeRouteRenderer(
     }
     context.params = parsedParams.params;
     context.query = parsedQuery.query;
+    if (navigationDataRequests.has(request)) {
+      getLogger().set({
+        path: logicalPath + requestUrl.search,
+        routePattern: matched.route.pattern,
+      });
+      const current = IS_DEV
+        ? await resolveCurrentDevRoute(matched.route, root)
+        : { root, route: matched.route };
+      return renderRouteData(
+        current.route,
+        context as unknown as Parameters<typeof renderRouteData>[1],
+        current.root,
+        searchRoutes,
+        logicalPath + requestUrl.search
+      );
+    }
     return renderResolvedRoute(
       matched.route,
       context as unknown as Parameters<typeof renderResolvedRoute>[1],
@@ -721,6 +837,8 @@ export async function furin({
     const initialSnapshot = createDevelopmentRouteSnapshot(prefix, root, routes);
     const currentSnapshot = (): DevelopmentRouteSnapshot => graph.snapshot ?? initialSnapshot;
     nativeRouteRenderers.set(instance, (context) => currentSnapshot().render(context));
+    let matchNavigationData = buildRouteMatcher(initialSnapshot.routes);
+    navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
     const writeCurrentDevFiles = (snapshot: DevelopmentRouteSnapshot): void => {
@@ -752,6 +870,7 @@ export async function furin({
           const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
           writeCurrentDevFiles(nextSnapshot);
           graph.commit(nextSnapshot);
+          matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
           const diagnostics = devDiagnosticStore(instance);
           if (repaired.root) {
             diagnostics.markReady("*");
@@ -773,6 +892,9 @@ export async function furin({
     const publicDir = resolve(cwd, "public");
     const publicExists = existsSync(publicDir);
     let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
+    navigationDataRefreshers.set(instance, async () => {
+      await routeTopologyWatcher?.refresh();
+    });
 
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
     // physical when this plugin is merged into the parent app (child prefixes
@@ -815,6 +937,8 @@ export async function furin({
       .cleanup(() => {
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
+        navigationDataRefreshers.delete(instance);
+        navigationDataMatchers.delete(instance);
       })
       .get("/_bun_hmr_entry/index.html", hmrEntry)
       .get("/_bun_hmr_entry", hmrEntry)
@@ -857,18 +981,6 @@ export async function furin({
           ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync)
           : new Elysia()
       )
-      .use(
-        createDataEndpoint(
-          async (request) => {
-            if (request.headers.get("x-furin-hmr-refresh") === "1") {
-              await routeTopologyWatcher?.refresh();
-            }
-            return currentSnapshot().routes;
-          },
-          undefined,
-          (route) => resolveCurrentDevRoute(route, currentSnapshot().root)
-        )
-      )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
       .use(nativeRoutesApp)
       .use(
@@ -907,6 +1019,8 @@ export async function furin({
     searchRoutes
   );
   nativeRouteRenderers.set(instance, renderNativeRoute);
+  const matchNavigationData = buildRouteMatcher(routes);
+  navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
   instance.buildId = prodBuildId;
   // Init-time writes target THIS instance explicitly — with several mounted
   // apps there is no ambient request scope to resolve it from.
@@ -951,11 +1065,10 @@ export async function furin({
       await withInstance(instance, () => warmSSGCache(routes, root, origin, searchRoutes));
     })
     .use(await createProductionAssetsPlugin(ctx, embedded, clientDir))
-    .use(await createProductionBrowserEventsPlugin(sync))
+    .use(await createProductionBrowserEventsPlugin(sync, ctx?.deploymentTarget))
     .use(
       sync ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync) : new Elysia()
     )
-    .use(createDataEndpoint(routes, root))
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));

@@ -15,6 +15,7 @@ export interface DocumentState {
   assets: DocumentAssets;
   dataJson: string | undefined;
   head: HeadOptions | undefined;
+  nonce?: string;
   routeFrames?: string;
   syncJson: string | undefined;
 }
@@ -77,6 +78,7 @@ export function HeadContent(): ReactNode {
           // biome-ignore lint/security/noDangerouslySetInnerHtml: framework-owned development script.
           dangerouslySetInnerHTML={{ __html: state.assets.extensionErrorFilterScript }}
           data-furin-extension-error-filter=""
+          nonce={state.nonce}
         />
       )}
       <meta charSet="utf-8" data-furin-head="" />
@@ -99,6 +101,7 @@ export function HeadContent(): ReactNode {
           {...attributes}
           // biome-ignore lint/security/noDangerouslySetInnerHtml: HeadOptions scripts are an explicit raw HTML API.
           dangerouslySetInnerHTML={children === undefined ? undefined : { __html: children }}
+          nonce={state.nonce ?? attributes.nonce}
         />
       ))}
       {state.head?.styles?.map(({ children, type }, index) => (
@@ -107,6 +110,7 @@ export function HeadContent(): ReactNode {
           dangerouslySetInnerHTML={{ __html: children }}
           // biome-ignore lint/suspicious/noArrayIndexKey: duplicate inline styles are valid and their declared order is significant.
           key={`style:${index}`}
+          nonce={state.nonce}
           type={type}
         />
       ))}
@@ -156,10 +160,23 @@ export function Scripts(): ReactNode {
         type="application/json"
       />
       {state.assets.frameworkModules.map((src) => (
-        <script crossOrigin="" data-furin-framework-module="" key={src} src={src} type="module" />
+        <script
+          crossOrigin=""
+          data-furin-framework-module=""
+          key={src}
+          nonce={state.nonce}
+          src={src}
+          type="module"
+        />
       ))}
       {state.assets.entryModule === undefined ? null : (
-        <script crossOrigin="" data-furin-entry="" src={state.assets.entryModule} type="module" />
+        <script
+          crossOrigin=""
+          data-furin-entry=""
+          nonce={state.nonce}
+          src={state.assets.entryModule}
+          type="module"
+        />
       )}
     </>
   );

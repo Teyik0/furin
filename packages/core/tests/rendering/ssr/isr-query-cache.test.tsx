@@ -107,9 +107,10 @@ test("ISR cached loaders reject request-specific context", async () => {
       query: t.Object({ tenant: t.Optional(t.String()) }),
       revalidate: 60,
     })
-    .loader(({ cookie, query }) => ({
-      session: cookie.session,
-      tenant: query.tenant ?? "",
+    .loader((context) => ({
+      // @ts-expect-error cached loaders cannot read cookies; verify the runtime guard too.
+      session: context.cookie.session,
+      tenant: context.query.tenant ?? "",
     }))
     .page(({ tenant }) => <main>{tenant}</main>);
   const resolved = resolveRoute(route, "/private.tsx", "/private", root);

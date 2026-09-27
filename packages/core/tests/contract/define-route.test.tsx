@@ -126,24 +126,84 @@ describe("defineRoute", () => {
     await Promise.resolve();
   });
 
+  test("rejects a page-owned requestLoader in SSR at runtime", () => {
+    const chain = defineRoute()
+      .config({ layout: rootRoute, mode: "ssr" })
+      .requestLoader(() => ({ user: "private" }));
+    const untypedChain = chain as unknown as { page: (component: () => null) => unknown };
+
+    expect(() => untypedChain.page(() => null)).toThrow(
+      "[furin] SSR pages cannot declare requestLoader(); use loader() and defer()."
+    );
+  });
+
   test("types request-specific data through the requestLoader stage", async () => {
     const privateRoute = defineRoute()
-      .config({ layout: rootRoute, mode: "ssr", query: t.Object({ locale: t.String() }) })
+      .config({
+        layout: rootRoute,
+        mode: "isr",
+        query: t.Object({ locale: t.String() }),
+        revalidate: 60,
+      })
       .requestLoader(({ cookies, query }) => ({
         locale: query.locale,
         user: cookies.get("session"),
       }))
       .loader(() => ({ catalog: "Shoes" }))
-      .page(({ catalog, requestData }) => {
+      .page((props) => {
+        const { catalog, locale, user } = props;
         const publicCatalog: string = catalog;
-        const privateData: Promise<{ locale: string; user: unknown }> = requestData;
-        return `${publicCatalog}:${String(privateData)}`;
+        const privateLocale: Promise<string> = locale;
+        const privateUser: Promise<unknown> = user;
+        // @ts-expect-error no grouped requestData prop is added implicitly.
+        expect(props.requestData).toBeUndefined();
+        return `${publicCatalog}:${String(privateLocale)}:${String(privateUser)}`;
       });
 
     if (typeof privateRoute.requestLoader !== "function") {
       throw new Error("requestLoader was not retained on the route terminal");
     }
     await Promise.resolve();
+  });
+
+  test("does not expose parent request fields to a public child loader", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssr" })
+      .requestLoader(() => ({ session: "private" }))
+      .loader(() => ({ organization: "public" }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader((context) => {
+        const organization: Promise<string> = context.organization;
+        // @ts-expect-error Request loader data must not enter a public loader.
+        expect(context.session).toBeUndefined();
+        return { title: organization };
+      })
+      .page(({ title }) => String(title));
+
+    expect(child.loader).toBeFunction();
+  });
+
+  test("passes inherited private fields to a child page as promises", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssr" })
+      .requestLoader(() => ({ session: "private" }))
+      .loader(() => ({ organization: "public" }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader((context) => {
+        // @ts-expect-error private data must not enter a public loader.
+        expect(context.session).toBeUndefined();
+        return { title: "Child" };
+      })
+      .page(({ session, organization, title }) => {
+        const privateSession: Promise<string> = session;
+        const publicOrganization: string = organization;
+        return `${title}:${publicOrganization}:${String(privateSession)}`;
+      });
+    expect(child.page).toBeFunction();
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {

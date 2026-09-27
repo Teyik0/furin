@@ -1,5 +1,13 @@
 import { expect, spyOn, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
@@ -92,6 +100,70 @@ test("the dev topology watcher observes transitive route dependencies", async ()
     utimesSync(helperPath, changedAt, changedAt);
     await waitForCount(() => touchedRouteFiles, 1);
     expect(touchedRouteFiles).toBe(1);
+  } finally {
+    watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher skips installed packages but follows linked project sources", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-package-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  const vendorDir = join(projectRoot, "node_modules/vendor");
+  const linkedDir = join(projectRoot, "src/linked");
+  mkdirSync(pagesDir, { recursive: true });
+  mkdirSync(vendorDir, { recursive: true });
+  mkdirSync(linkedDir, { recursive: true });
+  writeFileSync(join(projectRoot, "package.json"), "{}\n");
+  writeFileSync(join(vendorDir, "package.json"), '{"main":"index.ts"}\n');
+  writeFileSync(join(vendorDir, "index.ts"), 'export const vendor = "one";\n');
+  writeFileSync(join(linkedDir, "package.json"), '{"main":"index.ts"}\n');
+  writeFileSync(join(linkedDir, "index.ts"), 'export const linked = "one";\n');
+  symlinkSync(
+    linkedDir,
+    join(projectRoot, "node_modules/linked"),
+    process.platform === "win32" ? "junction" : "dir"
+  );
+  writeFileSync(
+    join(pagesDir, "index.ts"),
+    'import "vendor";\nimport "linked";\nexport const route = 1;\n'
+  );
+
+  const touchedSources: string[][] = [];
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: (sourcePaths) => {
+      touchedSources.push([...sourcePaths]);
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    const linkedPath = join(linkedDir, "index.ts");
+    expect(realpathSync.native(Bun.resolveSync("linked", pagesDir))).toBe(
+      realpathSync.native(linkedPath)
+    );
+    await Bun.sleep(100);
+    const vendorPath = join(vendorDir, "index.ts");
+    writeFileSync(vendorPath, 'export const vendor = "two";\n');
+    utimesSync(vendorPath, new Date(Date.now() + 1000), new Date(Date.now() + 1000));
+    await Bun.sleep(150);
+    expect(touchedSources).toHaveLength(0);
+
+    writeFileSync(linkedPath, 'export const linked = "two";\n');
+    utimesSync(linkedPath, new Date(Date.now() + 1000), new Date(Date.now() + 1000));
+    try {
+      await waitForCount(() => touchedSources.length, 1);
+    } catch (error) {
+      await watcher.refresh();
+      throw new Error(
+        touchedSources.length === 0
+          ? "Linked source is absent from the route dependency graph"
+          : "Linked source is tracked, but its filesystem event was missed",
+        { cause: error }
+      );
+    }
+    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath));
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });

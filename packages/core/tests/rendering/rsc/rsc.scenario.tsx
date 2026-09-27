@@ -120,6 +120,7 @@ function createMockContext(path: string): Context {
 
 function extractRouteFramePayload(html: string): string {
   const openingTag = ROUTE_FRAME_TEMPLATE_PATTERN.exec(html);
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: rendered HTML can lack the route frame template.
   if (openingTag === null) {
     throw new Error("route frame template missing");
   }

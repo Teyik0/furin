@@ -76,7 +76,7 @@ function createDevLoaderCache(name: string, index: Map<string, Set<string>>) {
       unindexEntryDependencies(index, key, entry.dependencies);
       const urlPath = urlPathWithSearchFromCacheKey(key);
       if (urlPath) {
-        autoInvalidateRegistry.unregisterPath(urlPath);
+        autoInvalidateRegistry.unregisterPath(urlPath, name);
       }
     },
     onSet: (key, entry, previous) => {

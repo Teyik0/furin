@@ -41,6 +41,27 @@ bun run fix && bun run test && bun run tscheck
 
 Unverified pull requests will not be reviewed until the checks are green.
 
+## Development startup budgets
+
+When the base revision supports the performance-report CLI, the performance CI
+job measures Weather, Task Manager, and the documentation on both the base and
+PR revisions, using three new `bun --hot` processes per app.
+It compares medians for process-to-port, process-to-complete-first-HTML, and the
+request duration of a first visit to another route. Responses must contain the
+expected rendered content; an empty page or diagnostic response cannot pass.
+
+Weather's Open-Meteo responses are fixed by a benchmark-only preload, and each
+Task Manager sample uses a fresh temporary database. Builds run before these
+measurements; filesystem and generated caches remain present. This is process
+cold start, not a cold machine or an empty-cache benchmark. Browser hydration
+is not included. Each metric allows the larger of 500 ms or 30% of the baseline.
+
+```bash
+bun scripts/measure-dev-startup.ts /path/to/base /tmp/startup-base.json
+bun scripts/measure-dev-startup.ts /path/to/pr /tmp/startup-head.json
+bun scripts/compare-dev-startup.ts /tmp/startup-base.json /tmp/startup-head.json /tmp/startup.md
+```
+
 ## New Features
 
 Open an issue first to describe the feature and discuss the approach before writing code. Tag a maintainer in the issue. Include test cases for any core functionality.

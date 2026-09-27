@@ -47,7 +47,7 @@ new Elysia()
 
 Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport automatically.
 
-The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. The shared WebSocket remains at `/_furin/events` under the Furin instance prefix.
+The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. Browser notifications use `/_furin/events` under the Furin instance prefix.
 
 ## Declare Synced Mutations
 
@@ -136,9 +136,9 @@ The adapter atomically commits the replay response and its invalidation journal 
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
-The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed WebSocket event or notifier outage delays discovery but does not erase committed changes.
+The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
-Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` WebSocket per page. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
+Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
 
 ## Adapter Choice
 
@@ -163,20 +163,26 @@ FURIN_SYNC_POSTGRES_URL=postgres://... \
 
 ```ts
 import { SQL } from "bun";
-import { postgresSyncAdapter } from "@teyik0/furin/sync/postgres";
+import { postgresSyncAdapter, postgresSyncNotifier } from "@teyik0/furin/sync/postgres";
 
 const sync = {
   adapter: postgresSyncAdapter({
     namespace: "my-app",
     sql: new SQL(databaseUrl),
   }),
+  notifier: postgresSyncNotifier({
+    namespace: "my-app",
+    sql: new SQL(directDatabaseUrl),
+  }),
   principal: ({ request }) => requireUser(request).id,
 };
 ```
 
+Use a direct PostgreSQL connection for the notifier's `LISTEN`; a transaction pooler may drop immediate notifications. Furin checks the durable cursor every 15 seconds to recover missed wake-ups. The adapter's SQL connection may use a pooler.
+
 ### Redis Notifier
 
-Without an explicit notifier, Furin polls the adapter cursor. Add Redis when lower wake-up latency across replicas matters:
+In development, Furin polls the adapter cursor when no notifier is configured. Production with a distributed adapter requires an explicit notifier. Redis is another option for immediate wake-ups across replicas:
 
 ```ts
 import { RedisClient, SQL } from "bun";

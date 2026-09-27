@@ -69,6 +69,7 @@ describe("SSR head context", () => {
   test("keeps deferred and request data out of head while exposing them to the page", async () => {
     const rootTerminal = defineRootRoute()
       .config({ mode: "ssr" })
+      .requestLoader(() => ({ user: "alice" }))
       .layout(({ children }) => (
         <html lang="en">
           <head>
@@ -86,9 +87,9 @@ describe("SSR head context", () => {
     let headReceivedRequestData = false;
     let pageReceivedDeferredData = false;
     let pageReceivedRequestData = false;
+    let pageReceivedUser = false;
     const terminal = defineRoute()
       .config({ layout: rootTerminal, mode: "ssr" })
-      .requestLoader(() => ({ user: "alice" }))
       .loader(() => defer({ catalog: "Shoes", stock: Promise.resolve(42) }))
       .head((props) => {
         headReceivedCatalog = props.catalog === "Shoes";
@@ -99,6 +100,7 @@ describe("SSR head context", () => {
       .page((props) => {
         pageReceivedDeferredData = "stock" in props;
         pageReceivedRequestData = "requestData" in props;
+        pageReceivedUser = props.user instanceof Promise;
         return null;
       });
     const page = adaptDefinedPage(terminal, rootRoute);
@@ -107,6 +109,7 @@ describe("SSR head context", () => {
       page,
       path: "/account.tsx",
       pattern: "/account",
+      requestKeys: ["user"],
       routeChain: collectRouteChainFromRoute(page._route),
       segmentBoundaries: [],
     };
@@ -117,6 +120,7 @@ describe("SSR head context", () => {
     expect(headReceivedDeferredData).toBe(false);
     expect(headReceivedRequestData).toBe(false);
     expect(pageReceivedDeferredData).toBe(true);
-    expect(pageReceivedRequestData).toBe(true);
+    expect(pageReceivedRequestData).toBe(false);
+    expect(pageReceivedUser).toBe(true);
   });
 });

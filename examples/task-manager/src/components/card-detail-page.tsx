@@ -25,7 +25,6 @@ export function CardDetailPage({
   const deleteCard = useSync(apiClient.api.cards({ id: card.id }).delete);
 
   const handleSave = async () => {
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref is null before the form mounts
     if (!formRef.current) {
       return;
     }

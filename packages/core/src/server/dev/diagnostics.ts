@@ -29,8 +29,9 @@ export interface ClientErrorReport {
   stack: string | undefined;
 }
 
-const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/|furin-dev-page:)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-page:/;
+const STACK_POSITION_RE =
+  /(?:^|\s)\(?((?:file:\/\/|furin-dev-(?:page|render):)?\S+):(\d+):(\d+)\)?$/;
+const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
 const QUERY_RE = /\?.*$/;
 const EVENT_LIMIT = 100;
 
@@ -91,6 +92,7 @@ function stackLocation(
   const locations: DevSourceLocation[] = [];
   for (const line of stack.split("\n")) {
     const match = STACK_POSITION_RE.exec(line.trim());
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the position pattern.
     if (!(match?.[1] && match[2] && match[3])) {
       continue;
     }

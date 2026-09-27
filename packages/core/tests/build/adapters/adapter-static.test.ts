@@ -109,6 +109,38 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
     ),
   );
   expect(buildError.message).toMatch(REQUEST_LOADER_STATIC_RE);
+
+  const mixedLayout: RootLayout["route"] = {
+    __type: "FURIN_ROUTE",
+    mode: "ssr",
+    loader: ({ request }) => ({ session: (request as Request).headers.get("cookie") }),
+  };
+  const mixedRoute: ResolvedRoute = {
+    ...requestRoute,
+    mode: "ssg",
+    page: { ...requestRoute.page, _route: { __type: "FURIN_ROUTE" } },
+    routeChain: [mixedLayout],
+  };
+  buildError = await rejectionError(
+    buildStaticTarget(
+      [mixedRoute],
+      "/tmp/furin-static-test",
+      "/tmp/furin-static-test/.build",
+      root,
+      { target: "static" }
+    )
+  );
+  expect(buildError.message).toContain("ssr layout");
+  buildError = await rejectionError(
+    buildStaticTarget(
+      [{ ...mixedRoute, routeChain: [{ ...mixedLayout, mode: "isr", revalidate: 5 }] }],
+      "/tmp/furin-static-test",
+      "/tmp/furin-static-test/.build",
+      root,
+      { target: "static" }
+    )
+  );
+  expect(buildError.message).toContain("mode: isr");
   buildError = await rejectionError(
     buildStaticTarget(
       [],

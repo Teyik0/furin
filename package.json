@@ -28,16 +28,16 @@
     "minimatch": "^10.2.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "@commitlint/cli": "^21.2.2",
-    "@commitlint/config-conventional": "^21.2.2",
-    "@happy-dom/global-registrator": "^20.14.0",
+    "@biomejs/biome": "2.5.14",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@happy-dom/global-registrator": "^20.14.5",
     "@types/bun": "^1.4.2",
-    "knip": "^6.35.0",
-    "lefthook": "^2.1.12",
-    "react-doctor": "^0.9.13",
+    "knip": "^6.38.0",
+    "lefthook": "^2.1.14",
+    "react-doctor": "^0.9.14",
     "typescript": "^7.0.2",
-    "ultracite": "7.11.0"
+    "ultracite": "7.12.0"
   },
   "engines": {
     "bun": ">=1.4.0"
@@ -46,10 +46,10 @@
     "elysia": "2.0.0-beta.19",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "typebox": "1.3.34"
   }
 }

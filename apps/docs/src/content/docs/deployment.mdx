@@ -164,7 +164,7 @@ Vercel serves the public shell from its native cache and chains it to a Function
 
 The personalized response and navigation payload remain `private, no-store`. Public artifacts also use Runtime Cache for origin rendering and navigation, scoped by deployment, build, mount prefix, route mode, and query string. Path and tag invalidation expires those entries. On Bun deployments, the same artifact is kept in memory; stale ISR artifacts remain usable while a tracked regeneration produces their replacement.
 
-Consume `requestData` inside a React `Suspense` boundary. Furin uses React's Web Streams renderer for applications containing PPR routes so full renders and resumptions share the same React contexts. Applications without PPR keep the native Bun renderer and omit the resumable renderer from their server bundle.
+Consume request-loader field promises inside a React `Suspense` boundary. Furin uses React's Web Streams renderer for applications containing PPR routes so full renders and resumptions share the same React contexts. Applications without PPR keep the native Bun renderer and omit the resumable renderer from their server bundle.
 
 The isolated Flight codec is included alongside the Function handler, so RSC rendering does not compile code or read framework sources at runtime.
 

@@ -51,6 +51,8 @@ export interface CompileContext {
   routeMetadata?: Record<
     string,
     {
+      requestKeys?: string[];
+      requestKeysByLoader?: string[][];
       segmentBoundaries: Array<{
         depth: number;
         path: string;

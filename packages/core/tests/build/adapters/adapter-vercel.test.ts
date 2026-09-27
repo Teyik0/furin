@@ -120,6 +120,46 @@ describe.serial("Vercel deployment adapter", () => {
   test("emits CDN assets, a Bun catch-all function, and native SSG/ISR prerenders", (done) => {
     async function runScenario(): Promise<void> {
       const app = createVercelApp();
+      writeAppFile(
+        app.path,
+        "src/pages/account/_route.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+  .layout(({ children, session }) => <section>{session}{children}</section>);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/account/index.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { route as accountRoute } from "./_route";
+export const route = defineRoute()
+  .config({ layout: accountRoute, mode: "isr", revalidate: 90 })
+  .loader(() => ({ catalog: "Coffee" }))
+  .page(({ catalog }) => <main>{catalog}</main>);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/catalog/_route.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 5 })
+  .loader(() => ({ heading: "Catalog" }))
+  .layout(({ children, heading }) => <section>{heading}{children}</section>);`
+      );
+      writeAppFile(
+        app.path,
+        "src/pages/catalog/index.tsx",
+        `import { defineRoute } from "@teyik0/furin";
+import { route as catalogRoute } from "./_route";
+export const route = defineRoute()
+  .config({ layout: catalogRoute, mode: "ssg" })
+  .loader(() => ({ product: "Coffee" }))
+  .page(({ product }) => <main>{product}</main>);`
+      );
       writeAppFile(app.path, "public/_client/_hydrate.js", "public collision");
       const buildConfigs: Bun.BuildConfig[] = [];
       const userPlugin: Bun.BunPlugin = { name: "test-user-plugin", setup() {} };
@@ -148,12 +188,22 @@ describe.serial("Vercel deployment adapter", () => {
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.5.0-alpha.2" });
+      expect(config.framework).toEqual({ name: "furin", version: "0.6.0-alpha.1" });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
         src: "(?<__furin_path>/news)",
       });
+      expect(config.routes).toContainEqual({
+        dest: "/__server",
+        src: "(?<__furin_path>/account)",
+      });
+      expect(existsSync(join(functionsDir, "account-isr.prerender-config.json"))).toBe(false);
+      const catalogPrerender = JSON.parse(
+        readFileSync(join(functionsDir, "catalog-isr.prerender-config.json"), "utf8")
+      );
+      expect(catalogPrerender.expiration).toBe(5);
+      expect(existsSync(join(functionsDir, "catalog-ssg.prerender-config.json"))).toBe(false);
       expect(config.routes).toContainEqual({
         dest: "/blog/hello-world-ssg?__furin_path=$__furin_path",
         src: "(?<__furin_path>/blog/hello-world)",
@@ -268,7 +318,7 @@ describe.serial("Vercel deployment adapter", () => {
       if (!manifest || !("isrRoutes" in manifest)) {
         throw new TypeError("Expected the Vercel target manifest");
       }
-      expect(manifest.isrRoutes).toEqual(["/events/:slug", "/news", "/search"]);
+      expect(manifest.isrRoutes).toEqual(["/catalog", "/events/:slug", "/news", "/search"]);
       expect(manifest.outputDir).toBe(".vercel/output");
       expect(manifest.ssgRoutes).toEqual(["/", "/blog/hello-world"]);
     }
@@ -299,7 +349,7 @@ describe.serial("Vercel deployment adapter", () => {
       "src/pages/root.tsx",
       readFileSync(rootPath, "utf8").replace(
         ".layout(",
-        '.requestLoader(() => { throw new Error("private loader ran during build"); })\n  .layout('
+        '.requestLoader((): { user: string } => { throw new Error("private loader ran during build"); })\n  .layout('
       )
     );
     await buildApp({ rootDir: app.path, target: "vercel" });
@@ -325,16 +375,6 @@ describe.serial("Vercel deployment adapter", () => {
           'furin({ pagesDir: "./src/pages", pageCache: createMemoryPageCache() })'
         )
     );
-    const rootPath = join(app.path, "src/pages/root.tsx");
-    writeAppFile(
-      app.path,
-      "src/pages/root.tsx",
-      readFileSync(rootPath, "utf8").replace(
-        ".layout(",
-        ".requestLoader(() => ({ viewer: \"test\" }))\n  .layout("
-      )
-    );
-
     await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
       "pageCache cannot be configured with the Vercel target"
     );
@@ -519,14 +559,14 @@ export const route = defineRoute()
 import { Suspense, use } from "react";
 import { route as rootRoute } from "./root";
 let calls = 0;
-function User({ data }: { data: Promise<{ user: string }> }) {
-  return <strong>{use(data).user}</strong>;
+function User({ data }: { data: Promise<unknown> }) {
+  return <strong>{String(use(data))}</strong>;
 }
 export const route = defineRoute()
   .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
-  .page(({ count, requestData }) => <main>public:{count}<Suspense fallback="loading"><User data={requestData} /></Suspense></main>);`
+  .page(({ count, user }) => <main>public:{count}<Suspense fallback="loading"><User data={user} /></Suspense></main>);`
     );
     await buildApp({ analyze: true, rootDir: app.path, target: "vercel" });
 
@@ -701,7 +741,7 @@ export const route = defineRoute()
     expect(result.flightBody).toContain("Flight article");
     expect(result.flightDataStatus).toBe(200);
     expect(result.apiStatus).toBe(200);
-    expect(result.renderer).toBe("undefined");
+    expect(result.renderer).toBe("function");
     expect(result.tagged).toBe("/blog/tagged,specific");
     expect(result.untagged).toBe("/blog/untagged");
     expect(result.apiBody).toBe("user hydrate");

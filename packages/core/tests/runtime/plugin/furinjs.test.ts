@@ -12,7 +12,7 @@ import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../su
 import { getTestPort, waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
-const { furin } = await import("../../../src/furin");
+const { furin, isFurinPageRequest } = await import("../../../src/furin");
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
 const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
@@ -48,7 +48,7 @@ async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
   return new Elysia().use(await furin(options));
 }
 
-function resetState(): void {
+async function resetState(): Promise<void> {
   resetEvlogMock();
   resetFurinLoggerForTests();
   __setDevMode(true);
@@ -58,7 +58,23 @@ function resetState(): void {
   process.argv.length = 0;
   process.argv.push(...originalArgv);
   while (tmpApps.length > 0) {
-    tmpApps.pop()?.cleanup();
+    const app = tmpApps.at(-1);
+    if (!app) {
+      break;
+    }
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        app.cleanup();
+        tmpApps.pop();
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EBUSY" || attempt === 19) {
+          throw error;
+        }
+        // biome-ignore lint/performance/noAwaitInLoops: Windows can release compiled binaries after process exit.
+        await Bun.sleep(100);
+      }
+    }
   }
 }
 
@@ -254,6 +270,154 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
   expect(
     Number((globalThis as typeof globalThis & { [key: string]: unknown })[importCountKey])
   ).toBe(importsAfterBoot);
+});
+
+test.serial(
+  "SPA data runs the parent Elysia guard for the logical page before loaders",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const pagesDir = join(app.path, "src/pages");
+    const loaderRunsKey = `__furin_guard_loader_runs_${Date.now()}`;
+    writeAppFile(
+      app.path,
+      "src/pages/secret.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'import { route as rootRoute } from "./root";',
+        `const loaderRunsKey = ${JSON.stringify(loaderRunsKey)};`,
+        "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })',
+        "  .loader(({ path, query, redirect }) => {",
+        "    testGlobal[loaderRunsKey] = Number(testGlobal[loaderRunsKey] ?? 0) + 1;",
+        '    if (query.page === 3) throw redirect("/admin/login", 302);',
+        '    return { secret: "protected", page: query.page, logicalPath: path };',
+        "  })",
+        "  .page(({ secret }) => <main>{secret}</main>);",
+      ].join("\n")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/login.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <main>Login</main>);",
+      ].join("\n")
+    );
+    __setDevMode(true);
+    process.chdir(app.path);
+
+    const instance = new Elysia()
+      .macro({
+        adminArea: {
+          beforeHandle: ({ path, redirect, request }) => {
+            if (path !== "/admin/login" && request.headers.get("x-test-user") !== "admin") {
+              return redirect("/admin/login#section", 302);
+            }
+          },
+        },
+      })
+      .guard({ adminArea: true })
+      .use(await furin({ pagesDir, prefix: "/admin" }));
+
+    const denied = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret")
+    );
+    expect(denied.status).toBe(200);
+    expect(denied.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(denied.headers.get("location")).toBeNull();
+    const deniedBody = await denied.text();
+    expect(deniedBody).toContain('"__furinRedirect"');
+    expect(deniedBody).toContain('"/login#section"');
+    expect(
+      (globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]
+    ).toBeUndefined();
+
+    const deniedDocument = await instance.handle(new Request("http://furin/admin/secret"));
+    expect(deniedDocument.status).toBe(302);
+    expect(deniedDocument.headers.get("location")).toBe("/admin/login#section");
+
+    const login = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Flogin")
+    );
+    expect(login.status).toBe(200);
+    expect(login.headers.get("content-type")).toContain("application/x-ndjson");
+
+    const allowed = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D2", {
+        headers: { "x-test-user": "admin" },
+      })
+    );
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get("content-type")).toContain("application/x-ndjson");
+    const allowedBody = await allowed.text();
+    expect(allowedBody).toContain('"page":2');
+    expect(allowedBody).toContain('"logicalPath":"/secret"');
+    const redirected = await instance.handle(
+      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D3", {
+        headers: { "x-test-user": "admin" },
+      })
+    );
+    expect(await redirected.text()).toContain("__furinRedirect");
+    expect((globalThis as typeof globalThis & { [key: string]: unknown })[loaderRunsKey]).toBe(2);
+  }
+);
+
+test.serial("page authorization leaves public assets accessible", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  writeAppFile(app.path, "public/logo.txt", "logo");
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .macro({
+      protectedPage: {
+        beforeHandle: ({ request, status }) =>
+          isFurinPageRequest(request, "/admin") ? status(401) : undefined,
+      },
+    })
+    .guard({ protectedPage: true })
+    .post("/admin/", () => "mutation")
+    .use(await furin({ pagesDir: join(app.path, "src/pages"), prefix: "/admin" }));
+
+  const document = await instance.handle(new Request("http://furin/admin/"));
+  expect(document.status).toBe(401);
+
+  expect(isFurinPageRequest(new Request("http://furin/admin/_furin/data?path=%2F"), "/admin")).toBe(
+    true
+  );
+  expect(isFurinPageRequest(new Request("http://furin/admin/", { method: "POST" }), "/admin")).toBe(
+    false
+  );
+  const mutation = await instance.handle(new Request("http://furin/admin/", { method: "POST" }));
+  expect(mutation.status).toBe(200);
+  expect(await mutation.text()).toBe("mutation");
+
+  const navigation = await instance.handle(new Request("http://furin/admin/_furin/data?path=%2F"));
+  expect(navigation.status).toBe(401);
+
+  const asset = await instance.handle(new Request("http://furin/admin/public/logo.txt"));
+  expect(asset.status).toBe(200);
+  expect(await asset.text()).toBe("logo");
+});
+
+test.serial("SPA data does not dispatch an API path without a matching page", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = new Elysia()
+    .get("/api/private", () => ({ secret: true }))
+    .use(await furin({ pagesDir: join(app.path, "src/pages") }));
+
+  const response = await instance.handle(
+    new Request("http://furin/_furin/data?path=%2Fapi%2Fprivate")
+  );
+  expect(response.status).toBe(404);
 });
 
 test.serial("furin() preserves route data while an edited route is invalid", async () => {

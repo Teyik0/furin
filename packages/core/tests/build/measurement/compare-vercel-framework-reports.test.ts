@@ -23,7 +23,9 @@ const base: VercelReport = {
 async function compare(
   headHandlerBytes: number | null,
   versions: [string, string],
-  baseHandlerBytes?: number
+  baseHandlerBytes?: number,
+  reactVersions?: [string, string],
+  headClientBytes?: number
 ) {
   const effectiveBaseHandlerBytes = baseHandlerBytes ?? base.serverHandlerBytes;
   const directory = mkdtempSync(join(tmpdir(), "furin-vercel-budget-"));
@@ -32,7 +34,7 @@ async function compare(
     const headPath = join(directory, "head.json");
     const markdownPath = join(directory, "report.md");
     writeFileSync(basePath, JSON.stringify({ ...base, serverHandlerBytes: effectiveBaseHandlerBytes }));
-    writeFileSync(headPath, JSON.stringify({ ...base, serverHandlerBytes: headHandlerBytes }));
+    writeFileSync(headPath, JSON.stringify({ ...base, clientJavaScriptBytes: headClientBytes ?? base.clientJavaScriptBytes, serverHandlerBytes: headHandlerBytes }));
     const child = Bun.spawn(
       [
         process.execPath,
@@ -41,6 +43,7 @@ async function compare(
         headPath,
         markdownPath,
         ...versions,
+        ...(reactVersions ?? ["19.2.8", "19.2.8"]),
       ],
       {
         cwd: fileURLToPath(new URL("../../../../../", import.meta.url)),
@@ -67,6 +70,27 @@ test("uses the explicit one-time server cap for the Elysia 1 to 2 migration", as
   expect(result.exitCode).toBe(0);
   expect(result.markdown).toContain("| serverHandlerBytes | 791141 | 984098 | 1000000 | pass |");
   expect(result.markdown).toContain("one-time Elysia 1 → 2 migration cap");
+});
+
+test("allows the measured React 19.3 client cost only for that migration", async () => {
+  const migration = await compare(
+    base.serverHandlerBytes,
+    ["2.0.0-beta.19", "2.0.0-beta.19"],
+    undefined,
+    ["19.2.8", "19.3.0"],
+    base.clientJavaScriptBytes + 30_000
+  );
+  const unchanged = await compare(
+    base.serverHandlerBytes,
+    ["2.0.0-beta.19", "2.0.0-beta.19"],
+    undefined,
+    ["19.3.0", "19.3.0"],
+    base.clientJavaScriptBytes + 30_000
+  );
+
+  expect(migration.exitCode).toBe(0);
+  expect(migration.markdown).toContain("one-time");
+  expect(unchanged.exitCode).toBe(1);
 });
 
 test("rejects a Kiana handler above the migration cap", async () => {

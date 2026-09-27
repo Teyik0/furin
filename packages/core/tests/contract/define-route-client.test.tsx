@@ -28,7 +28,7 @@ describe("client defineRoute", () => {
       params: {},
       path: "/messages",
       query: {},
-      requestData: Promise.resolve({ sessionId: "private" }),
+      sessionId: Promise.resolve("private"),
     };
 
     pageRoute.component(renderContext);

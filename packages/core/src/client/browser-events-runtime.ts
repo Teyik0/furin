@@ -21,7 +21,11 @@ interface SyncEventCandidate {
   cursor?: unknown;
 }
 
-export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: string): void {
+export function installBrowserEventsRuntime(
+  browser: Window,
+  moduleUrlValue: string,
+  transport?: "sse"
+): void {
   const runtimeKey = Symbol.for("furin.browser-events.runtime");
   const runtimeWindow = browser as Window &
     typeof globalThis & {
@@ -54,7 +58,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
     return candidate.channel === "diagnostic" || candidate.channel === "devtools";
   };
 
-  const socketUrl = (): string => {
+  const eventsUrl = (): URL => {
     const moduleUrl = new URL(moduleUrlValue);
     const prefix =
       moduleUrl.pathname.endsWith(clientSuffix) &&
@@ -62,6 +66,11 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
         ? moduleUrl.pathname.slice(0, -clientSuffix.length)
         : "";
     const url = new URL(`${prefix}/_furin/events`, browser.location.href);
+    return url;
+  };
+
+  const socketUrl = (): string => {
+    const url = eventsUrl();
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     return url.href;
   };
@@ -80,6 +89,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
   let reconnectAttempt = 0;
   let reconnectTimer: number | undefined;
   let socket: WebSocket | undefined;
+  let eventSource: EventSource | undefined;
   let status: BrowserEventConnectionStatus = "connecting";
   let suspended = false;
 
@@ -112,7 +122,56 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
     }
   };
 
+  const onMessageData = (data: unknown): void => {
+    if (typeof data !== "string") {
+      return;
+    }
+    try {
+      const event: unknown = JSON.parse(data);
+      if (isEnvelope(event)) {
+        dispatch(event);
+      }
+    } catch {
+      // A malformed framework event must never affect the application.
+    }
+  };
+
   const connect = (): void => {
+    if (transport === "sse") {
+      if (
+        suspended ||
+        (eventSource !== undefined && eventSource.readyState !== runtimeWindow.EventSource.CLOSED)
+      ) {
+        return;
+      }
+      const connection = new runtimeWindow.EventSource(eventsUrl().href);
+      eventSource = connection;
+      connection.addEventListener("open", () => {
+        reconnectAttempt = 0;
+        updateStatus("connected");
+      });
+      connection.addEventListener("message", (message) => onMessageData(message.data));
+      connection.addEventListener("error", () => {
+        if (eventSource !== connection || suspended) {
+          return;
+        }
+        updateStatus("reconnecting");
+        if (
+          connection.readyState !== runtimeWindow.EventSource.CLOSED ||
+          reconnectTimer !== undefined
+        ) {
+          return;
+        }
+        eventSource = undefined;
+        const delay = Math.min(250 * 2 ** reconnectAttempt, maxReconnectDelayMs);
+        reconnectAttempt += 1;
+        reconnectTimer = browser.setTimeout(() => {
+          reconnectTimer = undefined;
+          connect();
+        }, delay);
+      });
+      return;
+    }
     if (
       suspended ||
       socket?.readyState === runtimeWindow.WebSocket.CONNECTING ||
@@ -126,19 +185,7 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
       reconnectAttempt = 0;
       updateStatus("connected");
     });
-    connection.addEventListener("message", (message) => {
-      if (typeof message.data !== "string") {
-        return;
-      }
-      try {
-        const event: unknown = JSON.parse(message.data);
-        if (isEnvelope(event)) {
-          dispatch(event);
-        }
-      } catch {
-        // A malformed framework event must never affect the application.
-      }
-    });
+    connection.addEventListener("message", (message) => onMessageData(message.data));
     connection.addEventListener("close", () => {
       if (socket !== connection) {
         return;
@@ -170,10 +217,12 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
     }
     socket?.close();
     socket = undefined;
+    eventSource?.close();
+    eventSource = undefined;
   };
   const resume = (): void => {
     suspended = false;
-    if (socket === undefined) {
+    if (socket === undefined && eventSource === undefined) {
       updateStatus("connecting");
     }
     connect();
@@ -201,4 +250,8 @@ export function installBrowserEventsRuntime(browser: Window, moduleUrlValue: str
 
 export function browserEventsClientSource(): string {
   return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url);\n`;
+}
+
+export function browserEventsSseClientSource(): string {
+  return `(${installBrowserEventsRuntime.toString()})(window, import.meta.url, "sse");\n`;
 }

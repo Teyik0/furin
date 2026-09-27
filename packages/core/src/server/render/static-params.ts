@@ -73,7 +73,7 @@ async function runAncestorLoaders(
       ...route,
       page: { ...route.page, loader: undefined },
       pattern,
-      routeChain: ancestors,
+      routeChain: ancestors.filter((entry) => entry.mode !== "ssr"),
     },
     createBuildContext(pattern, params, origin)
   );

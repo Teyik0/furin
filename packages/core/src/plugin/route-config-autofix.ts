@@ -176,7 +176,7 @@ function collectImportBinding(
   imports: LayoutImport[],
   allBindings: Set<string>
 ): string | null {
-  const specifierValue = declaration.source?.value;
+  const specifierValue = declaration.source.value;
   if (typeof specifierValue !== "string") {
     return null;
   }
@@ -302,7 +302,7 @@ function collectBindingsFromDeclaration(
   declaration: ImportDeclaration,
   bindings: BuilderBindings
 ): void {
-  const specifierValue = declaration.source?.value;
+  const specifierValue = declaration.source.value;
   if (typeof specifierValue !== "string" || !FURIN_BUILDER_MODULES.has(specifierValue)) {
     return;
   }

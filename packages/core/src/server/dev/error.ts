@@ -22,7 +22,7 @@ interface SourcePosition {
 }
 
 const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-page:/;
+const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
 const QUERY_RE = /\?.*$/;
 
 function errorMessage(error: unknown): string {
@@ -46,6 +46,7 @@ function stackPosition(stack: string | undefined, entryPath: string): SourcePosi
   const positions: SourcePosition[] = [];
   for (const line of stack.split("\n")) {
     const match = STACK_POSITION_RE.exec(line.trim());
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the position pattern.
     if (!(match?.[1] && match[2] && match[3])) {
       continue;
     }

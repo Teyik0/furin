@@ -36,6 +36,7 @@ describe("runLoaders requestLoader", () => {
       page: {},
       path: "/parallel.tsx",
       pattern: "/parallel",
+      requestKeys: [],
       routeChain: [
         {
           __type: "FURIN_ROUTE",
@@ -61,6 +62,70 @@ describe("runLoaders requestLoader", () => {
     publicGate.resolve();
     requestGate.resolve();
     await result;
+  });
+
+  test("propagates a requestLoader failure with no declared fields", async () => {
+    const route = {
+      mode: "ssr",
+      page: {},
+      path: "/check.tsx",
+      pattern: "/check",
+      requestKeys: [],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: () => {
+            throw new Error("Access denied");
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/check" }));
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect((result.error as Error).message).toBe("Access denied");
+    }
+  });
+
+  test("preserves request field failures without unhandled rejections while public loaders run", async () => {
+    const failure = new Error("Request loader unavailable");
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => unhandled.push(error);
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async () => {
+          await Bun.sleep(30);
+          return {};
+        },
+      },
+      path: "/request-failure.tsx",
+      pattern: "/request-failure",
+      requestKeys: ["user", "permissions"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: () => {
+            throw failure;
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const result = await runLoaders(route, createMockLoaderContext({ path: "/request-failure" }));
+      expect(result.type).toBe("data");
+      if (result.type === "data") {
+        await expect(result.deferredPromises?.user).rejects.toBe(failure);
+        await expect(result.deferredPromises?.permissions).rejects.toBe(failure);
+      }
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 
   test("rejects loader data that uses framework-reserved keys", async () => {
@@ -92,7 +157,6 @@ describe("runLoaders requestLoader", () => {
       "path",
       "query",
       "ref",
-      "requestData",
       "then",
       "catch",
       "finally",
@@ -190,6 +254,7 @@ describe("runLoaders requestLoader", () => {
       page: {},
       path: "/with-loader.tsx",
       pattern: "/with-loader",
+      requestKeys: ["user"],
       routeChain: [
         {
           __type: "FURIN_ROUTE",
@@ -212,9 +277,113 @@ describe("runLoaders requestLoader", () => {
 
     expect(result.type).toBe("data");
     if (result.type === "data") {
-      expect(await result.deferredPromises?.requestData).toEqual({ user: "alice" });
+      expect(await result.deferredPromises?.user).toBe("alice");
     }
     expect(calls).toBe(1);
+
+    const rawCookieResult = await runLoaders(
+      route,
+      createMockLoaderContext({
+        cookie: undefined,
+        request: new Request("http://localhost/with-loader", {
+          headers: { cookie: 'other=unused; session="Alice%20Bob"' },
+        }),
+      })
+    );
+    expect(rawCookieResult.type).toBe("data");
+    if (rawCookieResult.type === "data") {
+      expect(await rawCookieResult.deferredPromises?.user).toBe("Alice Bob");
+    }
+    expect(calls).toBe(2);
+  });
+
+  test("resolves request fields independently when a loader returns promises", async () => {
+    const slow = Promise.withResolvers<string>();
+    const route = {
+      mode: "ssr",
+      page: {},
+      path: "/independent.tsx",
+      pattern: "/independent",
+      requestKeys: ["fast", "slow"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: () => ({ fast: Promise.resolve("ready"), slow: slow.promise }),
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/independent" }));
+    expect(result.type).toBe("data");
+    if (result.type !== "data") {
+      return;
+    }
+    let slowResolved = false;
+    result.deferredPromises?.slow?.then(() => {
+      slowResolved = true;
+    });
+    expect(await result.deferredPromises?.fast).toBe("ready");
+    expect(slowResolved).toBe(false);
+    slow.resolve("later");
+    expect(await result.deferredPromises?.slow).toBe("later");
+  });
+
+  test("resolves one layout request field while another loader is still running", async () => {
+    const slow = Promise.withResolvers<void>();
+    const route = {
+      mode: "ssr",
+      page: {},
+      path: "/separate-loaders.tsx",
+      pattern: "/separate-loaders",
+      requestKeys: ["fast", "slow"],
+      requestKeysByLoader: [["fast"], ["slow"]],
+      routeChain: [
+        { __type: "FURIN_ROUTE", requestLoader: () => ({ fast: "ready" }) },
+        {
+          __type: "FURIN_ROUTE",
+          requestLoader: async () => {
+            await slow.promise;
+            return { slow: "later" };
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/separate-loaders" }));
+    expect(result.type).toBe("data");
+    if (result.type !== "data") {
+      slow.resolve();
+      return;
+    }
+    let fastSettled = false;
+    result.deferredPromises?.fast?.then(() => {
+      fastSettled = true;
+    });
+    await Bun.sleep(0);
+    expect(fastSettled).toBe(true);
+    slow.resolve();
+    expect(await result.deferredPromises?.slow).toBe("later");
+  });
+
+  test("rejects a private field that would overwrite public loader data", async () => {
+    const route = {
+      mode: "ssr",
+      page: { loader: () => ({ user: "public" }) },
+      path: "/collision.tsx",
+      pattern: "/collision",
+      requestKeys: ["user"],
+      routeChain: [{ __type: "FURIN_ROUTE", requestLoader: () => ({ user: "private" }) }],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runLoaders(route, createMockLoaderContext({ path: "/collision" }));
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect(result.message).toContain("Something went wrong");
+      expect((result.error as Error).message).toContain('field "user" collides');
+    }
   });
 
   test("public loaders omit decorated context fields", async () => {

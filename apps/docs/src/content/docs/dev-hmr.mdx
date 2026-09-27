@@ -320,6 +320,35 @@ back to document navigation.
 The hydrate entry therefore imports router APIs through
 `@teyik0/furin/link`, never through an absolute internal source path.
 
+## Development startup
+
+Furin loads route contracts before listening: configuration, schemas, loaders,
+request loaders, metadata, and the Elysia route order remain available immediately.
+For eligible inline `.page()` callbacks, the core extracts a separate server
+render module and loads it before rendering the first HTML request for that route.
+Data-only requests do not load that component.
+
+The initial implementation splits callbacks that capture imports and their own
+parameters. Callbacks that capture local module state, named component arguments,
+and unrecognized route chains keep their existing eager behavior. Application
+routes require no syntax changes. Production builds retain their existing pipeline.
+
+Imports used only by the extracted render callback are evaluated on first render.
+Their internal side effects are consequently deferred too; put initialization
+that must run at startup in an explicit side-effect import or the server entry.
+Shared imports retain their module identity. Source versions invalidate render
+modules after edits, including sources compiled by runtime plugins such as MDX.
+
+This follows the separation of critical route configuration and components used
+by [TanStack Router](https://tanstack.com/router/latest/docs/guide/automatic-code-splitting),
+while using Bun's runtime plugins. Deferring the whole Furin initialization would
+open the port earlier but leave the first request paying for every route.
+
+The browser entry still references all routes. Bun can compile that client graph
+on the first HTML request, so a faster listening socket does not imply an equally
+large improvement in first-page latency. CI budgets measure the port, the complete
+first HTML response, and the first visit to a second route separately.
+
 ## Multi-instance isolation
 
 Every mounted Furin instance has its own prefix, generated `.furin` directory,

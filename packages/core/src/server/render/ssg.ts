@@ -9,6 +9,7 @@ import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { getSSGCache, setSSGCache } from "../cache/ssg.ts";
 import { createLogger, getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
+import { resolveDocumentMode } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
 import { renderForPath } from "./ssr.ts";
@@ -234,7 +235,7 @@ export async function warmSSGCache(
   origin: string,
   searchRoutes?: SearchRouteMetadata[]
 ): Promise<void> {
-  const targets = routes.filter((r) => r.mode === "ssg" && hasStaticParams(r));
+  const targets = routes.filter((r) => resolveDocumentMode(r) === "ssg" && hasStaticParams(r));
   const warmupLogger = createLogger({});
   warmupLogger.set({
     furin: {

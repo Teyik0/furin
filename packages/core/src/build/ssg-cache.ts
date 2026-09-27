@@ -4,7 +4,7 @@ import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
 import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
-import { buildRouteMatcher } from "../server/router/patterns.ts";
+import { buildRouteMatcher, resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 
@@ -43,7 +43,8 @@ export async function buildRoutePrerenders(
   const matchRoute = buildRouteMatcher(routes);
 
   for (const route of routes) {
-    if (route.mode === "ssr") {
+    const documentMode = resolveDocumentMode(route);
+    if (documentMode === "ssr") {
       continue;
     }
     if (hasRequestDependentInput(route, root)) {
@@ -69,7 +70,7 @@ export async function buildRoutePrerenders(
         continue;
       }
       const result =
-        route.mode === "ssg"
+        documentMode === "ssg"
           ? await prerenderSSG(route, params, root, origin, basePath, searchRoutes)
           : await prerenderRoute(
               route,
@@ -97,7 +98,11 @@ export async function buildSSGCacheSnapshot(
   const searchRoutes = createSearchRouteMetadata(routes);
 
   for (const route of routes) {
-    if (route.mode !== "ssg" || !hasStaticParams(route) || hasRequestLoader(route)) {
+    if (
+      resolveDocumentMode(route) !== "ssg" ||
+      !hasStaticParams(route) ||
+      hasRequestLoader(route)
+    ) {
       continue;
     }
     const paramSets = (await resolveStaticParams(route, origin)) ?? [];

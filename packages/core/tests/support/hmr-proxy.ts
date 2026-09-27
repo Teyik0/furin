@@ -31,6 +31,7 @@ export function startHmrProxy(listenPort: number, upstreamPort: number): Promise
         client.pause();
         const request = firstChunk.toString("latin1");
         const webSocket = WEBSOCKET_UPGRADE_RE.test(request);
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: an incomplete upgrade request may lack a target.
         const requestTarget = webSocket ? REQUEST_TARGET_RE.exec(request)?.[1] : undefined;
         const connection: ProxyConnection = {
           client,

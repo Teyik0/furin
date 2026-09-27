@@ -8,9 +8,16 @@ import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
+import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { type LoaderResult, runPublicLoaders, withRequestLoaderData } from "./loaders.ts";
+import {
+  hasMixedLoaderModes,
+  type LoaderResult,
+  runPublicLoaders,
+  runSegmentPublicLoaders,
+  withRequestLoaderData,
+} from "./loaders.ts";
 import { isPprResumeState, type PprResumeState } from "./ppr-request.ts";
 import {
   assertDeferredModeAllowed,
@@ -54,7 +61,7 @@ export async function pprPublicResult(
   await parsed.completion;
   return {
     deferredPromises: undefined,
-    headers: state.headers,
+    headers: {},
     syncData: parsed.syncData,
     type: "data",
   };
@@ -84,13 +91,31 @@ export async function prerenderPprDocument(
   searchRoutes: SearchRouteMetadata[] | undefined,
   basePath: string | undefined
 ): Promise<PprResult> {
-  const result = await runPublicLoaders(route, ctx);
+  const result = await (hasMixedLoaderModes(route)
+    ? runSegmentPublicLoaders(route, ctx)
+    : runPublicLoaders(route, ctx));
   if (result.type !== "data") {
     return result;
   }
   assertDeferredModeAllowed(route, result.deferredPromises);
   const controller = new AbortController();
-  const reason = new Error("[furin] PPR requestData must be consumed inside a Suspense boundary.");
+  const reason = new Error(
+    "[furin] PPR requestLoader fields must be consumed inside a Suspense boundary."
+  );
+  if (route.requestKeys === undefined && route.routeChain.some((entry) => entry.requestLoader)) {
+    throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
+  }
+  const requestKeys = route.requestKeys ?? [];
+  for (const key of requestKeys) {
+    if (Object.hasOwn(result.syncData, key) || Object.hasOwn(result.deferredPromises ?? {}, key)) {
+      throw new Error(
+        `[furin] requestLoader field "${key}" collides with public loader data in ${route.pattern}.`
+      );
+    }
+  }
+  const postponed = Object.fromEntries(
+    requestKeys.map((key) => [key, postponedRequestData(controller, reason)])
+  );
   const prepared = await prepareRender(
     route,
     ctx,
@@ -99,7 +124,7 @@ export async function prerenderPprDocument(
     false,
     {
       ...result,
-      deferredPromises: { requestData: postponedRequestData(controller, reason) },
+      deferredPromises: postponed,
     },
     searchRoutes
   );
@@ -134,7 +159,7 @@ export async function prerenderPprDocument(
   if (!(html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END))) {
     throw new Error("[furin] PPR requires a complete root HTML document.");
   }
-  const scripts = buildSsrTransportScripts(result.syncData, ["requestData"], true, false);
+  const scripts = buildSsrTransportScripts(result.syncData, requestKeys, true, false);
   const openDocument = html.slice(0, -DOCUMENT_END.length);
   const shell = injectAfterEntry(
     openDocument,
@@ -155,7 +180,7 @@ export async function prerenderPprDocument(
     state: {
       buildId,
       data,
-      headers: result.headers,
+      headers: {},
       path: url.pathname + url.search,
       postponed: output.postponed,
       prefix,
@@ -173,7 +198,9 @@ export async function resumePprDocument(
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<Response> {
   const publicResult = await pprPublicResult(artifact.state);
-  const actual = withRequestLoaderData(route, ctx, publicResult);
+  const actual = route.routeChain.some((entry) => entry.requestLoader)
+    ? await withRequestLoaderData(route, ctx, publicResult)
+    : publicResult;
   const prepared = await prepareRender(
     route,
     ctx,
@@ -186,7 +213,14 @@ export async function resumePprDocument(
   if (prepared instanceof Response) {
     return prepared;
   }
-  const tree = withDocumentState(prepared.element, prepared.assets, prepared.headData, undefined);
+  const nonce = artifact.html === "" ? useRequestCspNonce(ctx.request) : undefined;
+  const tree = withDocumentState(
+    prepared.element,
+    prepared.assets,
+    prepared.headData,
+    undefined,
+    nonce
+  );
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
@@ -195,6 +229,7 @@ export async function resumePprDocument(
     await writer.write(encoder.encode(artifact.html));
     if (artifact.state.postponed !== null) {
       const stream = await resume(tree, structuredClone(artifact.state.postponed), {
+        nonce,
         onError: (error) => {
           getLogger().error(error instanceof Error ? error : new Error(String(error)));
           return computeErrorDigest(error);
@@ -224,7 +259,7 @@ export async function resumePprDocument(
       reader.releaseLock();
       reader = undefined;
     }
-    await writeDeferredSsrChunks(writer, encoder, actual.deferredPromises ?? {}, true);
+    await writeDeferredSsrChunks(writer, encoder, actual.deferredPromises ?? {}, true, nonce);
     await writer.write(encoder.encode(DOCUMENT_END));
     await writer.close();
   })().catch((error: unknown) => Promise.allSettled([reader?.cancel(error), writer.abort(error)]));

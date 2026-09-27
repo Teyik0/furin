@@ -143,6 +143,7 @@ async function stackWithFetchableFrames(stack: string | undefined): Promise<stri
   await Promise.all(
     blobUrls.map(async (blobUrl) => {
       const source = await fetch(blobUrl).then((response) => (response.ok ? response.text() : ""));
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: exec returns null when the source map comment is absent.
       const sourceMapReference = sourceMapPattern.exec(source)?.[1];
       if (sourceMapReference) {
         resolved = resolved.replaceAll(

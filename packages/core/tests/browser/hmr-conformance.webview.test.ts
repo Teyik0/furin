@@ -426,11 +426,11 @@ function sectionLayoutRequestLoaderSource(value: string): string {
     'import { defineRoute } from "@teyik0/furin";',
     'import { route as rootRoute } from "../root";',
     "",
-    'function PrivateLabel({ data }: { data: Promise<{ label: string }> }) { return <output data-testid="request-loader">{use(data).label}</output>; }',
-    "function SectionLayout({ children, requestData }: { children: React.ReactNode; requestData: Promise<{ label: string }> }) {",
+    'function PrivateLabel({ data }: { data: Promise<string> }) { return <output data-testid="request-loader">{use(data)}</output>; }',
+    "function SectionLayout({ children, label }: { children: React.ReactNode; label: Promise<string> }) {",
     "  const [count, setCount] = useState(0);",
     "  return <section>",
-    '    <Suspense fallback="Loading private data"><PrivateLabel data={requestData} /></Suspense>',
+    '    <Suspense fallback="Loading private data"><PrivateLabel data={label} /></Suspense>',
     '    <output data-testid="layout-count">{count}</output>',
     '    <button data-testid="layout-increment" onClick={() => setCount((current) => current + 1)}>Increment layout</button>',
     "    {children}",
@@ -1279,6 +1279,44 @@ browserTest(
     const after = await waitForVersion(harness.view, "imported-v2");
     expect(after.count).toBe("0");
     expect(after.documentId).toBe(documentId);
+  },
+  30_000
+);
+
+browserTest(
+  "a deferred page hydrates and preserves React state after a render dependency edit",
+  async () => {
+    const harness = await createBrowserHarness(
+      `import { defineRoute } from "@teyik0/furin";
+       import { route as rootRoute } from "./root";
+       import { ChildCounter } from "../components/ChildCounter";
+       export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+         .page(() => <main data-version="deferred"><ChildCounter /></main>);`,
+      [
+        {
+          contents: importedChildSource("deferred-v1"),
+          relativePath: "src/components/ChildCounter.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="child-increment"]');
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "deferred-v1:1");
+    writeAppFile(
+      harness.app.path,
+      "src/components/ChildCounter.tsx",
+      importedChildSource("deferred-v2")
+    );
+    await waitForElementText(harness.view, '[data-testid="child-count"]', "deferred-v2:1");
+    expect((await readSnapshot(harness.view)).documentId).toBe(documentId);
+    const response = await fetch(harness.url);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("deferred-v2");
+    expect(harness.consoleErrors).toEqual([]);
   },
   30_000
 );

@@ -177,20 +177,12 @@ describe("RSC graph environment guards", () => {
   });
 
   test("accepts only patched supported React 19 release lines", () => {
-    for (const version of ["19.0.6", "19.0.9", "19.1.7", "19.1.8", "19.2.6", "19.2.7"]) {
+    for (const version of ["19.0.6", "19.0.9", "19.1.7", "19.1.8", "19.2.6", "19.2.7", "19.3.0"]) {
       expect(() =>
         assertCompatibleRscVersions({ react: version, reactDom: version, reactServerDom: version })
       ).not.toThrow();
     }
-    for (const version of [
-      "19.0.5",
-      "19.1.6",
-      "19.2.5",
-      "19.2.6-canary.1",
-      "19.3.0",
-      "20.0.0",
-      "19.2",
-    ]) {
+    for (const version of ["19.0.5", "19.1.6", "19.2.5", "19.2.6-canary.1", "20.0.0", "19.2"]) {
       expect(() =>
         assertCompatibleRscVersions({ react: version, reactDom: version, reactServerDom: version })
       ).toThrow("supported patched React 19 version");

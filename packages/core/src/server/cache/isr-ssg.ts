@@ -42,7 +42,7 @@ export function createHtmlRouteCache<Entry>(
     maxSize: MAX_HTML_CACHE_SIZE,
     name: `render:${mode}-html`,
     onDelete: (key, entry) => {
-      autoInvalidateRegistry.unregisterPath(key);
+      autoInvalidateRegistry.unregisterPath(key, `render:${mode}-html`);
       options?.onDelete?.(key, entry);
     },
     pathFromKey: pathWithoutSearch,

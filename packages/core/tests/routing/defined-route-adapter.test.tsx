@@ -130,20 +130,17 @@ describe("defineRoute renderer adapter", () => {
   test("keeps requestLoader data outside public loader data", async () => {
     const parent = { __type: "FURIN_ROUTE" as const };
     const route = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+      .config({ layout: parent, mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ public: "catalog" }))
-      .page(
-        ({ public: catalog, requestData: privateData }) =>
-          `${String(catalog)}:${String(privateData)}`
-      );
+      .page(({ public: catalog, user }) => `${String(catalog)}:${String(user)}`);
     const page = adaptDefinedPage(route, parent);
-    const requestPromise = Promise.resolve({ user: "alice" });
+    const userPromise = Promise.resolve("alice");
 
     expect(page._route.requestLoader).toBeFunction();
-    expect(page.component({ public: "catalog", requestData: requestPromise })).toBe(
-      `catalog:${String(requestPromise)}`
+    expect(page.component({ public: "catalog", user: userPromise })).toBe(
+      `catalog:${String(userPromise)}`
     );
-    expect(await requestPromise).toEqual({ user: "alice" });
+    expect(await userPromise).toBe("alice");
   });
 });

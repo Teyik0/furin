@@ -1,9 +1,11 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
+import { defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import { revalidatePathForInstance } from "../../../src/server/cache/invalidation.ts";
 import {
   createMemoryPageCache,
   type PageCacheAdapter,
@@ -21,13 +23,15 @@ import { markExternalPrerenderRequest } from "../../../src/server/external-prere
 import {
   __clearInstanceRegistry,
   createInstance,
+  currentInstance,
   registerInstance,
   withInstance,
 } from "../../../src/server/instance.ts";
+import { clearMixedPublicCache } from "../../../src/server/render/mixed-cache.ts";
 import { clearPprRouteCache, invalidatePprRoute } from "../../../src/server/render/ppr-route";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { collectRouteTags } from "../../../src/server/router/discovery.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
+import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
@@ -37,6 +41,7 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 afterEach(async () => {
   clearPprRouteCache();
+  clearMixedPublicCache();
   resetRuntimeCacheProvider();
   await Promise.resolve();
 });
@@ -67,6 +72,7 @@ function resolveRoute(route: Parameters<typeof adaptDefinedPage>[0]): ResolvedRo
     page,
     path: "/account.tsx",
     pattern: "/account",
+    requestKeys: routeChain.some((entry) => entry.requestLoader) ? ["user"] : [],
     routeChain,
     segmentBoundaries: [],
     tags: collectRouteTags(routeChain, page),
@@ -80,6 +86,65 @@ beforeAll(async () => {
 afterAll(async () => {
   __setDevMode(originalDevMode);
   await Promise.resolve();
+});
+
+test("SSR deferred responses stay private when a loader sets Cache-Control", async () => {
+  const resolved = resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(({ request, set }) => {
+        set.headers["Cache-Control"] = "public, s-maxage=60";
+        return defer({
+          title: "Account",
+          user: Promise.resolve(request.headers.get("cookie")?.replace("session=", "")),
+        });
+      })
+      .page(({ user }) => (
+        <Suspense fallback="Loading">
+          <User data={user} />
+        </Suspense>
+      ))
+  );
+  function User({ data }: { data: Promise<unknown> }) {
+    return <strong>{String(use(data))}</strong>;
+  }
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const response = await app.handle(
+    new Request("http://localhost/account", { headers: { cookie: "session=Alice" } })
+  );
+  expect(response.headers.get("cache-control")).toContain("no-store");
+  expect(response.headers.get("cache-control")).not.toContain("public");
+  expect(await response.text()).toContain("Alice");
+});
+
+test("SSR exposes deferred fields as individual promises", async () => {
+  let optionalWasAbsent = false;
+  const resolved = resolveRoute(
+    defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(() => defer({ title: "Account", user: Promise.resolve("Alice") }))
+      .page((props) => {
+        optionalWasAbsent = (props as typeof props & { optional?: unknown }).optional === undefined;
+        return (
+          <main>
+            <h1>{props.title}</h1>
+            <Suspense fallback="Loading">
+              <PrivateUser user={props.user} />
+            </Suspense>
+          </main>
+        );
+      })
+  );
+  function PrivateUser({ user }: { user: Promise<string> }) {
+    return <strong>{use(user)}</strong>;
+  }
+
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const response = await app.handle(new Request("http://localhost/account"));
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("<strong>Alice</strong>");
+  expect(optionalWasAbsent).toBe(true);
 });
 
 describe.serial("partial prerendering", () => {
@@ -147,15 +212,15 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: publicCalls, date: new Date("2026-01-01") };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
     const resolved = resolveRoute(
-      route.page(({ catalog, date, requestData }) => (
+      route.page(({ catalog, date, user }) => (
         <main>
           {catalog}:{date.toISOString()}
           <Suspense fallback="loading">
-            <User data={requestData} />
+            <User data={user} />
           </Suspense>
         </main>
       ))
@@ -215,14 +280,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog: "Shoes" };
       });
-    function User({ data }: { data: Promise<{ user: unknown }> }) {
-      return <strong>{String(use(data).user)}</strong>;
+    function User({ data }: { data: Promise<unknown> }) {
+      return <strong>{String(use(data))}</strong>;
     }
-    const page = route.page(({ catalog, requestData }) => (
+    const page = route.page(({ catalog, user }) => (
       <main>
         <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -245,6 +310,599 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
   });
 
+  test("an SSR layout stays request scoped around an ISR page", async () => {
+    let privateCalls = 0;
+    let publicCalls = 0;
+    function Session({ value }: { value: Promise<string | null> }) {
+      return use(value);
+    }
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(({ request }) => {
+        privateCalls += 1;
+        return defer({ session: Promise.resolve(request.headers.get("cookie")) });
+      })
+      .layout(({ children, session }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            <aside>
+              <Suspense fallback="Loading session">
+                <Session value={session} />
+              </Suspense>
+            </aside>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "isr", revalidate: 60 })
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: "Coffee" };
+      })
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/coffee.tsx",
+      pattern: "/coffee",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const mixedRootRecord = { path: "/root.tsx", route: mixedRootRoute };
+    const app = new Elysia()
+      .use(createRoutePlugin(resolved, mixedRootRecord, "build-1"))
+      .use(createDataEndpoint([resolved], mixedRootRecord));
+
+    const alice = await app.handle(
+      new Request("http://localhost/coffee", { headers: { cookie: "session=alice" } })
+    );
+    const aliceHtml = await alice.text();
+    const bob = await app.handle(
+      new Request("http://localhost/coffee", { headers: { cookie: "session=bob" } })
+    );
+    const bobHtml = await bob.text();
+
+    expect(aliceHtml).toContain("session=alice");
+    expect(bobHtml).toContain("session=bob");
+    expect(bobHtml).not.toContain("session=alice");
+    expect(alice.headers.get("cache-control")).toContain("no-store");
+    expect(publicCalls).toBe(1);
+    expect(privateCalls).toBe(2);
+
+    const aliceData = await app.handle(
+      new Request("http://localhost/_furin/data?path=%2Fcoffee", {
+        headers: { cookie: "session=alice" },
+      })
+    );
+    const bobData = await app.handle(
+      new Request("http://localhost/_furin/data?path=%2Fcoffee", {
+        headers: { cookie: "session=bob" },
+      })
+    );
+    const alicePayload = await aliceData.text();
+    const bobPayload = await bobData.text();
+    expect(alicePayload).toContain("session=alice");
+    expect(bobPayload).toContain("session=bob");
+    expect(bobPayload).not.toContain("session=alice");
+    expect(bobData.headers.get("cache-control")).toBe("private, no-store");
+    expect(publicCalls).toBe(1);
+    expect(privateCalls).toBe(4);
+
+    revalidatePathForInstance(currentInstance(), "/coffee", "page");
+    await app.handle(new Request("http://localhost/coffee")).then((response) => response.text());
+    expect(publicCalls).toBe(2);
+  });
+
+  test("an ISR layout stays public around an SSR page", async () => {
+    let publicCalls = 0;
+    let privateCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 60 })
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: "Coffee" };
+      })
+      .layout(({ children, catalog }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            <aside>{catalog}</aside>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "ssr" })
+      .loader(async ({ request, catalog }) => {
+        privateCalls += 1;
+        return { session: request.headers.get("cookie"), title: await catalog };
+      })
+      .page(({ session, title }) => (
+        <main>
+          {title}: {session}
+        </main>
+      ));
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    page.mode = undefined;
+    const resolved: ResolvedRoute = {
+      mode: "ssr",
+      page,
+      path: "/private-coffee.tsx",
+      pattern: "/private-coffee",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const app = new Elysia().use(
+      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
+    );
+
+    const alice = await app.handle(
+      new Request("http://localhost/private-coffee", { headers: { cookie: "alice" } })
+    );
+    const bob = await app.handle(
+      new Request("http://localhost/private-coffee", { headers: { cookie: "bob" } })
+    );
+    expect(await alice.text()).toContain("alice");
+    expect(await bob.text()).toContain("bob");
+    expect(bob.headers.get("cache-control")).toContain("no-store");
+    expect(publicCalls).toBe(1);
+    expect(privateCalls).toBe(2);
+  });
+
+  test("an ISR layout makes an SSG page document revalidate", async () => {
+    let layoutCalls = 0;
+    let pageCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 30 })
+      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
+      .layout(({ children, layoutVersion }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {layoutVersion}
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "ssg" })
+      .loader(() => ({ pageVersion: (pageCalls += 1) }))
+      .page(({ pageVersion }) => <main>{pageVersion}</main>);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "ssg",
+      page,
+      path: "/mixed-ssg.tsx",
+      pattern: "/mixed-ssg",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const app = new Elysia().use(
+      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
+    );
+
+    const first = await app.handle(new Request("http://localhost/mixed-ssg"));
+    expect(first.headers.get("cache-control")).toContain("s-maxage=30");
+    await first.text();
+    await app.handle(new Request("http://localhost/mixed-ssg")).then((response) => response.text());
+    expect(layoutCalls).toBe(1);
+    expect(pageCalls).toBe(1);
+  });
+
+  test("an SSG layout keeps its data while an ISR page document revalidates", async () => {
+    let layoutCalls = 0;
+    let pageCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "ssg" })
+      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
+      .layout(({ children, layoutVersion }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {layoutVersion}
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "isr", revalidate: 15 })
+      .loader(() => ({ pageVersion: (pageCalls += 1) }))
+      .page(({ pageVersion }) => <main>{pageVersion}</main>);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/mixed-isr.tsx",
+      pattern: "/mixed-isr",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const app = new Elysia().use(
+      createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
+    );
+
+    const first = await app.handle(new Request("http://localhost/mixed-isr"));
+    expect(first.headers.get("cache-control")).toContain("s-maxage=15");
+    await first.text();
+    await app.handle(new Request("http://localhost/mixed-isr")).then((response) => response.text());
+    expect(layoutCalls).toBe(1);
+    expect(pageCalls).toBe(1);
+  });
+
+  test("ISR layout and page keep their own revalidation intervals", async () => {
+    let layoutCalls = 0;
+    let pageCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 0 })
+      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
+      .layout(({ children }) => children);
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+      .loader(() => ({ pageVersion: (pageCalls += 1) }))
+      .page(() => null);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/intervals.tsx",
+      pattern: "/intervals",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const app = new Elysia().use(
+      createDataEndpoint([resolved], { path: "/root.tsx", route: mixedRootRoute })
+    );
+
+    const first = await app.handle(new Request("http://localhost/_furin/data?path=%2Fintervals"));
+    await first.text();
+    const second = await app.handle(new Request("http://localhost/_furin/data?path=%2Fintervals"));
+    await second.text();
+    expect(first.headers.get("cache-control")).toContain("s-maxage=0");
+    expect(layoutCalls).toBe(2);
+    expect(pageCalls).toBe(1);
+  });
+
+  test("renews a cached child when its parent data changes", async () => {
+    let layoutCalls = 0;
+    let pageCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 0 })
+      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
+      .layout(({ children }) => children);
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+      .loader(async ({ layoutVersion }) => {
+        pageCalls += 1;
+        return { derivedVersion: await layoutVersion };
+      })
+      .page(() => null);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/dependent-intervals.tsx",
+      pattern: "/dependent-intervals",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const app = new Elysia().use(
+      createDataEndpoint([resolved], { path: "/root.tsx", route: mixedRootRoute })
+    );
+
+    const first = await app.handle(
+      new Request("http://localhost/_furin/data?path=%2Fdependent-intervals")
+    );
+    const firstData = await first.text();
+    const second = await app.handle(
+      new Request("http://localhost/_furin/data?path=%2Fdependent-intervals")
+    );
+    const secondData = await second.text();
+    expect(firstData).toContain("derivedVersion");
+    expect(secondData).toContain("derivedVersion");
+    expect(layoutCalls).toBe(2);
+    expect(pageCalls).toBe(2);
+  });
+
+  test("observes shared invalidation before reusing a public segment", async () => {
+    let publicCalls = 0;
+    const privateRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+      .layout(({ children }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
+    const terminal = defineRoute()
+      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .loader(() => ({ catalog: (publicCalls += 1) }))
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/shared-mixed.tsx",
+      pattern: "/shared-mixed",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+      tags: ["catalog"],
+    };
+    const owner = registerInstance(createInstance("", "/shared-mixed/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(
+      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
+    );
+
+    try {
+      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
+      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
+      expect(publicCalls).toBe(1);
+      await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
+      await withInstance(owner, () => app.handle(new Request("http://localhost/shared-mixed")));
+      expect(publicCalls).toBe(2);
+    } finally {
+      clearMixedPublicCache(owner);
+      resetPageCacheAdapter(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("renders mixed routes when the shared segment cache is unavailable", async () => {
+    const unavailable = (): Promise<never> => Promise.reject(new Error("cache unavailable"));
+    const cache: PageCacheAdapter = {
+      acquire: unavailable,
+      commit: unavailable,
+      invalidate: unavailable,
+      read: unavailable,
+      release: unavailable,
+    };
+    const privateRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+      .layout(({ children }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
+    const terminal = defineRoute()
+      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+      .loader(() => ({ catalog: "Fresh catalog" }))
+      .page(({ catalog }) => <main>{catalog}</main>);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/unavailable-mixed.tsx",
+      pattern: "/unavailable-mixed",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const owner = registerInstance(createInstance("", "/unavailable-mixed/pages"));
+    owner.buildId = "build-1";
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(
+      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
+    );
+
+    try {
+      const response = await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/unavailable-mixed"))
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(await response.text()).toContain("Fresh catalog");
+    } finally {
+      clearMixedPublicCache(owner);
+      resetPageCacheAdapter(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("does not restore a public segment invalidated during its loader", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let publicCalls = 0;
+    const privateRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(() => ({ session: "private" }))
+      .layout(({ children }) => children);
+    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
+    const terminal = defineRoute()
+      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+      .loader(async () => {
+        publicCalls += 1;
+        if (publicCalls === 1) {
+          started.resolve();
+          await release.promise;
+        }
+        return { catalog: publicCalls };
+      })
+      .page(() => null);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/inflight-mixed.tsx",
+      pattern: "/inflight-mixed",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const owner = registerInstance(createInstance("", "/inflight-mixed/pages"));
+    owner.buildId = "build-1";
+    const app = new Elysia().use(
+      createDataEndpoint([route], { path: "/root.tsx", route: rootRoute })
+    );
+
+    try {
+      const first = withInstance(owner, () =>
+        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-mixed"))
+      );
+      await started.promise;
+      revalidatePathForInstance(owner, "/inflight-mixed", "page");
+      release.resolve();
+      await first;
+      await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-mixed"))
+      );
+      expect(publicCalls).toBe(2);
+    } finally {
+      release.resolve();
+      clearMixedPublicCache(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("does not restore a shared segment invalidated during its loader", async () => {
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let publicCalls = 0;
+    const privateRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(() => ({ session: "private" }))
+      .layout(({ children }) => children);
+    const rootRoute = adaptDefinedLayout(privateRoot, undefined);
+    const terminal = defineRoute()
+      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .loader(async () => {
+        publicCalls += 1;
+        if (publicCalls === 1) {
+          started.resolve();
+          await release.promise;
+        }
+        return { catalog: publicCalls };
+      })
+      .page(() => null);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "isr",
+      page,
+      path: "/inflight-shared-mixed.tsx",
+      pattern: "/inflight-shared-mixed",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+      tags: ["catalog"],
+    };
+    const owner = registerInstance(createInstance("", "/inflight-shared-mixed/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(
+      createDataEndpoint([route], { path: "/root.tsx", route: rootRoute })
+    );
+
+    try {
+      const first = withInstance(owner, () =>
+        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-shared-mixed"))
+      );
+      await started.promise;
+      await cache.invalidate({ kind: "tags", scope: "", tags: ["catalog"] });
+      release.resolve();
+      await first;
+      await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/_furin/data?path=%2Finflight-shared-mixed"))
+      );
+      expect(publicCalls).toBe(2);
+    } finally {
+      release.resolve();
+      clearMixedPublicCache(owner);
+      resetPageCacheAdapter(owner);
+      __clearInstanceRegistry();
+    }
+  });
+
+  test("evicting a segment keeps the document's tag invalidation", async () => {
+    let catalog = "Coffee";
+    const publicRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
+      .loader(() => ({ site: "Shop" }))
+      .layout(({ children }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const rootRoute = adaptDefinedLayout(publicRoot, undefined);
+    const terminal = defineRoute()
+      .config({ layout: publicRoot, mode: "ssg" })
+      .loader(() => ({ catalog }))
+      .page(({ catalog: value }) => <main>{value}</main>);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "ssg",
+      page,
+      path: "/tagged-mixed.tsx",
+      pattern: "/tagged-mixed",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+      tags: ["catalog"],
+    };
+    const owner = registerInstance(createInstance("", "/tagged-mixed/pages"));
+    owner.buildId = "build-1";
+    const app = new Elysia().use(
+      createRoutePlugin(route, { path: "/root.tsx", route: rootRoute }, owner.buildId)
+    );
+
+    try {
+      const first = await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/tagged-mixed"))
+      );
+      expect(await first.text()).toContain("Coffee");
+      clearMixedPublicCache(owner);
+      catalog = "Tea";
+      expect(await revalidateTag("catalog")).toBe(true);
+      const fresh = await withInstance(owner, () =>
+        app.handle(new Request("http://localhost/tagged-mixed"))
+      );
+      expect(await fresh.text()).toContain("Tea");
+    } finally {
+      clearMixedPublicCache(owner);
+      revalidatePathForInstance(owner, "/tagged-mixed", "page");
+      __clearInstanceRegistry();
+    }
+  });
+
   test("keys PPR public shells by query string", async () => {
     let publicCalls = 0;
     const route = defineRoute()
@@ -259,14 +917,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { view: query.view ?? "" };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
-    const page = route.page(({ requestData, view }) => (
+    const page = route.page(({ user, view }) => (
       <main>
         <h1>{view}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -299,14 +957,14 @@ describe.serial("partial prerendering", () => {
         publicCalls += 1;
         return { catalog };
       });
-    function User({ data }: { data: Promise<{ user: string }> }) {
-      return <strong>{use(data).user}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
     }
-    const page = route.page(({ catalog: loadedCatalog, requestData }) => (
+    const page = route.page(({ catalog: loadedCatalog, user }) => (
       <main>
         <h1>{loadedCatalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -497,21 +1155,21 @@ describe.serial("partial prerendering", () => {
     }
   });
 
-  test("streams a rejected requestData chunk instead of aborting the PPR response", async () => {
+  test("streams a rejected request field instead of aborting the PPR response", async () => {
     const route = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
-      .requestLoader(() => {
+      .requestLoader((): { user: string } => {
         throw new Error("private boom");
       })
       .loader(() => ({ catalog: "Shoes" }));
-    function User({ data }: { data: Promise<{ user: unknown }> }) {
-      return <strong>{String(use(data).user)}</strong>;
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{String(use(data))}</strong>;
     }
-    const page = route.page(({ catalog, requestData }) => (
+    const page = route.page(({ catalog, user }) => (
       <main>
         <h1>{catalog}</h1>
         <Suspense fallback={<span>Loading</span>}>
-          <User data={requestData} />
+          <User data={user} />
         </Suspense>
       </main>
     ));
@@ -524,7 +1182,7 @@ describe.serial("partial prerendering", () => {
 
     expect(html).toContain("Shoes");
     expect(html).toContain("__FURIN_ROUTE_FRAME_STREAM__");
-    expect(html).toContain('\\"key\\":\\"requestData\\"');
+    expect(html).toContain('\\"key\\":\\"user\\"');
     expect(html).toContain('\\"type\\":\\"defer-reject\\"');
   });
 });

@@ -5,6 +5,8 @@ import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { extractDevClientEntry, getFreePort } from "../../support/hmr.ts";
 import { startProcess } from "../../support/process.ts";
 
+const CATALOG_RUNS = /data-test="catalog-runs">(\d+)<\/span>/;
+
 /**
  * Regression test for issue: editing a `_route.tsx` in a sibling subdirectory
  * (one that is NOT a dependency of the currently-cached page) used to leave
@@ -50,6 +52,35 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
       "export const route = defineRoute()",
       '  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })',
       "  .page(() => <main>ISR home page</main>);",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/private.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      '  .loader(({ request }) => ({ session: request.headers.get("cookie") }))',
+      "  .page(({ session }) => <main>{session}</main>);",
+    ].join("\n")
+  );
+
+  writeAppFile(
+    app.path,
+    "src/pages/personal.tsx",
+    [
+      'import { Await, defineRoute } from "@teyik0/furin";',
+      'import { Suspense } from "react";',
+      'import { route as rootRoute } from "./root";',
+      "let catalogRuns = 0;",
+      "export const route = defineRoute()",
+      '  .config({ layout: rootRoute, mode: "ssg" })',
+      '  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))',
+      '  .loader(() => ({ catalog: "shared", catalogRuns: ++catalogRuns }))',
+      '  .page(({ catalog, catalogRuns, session }) => <main>{catalog}<span data-test="catalog-runs">{catalogRuns}</span><Suspense fallback="Loading"><Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await></Suspense></main>);',
     ].join("\n")
   );
 
@@ -109,6 +140,34 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     server?.kill();
     await server?.exitCode;
     app.cleanup();
+  });
+
+  test("dev cache rejects request data in a public SSG loader", async () => {
+    const response = await fetch(`http://localhost:${port}/private`, {
+      headers: { cookie: "session=alice" },
+    });
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("session=alice");
+  });
+
+  test("dev SSG keeps cached public data while refreshing request fields", async () => {
+    const alice = await fetch(`http://localhost:${port}/personal`, {
+      headers: { cookie: "session=alice" },
+    });
+    const bob = await fetch(`http://localhost:${port}/personal`, {
+      headers: { cookie: "session=bob" },
+    });
+
+    expect(alice.status).toBe(200);
+    expect(bob.status).toBe(200);
+    const aliceHtml = await alice.text();
+    const bobHtml = await bob.text();
+    expect(aliceHtml).toContain("<strong>alice</strong>");
+    expect(bobHtml).toContain("<strong>bob</strong>");
+    expect(aliceHtml).toContain("shared");
+    expect(bobHtml).toContain("shared");
+    expect(aliceHtml.match(CATALOG_RUNS)?.[1]).toBeDefined();
+    expect(bobHtml.match(CATALOG_RUNS)?.[1]).toBe(aliceHtml.match(CATALOG_RUNS)?.[1]);
   });
 
   test("editing pages/sub/_route.tsx invalidates the cached ISR home page so the next reload embeds the fresh chunk URL", async () => {

@@ -1,12 +1,39 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DevGraph } from "../../../src/server/dev/graph.ts";
+import { DevGraph, resolveDevSourceImports } from "../../../src/server/dev/graph.ts";
 
 interface TestSnapshot {
   value: string;
 }
+
+test("discovers relative imports with a custom file extension", () => {
+  const page = join(import.meta.dir, "page.tsx");
+  const { imports } = resolveDevSourceImports(
+    'import Content from "./article.content";',
+    page,
+    "tsx"
+  );
+  expect(imports).toEqual([join(import.meta.dir, "article.content").replaceAll("\\", "/")]);
+});
+
+test("maps a JavaScript import specifier to its TypeScript source", () => {
+  const directory = mkdtempSync(join(tmpdir(), "furin-graph-import-"));
+  try {
+    writeFileSync(join(directory, "helper.ts"), "export const value = 1;");
+    const { imports } = resolveDevSourceImports(
+      'import { value } from "./helper.js";',
+      join(directory, "page.tsx"),
+      "tsx"
+    );
+    expect(imports.map((path) => realpathSync(path))).toEqual([
+      realpathSync(join(directory, "helper.ts")),
+    ]);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 test("DevGraph atomically versions snapshots, modules, state, and events", async () => {
   const graph = new DevGraph<TestSnapshot>({ value: "initial" });

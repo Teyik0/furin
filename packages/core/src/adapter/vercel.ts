@@ -14,11 +14,16 @@ import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
-import { compareRouteSpecificity, resolveRouteRevalidate } from "../server/router/patterns.ts";
+import {
+  compareRouteSpecificity,
+  resolveDocumentMode,
+  resolveDocumentRevalidate,
+} from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { physicalPath } from "../shared/prefix.ts";
 import {
   buildRuntimeAppsSequentially,
+  mixedRuntimePlugin,
   pprRuntimePlugin,
   type RuntimeAppBuild,
   type RuntimeTargetApp,
@@ -230,7 +235,8 @@ function destinationForFunction(functionName: string): string {
 
 function isPprRoute(app: RuntimeTargetApp, route: ResolvedRoute): boolean {
   return (
-    route.mode !== "ssr" && (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
+    resolveDocumentMode(route) !== "ssr" &&
+    (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
   );
 }
 
@@ -291,14 +297,14 @@ function createExactPrerenderSpec(
   if (!DYNAMIC_SEGMENT_RE.test(prerender.route.pattern)) {
     return;
   }
-  const { mode } = prerender.route;
+  const mode = resolveDocumentMode(prerender.route);
   if (mode === "ssr") {
     return;
   }
   const source = exactPathSource(routePath);
   return {
     config: {
-      expiration: mode === "ssg" ? false : (resolveRouteRevalidate(prerender.route.page) ?? 60),
+      expiration: mode === "ssg" ? false : (resolveDocumentRevalidate(prerender.route) ?? 60),
       passQuery: true,
     },
     exact: true,
@@ -318,14 +324,15 @@ async function createPrerenderSpecs(
 
   for (const app of apps) {
     for (const route of app.routes) {
-      if (route.mode === "ssr") {
+      const mode = resolveDocumentMode(route);
+      if (mode === "ssr") {
         continue;
       }
       const physicalPattern = physicalPath(app.prefix, route.pattern);
       const source = routePatternSource(app.prefix, route.pattern);
       specs.set(source, {
         config: {
-          expiration: route.mode === "ssg" ? false : (resolveRouteRevalidate(route.page) ?? 60),
+          expiration: mode === "ssg" ? false : (resolveDocumentRevalidate(route) ?? 60),
           passQuery: true,
           ...(isPprRoute(app, route)
             ? {
@@ -334,7 +341,7 @@ async function createPrerenderSpecs(
             : {}),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
-        functionName: functionNameForPath(physicalPattern, route.mode),
+        functionName: functionNameForPath(physicalPattern, mode),
         pattern: physicalPattern,
         source,
       });
@@ -770,6 +777,7 @@ export async function buildVercelTarget(
       vercelRuntimePlugin(),
       productionInstrumentationPlugin(),
       pprRuntimePlugin(apps),
+      mixedRuntimePlugin(apps),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
       isomorphicTransformPlugin("server"),
@@ -843,7 +851,7 @@ export async function buildVercelTarget(
     })),
     ...apps.flatMap((app) =>
       app.routes
-        .filter((route) => route.mode === "ssr")
+        .filter((route) => resolveDocumentMode(route) === "ssr")
         .map((route) => ({
           dest: "/__server",
           pattern: physicalPath(app.prefix, route.pattern),
@@ -866,14 +874,14 @@ export async function buildVercelTarget(
   const ssgRoutes = builds
     .flatMap((build, index) =>
       build.prerenders
-        .filter((prerender) => prerender.route.mode === "ssg")
+        .filter((prerender) => resolveDocumentMode(prerender.route) === "ssg")
         .map((prerender) => physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path))
     )
     .toSorted();
   const isrRoutes = apps
     .flatMap((app) =>
       app.routes
-        .filter((route) => route.mode === "isr")
+        .filter((route) => resolveDocumentMode(route) === "isr")
         .map((route) => physicalPath(app.prefix, route.pattern))
     )
     .toSorted();

@@ -30,6 +30,7 @@ function parseGeneratedFrames(stack: string | undefined): readonly GeneratedFram
   const frames: GeneratedFrame[] = [];
   for (const line of stack.split("\n")) {
     const match = STACK_FRAME_RE.exec(line);
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the frame pattern.
     if (!(match?.[2] && match[3] && match[4])) {
       continue;
     }
@@ -61,6 +62,7 @@ async function loadSourceMap(url: URL, origin: string): Promise<TraceMap | undef
   }
   const generatedResponse = await fetch(url);
   const generated = generatedResponse.ok ? await generatedResponse.text() : "";
+  // biome-ignore lint/suspicious/noUnnecessaryConditions: generated code may omit a source map comment.
   const sourceMapReference = SOURCE_MAP_RE.exec(generated)?.[1];
   if (!sourceMapReference) {
     return;

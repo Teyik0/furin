@@ -26,5 +26,5 @@ export function getSSGCache(key: string): SsgCacheEntry | undefined {
 
 export function setSSGCache(key: string, entry: SsgCacheEntry): void {
   instanceSsgCache().set(key, entry);
-  autoInvalidateRegistry.registerLoaderTags(key, entry.tags);
+  autoInvalidateRegistry.registerLoaderTags(key, entry.tags, "render:ssg-html");
 }

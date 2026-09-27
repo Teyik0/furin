@@ -20,6 +20,7 @@ const LEASE_MS = 30_000;
 const MUTATION_TTL_MS = 24 * 60 * 60 * 1000;
 const RECOVERY_RETRY_INITIAL_MS = 250;
 const RECOVERY_RETRY_MAX_MS = 32_000;
+const CURSOR_CHECK_INTERVAL_MS = 15_000;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 
 export interface PostgresSyncAdapterOptions {
@@ -389,9 +390,16 @@ export class PostgresSyncNotifier implements SyncNotifier {
         });
     };
     const subscription = await this.sql.listen(this.notificationChannel, emit, recover);
+    const cursorCheck = setInterval(() => {
+      if (!retry) {
+        recover();
+      }
+    }, CURSOR_CHECK_INTERVAL_MS);
+    cursorCheck.unref?.();
     return {
       unsubscribe: () => {
         active = false;
+        clearInterval(cursorCheck);
         if (retry) {
           clearTimeout(retry);
           retry = undefined;

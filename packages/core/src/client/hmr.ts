@@ -1,4 +1,5 @@
-import { createElement, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { jsx } from "react/jsx-runtime";
 
 type ClientComponent<Props> = (props: Props) => ReactNode;
 const HOT_COMPONENT_SIGNATURE = Symbol.for("furin.hmr.hook-signature");
@@ -56,7 +57,7 @@ export function updateHotComponent<Props>(
     boundary: (props) => slot.current(props),
     current: component as ClientComponent<never>,
     signature: readHookSignature(component),
-    stable: (props) => createElement(slot.boundary, props) as unknown as ReactNode,
+    stable: (props) => jsx(slot.boundary as (props: unknown) => ReactNode, props) as ReactNode,
   };
   registry.set(key, slot);
   return slot.stable as ClientComponent<Props>;

@@ -53,17 +53,21 @@
  * rewritten while string literals in non-import positions are left untouched.
  */
 
-import { dirname, resolve } from "node:path";
+import { statSync } from "node:fs";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { splitDevPage } from "../plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
 import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
 import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
 import { DevTransformFailure } from "./dev/transform-failure.ts";
+import { routeModuleSourceVersion } from "./router/source-version.ts";
 
 // Matches ?furin-server with an optional &t=<ms> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
+const FURIN_RENDER_FILTER = /\?furin-render&t=\d+$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
   /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.[jt]sx?$).*\.[jt]sx?$/;
@@ -73,6 +77,7 @@ const STRIP_T_PARAM_RE = /\?t=\d+$/;
 const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
 
 let _pluginRegistered = false;
+const pluginSourceStamps = new Map<string, string>();
 
 type SourceLoader = "js" | "jsx" | "ts" | "tsx";
 
@@ -323,6 +328,28 @@ function shouldSkipWorkspaceTransform(filePath: string): boolean {
 
 function recordDevImports(source: string, filePath: string): void {
   const { imports } = resolveDevSourceImports(source, filePath, getSourceLoader(filePath) ?? "tsx");
+  for (const path of imports) {
+    if (!isAbsolute(path) || getSourceLoader(path)) {
+      continue;
+    }
+    // Plugin loaders match the original extension (e.g. .mdx), so a query
+    // suffix cannot version these modules. Evict only an edited source.
+    const stats = statSync(path, { bigint: true, throwIfNoEntry: false });
+    if (!stats) {
+      continue;
+    }
+    const stamp = `${stats.mtimeNs}:${stats.size}`;
+    const previous = pluginSourceStamps.get(path);
+    if (previous !== undefined && previous !== stamp) {
+      Reflect.deleteProperty(require.cache, path);
+      for (const cachedPath of Object.keys(require.cache)) {
+        if (toImportSpecifier(cachedPath) === toImportSpecifier(path)) {
+          Reflect.deleteProperty(require.cache, cachedPath);
+        }
+      }
+    }
+    pluginSourceStamps.set(path, stamp);
+  }
   for (const graph of developmentGraphs()) {
     graph.recordImports(toImportSpecifier(filePath), imports);
   }
@@ -364,7 +391,11 @@ function rethrowWithSourcePath(error: unknown, filePath: string): never {
 export function transformDevSource(
   raw: string,
   filePath: string,
-  options: { rewriteBareImports: boolean; rewriteRelativeImports: boolean }
+  options: {
+    renderFragment?: boolean;
+    rewriteBareImports: boolean;
+    rewriteRelativeImports: boolean;
+  }
 ): string {
   const loader = getSourceLoader(filePath);
   if (!loader) {
@@ -375,8 +406,18 @@ export function transformDevSource(
     graph.clearSourceErrors(filePath);
   }
   try {
-    recordDevImports(raw, filePath);
-    const serverSource = transformIsomorphicFunctions(raw, filePath, "server").code;
+    if (!options.renderFragment) {
+      recordDevImports(raw, filePath);
+    }
+    const isomorphicSource = transformIsomorphicFunctions(raw, filePath, "server").code;
+    const split = options.renderFragment
+      ? undefined
+      : splitDevPage(
+          isomorphicSource,
+          filePath,
+          `${filePath}?furin-render&t=${routeModuleSourceVersion(filePath)}`
+        );
+    const serverSource = split?.contract ?? isomorphicSource;
     const sourceForTranspile = options.rewriteRelativeImports
       ? rewriteRelativeImportsWithVersion(serverSource, filePath, true)
       : serverSource;
@@ -445,6 +486,27 @@ export function registerDevPagePlugin(): void {
   Bun.plugin({
     name: "furin-dev-page-loader",
     setup(build) {
+      build.onResolve({ filter: FURIN_RENDER_FILTER }, (args) => ({
+        namespace: "furin-dev-render",
+        path: args.path,
+      }));
+      build.onLoad({ filter: ANY_FILTER, namespace: "furin-dev-render" }, async (args) => {
+        const filePath = args.path.slice(0, args.path.indexOf("?furin-render"));
+        const raw = await Bun.file(filePath).text();
+        const source = transformIsomorphicFunctions(raw, filePath, "server").code;
+        const split = splitDevPage(source, filePath, args.path);
+        if (!split) {
+          throw new Error(`[furin] Page changed while loading its render module: ${filePath}`);
+        }
+        return {
+          contents: transformDevSource(split.render, filePath, {
+            renderFragment: true,
+            rewriteBareImports: true,
+            rewriteRelativeImports: true,
+          }),
+          loader: "js",
+        };
+      });
       // Keep an already-loaded module generation usable if its source is
       // deleted while Bun finishes that same generation. A later generation
       // receives a tombstone instead of reviving the removed route.
@@ -457,6 +519,7 @@ export function registerDevPagePlugin(): void {
       build.onResolve({ filter: FURIN_SERVER_FILTER }, (args) => {
         const tMatch = T_PARAM_RE.exec(args.path);
         const filePath = args.path.replace(STRIP_FURIN_SERVER_RE, "");
+        // biome-ignore lint/suspicious/noUnnecessaryConditions: the timestamp query is optional.
         const resolvedPath = tMatch ? `${filePath}?t=${tMatch[1]}` : filePath;
         return { namespace: "furin-dev-page", path: resolvedPath };
       });

@@ -14,7 +14,8 @@ function makePage(linkTo: string): React.ComponentType<Record<string, unknown>> 
     createElement(
       "div",
       { style: { height: "2000px" } },
-      createElement(Link, { to: linkTo }, `Go to ${linkTo}`)
+      createElement(Link, { to: linkTo }, `Go to ${linkTo}`),
+      createElement("span", { id: "section" }, "Section")
     );
 }
 
@@ -123,6 +124,14 @@ describe("RouterProvider server-side redirect follow", () => {
   let originalReplaceState: typeof window.history.replaceState | undefined;
   let replaceStateCalls: Array<{ url: string }> = [];
   let currentCleanup: (() => void) | undefined;
+  let guardRedirect = false;
+  let chainedRedirect = false;
+  let pageBAllowed = false;
+  let pageBFetches = 0;
+  let pageCFetches = 0;
+  let delayPageCRefresh = false;
+  let releasePageCRefresh: (() => void) | undefined;
+  let pageCRefreshResponse: Response | undefined;
 
   beforeEach(() => {
     installDom();
@@ -134,20 +143,55 @@ describe("RouterProvider server-side redirect follow", () => {
         : undefined;
     replaceStateCalls = [];
     currentCleanup = undefined;
+    guardRedirect = false;
+    chainedRedirect = false;
+    pageBAllowed = false;
+    pageBFetches = 0;
+    pageCFetches = 0;
+    delayPageCRefresh = false;
+    releasePageCRefresh = undefined;
+    pageCRefreshResponse = undefined;
 
-    globalThis.fetch = mock((input: RequestInfo | URL) => {
+    globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input.toString(), window.location.origin);
       const logicalPath =
         url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
+      const logicalPathname = new URL(logicalPath, window.location.origin).pathname;
 
-      if (logicalPath === "/page-b") {
+      if (logicalPathname === "/page-b") {
+        pageBFetches += 1;
+        if (pageBAllowed) {
+          return Promise.resolve(makeNdjsonResponse({ message: "page-b" }));
+        }
+        if (guardRedirect) {
+          expect(init?.redirect).toBe("manual");
+          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-c#section" }));
+        }
         // Simulate a server-side redirect: /page-b -> /page-c
         return Promise.resolve(
           makeNdjsonResponse({ __furinRedirect: "/page-c", message: "redirected" })
         );
       }
-      if (logicalPath === "/page-c") {
+      if (logicalPathname === "/page-c") {
+        pageCFetches += 1;
+        if (delayPageCRefresh && pageCFetches === 2) {
+          return new Promise<Response>((resolve) => {
+            releasePageCRefresh = () => {
+              pageCRefreshResponse = makeNdjsonResponse({ __furinRedirect: "/page-d" });
+              resolve(pageCRefreshResponse);
+            };
+          });
+        }
+        if (chainedRedirect) {
+          return Promise.resolve(makeNdjsonResponse({ __furinRedirect: "/page-d" }));
+        }
         return Promise.resolve(makeNdjsonResponse({ message: "page-c" }));
+      }
+      if (logicalPathname === "/page-a") {
+        return Promise.resolve(makeNdjsonResponse({ message: "page-a" }));
+      }
+      if (logicalPathname === "/page-d") {
+        return Promise.resolve(makeNdjsonResponse({ message: "page-d" }));
       }
       return Promise.resolve(new Response(null, { status: 404 }));
     }) as unknown as typeof globalThis.fetch;
@@ -219,4 +263,189 @@ describe("RouterProvider server-side redirect follow", () => {
     },
     { timeout: 5000 }
   );
+
+  test("follows a guard redirect from the data endpoint", async () => {
+    guardRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.location.pathname === "/page-c") {
+          clearInterval(interval);
+          resolve();
+        } else if (Date.now() - start > 2000) {
+          clearInterval(interval);
+          reject(new Error("Timed out waiting for guard redirect"));
+        }
+      }, 10);
+    });
+    await flushReactUpdates();
+    expect(window.location.pathname).toBe("/page-c");
+    expect(window.location.hash).toBe("#section");
+  });
+
+  test("scrolls to a guard redirect fragment on the current page", async () => {
+    guardRedirect = true;
+    const routes = [makeRoute("/page-b", "/page-c"), makeRoute("/page-c", "/page-b")];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-c");
+    currentCleanup = cleanup;
+    const scrollIntoView = mock(() => undefined);
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      await dispatchReactEvent(
+        container.querySelector("a") as HTMLAnchorElement,
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      );
+      await flushReactUpdates();
+
+      expect(window.location.hash).toBe("#section");
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  test("rechecks a prefetched guard redirect when the link is clicked", async () => {
+    guardRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+    const anchor = container.querySelector("a") as HTMLAnchorElement;
+
+    await dispatchReactEvent(anchor, new FocusEvent("focusin", { bubbles: true }));
+    expect(pageBFetches).toBe(1);
+    pageBAllowed = true;
+
+    await dispatchReactEvent(anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushReactUpdates();
+
+    expect(pageBFetches).toBe(2);
+    expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("rechecks a prefetched guard redirect on browser history navigation", async () => {
+    guardRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new FocusEvent("focusin", { bubbles: true })
+    );
+    expect(pageBFetches).toBe(1);
+    pageBAllowed = true;
+
+    window.history.pushState(null, "", "/page-b");
+    await dispatchReactEvent(window, new PopStateEvent("popstate"));
+    await flushReactUpdates();
+
+    expect(pageBFetches).toBe(2);
+    expect(window.location.pathname).toBe("/page-b");
+  });
+
+  test("ignores a redirect refresh after another navigation wins", async () => {
+    chainedRedirect = true;
+    delayPageCRefresh = true;
+    const routes = [
+      makeRoute("/page-a", "/page-c"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+      makeRoute("/page-d", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new FocusEvent("focusin", { bubbles: true })
+    );
+    expect(pageCFetches).toBe(1);
+
+    window.history.pushState(null, "", "/page-b");
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    try {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline && !releasePageCRefresh) {
+        // biome-ignore lint/performance/noAwaitInLoops: wait for the pending redirect fetch before superseding it.
+        await Bun.sleep(5);
+      }
+      expect(releasePageCRefresh).toBeDefined();
+
+      window.history.pushState(null, "", "/page-a");
+      await dispatchReactEvent(window, new PopStateEvent("popstate"));
+      await act(async () => {
+        releasePageCRefresh?.();
+        const responseDeadline = Date.now() + 2000;
+        while (
+          Date.now() < responseDeadline &&
+          (!pageCRefreshResponse?.bodyUsed || pageCRefreshResponse.body?.locked)
+        ) {
+          // biome-ignore lint/performance/noAwaitInLoops: wait until the delayed response is parsed and its reader released.
+          await Bun.sleep(5);
+        }
+        expect(pageCRefreshResponse?.bodyUsed).toBe(true);
+        expect(pageCRefreshResponse?.body?.locked).toBe(false);
+      });
+
+      expect(window.location.pathname).toBe("/page-a");
+    } finally {
+      releasePageCRefresh?.();
+    }
+  });
+
+  test("follows chained guard redirects", async () => {
+    guardRedirect = true;
+    chainedRedirect = true;
+    const routes = [
+      makeRoute("/page-a", "/page-b"),
+      makeRoute("/page-b", "/page-a"),
+      makeRoute("/page-c", "/page-a"),
+      makeRoute("/page-d", "/page-a"),
+    ];
+    const { container, cleanup } = await renderRouterWithLink(routes, "/page-a");
+    currentCleanup = cleanup;
+
+    await dispatchReactEvent(
+      container.querySelector("a") as HTMLAnchorElement,
+      new MouseEvent("click", { bubbles: true, cancelable: true })
+    );
+    await new Promise<void>((resolve, reject) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (window.location.pathname === "/page-d") {
+          clearInterval(interval);
+          resolve();
+        } else if (Date.now() - start > 2000) {
+          clearInterval(interval);
+          reject(new Error("Timed out waiting for chained guard redirects"));
+        }
+      }, 10);
+    });
+    await flushReactUpdates();
+    expect(window.location.pathname).toBe("/page-d");
+  });
 });

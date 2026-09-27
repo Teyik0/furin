@@ -119,7 +119,7 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
 
   override componentDidUpdate(prevProps: ErrorBoundaryProps) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
-      this.reset();
+      this.setState((state) => ({ digest: null, epoch: state.epoch + 1, error: null }));
     }
   }
 

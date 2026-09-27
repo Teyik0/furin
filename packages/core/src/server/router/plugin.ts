@@ -15,9 +15,11 @@ import { currentInstance } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { handleISR } from "../render/isr.ts";
 import {
+  hasMixedLoaderModes,
   hasRequestLoader,
   type LoaderResult,
   runLoaders,
+  runMixedLoaders,
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
@@ -28,7 +30,7 @@ import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { handleDevRequest, reportDevRouteFailure } from "./hmr.ts";
-import { buildRouteMatcher, resolveRouteRevalidate } from "./patterns.ts";
+import { buildRouteMatcher, resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import {
   createSearchRouteMetadata,
@@ -84,7 +86,10 @@ async function runDataEndpointLoaders(
   root: RootLayout | undefined,
   searchRoutes: SearchRouteMetadata[]
 ): Promise<LoaderResult> {
-  if (route.mode !== "isr" && route.mode !== "ssg") {
+  if (hasMixedLoaderModes(route)) {
+    return runMixedLoaders(route, ctx);
+  }
+  if (resolveDocumentMode(route) === "ssr") {
     return runLoaders(route, ctx);
   }
 
@@ -106,7 +111,7 @@ async function serializeLoaderDataResponse(
   if (result.type === "redirect") {
     const redirectUrl = new URL(result.response.headers.get("location") ?? "/", requestUrl);
     const serialized = await toCrossJSONAsync({
-      __furinRedirect: redirectUrl.pathname + redirectUrl.search,
+      __furinRedirect: redirectUrl.pathname + redirectUrl.search + redirectUrl.hash,
     });
     return new Response(`${JSON.stringify(serialized)}\n`, {
       headers: { "content-type": "application/x-ndjson" },
@@ -149,11 +154,41 @@ async function serializeLoaderDataResponse(
   });
 }
 
+export async function serializeGuardRedirect(
+  response: Response,
+  request: Request
+): Promise<Response> {
+  const location = response.headers.get("location");
+  if (!location) {
+    return response;
+  }
+  const requestUrl = new URL(request.url);
+  const prefix = requestUrl.pathname.slice(0, -"/_furin/data".length);
+  const rawPath = requestUrl.searchParams.get("path");
+  const logicalPath = rawPath ? parseDataEndpointPath(rawPath) : undefined;
+  const pageUrl = logicalPath
+    ? new URL(prefix + logicalPath.pathname + logicalPath.url.search, requestUrl)
+    : requestUrl;
+  const target = new URL(location, pageUrl);
+  const withinMount =
+    prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
+  const href =
+    target.origin === requestUrl.origin && withinMount
+      ? (target.pathname.slice(prefix.length) || "/") + target.search + target.hash
+      : target.href;
+  const serialized = await toCrossJSONAsync({ __furinRedirect: href });
+  const headers = new Headers(response.headers);
+  headers.delete("location");
+  headers.set("content-type", "application/x-ndjson");
+  headers.set("cache-control", "private, no-store");
+  return new Response(`${JSON.stringify(serialized)}\n`, { headers });
+}
+
 function navigationDataCacheControl(route: ResolvedRoute): string {
-  if (route.mode === "ssg") {
+  if (resolveDocumentMode(route) === "ssg") {
     return "public, max-age=0, must-revalidate, s-maxage=31536000";
   }
-  const revalidate = resolveRouteRevalidate(route.page) ?? 60;
+  const revalidate = resolveDocumentRevalidate(route) ?? 60;
   return `public, max-age=0, s-maxage=${revalidate}, stale-while-revalidate=${revalidate}`;
 }
 
@@ -165,7 +200,7 @@ function applyNavigationDataCache(
 ): Response {
   const cacheable =
     !IS_DEV &&
-    (route.mode === "ssg" || route.mode === "isr") &&
+    resolveDocumentMode(route) !== "ssr" &&
     !hasRequestLoader(route) &&
     result.type === "data" &&
     result.deferredPromises === undefined;
@@ -189,6 +224,26 @@ async function createLoaderDataResponse(
 ): Promise<Response> {
   const response = await serializeLoaderDataResponse(result, route, requestUrl, routeContext);
   return applyNavigationDataCache(response, result, route, requestUrl);
+}
+
+/** Serialise navigation data after Elysia has run the matched page's hooks. */
+export async function renderRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[],
+  logicalHref: string
+): Promise<Response> {
+  const logicalContext = Object.create(ctx, {
+    path: { enumerable: true, value: new URL(logicalHref, ctx.request.url).pathname },
+  }) as Context;
+  const result = await runDataEndpointLoaders(route, logicalContext, root, searchRoutes);
+  return createLoaderDataResponse(
+    result,
+    route,
+    new URL(logicalHref, ctx.request.url).href,
+    logicalContext
+  );
 }
 
 async function createRouteDataErrorResponse(
@@ -353,15 +408,20 @@ export function renderResolvedRoute(
     return handleDevRequest(route, ctx, root, searchRoutes);
   }
 
-  if ((route.mode === "ssg" || route.mode === "isr") && hasRequestLoader(route)) {
+  const documentMode = resolveDocumentMode(route);
+  if (documentMode === "ssr") {
+    return renderSSR(route, ctx, root, undefined, searchRoutes);
+  }
+
+  if (hasRequestLoader(route)) {
     return renderPprRoute(route, ctx, root, buildId, searchRoutes);
   }
 
-  if (route.mode === "ssg") {
+  if (documentMode === "ssg") {
     return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
   }
 
-  if (route.mode === "isr") {
+  if (documentMode === "isr") {
     ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
     return handleISR(route, ctx, root, buildId, searchRoutes);
   }

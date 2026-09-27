@@ -12,6 +12,7 @@ import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderSSG } from "../server/render/ssg.ts";
 import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
 import { setProductionTemplateContent } from "../server/render/template.ts";
+import { resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import type { SearchRouteMetadata } from "../shared/search-params.ts";
@@ -218,14 +219,19 @@ function collectSsgRoutes(
   onSSR: "error" | "skip",
   skippedRoutes: string[]
 ): ResolvedRoute[] {
-  const nonSsg = routes.filter((r) => r.mode !== "ssg");
+  const nonSsg = routes.filter((r) => resolveDocumentMode(r) !== "ssg");
 
   if (nonSsg.length === 0) {
     return routes;
   }
 
   if (onSSR === "error") {
-    const list = nonSsg.map((r) => `  • ${r.pattern} (mode: ${r.mode})`).join("\n");
+    const list = nonSsg
+      .map(
+        (r) =>
+          `  • ${r.pattern} (mode: ${resolveDocumentMode(r) === "ssr" && r.mode !== "ssr" ? "ssr layout" : resolveDocumentMode(r)})`
+      )
+      .join("\n");
     throw new Error(
       "[furin] Cannot produce a static export: the following routes are not SSG and cannot be pre-rendered.\n" +
         `Either change their mode to "ssg", remove them, or set \`onSSR: "skip"\` in your static config.\n\n` +
@@ -236,12 +242,12 @@ function collectSsgRoutes(
   // onSSR === "skip"
   for (const r of nonSsg) {
     console.warn(
-      `[furin] static: skipping route "${r.pattern}" (mode=${r.mode}) — not statically exportable.`
+      `[furin] static: skipping route "${r.pattern}" (mode=${resolveDocumentMode(r) === "ssr" && r.mode !== "ssr" ? "ssr layout" : resolveDocumentMode(r)}) — not statically exportable.`
     );
     skippedRoutes.push(r.pattern);
   }
 
-  return routes.filter((r) => r.mode === "ssg");
+  return routes.filter((r) => resolveDocumentMode(r) === "ssg");
 }
 
 // ── Task queue builder ────────────────────────────────────────────────────────

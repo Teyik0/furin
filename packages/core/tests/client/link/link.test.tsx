@@ -272,6 +272,46 @@ describe("buildPageElement", () => {
     ).toBe("<h1>Hello World</h1>");
   });
 
+  test("exposes request fields as stable promises to pages and layouts", async () => {
+    let pageUser: unknown;
+    let layoutUser: unknown;
+    let pageHasRequestData = false;
+    const PrivatePage: React.FC<Record<string, unknown>> = (props) => {
+      pageUser = props.user;
+      pageHasRequestData = "requestData" in props;
+      return createElement("p", null, "page");
+    };
+    const PrivateLayout: React.FC<Record<string, unknown> & { children: React.ReactNode }> = (
+      props
+    ) => {
+      layoutUser = props.user;
+      return createElement("main", null, props.children);
+    };
+    const route = makeRoute({ layout: PrivateLayout });
+    const match = makeMatch(PrivatePage, route, undefined);
+    const user = Promise.resolve("Alice");
+
+    expect(
+      renderToStaticMarkup(buildPageElement(match, null, { user }, undefined, undefined))
+    ).toBe("<main><p>page</p></main>");
+    expect(pageUser).toBe(layoutUser);
+    expect(pageHasRequestData).toBe(false);
+    expect(await pageUser).toBe("Alice");
+  });
+
+  test("keeps an absent optional public prop absent when request data is pending", () => {
+    let optional: unknown;
+    const PageWithOptional: React.FC<Record<string, unknown>> = ({ optional: value }) => {
+      optional = value;
+      return createElement("p", null, "page");
+    };
+    const match = makeMatch(PageWithOptional, makeRoute(undefined), undefined);
+    renderToStaticMarkup(
+      buildPageElement(match, null, { user: Promise.resolve("Alice") }, undefined, undefined)
+    );
+    expect(optional).toBeUndefined();
+  });
+
   test("passes loader data to layout components as props", () => {
     const Layout: React.FC<Record<string, unknown>> = ({ title, children }) =>
       createElement("div", { "data-title": String(title) }, children as React.ReactNode);

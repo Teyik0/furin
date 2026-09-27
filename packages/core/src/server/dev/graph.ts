@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { dirname, extname } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { currentInstance, type FurinInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -77,7 +77,13 @@ export function resolveDevSourceImports(
   const transpiler = new Bun.Transpiler({ loader });
   for (const imported of transpiler.scanImports(source)) {
     try {
-      const resolved = normalizeModulePath(Bun.resolveSync(imported.path, dirname(path)));
+      const extension = extname(imported.path);
+      const isSourceExtension = [".js", ".jsx", ".ts", ".tsx"].includes(extension);
+      const absolute =
+        imported.path.startsWith(".") && extension && !isSourceExtension
+          ? resolve(dirname(path), imported.path)
+          : Bun.resolveSync(imported.path, dirname(path));
+      const resolved = normalizeModulePath(absolute);
       if (!resolved.includes("/node_modules/")) {
         imports.push(resolved);
       }
@@ -116,6 +122,7 @@ function transformErrorPosition(
  */
 export class DevGraph<Snapshot> {
   readonly #dependencies = new Map<string, Set<string>>();
+  readonly #dependents = new Map<string, Set<string>>();
   readonly #events: DevGraphEvent[] = [];
   readonly #listeners = new Set<(event: DevGraphEvent) => void>();
   readonly #moduleCaches = new WeakMap<
@@ -280,10 +287,52 @@ export class DevGraph<Snapshot> {
   }
 
   recordImports(importer: string, imports: string[]): void {
-    this.#dependencies.set(
-      normalizeModulePath(importer),
-      new Set(imports.map(normalizeModulePath))
-    );
+    const path = normalizeModulePath(importer);
+    // Learning a module's dependencies during its first evaluation is not an
+    // edit. Rebase unchanged ancestors so contract and render imports share
+    // the same ESM instance. Actual edits must still advance their versions.
+    const ancestors = new Set([path]);
+    const pending = [path];
+    while (pending.length > 0) {
+      const dependency = pending.pop();
+      if (dependency === undefined) {
+        break;
+      }
+      for (const parent of this.#dependents.get(dependency) ?? []) {
+        if (!ancestors.has(parent)) {
+          ancestors.add(parent);
+          pending.push(parent);
+        }
+      }
+    }
+    const unchanged = this.#dependencies.has(path)
+      ? []
+      : [...ancestors].flatMap((modulePath) => {
+          const revision = this.#moduleRevisions.get(modulePath);
+          return revision?.fingerprint === this.#sourceFingerprint(modulePath, new Set())
+            ? [[modulePath, revision] as const]
+            : [];
+        });
+    for (const dependency of this.#dependencies.get(path) ?? []) {
+      const dependents = this.#dependents.get(dependency);
+      dependents?.delete(path);
+      if (dependents?.size === 0) {
+        this.#dependents.delete(dependency);
+      }
+    }
+    const nextImports = new Set(imports.map(normalizeModulePath));
+    this.#dependencies.set(path, nextImports);
+    for (const dependency of nextImports) {
+      let dependents = this.#dependents.get(dependency);
+      if (!dependents) {
+        dependents = new Set();
+        this.#dependents.set(dependency, dependents);
+      }
+      dependents.add(path);
+    }
+    for (const [modulePath, revision] of unchanged) {
+      revision.fingerprint = this.#sourceFingerprint(modulePath, new Set());
+    }
   }
 
   recordSourceError(message: string, position: DevSourcePosition): void {
