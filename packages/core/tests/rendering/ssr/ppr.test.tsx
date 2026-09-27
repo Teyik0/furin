@@ -434,6 +434,7 @@ describe.serial("partial prerendering", () => {
         </main>
       ));
     const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    page.mode = undefined;
     const resolved: ResolvedRoute = {
       mode: "ssr",
       page,

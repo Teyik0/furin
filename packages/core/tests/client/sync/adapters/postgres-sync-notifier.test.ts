@@ -151,6 +151,44 @@ test("recovers a cursor change when LISTEN succeeds but a pooler drops notificat
   }
 });
 
+test("periodic cursor checks preserve recovery backoff after a failed read", async () => {
+  let checkCursor: (() => void) | undefined;
+  let onListen: (() => void) | undefined;
+  let reads = 0;
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((callback: () => void, delay: number) => {
+    checkCursor = callback;
+    return originalSetInterval(callback, delay);
+  }) as typeof setInterval;
+
+  const sql = (() => {
+    reads += 1;
+    return Promise.reject(new Error("offline"));
+  }) as unknown as SQL;
+  sql.listen = mock((_channel, _onNotify, callback) => {
+    onListen = callback;
+    const unlisten = () => Promise.resolve();
+    return Promise.resolve({ channel: "test", unlisten, [Symbol.asyncDispose]: unlisten });
+  });
+
+  try {
+    const subscription = await postgresSyncNotifier({ namespace: "task-manager", sql }).subscribe(
+      () => undefined
+    );
+    try {
+      onListen?.();
+      await Bun.sleep(0);
+      checkCursor?.();
+      await Bun.sleep(0);
+      expect(reads).toBe(1);
+    } finally {
+      await subscription.unsubscribe();
+    }
+  } finally {
+    globalThis.setInterval = originalSetInterval;
+  }
+});
+
 test("does not regress after a newer notification overtakes reconnect recovery", async () => {
   let notifyListener: ((payload: string) => void) | undefined;
   let listenCallback: (() => void) | undefined;

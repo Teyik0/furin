@@ -8,7 +8,7 @@ Every layout and page chooses its rendering mode explicitly in `config()`. The m
 | `ssg` | Pre-rendered and cached without a time limit | Stable public content |
 | `isr` | Cached, then regenerated after `revalidate` seconds | Public content that can be briefly stale |
 
-Modes can mix. SSR loaders run per request with Elysia context; SSG and ISR loaders use public context and can be cached by segment. An SSR page or ancestor loader makes the HTML private, while public loader data remains reusable. Otherwise, the shortest ISR interval controls HTML revalidation; an all-SSG chain produces SSG HTML.
+Modes can mix. SSR loaders run per request with Elysia context; SSG and ISR loaders use public context and can be cached by segment. An SSR page or ancestor loader makes the HTML private, while public loader data remains reusable. Otherwise, ISR pages or loaders set HTML revalidation to the shortest interval; all-SSG chains produce SSG HTML.
 
 ## SSR
 

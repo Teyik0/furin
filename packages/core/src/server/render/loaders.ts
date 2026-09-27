@@ -560,7 +560,7 @@ function startSegmentLoader(
   publicCtxRecord: Record<string, unknown>,
   mixed: boolean
 ): Promise<Record<string, unknown>> {
-  const publicSegment = mixed && segment.mode !== "ssr";
+  const publicSegment = mixed && (segment.mode ?? route.mode) !== "ssr";
   const parentFieldsRead = new Set<string>();
   const loaderCtx = createLoaderCtx(
     publicSegment ? publicCtxRecord : ctxRecord,
@@ -608,7 +608,7 @@ async function runLoadersInternal(
     for (const r of route.routeChain) {
       const parentAccum = accumulatedParentPromise; // capture for closure
       const publicParent = publicParentPromise;
-      const privateSegment = mixed && r.mode === "ssr";
+      const privateSegment = mixed && (r.mode ?? route.mode) === "ssr";
 
       if (r.loader) {
         const index = loaderIndex;

@@ -390,7 +390,11 @@ export class PostgresSyncNotifier implements SyncNotifier {
         });
     };
     const subscription = await this.sql.listen(this.notificationChannel, emit, recover);
-    const cursorCheck = setInterval(recover, CURSOR_CHECK_INTERVAL_MS);
+    const cursorCheck = setInterval(() => {
+      if (!retry) {
+        recover();
+      }
+    }, CURSOR_CHECK_INTERVAL_MS);
     cursorCheck.unref?.();
     return {
       unsubscribe: () => {

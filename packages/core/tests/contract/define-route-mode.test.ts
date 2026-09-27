@@ -165,6 +165,22 @@ const createPublicChildOfSsrLayout = () => {
     });
 };
 
+const createPublicChildOfWidenedLayoutMode = () => {
+  const mode = Math.random() > 0.5 ? ("ssr" as const) : ("ssg" as const);
+  const root = defineRootRoute()
+    .config({ mode })
+    .loader(() => ({ session: "private" }))
+    .layout(({ children }) => children);
+  return defineRoute()
+    .config({ layout: root, mode: "isr", revalidate: 60 })
+    .loader((context) => {
+      // @ts-expect-error the parent could render in SSR and expose private data.
+      context.session;
+      return { catalog: "Coffee" };
+    })
+    .page(() => null);
+};
+
 const createPublicDataAcrossSsrLayout = () => {
   const root = defineRootRoute()
     .config({ mode: "ssg" })
@@ -271,6 +287,7 @@ describe("defineRoute rendering mode config", () => {
 
   test("keeps SSR ancestor data in rendering but excludes it from public work", () => {
     expectTypeOf<ReturnType<typeof createPublicChildOfSsrLayout>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createPublicChildOfWidenedLayoutMode>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createPublicDataAcrossSsrLayout>>().not.toBeNever();
     expectTypeOf<
       RouteLoaderData<ReturnType<typeof createPublicChildOfSsrLayout>>["session"]

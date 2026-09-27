@@ -104,7 +104,7 @@ type OwnDataOfRoute<Route> = Route extends { loader: (...args: never[]) => infer
 type DataOfRoute<Route> = WithoutParentDataConflicts<
   WithoutParentDataConflicts<
     InheritedDataOfRoute<Route>,
-    Route extends { mode: "ssr" }
+    "ssr" extends (Route extends { mode: infer Mode } ? Mode : never)
       ? { [Key in keyof OwnDataOfRoute<Route>]: SsrField<OwnDataOfRoute<Route>[Key]> }
       : OwnDataOfRoute<Route>
   >,
