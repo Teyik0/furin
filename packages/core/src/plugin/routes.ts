@@ -764,7 +764,11 @@ function resolveRouteModuleImports(dependencyPath: string, packageRoot: string):
     }
     try {
       const resolvedImport = realpathSync(Bun.resolveSync(imported.path, dirname(dependencyPath)));
-      if (isAbsolute(resolvedImport) && isWithinDirectory(resolvedImport, packageRoot)) {
+      if (
+        isAbsolute(resolvedImport) &&
+        isWithinDirectory(resolvedImport, packageRoot) &&
+        !relative(packageRoot, resolvedImport).split(sep).includes("node_modules")
+      ) {
         resolvedImports.push(resolvedImport);
       }
     } catch {

@@ -307,7 +307,7 @@ jobs:
     name: Performance budgets
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -329,6 +329,9 @@ jobs:
       - name: Build PR performance report
         run: bun scripts/build-performance-report.ts "$GITHUB_WORKSPACE" "$RUNNER_TEMP/furin-performance/head.json"
 
+      - name: Measure PR development startup
+        run: bun scripts/measure-dev-startup.ts "$GITHUB_WORKSPACE" "$RUNNER_TEMP/furin-performance/startup-head.json"
+
       - name: Check baseline support
         id: baseline
         env:
@@ -348,6 +351,10 @@ jobs:
           git worktree add --detach "$RUNNER_TEMP/furin-base" "$BASE_SHA"
           bun scripts/build-performance-report.ts "$RUNNER_TEMP/furin-base" "$RUNNER_TEMP/furin-performance/base.json"
 
+      - name: Measure baseline development startup
+        if: steps.baseline.outputs.available == 'true'
+        run: bun scripts/measure-dev-startup.ts "$RUNNER_TEMP/furin-base" "$RUNNER_TEMP/furin-performance/startup-base.json"
+
       - name: Enforce performance budgets
         if: steps.baseline.outputs.available == 'true'
         run: |
@@ -361,8 +368,17 @@ jobs:
             "$base_react_version" \
             "$head_react_version"
           comparison_status=$?
+          bun scripts/compare-dev-startup.ts \
+            "$RUNNER_TEMP/furin-performance/startup-base.json" \
+            "$RUNNER_TEMP/furin-performance/startup-head.json" \
+            "$RUNNER_TEMP/furin-performance/startup-budgets.md"
+          startup_status=$?
           set -e
+          cat "$RUNNER_TEMP/furin-performance/startup-budgets.md" >> "$RUNNER_TEMP/furin-performance/budgets.md"
           cat "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$startup_status" -ne 0 ]; then
+            comparison_status=1
+          fi
           exit "$comparison_status"
 
       - name: Bootstrap performance baseline
