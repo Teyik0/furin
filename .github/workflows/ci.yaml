@@ -222,9 +222,18 @@ jobs:
             git fetch --depth=1 origin f124698be971e275a164c55a2fedcbc85256558c
             git checkout --detach FETCH_HEAD
           fi
+          react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
+          react_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
+          react_dom_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react-dom"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           cd apps/furin
-          bun pm pkg set "dependencies.@teyik0/furin=$furin_tarball"
+          bun pm pkg set \
+            "dependencies.@teyik0/furin=$furin_tarball" \
+            "dependencies.react=$react_version" \
+            "dependencies.react-dom=$react_version" \
+            "devDependencies.@types/react=$react_types_version" \
+            "devDependencies.@types/react-dom=$react_dom_types_version"
           cd ../..
+          bun pm pkg set "devDependencies.@types/react=$react_types_version" "devDependencies.@types/react-dom=$react_dom_types_version"
           bun install --lockfile-only
           bun install --frozen-lockfile
           # Despite its legacy name, this verifies the installed tarball and creates benchmark nonces.
