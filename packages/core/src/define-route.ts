@@ -65,6 +65,11 @@ type SsrParentData<Data extends LoaderData> = PublicParentData<Data> & {
     ? Key
     : never]: Data[Key] extends SsrField<infer Value> ? Value : never;
 };
+type SsrLoaderParentData<Data extends LoaderData> = SsrParentData<Data> & {
+  [Key in keyof Data as Data[Key] extends PrivateField<unknown>
+    ? Key
+    : never]: Data[Key] extends PrivateField<infer Value> ? Value : never;
+};
 interface NoRequestLoader extends LoaderData {
   readonly [noRequestLoader]: never;
 }
@@ -203,7 +208,7 @@ type LoaderContext<
       log: RequestLogger;
     } & Omit<Context<{ params: Params; query: Query }>, "params" | "query">
   : PublicLoaderContext<Params, Query>) &
-  PromisedData<Mode extends "ssr" ? SsrParentData<ParentData> : PublicParentData<ParentData>>;
+  PromisedData<Mode extends "ssr" ? SsrLoaderParentData<ParentData> : PublicParentData<ParentData>>;
 
 type PageRequestLoaderCheck<
   Mode extends RenderingMode,

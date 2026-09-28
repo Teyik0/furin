@@ -460,6 +460,71 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
   });
 
+  test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
+    let publicCalls = 0;
+    let requestCalls = 0;
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "ssg" })
+      .requestLoader(({ cookies }) => {
+        requestCalls += 1;
+        return { adminUser: cookies.get("session") };
+      })
+      .loader(() => {
+        publicCalls += 1;
+        return { siteName: "Coffee" };
+      })
+      .layout(({ children }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+    const mixedPage = defineRoute()
+      .config({ layout: mixedRoot, mode: "ssr" })
+      .loader(async ({ adminUser, siteName }) => ({
+        greeting: `${await siteName}: ${await adminUser}`,
+      }))
+      .page(({ greeting }) => <main>{greeting}</main>);
+    const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+    const resolved: ResolvedRoute = {
+      mode: "ssr",
+      page,
+      path: "/private-coffee.tsx",
+      pattern: "/private-coffee",
+      requestKeys: ["adminUser"],
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+    const mixedRootRecord = { path: "/root.tsx", route: mixedRootRoute };
+    const app = new Elysia()
+      .use(createRoutePlugin(resolved, mixedRootRecord, "build-1"))
+      .use(createDataEndpoint([resolved], mixedRootRecord));
+
+    const checkRequest = async (user: string) => {
+      const headers = { cookie: `session=${user}` };
+      const document = await app.handle(
+        new Request("http://localhost/private-coffee", { headers })
+      );
+      expect(await document.text()).toContain(`Coffee: ${user}`);
+      expect(document.headers.get("cache-control")).toContain("no-store");
+
+      const navigation = await app.handle(
+        new Request("http://localhost/_furin/data?path=%2Fprivate-coffee", { headers })
+      );
+      expect(await navigation.text()).toContain(`Coffee: ${user}`);
+    };
+    await checkRequest("alice");
+    await checkRequest("bob");
+    expect(publicCalls).toBe(1);
+    expect(requestCalls).toBe(4);
+  });
+
   test("an ISR layout makes an SSG page document revalidate", async () => {
     let layoutCalls = 0;
     let pageCalls = 0;

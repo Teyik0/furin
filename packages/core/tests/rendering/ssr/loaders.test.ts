@@ -5,7 +5,11 @@ import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
-import { runLoaders, runPublicLoaders } from "../../../src/server/render/loaders.ts";
+import {
+  runLoaders,
+  runPublicLoaders,
+  runRouteLoaders,
+} from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { evlogErrorMock, evlogWarnMock } from "../../setup/evlog-mock.ts";
@@ -27,6 +31,83 @@ function createMockLoaderContext(overrides: Partial<Context>): Context {
 }
 
 describe("runLoaders requestLoader", () => {
+  test("passes an SSG layout request field to its SSR child loader", async () => {
+    let requestCalls = 0;
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async (ctx: { adminUser: Promise<string>; siteName: Promise<string> }) => ({
+          greeting: `${await ctx.siteName}: ${await ctx.adminUser}`,
+        }),
+        mode: "ssr",
+      },
+      path: "/admin.tsx",
+      pattern: "/admin",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: () => ({ siteName: "Coffee" }),
+          mode: "ssg",
+          requestLoader: ({ request }: { request: Request }) => {
+            requestCalls += 1;
+            return { adminUser: request.headers.get("x-admin") };
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const checkRequest = async (adminUser: string) => {
+      const result = await runRouteLoaders(
+        route,
+        createMockLoaderContext({
+          request: new Request("http://localhost/admin", { headers: { "x-admin": adminUser } }),
+        })
+      );
+      expect(result.type).toBe("data");
+      if (result.type === "data") {
+        expect(result.syncData.greeting).toBe(`Coffee: ${adminUser}`);
+        expect(await result.deferredPromises?.adminUser).toBe(adminUser);
+      }
+    };
+    await checkRequest("Alice");
+    await checkRequest("Bob");
+    expect(requestCalls).toBe(2);
+  });
+
+  test("keeps layout request fields out of a cached child loader", async () => {
+    const route = {
+      mode: "isr",
+      page: {
+        loader: async (ctx: { adminUser: Promise<string | undefined> }) => ({
+          observedAdmin: await ctx.adminUser,
+        }),
+        mode: "isr",
+        revalidate: 60,
+      },
+      path: "/public.tsx",
+      pattern: "/public",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: () => ({ siteName: "Coffee" }),
+          mode: "ssg",
+          requestLoader: () => ({ adminUser: "Alice" }),
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runRouteLoaders(route, createMockLoaderContext({ path: "/public" }));
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      expect(result.syncData.observedAdmin).toBeUndefined();
+      expect(await result.deferredPromises?.adminUser).toBe("Alice");
+    }
+  });
+
   test("runs public and request loaders concurrently", async () => {
     const publicGate = Promise.withResolvers<void>();
     const requestGate = Promise.withResolvers<void>();

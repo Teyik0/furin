@@ -168,15 +168,15 @@ describe("defineRoute", () => {
 
   test("does not expose parent request fields to a public child loader", () => {
     const parent = defineRootRoute()
-      .config({ mode: "ssr" })
+      .config({ mode: "ssg" })
       .requestLoader(() => ({ session: "private" }))
       .loader(() => ({ organization: "public" }))
       .layout(({ children }) => children);
     const child = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+      .config({ layout: parent, mode: "isr", revalidate: 60 })
       .loader((context) => {
         const organization: Promise<string> = context.organization;
-        // @ts-expect-error Request loader data must not enter a public loader.
+        // @ts-expect-error Request loader data must not enter a cached loader.
         expect(context.session).toBeUndefined();
         return { title: organization };
       })
@@ -194,8 +194,8 @@ describe("defineRoute", () => {
     const child = defineRoute()
       .config({ layout: parent, mode: "ssr" })
       .loader((context) => {
-        // @ts-expect-error private data must not enter a public loader.
-        expect(context.session).toBeUndefined();
+        const privateSession: Promise<string> = context.session;
+        expect(privateSession).toBeDefined();
         return { title: "Child" };
       })
       .page(({ session, organization, title }) => {
@@ -204,6 +204,22 @@ describe("defineRoute", () => {
         return `${title}:${publicOrganization}:${String(privateSession)}`;
       });
     expect(child.page).toBeFunction();
+  });
+
+  test("types an SSG layout request field in an SSR child loader", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssg" })
+      .requestLoader(() => ({ adminUser: { id: "admin-1" } }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader(async ({ adminUser }) => {
+        const user: { id: string } = await adminUser;
+        return { id: user.id };
+      })
+      .page(({ id }) => id);
+
+    expect(child.loader).toBeFunction();
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {

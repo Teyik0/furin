@@ -285,7 +285,13 @@ function observeLoader<T extends object>(
 export function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
-): { fields: Record<string, Promise<unknown>>; noFieldCompletion: Promise<void> } | undefined {
+):
+  | {
+      fields: Record<string, Promise<unknown>>;
+      fieldsByLoader: Record<string, Promise<unknown>>[];
+      noFieldCompletion: Promise<void>;
+    }
+  | undefined {
   const loaderIndexes = route.routeChain.flatMap((entry, index) =>
     entry.requestLoader ? [index] : []
   );
@@ -329,23 +335,34 @@ export function runRequestLoaderFields(
     });
     return { index, result };
   });
-  const fields: Record<string, Promise<unknown>> = {};
+  let fields: Record<string, Promise<unknown>> = {};
+  const fieldsByLoader = route.routeChain.map((_, boundaryIndex) => {
+    fields = { ...fields };
+    for (const key of declarations[boundaryIndex] ?? []) {
+      if (!route.requestKeys?.includes(key)) {
+        continue;
+      }
+      const candidates = results.filter(
+        ({ index }) => index <= boundaryIndex && declarations[index]?.includes(key)
+      );
+      fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
+        for (let index = values.length - 1; index >= 0; index -= 1) {
+          const data = values[index];
+          if (data && Object.hasOwn(data, key)) {
+            return data[key];
+          }
+        }
+      });
+      fields[key].catch(() => {
+        /* React or the transport observes the original rejection after public loaders settle. */
+      });
+    }
+    return fields;
+  });
   for (const key of route.requestKeys) {
-    const candidates = results.filter(({ index }) => declarations[index]?.includes(key));
-    if (candidates.length === 0) {
+    if (!Object.hasOwn(fields, key)) {
       throw new Error(`[furin] No requestLoader declares field "${key}" in ${route.pattern}.`);
     }
-    fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
-      for (let index = values.length - 1; index >= 0; index -= 1) {
-        const data = values[index];
-        if (data && Object.hasOwn(data, key)) {
-          return data[key];
-        }
-      }
-    });
-    fields[key].catch(() => {
-      /* React or the transport observes the original rejection after public loaders settle. */
-    });
   }
   const noFieldCompletion = Promise.all(
     results.filter(({ index }) => declarations[index]?.length === 0).map(({ result }) => result)
@@ -353,7 +370,7 @@ export function runRequestLoaderFields(
   noFieldCompletion.catch(() => {
     /* The caller observes this after the public loaders settle. */
   });
-  return { fields, noFieldCompletion };
+  return { fields, fieldsByLoader, noFieldCompletion };
 }
 
 function requestFieldPromises(
@@ -579,15 +596,20 @@ function startSegmentLoader(
   label: string,
   parent: Promise<Record<string, unknown>>,
   publicParent: Promise<Record<string, unknown>>,
+  inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
   ctxRecord: Record<string, unknown>,
   publicCtxRecord: Record<string, unknown>,
   mixed: boolean
 ): Promise<Record<string, unknown>> {
   const publicSegment = mixed && (segment.mode ?? route.mode) !== "ssr";
   const parentFieldsRead = new Set<string>();
+  const parentData =
+    (segment.mode ?? route.mode) === "ssr" && inheritedRequestFields !== undefined
+      ? parent.then((data) => ({ ...data, ...inheritedRequestFields }))
+      : parent;
   const loaderCtx = createLoaderCtx(
     publicSegment ? publicCtxRecord : ctxRecord,
-    publicSegment ? publicParent : parent,
+    publicSegment ? publicParent : parentData,
     publicSegment ? (key) => parentFieldsRead.add(key) : undefined
   );
   return observeLoader(
@@ -628,7 +650,7 @@ async function runLoadersInternal(
     let publicParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
 
     let loaderIndex = 0;
-    for (const r of route.routeChain) {
+    for (const [routeIndex, r] of route.routeChain.entries()) {
       const parentAccum = accumulatedParentPromise; // capture for closure
       const publicParent = publicParentPromise;
       const privateSegment = mixed && (r.mode ?? route.mode) === "ssr";
@@ -643,6 +665,7 @@ async function runLoadersInternal(
           `layout:${loaderIndex}`,
           parentAccum,
           publicParent,
+          requestFields?.fieldsByLoader[routeIndex - 1],
           ctxRecord,
           publicCtxRecord,
           mixed
@@ -685,6 +708,7 @@ async function runLoadersInternal(
           "page",
           accumulatedParentPromise,
           publicParentPromise,
+          requestFields?.fields,
           ctxRecord,
           publicCtxRecord,
           mixed
