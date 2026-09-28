@@ -193,13 +193,13 @@ describe("defineRoute", () => {
       .layout(({ children }) => children);
     const child = defineRoute()
       .config({ layout: parent, mode: "ssr" })
-      .loader((context) => {
+      .loader(async (context) => {
         const privateSession: Promise<string> = context.session;
-        return { inheritedSession: privateSession, title: "Child" };
+        return { inheritedSession: await privateSession, title: "Child" };
       })
       .page(({ inheritedSession, session, organization, title }) => {
         const privateSession: Promise<string> = session;
-        const loaderSession: Promise<string> = inheritedSession;
+        const loaderSession: string = inheritedSession;
         const publicOrganization: string = organization;
         return `${title}:${publicOrganization}:${String(privateSession)}:${String(loaderSession)}`;
       });
