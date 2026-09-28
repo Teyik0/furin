@@ -185,7 +185,7 @@ describe("defineRoute", () => {
     expect(child.loader).toBeFunction();
   });
 
-  test("passes inherited private fields to a child page as promises", () => {
+  test("types inherited private fields in a child loader and page", () => {
     const parent = defineRootRoute()
       .config({ mode: "ssr" })
       .requestLoader(() => ({ session: "private" }))
@@ -195,13 +195,13 @@ describe("defineRoute", () => {
       .config({ layout: parent, mode: "ssr" })
       .loader((context) => {
         const privateSession: Promise<string> = context.session;
-        expect(privateSession).toBeDefined();
-        return { title: "Child" };
+        return { inheritedSession: privateSession, title: "Child" };
       })
-      .page(({ session, organization, title }) => {
+      .page(({ inheritedSession, session, organization, title }) => {
         const privateSession: Promise<string> = session;
+        const loaderSession: Promise<string> = inheritedSession;
         const publicOrganization: string = organization;
-        return `${title}:${publicOrganization}:${String(privateSession)}`;
+        return `${title}:${publicOrganization}:${String(privateSession)}:${String(loaderSession)}`;
       });
     expect(child.page).toBeFunction();
   });

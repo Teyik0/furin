@@ -76,6 +76,51 @@ describe("runLoaders requestLoader", () => {
     expect(requestCalls).toBe(2);
   });
 
+  test("lets an SSR child await a request field before a public layout loader finishes", async () => {
+    const publicGate = Promise.withResolvers<void>();
+    const observedUser = Promise.withResolvers<string>();
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async ({ adminUser }: { adminUser: Promise<string> }) => {
+          const user = await adminUser;
+          observedUser.resolve(user);
+          return { user };
+        },
+        mode: "ssr",
+      },
+      path: "/admin.tsx",
+      pattern: "/admin",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: async () => {
+            await publicGate.promise;
+            return { siteName: "Coffee" };
+          },
+          mode: "ssg",
+          requestLoader: () => ({ adminUser: "Alice" }),
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const running = runRouteLoaders(route, createMockLoaderContext({ path: "/admin" }));
+    const receivedBeforePublicLoader = await Promise.race([
+      observedUser.promise.then(() => true),
+      Bun.sleep(5000).then(() => false),
+    ]);
+    publicGate.resolve();
+    const result = await running;
+
+    expect(receivedBeforePublicLoader).toBe(true);
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      expect(result.syncData.user).toBe("Alice");
+    }
+  });
+
   test("keeps layout request fields out of a cached child loader", async () => {
     const route = {
       mode: "isr",

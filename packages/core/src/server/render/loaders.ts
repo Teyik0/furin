@@ -121,8 +121,9 @@ async function readResponseMessage(res: Response): Promise<string> {
 /**
  * Wraps the Elysia context so that any property NOT present on `ctx` is
  * returned as an individual `Promise<value>` resolved from the accumulated
- * parent data. Properties that ARE present on `ctx` (request, params, set, …)
- * are returned as-is.
+ * parent data. Inherited request fields use their own promises, independent
+ * of public parent loaders. Properties that ARE present on `ctx` (request,
+ * params, set, …) are returned as-is.
  *
  * A per-prop cache ensures the same Promise instance is returned on repeated
  * access of the same field (stable reference for Promise.all etc.).
@@ -130,6 +131,7 @@ async function readResponseMessage(res: Response): Promise<string> {
 function createLoaderCtx(
   ctx: Record<string, unknown>,
   accumulatedParentPromise: Promise<Record<string, unknown>>,
+  inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
   onParentFieldAccess?: (key: string) => void
 ): Record<string, unknown> {
   const cache = new Map<string, Promise<unknown>>();
@@ -152,6 +154,9 @@ function createLoaderCtx(
         (prop in target && !Object.hasOwn(Object.prototype, prop))
       ) {
         return target[prop];
+      }
+      if (inheritedRequestFields && Object.hasOwn(inheritedRequestFields, prop)) {
+        return inheritedRequestFields[prop];
       }
       // Everything else is a parent-data field → individual lazy Promise.
       onParentFieldAccess?.(prop);
@@ -603,13 +608,10 @@ function startSegmentLoader(
 ): Promise<Record<string, unknown>> {
   const publicSegment = mixed && (segment.mode ?? route.mode) !== "ssr";
   const parentFieldsRead = new Set<string>();
-  const parentData =
-    (segment.mode ?? route.mode) === "ssr" && inheritedRequestFields !== undefined
-      ? parent.then((data) => ({ ...data, ...inheritedRequestFields }))
-      : parent;
   const loaderCtx = createLoaderCtx(
     publicSegment ? publicCtxRecord : ctxRecord,
-    publicSegment ? publicParent : parentData,
+    publicSegment ? publicParent : parent,
+    publicSegment ? undefined : inheritedRequestFields,
     publicSegment ? (key) => parentFieldsRead.add(key) : undefined
   );
   return observeLoader(
