@@ -91,6 +91,19 @@ function assertPublicLoaderKey(key: string): void {
   }
 }
 
+function assertRequestLoaderKey(key: string, ctx: Context): void {
+  assertPublicLoaderKey(key);
+  if (
+    key === "log" ||
+    Object.hasOwn(ctx, key) ||
+    (key in ctx && !Object.hasOwn(Object.prototype, key))
+  ) {
+    throw new Error(
+      `[furin] requestLoader data key "${key}" is reserved: it is overwritten by the SSR loader context. Rename this field to avoid conflicts.`
+    );
+  }
+}
+
 /**
  * `true` only for HTTP responses that are syntactically valid redirects:
  * a navigation redirect status code AND a `Location` header. A redirect status
@@ -326,7 +339,7 @@ export function runRequestLoaderFields(
     const result = observeLoader(() => invocation, `request:${index}`, ctx.path).then((value) => {
       const data = value as Record<string, unknown>;
       for (const key of Object.keys(data)) {
-        assertPublicLoaderKey(key);
+        assertRequestLoaderKey(key, ctx);
         if (!declarations[index]?.includes(key)) {
           throw new Error(
             `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`

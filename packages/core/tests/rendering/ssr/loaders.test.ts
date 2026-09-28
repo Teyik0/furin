@@ -31,6 +31,25 @@ function createMockLoaderContext(overrides: Partial<Context>): Context {
 }
 
 describe("runLoaders requestLoader", () => {
+  test("rejects request fields shadowed by the SSR loader context", async () => {
+    const route = {
+      mode: "ssr",
+      page: { loader: () => ({}) },
+      path: "/shadow.tsx",
+      pattern: "/shadow",
+      requestKeys: ["request"],
+      routeChain: [{ __type: "FURIN_ROUTE", requestLoader: () => ({ request: "shadowed" }) }],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runRouteLoaders(route, createMockLoaderContext({ path: "/shadow" }));
+
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      await expect(result.deferredPromises?.request).rejects.toThrow('"request" is reserved');
+    }
+  });
+
   test("passes an SSG layout request field to its SSR child loader", async () => {
     let requestCalls = 0;
     const route = {

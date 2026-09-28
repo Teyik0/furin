@@ -42,6 +42,9 @@ type PublicLoaderData = LoaderData & {
 } & {
   [Key in `__furin${string}`]?: never;
 };
+type RequestLoaderData = PublicLoaderData & {
+  [Key in keyof Context | "log"]?: never;
+};
 interface SchemaValues {
   [key: string]: unknown;
 }
@@ -541,7 +544,7 @@ class NoSchemaChain<
     this.headFunction = head;
   }
 
-  requestLoader<Data extends PublicLoaderData>(
+  requestLoader<Data extends RequestLoaderData>(
     requestLoader: RequestLoader<Params, Query, Data>
   ): Omit<NoSchemaChain<Params, Query, ParentData, Data, ParentParams, Mode>, "staticParams"> {
     return new NoSchemaChain(this.metadata, requestLoader);
@@ -567,10 +570,7 @@ class NoSchemaChain<
 
   head(
     head: Head<Params, Query, ParentData, NoFields, Mode>
-  ): Pick<
-    NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>,
-    "page" | "layout"
-  > {
+  ): Pick<NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>, "page"> {
     return new NoSchemaChain(this.metadata, this.requestLoaderFunction, head);
   }
 
@@ -686,6 +686,7 @@ class HeadedNoSchema<
   Mode extends RenderingMode = RenderingMode,
 > extends LoadedNoSchema<Params, Query, ParentData, Data, RequestData, Mode> {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 class QuerySchemaChain<
@@ -713,7 +714,7 @@ class QuerySchemaChain<
     this.headFunction = head;
   }
 
-  requestLoader<Data extends PublicLoaderData>(
+  requestLoader<Data extends RequestLoaderData>(
     requestLoader: RequestLoader<NoFields, Query, Data>
   ): Omit<
     QuerySchemaChain<Query, QuerySchema, ParentData, Data, ParentParams, Mode>,
@@ -751,7 +752,7 @@ class QuerySchemaChain<
     head: Head<NoFields, Query, ParentData, NoFields, Mode>
   ): Pick<
     QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams, Mode>,
-    "page" | "layout"
+    "page"
   > {
     return new QuerySchemaChain(this.metadata, this.querySchema, this.requestLoaderFunction, head);
   }
@@ -887,6 +888,7 @@ class HeadedQuerySchema<
   Mode extends RenderingMode = RenderingMode,
 > extends LoadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData, Mode> {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 class SchemaChain<
@@ -919,19 +921,10 @@ class SchemaChain<
     this.headFunction = head;
   }
 
-  requestLoader<RequestLoaderData extends PublicLoaderData>(
-    requestLoader: RequestLoader<Params, Query, RequestLoaderData>
+  requestLoader<Data extends RequestLoaderData>(
+    requestLoader: RequestLoader<Params, Query, Data>
   ): Omit<
-    SchemaChain<
-      Params,
-      Query,
-      ParamsSchema,
-      QuerySchema,
-      ParentData,
-      RequestLoaderData,
-      ParentParams,
-      Mode
-    >,
+    SchemaChain<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, ParentParams, Mode>,
     "staticParams"
   > {
     return new SchemaChain(this.metadata, this.paramsSchema, this.querySchema, requestLoader);
@@ -986,7 +979,7 @@ class SchemaChain<
       ParentParams,
       Mode
     >,
-    "page" | "layout"
+    "page"
   > {
     return new SchemaChain(
       this.metadata,
@@ -1147,6 +1140,7 @@ class HeadedSchema<
   Mode
 > {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 /**
