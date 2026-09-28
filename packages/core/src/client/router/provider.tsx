@@ -1,6 +1,14 @@
 import { log } from "evlog";
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
@@ -1010,10 +1018,13 @@ export function RouterProvider({
 
   let pageElement: React.ReactNode;
   if (state.notFound || !state.match) {
-    pageElement = buildNotFoundPageElement(
+    const notFoundElement = buildNotFoundPageElement(
       state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries,
       state.notFound ?? {}
     );
+    pageElement = root?.layout
+      ? createElement(root.layout as React.ElementType, state.data, notFoundElement)
+      : notFoundElement;
   } else {
     pageElement = buildPageElement(
       state.match,

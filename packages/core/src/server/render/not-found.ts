@@ -97,17 +97,14 @@ export async function renderRootNotFound(
     },
   });
 
-  const data = { __furinStatus: 404 };
+  const rootData = { params: {}, path: logicalPath, query };
+  const data = { ...rootData, __furinStatus: 404 };
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
     reactStream = await renderToReadableStream(
       withDocumentState(
         withSSRRouterContext(
-          wrapRootLayout(
-            buildNotFoundElement(root.notFound, notFoundError),
-            { params: {}, path: logicalPath, query },
-            root.route
-          ),
+          wrapRootLayout(buildNotFoundElement(root.notFound, notFoundError), rootData, root.route),
           notFoundContext
         ),
         assets,
