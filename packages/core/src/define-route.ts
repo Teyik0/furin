@@ -527,15 +527,18 @@ class NoSchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
     metadata: RouteMetadata,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
+    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
+    head?: Head<Params, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
   requestLoader<Data extends PublicLoaderData>(
@@ -562,6 +565,15 @@ class NoSchemaChain<
     return new LoadedNoSchema(this.metadata, loader, undefined, this.requestLoaderFunction);
   }
 
+  head(
+    head: Head<Params, Query, ParentData, NoFields, Mode>
+  ): Pick<
+    NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>,
+    "page" | "layout"
+  > {
+    return new NoSchemaChain(this.metadata, this.requestLoaderFunction, head);
+  }
+
   page(
     component: Component<Params, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -572,6 +584,7 @@ class NoSchemaChain<
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
       elysia: registerPlain<Params, Query, ParentData, NoFields, Mode>(undefined),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
     };
@@ -587,6 +600,7 @@ class NoSchemaChain<
         undefined,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
     };
@@ -682,6 +696,7 @@ class QuerySchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<NoFields, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
@@ -689,11 +704,13 @@ class QuerySchemaChain<
   constructor(
     metadata: RouteMetadata,
     querySchema: QuerySchema,
-    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined
+    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined,
+    head?: Head<NoFields, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.querySchema = querySchema;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
   requestLoader<Data extends PublicLoaderData>(
@@ -730,6 +747,15 @@ class QuerySchemaChain<
     );
   }
 
+  head(
+    head: Head<NoFields, Query, ParentData, NoFields, Mode>
+  ): Pick<
+    QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams, Mode>,
+    "page" | "layout"
+  > {
+    return new QuerySchemaChain(this.metadata, this.querySchema, this.requestLoaderFunction, head);
+  }
+
   page(
     component: Component<NoFields, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -743,6 +769,7 @@ class QuerySchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
@@ -759,6 +786,7 @@ class QuerySchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
@@ -871,6 +899,7 @@ class SchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly paramsSchema: ParamsSchema;
   protected readonly querySchema: QuerySchema;
@@ -880,12 +909,14 @@ class SchemaChain<
     metadata: RouteMetadata,
     paramsSchema: ParamsSchema,
     querySchema: QuerySchema,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
+    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
+    head?: Head<Params, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.paramsSchema = paramsSchema;
     this.querySchema = querySchema;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
   requestLoader<RequestLoaderData extends PublicLoaderData>(
@@ -942,6 +973,30 @@ class SchemaChain<
     );
   }
 
+  head(
+    head: Head<Params, Query, ParentData, NoFields, Mode>
+  ): Pick<
+    SchemaChain<
+      Params,
+      Query,
+      ParamsSchema,
+      QuerySchema,
+      ParentData,
+      RequestData,
+      ParentParams,
+      Mode
+    >,
+    "page" | "layout"
+  > {
+    return new SchemaChain(
+      this.metadata,
+      this.paramsSchema,
+      this.querySchema,
+      this.requestLoaderFunction,
+      head
+    );
+  }
+
   page(
     component: Component<Params, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -956,6 +1011,7 @@ class SchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
@@ -972,6 +1028,7 @@ class SchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },

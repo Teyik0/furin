@@ -222,6 +222,57 @@ describe("defineRoute", () => {
     expect(child.loader).toBeFunction();
   });
 
+  test("defines head after requestLoader without a public loader", () => {
+    const page = defineRoute()
+      .config({ layout: rootRoute, mode: "ssg" })
+      .requestLoader(() => ({ result: { count: 25 } }))
+      .head(({ path }) => ({ meta: [{ title: path }] }))
+      .page(({ result }) => {
+        const reservations: Promise<{ count: number }> = result;
+        return String(reservations);
+      });
+
+    expect(page.head?.({ params: {}, path: "/reservations", query: {} })).toEqual({
+      meta: [{ title: "/reservations" }],
+    });
+    expect("loader" in page).toBe(false);
+  });
+
+  test("defines head on a query route without a public loader", () => {
+    const page = defineRoute()
+      .config({
+        layout: rootRoute,
+        mode: "isr",
+        query: t.Object({ status: t.String() }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ result: "private" }))
+      .head(({ query }) => ({ meta: [{ title: query.status }] }))
+      .page(({ result }) => String(result));
+
+    expect(
+      page.head?.({ params: {}, path: "/reservations", query: { status: "pending" } })
+    ).toEqual({ meta: [{ title: "pending" }] });
+    expect("loader" in page).toBe(false);
+  });
+
+  test("defines head on a params route without a public loader", () => {
+    const page = defineRoute()
+      .config({
+        layout: rootRoute,
+        mode: "ssg",
+        params: t.Object({ id: t.String() }),
+      })
+      .requestLoader(() => ({ result: "private" }))
+      .head(({ params }) => ({ meta: [{ title: params.id }] }))
+      .page(({ result }) => String(result));
+
+    expect(page.head?.({ params: { id: "123" }, path: "/reservations/123", query: {} })).toEqual({
+      meta: [{ title: "123" }],
+    });
+    expect("loader" in page).toBe(false);
+  });
+
   test("types parent loader data without retaining the parent at runtime", async () => {
     const parent = defineRootRoute()
       .config({ mode: "ssr" })

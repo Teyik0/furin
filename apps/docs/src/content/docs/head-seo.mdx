@@ -30,6 +30,8 @@ export const route = defineRoute()
 
 Metadata receives validated route values and synchronous public loader fields only. Promise fields explicitly wrapped in `defer()` and fields returned by `requestLoader()` are intentionally unavailable to `head()`; keep metadata inputs in the synchronous loader result so SSR and SPA navigation remain deterministic.
 
+When metadata only needs route values, call `.head()` directly after `.config()` or `.requestLoader()`; no `loader()` is required.
+
 ## Descriptor Reference
 
 ### Metadata
