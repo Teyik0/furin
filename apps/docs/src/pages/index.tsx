@@ -14,6 +14,7 @@ import {
 } from "@/components/icons";
 import { ChimeCanvas } from "@/components/landing/chime-canvas";
 import { CopyCommand } from "@/components/landing/copy-command";
+import { LandingFont } from "@/components/landing/landing-font";
 import { ModesGrid } from "@/components/landing/modes-grid";
 import { Reveal } from "@/components/landing/reveal";
 import { StackReveal } from "@/components/landing/stack-reveal";
@@ -153,6 +154,7 @@ export const route = defineRoute()
   }))
   .page(({ codeHtmlMap }) => (
     <div className="landing">
+      <LandingFont />
       {/* 1 — Hero */}
       <section className="hero relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
         <ChimeCanvas className="-z-10" variant="hero" />
@@ -165,7 +167,7 @@ export const route = defineRoute()
               <span className="mx-2 text-foreground/25">/</span>
               React · Elysia · Bun
             </p>
-            <h1 className="hero-in lp-display mb-7" style={delay(80)}>
+            <h1 className="hero-in hero-in--lcp lp-display mb-7">
               The React framework <span className="lp-display__accent">that rings fast.</span>
             </h1>
             <p

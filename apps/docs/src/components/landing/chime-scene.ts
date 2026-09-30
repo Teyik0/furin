@@ -277,7 +277,7 @@ function paintTanzaku(): CanvasTexture {
   ctx.stroke();
   // calligraphy
   ctx.fillStyle = "#1c2433";
-  ctx.font = '600 118px "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif';
+  ctx.font = '600 118px "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif CJK JP", serif';
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("風", 128, 250);
@@ -353,7 +353,15 @@ function makeParticles(count: number, height: number): BufferGeometry {
 
 // ------------------------------------------------------------------ scene --
 
-export function createChimeScene(canvas: HTMLCanvasElement, opts: ChimeSceneOptions): ChimeScene {
+/** Ends the current task so hydration, input and paint can run between setup phases. */
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+export async function createChimeScene(
+  canvas: HTMLCanvasElement,
+  opts: ChimeSceneOptions
+): Promise<ChimeScene> {
   const isHero = opts.variant === "hero";
   const renderer = new WebGLRenderer({
     alpha: true,
@@ -365,12 +373,18 @@ export function createChimeScene(canvas: HTMLCanvasElement, opts: ChimeSceneOpti
   let dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   renderer.setPixelRatio(dpr);
   renderer.setClearColor(0x00_00_00, 0);
+  // Skip the per-program info-log reads on first use: they are synchronous GPU round-trips
+  // (the bulk of the first-frame stall) and these shaders are static. Flip to true when
+  // editing a shader to get compile errors in the console.
+  renderer.debug.checkShaderErrors = false;
 
   const scene = new Scene();
   const pmrem = new PMREMGenerator(renderer);
-  const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+  // 128px is plenty for a bell that covers a few hundred pixels (default 256 is 4x the work).
+  const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: 128 });
   scene.environment = envRT.texture;
   scene.environmentIntensity = 0.7;
+  await yieldToMain();
 
   const camera = new PerspectiveCamera(35, 1, 0.1, 60);
   camera.position.set(0, 0, 7);
@@ -478,14 +492,6 @@ export function createChimeScene(canvas: HTMLCanvasElement, opts: ChimeSceneOpti
     })
   );
   tanzakuPivot.add(tanzaku);
-
-  // Repaint once web fonts are ready so the calligraphy uses Shippori Mincho.
-  document.fonts?.ready.then(() => {
-    const fresh = paintTanzaku();
-    tanzakuUniforms.uMap.value.dispose();
-    tanzakuUniforms.uMap.value = fresh;
-    renderStatic();
-  });
 
   // ---- ripples (shared by particles + ring quad)
   const ripples = Array.from({ length: RIPPLE_SLOTS }, () => new Vector4(0, 0, 0, -100));
@@ -789,6 +795,15 @@ export function createChimeScene(canvas: HTMLCanvasElement, opts: ChimeSceneOpti
   // Settle the pendulum a bit so a static (reduced-motion) render isn't dead-center.
   sim.ax = 0.06;
   sim.cx = -0.04;
+  // Compile every program via KHR_parallel_shader_compile before the first frame, so the
+  // link step happens off the main thread instead of stalling the first render. Program
+  // keys depend on the bound render target (linear inside the bloom composer, sRGB on
+  // screen), so compile against the target the first frame will actually draw into.
+  applyPose();
+  renderer.setRenderTarget(bloomEnabled && theme === "dark" ? composer.readBuffer : null);
+  const compiled = renderer.compileAsync(scene, camera);
+  renderer.setRenderTarget(null);
+  await compiled;
   draw();
 
   return {
