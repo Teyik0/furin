@@ -555,8 +555,8 @@ test("notifications observe the committed business write from another connection
     ).toBe(200);
     expect(observed).toBe(1);
   } finally {
-    reader.close();
-    sqlite.close();
+    reader.close(true);
+    sqlite.close(true);
     rmSync(directory, { recursive: true, force: true });
   }
 });
