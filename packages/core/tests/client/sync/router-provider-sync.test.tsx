@@ -385,6 +385,7 @@ describe("Eden optimistic loader projection", () => {
       });
       await Promise.resolve();
     });
+    expect(rendered.container.textContent).toBe("saved");
     rendered.cleanup();
     await act(async () => {
       gate.resolve();

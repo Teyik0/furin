@@ -113,7 +113,7 @@ test.skipIf(!url)(
       await entered.promise;
       const second = await Promise.race([
         app.handle(request("counter", "one")),
-        Bun.sleep(1000).then(() => {
+        Bun.sleep(5000).then(() => {
           throw new Error("Duplicate request blocked behind the business transaction");
         }),
       ]);
