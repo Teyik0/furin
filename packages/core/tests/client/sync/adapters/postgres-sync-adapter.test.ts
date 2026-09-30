@@ -26,9 +26,11 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 
 test("bounds PostgreSQL mutation keys before binding them", async () => {
   const boundValues: unknown[] = [];
-  const transaction = ((_: TemplateStringsArray, ...values: unknown[]) => {
+  const transaction = ((strings: TemplateStringsArray, ...values: unknown[]) => {
     boundValues.push(...values);
-    return Promise.resolve([]);
+    return Promise.resolve(
+      strings.join(" ").includes("pg_try_advisory_xact_lock") ? [{ acquired: true }] : []
+    );
   }) as unknown as SQL;
   const sql = {
     begin<Result>(callback: (tx: SQL) => Promise<Result>): Promise<Result> {

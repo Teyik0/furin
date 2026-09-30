@@ -67,7 +67,7 @@ export const route = defineRoute()
       </Suspense>
 
       <div className="flex-1 overflow-hidden">
-        <Kanban boardId={boardId} initialCards={initialCards} />
+        <Kanban boardId={boardId} initialCards={initialCards} key={boardId} />
       </div>
     </div>
   ));

@@ -23,6 +23,49 @@ test("preserves Eden's explicit content type after body serialization", async ()
   expect(types).toEqual(["application/custom+json", "application/custom+json"]);
 });
 
+test("preserves explicit content type from every literal header form", async () => {
+  const app = new Elysia().post("/cards", () => ({ ok: true }));
+  const types: Array<string | null> = [];
+  const client = treaty<typeof app>("http://localhost", {
+    fetcher: ((input, init) => {
+      types.push(new Request(input, init).headers.get("content-type"));
+      return Promise.resolve(Response.json({ ok: true }));
+    }) as typeof fetch,
+  });
+  const forms: HeadersInit[] = [
+    { "Content-Type": "application/custom+json" },
+    new Headers({ "Content-Type": "application/custom+json" }),
+    [["Content-Type", "application/custom+json"]],
+  ];
+  for (const headers of forms) {
+    // biome-ignore lint/performance/noAwaitInLoops: verify each supported header form separately.
+    await Reflect.apply(withSync(client).cards.post, undefined, [{ a: 1 }, { headers }]);
+  }
+  expect(types).toEqual(new Array(3).fill("application/custom+json"));
+});
+
+test("generates an idempotency key when randomUUID is unavailable", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
+  const app = new Elysia().post("/cards", ({ headers }) => headers["idempotency-key"]);
+  try {
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+    const first = await withSync(treaty(app)).cards.post();
+    const second = await withSync(treaty(app)).cards.post();
+    expect(first.error).toBeNull();
+    expect(first.data).toBeString();
+    expect(first.data).not.toBe(second.data);
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(globalThis.crypto, "randomUUID", descriptor);
+    } else {
+      Reflect.deleteProperty(globalThis.crypto, "randomUUID");
+    }
+  }
+});
+
 test("keeps Eden results and supplies a new idempotency key per mutation", async () => {
   const keys: string[] = [];
   const app = new Elysia().post(
@@ -97,6 +140,23 @@ test("never retries business errors, unsafe server failures, or lost network res
     { retry: 2 }
   );
   expect((await api.cards.post()).error).not.toBeNull();
+  expect(attempts).toBe(1);
+});
+
+test("preserves Eden throwHttpError network rejection without retrying", async () => {
+  let attempts = 0;
+  const app = new Elysia().post("/cards", () => ({ ok: true }));
+  const api = withSync(
+    treaty<typeof app>("http://localhost", {
+      throwHttpError: true,
+      fetcher: (() => {
+        attempts += 1;
+        return Promise.reject(new TypeError("network unavailable"));
+      }) as unknown as typeof fetch,
+    }),
+    { retry: 5 }
+  );
+  await expect(api.cards.post()).rejects.toMatchObject({ status: 503 });
   expect(attempts).toBe(1);
 });
 

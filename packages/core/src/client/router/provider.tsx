@@ -443,8 +443,15 @@ export function RouterProvider({
   const fetchConfirmedPageState = useCallback(
     async (href: string, signal: AbortSignal | undefined, hmrRefresh: boolean) => {
       for (;;) {
-        // biome-ignore lint/performance/noAwaitInLoops: a snapshot must be read after local writes settle.
-        await optimisticRuntime.wait(href, signal);
+        try {
+          // biome-ignore lint/performance/noAwaitInLoops: a snapshot must be read after local writes settle.
+          await optimisticRuntime.wait(href, signal);
+        } catch (error) {
+          if (signal?.aborted) {
+            return null;
+          }
+          throw error;
+        }
         const version = optimisticRuntime.revision(href);
         const snapshot = await fetchPageState(href, signal, hmrRefresh);
         if (optimisticRuntime.publishable(href, version)) {
@@ -789,6 +796,9 @@ export function RouterProvider({
       ) {
         invalidationRefresh.run();
       }
+    };
+    return () => {
+      syncResponse.current = undefined;
     };
   }, [autoRefresh, invalidatePrefetch, invalidationRefresh]);
 

@@ -12,7 +12,12 @@ import type {
   SyncInvalidation,
   TransactionalSyncAdapter,
 } from "./adapter.ts";
-import { mergeStoredResponseHeaders, storeResponseSync } from "./response.ts";
+import {
+  mergeStoredResponseHeaders,
+  type StoreResponseResult,
+  storeResponse,
+  storeResponseSync,
+} from "./response.ts";
 import type { ResolvedSyncRuntime } from "./runtime.ts";
 
 const TRAILING_SLASH_PATTERN = /\/$/;
@@ -141,23 +146,27 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
   if (paths.length > 0) {
     context.set.headers["x-furin-revalidate"] = paths.join(",");
   }
-  const stored = storeResponseSync(value, context.set);
-  if (stored.kind === "unreplayable") {
-    throw new Error(
-      "[furin] Atomic mutation responses must be bounded JSON, text or bodyless responses."
-    );
-  }
-  let { headers } = context.set;
-  if (value instanceof ElysiaStatus) {
-    headers = { ...headers, ...value.headers };
-  } else if (value instanceof Response) {
-    headers = { ...headers, ...Object.fromEntries(value.headers) };
-  }
-  return {
-    invalidations,
-    response: mergeStoredResponseHeaders({ ...stored.response, status }, headers),
-    value: original,
+  const finish = (stored: StoreResponseResult) => {
+    if (stored.kind === "unreplayable") {
+      throw new Error(
+        "[furin] Atomic mutation responses must be bounded JSON, text or bodyless responses."
+      );
+    }
+    let { headers } = context.set;
+    if (value instanceof ElysiaStatus) {
+      headers = { ...headers, ...value.headers };
+    } else if (value instanceof Response) {
+      headers = { ...headers, ...Object.fromEntries(value.headers) };
+    }
+    return {
+      invalidations,
+      response: mergeStoredResponseHeaders({ ...stored.response, status }, headers),
+      value: original,
+    };
   };
+  return execution.adapter.transactionMode === "sync"
+    ? finish(storeResponseSync(value, context.set))
+    : storeResponse(value, context.set).then(finish);
 }
 
 function assertSynchronous(mode: "async" | "sync", value: unknown): void {

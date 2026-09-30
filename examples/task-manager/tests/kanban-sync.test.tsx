@@ -9,6 +9,7 @@ import {
   installDom,
   resetDomState,
   useDomTests as setupDomTests,
+  waitForDom,
 } from "../../../packages/core/tests/support/dom.ts";
 
 installDom();
@@ -187,11 +188,19 @@ test("creates an optimistic card through Eden and replaces it with confirmed loa
     await submitCard(board.container, "Optimistic task");
     expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
     expect(board.container.textContent).toContain("Optimistic task");
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
     confirmedCards = [{ id: "created", column: "backlog", title: "Optimistic task" }];
     await act(async () => {
-      resolveCreate?.({ data: confirmedCards[0] ?? null, error: null });
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
+      }
+      resolveCreate({ data: confirmedCards[0] ?? null, error: null });
+      await Promise.resolve();
     });
+    await waitForDom(
+      () => board.container.querySelector('a[href="/board/board-1/card/created"]') !== null,
+      { timeoutMs: 2000 }
+    );
     expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
   } finally {
     await board.cleanup();
@@ -205,8 +214,12 @@ test("removes only a rejected optimistic insertion", async () => {
     expect(board.container.querySelector('[draggable="true"]')?.textContent).toContain(
       "Rejected task"
     );
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      resolveCreate?.({ data: null, error: { message: "failed" } });
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
+      }
+      resolveCreate({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
     expect(board.container.querySelector('[draggable="true"]')).toBeNull();
@@ -225,8 +238,12 @@ test("restores a card after a definitive deletion rejection", async () => {
       await dragCard(board.container, barrel);
     }
     expect(board.container.textContent).not.toContain("Delete me");
+    await waitForDom(() => resolveDelete !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      resolveDelete?.({ data: null, error: { message: "failed" } });
+      if (!resolveDelete) {
+        throw new Error("Delete request did not reach the server");
+      }
+      resolveDelete({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
     expect(board.container.textContent).toContain("Delete me");
@@ -242,8 +259,12 @@ test("moves a card through projected loader props and removes a rejected move", 
     const columns = board.container.querySelectorAll("ul");
     await dragCard(board.container, columns.item(1));
     expect(columns.item(1).textContent).toContain("Move me");
+    await waitForDom(() => resolveMove !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      resolveMove?.({ data: null, error: { message: "failed" } });
+      if (!resolveMove) {
+        throw new Error("Move request did not reach the server");
+      }
+      resolveMove({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
     expect(columns.item(0).textContent).toContain("Move me");

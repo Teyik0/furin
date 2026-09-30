@@ -7,7 +7,7 @@ import { Elysia, t } from "elysia";
 import { furin } from "../../../src/furin.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { resetFurinLoggerForTests } from "../../../src/server/logger.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { drizzleSyncAdapter } from "../../../src/server/sync/drizzle/index.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync } from "../../../src/server/sync/sqlite/index.ts";
@@ -18,6 +18,7 @@ test.serial(
   async () => {
     const fixture = createTmpApp("cli-app");
     const cwd = process.cwd();
+    const originalDevMode = IS_DEV;
     const sqlite = new Database(":memory:");
     const counter = sqliteTable("counter", { value: integer().notNull() });
     sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
@@ -65,6 +66,7 @@ test.serial(
     } finally {
       sqlite.close();
       process.chdir(cwd);
+      __setDevMode(originalDevMode);
       __resetCompileContext();
       resetFurinLoggerForTests();
       fixture.cleanup();

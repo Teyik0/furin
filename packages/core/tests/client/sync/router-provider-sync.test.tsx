@@ -359,6 +359,39 @@ describe("Eden optimistic loader projection", () => {
     await uninstallDom();
   });
 
+  test("a mutation finishing after unmount does not refresh the removed router", async () => {
+    const gate = Promise.withResolvers<void>();
+    const app = new Elysia().post("/cards", async () => {
+      await gate.promise;
+      return { ok: true };
+    });
+    let refreshes = 0;
+    globalThis.fetch = (() => {
+      refreshes += 1;
+      return Promise.resolve(makeNdjsonResponse({ message: "saved" }));
+    }) as unknown as typeof fetch;
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    const route = makeRoute("/board");
+    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    let call: ReturnType<typeof api.cards.post> | undefined;
+    await act(async () => {
+      call = api.cards.post(undefined, {
+        optimistic: (cache) =>
+          cache.update("/board", (loader) => ({ ...loader, message: "saved" })),
+      });
+      await Promise.resolve();
+    });
+    rendered.cleanup();
+    await act(async () => {
+      gate.resolve();
+      await call;
+    });
+    expect(refreshes).toBe(0);
+  });
   test("renders optimistic props without local state and hands off to confirmed data", async () => {
     const mutationGate = Promise.withResolvers<void>();
     const refreshGate = Promise.withResolvers<void>();
@@ -672,7 +705,7 @@ describe("Eden optimistic loader projection", () => {
           }));
         },
       });
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await waitForDom(() => attempts === 3, { timeoutMs: 2000 });
     });
     expect(attempts).toBe(3);
     expect(callbacks).toBe(1);
@@ -684,7 +717,7 @@ describe("Eden optimistic loader projection", () => {
     });
     expect(rendered.container.textContent).toBe("1");
   });
-  test("navigation to another route stays available during a pending optimistic request", async () => {
+  test("a newer navigation cancels an optimistic wait and stays available", async () => {
     const gate = Promise.withResolvers<void>();
     const app = new Elysia().post("/cards", async () => {
       await gate.promise;
@@ -724,7 +757,11 @@ describe("Eden optimistic loader projection", () => {
     });
     expect(rendered.container.textContent).toBe("optimistic");
     await act(async () => {
-      await navigate?.("/other");
+      if (!navigate) {
+        throw new Error("Router navigation was not registered");
+      }
+      const replacedNavigation = navigate("/board");
+      await Promise.all([replacedNavigation, navigate("/other")]);
     });
     expect(rendered.container.textContent).toBe("other");
     await act(async () => {

@@ -159,7 +159,7 @@
     "fix": "ultracite fix",
     "generate:sync-prisma": "bun --bun node_modules/prisma/build/index.js generate --schema tests/fixtures/sync-prisma/schema.prisma",
     "test": "bun run generate:sync-prisma && bun test --parallel=2 --isolate --max-concurrency 4 --bail --timeout 15000",
-    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
+    "test:dev": "bun run generate:sync-prisma && bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
     "tscheck": "bun run generate:sync-prisma && tsc --noEmit"

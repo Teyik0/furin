@@ -66,6 +66,13 @@ type HeaderSource =
 type Callable = (...args: unknown[]) => unknown;
 const MUTATIONS = new Set(["post", "put", "patch", "delete"]);
 
+function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random()}`;
+}
+
 const plugin: TreatyPlugin<SyncPluginType> = {
   name: "furin-sync",
   before(context) {
@@ -176,12 +183,14 @@ async function runMutation(
   let key: string | undefined;
   const headers = async (path: string, init: RequestInit) => {
     const resolved = await resolveHeaders(supplied?.headers, path, init);
+    // Eden reads this property after serializing the body.
+    Object.assign(headers, { "content-type": resolved.get("content-type") ?? undefined });
     const fetchHeaders = new Headers(supplied?.fetch?.headers);
     key ??=
       fetchHeaders.get("Idempotency-Key") ??
       resolved.get("Idempotency-Key") ??
       new Headers(init.headers).get("Idempotency-Key") ??
-      crypto.randomUUID();
+      createIdempotencyKey();
     resolved.set("Idempotency-Key", key);
     if (supplied?.fetch?.headers) {
       fetchHeaders.set("Idempotency-Key", key);
@@ -220,12 +229,7 @@ async function runMutation(
   const options: CallOptions = {
     ...supplied,
     [OPERATION]: operation,
-    // Eden reads explicit content-type from this object again after serializing the body.
-    headers: Object.assign(headers, {
-      "content-type": (supplied?.headers as { "content-type"?: string } | undefined)?.[
-        "content-type"
-      ],
-    }),
+    headers,
   };
   let result: MutationResult;
   let thrown: { error: unknown } | undefined;

@@ -97,31 +97,41 @@ test.skipIf(!url)(
     const entered = Promise.withResolvers<void>();
     const finish = Promise.withResolvers<void>();
     let calls = 0;
-    const app = new Elysia()
-      .use(furinSync({ adapter, principal: () => "user" }))
-      .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
-        mutation(async (tx) => {
-          calls += 1;
-          const [row] = await tx.insert(counter).values({ id: namespace, value: 1 }).returning();
-          entered.resolve();
-          await finish.promise;
-          return row;
-        })
-      );
-    const first = app.handle(request("counter", "one"));
-    await entered.promise;
-    const second = app.handle(request("counter", "one"));
-    finish.resolve();
-    const results = await Promise.all([first, second]);
-    expect(results[0]?.status).toBe(200);
-    expect([200, 409]).toContain(results[1]?.status);
-    const replay = await app.handle(request("counter", "one"));
-    expect(replay.status).toBe(200);
-    expect(await replay.json()).toEqual(await results[0]?.json());
-    expect(calls).toBe(1);
-    expect(await adapter.currentCursor()).toBe("1");
-    await sql`DELETE FROM furin_atomic_counter WHERE id = ${namespace}`;
-    await sql.close();
+    try {
+      const app = new Elysia()
+        .use(furinSync({ adapter, principal: () => "user" }))
+        .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>
+          mutation(async (tx) => {
+            calls += 1;
+            const [row] = await tx.insert(counter).values({ id: namespace, value: 1 }).returning();
+            entered.resolve();
+            await finish.promise;
+            return row;
+          })
+        );
+      const first = app.handle(request("counter", "one"));
+      await entered.promise;
+      const second = await Promise.race([
+        app.handle(request("counter", "one")),
+        Bun.sleep(1000).then(() => {
+          throw new Error("Duplicate request blocked behind the business transaction");
+        }),
+      ]);
+      expect(second.status).toBe(409);
+      expect(await second.json()).toMatchObject({ code: "FURIN_MUTATION_IN_PROGRESS" });
+      finish.resolve();
+      const result = await first;
+      expect(result.status).toBe(200);
+      const replay = await app.handle(request("counter", "one"));
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toEqual(await result.json());
+      expect(calls).toBe(1);
+      expect(await adapter.currentCursor()).toBe("1");
+    } finally {
+      finish.resolve();
+      await sql`DELETE FROM furin_atomic_counter WHERE id = ${namespace}`;
+      await sql.close();
+    }
   }
 );
 
@@ -200,36 +210,88 @@ test.skipIf(!url)(
     const failures = new Set(["business"]);
     let calls = 0;
     let nativeResult = false;
-    const app = new Elysia()
-      .use(furinSync({ adapter, principal: () => "user" }))
-      .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, async ({ mutation }) => {
-        const row = await mutation(async (tx) => {
-          calls += 1;
-          const card = await tx.atomicCounter.create({ data: { id: namespace, value: 1 } });
-          if (failures.has("business")) {
-            throw new Error("business failure");
-          }
-          return card;
+    try {
+      const app = new Elysia()
+        .use(furinSync({ adapter, principal: () => "user" }))
+        .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, async ({ mutation }) => {
+          const row = await mutation(async (tx) => {
+            calls += 1;
+            const card = await tx.atomicCounter.create({ data: { id: namespace, value: 1 } });
+            if (failures.has("business")) {
+              throw new Error("business failure");
+            }
+            return card;
+          });
+          nativeResult = row.createdAt instanceof Date;
+          return row;
         });
-        nativeResult = row.createdAt instanceof Date;
-        return row;
-      });
-    expect((await app.handle(request("counter", "one"))).status).toBe(500);
-    expect(await client.atomicCounter.count({ where: { id: namespace } })).toBe(0);
-    expect(await adapter.currentCursor()).toBe("0");
-    failures.clear();
-    const initial = await app.handle(request("counter", "one"));
-    expect(initial.status).toBe(200);
-    expect(nativeResult).toBe(true);
-    nativeResult = false;
-    const replay = await app.handle(request("counter", "one"));
-    expect(replay.status).toBe(200);
-    expect(await replay.json()).toEqual(await initial.json());
-    expect(nativeResult).toBe(false);
-    expect(calls).toBe(2);
-    expect(await adapter.currentCursor()).toBe("1");
-    await client.atomicCounter.delete({ where: { id: namespace } });
-    await client.$disconnect();
-    await sql.close();
+      expect((await app.handle(request("counter", "one"))).status).toBe(500);
+      expect(await client.atomicCounter.count({ where: { id: namespace } })).toBe(0);
+      expect(await adapter.currentCursor()).toBe("0");
+      failures.clear();
+      const initial = await app.handle(request("counter", "one"));
+      expect(initial.status).toBe(200);
+      expect(nativeResult).toBe(true);
+      nativeResult = false;
+      const replay = await app.handle(request("counter", "one"));
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toEqual(await initial.json());
+      expect(nativeResult).toBe(false);
+      expect(calls).toBe(2);
+      expect(await adapter.currentCursor()).toBe("1");
+    } finally {
+      await client.atomicCounter.deleteMany({ where: { id: namespace } });
+      await client.$disconnect();
+      await sql.close();
+    }
+  }
+);
+
+test.skipIf(!url)(
+  "async atomic mutations store bounded Response bodies before commit",
+  async () => {
+    const sql = new SQL(url ?? "");
+    const namespace = crypto.randomUUID();
+    try {
+      await sql.unsafe(migration);
+      await sql`CREATE TABLE IF NOT EXISTS furin_atomic_counter (id text PRIMARY KEY, value integer NOT NULL, "createdAt" timestamp NOT NULL DEFAULT now())`;
+      const adapter = drizzleSyncAdapter({ db: drizzle(sql), namespace });
+      const oversized = new Set(["response"]);
+      let calls = 0;
+      const app = new Elysia()
+        .use(furinSync({ adapter, principal: () => "user" }))
+        .post("/counter", ({ mutation }) =>
+          mutation(async (tx) => {
+            calls += 1;
+            await tx.insert(counter).values({ id: namespace, value: 1 });
+            return oversized.has("response")
+              ? new Response("x".repeat(1024 * 1024 + 1), {
+                  headers: { "content-length": String(1024 * 1024 + 1) },
+                })
+              : Response.json(
+                  { value: 1 },
+                  { status: 202, headers: { "set-cookie": "saved=1", "content-length": "11" } }
+                );
+          })
+        );
+      expect((await app.handle(request("counter", "one"))).status).toBe(500);
+      expect(
+        await sql`SELECT value FROM furin_atomic_counter WHERE id = ${namespace}`
+      ).toHaveLength(0);
+      expect(await adapter.currentCursor()).toBe("0");
+      oversized.clear();
+      const initial = await app.handle(request("counter", "one"));
+      expect(initial.status).toBe(202);
+      expect(initial.headers.get("set-cookie")).toBe("saved=1");
+      expect(await initial.json()).toEqual({ value: 1 });
+      const replay = await app.handle(request("counter", "one"));
+      expect(replay.status).toBe(202);
+      expect(replay.headers.get("set-cookie")).toBeNull();
+      expect(await replay.json()).toEqual({ value: 1 });
+      expect(calls).toBe(2);
+    } finally {
+      await sql`DELETE FROM furin_atomic_counter WHERE id = ${namespace}`;
+      await sql.close();
+    }
   }
 );

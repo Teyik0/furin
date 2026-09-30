@@ -1,6 +1,6 @@
 import { Link, useRouter } from "@teyik0/furin/link";
 import { ArrowLeft, ChevronRight, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { api } from "@/lib/api";
 
 interface CardDetailPageProps {
@@ -23,7 +23,9 @@ export function CardDetailPage({
   const updateCard = api.cards({ id: card.id }).patch;
   const deleteCard = api.cards({ id: card.id }).delete;
 
-  const handleSave = async (formData: FormData) => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
     try {
       const { error } = await updateCard({
         description: String(formData.get("description") ?? ""),
@@ -90,7 +92,7 @@ export function CardDetailPage({
             <p className="mt-1 text-xs text-zinc-600">Created {formattedCreatedAt}</p>
           </div>
 
-          <form action={handleSave} className="space-y-5 p-6">
+          <form className="space-y-5 p-6" onSubmit={handleSave}>
             {errorMessage ? (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
                 {errorMessage}

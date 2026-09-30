@@ -98,6 +98,12 @@ export class PostgresSyncAdapter implements SyncAdapter {
   beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
     return this.sql.begin(async (tx) => {
       const key = mutationKey(input);
+      const [lock] = await tx<{ acquired: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0)) AS acquired
+      `;
+      if (!lock?.acquired) {
+        return { kind: "conflict", reason: "in-progress" } as const;
+      }
       await tx`
         DELETE FROM furin_sync.mutations
         WHERE ctid IN (
@@ -110,9 +116,9 @@ export class PostgresSyncAdapter implements SyncAdapter {
               AND expires_at <= clock_timestamp()
             )
           LIMIT 100
+          FOR UPDATE SKIP LOCKED
         )
       `;
-      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0))::text`;
       const rows = await tx<MutationRow[]>`
         SELECT mutation_id, fingerprint, state, response_status, response_headers,
                response_body,

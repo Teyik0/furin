@@ -19,8 +19,11 @@ setupDomTests();
 
 const deleteCalls: unknown[][] = [];
 
-const app = new Elysia().delete("/boards/:boardId", ({ headers }) => {
-  deleteCalls.push([undefined, { headers: { "Idempotency-Key": headers["idempotency-key"] } }]);
+const app = new Elysia().delete("/boards/:boardId", ({ headers, params }) => {
+  deleteCalls.push([
+    params.boardId,
+    { headers: { "Idempotency-Key": headers["idempotency-key"] } },
+  ]);
   return { ok: true };
 });
 mock.module("../src/lib/api", () => ({
@@ -60,7 +63,7 @@ test("deletes a board with an idempotent Eden request", async () => {
     });
 
     expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0]?.[0]).toBeUndefined();
+    expect(deleteCalls[0]?.[0]).toBe("board-1");
     expect(deleteCalls[0]?.[1]).toEqual({
       headers: { "Idempotency-Key": expect.any(String) },
     });
