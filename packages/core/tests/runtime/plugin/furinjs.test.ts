@@ -135,6 +135,36 @@ async function setBuiltRouteContext(appPath: string): Promise<void> {
 beforeEach(resetState);
 afterEach(resetState);
 
+test.serial("furin() runs inherited private data in an SSR child loader", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  writeAppFile(
+    app.path,
+    "src/pages/root.tsx",
+    [
+      'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
+      'export const route = defineRootRoute().config({ mode: "ssr" })',
+      '  .requestLoader(() => ({ session: "private" }))',
+      "  .layout(({ children }) => <html><head><HeadContent /></head><body>{children}<Scripts /></body></html>);",
+    ].join("\n")
+  );
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(async ({ session }) => ({ message: await session }))",
+      "  .page(({ message }) => <main>{message}</main>);",
+    ].join("\n")
+  );
+  process.chdir(app.path);
+  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const response = await instance.handle(new Request("http://furin/"));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("<main>private</main>");
+});
+
 test.serial("furin() writes dev files in development", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);
