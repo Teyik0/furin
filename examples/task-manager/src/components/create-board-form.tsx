@@ -1,7 +1,5 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: create-board form handlers depend on local input and mutation state
-import { useSync } from "@teyik0/furin/client";
 import { useRef, useState } from "react";
-import { apiClient } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export function CreateBoardForm() {
   const [name, setName] = useState("");
@@ -9,13 +7,13 @@ export function CreateBoardForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const inFlightRef = useRef<boolean>(false);
-  const createBoard = useSync(apiClient.api.boards.post);
+  const createBoard = api.boards.post;
 
-  const handleCreate = async () => {
+  const handleCreate = async (formData: FormData) => {
     if (inFlightRef.current) {
       return;
     }
-    const trimmed = name.trim();
+    const trimmed = String(formData.get("name") ?? "").trim();
     if (!trimmed) {
       return;
     }
@@ -40,19 +38,13 @@ export function CreateBoardForm() {
 
   return (
     <div className="mb-10 flex flex-col gap-3">
-      {/* react-doctor-disable-next-line react-doctor/no-prevent-default */}
-      <form
-        className="flex gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleCreate();
-        }}
-      >
+      <form action={handleCreate} className="flex gap-3">
         <div className="relative flex-1">
           <input
             aria-label="New board name"
             className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/40 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-50"
             disabled={isSubmitting}
+            name="name"
             onChange={(e) => setName(e.target.value)}
             placeholder="Name your new board..."
             type="text"

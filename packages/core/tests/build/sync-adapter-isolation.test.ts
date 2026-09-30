@@ -94,6 +94,17 @@ describe("sync adapter bundle isolation", () => {
     expect(hybrid).not.toContain(sqliteMarker);
   });
 
+  test("loads ORM adapters only through their dedicated entrypoints", async () => {
+    const [drizzle, prisma] = await Promise.all([bundle("drizzle", "bun"), bundle("prisma", "bun")]);
+    expect(drizzle).toContain(sqliteMarker);
+    expect(drizzle).toContain(postgresMarker);
+    expect(prisma).toContain(postgresMarker);
+    expect(prisma).not.toContain(sqliteMarker);
+    expect(prisma).not.toContain("@prisma/client/runtime");
+    expect(drizzle).not.toContain(redisMarker);
+    expect(prisma).not.toContain(redisMarker);
+  });
+
   test("does not introduce legacy adapter dependencies through the core manifest", async () => {
     const core = await manifest("../../package.json");
     expect(dependencyNames(core)).not.toContain("@teyik0/furin-sync-postgres");

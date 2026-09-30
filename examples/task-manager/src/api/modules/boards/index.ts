@@ -3,11 +3,6 @@ import { Elysia, t } from "elysia";
 import { taskManagerSync } from "../../../sync";
 import { createBoard, deleteBoard, getBoardData, getBoardStats, getBoards } from "./service";
 
-// Shared invalidation rules for every board mutation (POST / DELETE).
-// Path + layout invalidations make the refresh robust regardless of which
-// pages happen to be registered in the auto-invalidate registry at mutation
-// time. The board list lives on `/` and is also surfaced as a sidebar under the
-// `/rsc` comparison and `/board` layout — all need to re-render after a mutation.
 const BOARD_MUTATION_INVALIDATIONS = [
   { tags: ["boards"] as const },
   { path: "/", type: "page" as const },
@@ -24,18 +19,19 @@ export const boardPlugin = new Elysia()
       body: t.Object({ name: t.String({ minLength: 1 }) }),
       sync: { invalidate: BOARD_MUTATION_INVALIDATIONS },
     },
-    ({ body }) => createBoard(body.name)
+    ({ body, mutation }) => mutation((tx) => createBoard(tx, body.name))
   )
   .delete(
     "/boards/:boardId",
     { sync: { invalidate: BOARD_MUTATION_INVALIDATIONS } },
-    ({ params, problem }) => {
-      const ok = deleteBoard(params.boardId);
-      if (!ok) {
-        return problem("Not Found", { detail: "Board not found" });
-      }
-      return { ok: true };
-    }
+    ({ params, problem, mutation }) =>
+      mutation((tx) => {
+        const ok = deleteBoard(tx, params.boardId);
+        if (!ok) {
+          return problem("Not Found", { detail: "Board not found" });
+        }
+        return { ok: true };
+      })
   )
   .get("/boards/:boardId", ({ params, problem }) => {
     const data = getBoardData(params.boardId);

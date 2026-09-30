@@ -1,6 +1,10 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/biome/core", "ultracite/biome/react"],
+  "extends": [
+    "ultracite/biome/core",
+    "ultracite/biome/react",
+    "ultracite/biome/tanstack"
+  ],
   "files": {
     "includes": [
       "!!apps/docs/scripts/generate-docs-content.ts",
@@ -27,6 +31,12 @@
   },
   "linter": {
     "rules": {
+      "performance": {
+        "noJsxPropsBind": "off"
+      },
+      "nursery": {
+        "useReactCompiler": "error"
+      },
       "suspicious": {
         "noAssignInExpressions": "off"
       }

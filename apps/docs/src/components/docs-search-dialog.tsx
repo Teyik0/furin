@@ -1,4 +1,3 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: search dialog handlers are stateful and tied to local query/navigation state
 import type { AnyOrama } from "@orama/orama";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "@teyik0/furin/link";

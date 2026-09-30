@@ -1,10 +1,11 @@
 import { furin } from "@teyik0/furin";
+import Elysia from "elysia";
 import { api } from "./api";
 import { taskManagerSync } from "./sync";
 
 export const port = Number(process.env.PORT ?? 3002);
 
-const app = api.use(
+const app = new Elysia().use(api).use(
   await furin({
     logger: {
       keep: (context) => {

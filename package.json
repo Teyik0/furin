@@ -37,7 +37,7 @@
     "lefthook": "^2.1.14",
     "react-doctor": "^0.9.14",
     "typescript": "^7.0.2",
-    "ultracite": "7.12.0"
+    "ultracite": "7.12.1"
   },
   "engines": {
     "bun": ">=1.4.0"

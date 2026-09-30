@@ -17,15 +17,10 @@ export {
   updateHotComponent,
 } from "./client/hmr.ts";
 export {
-  type SyncMutation,
-  type SyncMutationContext,
-  type SyncMutationErrorContext,
-  type SyncMutationHeaders,
-  type SyncMutationOptions,
-  type SyncMutationRunner,
-  type SyncMutationSuccessContext,
-  type UseSyncOptions,
-  useSync,
+  type OptimisticCache,
+  type SyncCallOptions,
+  type SyncClientOptions,
+  withSync,
 } from "./client/sync.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";
 

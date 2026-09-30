@@ -10,22 +10,20 @@ Use it for repeatable application mutations whose response is small and whose cl
 
 ## Configure One Runtime
 
-Create the adapter once and pass the same runtime object to the page plugin and mutation plugin:
+Bind the ORM once in the adapter configuration, then pass the same runtime object to the page plugin and mutation plugin:
 
 ```ts
 // src/sync.ts
-import { Database } from "bun:sqlite";
-import {
-  migrateSqliteSync,
-  sqliteSyncAdapter,
-} from "@teyik0/furin/sync/sqlite";
+import { drizzleSyncAdapter } from "@teyik0/furin/sync/drizzle";
+import { migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
 import { requireUser } from "./auth";
+import { db } from "./db";
 
-const database = new Database("./data/sync.sqlite");
-migrateSqliteSync(database);
+// db is a Drizzle bun:sqlite database. Run this migration at deployment.
+migrateSqliteSync(db.$client);
 
 export const sync = {
-  adapter: sqliteSyncAdapter({ database, namespace: "my-app" }),
+  adapter: drizzleSyncAdapter({ db, namespace: "my-app" }),
   principal: ({ request }) => requireUser(request).id,
 };
 ```
@@ -47,6 +45,8 @@ new Elysia()
 
 Passing `sync` to `furin()` mounts the change endpoints and injects the browser event transport automatically.
 
+The final application mounting `furin({ sync })` also binds the effective Elysia response guards, models and normalization used inside native transactions. With standalone Elysia, install `furinSync(sync)` on the final application as well as any separately typed route modules. An unbound parent application is rejected before the business callback runs; Furin never commits using only a child's response schema. If you remount a complete application in another root and call `handle()` directly, bind `furinSync(sync)` on that final root too.
+
 The optional `path` property changes the durable endpoint base from `/_furin/sync`; for example, `path: "/_internal/sync"` exposes catch-up at `/_internal/sync/changes`. Browser notifications use `/_furin/events` under the Furin instance prefix.
 
 ## Declare Synced Mutations
@@ -58,6 +58,7 @@ Install `furinSync(sync)` before the routes it owns:
 import { Elysia, t } from "elysia";
 import { furinSync } from "@teyik0/furin";
 import { sync } from "../sync";
+import { posts } from "../db/schema";
 
 export const api = new Elysia({ prefix: "/api" })
   .use(furinSync(sync))
@@ -67,11 +68,42 @@ export const api = new Elysia({ prefix: "/api" })
       body: t.Object({ title: t.String() }),
       sync: { invalidate: { tags: ["posts"] } },
     },
-    ({ body }) => db.posts.create(body)
+    ({ body, mutation }) => mutation(tx =>
+      tx.insert(posts).values(body).returning().get()
+    )
   );
 ```
 
-All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. The route option declares invalidation; it does not name or wrap the mutation.
+All non-`GET`/`HEAD`/`OPTIONS` routes covered by the plugin participate in sync. The route option declares invalidation. With an ORM adapter, return `mutation(callback)` and perform all dependent reads and writes through its native, fully inferred `tx`. Furin reserves the idempotency key before running the handler. The native transaction locks and rechecks that reservation, then commits business writes, the replayable response and journal together. Cache invalidation and notifications run after commit; the cache itself is outside the database transaction.
+
+Drizzle currently supports `bun:sqlite` and `bun-sql` PostgreSQL. SQLite callbacks and response validators must be synchronous; PostgreSQL callbacks may be async. A failed business result (`4xx`/`5xx`), exception, response-schema validation, serialization, lease check or journal write rolls back the entire transaction. Atomic responses must be bounded JSON, text, or bodyless `Response` values such as redirects.
+
+Once PostgreSQL has checked and locked the reservation, that transaction retains ownership until commit or rollback. Another request cannot take over an expired lease while the transaction holds its lock. The ORM's own transaction timeout still applies.
+
+The callback resolves to its real native value on the first execution, preserving Prisma dates and Drizzle types. A replay or idempotency conflict short-circuits the HTTP handler; it does not fabricate a native ORM value from JSON. Put the complete response construction in the callback and return its result directly. Response-changing hooks and work after the callback are outside the transaction. Calls to the global database client and external side effects do not become transactional automatically.
+
+### Prisma 7 with PostgreSQL
+
+```ts
+import { prismaSyncAdapter } from "@teyik0/furin/sync/prisma";
+import { PollingSyncNotifier } from "@teyik0/furin/sync";
+import { prisma } from "./db";
+
+const adapter = prismaSyncAdapter({ client: prisma, namespace: "my-app" });
+export const sync = {
+  adapter,
+  // Distributed production runtimes require an explicit notifier.
+  notifier: new PollingSyncNotifier(adapter, 250),
+  principal: ({ request }) => requireUser(request).id,
+};
+
+// Inside an Elysia handler using furinSync(sync):
+return mutation(tx =>
+  tx.post.create({ data: body })
+);
+```
+
+Run the existing `@teyik0/furin/sync/postgres/migration.sql` migration on that same PostgreSQL database. Prisma 7 keeps its generated transaction client and model inference; the adapter does not require custom Prisma models for the journal. Prisma 8 and other Prisma database providers are not supported by this adapter. Drizzle PostgreSQL uses the same migration and also requires an explicit notifier in production.
 
 ```ts
 sync: { invalidate: { path: "/blog", type: "layout" } }
@@ -89,30 +121,66 @@ Typical exclusions include uploads, downloads, streams, payment initiation, and 
 
 ## Call A Mutation
 
-Every synced mutation requires `Idempotency-Key`:
+Wrap Eden once. Mutations retain their arguments and typed `{ data, error }` results:
 
 ```ts
-await api.api.posts.post(
-  { title: "Hello" },
-  { headers: { "Idempotency-Key": crypto.randomUUID() } }
+import { treaty } from "@elysia/eden";
+import { withSync } from "@teyik0/furin/client";
+import type { Api } from "./server";
+
+export const api = withSync(treaty<Api>(origin), { retry: 2 });
+
+const { data, error } = await api.posts.post({ title: "Hello" });
+```
+
+Each mutation receives an automatic `Idempotency-Key`. Explicit keys are respected, including Eden header callbacks and `fetch.headers`. Calls receive new generated keys; retries retain their key. Concurrent calls sharing an explicit key, method, path and query share one optimistic contribution within the same enriched client and router instance. Each call still receives its own Eden result. Never reuse an explicit key across sessions or principals. Reads and subscriptions retain Eden behavior. The extension requires Eden 2.0.0-beta.5 or later.
+
+### Optimistic Loader Data
+
+Update the loader snapshot already rendered by the router:
+
+```tsx
+const { error } = await api.cards({ id: cardId }).patch(
+  { column: "done" },
+  {
+    optimistic(cache) {
+      cache.update(`/board/${boardId}`, (loader) => ({
+        ...loader,
+        initialCards: loader.initialCards.map((card) =>
+          card.id === cardId ? { ...card, column: "done" } : card
+        ),
+      }));
+    },
+  }
 );
 ```
 
-The optional React helper generates the key and centralizes optimistic rollback:
+The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RouteMap` infers loader fields from the target. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
 
-```tsx
-import { useSync } from "@teyik0/furin/client";
+Only the active loaded snapshot is projected. A cache miss is a no-op. Query parameters identify distinct snapshots; use a typed target for a filtered page:
 
-const createPost = useSync(api.api.posts.post, {
-  optimistic: ({ input }) => addPendingPost(input),
-  onError: ({ error }) => reportMutationError(error),
-  onSuccess: ({ result }) => confirmPost(result),
-});
-
-await createPost({ title: "Hello" });
+```ts
+cache.update({ path: "/posts", search: { category: "news" } }, (loader) => ({
+  ...loader,
+  posts: loader.posts.filter((post) => post.id !== deletedId),
+}));
 ```
 
-`optimistic` runs synchronously and may return a rollback function. `useSync()` rolls back on a thrown request or an Eden-style result containing `error`, then calls the corresponding callback.
+Transforms must be pure: Furin reapplies them over confirmed data. Create temporary IDs and timestamps before the call. Each mutation owns its contribution. A definitive business error removes only that contribution. A successful response keeps its contribution until fresh loaders replace it in the same router publication. Optimistic mutations revalidate automatically even with `autoRefresh: false`. Loaders must read committed writes; Furin cannot establish that guarantee for an eventually consistent replica or external service.
+
+To prevent inserts or increments from being applied twice, revalidation of a projected snapshot waits for its local requests to settle. Navigation to other snapshots stays available. Concurrent writes to the same entity still require an application policy such as version checks or serialization.
+
+### Retry
+
+`retry: 2` means two additional attempts, three requests maximum. The default is `0`; override the client policy per call:
+
+```ts
+await api.cards({ id: cardId }).patch({ column: "done" }, { retry: 0 });
+```
+
+Only `409 FURIN_MUTATION_IN_PROGRESS` is automatically retried, with the same key and one optimistic contribution. Furin respects `Retry-After`; otherwise it uses exponential delays. Cancellation stops waiting. Business errors, payload mismatch, lost leases, server errors, and network failures are never blindly retried.
+
+A missing response does not prove the domain write failed. After an ambiguous outcome, the optimistic view remains until loader revalidation reconciles it. The API returns the Eden result; revalidation is automatic and its failures are reported by the router separately. The client conservatively keeps this retry policy even when an ORM adapter makes the server write atomic.
 
 ## Replay Semantics
 
@@ -128,9 +196,9 @@ The adapter keys a mutation by principal, method, pathname, and idempotency key,
 | Unsupported request body | `415` |
 | Lost mutation lease before commit | `503` |
 
-Only successful `2xx` and `3xx` responses are committed. Stored bodies are limited to 1 MiB. A returned `Response` needs a valid `Content-Length`; hop-by-hop, authentication, and cookie headers are excluded from replay. An unreplayable successful result becomes a safe framework error, so choose `sync: false` up front for unsuitable routes.
+Only successful `2xx` and `3xx` results are committed. Stored bodies are limited to 1 MiB; hop-by-hop, authentication, and cookie headers are excluded from replay. ORM adapters roll back unreplayable results before commit. A concurrent request for a reserved key receives `409 FURIN_MUTATION_IN_PROGRESS`; retrying after the first request completes replays its response.
 
-The adapter atomically commits the replay response and its invalidation journal entry. Your handler and domain database are outside that adapter transaction. If a domain write and sync commit must be atomic, design that transaction in the application database; Furin cannot make a third-party API call exactly once.
+The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter` retain the separate handler/receipt lifecycle. They atomically store the receipt and journal together, but cannot include writes through an independent domain connection. Their bounded `Response` support requires a valid `Content-Length`; an unreplayable successful result is stored as a safe framework error. Use ORM adapters plus `mutation(tx => ...)` for atomic domain writes. Furin cannot make a third-party API call exactly once.
 
 ## Browser Catch-Up
 
@@ -138,7 +206,7 @@ After a commit, the notifier wakes connected browsers with the latest cursor. Th
 
 The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
-Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume `useSync()` and the router contract rather than either internal endpoint directly.
+Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume the `withSync()` client and the router contract rather than either internal endpoint directly.
 
 ## Adapter Choice
 

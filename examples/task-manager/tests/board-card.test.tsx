@@ -1,4 +1,8 @@
+import "../../../packages/core/tests/setup/global.ts";
 import { expect, mock, test } from "bun:test";
+import { treaty } from "@elysia/eden";
+import { withSync } from "@teyik0/furin/client";
+import { Elysia } from "elysia";
 import {
   installDom,
   resetDomState,
@@ -15,18 +19,16 @@ setupDomTests();
 
 const deleteCalls: unknown[][] = [];
 
+const app = new Elysia().delete("/boards/:boardId", ({ headers }) => {
+  deleteCalls.push([undefined, { headers: { "Idempotency-Key": headers["idempotency-key"] } }]);
+  return { ok: true };
+});
 mock.module("../src/lib/api", () => ({
-  apiClient: {
-    api: {
-      boards: () => ({
-        delete: (...args: unknown[]) => {
-          deleteCalls.push(args);
-          return Promise.resolve({ data: { ok: true }, error: null });
-        },
-      }),
-    },
-  },
-  syncMutationHeaders: () => ({ "Idempotency-Key": "legacy-key" }),
+  api: withSync(
+    treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    })
+  ),
 }));
 
 const { BoardCard } = await import("../src/components/board-card");

@@ -59,9 +59,11 @@ export interface SyncAdapter {
   completeMutation: (input: CompleteMutationInput) => Promise<CompleteMutationResult>;
   currentCursor: () => Promise<string>;
   /**
-   * Identifies a notification channel published transactionally by completeMutation.
+   * Identifies the journal namespace's notification channel.
    */
   readonly notificationChannel?: string;
+  /** False when completion requires an explicit wake-up after cache invalidation. */
+  readonly publishesNotifications?: boolean;
   readChanges: (input: ReadChangesInput) => Promise<ChangePage>;
   renewMutation: (lease: MutationLease) => Promise<"lost" | "renewed">;
   readonly scope: "distributed" | "host-local" | "process-local";
@@ -73,7 +75,7 @@ export interface SyncSubscription {
 
 export interface SyncNotifier {
   /**
-   * Matches a SyncAdapter channel when durable completion already publishes the wake-up.
+   * Matches the adapter's journal namespace for notifications and recovery.
    */
   readonly notificationChannel?: string;
   publish: (cursor: string) => Promise<void>;
@@ -85,8 +87,43 @@ export interface SyncNotifier {
   subscribe: (listener: (cursor: string) => void) => Promise<SyncSubscription>;
 }
 
-export interface SyncRuntimeOptions {
-  adapter: SyncAdapter;
+export interface AtomicMutationValue<T> {
+  invalidations: readonly SyncInvalidation[];
+  response: StoredResponse;
+  value: T;
+}
+
+export interface AtomicMutationResult<T> {
+  cursor: string | undefined;
+  kind: "committed";
+  response: StoredResponse;
+  value: T;
+}
+
+export interface TransactionalSyncAdapter<Tx, Mode extends "async" | "sync"> extends SyncAdapter {
+  executeMutation: <T>(
+    lease: MutationLease,
+    callback: (tx: Tx) => AtomicMutationValue<T> | Promise<AtomicMutationValue<T>>
+  ) => Promise<AtomicMutationResult<T>>;
+  readonly transactionMode: Mode;
+}
+
+export type SyncTransaction<Adapter> =
+  Adapter extends TransactionalSyncAdapter<infer Tx, "async" | "sync"> ? Tx : never;
+
+export type SyncMutation<Adapter> = <T>(
+  callback: (
+    tx: SyncTransaction<Adapter>
+  ) => T &
+    (Adapter extends { transactionMode: "sync" }
+      ? T extends PromiseLike<unknown>
+        ? never
+        : unknown
+      : unknown)
+) => Promise<Awaited<T>>;
+
+export interface SyncRuntimeOptions<Adapter extends SyncAdapter = SyncAdapter> {
+  adapter: Adapter;
   notifier?: SyncNotifier;
   principal: (context: Context) => Promise<string> | string;
 }

@@ -235,6 +235,43 @@ test.serial("furin() refreshes route types after a topology change", async () =>
   }
 });
 
+test.serial("a failed route import keeps its tags while healthy route types update", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  const typesPath = join(app.path, "furin-env.d.ts");
+  const taggedRoute = (tag: string): string =>
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      `  .config({ layout: rootRoute, mode: "ssr", tags: ["${tag}"] })`,
+      "  .page(() => <main>Tagged</main>);",
+    ].join("\n");
+  writeAppFile(app.path, "src/pages/fragile.tsx", taggedRoute("fragile"));
+  writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("before"));
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = await createTestApp({ pagesDir });
+  instance.listen(0);
+  try {
+    await waitForFileContent(typesPath, "fragile: 'fragile';");
+    writeAppFile(app.path, "src/pages/fragile.tsx", 'throw new Error("broken route");');
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("after"));
+
+    await waitForFileContent(typesPath, "after: 'after';");
+    const generated = readFileSync(typesPath, "utf8");
+    expect(generated).toContain("fragile: 'fragile';");
+    expect(generated).not.toContain("before: 'before';");
+
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("latest"));
+    await waitForFileContent(typesPath, "latest: 'latest';");
+    expect(readFileSync(typesPath, "utf8")).toContain("fragile: 'fragile';");
+  } finally {
+    await instance.stop();
+  }
+});
+
 test.serial("furin() serves data requests from the watcher-managed route snapshot", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");

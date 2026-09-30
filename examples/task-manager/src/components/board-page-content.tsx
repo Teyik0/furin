@@ -1,13 +1,4 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: board content passes mutation callbacks tied to local refresh state
-import { Await } from "@teyik0/furin/client";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { BoardStats } from "@/api/modules/boards/service";
-import { Kanban, type KanbanCard } from "@/components/ui/kanban";
-import { apiClient } from "@/lib/api";
-
-// ---------------------------------------------------------------------------
-// StatsBar skeleton — flushed in the very first HTML chunk
-// ---------------------------------------------------------------------------
 
 export function StatsBarSkeleton() {
   return (
@@ -26,10 +17,6 @@ export function StatsBarSkeleton() {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// StatsBar — receives stats directly as a prop.
-// ---------------------------------------------------------------------------
 
 const COLUMN_COLORS = {
   backlog: "text-zinc-400",
@@ -71,159 +58,6 @@ export function StatsBarUnavailable() {
   return (
     <div className="flex h-9 shrink-0 items-center border-white/5 border-b bg-white/1 px-6">
       <p className="text-xs text-zinc-500">Board stats are temporarily unavailable.</p>
-    </div>
-  );
-}
-
-function ResolvedInitialStatsBar({
-  onResolve,
-  stats,
-}: {
-  onResolve: (stats: BoardStats) => void;
-  stats: BoardStats;
-}) {
-  useEffect(() => {
-    onResolve(stats);
-  }, [onResolve, stats]);
-
-  return <StatsBar stats={stats} />;
-}
-
-export function StatsBarSection({
-  isRefreshing,
-  stats,
-  initialStats,
-  onResolve,
-}: {
-  isRefreshing: boolean;
-  stats: BoardStats | null;
-  initialStats: Promise<BoardStats | undefined>;
-  onResolve: (stats: BoardStats) => void;
-}) {
-  if (isRefreshing) {
-    return <StatsBarSkeleton />;
-  }
-
-  if (stats) {
-    return <StatsBar stats={stats} />;
-  }
-
-  return (
-    <Suspense fallback={<StatsBarSkeleton />}>
-      <Await errorElement={<StatsBarUnavailable />} resolve={initialStats}>
-        {(resolvedInitialStats: BoardStats | undefined) => {
-          if (resolvedInitialStats) {
-            return <ResolvedInitialStatsBar onResolve={onResolve} stats={resolvedInitialStats} />;
-          }
-          return <StatsBarUnavailable />;
-        }}
-      </Await>
-    </Suspense>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Client-side stats refetch via Eden treaty — used after a card mutation to
-// pull fresh counts.  Never rejects: resolves to null on error.
-// ---------------------------------------------------------------------------
-
-async function refetchBoardStats(boardId: string): Promise<BoardStats | null> {
-  try {
-    const { data, error } = await apiClient.api.boards({ boardId }).stats.get();
-    if (error) {
-      return null;
-    }
-    return data as BoardStats;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// BoardPageContent — main page layout
-// ---------------------------------------------------------------------------
-
-export function BoardPageContent({
-  boardId,
-  boardName,
-  initialCards,
-  initialStats,
-  renderedAt,
-}: {
-  boardId: string;
-  boardName: string;
-  initialCards: KanbanCard[];
-  initialStats: Promise<BoardStats | undefined>;
-  renderedAt: string;
-}) {
-  const [statsState, setStatsState] = useState<{
-    source: Promise<BoardStats | undefined>;
-    value: BoardStats;
-  } | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const refetchTokenRef = useRef(0);
-  const stats = statsState?.source === initialStats ? statsState.value : null;
-  const handleStatsResolve = useCallback(
-    (value: BoardStats) => {
-      setStatsState({ source: initialStats, value });
-    },
-    [initialStats]
-  );
-
-  const onMutation = async () => {
-    refetchTokenRef.current += 1;
-    const myToken = refetchTokenRef.current;
-    setIsRefreshing(true);
-    try {
-      // Token guard must run after the await so concurrent mutations are detected.
-      // react-doctor-disable-next-line react-doctor/async-defer-await
-      const fresh = await refetchBoardStats(boardId);
-      if (myToken !== refetchTokenRef.current) {
-        return;
-      }
-      if (fresh) {
-        setStatsState({ source: initialStats, value: fresh });
-      }
-    } finally {
-      if (myToken === refetchTokenRef.current) {
-        setIsRefreshing(false);
-      }
-    }
-  };
-
-  return (
-    <div className="flex h-screen flex-col">
-      <header className="flex h-14.5 shrink-0 items-center justify-between border-white/5 border-b bg-white/2 px-6 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-linear-to-br from-violet-600 to-purple-600 font-bold text-sm text-white shadow-md">
-            {boardName.charAt(0).toUpperCase()}
-          </div>
-          <h1 className="font-semibold text-lg text-white">{boardName}</h1>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/8 px-3.5 py-1.5">
-          <span className="size-1.5 rounded-full bg-blue-400" />
-          <span className="font-medium text-blue-300 text-xs">
-            SSR &middot; rendered at {renderedAt}
-          </span>
-        </div>
-      </header>
-
-      <StatsBarSection
-        initialStats={initialStats}
-        isRefreshing={isRefreshing}
-        onResolve={handleStatsResolve}
-        stats={stats}
-      />
-
-      <div className="flex-1 overflow-hidden">
-        <Kanban
-          boardId={boardId}
-          initialCards={initialCards}
-          key={boardId}
-          onMutation={onMutation}
-        />
-      </div>
     </div>
   );
 }

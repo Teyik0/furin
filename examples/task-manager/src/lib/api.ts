@@ -1,9 +1,19 @@
 import { treaty } from "@elysia/eden";
 import { createIsomorphicFn } from "@teyik0/furin";
-import { type Api, api as serverApi } from "@/api";
+import { withSync } from "@teyik0/furin/client";
+import type { Api } from "@/api";
 
-export const client = createIsomorphicFn()
-  .server(() => treaty(serverApi).api)
-  .client(() => treaty<Api>(window.location.origin).api)();
-
-export const apiClient = { api: client };
+export const api = createIsomorphicFn()
+  .server(
+    () =>
+      withSync(
+        treaty<Api>("http://localhost", {
+          fetcher: (async (input, init) => {
+            const { default: app } = await import("@/server");
+            return app.handle(new Request(input, init));
+          }) as typeof fetch,
+        }),
+        { retry: 2 }
+      ).api
+  )
+  .client(() => withSync(treaty<Api>(window.location.origin), { retry: 2 }).api)();

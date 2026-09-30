@@ -56,8 +56,11 @@
 import { statSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import MagicString from "magic-string";
 import { splitDevPage } from "../plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
+import { parseSource } from "../shared/parser.ts";
+import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
 import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
@@ -74,6 +77,7 @@ export const WORKSPACE_SOURCE_FILTER =
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
+const IMPORT_ATTRIBUTES_RE = /\b(?:with|assert)\s*\{/;
 const DELETED_DEV_PAGE_CONTENTS = "export const route = undefined;";
 
 let _pluginRegistered = false;
@@ -321,6 +325,57 @@ function getSourceLoader(filePath: string): SourceLoader | null {
   return null;
 }
 
+// Bun.Transpiler drops static import attributes, turning text imports into file paths.
+function restoreImportAttributes(source: string, transpiled: string, loader: SourceLoader): string {
+  if (!IMPORT_ATTRIBUTES_RE.test(source)) {
+    return transpiled;
+  }
+
+  const declarations = parseSource(source, loader).program.body as AstNode[];
+  const output = new MagicString(transpiled);
+  const emitted = parseSource(transpiled, "js").program.body as AstNode[];
+  const matched = new Set<AstNode>();
+  for (const declaration of declarations) {
+    if (declaration.importKind === "type" || declaration.exportKind === "type") {
+      continue;
+    }
+    const specifiers = declaration.specifiers as AstNode[] | undefined;
+    if (
+      specifiers?.length &&
+      specifiers.every(
+        (specifier) => specifier.importKind === "type" || specifier.exportKind === "type"
+      )
+    ) {
+      continue;
+    }
+    const sourcePath = (declaration.source as { value?: unknown } | undefined)?.value;
+    if (typeof sourcePath !== "string") {
+      continue;
+    }
+    const target = emitted.find(
+      (node) =>
+        !matched.has(node) &&
+        node.type === declaration.type &&
+        (node.source as { value?: unknown } | undefined)?.value === sourcePath
+    );
+    if (!target) {
+      continue;
+    }
+    matched.add(target);
+    const attributes = declaration.attributes as AstNode[] | undefined;
+    if (!attributes?.length || (target.attributes as AstNode[] | undefined)?.length) {
+      continue;
+    }
+    const [first] = attributes;
+    const last = attributes.at(-1);
+    const imported = target.source as AstNode | undefined;
+    if (first && last && imported) {
+      output.appendLeft(imported.end, ` with { ${source.slice(first.start, last.end)} }`);
+    }
+  }
+  return output.toString();
+}
+
 function shouldSkipWorkspaceTransform(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, "/");
   return normalized.includes("/.furin/");
@@ -422,7 +477,11 @@ export function transformDevSource(
       ? rewriteRelativeImportsWithVersion(serverSource, filePath, true)
       : serverSource;
     const transpiler = new Bun.Transpiler({ loader });
-    const transpiled = transpiler.transformSync(sourceForTranspile, loader);
+    const transpiled = restoreImportAttributes(
+      sourceForTranspile,
+      transpiler.transformSync(sourceForTranspile, loader),
+      loader
+    );
 
     let result = transpiled;
     if (options.rewriteBareImports) {

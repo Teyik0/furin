@@ -1,9 +1,7 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: board card actions depend on per-board mutation state
-import { useSync } from "@teyik0/furin/client";
 import { Link } from "@teyik0/furin/link";
 import { useState } from "react";
-import type { Board } from "@/api/modules/boards/service";
-import { apiClient } from "@/lib/api";
+import type { Board } from "@/db/schema";
+import { api } from "@/lib/api";
 
 const AVATAR_COLORS = [
   "from-violet-500 to-indigo-500",
@@ -23,7 +21,7 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
   const gradient = avatarColor(board.id);
   const initial = board.name.charAt(0).toUpperCase();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const deleteBoard = useSync(apiClient.api.boards({ boardId: board.id }).delete);
+  const deleteBoard = api.boards({ boardId: board.id }).delete;
 
   const handleDelete = async () => {
     try {
@@ -41,7 +39,6 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
 
   return (
     <div className="group relative rounded-2xl border border-white/8 bg-white/3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-violet-500/30 hover:bg-white/5 hover:shadow-violet-500/5 hover:shadow-xl">
-      {/* Delete button */}
       <div className="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           className="flex size-6 items-center justify-center rounded-full bg-white/8 text-white/40 text-xs transition-colors hover:bg-red-500/20 hover:text-red-400"
@@ -55,7 +52,6 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
 
       <Link className="block p-5" to={`/board/${board.id}`}>
         <div className="flex items-start gap-3">
-          {/* Avatar */}
           <div
             className={`flex size-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br ${gradient} font-bold text-sm text-white shadow-md`}
           >

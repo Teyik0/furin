@@ -58,6 +58,7 @@ import {
 import type { ResolvedRoute, RootLayout } from "./server/router/types.ts";
 import { IS_DEV } from "./server/runtime-env.ts";
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
+import { bindSyncValidation } from "./server/sync/validation.ts";
 import { physicalPath } from "./shared/prefix.ts";
 
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmentable via furin-env.d.ts
@@ -532,9 +533,12 @@ function wrapWithRequestScope(app: AnyElysia): Elysia {
   });
 }
 
-function createFurinPlugin(app: AnyElysia, hmrPrefix: string | undefined) {
+function createFurinPlugin(app: AnyElysia, hmrPrefix: string | undefined, hasSync: boolean) {
   const scopedApp = wrapWithRequestScope(app);
   return <ParentApp extends AnyElysia>(parentApp: ParentApp) => {
+    if (hasSync) {
+      bindSyncValidation(parentApp);
+    }
     const mounted = parentApp.use(scopedApp);
     if (hmrPrefix !== undefined) {
       const parentConfig = Reflect.get(parentApp, "~config") as { prefix?: string } | undefined;
@@ -867,7 +871,17 @@ export async function furin({
           const previousSnapshot = currentSnapshot();
           const repaired = repairedDevelopmentRoutes(previousSnapshot, changedSources, graph);
           const next = await loadDevelopmentRoutes(resolvedPagesDir);
-          const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, next.routes);
+          // Retain tags only for routes whose current module could not be loaded.
+          const nextRoutes = next.routes.map((route) =>
+            route.routeChain.length > 0
+              ? route
+              : {
+                  ...route,
+                  tags: previousSnapshot.routes.find((previous) => previous.path === route.path)
+                    ?.tags,
+                }
+          );
+          const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, nextRoutes);
           writeCurrentDevFiles(nextSnapshot);
           graph.commit(nextSnapshot);
           matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
@@ -998,7 +1012,7 @@ export async function furin({
         })
       );
     registerInstance(instance);
-    return createFurinPlugin(devApp, prefix);
+    return createFurinPlugin(devApp, prefix, Boolean(sync));
   }
 
   // ── Production ──────────────────────────────────────────────────────────
@@ -1073,7 +1087,7 @@ export async function furin({
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));
   registerInstance(instance);
-  return createFurinPlugin(prodApp, undefined);
+  return createFurinPlugin(prodApp, undefined, Boolean(sync));
 }
 
 /**

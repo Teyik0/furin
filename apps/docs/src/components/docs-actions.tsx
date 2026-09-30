@@ -1,4 +1,3 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: docs action buttons call local clipboard state handlers
 import { Check, ChevronDown, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";

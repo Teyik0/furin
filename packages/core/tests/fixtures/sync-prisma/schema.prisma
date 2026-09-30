@@ -1,0 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model AtomicCounter {
+  id        String   @id
+  createdAt DateTime @default(now())
+  value     Int
+
+  @@map("furin_atomic_counter")
+}

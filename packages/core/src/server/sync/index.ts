@@ -19,6 +19,8 @@ export const runWithSyncPath = runWithSyncPathImplementation;
 export type PollingSyncNotifier = PollingSyncNotifierImplementation;
 
 export type {
+  AtomicMutationResult,
+  AtomicMutationValue,
   BeginMutationInput,
   BeginMutationResult,
   ChangePage,
@@ -30,9 +32,12 @@ export type {
   SyncAdapter,
   SyncChange,
   SyncInvalidation,
+  SyncMutation,
   SyncNotifier,
   SyncRuntimeOptions,
   SyncSubscription,
+  SyncTransaction,
+  TransactionalSyncAdapter,
 } from "./adapter.ts";
 export type { FurinSyncOption, FurinSyncOptions } from "./config.ts";
 export type { SyncInput, SyncRouteOption } from "./plugin.ts";

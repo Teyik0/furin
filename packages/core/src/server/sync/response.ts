@@ -171,6 +171,27 @@ export async function storeResponse(
     return storedResponseResult(headers, body, clone.status);
   }
 
+  return storeResponseSync(responseValue, set);
+}
+
+export function storeResponseSync(
+  responseValue: unknown,
+  set: Context["set"]
+): StoreResponseResult {
+  if (responseValue instanceof Response) {
+    if (responseValue.body !== null) {
+      return unreplayable();
+    }
+    return storedResponseResult(
+      new Headers(
+        [...responseValue.headers.entries()].filter(
+          ([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())
+        )
+      ),
+      new Uint8Array(),
+      responseValue.status
+    );
+  }
   const headers = responseHeaders(set.headers);
   const statusResponse = unwrapStatusResponse(responseValue);
   const value = statusResponse?.value ?? responseValue;

@@ -63,13 +63,13 @@ function openSyncSocket(baseUrl: string): {
   });
   return {
     close: () => socket.close(),
-    next: () => {
+    next: async () => {
       const event = queued.shift();
       if (event) {
-        return Promise.resolve(event);
+        return await Promise.resolve(event);
       }
       if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-        return Promise.reject(new Error("Browser events closed"));
+        return await Promise.reject(new Error("Browser events closed"));
       }
       let waiter:
         | {
@@ -90,13 +90,13 @@ function openSyncSocket(baseUrl: string): {
   };
 }
 
-function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: number): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), timeoutMs);
   });
 
-  return Promise.race([promise, timeoutPromise]).finally(() => {
+  return await Promise.race([promise, timeoutPromise]).finally(() => {
     if (timeout) {
       clearTimeout(timeout);
     }

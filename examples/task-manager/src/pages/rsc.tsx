@@ -1,10 +1,9 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: composite component slot renderers are passed as component factories
 import { defineRoute } from "@teyik0/furin";
 import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
 import type { ComponentType } from "react";
-import { getBoards } from "@/api/modules/boards/service";
 import { CreateBoardForm } from "@/components/create-board-form";
 import { DeleteBoardButton } from "@/components/delete-board-button";
+import { api } from "@/lib/api";
 import { route as rootRoute } from "./root";
 
 const AVATAR_COLORS = [
@@ -33,7 +32,12 @@ export const route = defineRoute()
       minute: "2-digit",
       second: "2-digit",
     });
-    const boards = getBoards().map((board) => ({
+    const { data, error } = await api.boards.get();
+    if (error) {
+      throw error;
+    }
+
+    const boards = data.map((board) => ({
       ...board,
       formattedCreatedAt: new Date(board.createdAt).toLocaleDateString("en-US", {
         day: "numeric",
@@ -41,6 +45,7 @@ export const route = defineRoute()
         year: "numeric",
       }),
     }));
+
     const content = await createCompositeComponent<{
       CreateForm: ComponentType;
       DeleteButton: (boardId: string) => React.ReactNode;

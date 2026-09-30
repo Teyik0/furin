@@ -1,26 +1,11 @@
 import { asc, count, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { boards, cards } from "@/db/schema";
-import {
-  createCard as createCardFromCardsService,
-  getCardsForBoard as getCardsForBoardFromCardsService,
-} from "../cards/service";
-
-export type { Board, BoardData, Card, ColumnType } from "@/db/schema";
-
+import { db, type TaskManagerTransaction } from "@/db";
 import type { Board, BoardData, Card } from "@/db/schema";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import { boards, cards } from "@/db/schema";
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
 }
-
-// ---------------------------------------------------------------------------
-// Seed (only if empty)
-// ---------------------------------------------------------------------------
 
 const seedCount = db.select({ n: count() }).from(boards).get();
 if ((seedCount?.n ?? 0) === 0) {
@@ -176,26 +161,22 @@ if ((seedCount?.n ?? 0) === 0) {
     .run();
 }
 
-// ---------------------------------------------------------------------------
-// Boards queries
-// ---------------------------------------------------------------------------
-
 export function getBoards(): Board[] {
   return db.select().from(boards).orderBy(asc(boards.createdAt)).all();
 }
 
-export function getBoard(id: string): Board | undefined {
-  return db.select().from(boards).where(eq(boards.id, id)).get() ?? undefined;
+export function getBoard(id: string, transaction?: TaskManagerTransaction): Board | undefined {
+  return (transaction ?? db).select().from(boards).where(eq(boards.id, id)).get() ?? undefined;
 }
 
-export function createBoard(name: string): Board {
+export function createBoard(tx: TaskManagerTransaction, name: string): Board {
   const board: Board = { createdAt: new Date().toISOString(), id: uid(), name };
-  db.insert(boards).values(board).run();
+  tx.insert(boards).values(board).run();
   return board;
 }
 
-export function deleteBoard(id: string): boolean {
-  const result = db.delete(boards).where(eq(boards.id, id)).returning({ id: boards.id }).all();
+export function deleteBoard(tx: TaskManagerTransaction, id: string): boolean {
+  const result = tx.delete(boards).where(eq(boards.id, id)).returning({ id: boards.id }).all();
   return result.length > 0;
 }
 
@@ -213,24 +194,12 @@ export function getBoardData(boardId: string): BoardData | undefined {
   return { board, cards: boardCards };
 }
 
-export const createCard = createCardFromCardsService;
-export const getCardsForBoard = getCardsForBoardFromCardsService;
-
-// ---------------------------------------------------------------------------
-// Board stats
-// ---------------------------------------------------------------------------
-
 export interface BoardStats {
   byColumn: { backlog: number; todo: number; doing: number; done: number };
   completionRate: number;
   total: number;
 }
 
-/**
- * Pure aggregator — derives `BoardStats` from an already-loaded card list.
- * Use this when the caller already holds the cards (e.g. the SSR loader
- * that just called `getBoardData`) to avoid a redundant DB roundtrip.
- */
 export function computeBoardStats(boardCards: Card[]): BoardStats {
   const byColumn = { backlog: 0, doing: 0, done: 0, todo: 0 };
   for (const card of boardCards) {
@@ -257,9 +226,4 @@ export function getBoardStats(boardId: string): BoardStats | undefined {
     .all();
 
   return computeBoardStats(boardCards);
-}
-
-export async function getBoardStatsDeferred(boardId: string): Promise<BoardStats | undefined> {
-  await new Promise<void>((resolve) => setTimeout(resolve, 800));
-  return getBoardStats(boardId);
 }

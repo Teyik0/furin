@@ -1,4 +1,4 @@
-import { type Context, Elysia } from "elysia";
+import { type Context, Elysia, ElysiaStatus } from "elysia";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
@@ -7,10 +7,26 @@ import {
 import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
-import type { MutationLease, SyncInvalidation, SyncRuntimeOptions } from "./adapter.ts";
+import type {
+  MutationLease,
+  StoredResponse,
+  SyncAdapter,
+  SyncMutation,
+  SyncRuntimeOptions,
+  SyncTransaction,
+  TransactionalSyncAdapter,
+} from "./adapter.ts";
+import {
+  conflictResponse,
+  executeAtomicMutation,
+  normalizedInvalidations,
+  pendingPathInvalidations,
+} from "./atomic.ts";
+import { MutationLeaseLost } from "./execution-error.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
 import { mergeStoredResponseHeaders, replayResponse, storeResponse } from "./response.ts";
 import { resolveSyncRuntime } from "./runtime.ts";
+import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 
 export type SyncRouteOption =
   | false
@@ -43,10 +59,11 @@ interface MutationContext {
 type TransportHook<TContext> = (context: TContext) => Promise<void>;
 
 type CompletionContext = MutationContext & Parameters<typeof isSuccessfulMutationResponse>[0];
-type PathInvalidation = Extract<SyncInvalidation, { kind: "path" }>;
 
 const routeMetadata = new WeakMap<Request, RouteSyncMetadata>();
 const activeMutations = new WeakMap<Request, ActiveMutation>();
+const atomicCalls = new WeakSet<Request>();
+const atomicResponses = new WeakMap<Request, { response: StoredResponse; value: unknown }>();
 
 function hideTransportResponse<TContext>(
   hook: (context: TContext) => Promise<Response | undefined>
@@ -87,22 +104,6 @@ function supportsReplayBody(request: Request): boolean {
   );
 }
 
-function conflictResponse(reason: "in-progress" | "payload-mismatch"): Response {
-  const inProgress = reason === "in-progress";
-  return Response.json(
-    {
-      code: inProgress ? "FURIN_MUTATION_IN_PROGRESS" : "FURIN_IDEMPOTENCY_MISMATCH",
-      message: inProgress
-        ? "A mutation with this Idempotency-Key is still running."
-        : "The Idempotency-Key was already used with a different request.",
-    },
-    {
-      headers: inProgress ? { "retry-after": "1" } : undefined,
-      status: 409,
-    }
-  );
-}
-
 function leaseLostResponse(): Response {
   return Response.json(
     {
@@ -113,33 +114,50 @@ function leaseLostResponse(): Response {
   );
 }
 
-function normalizedInvalidations(input: InvalidationInput | undefined): SyncInvalidation[] {
-  if (!input) {
-    return [];
-  }
-  const rules = Array.isArray(input) ? input : [input];
-  const invalidations: SyncInvalidation[] = [];
-  for (const rule of rules) {
-    if ("path" in rule && rule.path) {
-      invalidations.push({ kind: "path", path: rule.path, type: rule.type });
-    }
-    if (rule.tags && rule.tags.length > 0) {
-      invalidations.push({ kind: "tags", tags: [...rule.tags] });
-    }
-  }
-  return invalidations;
-}
-
-function pendingPathInvalidations(entries: readonly string[]): PathInvalidation[] {
-  return entries.map((entry) =>
-    entry.endsWith(":layout")
-      ? { kind: "path" as const, path: entry.slice(0, -":layout".length), type: "layout" }
-      : { kind: "path" as const, path: entry, type: "page" }
-  );
-}
-
-export function furinSync(options: SyncRuntimeOptions) {
+function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {
   const runtime = resolveSyncRuntime(options);
+  const transactional =
+    "executeMutation" in options.adapter
+      ? (options.adapter as Adapter &
+          TransactionalSyncAdapter<SyncTransaction<Adapter>, "async" | "sync">)
+      : undefined;
+
+  function mutationFor(ctx: MutationContext & Pick<Context, "set">): SyncMutation<Adapter> {
+    const mutation = async (callback: (tx: SyncTransaction<Adapter>) => unknown) => {
+      const active = activeMutations.get(ctx.request);
+      if (!(transactional && active)) {
+        throw new Error(
+          "[furin] mutation() requires a transactional sync adapter and an enabled mutation route."
+        );
+      }
+      if (atomicCalls.has(ctx.request)) {
+        throw new Error("[furin] Call mutation() once and return its result from the handler.");
+      }
+      atomicCalls.add(ctx.request);
+      try {
+        return await executeAtomicMutation(
+          {
+            adapter: transactional,
+            app: syncValidationApp(ctx as Context),
+            context: ctx as Context,
+            lease: active.lease,
+            invalidate: routeMetadata.get(ctx.request)?.invalidate,
+            runtime,
+            onCommit: (result) => atomicResponses.set(ctx.request, result),
+          },
+          callback
+        );
+      } finally {
+        if (atomicResponses.has(ctx.request)) {
+          releaseMutation(ctx.request);
+        } else {
+          await abortMutation(ctx.request).catch(() => undefined);
+        }
+        atomicCalls.delete(ctx.request);
+      }
+    };
+    return mutation as SyncMutation<Adapter>;
+  }
 
   async function beginMutation(ctx: MutationContext): Promise<Response | undefined> {
     if (!isMutationMethod(ctx.request.method) || routeMetadata.get(ctx.request)?.disabled) {
@@ -191,16 +209,20 @@ export function furinSync(options: SyncRuntimeOptions) {
     scheduleRenewal();
   }
 
-  async function abortMutation(request: Request): Promise<void> {
+  function releaseMutation(request: Request): ActiveMutation | undefined {
     const active = activeMutations.get(request);
-    if (!active) {
-      return;
-    }
     activeMutations.delete(request);
-    if (active.renewal) {
+    if (active?.renewal) {
       clearTimeout(active.renewal);
     }
-    await runtime.adapter.abortMutation(active.lease);
+    return active;
+  }
+
+  async function abortMutation(request: Request): Promise<void> {
+    const active = releaseMutation(request);
+    if (active) {
+      await runtime.adapter.abortMutation(active.lease);
+    }
   }
 
   async function persistMutation(
@@ -245,6 +267,7 @@ export function furinSync(options: SyncRuntimeOptions) {
       return leaseLostResponse();
     }
     const notificationAlreadyPublished =
+      runtime.adapter.publishesNotifications !== false &&
       runtime.adapter.notificationChannel !== undefined &&
       runtime.adapter.notificationChannel === runtime.notifier.notificationChannel;
     if (completion.cursor !== undefined && !notificationAlreadyPublished) {
@@ -256,6 +279,19 @@ export function furinSync(options: SyncRuntimeOptions) {
   }
 
   async function finishMutation(ctx: CompletionContext): Promise<Response | undefined> {
+    const atomic = atomicResponses.get(ctx.request);
+    atomicResponses.delete(ctx.request);
+    atomicCalls.delete(ctx.request);
+    if (atomic && ctx.responseValue === atomic.value) {
+      if (atomic.value instanceof Response) {
+        return atomic.value;
+      }
+      if (atomic.value instanceof ElysiaStatus) {
+        ctx.set.status = atomic.value.status;
+        Object.assign(ctx.set.headers, atomic.value.headers);
+      }
+      return replayResponse(atomic.response);
+    }
     const active = activeMutations.get(ctx.request);
     if (!active) {
       return;
@@ -280,10 +316,23 @@ export function furinSync(options: SyncRuntimeOptions) {
   const beginMutationHook = hideTransportResponse(beginMutation);
   const finishMutationHook = hideTransportResponse(finishMutation);
 
-  return new Elysia({ name: "furin-sync" })
+  const plugin = new Elysia({ name: "furin-sync" })
+    .derive("global", (ctx) => ({ mutation: mutationFor(ctx) }))
     .beforeHandle("global", beginMutationHook)
     .afterHandle("global", finishMutationHook)
-    .error("global", ({ request }) => abortMutation(request))
+    .error(
+      "global",
+      MutationLeaseLost,
+      hideTransportResponse(() => Promise.resolve(leaseLostResponse()))
+    )
+    .error(
+      "global",
+      hideTransportResponse(async ({ request }: { request: Request }) => {
+        atomicResponses.delete(request);
+        atomicCalls.delete(request);
+        await abortMutation(request);
+      })
+    )
     .macro({
       sync(input: SyncRouteOption) {
         return {
@@ -298,4 +347,14 @@ export function furinSync(options: SyncRuntimeOptions) {
         };
       },
     });
+  return plugin;
+}
+
+export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {
+  return (app: Elysia) => {
+    if ("executeMutation" in options.adapter) {
+      bindSyncValidation(app);
+    }
+    return app.use(createSyncPlugin(options));
+  };
 }

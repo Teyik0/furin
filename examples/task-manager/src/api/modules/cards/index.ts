@@ -1,6 +1,7 @@
 import { furinSync } from "@teyik0/furin";
 import { Elysia, t } from "elysia";
 import { taskManagerSync } from "../../../sync";
+import { getBoard } from "../boards/service";
 import { columnType } from "../shared";
 import { createCard, deleteCard, getCard, updateCard } from "./service";
 
@@ -22,7 +23,13 @@ export const cardPlugin = new Elysia()
       }),
       sync: { invalidate: { tags: ["cards"] } },
     },
-    ({ params, body }) => createCard(params.boardId, body.title, body.column)
+    ({ params, body, problem, mutation }) =>
+      mutation((tx) => {
+        if (!getBoard(params.boardId, tx)) {
+          return problem("Not Found", { detail: "Board not found" });
+        }
+        return createCard(tx, params.boardId, body.title, body.column);
+      })
   )
   .post(
     "/cards/:id",
@@ -33,17 +40,18 @@ export const cardPlugin = new Elysia()
       }),
       sync: { invalidate: { tags: ["cards"] } },
     },
-    ({ params, body, problem, redirect }) => {
-      const existing = getCard(params.id);
-      if (!existing) {
-        return problem("Not Found", { detail: "Card not found" });
-      }
-      const card = updateCard(params.id, body);
-      if (!card) {
-        return problem("Not Found", { detail: "Card not found" });
-      }
-      return redirect(`/board/${card.boardId}`);
-    }
+    ({ params, body, problem, redirect, mutation }) =>
+      mutation((tx) => {
+        const existing = getCard(params.id, tx);
+        if (!existing) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        const card = updateCard(tx, params.id, body);
+        if (!card) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        return redirect(`/board/${card.boardId}`);
+      })
   )
   .patch(
     "/cards/:id",
@@ -56,26 +64,32 @@ export const cardPlugin = new Elysia()
       }),
       sync: { invalidate: { tags: ["cards"] } },
     },
-    ({ params, body, problem }) => {
-      const existing = getCard(params.id);
-      if (!existing) {
-        return problem("Not Found", { detail: "Card not found" });
-      }
-      const card = updateCard(params.id, body);
-      if (!card) {
-        return problem("Not Found", { detail: "Card not found" });
-      }
-      return card;
-    }
+    ({ params, body, problem, mutation }) =>
+      mutation((tx) => {
+        const existing = getCard(params.id, tx);
+        if (!existing) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        const card = updateCard(tx, params.id, body);
+        if (!card) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        return card;
+      })
   )
-  .delete("/cards/:id", { sync: { invalidate: { tags: ["cards"] } } }, ({ params, problem }) => {
-    const card = getCard(params.id);
-    if (!card) {
-      return problem("Not Found", { detail: "Card not found" });
-    }
-    const ok = deleteCard(params.id);
-    if (!ok) {
-      return problem("Not Found", { detail: "Card not found" });
-    }
-    return { ok: true };
-  });
+  .delete(
+    "/cards/:id",
+    { sync: { invalidate: { tags: ["cards"] } } },
+    ({ params, problem, mutation }) =>
+      mutation((tx) => {
+        const card = getCard(params.id, tx);
+        if (!card) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        const ok = deleteCard(tx, params.id);
+        if (!ok) {
+          return problem("Not Found", { detail: "Card not found" });
+        }
+        return { ok: true };
+      })
+  );

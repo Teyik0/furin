@@ -1,5 +1,5 @@
 import { and, asc, eq, sql } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type TaskManagerTransaction } from "@/db";
 import { cards } from "@/db/schema";
 
 export type { Card, ColumnType } from "@/db/schema";
@@ -12,24 +12,20 @@ type UpdateCardData = Partial<Pick<Card, "title" | "description" | "column" | "p
 // Cards queries
 // ---------------------------------------------------------------------------
 
-export function getCard(id: string): Card | undefined {
-  return db.select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
+export function getCard(id: string, transaction?: TaskManagerTransaction): Card | undefined {
+  return (transaction ?? db).select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
 }
 
-export function getCardsForBoard(boardId: string): Card[] {
-  return db
-    .select()
-    .from(cards)
-    .where(eq(cards.boardId, boardId))
-    .orderBy(asc(cards.position))
-    .all();
-}
-
-export function createCard(boardId: string, title: string, column: ColumnType): Card {
+export function createCard(
+  tx: TaskManagerTransaction,
+  boardId: string,
+  title: string,
+  column: ColumnType
+): Card {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
 
-  db.insert(cards)
+  tx.insert(cards)
     .values({
       boardId,
       column,
@@ -48,7 +44,7 @@ export function createCard(boardId: string, title: string, column: ColumnType): 
     })
     .run();
 
-  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  const card = tx.select().from(cards).where(eq(cards.id, id)).get();
   if (!card) {
     throw new Error(`Failed to create card "${id}"`);
   }
@@ -56,8 +52,12 @@ export function createCard(boardId: string, title: string, column: ColumnType): 
   return card;
 }
 
-export function updateCard(id: string, data: UpdateCardData): Card | undefined {
-  const existing = db.select().from(cards).where(eq(cards.id, id)).get();
+export function updateCard(
+  tx: TaskManagerTransaction,
+  id: string,
+  data: UpdateCardData
+): Card | undefined {
+  const existing = tx.select().from(cards).where(eq(cards.id, id)).get();
   if (!existing) {
     return;
   }
@@ -75,18 +75,18 @@ export function updateCard(id: string, data: UpdateCardData): Card | undefined {
       if (Object.keys(nextValues).length === 0) {
         return existing;
       }
-      db.update(cards).set(nextValues).where(eq(cards.id, id)).run();
-      return db.select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
+      tx.update(cards).set(nextValues).where(eq(cards.id, id)).run();
+      return tx.select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
     }
-    return reorderCard(existing, data, nextValues);
+    return reorderCard(tx, existing, data, nextValues);
   }
 
   if (Object.keys(nextValues).length === 0) {
     return existing;
   }
 
-  db.update(cards).set(nextValues).where(eq(cards.id, id)).run();
-  return db.select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
+  tx.update(cards).set(nextValues).where(eq(cards.id, id)).run();
+  return tx.select().from(cards).where(eq(cards.id, id)).get() ?? undefined;
 }
 
 function clampPosition(position: number, maxPosition: number): number {
@@ -107,69 +107,72 @@ function keepsCardPosition(existing: Card, data: UpdateCardData): boolean {
   return Number.isFinite(data.position) && Math.trunc(data.position) === existing.position;
 }
 
-function reorderCard(existing: Card, data: UpdateCardData, nextValues: UpdateCardData): Card {
-  return db.transaction((tx) => {
-    const targetColumn = data.column ?? existing.column;
-    const targetSiblings = tx
+function reorderCard(
+  tx: TaskManagerTransaction,
+  existing: Card,
+  data: UpdateCardData,
+  nextValues: UpdateCardData
+): Card {
+  const targetColumn = data.column ?? existing.column;
+  const targetSiblings = tx
+    .select()
+    .from(cards)
+    .where(and(eq(cards.boardId, existing.boardId), eq(cards.column, targetColumn)))
+    .orderBy(asc(cards.position))
+    .all()
+    .filter((card) => card.id !== existing.id);
+
+  const fallbackPosition =
+    targetColumn === existing.column
+      ? targetSiblings.findIndex((card) => card.position > existing.position)
+      : targetSiblings.length;
+  const targetPosition = clampPosition(
+    data.position ?? (fallbackPosition === -1 ? targetSiblings.length : fallbackPosition),
+    targetSiblings.length
+  );
+
+  const movedCard: Card = {
+    ...existing,
+    ...nextValues,
+    column: targetColumn,
+    position: targetPosition,
+  };
+  const targetCards = [...targetSiblings];
+  targetCards.splice(targetPosition, 0, movedCard);
+
+  for (const [position, card] of targetCards.entries()) {
+    tx.update(cards)
+      .set({
+        ...(card.id === existing.id ? nextValues : {}),
+        column: targetColumn,
+        position,
+      })
+      .where(eq(cards.id, card.id))
+      .run();
+  }
+
+  if (existing.column !== targetColumn) {
+    const sourceCards = tx
       .select()
       .from(cards)
-      .where(and(eq(cards.boardId, existing.boardId), eq(cards.column, targetColumn)))
+      .where(and(eq(cards.boardId, existing.boardId), eq(cards.column, existing.column)))
       .orderBy(asc(cards.position))
       .all()
       .filter((card) => card.id !== existing.id);
 
-    const fallbackPosition =
-      targetColumn === existing.column
-        ? targetSiblings.findIndex((card) => card.position > existing.position)
-        : targetSiblings.length;
-    const targetPosition = clampPosition(
-      data.position ?? (fallbackPosition === -1 ? targetSiblings.length : fallbackPosition),
-      targetSiblings.length
-    );
-
-    const movedCard: Card = {
-      ...existing,
-      ...nextValues,
-      column: targetColumn,
-      position: targetPosition,
-    };
-    const targetCards = [...targetSiblings];
-    targetCards.splice(targetPosition, 0, movedCard);
-
-    for (const [position, card] of targetCards.entries()) {
-      tx.update(cards)
-        .set({
-          ...(card.id === existing.id ? nextValues : {}),
-          column: targetColumn,
-          position,
-        })
-        .where(eq(cards.id, card.id))
-        .run();
+    for (const [position, card] of sourceCards.entries()) {
+      tx.update(cards).set({ position }).where(eq(cards.id, card.id)).run();
     }
+  }
 
-    if (existing.column !== targetColumn) {
-      const sourceCards = tx
-        .select()
-        .from(cards)
-        .where(and(eq(cards.boardId, existing.boardId), eq(cards.column, existing.column)))
-        .orderBy(asc(cards.position))
-        .all()
-        .filter((card) => card.id !== existing.id);
-
-      for (const [position, card] of sourceCards.entries()) {
-        tx.update(cards).set({ position }).where(eq(cards.id, card.id)).run();
-      }
-    }
-
-    const updated = tx.select().from(cards).where(eq(cards.id, existing.id)).get();
-    if (!updated) {
-      throw new Error(`Failed to reorder card "${existing.id}"`);
-    }
-    return updated;
-  });
+  const updated = tx.select().from(cards).where(eq(cards.id, existing.id)).get();
+  if (!updated) {
+    throw new Error(`Failed to reorder card "${existing.id}"`);
+  }
+  return updated;
 }
 
-export function deleteCard(id: string): boolean {
-  const result = db.delete(cards).where(eq(cards.id, id)).returning({ id: cards.id }).all();
+export function deleteCard(tx: TaskManagerTransaction, id: string): boolean {
+  const result = tx.delete(cards).where(eq(cards.id, id)).returning({ id: cards.id }).all();
   return result.length > 0;
 }

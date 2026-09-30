@@ -65,7 +65,9 @@ describe("cards reorder service", () => {
   });
 
   test("moving one card reorders source and destination columns in one service call", () => {
-    const moved = updateCard("test-card-todo-0", { column: "doing", position: 1 });
+    const moved = db.transaction((tx) =>
+      updateCard(tx, "test-card-todo-0", { column: "doing", position: 1 })
+    );
 
     expect(moved?.column).toBe("doing");
     expect(moved?.position).toBe(1);
@@ -79,7 +81,9 @@ describe("cards reorder service", () => {
 
   test("ignores drag updates that keep the card in the same column and position", () => {
     const beforeChanges = totalChanges();
-    const moved = updateCard("test-card-todo-1", { column: "todo", position: 1 });
+    const moved = db.transaction((tx) =>
+      updateCard(tx, "test-card-todo-1", { column: "todo", position: 1 })
+    );
 
     expect(moved?.column).toBe("todo");
     expect(moved?.position).toBe(1);

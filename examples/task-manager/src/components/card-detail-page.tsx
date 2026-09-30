@@ -1,9 +1,15 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: card form handlers depend on local form and mutation state
-import { useSync } from "@teyik0/furin/client";
 import { Link, useRouter } from "@teyik0/furin/link";
 import { ArrowLeft, ChevronRight, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
-import { apiClient } from "@/lib/api";
+import { useState } from "react";
+import { api } from "@/lib/api";
+
+interface CardDetailPageProps {
+  boardName: string;
+  card: { id: string; title: string; description: string; createdAt: string; boardId: string };
+  formattedCreatedAt: string;
+  params: { boardId: string; cardId: string };
+  renderedAt: string;
+}
 
 export function CardDetailPage({
   params,
@@ -11,28 +17,17 @@ export function CardDetailPage({
   boardName,
   renderedAt,
   formattedCreatedAt,
-}: {
-  params: { boardId: string; cardId: string };
-  card: { id: string; title: string; description: string; createdAt: string; boardId: string };
-  boardName: string;
-  renderedAt: string;
-  formattedCreatedAt: string;
-}) {
+}: CardDetailPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
-  const updateCard = useSync(apiClient.api.cards({ id: card.id }).patch);
-  const deleteCard = useSync(apiClient.api.cards({ id: card.id }).delete);
+  const updateCard = api.cards({ id: card.id }).patch;
+  const deleteCard = api.cards({ id: card.id }).delete;
 
-  const handleSave = async () => {
-    if (!formRef.current) {
-      return;
-    }
-    const data = new FormData(formRef.current);
+  const handleSave = async (formData: FormData) => {
     try {
       const { error } = await updateCard({
-        description: data.get("description") as string,
-        title: data.get("title") as string,
+        description: String(formData.get("description") ?? ""),
+        title: String(formData.get("title") ?? ""),
       });
 
       if (error) {
@@ -66,9 +61,7 @@ export function CardDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* Top bar */}
       <header className="flex shrink-0 items-center justify-between border-white/5 border-b bg-white/2 px-6 py-3.5 backdrop-blur-sm">
-        {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm">
           <Link
             className="flex items-center gap-1.5 text-zinc-500 transition-colors hover:text-zinc-300"
@@ -81,18 +74,14 @@ export function CardDetailPage({
           <span className="max-w-xs truncate font-medium text-zinc-300">{card.title}</span>
         </nav>
 
-        {/* SSR badge */}
         <div className="flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/8 px-3 py-1">
           <span className="size-1.5 rounded-full bg-blue-400" />
           <span className="font-medium text-blue-300 text-xs">SSR &middot; {renderedAt}</span>
         </div>
       </header>
 
-      {/* Content */}
       <div className="mx-auto w-full max-w-2xl flex-1 px-6 py-10">
-        {/* Card panel */}
         <div className="rounded-2xl border border-white/8 bg-white/3 shadow-2xl shadow-black/20 backdrop-blur-sm">
-          {/* Panel header */}
           <div className="border-white/5 border-b px-6 py-5">
             <p className="mb-1 font-semibold text-xs text-zinc-600 uppercase tracking-wider">
               Card
@@ -101,16 +90,7 @@ export function CardDetailPage({
             <p className="mt-1 text-xs text-zinc-600">Created {formattedCreatedAt}</p>
           </div>
 
-          {/* Form */}
-          {/* react-doctor-disable-next-line react-doctor/no-prevent-default */}
-          <form
-            className="space-y-5 p-6"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSave();
-            }}
-            ref={formRef}
-          >
+          <form action={handleSave} className="space-y-5 p-6">
             {errorMessage ? (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
                 {errorMessage}
@@ -173,7 +153,6 @@ export function CardDetailPage({
           </form>
         </div>
 
-        {/* Route info box */}
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-white/5 bg-white/2 px-4 py-3.5">
           <span className="mt-0.5 text-violet-400 text-xs">ℹ</span>
           <p className="text-xs text-zinc-600 leading-relaxed">
