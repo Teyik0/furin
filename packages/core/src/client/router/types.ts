@@ -146,6 +146,8 @@ export interface RouterContextValue {
   basePath: string;
   /** Current **logical** pathname + search (basePath stripped). Used by Link for active-state detection. */
   currentHref: string;
+  /** Pattern of the currently rendered route, when a page route is matched. */
+  currentPattern?: string;
   defaultPreload: PreloadStrategy;
   defaultPreloadDelay: number;
   defaultPreloadStaleTime: number;

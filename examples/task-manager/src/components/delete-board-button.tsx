@@ -4,7 +4,6 @@ import { api } from "@/lib/api";
 export function DeleteBoardButton({ boardId }: { boardId: string }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteBoard = api.boards({ boardId }).delete;
 
   const handleDelete = async () => {
     if (isDeleting) {
@@ -12,7 +11,7 @@ export function DeleteBoardButton({ boardId }: { boardId: string }) {
     }
     setIsDeleting(true);
     try {
-      const { error } = await deleteBoard();
+      const { error } = await api.boards({ boardId }).delete();
       if (error) {
         throw new Error("Could not delete the board. Please try again.");
       }

@@ -4,7 +4,8 @@ import { type Dispatch, type DragEvent, type SetStateAction, useState } from "re
 import { FaFire } from "react-icons/fa";
 import { FiArrowUpRight, FiPlus, FiTrash } from "react-icons/fi";
 import type { BoardData } from "@/db/schema";
-import { createBoardCard, deleteBoardCard, moveBoardCard, moveCard } from "@/lib/card-mutations";
+import { api } from "@/lib/api";
+import { moveCard } from "@/lib/card-mutations";
 import { cn } from "../../lib/utils";
 
 export type ColumnType = "backlog" | "todo" | "doing" | "done";
@@ -19,7 +20,7 @@ interface KanbanProps {
   boardId: string;
   initialCards: BoardData["cards"];
 }
-export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
+export const Kanban = ({ boardId, initialCards }: KanbanProps) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -35,7 +36,7 @@ export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
         <div className="flex h-full w-full gap-4 overflow-x-auto p-6">
           <Column
             boardId={boardId}
-            cards={cards}
+            cards={initialCards}
             column="backlog"
             headingColor="text-neutral-400"
             setErrorMessage={setErrorMessage}
@@ -44,7 +45,7 @@ export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
           />
           <Column
             boardId={boardId}
-            cards={cards}
+            cards={initialCards}
             column="todo"
             headingColor="text-yellow-300"
             setErrorMessage={setErrorMessage}
@@ -53,7 +54,7 @@ export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
           />
           <Column
             boardId={boardId}
-            cards={cards}
+            cards={initialCards}
             column="doing"
             headingColor="text-blue-300"
             setErrorMessage={setErrorMessage}
@@ -62,7 +63,7 @@ export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
           />
           <Column
             boardId={boardId}
-            cards={cards}
+            cards={initialCards}
             column="done"
             headingColor="text-emerald-300"
             setErrorMessage={setErrorMessage}
@@ -135,7 +136,16 @@ const Column = ({
     const newPosition = destColumnCards.findIndex((c) => c.id === cardId);
 
     setErrorMessage(null);
-    const { error } = await moveBoardCard(boardId, cardId, column, newPosition, before);
+    const { error } = await api.cards({ id: cardId }).patch(
+      { column, position: newPosition },
+      {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
+          })),
+      }
+    );
     if (error) {
       setErrorMessage("Could not move the card. Please try again.");
     }
@@ -313,7 +323,13 @@ const BurnBarrel = ({ boardId, isDragging, setErrorMessage, setIsDragging }: Bur
     }
 
     setErrorMessage(null);
-    const { error } = await deleteBoardCard(boardId, cardId);
+    const { error } = await api.cards({ id: cardId }).delete(undefined, {
+      optimistic: (cache) =>
+        cache.update(api.boards({ boardId }).get, (data) => ({
+          ...data,
+          cards: data.cards.filter((card) => card.id !== cardId),
+        })),
+    });
     if (error) {
       setErrorMessage("Could not delete the card. Please try again.");
     }
@@ -358,7 +374,30 @@ const AddCard = ({ column, boardId }: AddCardProps) => {
     }
 
     setAddError(null);
-    const { data: newCard, error } = await createBoardCard(boardId, column, text.trim());
+    const title = text.trim();
+    const temporaryId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const { data: newCard, error } = await api.boards({ boardId }).cards.post(
+      { column, title },
+      {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: [
+              ...data.cards,
+              {
+                boardId,
+                column,
+                createdAt,
+                description: "",
+                id: temporaryId,
+                position: data.cards.filter((card) => card.column === column).length,
+                title,
+              },
+            ],
+          })),
+      }
+    );
     if (!newCard || newCard instanceof Response || error) {
       const message =
         error?.value && "detail" in error.value

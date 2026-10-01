@@ -1,5 +1,4 @@
 import type { ColumnType, KanbanCard } from "@/components/ui/kanban";
-import { api } from "@/lib/api";
 
 export function moveCard<Card extends KanbanCard>(
   cards: Card[],
@@ -41,75 +40,4 @@ export function moveCard<Card extends KanbanCard>(
     return { ...card, position };
   });
   return { nextCards, previousColumn, previousIndex };
-}
-
-export function moveBoardCard(
-  boardId: string,
-  cardId: string,
-  column: ColumnType,
-  position: number,
-  before: string
-) {
-  return api.cards({ id: cardId }).patch(
-    { column, position },
-    {
-      optimistic: (cache) =>
-        cache.update(api.boards({ boardId }).get, (data) => ({
-          ...data,
-          cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
-        })),
-    }
-  );
-}
-
-export function deleteBoardCard(boardId: string, cardId: string) {
-  return api.cards({ id: cardId }).delete(undefined, {
-    optimistic: (cache) =>
-      cache.update(api.boards({ boardId }).get, (data) => ({
-        ...data,
-        cards: data.cards.filter((card) => card.id !== cardId),
-      })),
-  });
-}
-
-export function createBoardCard(boardId: string, column: ColumnType, title: string) {
-  const temporaryId = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  return api.boards({ boardId }).cards.post(
-    { column, title },
-    {
-      optimistic: (cache) =>
-        cache.update(api.boards({ boardId }).get, (data) => ({
-          ...data,
-          cards: [
-            ...data.cards,
-            {
-              boardId,
-              column,
-              createdAt,
-              description: "",
-              id: temporaryId,
-              position: data.cards.filter((card) => card.column === column).length,
-              title,
-            },
-          ],
-        })),
-    }
-  );
-}
-
-export function saveBoardCard(
-  boardId: string,
-  cardId: string,
-  changes: { title: string; description: string }
-) {
-  return api.cards({ id: cardId }).patch(changes, {
-    optimistic(cache) {
-      cache.update(api.cards({ id: cardId }).get, (card) => ({ ...card, ...changes }));
-      cache.update(api.boards({ boardId }).get, (data) => ({
-        ...data,
-        cards: data.cards.map((card) => (card.id === cardId ? { ...card, ...changes } : card)),
-      }));
-    },
-  });
 }

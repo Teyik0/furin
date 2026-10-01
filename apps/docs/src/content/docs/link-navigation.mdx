@@ -117,6 +117,8 @@ function Pagination() {
 
 Updates merge with the current search object. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
 
+The route argument autocompletes generated patterns (for example, `/products/:productId`) and must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
+
 ## Router Controls
 
 ```tsx

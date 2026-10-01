@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { act, createElement, memo, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { RouterContext, type RouterContextValue } from "../../../src/client/link.tsx";
 import { useNavigate } from "../../../src/client/router/navigation.ts";
 import { useSearch } from "../../../src/client/router/search/index.ts";
@@ -18,6 +19,7 @@ function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): 
   return {
     basePath: "",
     currentHref: "/",
+    currentPattern: new URL(overrides?.currentHref ?? "/", "http://furin.local").pathname,
     defaultPreload: "intent",
     defaultPreloadDelay: 50,
     defaultPreloadStaleTime: 30_000,
@@ -76,6 +78,62 @@ async function renderWithRouter(
 describe("useSearch", () => {
   useDomTests();
 
+  test("rejects a route hint that does not match the rendered route", () => {
+    function Page(): React.ReactElement {
+      const [search] = useSearch("/products");
+      return createElement("output", null, String(search.page));
+    }
+
+    const context = makeRouterContext({ currentHref: "/settings?page=2", search: { page: 2 } });
+    const store = createSearchStore(searchSnapshotFromRouterContext(context));
+
+    expect(() =>
+      renderToStaticMarkup(
+        createElement(SearchStoreContext.Provider, { value: store }, createElement(Page))
+      )
+    ).toThrow('useSearch("/products")');
+  });
+
+  test("rejects a route hint when no route is matched", () => {
+    function Page(): React.ReactElement {
+      const [search] = useSearch("/products");
+      return createElement("output", null, String(search.page));
+    }
+
+    const context = makeRouterContext({
+      currentHref: "/products",
+      currentPattern: undefined,
+      search: { page: 2 },
+    });
+    const store = createSearchStore(searchSnapshotFromRouterContext(context));
+
+    expect(() =>
+      renderToStaticMarkup(
+        createElement(SearchStoreContext.Provider, { value: store }, createElement(Page))
+      )
+    ).toThrow('useSearch("/products")');
+  });
+
+  test("reads search for a named dynamic route", () => {
+    function Page(): React.ReactElement {
+      const [search] = useSearch("/products/:productId");
+      return createElement("output", null, String(search.page));
+    }
+
+    const context = makeRouterContext({
+      currentHref: "/products/42?page=2",
+      currentPattern: "/products/:productId",
+      search: { page: 2 },
+    });
+    const store = createSearchStore(searchSnapshotFromRouterContext(context));
+
+    expect(
+      renderToStaticMarkup(
+        createElement(SearchStoreContext.Provider, { value: store }, createElement(Page))
+      )
+    ).toBe("<output>2</output>");
+  });
+
   test("reads the current server-resolved search from router context", async () => {
     function Page(): React.ReactElement {
       const [search] = useSearch("/products");
@@ -126,6 +184,7 @@ describe("useSearch", () => {
     await act(() => {
       rendered.searchStore.setSnapshot({
         currentHref: "/products?page=1&q=bun",
+        currentPattern: "/products",
         navigate: () => Promise.resolve(),
         search: { page: 1, q: "bun" },
         searchRoutes: [],
@@ -139,6 +198,7 @@ describe("useSearch", () => {
     await act(() => {
       rendered.searchStore.setSnapshot({
         currentHref: "/products?page=2&q=bun",
+        currentPattern: "/products",
         navigate: () => Promise.resolve(),
         search: { page: 2, q: "bun" },
         searchRoutes: [],
@@ -242,6 +302,36 @@ describe("useNavigate", () => {
 
 describe("useSearch setter", () => {
   useDomTests();
+
+  test("rejects a stale setter after navigating to another route", async () => {
+    const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());
+    let setPage!: (page: number) => Promise<void>;
+
+    function Page(): React.ReactElement {
+      const [, setSearch] = useSearch("/products");
+      setPage = (page) => setSearch({ page });
+      return createElement("output");
+    }
+
+    const rendered = await renderWithRouter(
+      createElement(Page),
+      makeRouterContext({ currentHref: "/products?page=1", navigate, search: { page: 1 } })
+    );
+
+    try {
+      rendered.searchStore.setSnapshot({
+        currentHref: "/settings",
+        currentPattern: "/settings",
+        navigate,
+        search: {},
+        searchRoutes: [],
+      });
+      await expect(setPage(2)).rejects.toThrow('useSearch("/products")');
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      await rendered.cleanup();
+    }
+  });
 
   test("updates search by navigating from the current logical pathname", async () => {
     const navigate = mock<RouterContextValue["navigate"]>(() => Promise.resolve());

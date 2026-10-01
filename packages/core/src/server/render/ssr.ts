@@ -435,6 +435,7 @@ export async function prepareRender(
   const ssrContext: RouterContextValue = {
     basePath: resolvedBasePath,
     currentHref: currentHrefFromContext(ctx, resolvedBasePath),
+    currentPattern: route.pattern,
     defaultPreload: "intent",
     defaultPreloadDelay: 50,
     defaultPreloadStaleTime: 30_000,

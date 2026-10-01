@@ -7,7 +7,6 @@ export function CreateBoardForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const inFlightRef = useRef<boolean>(false);
-  const createBoard = api.boards.post;
 
   const handleCreate = async (formData: FormData) => {
     if (inFlightRef.current) {
@@ -21,7 +20,7 @@ export function CreateBoardForm() {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const { error } = await createBoard({ name: trimmed });
+      const { error } = await api.boards.post({ name: trimmed });
       if (error) {
         throw new Error("Could not create the board. Please try again.");
       }

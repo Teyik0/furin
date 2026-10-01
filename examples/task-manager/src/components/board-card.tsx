@@ -21,11 +21,10 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
   const gradient = avatarColor(board.id);
   const initial = board.name.charAt(0).toUpperCase();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const deleteBoard = api.boards({ boardId: board.id }).delete;
 
   const handleDelete = async () => {
     try {
-      const { error } = await deleteBoard();
+      const { error } = await api.boards({ boardId: board.id }).delete();
       if (error) {
         throw new Error("Could not delete the board. Please try again.");
       }

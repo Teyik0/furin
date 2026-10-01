@@ -794,6 +794,7 @@ export function RouterProvider({
   const [searchStore] = useState(() =>
     createSearchStore({
       currentHref,
+      currentPattern: state.match?.pattern,
       navigate,
       search: resolvedSearch,
       searchRoutes: routes,
@@ -802,11 +803,12 @@ export function RouterProvider({
   const searchSnapshot = useMemo(
     () => ({
       currentHref,
+      currentPattern: state.match?.pattern,
       navigate,
       search: resolvedSearch,
       searchRoutes: routes,
     }),
-    [currentHref, navigate, resolvedSearch, routes]
+    [currentHref, state.match?.pattern, navigate, resolvedSearch, routes]
   );
 
   useLayoutEffect(() => {

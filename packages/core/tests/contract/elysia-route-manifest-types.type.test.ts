@@ -40,6 +40,7 @@ const createGeneratedBoardRoute = () =>
       layout: rootLayout,
       mode: "ssr",
       params: t.Object({ boardId: t.Number() }),
+      query: t.Object({ page: t.Number() }),
     })
     .page(({ params }) => String(params.boardId));
 
@@ -90,6 +91,9 @@ const assertRouteMapBridge = () => {
   expectTypeOf<ReturnType<typeof useSearch<"/elysia-products">>[0]>().toEqualTypeOf<{
     page: number;
     tag?: string;
+  }>();
+  expectTypeOf<ReturnType<typeof useSearch<"/elysia-boards/:boardId">>[0]>().toEqualTypeOf<{
+    page: number;
   }>();
 };
 

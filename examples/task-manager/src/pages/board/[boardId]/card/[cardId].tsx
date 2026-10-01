@@ -5,7 +5,6 @@ import { useState } from "react";
 import { FaArrowLeft, FaChevronRight } from "react-icons/fa";
 import { FiTrash2 } from "react-icons/fi";
 import { api } from "@/lib/api";
-import { deleteBoardCard, saveBoardCard } from "@/lib/card-mutations";
 import { route as parentRoute } from "./_route";
 
 export const route = defineRoute()
@@ -81,39 +80,42 @@ export const route = defineRoute()
     const router = useRouter();
 
     const handleSave = async (formData: FormData) => {
-      try {
-        const { error } = await saveBoardCard(params.boardId, card.id, {
-          description: String(formData.get("description") ?? ""),
-          title: String(formData.get("title") ?? ""),
-        });
+      const changes = {
+        description: String(formData.get("description") ?? ""),
+        title: String(formData.get("title") ?? ""),
+      };
+      const { error } = await api.cards({ id: card.id }).patch(changes, {
+        optimistic(cache) {
+          cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
+          cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
+            ...data,
+            cards: data.cards.map((item) => (item.id === card.id ? { ...item, ...changes } : item)),
+          }));
+        },
+      });
 
-        if (error) {
-          throw new Error("Could not save the card. Please try again.");
-        }
-
-        setErrorMessage(null);
-        await router.navigate(`/board/${params.boardId}`);
-      } catch (err: unknown) {
-        const error =
-          err instanceof Error ? err.message : "Could not save the card. Please try again.";
-        setErrorMessage(error);
+      if (error) {
+        setErrorMessage(error.value.detail ?? "Validation error");
+        return;
       }
+      setErrorMessage(null);
+      await router.navigate(`/board/${params.boardId}`);
     };
 
     const handleDelete = async () => {
-      try {
-        const { error } = await deleteBoardCard(params.boardId, card.id);
-        if (error) {
-          throw new Error("Could not delete the card. Please try again.");
-        }
-
-        setErrorMessage(null);
-        await router.navigate(`/board/${params.boardId}`);
-      } catch (err: unknown) {
-        const error =
-          err instanceof Error ? err.message : "Could not delete the card. Please try again.";
-        setErrorMessage(error);
+      const { error } = await api.cards({ id: card.id }).delete(undefined, {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
+            ...data,
+            cards: data.cards.filter((item) => item.id !== card.id),
+          })),
+      });
+      if (error) {
+        setErrorMessage(error.value.detail);
+        return;
       }
+      setErrorMessage(null);
+      await router.navigate(`/board/${params.boardId}`);
     };
 
     return (
