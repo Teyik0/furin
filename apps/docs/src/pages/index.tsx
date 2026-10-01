@@ -18,7 +18,9 @@ import { CopyCommand } from "@/components/landing/copy-command";
 import { LandingFont } from "@/components/landing/landing-font";
 import { ModesGrid } from "@/components/landing/modes-grid";
 import { Reveal } from "@/components/landing/reveal";
+import { ShipSection } from "@/components/landing/ship-section";
 import { StackReveal } from "@/components/landing/stack-reveal";
+import { SyncSection } from "@/components/landing/sync-section";
 import { route as parentRoute } from "./root";
 
 const FILES = {
@@ -76,6 +78,38 @@ export default app`,
 } as const;
 
 type FileName = keyof typeof FILES;
+
+// Abridged from examples/task-manager: src/api/modules/{boards,cards}/index.ts,
+// src/lib/api.ts (client branch) and src/lib/card-mutations.ts (moveBoardCard).
+const SYNC_SERVER = `// boards/index.ts
+.get(
+  "/boards/:boardId",
+  { sync: { id: "board", scope: ({ params }) => ({ boardId: params.boardId }) } },
+  ({ params, problem }) => { /* … getBoardData(params.boardId) */ }
+)
+
+// cards/index.ts
+.patch("/cards/:id", {
+  body: t.Object({ column: t.Optional(columnType), /* … */ }),
+  sync: {
+    invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
+  },
+}, ({ params, body, problem, mutation }) => mutation((tx) => { /* … */ }))`;
+
+const SYNC_CLIENT = `// api.ts
+createClient<Api>(window.location.origin, { retry: 2 }).api
+
+// card-mutations.ts · moveBoardCard
+return api.cards({ id: cardId }).patch(
+  { column, position },
+  {
+    optimistic: (cache) =>
+      cache.update(api.boards({ boardId }).get, (data) => ({
+        ...data,
+        cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
+      })),
+  }
+);`;
 
 const FEATURES = [
   {
@@ -140,7 +174,16 @@ export const route = defineRoute()
         await codeToHtml(code, { lang: "tsx", theme: "github-dark" }),
       ])
     ).then((resolvedEntries) => Object.fromEntries(resolvedEntries) as Record<FileName, string>);
-    return { codeHtmlMap: await codeHtmlMap };
+    const [syncServerHtml, syncClientHtml] = await Promise.all(
+      [SYNC_SERVER, SYNC_CLIENT].map((code) =>
+        codeToHtml(code, { lang: "tsx", theme: "github-dark" })
+      )
+    );
+    return {
+      codeHtmlMap: await codeHtmlMap,
+      syncClientHtml: syncClientHtml as string,
+      syncServerHtml: syncServerHtml as string,
+    };
   })
   .head(() => ({
     links: [{ href: "/", rel: "canonical" }],
@@ -153,7 +196,7 @@ export const route = defineRoute()
       },
     ],
   }))
-  .page(({ codeHtmlMap }) => (
+  .page(({ codeHtmlMap, syncClientHtml, syncServerHtml }) => (
     <div className="landing">
       <LandingFont />
       {/* 1 — Hero */}
@@ -242,11 +285,15 @@ export const route = defineRoute()
           </div>
         </section>
 
+        {/* Sync + ship (from the motion video) */}
+        <SyncSection clientHtml={syncClientHtml} serverHtml={syncServerHtml} />
+        <ShipSection />
+
         {/* 5 — Features */}
         <section className="lp-defer relative py-24 sm:py-32">
           <div className="mx-auto max-w-7xl px-5 sm:px-8">
             <Reveal className="mb-14 max-w-3xl">
-              <p className="lp-eyebrow mb-5">04 — Batteries</p>
+              <p className="lp-eyebrow mb-5">06 — Batteries</p>
               <h2 className="lp-h2">
                 Everything you need.
                 <br />

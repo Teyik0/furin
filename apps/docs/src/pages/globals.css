@@ -576,6 +576,133 @@
   background: rgb(var(--lp-ink-rgb) / 0.025);
 }
 
+/* ---- sync */
+
+.lp-link {
+  font-weight: 500;
+  color: var(--lp-accent);
+  text-underline-offset: 4px;
+}
+
+.lp-link:hover {
+  text-decoration: underline;
+}
+
+.sync-callout {
+  position: relative;
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.sync-callout__n {
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--lp-accent);
+  letter-spacing: 0.18em;
+}
+
+.sync-window {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.04), transparent 30%),
+    rgb(11 15 24 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 1rem;
+  box-shadow:
+    0 30px 60px -30px rgb(0 0 0 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.sync-chip {
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgb(161 161 170);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  transition:
+    color 300ms ease,
+    border-color 300ms ease,
+    background-color 300ms ease;
+}
+
+.sync-chip--optimistic {
+  color: #fcd34d;
+  background: rgb(252 211 77 / 0.08);
+  border-color: rgb(252 211 77 / 0.35);
+}
+
+.sync-chip--synced {
+  color: #6fe3df;
+  background: rgb(79 201 198 / 0.1);
+  border-color: rgb(79 201 198 / 0.4);
+}
+
+.sync-lanes {
+  --card-h: 2.75rem;
+  position: relative;
+  height: calc(var(--card-h) * 2 + 0.375rem);
+}
+
+.sync-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: calc((100% - 1rem) / 3);
+  height: var(--card-h);
+  padding: 0 0.6rem;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: rgb(212 212 216);
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 0.5rem;
+  transform: translate(
+    calc(var(--c) * (100% + 0.5rem)),
+    calc(var(--r) * (100% + 0.375rem))
+  );
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.sync-card--mover {
+  color: rgb(244 244 245);
+  border-color: rgb(79 201 198 / 0.45);
+}
+
+.sync-card--dragging {
+  box-shadow:
+    0 12px 28px -10px rgb(0 0 0 / 0.7),
+    0 0 0 1px rgb(252 211 77 / 0.45);
+}
+
+/* ---- ship */
+
+.ship-line {
+  transition: opacity 400ms ease;
+  transition-delay: calc(var(--i) * 140ms + 300ms);
+}
+
+.ship-line--out {
+  color: rgb(161 161 170);
+}
+
+.ship-line--cmd {
+  color: rgb(244 244 245);
+}
+
+.js-reveal .ship-term:not([data-shown]) .ship-line {
+  opacity: 0;
+}
+
 /* ---- keyframes */
 
 @keyframes lp-rise {
@@ -610,8 +737,14 @@
 
   .reveal,
   .type-hint,
-  .mode-card {
+  .mode-card,
+  .sync-card,
+  .ship-line {
     transition: none;
+  }
+
+  .js-reveal .ship-term:not([data-shown]) .ship-line {
+    opacity: 1;
   }
 
   .js-reveal .reveal:not([data-shown]),
