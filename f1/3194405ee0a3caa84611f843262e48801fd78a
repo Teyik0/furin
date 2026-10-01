@@ -1,0 +1,21 @@
+examples/task-manager/tests/create-board-form.test.tsx
+  s_e7cbe6a2932824::t_ee645ad1e0a459 117,124
+examples/task-manager/tests/board-card.test.tsx
+  s_e7cbe6a2932824::t_b161e70c1ac4d2 116,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f13194405ee0a3caa84611f843262e48801fd78a",
+  "prompts": {},
+  "sessions": {
+    "s_e7cbe6a2932824": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0eea1-982d-7990-b121-0c6b08be789e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
