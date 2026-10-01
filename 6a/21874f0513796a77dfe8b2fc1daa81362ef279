@@ -1,0 +1,88 @@
+examples/task-manager/src/api/index.ts
+  s_e7cbe6a2932824::t_c8186fa2c1161c 35,37
+examples/task-manager/src/lib/api.ts
+  s_e7cbe6a2932824::t_15b4f259c32f88 6
+  s_e7cbe6a2932824::t_2b200cd9a77a7f 3
+packages/core/src/client/router/search-store.ts
+  s_e7cbe6a2932824::t_5afb5d3970850d 27,71
+  s_e7cbe6a2932824::t_3c46508056f501 8,80
+examples/task-manager/src/components/board-card.tsx
+  s_2a938bd35e4d99::t_8a3b1839455e0a 27
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_2a938bd35e4d99::t_fa592aaff109c0 5,192
+packages/core/src/client/router/types.ts
+  s_e7cbe6a2932824::t_5afb5d3970850d 149-150
+examples/task-manager/src/components/ui/kanban.tsx
+  s_2a938bd35e4d99::t_8a3b1839455e0a 7-8,23,39,48,57,66,139-148,326-332,377-400
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_e7cbe6a2932824::t_0434c33e989243 43,95-96
+  s_035d1b9503f515::t_1911d25d7648eb 97
+examples/task-manager/src/server.ts
+  s_e7cbe6a2932824::t_15b4f259c32f88 7
+packages/core/src/client/router/search/index.ts
+  s_e7cbe6a2932824::t_8e578eabab5079 58-67
+  s_e7cbe6a2932824::t_3c46508056f501 44-47
+  s_e7cbe6a2932824::t_273e7cfd3534d5 91-95,104
+  s_e7cbe6a2932824::t_3afa54ea696671 1,14,16
+  s_e7cbe6a2932824::t_44eec6e7ce4ed2 8-12,43,48-51,53,80,84
+packages/core/src/server/render/ssr.ts
+  s_e7cbe6a2932824::t_5afb5d3970850d 438
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_2a938bd35e4d99::t_8a3b1839455e0a 83-91,95,97,108-114
+  s_2a938bd35e4d99::t_de775a4ce05c28 99
+  s_2a938bd35e4d99::t_1a8e312110d0ad 92-94
+  s_2a938bd35e4d99::t_c8a6899d0ead55 98
+  s_2a938bd35e4d99::t_d09418730c41c0 106-107
+  s_2a938bd35e4d99::t_6556b55b0c73e4 115
+packages/core/src/client/router/provider.tsx
+  s_e7cbe6a2932824::t_5afb5d3970850d 797,806,811
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_e7cbe6a2932824::t_5afb5d3970850d 123-127
+  s_e7cbe6a2932824::t_b8044305f34af3 306-323,325-335
+  s_e7cbe6a2932824::t_e2464f3663a47c 97-102,108-116
+  s_e7cbe6a2932824::t_6c35091e19a377 4,81-95
+  s_e7cbe6a2932824::t_3c46508056f501 22,103-107,187,201,324
+  s_e7cbe6a2932824::t_85d6269b254069 117-122,128-136
+  s_035d1b9503f515::t_63740e7ff8fde9 96
+apps/docs/src/content/docs/link-navigation.mdx
+  s_e7cbe6a2932824::t_116bc42e72c506 120
+  s_035d1b9503f515::t_1c4faf2bff7b5c 121
+examples/task-manager/src/components/create-board-form.tsx
+  s_2a938bd35e4d99::t_8a3b1839455e0a 23
+examples/task-manager/src/components/delete-board-button.tsx
+  s_2a938bd35e4d99::t_8a3b1839455e0a 14
+packages/core/package.json
+  s_035d1b9503f515::t_7b87427c95de07 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6a21874f0513796a77dfe8b2fc1daa81362ef279",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_2a938bd35e4d99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f904-7eba-7573-a84a-e0bafdca0ccb",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_e7cbe6a2932824": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0eea1-982d-7990-b121-0c6b08be789e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
