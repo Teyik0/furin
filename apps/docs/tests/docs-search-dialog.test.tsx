@@ -30,9 +30,10 @@ test("search is available by button and keyboard without loading its index befor
     await act(() => root.render(createElement(DocsSearch)));
     expect(container.textContent).toContain("Search the docs");
     expect(requests).toEqual([]);
-    await act(() =>
-      window.dispatchEvent(new KeyboardEvent("keydown", { ctrlKey: true, key: "k" }))
-    );
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { ctrlKey: true, key: "k" }));
+      await import("../src/components/docs-search-dialog");
+    });
     await waitForDom(() => document.querySelector('[role="dialog"]') !== null, { timeoutMs: 2000 });
     expect(document.querySelector('input[placeholder="Search the docs…"]')).not.toBeNull();
     await waitForDom(() => requests.length === 1, { timeoutMs: 2000 });

@@ -222,9 +222,15 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
 
     const removedFromSnapshot = await pollUntil(
       async () => {
-        const snapshotResponse = await fetch(`http://localhost:${port}/_furin/devtools/snapshot`);
-        const snapshot = (await snapshotResponse.json()) as { routes: Array<{ pattern: string }> };
-        return !snapshot.routes.some((route) => route.pattern === "/about");
+        try {
+          const snapshotResponse = await fetch(`http://localhost:${port}/_furin/devtools/snapshot`);
+          const snapshot = (await snapshotResponse.json()) as {
+            routes: Array<{ pattern: string }>;
+          };
+          return !snapshot.routes.some((route) => route.pattern === "/about");
+        } catch {
+          return false;
+        }
       },
       40,
       250
