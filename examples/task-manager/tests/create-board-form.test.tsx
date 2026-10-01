@@ -114,14 +114,14 @@ test("preserves the board name after rejection and clears it after a successful 
     expect(input?.value).toBe(" Project Beta ");
     expect(input?.disabled).toBe(false);
     expect(button?.disabled).toBe(false);
-    expect(container.textContent).toContain("Could not create the board");
+    expect(container.textContent).toContain("Creation rejected");
 
     createResponse = retry.promise;
     await act(async () => {
       button?.click();
       await Promise.resolve();
     });
-    expect(container.textContent).not.toContain("Could not create the board");
+    expect(container.textContent).not.toContain("Creation rejected");
     await act(async () => {
       retry.resolve(Response.json({ id: "board-created" }));
       await retry.promise;

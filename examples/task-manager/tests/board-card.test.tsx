@@ -113,7 +113,7 @@ test("disables deletion while pending and allows retry after a rejection", async
       await response.promise;
     });
     expect(button?.disabled).toBe(false);
-    expect(container.textContent).toContain("Could not delete the board");
+    expect(container.textContent).toContain("Delete rejected");
 
     deleteResponse = undefined;
     await act(async () => {
@@ -121,7 +121,7 @@ test("disables deletion while pending and allows retry after a rejection", async
       await Promise.resolve();
     });
     expect(deleteCalls).toHaveLength(2);
-    expect(container.textContent).not.toContain("Could not delete the board");
+    expect(container.textContent).not.toContain("Delete rejected");
   } finally {
     response.resolve(Response.json({ ok: true }));
     await act(() => root.unmount());
