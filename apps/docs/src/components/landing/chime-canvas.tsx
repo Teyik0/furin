@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
-import type { ChimeScene } from "./chime-scene";
-
-// Start downloading the three.js chunk as soon as this route module evaluates in the
-// browser, so it overlaps hydration instead of waiting for the mount effect.
-const sceneModule = typeof window === "undefined" ? null : import("./chime-scene");
-sceneModule?.catch(() => {
-  // Handled where it is awaited (the CSS poster stays); this only avoids an unhandled rejection.
-});
+// Imported statically: the raw-WebGL scene is small and touches no browser globals at module
+// scope, so shipping it inside the route chunk saves a network round trip on first load.
+import { type ChimeScene, createChimeScene } from "./chime-scene";
 
 interface ChimeCanvasProps {
   className?: string;
@@ -17,16 +12,26 @@ interface ChimeCanvasProps {
   variant: "hero" | "mini";
 }
 
+/** requestIdleCallback with a timeout; Safari has no rIC, so fall back to a short timer. */
+function whenIdle(callback: () => void): () => void {
+  if ("requestIdleCallback" in window) {
+    const id = requestIdleCallback(callback, { timeout: 400 });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(callback, 50);
+  return () => clearTimeout(id);
+}
+
 function pickParticleCount(variant: ChimeCanvasProps["variant"]): number {
   if (variant === "mini") {
-    return 2500;
+    return 1500;
   }
   const narrow = window.matchMedia("(max-width: 767px)").matches;
   const lowPower = (navigator.hardwareConcurrency ?? 8) <= 4;
   if (narrow || lowPower) {
-    return 10_000;
+    return 2500;
   }
-  return 30_000;
+  return 7000;
 }
 
 /**
@@ -52,13 +57,12 @@ export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCa
     const animate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let disposed = false;
     let hasEntered = false;
+    let cancelIdle = () => {
+      /* nothing scheduled yet */
+    };
     const cleanups: Array<() => void> = [];
 
     const boot = async () => {
-      const { createChimeScene } = await (sceneModule ?? import("./chime-scene"));
-      if (disposed) {
-        return;
-      }
       const scene = await createChimeScene(canvas, {
         animate,
         onFirstFrame: () => setReady(true),
@@ -138,8 +142,11 @@ export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCa
           return;
         }
         near.disconnect();
-        boot().catch(() => {
-          // WebGL unavailable or chunk failed: the CSS poster remains, which is the intended fallback.
+        // Let hydration and the first paint finish before touching WebGL.
+        cancelIdle = whenIdle(() => {
+          boot().catch(() => {
+            // WebGL unavailable: the CSS poster remains, which is the intended fallback.
+          });
         });
       },
       { rootMargin: "50% 0px" }
@@ -149,6 +156,7 @@ export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCa
     return () => {
       disposed = true;
       near.disconnect();
+      cancelIdle();
       sceneRef.current = null;
       for (const fn of cleanups.reverse()) {
         fn();

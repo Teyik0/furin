@@ -1,5 +1,6 @@
 import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
+import { Suspense } from "react";
 import { codeToHtml } from "shiki";
 import { FeatureCard, HeroCodeWindow } from "@/components/hero-section";
 import {
@@ -167,7 +168,7 @@ export const route = defineRoute()
               <span className="mx-2 text-foreground/25">/</span>
               React · Elysia · Bun
             </p>
-            <h1 className="hero-in hero-in--lcp lp-display mb-7">
+            <h1 className="hero-in lp-display mb-7" style={delay(60)}>
               The React framework <span className="lp-display__accent">that rings fast.</span>
             </h1>
             <p
@@ -198,93 +199,97 @@ export const route = defineRoute()
         </div>
       </section>
 
-      {/* 2 — Stack */}
-      <StackReveal />
+      {/* Everything below the hero hydrates as its own boundary (React selective hydration),
+          so the first hydration task only covers the shell and the hero. */}
+      <Suspense fallback={null}>
+        {/* 2 — Stack */}
+        <StackReveal />
 
-      {/* 3 — Code + types */}
-      <section className="relative py-24 sm:py-32">
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
-          <Reveal className="min-w-0">
-            <p className="lp-eyebrow mb-5">02 — Types</p>
-            <h2 className="lp-h2 mb-6">
-              Your loader is
-              <br />
-              <span className="text-muted-foreground">your props.</span>
-            </h2>
-            <p className="max-w-md text-muted-foreground leading-relaxed sm:text-lg">
-              Whatever <code className="lp-code">.loader()</code> returns is inferred straight into{" "}
-              <code className="lp-code">.page()</code> — across layouts, through Elysia, without a
-              codegen step.
-            </p>
-          </Reveal>
-          <Reveal className="type-reveal min-w-0" delay={120}>
-            <HeroCodeWindow codeHtmlMap={codeHtmlMap} />
-          </Reveal>
-        </div>
-      </section>
-
-      {/* 4 — Rendering modes */}
-      <section className="relative py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8">
-          <Reveal className="mb-14 max-w-2xl">
-            <p className="lp-eyebrow mb-5">03 — Rendering</p>
-            <h2 className="lp-h2">
-              Pick a mode per route.
-              <br />
-              <span className="text-muted-foreground">Change it with one line.</span>
-            </h2>
-          </Reveal>
-          <ModesGrid />
-        </div>
-      </section>
-
-      {/* 5 — Features */}
-      <section className="relative py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8">
-          <Reveal className="mb-14 max-w-3xl">
-            <p className="lp-eyebrow mb-5">04 — Batteries</p>
-            <h2 className="lp-h2">
-              Everything you need.
-              <br />
-              <span className="text-muted-foreground">Nothing you have to wire.</span>
-            </h2>
-          </Reveal>
-          <div className="feature-grid grid sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((feature, i) => (
-              <Reveal delay={(i % 4) * 70} key={feature.title}>
-                <FeatureCard
-                  description={feature.description}
-                  icon={feature.icon}
-                  title={feature.title}
-                />
-              </Reveal>
-            ))}
+        {/* 3 — Code + types */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <Reveal className="min-w-0">
+              <p className="lp-eyebrow mb-5">02 — Types</p>
+              <h2 className="lp-h2 mb-6">
+                Your loader is
+                <br />
+                <span className="text-muted-foreground">your props.</span>
+              </h2>
+              <p className="max-w-md text-muted-foreground leading-relaxed sm:text-lg">
+                Whatever <code className="lp-code">.loader()</code> returns is inferred straight
+                into <code className="lp-code">.page()</code> — across layouts, through Elysia,
+                without a codegen step.
+              </p>
+            </Reveal>
+            <Reveal className="type-reveal min-w-0" delay={120}>
+              <HeroCodeWindow codeHtmlMap={codeHtmlMap} />
+            </Reveal>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* 6 — Final CTA */}
-      <section className="relative isolate overflow-hidden py-24 sm:py-32">
-        <div className="mx-auto flex max-w-3xl flex-col items-center px-5 text-center sm:px-8">
-          <div className="relative mb-4 h-72 w-56">
-            <ChimeCanvas ringOnEnter variant="mini" />
+        {/* 4 — Rendering modes */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <Reveal className="mb-14 max-w-2xl">
+              <p className="lp-eyebrow mb-5">03 — Rendering</p>
+              <h2 className="lp-h2">
+                Pick a mode per route.
+                <br />
+                <span className="text-muted-foreground">Change it with one line.</span>
+              </h2>
+            </Reveal>
+            <ModesGrid />
           </div>
-          <Reveal>
-            <h2 className="lp-h2 mb-5">Hear it ring.</h2>
-            <p className="mx-auto mb-10 max-w-md text-muted-foreground sm:text-lg">
-              One command, one process, one binary. Start building in under a minute.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link className="lp-cta" to="/docs">
-                Read the docs
-                <span aria-hidden="true" className="lp-cta__arrow">
-                  →
-                </span>
-              </Link>
-              <CopyCommand />
+        </section>
+
+        {/* 5 — Features */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <Reveal className="mb-14 max-w-3xl">
+              <p className="lp-eyebrow mb-5">04 — Batteries</p>
+              <h2 className="lp-h2">
+                Everything you need.
+                <br />
+                <span className="text-muted-foreground">Nothing you have to wire.</span>
+              </h2>
+            </Reveal>
+            <div className="feature-grid grid sm:grid-cols-2 lg:grid-cols-4">
+              {FEATURES.map((feature, i) => (
+                <Reveal delay={(i % 4) * 70} key={feature.title}>
+                  <FeatureCard
+                    description={feature.description}
+                    icon={feature.icon}
+                    title={feature.title}
+                  />
+                </Reveal>
+              ))}
             </div>
-          </Reveal>
-        </div>
-      </section>
+          </div>
+        </section>
+
+        {/* 6 — Final CTA */}
+        <section className="lp-defer relative isolate overflow-hidden py-24 sm:py-32">
+          <div className="mx-auto flex max-w-3xl flex-col items-center px-5 text-center sm:px-8">
+            <div className="relative mb-4 h-72 w-56">
+              <ChimeCanvas ringOnEnter variant="mini" />
+            </div>
+            <Reveal>
+              <h2 className="lp-h2 mb-5">Hear it ring.</h2>
+              <p className="mx-auto mb-10 max-w-md text-muted-foreground sm:text-lg">
+                One command, one process, one binary. Start building in under a minute.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link className="lp-cta" to="/docs">
+                  Read the docs
+                  <span aria-hidden="true" className="lp-cta__arrow">
+                    →
+                  </span>
+                </Link>
+                <CopyCommand />
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </Suspense>
     </div>
   ));

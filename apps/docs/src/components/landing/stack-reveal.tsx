@@ -61,7 +61,7 @@ export function StackReveal() {
   }, []);
 
   return (
-    <section className="stack-section relative h-[200vh] md:h-[230vh]" ref={ref}>
+    <section className="lp-defer stack-section relative h-[200vh] md:h-[230vh]" ref={ref}>
       <div className="sticky top-14 flex h-[calc(100svh-3.5rem)] items-center overflow-hidden">
         <div className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_1.15fr]">
           <div className="relative z-10">

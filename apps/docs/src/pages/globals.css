@@ -347,16 +347,10 @@
   }
 }
 
+/* Hero copy and CTA are opaque from the first paint (LCP + "visible quickly"); they only rise. */
 .hero-in {
-  animation: lp-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--d, 0ms) + 150ms);
-}
-
-/* The headline is the LCP element: it rises into place but is opaque from the first
-   paint, otherwise LCP is only recorded once the fade finishes (~1.3 s). */
-.hero-in--lcp {
-  animation-name: lp-rise-lcp;
-  animation-delay: 0ms;
+  animation: lp-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
 }
 
 .scroll-cue {
@@ -375,6 +369,13 @@
   content: "";
   background: var(--lp-accent);
   animation: lp-cue 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Below-the-fold sections skip style/layout/paint until they approach the viewport:
+   the initial render of the full page was one ~130 ms task at 4x CPU. */
+.lp-defer {
+  contain-intrinsic-size: auto 900px;
+  content-visibility: auto;
 }
 
 /* ---- reveal */
@@ -579,15 +580,7 @@
 
 @keyframes lp-rise {
   from {
-    opacity: 0;
-    transform: translateY(18px);
-    filter: blur(8px);
-  }
-}
-
-@keyframes lp-rise-lcp {
-  from {
-    transform: translateY(18px);
+    transform: translateY(14px);
   }
 }
 
