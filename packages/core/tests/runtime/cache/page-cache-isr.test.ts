@@ -5,11 +5,13 @@ import { type Context, Elysia } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { withSync } from "../../../src/client.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate/index.ts";
+import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
   __resetCacheState,
   revalidatePath,
   waitForPendingISRRevalidations,
 } from "../../../src/server/cache/index.ts";
+import { deleteISRCache, getISRCache, setISRCache } from "../../../src/server/cache/isr.ts";
 import {
   createMemoryPageCache,
   type PageCacheAdapter,
@@ -65,6 +67,38 @@ function scanFixture(): ReturnType<typeof scanPages> {
   fixturePromise ??= scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
   return fixturePromise;
 }
+
+test("deleting a refreshed local ISR entry removes its invalidation dependency", async () => {
+  const fixture = await scanFixture();
+  const matched = fixture.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Missing ISR fixture");
+  }
+  const instance = registerInstance(createInstance("", "/local-isr-owner/pages"));
+  const route = { ...matched, tags: ["local-isr-owner"] };
+  try {
+    __setDevMode(false);
+    await withInstance(instance, async () => {
+      await handleISR(route, createContext("/isr-page"), fixture.root, "test");
+      const cached = getISRCache("/isr-page");
+      if (!cached) {
+        throw new Error("ISR entry was not stored");
+      }
+      setISRCache("/isr-page", {
+        ...cached,
+        generatedAt: Date.now() - (cached.revalidate + 1) * 1000,
+      });
+      await handleISR(route, createContext("/isr-page"), fixture.root, "test");
+      await waitForPendingISRRevalidations();
+      expect(autoInvalidateRegistry.pathsForTags(["local-isr-owner"])).toContain("/isr-page");
+      deleteISRCache("/isr-page");
+      expect(autoInvalidateRegistry.pathsForTags(["local-isr-owner"])).toEqual([]);
+    });
+  } finally {
+    withInstance(instance, () => __resetCacheState());
+    __setDevMode(true);
+  }
+});
 
 test("ISR replicas use the configured page cache as their source of truth", (done) => {
   const scenario = runSharedCacheSourceOfTruth();

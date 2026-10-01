@@ -93,7 +93,12 @@ test("a rejected save preserves the user's title and description", async () => {
   }
 });
 
-test("navigating to another card resets the form draft", async () => {
+test.each([
+  { label: "another card", id: "card-2", edited: false },
+  { label: "a refreshed card", id: "card-1", edited: false },
+  { label: "a refreshed card while editing", id: "card-1", edited: true },
+  { label: "another card while editing", id: "card-2", edited: true },
+])("loading $label preserves only same-card edits", async ({ id: nextId, edited }) => {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -120,11 +125,25 @@ test("navigating to another card resets the form draft", async () => {
     );
   try {
     await render("card-1", "First");
-    await render("card-2", "Second");
-    expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe("Second");
+    if (edited) {
+      await act(() => {
+        const title = container.querySelector<HTMLInputElement>('input[name="title"]');
+        const description = container.querySelector<HTMLTextAreaElement>(
+          'textarea[name="description"]'
+        );
+        if (!(title && description)) {
+          throw new Error("Missing card form fields");
+        }
+        setFieldValue(title, "Draft");
+        setFieldValue(description, "Draft description");
+      });
+    }
+    await render(nextId, "Second");
+    const expected = edited && nextId === "card-1" ? "Draft" : "Second";
+    expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe(expected);
     expect(
       container.querySelector<HTMLTextAreaElement>('textarea[name="description"]')?.value
-    ).toBe("Second description");
+    ).toBe(`${expected} description`);
   } finally {
     await act(() => root.unmount());
     container.remove();

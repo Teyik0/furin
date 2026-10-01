@@ -774,7 +774,7 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
         autoInvalidateRegistry.registerLoaderTags(
           input.cacheKey,
           [...(input.route.tags ?? []), ...(result.queryTags ?? [])],
-          "render:isr"
+          "render:isr-html"
         );
       }
     }

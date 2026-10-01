@@ -60,15 +60,23 @@ export const route = defineRoute()
     meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
   }))
   .page(({ card, boardName, renderedAt, formattedCreatedAt, params }) => {
-    const [editingCardId, setEditingCardId] = useState(card.id);
+    const [seededCard, setSeededCard] = useState(card);
+    const [isDirty, setIsDirty] = useState(false);
     const [title, setTitle] = useState(card.title);
     const [description, setDescription] = useState(card.description);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    if (editingCardId !== card.id) {
-      setEditingCardId(card.id);
-      setTitle(card.title);
-      setDescription(card.description);
-      setErrorMessage(null);
+    if (
+      seededCard.id !== card.id ||
+      seededCard.title !== card.title ||
+      seededCard.description !== card.description
+    ) {
+      setSeededCard(card);
+      if (seededCard.id !== card.id || !isDirty) {
+        setIsDirty(false);
+        setTitle(card.title);
+        setDescription(card.description);
+        setErrorMessage(null);
+      }
     }
     const router = useRouter();
 
@@ -158,7 +166,10 @@ export const route = defineRoute()
                   className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
                   id="card-title"
                   name="title"
-                  onChange={(event) => setTitle(event.target.value)}
+                  onChange={(event) => {
+                    setIsDirty(true);
+                    setTitle(event.target.value);
+                  }}
                   placeholder="Card title..."
                   type="text"
                   value={title}
@@ -177,7 +188,10 @@ export const route = defineRoute()
                   className="w-full resize-none rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-white outline-none transition-[border-color,background-color,box-shadow] placeholder:text-zinc-600 focus:border-violet-500/50 focus:bg-white/6 focus:ring-1 focus:ring-violet-500/20"
                   id="card-description"
                   name="description"
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) => {
+                    setIsDirty(true);
+                    setDescription(event.target.value);
+                  }}
                   placeholder="Add a description..."
                   rows={5}
                   value={description}
