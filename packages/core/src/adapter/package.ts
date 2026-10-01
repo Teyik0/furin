@@ -15,7 +15,10 @@ import {
 } from "../plugin/routes.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { setProductionTemplateContent } from "../server/render/template.ts";
+import {
+  setProductionPreloadManifest,
+  setProductionTemplateContent,
+} from "../server/render/template.ts";
 
 /**
  * `--target package` — builds a furin app as a PUBLISHABLE Elysia plugin
@@ -53,7 +56,7 @@ export async function buildPackageTarget(
   rmSync(targetDir, { force: true, recursive: true });
   ensureDir(targetDir);
 
-  const { entryChunk, cssChunks } = await buildClient(routes, {
+  const { entryChunk, cssChunks, preloadManifest } = await buildClient(routes, {
     basePath: prefix,
     clientLogging: options.clientLogging ?? false,
     metafilePath: options.analyze ? join(buildRoot, "analysis", "package-client.json") : undefined,
@@ -61,6 +64,7 @@ export async function buildPackageTarget(
     outDir: targetDir,
     pagesDir,
     plugins: options.plugins,
+    preloadRouteChunks: options.preload?.routeChunks,
     publicPath: `${prefix}/_client/`,
     reactCompiler: options.reactCompiler,
     rootLayout: root.path,
@@ -97,6 +101,7 @@ export async function buildPackageTarget(
   // SSG snapshot renders through the build-time default state bucket. The
   // mount prefix is passed explicitly — no instance scope exists at build time.
   setProductionTemplateContent(indexHtml);
+  setProductionPreloadManifest(preloadManifest);
   ssgRouteCache().clear();
   const ssgCache = await buildSSGCacheSnapshot(routes, root, "http://localhost", prefix);
 
@@ -142,6 +147,7 @@ export async function buildPackageTarget(
         modulePaths,
         nativeRoutes: composableRouteModuleSpecifier(app),
         prefix,
+        preloadManifest,
         rootConventions,
         rootPath: root.path,
         routeMetadata,

@@ -1,4 +1,5 @@
 import type { AnyElysia } from "elysia";
+import type { ClientPreloadManifest } from "../build/preload-manifest.ts";
 import type { SsgCacheEntry } from "./cache/index.ts";
 import {
   hasPendingISRRevalidations as hasPendingISR,
@@ -44,6 +45,8 @@ export interface CompileContext {
   nativeRoutes?: AnyElysia;
   /** Mount prefix this app was built for (`""` = root). */
   prefix?: string;
+  /** Chunk URLs to modulepreload, produced by the client build. */
+  preloadManifest?: ClientPreloadManifest;
   /** Root-level conventions discovered at compile time. */
   rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;

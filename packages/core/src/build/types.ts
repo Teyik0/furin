@@ -26,6 +26,8 @@ export interface BuildClientOptions {
   outDir: string;
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];
+  /** Record route chunks in the preload manifest. Defaults to true. */
+  preloadRouteChunks?: boolean;
   /** Enable Bun's native Rust React Compiler. Defaults to true. */
   reactCompiler?: boolean;
   /**
@@ -112,6 +114,8 @@ export interface BuildAppOptions {
   optimizeImports?: string[];
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];
+  /** Module preloading (furin.config.ts `preload`). */
+  preload?: { routeChunks?: boolean };
   /** Enable Bun's native Rust React Compiler for client bundles. Defaults to true. */
   reactCompiler?: boolean;
   rootDir?: string;
