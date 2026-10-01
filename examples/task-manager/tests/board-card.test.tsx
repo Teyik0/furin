@@ -89,10 +89,13 @@ test.each(["network", "json-null", "invalid-json"])(
       expect(button?.disabled).toBe(false);
       transportFailure = undefined;
       deleteResponse = undefined;
+      const callsBeforeRetry = deleteCalls.length;
       await act(async () => {
         button?.click();
         await Promise.resolve();
       });
+      expect(deleteCalls).toHaveLength(callsBeforeRetry + 1);
+      expect(deleteCalls.at(-1)?.[0]).toBe("board-1");
       expect(container.textContent).not.toContain("Could not delete the board.");
     } finally {
       await act(() => root.unmount());

@@ -251,6 +251,7 @@ test.each(["network", "empty", "text", "json-null", "invalid-json"])(
     try {
       await submitCard(board.container, "My task draft");
       expect(board.container.textContent).toContain("Could not create the card. Please try again.");
+      expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(0);
       expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
         "My task draft"
       );

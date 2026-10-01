@@ -50,6 +50,8 @@ test.each([
   { action: "delete", failure: "invalid-json" },
   { action: "save", failure: "json-null" },
   { action: "delete", failure: "json-null" },
+  { action: "save", failure: "server" },
+  { action: "save", failure: "validation" },
   { action: "save", failure: "navigation" },
   { action: "delete", failure: "navigation" },
 ])("shows a recoverable error after a $action $failure failure", async ({ action, failure }) => {
@@ -59,6 +61,10 @@ test.each([
     mutationFailure = Response.json({ ok: true });
   } else if (failure === "json-null") {
     mutationFailure = Response.json(null, { status: 502 });
+  } else if (failure === "server") {
+    mutationFailure = Response.json({ message: "Bad gateway" }, { status: 502 });
+  } else if (failure === "validation") {
+    mutationFailure = Response.json({ detail: "Title is invalid" }, { status: 422 });
   } else {
     mutationFailure = new Response("invalid", {
       status: 502,
@@ -106,8 +112,8 @@ test.each([
       await Promise.resolve();
     });
     const message =
-      (failure === "json-null" || failure === "network") && action === "save"
-        ? "Validation error"
+      failure === "validation"
+        ? "Title is invalid"
         : `Could not ${action} the card. Please try again.`;
     await waitForDom(() => container.textContent?.includes(message) === true, { timeoutMs: 2000 });
     expect(container.textContent).toContain(message);

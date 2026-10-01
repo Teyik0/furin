@@ -98,7 +98,12 @@ export const route = defineRoute()
         });
 
         if (error) {
-          setErrorMessage(error.value?.detail ?? "Validation error");
+          setErrorMessage(
+            error.value?.detail ??
+              (error.status === 422
+                ? "Validation error"
+                : "Could not save the card. Please try again.")
+          );
           return;
         }
         setErrorMessage(null);
