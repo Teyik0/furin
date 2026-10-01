@@ -1,0 +1,22 @@
+apps/docs/tests/docs-search-dialog.test.tsx
+  s_035d1b9503f515::t_fca395c9b1e7cc 33-36
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_035d1b9503f515::t_22d012709c54b8 232-233
+  s_035d1b9503f515::t_57fb52c92203a7 225-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "454518e3f2feba3f2c25fb20ce2567d8130c3888",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
