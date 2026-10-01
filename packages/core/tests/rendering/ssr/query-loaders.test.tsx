@@ -6,6 +6,12 @@ import { type Context, Elysia } from "elysia";
 import { renderToString } from "react-dom/server";
 import { createClient, useQuery, withSync } from "../../../src/client.ts";
 import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
+import {
+  resetPageCacheAdapter,
+  setPageCacheAdapter,
+} from "../../../src/server/cache/page-cache-state.ts";
+import { currentInstance } from "../../../src/server/instance.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
 import {
   runLoaders,
@@ -155,6 +161,91 @@ test("a cached public loader preserves nested GET bindings without another API r
   }
 });
 
+test("a public segment cache does not retain concurrent request GET data", async () => {
+  __setDevMode(false);
+  const cache = createMemoryPageCache();
+  const payloads: string[] = [];
+  const instance = currentInstance();
+  setPageCacheAdapter(instance, {
+    ...cache,
+    commit(input) {
+      payloads.push(input.entry.payload);
+      return cache.commit(input);
+    },
+  });
+  let publicReads = 0;
+  let privateReads = 0;
+  let privateReady = Promise.withResolvers<void>();
+  const api = createClient(
+    new Elysia()
+      .get("/public", ({ set }) => {
+        publicReads += 1;
+        set.headers["x-furin-query"] = JSON.stringify({ id: "public", scope: {}, session: "test" });
+        return { title: "Public" };
+      })
+      .get("/private", ({ set }) => {
+        privateReads += 1;
+        set.headers["x-furin-query"] = JSON.stringify({
+          id: "private",
+          scope: {},
+          session: "test",
+        });
+        return { title: `Secret ${privateReads}` };
+      })
+  );
+  const route = {
+    mode: "ssr",
+    path: "/isolated-query-cache.tsx",
+    pattern: "/isolated-query-cache",
+    tags: [queryTag({ id: "public", scope: {} }), queryTag({ id: "private", scope: {} })],
+    requestKeys: ["privateData"],
+    routeChain: [
+      {
+        requestLoader: () => ({
+          privateData: api.private.get().then(({ data }) => {
+            privateReady.resolve();
+            return data;
+          }),
+        }),
+      },
+    ],
+    page: {
+      mode: "isr",
+      revalidate: 3600,
+      loader: async () => {
+        await privateReady.promise;
+        return { publicData: (await api.public.get()).data };
+      },
+    },
+  } as unknown as ResolvedRoute;
+  const context = {
+    request: new Request("http://localhost/isolated-query-cache"),
+    path: "/isolated-query-cache",
+    params: {},
+    query: {},
+    set: { headers: {} },
+  } as unknown as Context;
+  try {
+    await runMixedLoaders(route, context);
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).not.toContain("Secret");
+    privateReady = Promise.withResolvers<void>();
+    const second = await runMixedLoaders(route, context);
+    if (second.type !== "data") {
+      throw new Error("Loader failed");
+    }
+    expect(await second.deferredPromises?.privateData).toEqual({ title: "Secret 2" });
+    expect(JSON.stringify(second.syncData.__furinQueries)).not.toContain("Secret 1");
+    expect(publicReads).toBe(1);
+    expect(privateReads).toBe(2);
+  } finally {
+    resetPageCacheAdapter(instance);
+    __setDevMode(true);
+    clearMixedPublicCache();
+    autoInvalidateRegistry.unregisterPath("/isolated-query-cache");
+  }
+});
+
 test("PPR request GET dependencies and prop bindings stream before unrelated private fields settle", async () => {
   const fast = Promise.withResolvers<void>();
   const slow = Promise.withResolvers<string>();
@@ -223,5 +314,53 @@ test("PPR request GET dependencies and prop bindings stream before unrelated pri
     fast.resolve();
     slow.resolve("ready");
     autoInvalidateRegistry.unregisterPath("/private-query-test");
+  }
+});
+
+test("request GET sessions preserve independent public query seeds", async () => {
+  const publicData = { title: "Public" };
+  const publicSeed = {
+    url: "https://catalog.example/items",
+    data: publicData,
+    local: false,
+    identity: { id: "catalog", scope: {}, session: "anonymous" },
+    bindings: [{ source: [], target: ["catalog"] }],
+  };
+  const api = createClient(
+    new Elysia().get("/private", ({ set }) => {
+      set.headers["x-furin-query"] = JSON.stringify({ id: "private", scope: {}, session: "alice" });
+      return { title: "Private" };
+    })
+  );
+  const route = {
+    pattern: "/query-sessions",
+    requestKeys: [],
+    page: {},
+    routeChain: [
+      {
+        requestLoader: async () => {
+          await api.private.get();
+          return {};
+        },
+      },
+    ],
+  } as unknown as ResolvedRoute;
+  const context = {
+    request: new Request("http://localhost/query-sessions"),
+    path: "/query-sessions",
+    params: {},
+    query: {},
+    set: { headers: {} },
+  } as unknown as Context;
+  try {
+    const result = await withRequestLoaderData(route, context, {
+      type: "data",
+      syncData: { catalog: publicData, __furinQueries: [publicSeed] },
+      headers: {},
+      deferredPromises: undefined,
+    });
+    expect(result.syncData.__furinQueries).toEqual(expect.arrayContaining([publicSeed]));
+  } finally {
+    autoInvalidateRegistry.unregisterPath("/query-sessions");
   }
 });

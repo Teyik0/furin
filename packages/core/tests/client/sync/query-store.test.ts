@@ -51,6 +51,15 @@ test("late streamed hydration cannot replace a newer committed mutation or anoth
   expect(store.snapshot(url).data).toBe(2);
 });
 
+test("a completed GET supersedes an older streamed snapshot", () => {
+  const store = new QueryStore(undefined);
+  store.observe(url, result(0, "alice"), store.generation());
+  const hydrate = store.captureHydration();
+  store.observe(url, result(1, "alice"), store.generation());
+  hydrate([{ url, identity, data: 0 }], undefined);
+  expect(store.snapshot(url).data).toBe(1);
+});
+
 test("rollback removes only its own contribution and holds reads until other writes settle", async () => {
   const store = new QueryStore(undefined);
   store.observe(url, result(0, "alice"), store.generation());
@@ -111,6 +120,20 @@ test("a different principal clears the old session and discards its in-flight re
   expect(store.snapshot(url).data).toBe("Bob");
 });
 
+test("a session change releases mutation projections", () => {
+  const store = new QueryStore(undefined);
+  store.observe(url, result(0, "alice"), store.generation());
+  const projection = store.begin();
+  let removed = 0;
+  projection.onRemove = () => {
+    removed += 1;
+  };
+  store.update(projection, url, (value) => Number(value) + 1);
+  store.observe(`${url}/session`, result(2, "bob"), store.generation());
+  expect(removed).toBe(1);
+  expect(store.snapshot(url).data).toBeUndefined();
+});
+
 test("hydration remaps an in-process Eden origin and avoids a duplicate initial GET", async () => {
   const store = new QueryStore("https://app.example");
   store.hydrate([{ url, identity, data: ["SSR"], local: true }], "https://app.example");
@@ -124,6 +147,12 @@ test("hydration remaps an in-process Eden origin and avoids a duplicate initial 
   expect(reads).toBe(0);
 });
 
+test("hydration preserves external origins when serialized again", () => {
+  const store = new QueryStore("https://app.example");
+  store.hydrate([{ url: "https://api.example/cards", identity, data: [], local: false }]);
+  expect(store.dehydrate()).toMatchObject([{ url: "https://api.example/cards", local: false }]);
+});
+
 test("journal retention resets revalidate observed reads even without loader dependencies", async () => {
   const store = new QueryStore(undefined);
   store.observe(url, result("Before", "alice"), store.generation());
@@ -132,4 +161,29 @@ test("journal retention resets revalidate observed reads even without loader dep
   store.invalidateAll();
   await store.fetch(url);
   expect(store.snapshot(url).data).toBe("After");
+});
+
+test("an invalidation during error recovery schedules the newest read", async () => {
+  const store = new QueryStore(undefined);
+  store.observe(url, result(0, "alice"), store.generation());
+  const stale = Promise.withResolvers<ReturnType<typeof result>>();
+  let reads = 0;
+  store.bind(url, () => {
+    reads += 1;
+    if (reads === 1) {
+      return Promise.reject(new Error("Unavailable"));
+    }
+    return reads === 2 ? stale.promise : Promise.resolve(result(2, "alice"));
+  });
+  store.subscribe(url, () => undefined);
+  store.invalidate([identity]);
+  await store.fetch(url);
+  store.invalidate([identity]);
+  await Promise.resolve();
+  store.invalidate([identity]);
+  stale.resolve(result(1, "alice"));
+  await store.fetch(url);
+  await Bun.sleep(0);
+  expect(reads).toBe(3);
+  expect(store.snapshot(url).data).toBe(2);
 });

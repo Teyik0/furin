@@ -118,6 +118,7 @@
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",
       },
       "dependencies": {
+        "@elysia/eden": "2.0.0-beta.5",
         "@elysia/static": "2.0.0-beta.2",
         "@jridgewell/trace-mapping": "^0.3.31",
         "@vercel/functions": "^3.9.9",
@@ -131,7 +132,6 @@
         "yuku-parser": "0.12.0",
       },
       "devDependencies": {
-        "@elysia/eden": "2.0.0-beta.5",
         "@prisma/adapter-pg": "7.10.0",
         "@prisma/client": "7.10.0",
         "@prisma/client-runtime-utils": "7.10.0",
@@ -142,7 +142,6 @@
         "prisma": "7.10.0",
       },
       "peerDependencies": {
-        "@elysia/eden": "^2.0.0-beta.5",
         "drizzle-orm": "^0.45.3",
         "elysia": "catalog:",
         "evlog": "catalog:",
@@ -151,7 +150,6 @@
         "typebox": "catalog:",
       },
       "optionalPeers": [
-        "@elysia/eden",
         "drizzle-orm",
       ],
     },

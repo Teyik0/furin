@@ -34,24 +34,25 @@ let confirmedCards: Card[] = [];
 let refresh: (() => Promise<void>) | undefined;
 const boardPattern = /^\/board\/[^/]+$/;
 const originalFetch = globalThis.fetch;
+const boardIdentity = { id: "board", scope: { boardId: "board-1" }, session: "test" };
+
+function boardData() {
+  return {
+    board: { id: "board-1", name: "Board" },
+    cards: confirmedCards.map((card) => ({ ...card })),
+  };
+}
 
 function response(result: MutationResult): Response {
   return Response.json(result.error ?? result.data, { status: result.error ? 422 : 200 });
 }
 const app = new Elysia()
   .get("/api/boards/:boardId", () =>
-    Response.json(
-      { board: { id: "board-1", name: "Board" }, cards: confirmedCards },
-      {
-        headers: {
-          "x-furin-query": JSON.stringify({
-            id: "board",
-            scope: { boardId: "board-1" },
-            session: "test",
-          }),
-        },
-      }
-    )
+    Response.json(boardData(), {
+      headers: {
+        "x-furin-query": JSON.stringify(boardIdentity),
+      },
+    })
   )
   .post("/api/boards/:boardId/cards", async () =>
     response(
@@ -83,6 +84,23 @@ mock.module("../src/lib/api", () => ({
   ).api,
 }));
 const { Kanban } = await import("../src/components/ui/kanban");
+const { moveCard } = await import("../src/lib/card-mutations");
+
+test("optimistic moves renumber both affected columns", () => {
+  const cards = [
+    { id: "a", title: "A", column: "todo" as const, position: 0 },
+    { id: "b", title: "B", column: "todo" as const, position: 1 },
+    { id: "c", title: "C", column: "done" as const, position: 0 },
+    { id: "d", title: "D", column: "done" as const, position: 1 },
+  ];
+  const moved = moveCard(cards, "a", "done", "d");
+  expect(moved?.nextCards.map(({ id, column, position }) => ({ id, column, position }))).toEqual([
+    { id: "b", column: "todo", position: 0 },
+    { id: "c", column: "done", position: 0 },
+    { id: "a", column: "done", position: 1 },
+    { id: "d", column: "done", position: 2 },
+  ]);
+});
 
 function Page({ initialCards }: { initialCards: Card[] }) {
   const router = useRouter();
@@ -96,12 +114,9 @@ async function renderBoard(cards: Card[]) {
   const querySeeds = () => [
     {
       url: `${window.location.origin}/api/boards/board-1`,
-      identity: { id: "board", scope: { boardId: "board-1" }, session: "test" },
+      identity: boardIdentity,
       bindings: [{ target: ["initialCards"], source: ["cards"] }],
-      data: {
-        board: { id: "board-1", name: "Board" },
-        cards: confirmedCards.map((card) => ({ ...card })),
-      },
+      data: boardData(),
     },
   ];
   globalThis.fetch = (async () =>

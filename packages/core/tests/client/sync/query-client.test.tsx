@@ -6,13 +6,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { createClient, useQuery } from "../../../src/client.ts";
 import { installDom, uninstallDom } from "../../support/dom.ts";
 
-let root: Root;
+let root: Root | undefined;
 beforeEach(() => {
+  root = undefined;
   installDom();
 });
 afterEach(async () => {
-  await act(() => root.unmount());
-  uninstallDom();
+  await act(() => root?.unmount());
+  await uninstallDom();
 });
 
 test("two Eden query consumers share a fetch and an optimistic projection", async () => {
@@ -35,9 +36,10 @@ test("two Eden query consumers share a fetch and an optimistic projection", asyn
     return <span>{data?.[0]?.title}</span>;
   }
   const container = document.createElement("div");
-  root = createRoot(container);
+  const viewRoot = createRoot(container);
+  root = viewRoot;
   await act(async () => {
-    root.render(
+    viewRoot.render(
       <>
         <View />
         <View />

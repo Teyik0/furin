@@ -293,7 +293,9 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
     tags: [
       ...new Set([
         ...(input.route.tags ?? []),
-        ...getAutoInvalidateRegistry().tagsForPath(input.cacheKey),
+        ...getAutoInvalidateRegistry().tagsForPath(
+          input.cacheKey.slice(input.cacheKey.indexOf(":") + 1)
+        ),
       ]),
     ],
   };

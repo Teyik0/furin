@@ -92,3 +92,41 @@ test("a rejected save preserves the user's title and description", async () => {
     container.remove();
   }
 });
+
+test("navigating to another card resets the form draft", async () => {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const render = (id: string, title: string) =>
+    act(() =>
+      root.render(
+        createElement(route.page, {
+          boardName: "Board",
+          formattedCreatedAt: "Sep 30",
+          renderedAt: "12:00",
+          sidebarBoards: [],
+          params: { boardId: "board-1", cardId: id },
+          card: {
+            id,
+            title,
+            boardId: "board-1",
+            column: "todo",
+            description: `${title} description`,
+            createdAt: "2026-09-30",
+            position: 0,
+          },
+        })
+      )
+    );
+  try {
+    await render("card-1", "First");
+    await render("card-2", "Second");
+    expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe("Second");
+    expect(
+      container.querySelector<HTMLTextAreaElement>('textarea[name="description"]')?.value
+    ).toBe("Second description");
+  } finally {
+    await act(() => root.unmount());
+    container.remove();
+  }
+});

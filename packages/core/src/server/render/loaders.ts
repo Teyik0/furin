@@ -1,12 +1,10 @@
 import type { Context } from "elysia";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import { currentQueryEnvironment } from "../../client/query-store.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
 import { isDeferred } from "../../shared/defer.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
-import type { QuerySeed } from "../../shared/sync-query.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
@@ -418,9 +416,6 @@ export function withRequestLoaderData(
   return captureQueryReads(
     ctx,
     async () => {
-      currentQueryEnvironment()?.store.hydrate(
-        (publicResult.syncData.__furinQueries as QuerySeed[] | undefined) ?? []
-      );
       const requestFields = runRequestLoaderFields(route, ctx);
       if (requestFields === undefined) {
         throw new Error(

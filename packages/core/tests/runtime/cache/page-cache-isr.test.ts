@@ -171,6 +171,72 @@ test("stale ISR refreshes the shared entry", (done) => {
   scenario.then(() => done(), done);
 }, 15_000);
 
+test("background discovery cannot drop query tags from a shared ISR entry", async () => {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Missing ISR fixture");
+  }
+  const query = { id: "cards", scope: {}, session: "public" };
+  let reads = 0;
+  const api = withSync(
+    treaty(
+      new Elysia().get("/cards", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(query);
+        return { timestamp: 2 };
+      })
+    )
+  );
+  const route = {
+    ...matched,
+    tags: undefined,
+    page: {
+      ...matched.page,
+      loader: async () => (await api.cards.get()).data ?? {},
+    },
+  };
+  const instance = registerInstance(createInstance("", "/background-query/pages"));
+  instance.buildId = "build-a";
+  const cache = createMemoryPageCache();
+  const identity: PageCacheIdentity = {
+    buildId: instance.buildId,
+    key: "/isr-page",
+    mode: "isr",
+    path: "/isr-page",
+    scope: "",
+    tags: [queryTag(query)],
+  };
+  const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+  if (!lease) {
+    throw new Error("Missing cache lease");
+  }
+  await cache.commit({
+    identity,
+    lease,
+    entry: {
+      cachedAt: 0,
+      payload: "<html>stale</html>",
+      revalidate: 60,
+    },
+  });
+  setPageCacheAdapter(instance, { ...cache, read: () => cache.read(identity) });
+  try {
+    await withInstance(instance, () =>
+      handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
+    );
+    await waitForPendingISRRevalidations();
+    expect(reads).toBe(1);
+    expect((await cache.read(identity))?.payload).toBe("<html>stale</html>");
+    await cache.invalidate({ kind: "tags", scope: "", tags: [queryTag(query)] });
+    expect(await cache.read(identity)).toBeNull();
+  } finally {
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
+});
+
 async function runStaleISRRefresh(): Promise<void> {
   __setDevMode(false);
   const result = await scanFixture();
@@ -361,7 +427,7 @@ test("ISR discovers Eden dependencies without loader tags and invalidates the sh
     value = 2;
     expect(await revalidateTag(queryTag(identity))).toBe(true);
     const fresh = await render(createContext("/isr-page"));
-    expect(fresh).toContain("2");
+    expect(fresh).toContain('data-timestamp="2"');
     expect(reads).toBe(3);
   } finally {
     resetPageCacheAdapter(instance);

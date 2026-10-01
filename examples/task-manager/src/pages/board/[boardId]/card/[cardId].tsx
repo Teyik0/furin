@@ -60,9 +60,16 @@ export const route = defineRoute()
     meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
   }))
   .page(({ card, boardName, renderedAt, formattedCreatedAt, params }) => {
+    const [editingCardId, setEditingCardId] = useState(card.id);
     const [title, setTitle] = useState(card.title);
     const [description, setDescription] = useState(card.description);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    if (editingCardId !== card.id) {
+      setEditingCardId(card.id);
+      setTitle(card.title);
+      setDescription(card.description);
+      setErrorMessage(null);
+    }
     const router = useRouter();
 
     const handleSave = async (formData: FormData) => {

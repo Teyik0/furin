@@ -80,7 +80,12 @@ export function queryTag(identity: QueryIdentity): string {
     PREFIX +
     JSON.stringify([
       identity.id,
-      Object.entries(identity.scope).sort(([a], [b]) => a.localeCompare(b)),
+      Object.entries(identity.scope).sort(([a], [b]) => {
+        if (a === b) {
+          return 0;
+        }
+        return a < b ? -1 : 1;
+      }),
     ])
   );
 }
@@ -89,11 +94,32 @@ export function queryFromTag(tag: string): QueryIdentity | undefined {
   if (!tag.startsWith(PREFIX)) {
     return;
   }
-  const [id, scope] = JSON.parse(tag.slice(PREFIX.length)) as [
-    string,
-    [string, string | number | boolean | null][],
-  ];
-  return { id, scope: Object.fromEntries(scope) };
+  try {
+    const value: unknown = JSON.parse(tag.slice(PREFIX.length));
+    if (
+      !Array.isArray(value) ||
+      value.length !== 2 ||
+      typeof value[0] !== "string" ||
+      !Array.isArray(value[1]) ||
+      value[1].some(
+        (entry: unknown) =>
+          !Array.isArray(entry) ||
+          entry.length !== 2 ||
+          typeof entry[0] !== "string" ||
+          !(
+            entry[1] === null ||
+            typeof entry[1] === "string" ||
+            typeof entry[1] === "number" ||
+            typeof entry[1] === "boolean"
+          )
+      )
+    ) {
+      return;
+    }
+    return { id: value[0], scope: Object.fromEntries(value[1]) };
+  } catch {
+    // Ordinary cache tags may start with the reserved prefix without encoding a query.
+  }
 }
 
 export function queryUrl(url: string, origin: string | undefined): string {

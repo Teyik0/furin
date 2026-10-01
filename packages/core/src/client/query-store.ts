@@ -11,6 +11,8 @@ export const QUERY_REFERENCE = Symbol.for("furin.query.reference.v1");
 export interface ReadResult {
   data: unknown;
   error: unknown;
+  identity?: QueryReadIdentity;
+  local?: boolean;
   response?: Response;
 }
 
@@ -174,24 +176,16 @@ export class QueryStore {
       return;
     }
     const header = result.response?.headers.get("x-furin-query");
-    const identity = header ? (JSON.parse(header) as QueryReadIdentity) : undefined;
-    if (identity && this.session !== undefined && this.session !== identity.session) {
-      this.epoch += 1;
-      this.projections.clear();
-      for (const entry of this.entries.values()) {
-        entry.base = undefined;
-        entry.identity = undefined;
-        entry.stale = true;
-        entry.version += 1;
-        entry.snapshot = { data: undefined, error: null, isFetching: false };
-        this.publish(entry);
-      }
+    const identity =
+      result.identity ?? (header ? (JSON.parse(header) as QueryReadIdentity) : undefined);
+    if (identity) {
+      this.setSession(identity.session);
     }
-    this.session = identity?.session ?? this.session;
     const entry = this.entry(url);
     entry.base = result.data;
+    entry.version += 1;
     entry.identity = identity;
-    entry.local = result.response?.url === "";
+    entry.local = result.local ?? result.response?.url === "";
     entry.stale = false;
     entry.snapshot = { data: result.data, error: null, isFetching: false };
     for (const projection of this.projections) {
@@ -213,6 +207,25 @@ export class QueryStore {
         this.entries.delete(oldest[0]);
       }
     }
+  }
+
+  private setSession(session: string): void {
+    if (this.session !== undefined && this.session !== session) {
+      this.epoch += 1;
+      for (const projection of this.projections) {
+        projection.onRemove?.();
+      }
+      this.projections.clear();
+      for (const entry of this.entries.values()) {
+        entry.base = undefined;
+        entry.identity = undefined;
+        entry.stale = true;
+        entry.version += 1;
+        entry.snapshot = { data: undefined, error: null, isFetching: false };
+        this.publish(entry);
+      }
+    }
+    this.session = session;
   }
 
   generation(): number {
@@ -288,12 +301,7 @@ export class QueryStore {
         entry.promise = undefined;
         entry.snapshot = { ...entry.snapshot, isFetching: false };
         this.publish(entry);
-        if (
-          entry.stale &&
-          version !== entry.version &&
-          entry.listeners.size > 0 &&
-          !entry.snapshot.error
-        ) {
+        if (entry.stale && version !== entry.version && entry.listeners.size > 0) {
           this.fetch(url);
         }
       });
@@ -400,9 +408,8 @@ export class QueryStore {
         {
           data: seed.data,
           error: null,
-          response: new Response(null, {
-            headers: { "x-furin-query": JSON.stringify(seed.identity) },
-          }),
+          identity: seed.identity,
+          local: seed.local ?? false,
         },
         this.epoch
       );

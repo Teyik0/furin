@@ -152,7 +152,9 @@ async function createSegmentSnapshot(
   return JSON.stringify({
     data: await toCrossJSONAsync(data),
     dependencies,
-    queries: bindQueryData(data, currentQueryEnvironment()?.store.dehydrate() ?? []),
+    queries: bindQueryData(data, currentQueryEnvironment()?.store.dehydrate() ?? []).filter(
+      (seed) => (seed.bindings?.length ?? 0) > 0
+    ),
   } satisfies SegmentSnapshot);
 }
 

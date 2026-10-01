@@ -24,15 +24,22 @@ export function moveCard<Card extends KanbanCard>(
 
   if (before === "-1") {
     nextCards.push(cardToTransfer);
-    return { nextCards, previousColumn, previousIndex };
+  } else {
+    const insertAtIndex = nextCards.findIndex((card) => card.id === before);
+    if (insertAtIndex === -1) {
+      return null;
+    }
+    nextCards.splice(insertAtIndex, 0, cardToTransfer);
   }
-
-  const insertAtIndex = nextCards.findIndex((card) => card.id === before);
-  if (insertAtIndex === -1) {
-    return null;
-  }
-
-  nextCards.splice(insertAtIndex, 0, cardToTransfer);
+  const positions = new Map<ColumnType, number>();
+  nextCards = nextCards.map((card) => {
+    if (card.column !== previousColumn && card.column !== nextColumn) {
+      return card;
+    }
+    const position = positions.get(card.column) ?? 0;
+    positions.set(card.column, position + 1);
+    return { ...card, position };
+  });
   return { nextCards, previousColumn, previousIndex };
 }
 

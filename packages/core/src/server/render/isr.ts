@@ -755,17 +755,28 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
       return;
     }
     if (input.sharedCache !== undefined && lease !== null) {
+      const { identity } = input.sharedCache;
+      if ((result.queryTags ?? []).some((tag) => !identity.tags.includes(tag))) {
+        return;
+      }
       await input.sharedCache.adapter.commit({
         entry: { cachedAt: Date.now(), payload: result.html, revalidate: input.revalidate },
         identity: input.sharedCache.identity,
         lease,
       });
     } else if (input.cacheGeneration !== undefined) {
-      setISRCacheIfGenerationUnchanged(
+      const stored = setISRCacheIfGenerationUnchanged(
         input.cacheKey,
         { generatedAt: Date.now(), html: result.html, revalidate: input.revalidate },
         input.cacheGeneration
       );
+      if (stored) {
+        autoInvalidateRegistry.registerLoaderTags(
+          input.cacheKey,
+          [...(input.route.tags ?? []), ...(result.queryTags ?? [])],
+          "render:isr"
+        );
+      }
     }
   } catch (error: unknown) {
     await handleBackgroundRevalidationError(input, error);

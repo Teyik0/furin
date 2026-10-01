@@ -331,7 +331,7 @@ describe.serial("partial prerendering", () => {
       return <strong>{use(data).cards[0]?.title}</strong>;
     }
     const page = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
       .requestLoader(({ cookies }) => ({
         user: api.cards
           .get({ headers: { "x-person": String(cookies.get("session")) } })
@@ -1176,6 +1176,45 @@ describe.serial("partial prerendering", () => {
     }
 
     expect(publicCalls).toBe(2);
+  });
+
+  test("shared PPR query discovery stores an artifact on the next render", async () => {
+    let reads = 0;
+    const identity = { id: "catalog", scope: {}, session: "public" };
+    const api = createClient(
+      new Elysia().get("/catalog", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { title: "Public" };
+      })
+    );
+    const page = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(async () => ({ catalog: (await api.catalog.get()).data }))
+      .page(({ catalog }) => <main>{catalog?.title}</main>);
+    const resolved = resolveRoute(page);
+    const owner = registerInstance(createInstance("", "/query-ppr/pages"));
+    owner.buildId = "build-1";
+    const cache = createMemoryPageCache();
+    setPageCacheAdapter(owner, cache);
+    const app = new Elysia().use(createRoutePlugin(resolved, root, owner.buildId));
+    const request = () =>
+      withInstance(owner, () => app.handle(new Request("http://localhost/account")));
+    try {
+      await (await request()).text();
+      await (await request()).text();
+      await (await request()).text();
+      expect(reads).toBe(2);
+      await cache.invalidate({ kind: "tags", scope: "", tags: [queryTag(identity)] });
+      await (await request()).text();
+      expect(reads).toBe(3);
+    } finally {
+      resetPageCacheAdapter(owner);
+      clearPprRouteCache(owner);
+      getAutoInvalidateRegistry(owner).unregisterPath("/account");
+      __clearInstanceRegistry();
+    }
   });
 
   test("external prerender bypasses shared and local PPR artifacts", async () => {

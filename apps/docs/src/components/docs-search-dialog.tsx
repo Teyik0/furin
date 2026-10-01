@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { SearchIndexEntry } from "@/lib/docs-search";
-import { createDocsSearchIndex, runDocsSearch } from "@/lib/docs-search-client";
 import { SEARCH_MIN_QUERY_LENGTH, type SearchResult } from "@/lib/docs-search-shared";
 import { cn } from "@/lib/utils";
+import { DocsQueryProvider } from "./docs-query-provider";
 
 const SEARCH_DEBOUNCE_MS = 180;
 const MAC_PLATFORM_RE = /Mac|iPhone|iPad|iPod/;
@@ -39,6 +39,7 @@ async function loadSearchIndex(basePath: string): Promise<AnyOrama> {
   if (!Array.isArray(entries)) {
     throw new Error("Search index payload is not an array");
   }
+  const { createDocsSearchIndex } = await import("@/lib/docs-search-client");
   return createDocsSearchIndex(entries as SearchIndexEntry[]);
 }
 
@@ -164,8 +165,16 @@ function SearchResultsArea({
 }
 
 export function DocsSearchDialog() {
+  return (
+    <DocsQueryProvider>
+      <SearchDialog />
+    </DocsQueryProvider>
+  );
+}
+
+function SearchDialog() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -195,7 +204,10 @@ export function DocsSearchDialog() {
   const { data: searchData, isFetching: isSearchFetching } = useQuery({
     enabled: isIndexReady && trimmedDebounced.length >= SEARCH_MIN_QUERY_LENGTH,
     placeholderData: keepPreviousData,
-    queryFn: () => runDocsSearch(searchIndex as AnyOrama, trimmedDebounced),
+    queryFn: async () => {
+      const { runDocsSearch } = await import("@/lib/docs-search-client");
+      return runDocsSearch(searchIndex as AnyOrama, trimmedDebounced);
+    },
     queryKey: ["docs-search", trimmedDebounced],
   });
 
@@ -276,7 +288,7 @@ export function DocsSearchDialog() {
   const shortcutLabel = getShortcutLabel();
 
   return (
-    <DialogRoot>
+    <DialogRoot defaultOpen>
       <DialogTrigger asChild>
         <button
           className="flex h-8 w-full max-w-xs items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-muted-foreground transition-colors hover:border-border/80 hover:bg-muted/60"
