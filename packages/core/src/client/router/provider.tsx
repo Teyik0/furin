@@ -1301,6 +1301,7 @@ export function RouterProvider({
         {
           basePath,
           currentHref,
+          currentPattern: state.match?.pattern,
           defaultPreload,
           defaultPreloadDelay,
           defaultPreloadStaleTime,

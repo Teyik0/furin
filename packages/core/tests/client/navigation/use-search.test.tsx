@@ -78,6 +78,15 @@ async function renderWithRouter(
 describe("useSearch", () => {
   useDomTests();
 
+  test("keeps the matching root fallback usable without a router provider", () => {
+    function Page() {
+      const [search] = useSearch("/");
+      return createElement("output", null, JSON.stringify(search));
+    }
+
+    expect(renderToStaticMarkup(createElement(Page))).toBe("<output>{}</output>");
+  });
+
   test("rejects a route hint that does not match the rendered route", () => {
     function Page(): React.ReactElement {
       const [search] = useSearch("/products");

@@ -28,6 +28,7 @@ interface MutationResult {
   error: { message: string } | null;
 }
 let resolveCreate: ((result: MutationResult) => void) | undefined;
+let createFailure: Response | Error | undefined;
 let resolveDelete: typeof resolveCreate;
 let resolveMove: typeof resolveCreate;
 let confirmedCards: Card[] = [];
@@ -79,7 +80,14 @@ const app = new Elysia()
 mock.module("../src/lib/api", () => ({
   api: withSync(
     treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      fetcher: ((input, init) => {
+        if (init?.method === "POST" && createFailure) {
+          return createFailure instanceof Error
+            ? Promise.reject(createFailure)
+            : Promise.resolve(createFailure.clone());
+        }
+        return app.handle(new Request(input, init));
+      }) as typeof fetch,
     })
   ).api,
 }));
@@ -168,6 +176,7 @@ async function renderBoard(cards: Card[]) {
 afterEach(() => {
   globalThis.fetch = originalFetch;
   resolveCreate = undefined;
+  createFailure = undefined;
   resolveDelete = undefined;
   resolveMove = undefined;
   refresh = undefined;
@@ -224,6 +233,35 @@ async function dragCard(container: Element, destination: Element) {
     await Promise.resolve();
   });
 }
+
+test.each(["network", "empty", "text", "json-null", "invalid-json"])(
+  "preserves the new-card draft after a %s failure",
+  async (failure) => {
+    if (failure === "network") {
+      createFailure = new TypeError("Failed to fetch");
+    } else if (failure === "json-null") {
+      createFailure = Response.json(null, { status: 502 });
+    } else {
+      createFailure = new Response(failure === "empty" ? null : "Bad gateway", {
+        status: 502,
+        headers: failure === "invalid-json" ? { "Content-Type": "application/json" } : {},
+      });
+    }
+    const board = await renderBoard([]);
+    try {
+      await submitCard(board.container, "My task draft");
+      expect(board.container.textContent).toContain("Could not create the card. Please try again.");
+      expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+        "My task draft"
+      );
+      expect(
+        board.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
+      ).toBe(false);
+    } finally {
+      await board.cleanup();
+    }
+  }
+);
 
 test("creates an optimistic card through Eden and replaces it with confirmed loader props", async () => {
   const board = await renderBoard([]);

@@ -22,8 +22,14 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
   const initial = board.name.charAt(0).toUpperCase();
   const [errorMessage, deleteBoard, isPending] = useActionState(
     async (_previous: string | null): Promise<string | null> => {
-      const { error } = await api.boards({ boardId: board.id }).delete();
-      return error ? error.value.detail : null;
+      try {
+        const { error } = await api.boards({ boardId: board.id }).delete();
+        return error
+          ? (error.value?.detail ?? "Could not delete the board. Please try again.")
+          : null;
+      } catch {
+        return "Could not delete the board. Please try again.";
+      }
     },
     null
   );

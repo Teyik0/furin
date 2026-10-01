@@ -10,12 +10,16 @@ export function CreateBoardForm() {
         return null;
       }
 
-      const { error } = await api.boards.post({ name: trimmed });
-      if (error) {
-        return error.value.detail ?? "Could not create the board. Please try again.";
+      try {
+        const { error } = await api.boards.post({ name: trimmed });
+        if (error) {
+          return error.value?.detail ?? "Could not create the board. Please try again.";
+        }
+        setName("");
+        return null;
+      } catch {
+        return "Could not create the board. Please try again.";
       }
-      setName("");
-      return null;
     },
     null
   );

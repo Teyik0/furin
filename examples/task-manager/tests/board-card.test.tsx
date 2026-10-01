@@ -19,6 +19,7 @@ setupDomTests();
 
 const deleteCalls: unknown[][] = [];
 let deleteResponse: Promise<Response> | undefined;
+let transportFailure: Error | undefined;
 
 const app = new Elysia().delete("/boards/:boardId", ({ headers, params }) => {
   deleteCalls.push([
@@ -30,7 +31,12 @@ const app = new Elysia().delete("/boards/:boardId", ({ headers, params }) => {
 mock.module("../src/lib/api", () => ({
   api: withSync(
     treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      fetcher: ((input, init) => {
+        if (transportFailure) {
+          return Promise.reject(transportFailure);
+        }
+        return app.handle(new Request(input, init));
+      }) as typeof fetch,
     })
   ),
 }));
@@ -40,7 +46,60 @@ const { BoardCard } = await import("../src/components/board-card");
 afterEach(() => {
   deleteCalls.length = 0;
   deleteResponse = undefined;
+  transportFailure = undefined;
 });
+
+test.each(["network", "json-null", "invalid-json"])(
+  "keeps board deletion retryable after a %s failure",
+  async (failure) => {
+    if (failure === "network") {
+      transportFailure = new TypeError("Failed to fetch");
+    } else {
+      deleteResponse = Promise.resolve(
+        failure === "json-null"
+          ? Response.json(null, { status: 502 })
+          : new Response("invalid", {
+              headers: { "Content-Type": "application/json" },
+              status: 502,
+            })
+      );
+    }
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BoardCard, {
+            board: {
+              id: "board-1",
+              name: "Board",
+              createdAt: "2026-09-30",
+              formattedCreatedAt: "Sep 30",
+            },
+          })
+        )
+      );
+      const button = container.querySelector<HTMLButtonElement>('button[title="Delete board"]');
+      await act(async () => {
+        button?.click();
+        await Promise.resolve();
+      });
+      expect(container.textContent).toContain("Could not delete the board. Please try again.");
+      expect(button?.disabled).toBe(false);
+      transportFailure = undefined;
+      deleteResponse = undefined;
+      await act(async () => {
+        button?.click();
+        await Promise.resolve();
+      });
+      expect(container.textContent).not.toContain("Could not delete the board.");
+    } finally {
+      await act(() => root.unmount());
+      container.remove();
+    }
+  }
+);
 
 test("deletes a board with an idempotent Eden request", async () => {
   const container = document.createElement("div");

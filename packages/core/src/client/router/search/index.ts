@@ -7,6 +7,7 @@ import {
 import { buildHref } from "../link-utils.ts";
 import {
   FALLBACK_SEARCH_STORE,
+  type SearchStore,
   SearchStoreContext,
   type SearchStoreSnapshot,
 } from "../search-store.ts";
@@ -40,9 +41,9 @@ function pathnameFromLogicalHref(logicalHref: string): string {
   return new URL(logicalHref, "http://furin.local").pathname;
 }
 
-function assertSearchRoute(from: string, snapshot: SearchStoreSnapshot): void {
+function assertSearchRoute(from: string, snapshot: SearchStoreSnapshot, store: SearchStore): void {
   if (
-    snapshot.currentPattern === undefined ||
+    (snapshot.currentPattern === undefined && store !== FALLBACK_SEARCH_STORE) ||
     (from !== snapshot.currentPattern && from !== pathnameFromLogicalHref(snapshot.currentHref))
   ) {
     throw new Error(`[furin] useSearch("${from}") does not match the current route.`);
@@ -57,12 +58,12 @@ function useSearchSelection<To extends SearchRouteTo, TSelected>(
 
   const getSnapshot = useCallback(() => {
     const snapshot = store.getSnapshot();
-    assertSearchRoute(from, snapshot);
+    assertSearchRoute(from, snapshot, store);
     return selector(snapshot.search as ResolvedRouteSearch<To>);
   }, [from, selector, store]);
   const getServerSnapshot = useCallback(() => {
     const snapshot = store.getServerSnapshot();
-    assertSearchRoute(from, snapshot);
+    assertSearchRoute(from, snapshot, store);
     return selector(snapshot.search as ResolvedRouteSearch<To>);
   }, [from, selector, store]);
 
@@ -89,7 +90,7 @@ export function useSearch<To extends SearchRouteTo, TSelected>(
     (next, opts) => {
       const snapshot = store.getSnapshot();
       try {
-        assertSearchRoute(from, snapshot);
+        assertSearchRoute(from, snapshot, store);
       } catch (error) {
         return Promise.reject(error);
       }

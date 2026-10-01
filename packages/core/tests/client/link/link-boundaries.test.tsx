@@ -13,7 +13,10 @@ import { describe, expect, test } from "bun:test";
 import React, {
   Children,
   createElement,
+  forwardRef,
   isValidElement,
+  lazy,
+  memo,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -39,8 +42,8 @@ function makeRoute(opts: Partial<Omit<RuntimeRoute, "__type">>): RuntimeRoute {
   return { __type: "FURIN_ROUTE", ...opts };
 }
 
-function namedLayout(label: string): RuntimeRoute["layout"] {
-  const L: RuntimeRoute["layout"] = ({ children }) =>
+function namedLayout(label: string): NonNullable<RuntimeRoute["layout"]> {
+  const L: NonNullable<RuntimeRoute["layout"]> = ({ children }) =>
     createElement("div", { "data-testid": label }, children);
   Object.defineProperty(L, "name", { value: label });
   return L;
@@ -81,7 +84,15 @@ function typeChain(node: ReactNode): string[] {
           (type as { name?: string }).name ??
           "Anonymous");
     // Context providers do not change the layout/boundary component order.
-    if (typeof type === "function" || typeof type === "string") {
+    const marker =
+      typeof type === "object" && type !== null
+        ? (type as { $$typeof?: symbol }).$$typeof
+        : undefined;
+    if (
+      marker !== Symbol.for("react.provider") &&
+      marker !== Symbol.for("react.context") &&
+      marker !== Symbol.for("react.consumer")
+    ) {
       chain.push(name);
     }
     const children = (current as ReactElement).props as { children?: ReactNode };
@@ -99,6 +110,27 @@ function typeChain(node: ReactNode): string[] {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("buildPageElement — client-side boundary interleaving", () => {
+  test.each([
+    memo(namedLayout("Layout")),
+    forwardRef<HTMLDivElement, { children?: ReactNode }>((props, ref) =>
+      createElement("div", { ref }, props.children)
+    ),
+    lazy(async () => ({ default: namedLayout("Layout") })),
+  ])("preserves wrapped layouts in the boundary chain (%#)", (layout) => {
+    Object.defineProperty(layout, "displayName", { value: "WrappedLayout" });
+    const rootRoute = makeRoute({ layout });
+    const pageRoute = makeRoute({ parent: rootRoute });
+    const element = buildPageElement(
+      makeMatch(pageRoute, undefined),
+      rootRoute,
+      {},
+      undefined,
+      undefined
+    );
+
+    expect(typeChain(element)).toEqual(["WrappedLayout", "Page"]);
+  });
+
   test("no segmentBoundaries → current behavior preserved (no boundary wrappers)", () => {
     const rootRoute = makeRoute({ layout: namedLayout("Root") });
     const pageRoute = makeRoute({ layout: namedLayout("L1"), parent: rootRoute });

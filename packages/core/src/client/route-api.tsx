@@ -8,6 +8,16 @@ interface RouteSnapshot {
   pattern: string;
 }
 
+const RESERVED_RENDER_KEYS = new Set([
+  "catch",
+  "children",
+  "finally",
+  "key",
+  "ref",
+  "then",
+  "toJSON",
+]);
+
 // Separate client entrypoints share the context, never request-specific data.
 const ROUTE_CONTEXT = Symbol.for("furin.route.context.v1");
 const contextGlobal = globalThis as typeof globalThis & {
@@ -36,7 +46,9 @@ export function withRouteSnapshot(element: ReactNode, pattern: string, props: ob
     query?: object;
   };
   const loaderData = Object.fromEntries(
-    Object.entries(data).filter(([key]) => !key.startsWith("__furin"))
+    Object.entries(data).filter(
+      ([key]) => !(RESERVED_RENDER_KEYS.has(key) || key.startsWith("__furin"))
+    )
   );
   return createElement(
     RouteContext.Provider,

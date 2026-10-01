@@ -80,42 +80,52 @@ export const route = defineRoute()
     const router = useRouter();
 
     const handleSave = async (formData: FormData) => {
-      const changes = {
-        description: String(formData.get("description") ?? ""),
-        title: String(formData.get("title") ?? ""),
-      };
-      const { error } = await api.cards({ id: card.id }).patch(changes, {
-        optimistic(cache) {
-          cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
-          cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
-            ...data,
-            cards: data.cards.map((item) => (item.id === card.id ? { ...item, ...changes } : item)),
-          }));
-        },
-      });
+      try {
+        const changes = {
+          description: String(formData.get("description") ?? ""),
+          title: String(formData.get("title") ?? ""),
+        };
+        const { error } = await api.cards({ id: card.id }).patch(changes, {
+          optimistic(cache) {
+            cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
+            cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
+              ...data,
+              cards: data.cards.map((item) =>
+                item.id === card.id ? { ...item, ...changes } : item
+              ),
+            }));
+          },
+        });
 
-      if (error) {
-        setErrorMessage(error.value.detail ?? "Validation error");
-        return;
+        if (error) {
+          setErrorMessage(error.value?.detail ?? "Validation error");
+          return;
+        }
+        setErrorMessage(null);
+        await router.navigate(`/board/${params.boardId}`);
+      } catch {
+        setErrorMessage("Could not save the card. Please try again.");
       }
-      setErrorMessage(null);
-      await router.navigate(`/board/${params.boardId}`);
     };
 
     const handleDelete = async () => {
-      const { error } = await api.cards({ id: card.id }).delete(undefined, {
-        optimistic: (cache) =>
-          cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
-            ...data,
-            cards: data.cards.filter((item) => item.id !== card.id),
-          })),
-      });
-      if (error) {
-        setErrorMessage(error.value.detail);
-        return;
+      try {
+        const { error } = await api.cards({ id: card.id }).delete(undefined, {
+          optimistic: (cache) =>
+            cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
+              ...data,
+              cards: data.cards.filter((item) => item.id !== card.id),
+            })),
+        });
+        if (error) {
+          setErrorMessage(error.value?.detail ?? "Could not delete the card. Please try again.");
+          return;
+        }
+        setErrorMessage(null);
+        await router.navigate(`/board/${params.boardId}`);
+      } catch {
+        setErrorMessage("Could not delete the card. Please try again.");
       }
-      setErrorMessage(null);
-      await router.navigate(`/board/${params.boardId}`);
     };
 
     return (

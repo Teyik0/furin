@@ -71,7 +71,7 @@ describe("getRouteApi", () => {
     ).toThrow('getRouteApi("/route-api-board/:boardId")');
   });
 
-  test("does not expose params, query or path as loader fields", () => {
+  test("does not expose reserved render props as loader fields", () => {
     function Keys() {
       return createElement("output", null, Object.keys(board.useLoaderData()).sort().join(","));
     }
@@ -79,6 +79,14 @@ describe("getRouteApi", () => {
       { ...route, page: { ...route.page, component: Keys } },
       {
         __furinQueries: [],
+        catch: "reserved catch",
+        children: "reserved children",
+        finally: "reserved finally",
+        key: "reserved key",
+        ref: "reserved ref",
+        // biome-ignore lint/suspicious/noThenProperty: verifies that a reserved loader field is omitted.
+        then: "reserved then",
+        toJSON: "reserved toJSON",
         params: { boardId: 42 },
         path: "/board/42",
         query: { page: 1 },
@@ -145,6 +153,7 @@ describe("getRouteApi in the browser", () => {
         )
       );
       expect(container.textContent).toBe("42:Hydrated board");
+      expect(router?.currentPattern).toBe(route.pattern);
       expect(requests).toBe(0);
       await act(async () => {
         await router?.refresh();
@@ -163,6 +172,7 @@ describe("getRouteApi in the browser", () => {
         await router?.navigate({ to: "/route-api-board/:boardId", params: { boardId: 43 } });
       });
       expect(container.textContent).toBe("43:Other board");
+      expect(router?.currentPattern).toBe(route.pattern);
       expect(requests).toBe(2);
     } finally {
       await act(() => root.unmount());

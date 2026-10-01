@@ -385,33 +385,37 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
 
       const temporaryId = crypto.randomUUID();
       const createdAt = new Date().toISOString();
-      const { error } = await api.boards({ boardId }).cards.post(
-        { column, title },
-        {
-          optimistic: (cache) =>
-            cache.update(api.boards({ boardId }).get, (data) => ({
-              ...data,
-              cards: [
-                ...data.cards,
-                {
-                  boardId,
-                  column,
-                  createdAt,
-                  description: "",
-                  id: temporaryId,
-                  position: data.cards.filter((card) => card.column === column).length,
-                  title,
-                },
-              ],
-            })),
+      try {
+        const { error } = await api.boards({ boardId }).cards.post(
+          { column, title },
+          {
+            optimistic: (cache) =>
+              cache.update(api.boards({ boardId }).get, (data) => ({
+                ...data,
+                cards: [
+                  ...data.cards,
+                  {
+                    boardId,
+                    column,
+                    createdAt,
+                    description: "",
+                    id: temporaryId,
+                    position: data.cards.filter((card) => card.column === column).length,
+                    title,
+                  },
+                ],
+              })),
+          }
+        );
+        if (error) {
+          return error.value?.detail ?? "Could not create the card. Please try again.";
         }
-      );
-      if (error) {
-        return error.value.detail ?? "Could not create the card. Please try again.";
-      }
 
-      onClose();
-      return null;
+        onClose();
+        return null;
+      } catch {
+        return "Could not create the card. Please try again.";
+      }
     },
     null
   );

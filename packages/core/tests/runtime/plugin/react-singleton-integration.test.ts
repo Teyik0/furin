@@ -31,8 +31,9 @@ describe("furin-dev-page React singleton", () => {
          return <output>{boardId}:{title}</output>;
        }`,
       async (pagePath) => {
-        const first = await import(`${pagePath}?furin-server&t=route-api-first`);
-        const second = await import(`${pagePath}?furin-server&t=route-api-second`);
+        const timestamp = Date.now();
+        const first = await import(`${pagePath}?furin-server&t=${timestamp}`);
+        const second = await import(`${pagePath}?furin-server&t=${timestamp + 1}`);
         const makeElement = (component: typeof first.default, boardId: string, title: string) =>
           buildElement(
             {

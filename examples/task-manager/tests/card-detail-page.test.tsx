@@ -1,7 +1,8 @@
 import "../../../packages/core/tests/setup/global.ts";
-import { expect, mock, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { withSync } from "@teyik0/furin/client";
+import { RouterContext, SSR_FALLBACK_ROUTER } from "@teyik0/furin/link";
 import { Elysia } from "elysia";
 import {
   installDom,
@@ -17,6 +18,7 @@ const { createRoot } = await import("react-dom/client");
 setupDomTests();
 
 const submittedCards: unknown[] = [];
+let mutationFailure: Response | Error | undefined;
 const app = new Elysia().patch("/cards/:id", ({ body }) => {
   submittedCards.push(body);
   return Response.json({ message: "Save rejected" }, { status: 422 });
@@ -24,11 +26,98 @@ const app = new Elysia().patch("/cards/:id", ({ body }) => {
 mock.module("../src/lib/api", () => ({
   api: withSync(
     treaty<typeof app>(window.location.origin, {
-      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      fetcher: ((input, init) => {
+        if (mutationFailure) {
+          return mutationFailure instanceof Error
+            ? Promise.reject(mutationFailure)
+            : Promise.resolve(mutationFailure.clone());
+        }
+        return app.handle(new Request(input, init));
+      }) as typeof fetch,
     })
   ),
 }));
 const { route } = await import("../src/pages/board/[boardId]/card/[cardId]");
+
+afterEach(() => {
+  mutationFailure = undefined;
+});
+
+test.each([
+  { action: "save", failure: "network" },
+  { action: "delete", failure: "network" },
+  { action: "save", failure: "invalid-json" },
+  { action: "delete", failure: "invalid-json" },
+  { action: "save", failure: "json-null" },
+  { action: "delete", failure: "json-null" },
+  { action: "save", failure: "navigation" },
+  { action: "delete", failure: "navigation" },
+])("shows a recoverable error after a $action $failure failure", async ({ action, failure }) => {
+  if (failure === "network") {
+    mutationFailure = new TypeError("Failed to fetch");
+  } else if (failure === "navigation") {
+    mutationFailure = Response.json({ ok: true });
+  } else if (failure === "json-null") {
+    mutationFailure = Response.json(null, { status: 502 });
+  } else {
+    mutationFailure = new Response("invalid", {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const navigate = mock(() => Promise.reject(new Error("Navigation failed")));
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(() =>
+      root.render(
+        createElement(
+          RouterContext.Provider,
+          { value: { ...SSR_FALLBACK_ROUTER, navigate } },
+          createElement(route.page, {
+            boardName: "Board",
+            formattedCreatedAt: "Sep 30",
+            renderedAt: "12:00",
+            sidebarBoards: [],
+            params: { boardId: "board-1", cardId: "card-1" },
+            card: {
+              id: "card-1",
+              boardId: "board-1",
+              column: "todo",
+              title: "Draft",
+              description: "Draft description",
+              createdAt: "2026-09-30",
+              position: 0,
+            },
+          })
+        )
+      )
+    );
+    await act(async () => {
+      const button =
+        action === "save"
+          ? container.querySelector<HTMLButtonElement>('button[type="submit"]')
+          : Array.from(container.querySelectorAll("button")).find((item) =>
+              item.textContent?.includes("Delete card")
+            );
+      expect(button).toBeDefined();
+      button?.click();
+      await Promise.resolve();
+    });
+    const message =
+      (failure === "json-null" || failure === "network") && action === "save"
+        ? "Validation error"
+        : `Could not ${action} the card. Please try again.`;
+    await waitForDom(() => container.textContent?.includes(message) === true, { timeoutMs: 2000 });
+    expect(container.textContent).toContain(message);
+    expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe("Draft");
+    expect(navigate).toHaveBeenCalledTimes(failure === "navigation" ? 1 : 0);
+  } finally {
+    await act(() => root.unmount());
+    container.remove();
+  }
+});
 
 function setFieldValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
