@@ -6,14 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [0.6.0-alpha.2] — 2026-09-27
+## [0.7.0-alpha.1] — 2026-09-27
+
+### Breaking
+- **Eden-native sync client** — `useSync()` and its mutation callback types are replaced by `createClient()` / `withSync()` from `@teyik0/furin/client`. Call typed Eden mutations directly and use per-call `optimistic(cache)` with `cache.update()` instead of copied component state and manual rollback callbacks.
+- **Request-loader context collisions** — `requestLoader()` fields may no longer use Elysia context names or `log`; rename conflicting fields so inherited private data cannot shadow request context.
+- **Page-owned metadata** — `.head()` terminates with `.page()`; headed layouts are rejected by the route builder. Move route metadata to the page.
+- **Route loader access** — the type-only `route.useLoaderData()` methods are removed. Use `getRouteApi("/board/:boardId").useLoaderData()` from `@teyik0/furin/client` to read the active page's loader data at runtime.
 
 ### Added
-- **Typed imperative navigation** — `useNavigate()` accepts schema-checked path parameters and expands them with the same encoding as links.
+- **Typed imperative navigation** — `useNavigate()`, `useRouter().navigate()`, and `useRouter().prefetch()` accept generated route patterns with typed `params`, `search`, and `hash`, using the same URL resolution as links. Router navigation and prefetch retain their raw-URL overloads.
+- **Active route readers** — `getRouteApi(pattern)` exposes typed `useParams()` and `useLoaderData()` for the active page without importing its route module or rerunning loaders. Readers follow rendered snapshots through SSR, hydration, refreshes, and navigation, with request-scoped data and HMR-stable context identity.
+- **Shared Eden queries** — `useQuery()` shares typed GET results across consumers, supports query arguments and `select`, and hydrates completed loader reads without an initial browser refetch. GET identities and resource scopes drive targeted invalidation, with an augmentable `SyncQueryMap` contract.
+- **Optimistic query and loader updates** — Eden mutations can project shared GET results or typed route snapshots through `cache.update()`. Tracked object and array references connect query updates to public, deferred, and request-private loader props, while concurrent mutations retain independent contributions and reconcile with fresh server data.
+- **Atomic ORM mutations** — `drizzleSyncAdapter()` supports Bun SQLite and PostgreSQL, and `prismaSyncAdapter()` supports Prisma 7 with PostgreSQL. The typed `mutation(tx => ...)` callback commits business writes, response replay, and the change journal together, rolling back on failed results or validation; invalidations and notifications follow commit.
+- **Inherited request data in SSR loaders** — descendant SSR loaders can await ancestor `requestLoader()` fields individually without waiting for unrelated fields. SSG/ISR public loaders remain isolated from private ancestor data.
+- **Metadata without a public loader** — `.head()` can follow `.config()` or `.requestLoader()` directly when metadata only needs validated route values and synchronous public ancestor fields.
+
+### Changed
+- **Elysia dependency alignment** — the workspace and scaffolder catalog now target Elysia `2.0.0-beta.20`.
+- **Task-manager sync example** — board and card mutations now use the enriched Eden client, scoped query invalidation, shared optimistic projections, and atomic Drizzle transactions, with reusable card mutations and fewer duplicated UI snapshots.
+- **Route-pattern DX** — `Link` destinations autocomplete generated patterns and require their path params. `useSearch("/board/:boardId")` infers search fields from the route pattern without interpolating the current URL; `RouteMap` and `RoutePatternMap` remain available.
+- **Isomorphic task-manager client** — the server branch passes the Elysia API instance directly to `createClient()`, removing the custom fetcher and HTTP roundtrip; the browser branch uses the current origin.
+- **Native React mutation state** — task-manager board creation, card creation, and board deletion use `useActionState()` for result and pending state, with `startTransition()` for button-triggered deletion. Optimistic card updates and direct drag-and-drop handlers remain unchanged, without a Furin form wrapper.
+- **Lazy documentation features** — documentation search loads on demand, and sync documentation is imported only for its route, reducing client code loaded by other pages.
 
 ### Fixed
 - **Development HMR** — component-only route edits retain loader data when imported server dependencies are unchanged; server edits still refresh data.
 - **Eden loader errors** — thrown Problem Details retain their HTTP status and public message, including error boundaries and uncached ISR failures.
+- **Navigation parameter inference** — dynamic navigation requires only URL segment keys; inherited non-URL schema fields retain their optionality, and union destinations preserve the matching params contract.
+- **Root not-found hydration** — root 404 responses serialize the same validated route context rendered by the root layout, keeping initial HTML and client hydration consistent.
+- **Sync reconciliation and isolation** — pending optimistic writes survive refreshes without duplicate inserts or increments; query caches reject late responses from a previous principal, and private query seeds stay request scoped.
+- **Public query cache dependencies** — SSG, ISR, and PPR track discovered Eden query dependencies for invalidation, avoid publishing shared entries outside their cache lease, and remove obsolete ISR dependency registrations.
+- **Development route recovery** — deleted route files render the root not-found page while topology catches up, failed route imports retain prior cache tags, and server transforms preserve static import attributes such as text imports.
+- **Search route contracts** — `useSearch()` checks its route target before reading or updating search state, and selector reads stay current when the route or selector changes.
+- **Task-manager draft recovery** — untouched card drafts follow refreshed server values while pending local edits are preserved.
+- **Task-manager form feedback** — submission controls are disabled while pending, rejected creations retain the entered text, and retries clear stale error feedback. Closing the card creation form resets its draft and error before reopening.
 
 ## [0.6.0-alpha.1] — 2026-09-27
 
@@ -440,8 +468,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.2...HEAD
-[0.6.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.1...v0.6.0-alpha.2
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.1...HEAD
+[0.7.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.1...v0.7.0-alpha.1
 [0.4.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
 [0.4.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.3.0-alpha.1...v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.2.0-alpha.5...v0.3.0-alpha.1

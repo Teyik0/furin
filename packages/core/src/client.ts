@@ -17,6 +17,7 @@ export {
   updateHotComponent,
 } from "./client/hmr.ts";
 export { useQuery } from "./client/query.tsx";
+export { getRouteApi } from "./client/route-api.tsx";
 export {
   createClient,
   type OptimisticCache,

@@ -865,7 +865,6 @@ async function loadRouteModule(sourcePath: string): Promise<{
     loader?: unknown;
     mode?: string;
     schemas?: { params?: { properties?: object } };
-    useLoaderData?: () => unknown;
   };
 }> {
   return (await importRouteModule(sourcePath)) as {
@@ -874,7 +873,6 @@ async function loadRouteModule(sourcePath: string): Promise<{
       loader?: unknown;
       mode?: string;
       schemas?: { params?: { properties?: object } };
-      useLoaderData?: () => unknown;
     };
   };
 }
@@ -1001,7 +999,7 @@ async function clientRoutesSource(instance: RouteInstanceSpec): Promise<string> 
       const module = await loadRouteModule(routeFile.sourcePath);
       validateRouteParams(routeFile.path, module.route?.schemas);
       return {
-        hasLoader: module.route?.loader !== undefined || module.route?.useLoaderData !== undefined,
+        hasLoader: module.route?.loader !== undefined,
         mode: module.route?.mode ?? "ssr",
         pattern: routeFile.path,
       };

@@ -23,6 +23,28 @@ The return object is serialized into the initial document and route-data respons
 
 Returning a plain promise inside a plain object does not opt into streaming: it is resolved as normal loader data. Use `defer()` explicitly when a field should stream.
 
+## Reading Data In Descendant Components
+
+Use `getRouteApi()` with a generated route pattern to read the active page's loader snapshot and validated params without passing them through every component:
+
+```tsx
+import { getRouteApi } from "@teyik0/furin/client";
+
+const postRoute = getRouteApi("/blog/:slug");
+
+function PostToolbar() {
+  const { slug } = postRoute.useParams();
+  const { post } = postRoute.useLoaderData();
+  return <span>{slug}: {post.title}</span>;
+}
+```
+
+Both hooks infer their types from the route definition. Params are the server-validated values, not raw URL strings. Loader data follows Furin's flat page data contract, including inherited loader fields; `params`, `path`, `query`, and internal transport metadata are not loader fields.
+
+These hooks read the existing rendered snapshot in SSR and hydration. They do not call the loader again. Navigation, refreshes and optimistic projections update the snapshot. The pattern must match the active page: calling these hooks outside its rendered tree throws rather than returning unrelated data. To read search state, use [useSearch](/docs/link-navigation#search-state).
+
+Route definitions do not expose a `route.useLoaderData()` hook. `getRouteApi()` avoids importing the page module into its descendants.
+
 ## Layout Data And Parallelism
 
 Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant loader receives each ancestor field as an individual promise; render callbacks receive the resolved fields as flat props:

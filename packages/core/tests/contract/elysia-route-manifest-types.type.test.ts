@@ -6,11 +6,13 @@ import type {
   Navigate,
   RouteManifest,
   RouteParamsOf,
+  Router,
   RouteSearch,
 } from "@teyik0/furin/link";
 import type { useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
 import { Link } from "../../src/client/link.tsx";
+import { getRouteApi } from "../../src/client.ts";
 
 import "@teyik0/furin/routes";
 
@@ -161,7 +163,44 @@ const assertTypedNavigate = (
   navigate({ to: "/not-a-route" });
 };
 
+const assertRouteApi = () => {
+  const board = getRouteApi("/elysia-boards/:boardId");
+  expectTypeOf<ReturnType<typeof board.useParams>>().toEqualTypeOf<{ boardId: number }>();
+  const products = getRouteApi("/elysia-products");
+  expectTypeOf<ReturnType<typeof products.useLoaderData>>().toExtend<{
+    page: number;
+    tag?: string;
+  }>();
+  expectTypeOf<ReturnType<typeof products.useParams>>().toEqualTypeOf<Record<PropertyKey, never>>();
+  // @ts-expect-error route readers require a known pattern, not a concrete URL
+  getRouteApi("/elysia-boards/42");
+  // @ts-expect-error route readers reject unknown routes
+  getRouteApi("/missing-route-api");
+  // @ts-expect-error route definitions no longer expose a phantom hook
+  generatedRoute.useLoaderData();
+};
+
+const assertRouterTargets = (router: Router) => {
+  router.navigate({ to: "/elysia-boards/:boardId", params: { boardId: 42 } });
+  router.prefetch({ to: "/elysia-boards/:boardId", params: { boardId: 42 }, staleTime: 5000 });
+  router.prefetch({ to: "/elysia-products", search: { page: 2 } });
+  router.navigate("/elysia-boards/42", { replace: true });
+  router.prefetch("/elysia-boards/42", { staleTime: 5000 });
+  // @ts-expect-error named destinations require their path params
+  router.navigate({ to: "/elysia-boards/:boardId" });
+  // @ts-expect-error prefetch uses the same required params
+  router.prefetch({ to: "/elysia-boards/:boardId" });
+  // @ts-expect-error search retains its schema types
+  router.prefetch({ to: "/elysia-products", search: { page: "two" } });
+  // @ts-expect-error structured navigation rejects unknown routes
+  router.navigate({ to: "/missing-navigation" });
+};
+
 describe("Elysia RouteMap bridge", () => {
+  test("types active route readers and shared router destinations", () => {
+    expectTypeOf(assertRouteApi).toBeFunction();
+    expectTypeOf(assertRouterTargets).toBeFunction();
+  });
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
   test("requires params for named dynamic links", () => {

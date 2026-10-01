@@ -95,6 +95,26 @@ await navigate({ to: "/blog/:slug", params: { slug: "hello-furin" } });
 
 Once the route manifest is generated, unknown internal destinations are rejected by TypeScript. Before generation, navigation accepts plain strings so a new project can type-check.
 
+`useRouter().navigate()` and `useRouter().prefetch()` accept the same typed route patterns, params and search values:
+
+```tsx
+import { useRouter } from "@teyik0/furin/link";
+
+const router = useRouter();
+router.prefetch({
+  to: "/blog/:slug",
+  params: { slug: "hello-furin" },
+  staleTime: 30_000,
+});
+await router.navigate({
+  to: "/blog/:slug",
+  params: { slug: "hello-furin" },
+  replace: true,
+});
+```
+
+Prefetch loads data without navigating; navigation reuses it while fresh. Path encoding and search-default omission use the same rules as `<Link>`. Historical calls such as `router.navigate("/blog/hello-furin", { replace: true })` and `router.prefetch("/blog/hello-furin", { staleTime: 30_000 })` remain supported. Raw URL strings do not receive schema checking; use structured destinations for type safety and route-pattern completion.
+
 Unsafe schemes are rejected. External `http(s)` destinations use a document navigation.
 
 ## Search State

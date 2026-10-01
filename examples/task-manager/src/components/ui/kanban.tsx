@@ -1,6 +1,12 @@
 import { Link } from "@teyik0/furin/link";
 import { domAnimation, LazyMotion, MotionConfig, m } from "framer-motion";
-import { type Dispatch, type DragEvent, type SetStateAction, useState } from "react";
+import {
+  type Dispatch,
+  type DragEvent,
+  type SetStateAction,
+  useActionState,
+  useState,
+} from "react";
 import { FaFire } from "react-icons/fa";
 import { FiArrowUpRight, FiPlus, FiTrash } from "react-icons/fi";
 import type { BoardData } from "@/db/schema";
@@ -364,110 +370,114 @@ interface AddCardProps {
   column: ColumnType;
 }
 
-const AddCard = ({ column, boardId }: AddCardProps) => {
+interface AddCardFormProps extends AddCardProps {
+  onClose: () => void;
+}
+
+const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
   const [text, setText] = useState("");
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  const handleSubmit = async () => {
-    if (!text.trim().length) {
-      return;
-    }
-
-    setAddError(null);
-    const title = text.trim();
-    const temporaryId = crypto.randomUUID();
-    const createdAt = new Date().toISOString();
-    const { data: newCard, error } = await api.boards({ boardId }).cards.post(
-      { column, title },
-      {
-        optimistic: (cache) =>
-          cache.update(api.boards({ boardId }).get, (data) => ({
-            ...data,
-            cards: [
-              ...data.cards,
-              {
-                boardId,
-                column,
-                createdAt,
-                description: "",
-                id: temporaryId,
-                position: data.cards.filter((card) => card.column === column).length,
-                title,
-              },
-            ],
-          })),
+  const [addError, handleSubmit, isPending] = useActionState(
+    async (_previous: string | null, formData: FormData): Promise<string | null> => {
+      const title = String(formData.get("title") ?? "").trim();
+      if (!title) {
+        return null;
       }
-    );
-    if (!newCard || newCard instanceof Response || error) {
-      const message =
-        error?.value && "detail" in error.value
-          ? (error.value.detail ?? "Could not create the card. Please try again.")
-          : "Could not create the card. Please try again.";
-      setAddError(message);
-      return;
-    }
 
-    setText("");
-    setAdding(false);
-  };
+      const temporaryId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const { error } = await api.boards({ boardId }).cards.post(
+        { column, title },
+        {
+          optimistic: (cache) =>
+            cache.update(api.boards({ boardId }).get, (data) => ({
+              ...data,
+              cards: [
+                ...data.cards,
+                {
+                  boardId,
+                  column,
+                  createdAt,
+                  description: "",
+                  id: temporaryId,
+                  position: data.cards.filter((card) => card.column === column).length,
+                  title,
+                },
+              ],
+            })),
+        }
+      );
+      if (error) {
+        return error.value.detail ?? "Could not create the card. Please try again.";
+      }
+
+      onClose();
+      return null;
+    },
+    null
+  );
 
   return (
-    <>
-      {adding ? (
-        <m.form action={handleSubmit} className="mt-1.5" layout>
-          {addError ? (
-            <p className="mb-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 text-xs">
-              {addError}
-            </p>
-          ) : null}
-          <textarea
-            aria-label="New task content"
-            className={cn(
-              "w-full rounded-lg border border-violet-500/40 bg-violet-500/8 p-2.5 text-sm",
-              "resize-none text-neutral-200 placeholder-neutral-600 focus:outline-none"
-            )}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Add new task..."
-            rows={2}
-            value={text}
-          />
-          <div className="mt-1.5 flex items-center justify-end gap-1.5">
-            <button
-              className="px-3 py-1.5 text-neutral-600 text-xs transition-colors hover:text-neutral-400"
-              onClick={() => {
-                setAdding(false);
-                setAddError(null);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5",
-                "font-medium text-white text-xs transition-colors hover:bg-violet-500"
-              )}
-              type="submit"
-            >
-              <span>Add</span>
-              <FiPlus />
-            </button>
-          </div>
-        </m.form>
-      ) : (
-        <m.button
-          className={cn(
-            "mt-1 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5",
-            "text-neutral-700 text-xs transition-colors hover:text-neutral-500",
-            "hover:bg-white/4"
-          )}
-          layout
-          onClick={() => setAdding(true)}
+    <m.form action={handleSubmit} className="mt-1.5" layout>
+      {!isPending && addError ? (
+        <p className="mb-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 text-xs">
+          {addError}
+        </p>
+      ) : null}
+      <textarea
+        aria-label="New task content"
+        className={cn(
+          "w-full rounded-lg border border-violet-500/40 bg-violet-500/8 p-2.5 text-sm",
+          "resize-none text-neutral-200 placeholder-neutral-600 focus:outline-none"
+        )}
+        disabled={isPending}
+        name="title"
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Add new task..."
+        rows={2}
+        value={text}
+      />
+      <div className="mt-1.5 flex items-center justify-end gap-1.5">
+        <button
+          className="px-3 py-1.5 text-neutral-600 text-xs transition-colors hover:text-neutral-400"
+          disabled={isPending}
+          onClick={onClose}
+          type="button"
         >
-          <FiPlus className="shrink-0" />
-          <span>Add card</span>
-        </m.button>
+          Cancel
+        </button>
+        <button
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5",
+            "font-medium text-white text-xs transition-colors hover:bg-violet-500"
+          )}
+          disabled={isPending}
+          type="submit"
+        >
+          <span>{isPending ? "Adding…" : "Add"}</span>
+          <FiPlus />
+        </button>
+      </div>
+    </m.form>
+  );
+};
+
+const AddCard = ({ column, boardId }: AddCardProps) => {
+  const [adding, setAdding] = useState(false);
+
+  return adding ? (
+    <AddCardForm boardId={boardId} column={column} onClose={() => setAdding(false)} />
+  ) : (
+    <m.button
+      className={cn(
+        "mt-1 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5",
+        "text-neutral-700 text-xs transition-colors hover:text-neutral-500",
+        "hover:bg-white/4"
       )}
-    </>
+      layout
+      onClick={() => setAdding(true)}
+    >
+      <FiPlus className="shrink-0" />
+      <span>Add card</span>
+    </m.button>
   );
 };

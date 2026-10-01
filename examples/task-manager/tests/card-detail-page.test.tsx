@@ -78,7 +78,7 @@ test("a rejected save preserves the user's title and description", async () => {
       container.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
       await Promise.resolve();
     });
-    await waitForDom(() => container.textContent?.includes("Could not save the card") === true, {
+    await waitForDom(() => container.textContent?.includes("Validation error") === true, {
       timeoutMs: 2000,
     });
     expect(submittedCards.at(-1)).toEqual({

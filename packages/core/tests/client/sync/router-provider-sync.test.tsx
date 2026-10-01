@@ -20,7 +20,7 @@ interface PageProps {
 
 declare module "@teyik0/furin/routes" {
   interface RoutePatternMap {
-    "/optimistic-board/:boardId": { useLoaderData: () => { message: string } };
+    "/optimistic-board/:boardId": { loader: () => { message: string } };
   }
 }
 
@@ -569,10 +569,10 @@ describe("RouterProvider sync refresh", () => {
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/board": {
-      useLoaderData: () => { message: string };
+      loader: () => { message: string };
       elysia: { "~Routes": { get: { query: { filter?: string } } } };
     };
-    "/other": { useLoaderData: () => { message: string } };
+    "/other": { loader: () => { message: string } };
   }
 }
 

@@ -4,7 +4,7 @@ import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
 } from "../shared/search-params.ts";
-import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouter } from "./router/context.ts";
+import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouterContext } from "./router/context.ts";
 import {
   applyLinkParams,
   buildHref,
@@ -109,7 +109,7 @@ function LinkInteractive<To extends RouteTo>({
   href: _href,
   ...anchorProps
 }: LinkBaseProps<To>): React.ReactElement {
-  const router = useRouter();
+  const router = useRouterContext();
   const anchorRef = useRef<HTMLAnchorElement>(null);
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

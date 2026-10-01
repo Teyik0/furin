@@ -282,9 +282,9 @@ describe("generateHydrateEntry", () => {
       }
       const bundleText = chunks.join("\n");
 
-      // Router + search, two document contexts, and two query initializers
-      // sharing Symbol.for("furin.query.context.v1") across the public bundles.
-      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(6);
+      // Router + search, two document contexts, and two initializers each for
+      // query and route snapshots, shared by Symbol.for across public bundles.
+      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(8);
     } finally {
       rmSync(tmpRoot, { force: true, recursive: true });
     }

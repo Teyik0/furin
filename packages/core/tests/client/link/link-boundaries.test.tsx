@@ -80,7 +80,10 @@ function typeChain(node: ReactNode): string[] {
         : ((type as { displayName?: string; name?: string }).displayName ??
           (type as { name?: string }).name ??
           "Anonymous");
-    chain.push(name);
+    // Context providers do not change the layout/boundary component order.
+    if (typeof type === "function" || typeof type === "string") {
+      chain.push(name);
+    }
     const children = (current as ReactElement).props as { children?: ReactNode };
     const kids = children.children;
     if (Array.isArray(kids)) {

@@ -137,6 +137,37 @@ export interface LinkBaseProps<To extends RouteTo>
 
 export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> & LinkParams<To>;
 
+export type NavigationTo = keyof RouteManifest | keyof RoutePatternMap extends never
+  ? string
+  : keyof RoutePatternMap | keyof RouteManifest | `https://${string}` | `http://${string}`;
+
+export type RouteTarget<To extends NavigationTo> = To extends NavigationTo
+  ? { to: To; hash?: string; search?: RouteSearch<NoInfer<To>> } & LinkParams<NoInfer<To>>
+  : never;
+
+export interface NavigationOptions {
+  replace?: boolean;
+  resetScroll?: boolean;
+}
+
+export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & NavigationOptions;
+export type Navigate = <To extends NavigationTo>(next: NavigateInput<To>) => Promise<void>;
+
+export interface RouterNavigate {
+  (href: string, opts?: NavigationOptions): Promise<void>;
+  <To extends NavigationTo>(next: NavigateInput<To>): Promise<void>;
+}
+
+export interface Prefetch {
+  (href: string, opts?: { staleTime?: number }): void;
+  <To extends NavigationTo>(next: RouteTarget<To> & { staleTime?: number }): void;
+}
+
+export type Router = Omit<RouterContextValue, "navigate" | "prefetch"> & {
+  navigate: RouterNavigate;
+  prefetch: Prefetch;
+};
+
 export interface RouterContextValue {
   /**
    * Sub-path prefix for static deployments (e.g. "/furin").

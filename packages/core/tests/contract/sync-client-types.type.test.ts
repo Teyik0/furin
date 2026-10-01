@@ -13,13 +13,13 @@ declare module "@teyik0/furin/routes" {
   interface RouteMap {
     [path: `/sync-board/${string}`]: {
       elysia: { "~Routes": { get: { params: { boardId: string } } } };
-      useLoaderData: () => CardsLoader;
+      loader: () => CardsLoader;
     };
   }
   interface RoutePatternMap {
     "/sync-board/:boardId": {
       elysia: { "~Routes": { get: { params: { boardId: string } } } };
-      useLoaderData: () => CardsLoader;
+      loader: () => CardsLoader;
     };
   }
 }

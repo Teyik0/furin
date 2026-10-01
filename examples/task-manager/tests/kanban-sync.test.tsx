@@ -229,6 +229,17 @@ test("creates an optimistic card through Eden and replaces it with confirmed loa
   const board = await renderBoard([]);
   try {
     await submitCard(board.container, "Optimistic task");
+    const input = board.container.querySelector<HTMLTextAreaElement>("textarea");
+    const submit = input
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const cancel = input
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="button"]');
+    expect(input?.disabled).toBe(true);
+    expect(submit?.disabled).toBe(true);
+    expect(submit?.textContent).toContain("Adding…");
+    expect(cancel?.disabled).toBe(true);
     expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
     expect(board.container.textContent).toContain("Optimistic task");
     await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
@@ -245,6 +256,7 @@ test("creates an optimistic card through Eden and replaces it with confirmed loa
       { timeoutMs: 2000 }
     );
     expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
+    expect(board.container.querySelector("textarea")).toBeNull();
   } finally {
     await board.cleanup();
   }
@@ -267,6 +279,42 @@ test("removes only a rejected optimistic insertion", async () => {
     });
     expect(board.container.querySelector('[draggable="true"]')).toBeNull();
     expect(board.container.textContent).toContain("Could not create the card");
+    const input = board.container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(input?.value).toBe("Rejected task");
+    expect(input?.disabled).toBe(false);
+    expect(
+      input?.closest("form")?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
+    ).toBe(false);
+  } finally {
+    await board.cleanup();
+  }
+});
+
+test("clears a rejected draft and its error when the add form is cancelled and reopened", async () => {
+  const board = await renderBoard([]);
+  try {
+    await submitCard(board.container, "Rejected draft");
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
+    await act(async () => {
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
+      }
+      resolveCreate({ data: null, error: { message: "failed" } });
+      await Promise.resolve();
+    });
+    expect(board.container.textContent).toContain("Could not create the card");
+    const cancel = board.container
+      .querySelector("textarea")
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="button"]');
+    await act(() => cancel?.click());
+    expect(board.container.querySelector("textarea")).toBeNull();
+    const add = Array.from(board.container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Add card"
+    );
+    await act(() => add?.click());
+    expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(board.container.textContent).not.toContain("Could not create the card");
   } finally {
     await board.cleanup();
   }
