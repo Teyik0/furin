@@ -155,6 +155,7 @@ describe("sync adapter bundle isolation", () => {
             "evlog/*",
             "magic-string",
             "react",
+            "react-dom",
             "react-dom/*",
             "react-server-dom-webpack",
             "seroval",

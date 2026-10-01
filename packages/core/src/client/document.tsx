@@ -1,4 +1,5 @@
 import { createContext, createElement, type ReactNode, useContext } from "react";
+import { preloadModule } from "react-dom";
 import type { HeadOptions, MetaDescriptor } from "../client.ts";
 
 export interface DocumentAssets {
@@ -7,6 +8,8 @@ export interface DocumentAssets {
   extensionErrorFilterScript?: string;
   faviconHref: string | undefined;
   frameworkModules: readonly string[];
+  /** Route chunks to `<link rel="modulepreload">` (production server renders only). */
+  modulePreloads?: readonly string[];
   staticMode: boolean;
   stylesheets: readonly string[];
 }
@@ -69,6 +72,9 @@ export function HeadContent(): ReactNode {
   const state = useContext(DocumentContext);
   if (state === null) {
     throw new Error("[furin] <HeadContent /> must be rendered inside the root layout.");
+  }
+  for (const href of state.assets.modulePreloads ?? []) {
+    preloadModule(href, { as: "script", nonce: state.nonce });
   }
 
   return (

@@ -16,7 +16,10 @@ import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasMixedLoaderModes, hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { setProductionTemplateContent } from "../server/render/template.ts";
+import {
+  setProductionPreloadManifest,
+  setProductionTemplateContent,
+} from "../server/render/template.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
@@ -304,7 +307,7 @@ export async function buildRuntimeApp(
   const clientDirName = clientDirNameForPrefix(prefix);
   const label = prefix === "" ? "root app" : `app "${prefix}"`;
 
-  const { entryChunk, cssChunks } = await buildClient(routes, {
+  const { entryChunk, cssChunks, preloadManifest } = await buildClient(routes, {
     basePath: prefix,
     clientDirName,
     clientLogging: options.clientLogging ?? false,
@@ -315,6 +318,7 @@ export async function buildRuntimeApp(
     outDir: targetDir,
     pagesDir: app.pagesDir,
     plugins: options.plugins,
+    preloadRouteChunks: options.preload?.routeChunks,
     publicPath: `${prefix}/_client/`,
     reactCompiler: options.reactCompiler,
     rootLayout: root.path,
@@ -336,6 +340,7 @@ export async function buildRuntimeApp(
   writeFileSync(join(clientDir, "index.html"), indexHtml);
 
   setProductionTemplateContent(indexHtml);
+  setProductionPreloadManifest(preloadManifest);
   ssgRouteCache().clear();
   let ssgCache: SSGCacheSnapshot | undefined;
   let prerenders: RoutePrerender[] = [];
@@ -361,6 +366,7 @@ export async function buildRuntimeApp(
       modulePaths,
       nativeRoutes: composableRouteModuleSpecifier(app),
       prefix,
+      preloadManifest,
       rootConventions,
       rootPath: root.path,
       routeMetadata,

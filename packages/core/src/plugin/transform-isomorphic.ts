@@ -10,9 +10,12 @@ import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
+import { transformClientModules } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
-const SCRIPT_FILE_FILTER = /^(?!.*(?:node_modules|[\\/]\.furin[\\/]build[\\/])).*\.(tsx?|jsx?)$/;
+// Accepts a query suffix: dev-mode route discovery imports `page.tsx?furin-server&t=…`.
+const SCRIPT_FILE_FILTER =
+  /^(?!.*(?:node_modules|[\\/]\.furin[\\/]build[\\/])).*\.(tsx?|jsx?)(?:\?.*)?$/;
 
 export type IsomorphicEnvironment = "client" | "server";
 
@@ -402,14 +405,16 @@ function assertStaticEnvironmentMethods(
 }
 
 export function transformIsomorphicFunctions(
-  source: string,
+  input: string,
   filename: string,
   environment: IsomorphicEnvironment
 ): IsomorphicTransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
-    return { code: source, map: null, transformed: false };
+    return { code: input, map: null, transformed: false };
   }
+  const source = transformClientModules(input, filename, environment);
+  const clientModulesTransformed = source !== input;
 
   const { program, diagnostics } = parseSource(source, lang);
   const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
@@ -423,7 +428,7 @@ export function transformIsomorphicFunctions(
   assertNoSplitChains(source, filename, program, builders);
   const candidates = collectCandidates(source, filename, program, bindings);
   if (candidates.length === 0) {
-    return { code: source, map: null, transformed: false };
+    return { code: source, map: null, transformed: clientModulesTransformed };
   }
 
   const transformed = new MagicString(source);
@@ -450,7 +455,8 @@ export function isomorphicTransformPlugin(environment: IsomorphicEnvironment): B
   return {
     name: `furin-isomorphic-${environment}`,
     setup(build) {
-      build.onLoad({ filter: SCRIPT_FILE_FILTER }, async ({ path }) => {
+      build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
+        const path = args.path.split("?")[0] as string;
         const source = await Bun.file(path).text();
         const loader = detectLoaderFromPath(path);
         const result = transformIsomorphicFunctions(source, path, environment);

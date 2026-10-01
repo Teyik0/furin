@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SsgCacheEntry } from "../server/cache/index.ts";
+import type { ClientPreloadManifest } from "./preload-manifest.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
 // through package exports, and is the Web-standard API. The main entry is
@@ -32,6 +33,8 @@ export interface EntryAppContext {
   nativeRoutes?: string;
   /** Mount prefix baked into the context for runtime lookup (`""` = root). */
   prefix?: string;
+  /** Chunk URLs to modulepreload, produced by the client build. */
+  preloadManifest?: ClientPreloadManifest;
   rootConventions?: { errorPath?: string; notFoundPath?: string };
   rootPath: string;
   routeMetadata?: Record<
@@ -165,6 +168,9 @@ function buildAppContextBlock(
   const serveAssetsLine =
     app.serveAssets === undefined ? "" : `  serveAssets: ${JSON.stringify(app.serveAssets)},`;
   const ssgCacheLine = app.ssgCache ? `  ssgCache: ${JSON.stringify(app.ssgCache)},` : "";
+  const preloadManifestLine = app.preloadManifest
+    ? `  preloadManifest: ${JSON.stringify(app.preloadManifest)},`
+    : "";
   const templateHtmlLine =
     app.templateHtml === undefined ? "" : `  templateHtml: ${JSON.stringify(app.templateHtml)},`;
 
@@ -186,6 +192,7 @@ function buildAppContextBlock(
     routeMetadataLine,
     serveAssetsLine,
     ssgCacheLine,
+    preloadManifestLine,
     templateHtmlLine,
     ...(app.extraContext ?? []),
     "});",

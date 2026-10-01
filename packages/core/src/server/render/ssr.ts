@@ -56,6 +56,7 @@ import {
   documentAssetsFromTemplate,
   getDevDocumentAssets,
   getProductionDocumentAssets,
+  getProductionPreloadManifest,
 } from "./template.ts";
 
 // Re-export types consumed by sibling render modules (not a public barrel).
@@ -343,6 +344,11 @@ function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentA
   return documentAssetsFromTemplate(generateIndexHtml());
 }
 
+function withRouteModulePreloads(assets: DocumentAssets, pattern: string): DocumentAssets {
+  const modulePreloads = getProductionPreloadManifest()?.routes[pattern];
+  return modulePreloads ? { ...assets, modulePreloads } : assets;
+}
+
 /**
  * Shared pipeline steps used by both `renderToHTML` (buffered) and `renderSSR`
  * (streaming). Runs loaders, builds props, head data, resolves assets,
@@ -388,7 +394,7 @@ export async function prepareRender(
   const componentProps =
     deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
 
-  const assets = await resolveDocumentAssets(ctx);
+  const assets = withRouteModulePreloads(await resolveDocumentAssets(ctx), route.pattern);
   const errorComponent = route.error ?? root.error;
 
   let element: ReactNode;
