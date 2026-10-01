@@ -59,12 +59,12 @@ export function captureQueryReads<Result extends LoaderResult>(
     }
   };
   return contexts.run({ origin, store, onRead }, async () => {
-    const result = await run();
+    const result = { ...(await run()) };
     const seeds = store.dehydrate();
     if (result.type === "data" && seeds.length > 0) {
-      const captured = (result.syncData.__furinQueries as QuerySeed[] | undefined) ?? [];
+      const captured = [...((result.syncData.__furinQueries as QuerySeed[] | undefined) ?? [])];
       mergeQuerySeeds(captured, bindQueryData(result.syncData, seeds));
-      result.syncData.__furinQueries = captured;
+      result.syncData = { ...result.syncData, __furinQueries: captured };
     }
     if (result.type === "data" && result.deferredPromises) {
       for (const [key, promise] of Object.entries(result.deferredPromises)) {

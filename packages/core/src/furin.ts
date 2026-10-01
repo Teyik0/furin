@@ -580,7 +580,7 @@ function createNativeRouteRenderer(
     const hasPrefix = prefix !== "" && (pathname === prefix || pathname.startsWith(`${prefix}/`));
     const logicalPath = hasPrefix ? pathname.slice(prefix.length) : pathname;
     const matched = matchNativeRoute(logicalPath || "/");
-    if (!matched) {
+    if (!matched || (IS_DEV && !existsSync(matched.route.path))) {
       // Dev topology swap: the mounted Elysia route can outlive its source
       // file (hot-remove). Render the root not-found page instead of failing.
       const listenerOrigin = (context.server as { url?: { origin: string } } | undefined)?.url

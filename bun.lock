@@ -118,7 +118,7 @@
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",
       },
       "dependencies": {
-        "@elysia/eden": "2.0.0-beta.5",
+        "@elysia/eden": "^2.0.0-beta.5",
         "@elysia/static": "2.0.0-beta.2",
         "@jridgewell/trace-mapping": "^0.3.31",
         "@vercel/functions": "^3.9.9",

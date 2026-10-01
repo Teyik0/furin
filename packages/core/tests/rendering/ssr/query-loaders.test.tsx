@@ -162,17 +162,9 @@ test("a cached public loader preserves nested GET bindings without another API r
 });
 
 test("a public segment cache does not retain concurrent request GET data", async () => {
-  __setDevMode(false);
   const cache = createMemoryPageCache();
   const payloads: string[] = [];
   const instance = currentInstance();
-  setPageCacheAdapter(instance, {
-    ...cache,
-    commit(input) {
-      payloads.push(input.entry.payload);
-      return cache.commit(input);
-    },
-  });
   let publicReads = 0;
   let privateReads = 0;
   let privateReady = Promise.withResolvers<void>();
@@ -226,6 +218,14 @@ test("a public segment cache does not retain concurrent request GET data", async
     set: { headers: {} },
   } as unknown as Context;
   try {
+    __setDevMode(false);
+    setPageCacheAdapter(instance, {
+      ...cache,
+      commit(input) {
+        payloads.push(input.entry.payload);
+        return cache.commit(input);
+      },
+    });
     await runMixedLoaders(route, context);
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).not.toContain("Secret");
@@ -352,14 +352,17 @@ test("request GET sessions preserve independent public query seeds", async () =>
     query: {},
     set: { headers: {} },
   } as unknown as Context;
+  const cachedPublicData = { catalog: publicData, __furinQueries: [publicSeed] };
   try {
     const result = await withRequestLoaderData(route, context, {
       type: "data",
-      syncData: { catalog: publicData, __furinQueries: [publicSeed] },
+      syncData: cachedPublicData,
       headers: {},
       deferredPromises: undefined,
     });
     expect(result.syncData.__furinQueries).toEqual(expect.arrayContaining([publicSeed]));
+    expect(cachedPublicData.__furinQueries).toEqual([publicSeed]);
+    expect(result.syncData).not.toBe(cachedPublicData);
   } finally {
     autoInvalidateRegistry.unregisterPath("/query-sessions");
   }
