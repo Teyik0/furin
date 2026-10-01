@@ -1,0 +1,28 @@
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_035d1b9503f515::t_4c2ab3c8bc2104 63-64,68-79,169-172,191-194
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_035d1b9503f515::t_65e293fc002672 101,141-142
+  s_035d1b9503f515::t_ef3d5e670f9eed 96
+  s_035d1b9503f515::t_1d07e38d2568b3 97-100,128-140,143,146
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_035d1b9503f515::t_e1fa86db96cb9b 8,14,71-101
+  s_035d1b9503f515::t_2dca93d8647c1f 102
+packages/core/src/server/render/isr.ts
+  s_035d1b9503f515::t_4c2ab3c8bc2104 777
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "17fcf44788c4b55a4c0d8cf3b3e5cfb76294bc46",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
