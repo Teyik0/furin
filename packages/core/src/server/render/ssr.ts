@@ -17,6 +17,7 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import { isProductionBuild } from "../../shared/production-build.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
+import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 // FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
@@ -74,6 +75,7 @@ export interface RenderResult {
    * interchangeably.
    */
   ndjson: string;
+  queryTags?: string[];
   status: number;
 }
 
@@ -509,6 +511,7 @@ async function renderBufferedResult(
     headers,
     html,
     ndjson: await serializeLoaderDataNdjson(syncData, deferredPromises),
+    queryTags: queryTagsFromData(syncData),
     status: prepared.status,
   };
 }

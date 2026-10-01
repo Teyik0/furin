@@ -25,7 +25,25 @@ const COLUMN_COLORS = {
   todo: "text-blue-400",
 } as const;
 
-export function StatsBar({ stats }: { stats: BoardStats }) {
+export function StatsBar({
+  cards,
+  stats: initialStats,
+}: {
+  cards?: readonly { column: keyof BoardStats["byColumn"] }[];
+  stats: BoardStats;
+}) {
+  let stats = initialStats;
+  if (cards) {
+    const byColumn = { backlog: 0, doing: 0, done: 0, todo: 0 };
+    for (const card of cards) {
+      byColumn[card.column] += 1;
+    }
+    stats = {
+      byColumn,
+      total: cards.length,
+      completionRate: cards.length > 0 ? Math.round((byColumn.done / cards.length) * 100) : 0,
+    };
+  }
   return (
     <div className="flex h-9 shrink-0 items-center gap-5 border-white/5 border-b bg-white/1 px-6">
       <div className="flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/8 px-2.5 py-1">

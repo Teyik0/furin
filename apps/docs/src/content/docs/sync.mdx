@@ -119,23 +119,200 @@ Set `sync: false` for routes whose request or response cannot be replayed safely
 
 Typical exclusions include uploads, downloads, streams, payment initiation, and handlers with deliberately non-repeatable external effects.
 
-## Call A Mutation
+## Identify Reads Through Eden
 
-Wrap Eden once. Mutations retain their arguments and typed `{ data, error }` results:
+Give a GET an identity and a resource scope. Keep database access inside the Elysia handler:
 
 ```ts
-import { treaty } from "@elysia/eden";
-import { withSync } from "@teyik0/furin/client";
+new Elysia().use(furinSync(sync))
+  .get("/boards/:boardId/cards", {
+    sync: {
+      id: "board.cards",
+      scope: ({ params }) => ({ boardId: params.boardId }),
+    },
+  }, ({ params }) => listCards(params.boardId))
+  .post("/boards/:boardId/cards", {
+    body: t.Object({ title: t.String() }),
+    sync: {
+      invalidate: ({ params }) => [
+        { id: "board.cards", scope: { boardId: params.boardId } },
+      ],
+    },
+  }, ({ params, body, mutation }) =>
+    mutation(tx => createCard(tx, params.boardId, body.title))
+  );
+```
+
+Scopes contain scalar values. Every declared value must be defined. Invalidation selectors run synchronously on successful results, after response validation and before the atomic journal write. They receive the Elysia context plus `responseValue` (the original business result). A rollback publishes no invalidation. Static tags and path rules remain supported and can be mixed with query identities.
+
+Declare the application contract once to check IDs and scope fields in both GETs and mutations:
+
+```ts
+// src/sync.ts
+declare module "@teyik0/furin/routes" {
+  interface SyncQueryMap {
+    boards: object; // No resource scope.
+    "board.cards": { boardId: string | undefined };
+  }
+}
+```
+
+The `undefined` member accommodates Elysia's generic `Context.params`; missing values are rejected at runtime. Without an augmented contract, IDs retain the permissive string fallback. Two GETs can share the same ID and scope when they should always be invalidated together; their response caches remain separate.
+
+The enriched Eden client tracks identified GETs invoked inside loaders:
+
+```ts
+export const route = defineRoute()
+  .config({ mode: "ssr" })
+  .loader(async ({ params }) => {
+    const { data, error } = await api.boards({ boardId: params.boardId }).cards.get();
+    if (error) throw error;
+    return { initialCards: data };
+  });
+```
+
+No matching loader tag is needed. Furin transports completed reads with the loader snapshot and registers the dependency automatically. Keep credentials on the server-side Eden client request: tracking does not forward the page request's authentication headers automatically. Use SSR or request loaders for personalized reads; public SSG/ISR loaders must remain public.
+
+### Update Loader Props With One GET Projection
+
+Keep objects and arrays from the GET in the loader result:
+
+```tsx
+.loader(async ({ params }) => {
+  const { data, error } = await api.boards({ boardId: params.boardId }).get();
+  if (error) throw error;
+  return { board: data.board, cards: data.cards };
+})
+.page(({ cards }) => {
+  const done = cards.filter(card => card.column === "done").length;
+  return <Board cards={cards} done={done} />;
+})
+```
+
+One projection updates the shared GET cache and these loader props:
+
+```ts
+optimistic(cache) {
+  cache.update(api.boards({ boardId }).get, board => ({
+    ...board,
+    cards: board.cards.map(card =>
+      card.id === cardId ? { ...card, column: "done" } : card
+    ),
+  }));
+}
+```
+
+No `useQuery`, route target or second optimistic transform is required. Furin records object-reference paths before serialization, projects props from the shared snapshot and retains the confirmed loader values for rollback. Nested object properties and whole arrays are supported, including cached public loaders. Derive counts and filters in the page: copied objects, array-element selections and computed scalars do not carry automatic bindings. The explicit route snapshot API below remains available for those transformations.
+
+The same mapping works for `requestLoader` and `defer()` fields after they resolve:
+
+```tsx
+.requestLoader(({ params }) => ({
+  privateCards: api.boards({ boardId: params.boardId }).get().then(({ data, error }) => {
+    if (error) throw error;
+    return data.cards;
+  }),
+}))
+.page(({ privateCards }) => (
+  <Suspense fallback={<p>Loading cards…</p>}>
+    <Await resolve={privateCards}>{cards => <Board cards={cards} />}</Await>
+  </Suspense>
+))
+```
+
+GET dependencies and bindings travel with each resolved field, so a slow sibling does not delay them. The prop stays a promise compatible with `Await` and React `use()`. A `cache.update` of the board GET updates these cards and rolls back on failure. Sync invalidations also refresh the affected route and expire its prefetched snapshot. Private reads remain request scoped and are not stored in the public PPR shell; configure the Eden request credentials explicitly as described above.
+
+### Optional Query Subscriptions
+
+```tsx
+import { useQuery } from "@teyik0/furin/client";
+
+function Cards({ boardId }: { boardId: string }) {
+  const { data, error, isFetching } = useQuery(api.boards({ boardId }).cards.get);
+  if (error) return <p>Could not load cards.</p>;
+  return <ul>{data?.map(card => <li key={card.id}>{card.title}</li>)}</ul>;
+}
+
+function DoneCount({ boardId }: { boardId: string }) {
+  const { data } = useQuery(api.boards({ boardId }).cards.get, {
+    select: cards => cards.filter(card => card.column === "done").length,
+  });
+  return <span>{data ?? 0} done</span>;
+}
+```
+
+Consumers of the same GET and query arguments share one cache entry and fetch. Completed loader reads hydrate that cache without an initial browser GET. The hook returns `data`, `error` and `isFetching`; `select` derives a value from the shared data. Direct `await api.…get()` calls still return Eden's original result and perform a request.
+
+Query arguments remain inferred from the GET schema:
+
+```tsx
+useQuery(api.cards.get, {
+  query: { boardId, column: "done" },
+  select: cards => cards.length,
+});
+```
+
+A scope invalidation refreshes every cached query variant of that resource. Different scopes remain separate. Create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation); do not reuse one cache across principals. Response session identities also clear data from a previous principal and reject its late responses. Per-call authorization changes are not cache keys: keep one client per authenticated session.
+
+### Reuse A Mutation And Its Optimism
+
+```ts
+// src/mutations/cards.ts
+export function completeCard(boardId: string, cardId: string) {
+  return api.cards({ id: cardId }).patch({ column: "done" }, {
+    optimistic(cache) {
+      cache.update(api.boards({ boardId }).cards.get, cards =>
+        cards.map(card => card.id === cardId ? { ...card, column: "done" } : card)
+      );
+    },
+  });
+}
+
+// Any button, menu or keyboard shortcut:
+await completeCard(boardId, cardId);
+```
+
+The list and its selected count update together. Use an ordinary application function to centralize the API call and its projection. A cache miss is a no-op. A definitive rejection removes only that mutation's contribution; success retains it until a fresh GET confirms the view. Reads racing pending writes cannot apply an insert or increment twice. Transforms must be pure; generate temporary IDs before the call. Awaiting the mutation waits for its Eden response, not the final query/loader refresh.
+
+For a filtered GET, target the same arguments:
+
+```ts
+cache.update(api.cards.get, cards => cards.filter(card => card.id !== cardId), {
+  query: { boardId, column: "done" },
+});
+```
+
+Different endpoints remain different representations. Update each loaded representation explicitly when both should change immediately:
+
+```ts
+optimistic(cache) {
+  cache.update(api.cards({ id: cardId }).get, card => ({ ...card, title }));
+  cache.update(api.boards({ boardId }).cards.get, cards =>
+    cards.map(card => card.id === cardId ? { ...card, title } : card)
+  );
+}
+```
+
+Furin does not normalize entities or execute relational live queries. Tags remain the lower-level mechanism for non-Eden reads and writes outside the mutation plugin. Shared public page caches only store a render after its discovered query dependencies were covered by its cache lease; the first dependency-discovery render may be served with `no-store`.
+
+## Call A Mutation
+
+Create the enriched Eden client once. Mutations retain their arguments and typed `{ data, error }` results:
+
+```ts
+import { createClient } from "@teyik0/furin/client";
 import type { Api } from "./server";
 
-export const api = withSync(treaty<Api>(origin), { retry: 2 });
+export const api = createClient<Api>(origin, { retry: 2 });
 
 const { data, error } = await api.posts.post({ title: "Hello" });
 ```
 
 Each mutation receives an automatic `Idempotency-Key`. Explicit keys are respected, including Eden header callbacks and `fetch.headers`. Calls receive new generated keys; retries retain their key. Concurrent calls sharing an explicit key, method, path and query share one optimistic contribution within the same enriched client and router instance. Each call still receives its own Eden result. Never reuse an explicit key across sessions or principals. Reads and subscriptions retain Eden behavior. The extension requires Eden 2.0.0-beta.5 or later.
 
-### Optimistic Loader Data
+`createClient` accepts Eden configuration (`fetcher`, headers, interceptors, date parsing and error behavior) alongside Furin's `retry` policy. `withSync(existingEdenClient)` remains available for applications that already construct their Eden client separately.
+
+### Existing Route Snapshot Targets
 
 Update the loader snapshot already rendered by the router:
 
@@ -144,7 +321,7 @@ const { error } = await api.cards({ id: cardId }).patch(
   { column: "done" },
   {
     optimistic(cache) {
-      cache.update(`/board/${boardId}`, (loader) => ({
+      cache.update("/board/:boardId", (loader) => ({
         ...loader,
         initialCards: loader.initialCards.map((card) =>
           card.id === cardId ? { ...card, column: "done" } : card
@@ -155,9 +332,9 @@ const { error } = await api.cards({ id: cardId }).patch(
 );
 ```
 
-The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RouteMap` infers loader fields from the target. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
+The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RoutePatternMap` offers route completion and infers loader fields from the target. A route pattern updates the active URL, including its path and query parameters. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
 
-Only the active loaded snapshot is projected. A cache miss is a no-op. Query parameters identify distinct snapshots; use a typed target for a filtered page:
+Only the active loaded snapshot is projected. A cache miss is a no-op. To target an exact query snapshot rather than the active route, use a typed URL target:
 
 ```ts
 cache.update({ path: "/posts", search: { category: "news" } }, (loader) => ({

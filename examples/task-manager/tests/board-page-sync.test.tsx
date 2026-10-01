@@ -1,5 +1,8 @@
 import "../../../packages/core/tests/setup/global.ts";
 import { expect, mock, test } from "bun:test";
+import { treaty } from "@elysia/eden";
+import { withSync } from "@teyik0/furin/client";
+import { Elysia } from "elysia";
 import {
   installDom,
   resetDomState,
@@ -18,7 +21,14 @@ mock.module("../src/components/ui/kanban", () => ({
   Kanban: () => null,
 }));
 
-mock.module("../src/lib/api", () => ({ api: {} }));
+const app = new Elysia().get("/boards/:boardId", () => new Response(null, { status: 503 }));
+mock.module("../src/lib/api", () => ({
+  api: withSync(
+    treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+    })
+  ),
+}));
 
 const { route } = await import("../src/pages/board/[boardId]/index");
 const BoardPage = route.component;
@@ -48,7 +58,7 @@ test("renders refreshed stats received from a remote loader refresh", async () =
           params: { boardId: "board-1" },
           path: "/board/board-1",
           query: {},
-          initialCards: [],
+          initialCards: [{ column: "backlog" }] as never,
           initialStats: Promise.resolve(initialStats),
           renderedAt: "10:00:00",
         })
@@ -63,7 +73,7 @@ test("renders refreshed stats received from a remote loader refresh", async () =
           params: { boardId: "board-1" },
           path: "/board/board-1",
           query: {},
-          initialCards: [],
+          initialCards: [{ column: "done" }] as never,
           initialStats: Promise.resolve(refreshedStats),
           renderedAt: "10:00:01",
         })

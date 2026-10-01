@@ -1150,10 +1150,6 @@ function createNotFoundHandling(
 
 export { FurinErrorBoundary, FurinNotFoundBoundary } from "./client/boundaries.tsx";
 export { HeadContent, Scripts } from "./client/document.tsx";
-// ── Public API re-export ──────────────────────────────────────────────────────
-// biome-ignore-start lint/performance/noBarrelFile: intentional — furin.ts is the public package entry
-export type { DeferredData } from "./client.ts";
-export { defer, isDeferred } from "./client.ts";
 export type { InvalidationInput, InvalidationRule } from "./server/auto-invalidate/index.ts";
 export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.ts";
 export { revalidatePath, setCachePurger } from "./server/cache/invalidation.ts";
@@ -1169,6 +1165,9 @@ export {
   type SyncRuntimeOptions,
 } from "./server/sync/index.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";
+// ── Public API re-export ──────────────────────────────────────────────────────
+// biome-ignore-start lint/performance/noBarrelFile: intentional — furin.ts is the public package entry
+export { type DeferredData, defer, isDeferred } from "./shared/defer.ts";
 export type { ErrorComponent, ErrorProps } from "./shared/error.ts";
 export type {
   NotFoundComponent,

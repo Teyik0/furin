@@ -13,6 +13,11 @@ import type {
   TransactionalSyncAdapter,
 } from "./adapter.ts";
 import {
+  appendQueryInvalidations,
+  resolveSyncInvalidations,
+  type SyncInvalidationSelector,
+} from "./queries.ts";
+import {
   mergeStoredResponseHeaders,
   type StoreResponseResult,
   storeResponse,
@@ -37,9 +42,10 @@ interface Execution<Tx> {
   adapter: TransactionalSyncAdapter<Tx, "async" | "sync">;
   app: Elysia;
   context: Context;
-  invalidate: InvalidationInput | undefined;
+  invalidate: SyncInvalidationSelector | undefined;
   lease: MutationLease;
   onCommit: (result: CommittedMutation) => void;
+  resolvedInvalidate?: InvalidationInput;
   runtime: ResolvedSyncRuntime;
 }
 
@@ -128,11 +134,14 @@ function validateResult<Tx>(execution: Execution<Tx>, value: unknown): unknown {
 }
 
 function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown) {
-  const { context, invalidate } = execution;
+  const { context } = execution;
   const status = responseStatus(context, value);
   if (status < 200 || status >= 400) {
     throw new RejectedMutation(original);
   }
+  const invalidate = resolveSyncInvalidations(execution.invalidate, context, original);
+  execution.resolvedInvalidate = invalidate;
+  appendQueryInvalidations(invalidate, context);
   const invalidations = [
     ...normalizedInvalidations(invalidate),
     ...pendingPathInvalidations(peekPendingInvalidations()),
@@ -195,8 +204,8 @@ function invoke<Tx>(execution: Execution<Tx>, callback: (tx: Tx) => unknown, tx:
 
 async function afterCommit<Tx>(execution: Execution<Tx>, result: CommittedMutation): Promise<void> {
   execution.onCommit(result);
-  if (execution.invalidate) {
-    await runInvalidationRules(execution.invalidate).catch(() =>
+  if (execution.resolvedInvalidate) {
+    await runInvalidationRules(execution.resolvedInvalidate).catch(() =>
       getLogger().warn(
         "Sync cache invalidation failed after mutation; preserving the idempotent result"
       )
@@ -216,6 +225,7 @@ export async function executeAtomicMutation<Tx>(
   const { context } = execution;
   const previousSyncHeader = context.set.headers["x-furin-sync"];
   const previousPathHeader = context.set.headers["x-furin-revalidate"];
+  const previousQueryHeader = context.set.headers["x-furin-queries"];
   let committed = false;
   try {
     const result = await execution.adapter.executeMutation(execution.lease, (tx) =>
@@ -228,6 +238,7 @@ export async function executeAtomicMutation<Tx>(
     if (!committed) {
       restoreHeader(context, "x-furin-sync", previousSyncHeader);
       restoreHeader(context, "x-furin-revalidate", previousPathHeader);
+      restoreHeader(context, "x-furin-queries", previousQueryHeader);
     }
     if (error instanceof RejectedMutation) {
       return error.value;

@@ -39,6 +39,20 @@ function response(result: MutationResult): Response {
   return Response.json(result.error ?? result.data, { status: result.error ? 422 : 200 });
 }
 const app = new Elysia()
+  .get("/api/boards/:boardId", () =>
+    Response.json(
+      { board: { id: "board-1", name: "Board" }, cards: confirmedCards },
+      {
+        headers: {
+          "x-furin-query": JSON.stringify({
+            id: "board",
+            scope: { boardId: "board-1" },
+            session: "test",
+          }),
+        },
+      }
+    )
+  )
   .post("/api/boards/:boardId/cards", async () =>
     response(
       await new Promise<MutationResult>((resolve) => {
@@ -79,10 +93,24 @@ function Page({ initialCards }: { initialCards: Card[] }) {
 async function renderBoard(cards: Card[]) {
   window.history.replaceState(null, "", "/board/board-1");
   confirmedCards = cards;
+  const querySeeds = () => [
+    {
+      url: `${window.location.origin}/api/boards/board-1`,
+      identity: { id: "board", scope: { boardId: "board-1" }, session: "test" },
+      bindings: [{ target: ["initialCards"], source: ["cards"] }],
+      data: {
+        board: { id: "board-1", name: "Board" },
+        cards: confirmedCards.map((card) => ({ ...card })),
+      },
+    },
+  ];
   globalThis.fetch = (async () =>
-    new Response(serializeCompactJsonLine({ initialCards: confirmedCards }), {
-      headers: { "Content-Type": "application/x-ndjson" },
-    })) as unknown as typeof fetch;
+    new Response(
+      serializeCompactJsonLine({ initialCards: confirmedCards, __furinQueries: querySeeds() }),
+      {
+        headers: { "Content-Type": "application/x-ndjson" },
+      }
+    )) as unknown as typeof fetch;
   const route = {
     component: Page,
     load: async () => ({
@@ -103,7 +131,7 @@ async function renderBoard(cards: Card[]) {
         defaultPreload: "intent",
         defaultPreloadDelay: 50,
         defaultPreloadStaleTime: 30_000,
-        initialData: { initialCards: cards },
+        initialData: { initialCards: cards, __furinQueries: querySeeds() },
         initialDigest: undefined,
         initialMatch: route as never,
         initialNotFound: undefined,

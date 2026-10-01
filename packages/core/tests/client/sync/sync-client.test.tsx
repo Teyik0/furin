@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { treaty } from "@elysia/eden";
 import { Elysia, t } from "elysia";
-import { withSync } from "../../../src/client.ts";
+import { createClient, withSync } from "../../../src/client.ts";
 
 test("preserves Eden's explicit content type after body serialization", async () => {
   const app = new Elysia().post(
@@ -97,7 +97,7 @@ test("retries only explicit in-progress responses with the same key", async () =
         )
       : { ok: true };
   });
-  const api = withSync(treaty(app), { retry: 2 });
+  const api = createClient(app, { retry: 2 });
   const result = await api.cards.post();
   expect(result.error).toBeNull();
   expect(keys).toHaveLength(3);

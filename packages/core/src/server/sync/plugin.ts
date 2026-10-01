@@ -1,4 +1,5 @@
 import { type Context, Elysia, ElysiaStatus } from "elysia";
+import { queryTag } from "../../shared/sync-query.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
@@ -24,6 +25,12 @@ import {
 } from "./atomic.ts";
 import { MutationLeaseLost } from "./execution-error.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
+import {
+  appendQueryInvalidations,
+  resolveSyncInvalidations,
+  type SyncInvalidationSelector,
+  type SyncReadOption,
+} from "./queries.ts";
 import { mergeStoredResponseHeaders, replayResponse, storeResponse } from "./response.ts";
 import { resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
@@ -31,8 +38,9 @@ import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 export type SyncRouteOption =
   | false
   | InvalidationInput
+  | SyncReadOption
   | {
-      invalidate: InvalidationInput;
+      invalidate: SyncInvalidationSelector;
     };
 
 /** @deprecated Use SyncRouteOption. */
@@ -40,7 +48,8 @@ export type SyncInput = Exclude<SyncRouteOption, false>;
 
 interface RouteSyncMetadata {
   disabled: boolean;
-  invalidate?: InvalidationInput;
+  invalidate?: SyncInvalidationSelector;
+  read?: SyncReadOption;
 }
 
 interface ActiveMutation {
@@ -72,9 +81,14 @@ function hideTransportResponse<TContext>(
   return hook as TransportHook<TContext>;
 }
 
-function invalidationInputFromSync(input: Exclude<SyncRouteOption, false>): InvalidationInput {
+function invalidationInputFromSync(
+  input: Exclude<SyncRouteOption, false>
+): SyncInvalidationSelector | undefined {
   if (input && typeof input === "object" && "invalidate" in input) {
     return input.invalidate;
+  }
+  if ("id" in input) {
+    return;
   }
   return input;
 }
@@ -231,7 +245,12 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
   ): Promise<Response | undefined> {
     const result = await storeResponse(ctx.responseValue, ctx.set);
     const manualPending = peekPendingInvalidations();
-    const invalidate = routeMetadata.get(ctx.request)?.invalidate;
+    const invalidate = resolveSyncInvalidations(
+      routeMetadata.get(ctx.request)?.invalidate,
+      ctx as Context,
+      ctx.responseValue
+    );
+    appendQueryInvalidations(invalidate, ctx);
     const logger = getLogger();
     if (invalidate) {
       try {
@@ -320,6 +339,33 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
     .derive("global", (ctx) => ({ mutation: mutationFor(ctx) }))
     .beforeHandle("global", beginMutationHook)
     .afterHandle("global", finishMutationHook)
+    .afterHandle("global", async (ctx) => {
+      const read = routeMetadata.get(ctx.request)?.read;
+      if (
+        ctx.request.method !== "GET" ||
+        !read ||
+        !isSuccessfulMutationResponse({
+          set: ctx.set,
+          responseValue:
+            ctx.responseValue instanceof Response || ctx.responseValue instanceof ElysiaStatus
+              ? ctx.responseValue
+              : undefined,
+        })
+      ) {
+        return;
+      }
+      const principal = await options.principal(ctx as Context);
+      if (principal.length === 0) {
+        throw new Error("[furin] Sync principal must not be empty.");
+      }
+      const identity = {
+        id: read.id,
+        scope: typeof read.scope === "function" ? read.scope(ctx as Context) : (read.scope ?? {}),
+        session: new Bun.CryptoHasher("sha256").update(principal).digest("hex"),
+      };
+      queryTag(identity);
+      ctx.set.headers["x-furin-query"] = JSON.stringify(identity);
+    })
     .error(
       "global",
       MutationLeaseLost,
@@ -341,7 +387,11 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
               request,
               input === false
                 ? { disabled: true }
-                : { disabled: false, invalidate: invalidationInputFromSync(input) }
+                : {
+                    disabled: false,
+                    invalidate: invalidationInputFromSync(input),
+                    read: "id" in input ? input : undefined,
+                  }
             );
           },
         };

@@ -282,9 +282,9 @@ describe("generateHydrateEntry", () => {
       }
       const bundleText = chunks.join("\n");
 
-      // RouterContext + SearchStoreContext and the document contexts bundled by
-      // the client/link public entries. A second router copy would add two more.
-      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(4);
+      // Router + search, two document contexts, and two query initializers
+      // sharing Symbol.for("furin.query.context.v1") across the public bundles.
+      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(6);
     } finally {
       rmSync(tmpRoot, { force: true, recursive: true });
     }

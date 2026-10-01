@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { route as rootRoute } from "./root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 10, tags: ["boards"] })
+  .config({ layout: rootRoute, mode: "isr", revalidate: 10 })
   .loader(async () => {
     const { data, error } = await api.boards.get();
     if (error) {
@@ -92,7 +92,7 @@ export const route = defineRoute()
           . The board list is served from cache and revalidates in the background every 10 seconds.
           After creating or deleting a board, the API route declares{" "}
           <code className="rounded bg-white/6 px-1 py-0.5 font-mono text-violet-300">
-            sync: {'{ invalidate: { tags: ["boards"] } }'}
+            sync: {'{ invalidate: { id: "boards", scope: {} } }'}
           </code>{" "}
           to immediately bust the cache and broadcast the update over browser events.
         </p>

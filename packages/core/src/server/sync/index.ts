@@ -18,6 +18,7 @@ export const runWithSyncPath = runWithSyncPathImplementation;
 
 export type PollingSyncNotifier = PollingSyncNotifierImplementation;
 
+export type { SyncInvalidationInput } from "../auto-invalidate/types.ts";
 export type {
   AtomicMutationResult,
   AtomicMutationValue,

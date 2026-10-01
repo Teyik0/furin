@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import type { Context } from "elysia";
+import { treaty } from "@elysia/eden";
+import { type Context, Elysia } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
+import { withSync } from "../../../src/client.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate/index.ts";
 import {
   __resetCacheState,
@@ -23,6 +25,7 @@ import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 function createContext(path: string): Context {
   return {
@@ -311,6 +314,55 @@ test("revalidateTag invalidates shared ISR entries", async () => {
   try {
     expect(await revalidateTag("posts")).toBe(true);
     expect(await cache.read(identity)).toBeNull();
+  } finally {
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
+});
+
+test("ISR discovers Eden dependencies without loader tags and invalidates the shared entry", async () => {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Route /isr-page not found");
+  }
+  const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
+  let value = 1;
+  let reads = 0;
+  const api = withSync(
+    treaty(
+      new Elysia().get("/cards", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { timestamp: value };
+      })
+    )
+  );
+  const route: ResolvedRoute = {
+    ...matched,
+    mode: "isr",
+    page: { ...matched.page, loader: async () => (await api.cards.get()).data ?? {} },
+    tags: undefined,
+  };
+  const instance = registerInstance(createInstance("", "/eden-dependency/pages"));
+  instance.buildId = "build-a";
+  setPageCacheAdapter(instance, createMemoryPageCache());
+  const render = (context: Context) =>
+    withInstance(instance, () => handleISR(route, context, result.root, instance.buildId));
+  try {
+    const discovery = createContext("/isr-page");
+    await render(discovery);
+    expect(discovery.set.headers["cache-control"]).toBe("no-store");
+    await render(createContext("/isr-page"));
+    await render(createContext("/isr-page"));
+    expect(reads).toBe(2);
+
+    value = 2;
+    expect(await revalidateTag(queryTag(identity))).toBe(true);
+    const fresh = await render(createContext("/isr-page"));
+    expect(fresh).toContain("2");
+    expect(reads).toBe(3);
   } finally {
     resetPageCacheAdapter(instance);
     __resetCacheState();

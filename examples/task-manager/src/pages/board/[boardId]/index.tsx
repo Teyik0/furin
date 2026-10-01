@@ -1,4 +1,4 @@
-import { defineRoute } from "@teyik0/furin";
+import { defineRoute, notFound } from "@teyik0/furin";
 import { Await, defer } from "@teyik0/furin/client";
 import { t } from "elysia";
 import { Suspense } from "react";
@@ -12,21 +12,23 @@ export const route = defineRoute()
     layout: parentRoute,
     mode: "ssr",
     params: t.Object({ boardId: t.String() }),
-    tags: ["board", "cards"],
   })
   .loader(async ({ params: { boardId } }) => {
-    const initialStats = (async () => {
-      const { data, error } = await api.boards({ boardId }).stats.get();
-      if (error) {
-        throw error;
-      }
-      return data;
-    })();
-
     const { data, error } = await api.boards({ boardId }).get();
     if (error) {
+      if (error.status === 404) {
+        notFound({ message: error.value.detail });
+      }
       throw error;
     }
+
+    const initialStats = (async () => {
+      const { data: stats, error: statsError } = await api.boards({ boardId }).stats.get();
+      if (statsError) {
+        throw statsError;
+      }
+      return stats;
+    })();
 
     return defer({
       board: data.board,
@@ -62,7 +64,7 @@ export const route = defineRoute()
 
       <Suspense fallback={<StatsBarSkeleton />}>
         <Await errorElement={<StatsBarUnavailable />} resolve={initialStats}>
-          {(resolvedInitialStats) => <StatsBar stats={resolvedInitialStats} />}
+          {(resolvedInitialStats) => <StatsBar cards={initialCards} stats={resolvedInitialStats} />}
         </Await>
       </Suspense>
 

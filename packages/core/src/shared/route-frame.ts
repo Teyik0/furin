@@ -7,6 +7,7 @@ import {
   type RscSourceKind,
   restoreRscSource,
 } from "../rsc/shared.tsx";
+import { mergeQuerySeeds, type QuerySeed } from "./sync-query.ts";
 
 const FRAME_VERSION = 3;
 const MAX_FRAME_BYTES = 1024 * 1024;
@@ -20,7 +21,7 @@ interface RouteFrameEnvelope {
 
 export type RouteFrame =
   | { type: "data"; deferredKeys: readonly string[]; value: SerovalNode }
-  | { type: "defer-resolve"; key: string; value: SerovalNode }
+  | { type: "defer-resolve"; key: string; value: SerovalNode; queries?: SerovalNode }
   | { type: "defer-reject"; key: string; value: SerovalNode }
   | { type: "rsc-start"; id: string; kind: RscSourceKind }
   | { type: "rsc-chunk"; id: string; value: string }
@@ -331,6 +332,10 @@ export async function parseRouteFrameLines(
     const { frame } = envelope;
     if (frame.type === "data") {
       dataValue = fromCrossJSON(frame.value, {});
+      if (frame.deferredKeys.length > 0 && dataValue && typeof dataValue === "object") {
+        const data = dataValue as { __furinQueries?: QuerySeed[] };
+        data.__furinQueries ??= [];
+      }
       for (const key of frame.deferredKeys) {
         deferredPromises[key] = new Promise((resolve, reject) => {
           resolvers.set(key, { reject, resolve });
@@ -363,6 +368,13 @@ export async function parseRouteFrameLines(
     } else if (frame.type === "rsc-error") {
       throw new Error(`[furin] RSC stream failed (${frame.digest})`);
     } else if (frame.type === "defer-resolve") {
+      if (frame.queries && dataValue && typeof dataValue === "object") {
+        const data = dataValue as { __furinQueries?: QuerySeed[] };
+        mergeQuerySeeds(
+          (data.__furinQueries ??= []),
+          fromCrossJSON(frame.queries, {}) as QuerySeed[]
+        );
+      }
       const value = fromCrossJSON(frame.value, {});
       const ids = new Set<string>();
       collectRscDescriptorIds(value, ids);

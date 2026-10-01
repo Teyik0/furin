@@ -1,4 +1,5 @@
 import type { SearchParamsInput } from "../../shared/search-params.ts";
+import type { QueryStore } from "../query-store.ts";
 import type { OptimisticCache } from "../sync.ts";
 import { buildHref } from "./link-utils.ts";
 
@@ -9,20 +10,23 @@ interface Transformation {
 interface Operation {
   onRemove?: () => void;
   pending: boolean;
+  queryHref?: string;
   transforms: Transformation[];
 }
 interface Snapshot {
   href: string;
   loaded: boolean;
+  pattern: string | undefined;
 }
 
-export const SYNC_REQUEST = Symbol("furin.sync.request");
+export const SYNC_REQUEST = Symbol.for("furin.sync.request.v1");
 
 export interface OptimisticRuntime {
   basePath: string;
   begin: (
     optimistic: ((cache: OptimisticCache) => void) | undefined,
-    onRemove?: () => void
+    onRemove?: () => void,
+    hasQueries?: () => boolean
   ) => Operation;
   commit: (href: string) => void;
   finish: (
@@ -33,6 +37,7 @@ export interface OptimisticRuntime {
   has: (href: string) => boolean;
   project: <Data extends object>(data: Data, href: string) => Data;
   publishable: (href: string, revision: number) => boolean;
+  queries?: QueryStore;
   revision: (href?: string) => number;
   subscribe: (listener: () => void) => () => void;
   wait: (href: string, signal: AbortSignal | undefined) => Promise<void>;
@@ -41,6 +46,7 @@ export interface OptimisticRuntime {
 interface RuntimeOptions {
   basePath: string;
   onResponse: (response: Response | undefined, optimistic: boolean) => void;
+  queries?: QueryStore;
   snapshot: () => Snapshot;
 }
 
@@ -50,7 +56,9 @@ function identity(href: string): string {
   return url.pathname + url.search;
 }
 
-const runtimes = new Set<OptimisticRuntime>();
+const RUNTIMES = Symbol.for("furin.optimistic.runtimes.v1");
+const runtimeGlobal = globalThis as typeof globalThis & { [RUNTIMES]?: Set<OptimisticRuntime> };
+const runtimes = (runtimeGlobal[RUNTIMES] ??= new Set<OptimisticRuntime>());
 
 export function registerOptimisticRuntime(runtime: OptimisticRuntime): () => void {
   runtimes.add(runtime);
@@ -86,6 +94,9 @@ export function createOptimisticRuntime(options: RuntimeOptions): OptimisticRunt
     for (const { href } of operation.transforms) {
       revisions.set(href, (revisions.get(href) ?? 0) + 1);
     }
+    if (operation.queryHref) {
+      revisions.set(operation.queryHref, (revisions.get(operation.queryHref) ?? 0) + 1);
+    }
     for (const listener of listeners) {
       listener();
     }
@@ -94,29 +105,36 @@ export function createOptimisticRuntime(options: RuntimeOptions): OptimisticRunt
     [...operations].some(
       (operation) =>
         operation.pending &&
-        operation.transforms.some((transform) => transform.href === identity(href))
+        (operation.queryHref === identity(href) ||
+          operation.transforms.some((transform) => transform.href === identity(href)))
     );
 
   return {
     basePath: options.basePath,
-    begin(optimistic, onRemove) {
+    queries: options.queries,
+    begin(optimistic, onRemove, hasQueries) {
       const operation: Operation = { onRemove, pending: true, transforms: [] };
       const cache = {
         update(
           target: string | { path: string; search?: SearchParamsInput },
           transform: (data: object) => object
         ) {
-          const href = identity(
-            typeof target === "string" ? target : buildHref(target.path, target.search, undefined)
-          );
           const snapshot = options.snapshot();
+          const path =
+            typeof target === "string" ? target : buildHref(target.path, target.search, undefined);
+          const href = identity(
+            typeof target === "string" && target === snapshot.pattern ? snapshot.href : path
+          );
           if (snapshot.loaded && href === identity(snapshot.href)) {
             operation.transforms.push({ href, transform });
           }
         },
       } as unknown as OptimisticCache;
       optimistic?.(cache);
-      if (operation.transforms.length > 0) {
+      if (hasQueries?.() && options.snapshot().loaded) {
+        operation.queryHref = identity(options.snapshot().href);
+      }
+      if (operation.transforms.length > 0 || operation.queryHref !== undefined) {
         operations.add(operation);
         notify(operation);
       }
@@ -125,10 +143,13 @@ export function createOptimisticRuntime(options: RuntimeOptions): OptimisticRunt
     commit(href) {
       for (const operation of operations) {
         if (!operation.pending) {
+          if (operation.queryHref === identity(href)) {
+            operation.queryHref = undefined;
+          }
           operation.transforms = operation.transforms.filter(
             (transform) => transform.href !== identity(href)
           );
-          if (operation.transforms.length === 0) {
+          if (operation.transforms.length === 0 && operation.queryHref === undefined) {
             operations.delete(operation);
             operation.onRemove?.();
           }
@@ -141,17 +162,26 @@ export function createOptimisticRuntime(options: RuntimeOptions): OptimisticRunt
       if (outcome === "error") {
         operations.delete(operation);
       }
-      if (outcome === "error" || operation.transforms.length === 0) {
+      if (
+        outcome === "error" ||
+        (operation.transforms.length === 0 && operation.queryHref === undefined)
+      ) {
         operation.onRemove?.();
       }
-      if (operation.transforms.length > 0) {
+      if (operation.transforms.length > 0 || operation.queryHref !== undefined) {
         notify(operation);
       }
-      options.onResponse(response, outcome !== "error" && operation.transforms.length > 0);
+      options.onResponse(
+        response,
+        outcome !== "error" &&
+          (operation.transforms.length > 0 || operation.queryHref !== undefined)
+      );
     },
     has: (href) =>
-      [...operations].some((operation) =>
-        operation.transforms.some((transform) => transform.href === identity(href))
+      [...operations].some(
+        (operation) =>
+          operation.queryHref === identity(href) ||
+          operation.transforms.some((transform) => transform.href === identity(href))
       ),
     project(data, href) {
       let projected: object = data;

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
-import { defer } from "../../../src/client.ts";
+import { createClient, defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
@@ -34,6 +34,8 @@ import { collectRouteTags } from "../../../src/server/router/discovery.ts";
 import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { type QuerySeed, queryTag } from "../../../src/shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
@@ -308,6 +310,93 @@ describe.serial("partial prerendering", () => {
     expect(aliceResponse.headers.get("cache-control")).toBe("private, no-store");
     expect(publicCalls).toBe(1);
     expect(privateCalls).toBe(2);
+  });
+
+  test("private GET snapshots stay isolated across a cached PPR document and SPA navigation", async () => {
+    let publicCalls = 0;
+    let privateCalls = 0;
+    const api = createClient(
+      new Elysia().get("/cards", ({ request, set }) => {
+        privateCalls += 1;
+        const person = request.headers.get("x-person");
+        set.headers["x-furin-query"] = JSON.stringify({
+          id: "board.cards",
+          scope: { boardId: "alpha" },
+          session: person,
+        });
+        return { cards: [{ title: person }] };
+      })
+    );
+    function Private({ data }: { data: Promise<{ cards: { title: string | null }[] }> }) {
+      return <strong>{use(data).cards[0]?.title}</strong>;
+    }
+    const page = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(({ cookies }) => ({
+        user: api.cards
+          .get({ headers: { "x-person": String(cookies.get("session")) } })
+          .then(({ data, error }) => {
+            if (error) {
+              throw error;
+            }
+            return data;
+          }),
+      }))
+      .loader(() => {
+        publicCalls += 1;
+        return { catalog: "Public" };
+      })
+      .page(({ catalog, user }) => (
+        <main>
+          {catalog}
+          <Suspense fallback="pending">
+            <Private data={user} />
+          </Suspense>
+        </main>
+      ));
+    const resolved = resolveRoute(page);
+    const app = new Elysia()
+      .use(createRoutePlugin(resolved, root, currentInstance().buildId))
+      .use(createDataEndpoint([resolved], root));
+    try {
+      const alice = await app.handle(
+        new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
+      );
+      expect(alice.headers.get("cache-control")).toBe("private, no-store");
+      expect(await alice.text()).toContain("alice");
+      const bob = await app.handle(
+        new Request("http://localhost/_furin/data?path=%2Faccount", {
+          headers: { cookie: "session=bob" },
+        })
+      );
+      expect(bob.headers.get("cache-control")).toBe("private, no-store");
+      if (!bob.body) {
+        throw new Error("Missing loader stream");
+      }
+      const parsed = await parseDeferredNdjson(bob.body, undefined);
+      expect(await parsed.deferredPromises.user).toEqual({ cards: [{ title: "bob" }] });
+      expect(parsed.syncData.__furinQueries).toMatchObject([
+        {
+          identity: { session: "bob" },
+          data: { cards: [{ title: "bob" }] },
+          bindings: [{ source: [], target: ["user"] }],
+        },
+      ]);
+      const seeds = parsed.syncData.__furinQueries as QuerySeed[];
+      expect(
+        getAutoInvalidateRegistry().pathsForTags(seeds.map((seed) => queryTag(seed.identity)))
+      ).toContain("/account");
+      const again = await app.handle(
+        new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
+      );
+      const html = await again.text();
+      expect(html).toContain("alice");
+      expect(html).not.toContain("bob");
+      expect(publicCalls).toBe(1);
+      expect(privateCalls).toBe(3);
+    } finally {
+      getAutoInvalidateRegistry().unregisterPath("/account", "eden-request-queries");
+    }
   });
 
   test("an SSR layout stays request scoped around an ISR page", async () => {

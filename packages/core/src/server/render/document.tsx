@@ -4,8 +4,11 @@ import {
   DocumentProvider,
   type DocumentState,
 } from "../../client/document.tsx";
+import { QueryStoreContext } from "../../client/query.tsx";
+import { QueryStore } from "../../client/query-store.ts";
 import type { HeadOptions } from "../../client.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
+import type { QuerySeed } from "../../shared/sync-query.ts";
 import { currentInstance } from "../instance.ts";
 import { getSyncPath } from "../sync/config.ts";
 import { safeJson } from "./shell.ts";
@@ -38,5 +41,11 @@ export function withDocumentState(
     routeFrames,
     syncJson: syncPath === undefined ? undefined : safeJson({ path: syncPath }),
   };
-  return createElement(DocumentProvider, { value: state }, element);
+  const queries = new QueryStore(undefined);
+  queries.hydrate((data as { __furinQueries?: QuerySeed[] } | undefined)?.__furinQueries ?? []);
+  return createElement(
+    DocumentProvider,
+    { value: state },
+    createElement(QueryStoreContext.Provider, { value: queries }, element)
+  );
 }

@@ -299,6 +299,11 @@ describe("furin/routes type declaration", () => {
     "/": typeof import("./pages/index").route;
     [path: \`/boards/\${string}\`]: typeof import("./pages/boards/[id]").route;
   }
+
+  interface RoutePatternMap {
+    "/": typeof import("./pages/index").route;
+    "/boards/:id": typeof import("./pages/boards/[id]").route;
+  }
 }`);
   });
 

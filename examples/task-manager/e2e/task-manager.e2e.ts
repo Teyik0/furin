@@ -18,6 +18,7 @@ interface SyncChangesResponse {
   changes: Array<{
     cursor: string;
     invalidations: string[];
+    queries?: Array<{ id: string; scope: { [key: string]: string } }>;
   }>;
   cursor: string;
   hasMore: boolean;
@@ -235,7 +236,8 @@ describe.serial("task-manager production E2E", () => {
       expect(changes.changes).toEqual([
         {
           cursor: "1",
-          invalidations: ["/:layout", "/", "/rsc", "/board:layout"],
+          invalidations: ["/", "/rsc", "/board:layout"],
+          queries: [{ id: "boards", scope: {} }],
         },
       ]);
 

@@ -11,7 +11,16 @@ interface CardsLoader {
 }
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
-    [path: `/sync-board/${string}`]: { useLoaderData: () => CardsLoader };
+    [path: `/sync-board/${string}`]: {
+      elysia: { "~Routes": { get: { params: { boardId: string } } } };
+      useLoaderData: () => CardsLoader;
+    };
+  }
+  interface RoutePatternMap {
+    "/sync-board/:boardId": {
+      elysia: { "~Routes": { get: { params: { boardId: string } } } };
+      useLoaderData: () => CardsLoader;
+    };
   }
 }
 
@@ -29,6 +38,14 @@ const eden = treaty(app);
 const api = withSync(eden, { retry: 2 });
 
 function assertOptions(cache: OptimisticCache) {
+  cache.update("/sync-board/:boardId", (loader) => {
+    expectTypeOf(loader).toEqualTypeOf<CardsLoader>();
+    return loader;
+  });
+  // @ts-expect-error the active route already supplies its path params
+  cache.update("/sync-board/:boardId", { boardId: "1" }, (loader) => loader);
+  // @ts-expect-error unknown named routes are rejected
+  cache.update("/missing/:boardId", (loader) => loader);
   cache.update("/sync-board/1", (loader) => {
     expectTypeOf(loader).toEqualTypeOf<CardsLoader>();
     return { ...loader, cards: loader.cards.map((card) => ({ ...card, column: "done" })) };

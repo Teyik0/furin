@@ -24,7 +24,6 @@ export const route = defineRoute()
     layout: rootRoute,
     mode: "ssr",
     params: t.Object({ boardId: t.String() }),
-    tags: ["boards"],
   })
   .loader(async () => {
     const { data: sidebarBoards, error } = await api.boards.get();

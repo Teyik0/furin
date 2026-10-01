@@ -4,7 +4,7 @@ import { type Dispatch, type DragEvent, type SetStateAction, useState } from "re
 import { FaFire } from "react-icons/fa";
 import { FiArrowUpRight, FiPlus, FiTrash } from "react-icons/fi";
 import type { BoardData } from "@/db/schema";
-import { api } from "@/lib/api";
+import { createBoardCard, deleteBoardCard, moveBoardCard, moveCard } from "@/lib/card-mutations";
 import { cn } from "../../lib/utils";
 
 export type ColumnType = "backlog" | "todo" | "doing" | "done";
@@ -15,49 +15,13 @@ export interface KanbanCard {
   title: string;
 }
 
-function moveCard<Card extends KanbanCard>(
-  cards: Card[],
-  cardId: string,
-  nextColumn: ColumnType,
-  before: string
-): {
-  nextCards: Card[];
-  previousColumn: ColumnType;
-  previousIndex: number;
-} | null {
-  let nextCards = [...cards];
-  let cardToTransfer = nextCards.find((card) => card.id === cardId);
-  const previousIndex = nextCards.findIndex((card) => card.id === cardId);
-  if (!(cardToTransfer && previousIndex !== -1)) {
-    return null;
-  }
-
-  const previousColumn = cardToTransfer.column;
-  cardToTransfer = { ...cardToTransfer, column: nextColumn };
-  nextCards = nextCards.filter((card) => card.id !== cardId);
-
-  if (before === "-1") {
-    nextCards.push(cardToTransfer);
-    return { nextCards, previousColumn, previousIndex };
-  }
-
-  const insertAtIndex = nextCards.findIndex((card) => card.id === before);
-  if (insertAtIndex === -1) {
-    return null;
-  }
-
-  nextCards.splice(insertAtIndex, 0, cardToTransfer);
-  return { nextCards, previousColumn, previousIndex };
-}
-
 interface KanbanProps {
   boardId: string;
   initialCards: BoardData["cards"];
 }
-export const Kanban = ({ boardId, initialCards }: KanbanProps) => {
+export const Kanban = ({ boardId, initialCards: cards }: KanbanProps) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const cards = initialCards;
 
   return (
     <LazyMotion features={domAnimation}>
@@ -171,21 +135,7 @@ const Column = ({
     const newPosition = destColumnCards.findIndex((c) => c.id === cardId);
 
     setErrorMessage(null);
-    const { error } = await api.cards({ id: cardId }).patch(
-      {
-        column,
-        position: newPosition,
-      },
-      {
-        optimistic: (cache) =>
-          cache.update(`/board/${boardId}`, (loader) => ({
-            ...loader,
-            initialCards:
-              moveCard(loader.initialCards, cardId, column, before)?.nextCards ??
-              loader.initialCards,
-          })),
-      }
-    );
+    const { error } = await moveBoardCard(boardId, cardId, column, newPosition, before);
     if (error) {
       setErrorMessage("Could not move the card. Please try again.");
     }
@@ -311,8 +261,9 @@ const Card = ({ title, id, column, boardId, handleDragStart }: CardProps) => (
         )}
         onClick={(e) => e.stopPropagation()}
         onDragStart={(e) => e.preventDefault()}
+        params={{ boardId, cardId: id }}
         title="Open card"
-        to={`/board/${boardId}/card/${id}`}
+        to="/board/:boardId/card/:cardId"
       >
         <FiArrowUpRight size={11} />
       </Link>
@@ -362,13 +313,7 @@ const BurnBarrel = ({ boardId, isDragging, setErrorMessage, setIsDragging }: Bur
     }
 
     setErrorMessage(null);
-    const { error } = await api.cards({ id: cardId }).delete(undefined, {
-      optimistic: (cache) =>
-        cache.update(`/board/${boardId}`, (loader) => ({
-          ...loader,
-          initialCards: loader.initialCards.filter((card) => card.id !== cardId),
-        })),
-    });
+    const { error } = await deleteBoardCard(boardId, cardId);
     if (error) {
       setErrorMessage("Could not delete the card. Please try again.");
     }
@@ -413,30 +358,7 @@ const AddCard = ({ column, boardId }: AddCardProps) => {
     }
 
     setAddError(null);
-    const temporaryId = crypto.randomUUID();
-    const createdAt = new Date().toISOString();
-    const title = text.trim();
-    const { data: newCard, error } = await api.boards({ boardId }).cards.post(
-      { column, title },
-      {
-        optimistic: (cache) =>
-          cache.update(`/board/${boardId}`, (loader) => ({
-            ...loader,
-            initialCards: [
-              ...loader.initialCards,
-              {
-                boardId,
-                column,
-                createdAt,
-                description: "",
-                id: temporaryId,
-                position: loader.initialCards.filter((card) => card.column === column).length,
-                title,
-              },
-            ],
-          })),
-      }
-    );
+    const { data: newCard, error } = await createBoardCard(boardId, column, text.trim());
     if (!newCard || newCard instanceof Response || error) {
       const message =
         error?.value && "detail" in error.value

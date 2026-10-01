@@ -12,9 +12,13 @@ import {
 } from "react";
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
+import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
+import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
 import { subscribeBrowserEvent } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
+import { QueryStoreContext } from "../query.tsx";
+import { QueryStore } from "../query-store.ts";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
 import {
@@ -133,10 +137,24 @@ export function RouterProvider({
   syncPath,
 }: RouterProviderProps): React.ReactElement {
   const initialDocumentState = useDocumentState();
+  const [queries] = useState(() => {
+    const store = new QueryStore(
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+    store.hydrate(
+      (initialData.__furinQueries as QuerySeed[] | undefined) ?? [],
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+    return store;
+  });
   // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
   // the provider boots into the inline not-found UI.
   const [state, setState] = useState<RouterState>(() => ({
-    data: initialData,
+    data: Object.fromEntries(
+      Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
+    ),
+    querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
+    hydrateQueries: queries.captureHydration(),
     error: initialError
       ? {
           ...initialError,
@@ -148,6 +166,46 @@ export function RouterProvider({
     notFound: initialNotFound,
   }));
   const [boundaryResetVersion, setBoundaryResetVersion] = useState(0);
+  const currentState = useRef(state);
+  useLayoutEffect(() => {
+    currentState.current = state;
+  }, [state]);
+  useLayoutEffect(() => {
+    queries.hydrate(
+      state.querySeeds ?? [],
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+  }, [queries, state.querySeeds]);
+  const resolvedQueries = useRef(new WeakMap<Promise<unknown>, DeferredQueryValue>());
+  const [deferredRevision, setDeferredRevision] = useState(0);
+  useEffect(() => {
+    const snapshot = currentState.current;
+    const hydrated = new Set(snapshot.querySeeds?.map((seed) => seed.url));
+    let disposed = false;
+    for (const promise of Object.values(state.data)) {
+      if (!(promise instanceof Promise)) {
+        continue;
+      }
+      promise.then(
+        (value: unknown) => {
+          if (disposed) {
+            return;
+          }
+          resolvedQueries.current.set(promise, { value });
+          const seeds = (snapshot.querySeeds ?? []).filter((seed) => !hydrated.has(seed.url));
+          snapshot.hydrateQueries?.(seeds, window.location.origin);
+          for (const seed of seeds) {
+            hydrated.add(seed.url);
+          }
+          setDeferredRevision((revision) => revision + 1);
+        },
+        () => undefined
+      );
+    }
+    return () => {
+      disposed = true;
+    };
+  }, [queries, state.data]);
   const [isNavigating, setIsNavigating] = useState(false);
   // currentHref stores the LOGICAL path (basePath stripped) so Link active-state
   // detection works with route patterns that never include the basePath prefix.
@@ -157,11 +215,16 @@ export function RouterProvider({
     }
     return normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search;
   });
-  const optimisticSnapshot = useRef({ href: currentHref, loaded: state.match !== null });
+  const optimisticSnapshot = useRef({
+    href: currentHref,
+    loaded: state.match !== null,
+    pattern: state.match?.pattern,
+  });
   useLayoutEffect(() => {
     optimisticSnapshot.current = {
       href: currentHref,
       loaded: state.match !== null && !(state.error || state.notFound),
+      pattern: state.match?.pattern,
     };
   }, [currentHref, state.match, state.error, state.notFound]);
   const syncResponse = useRef<
@@ -170,11 +233,13 @@ export function RouterProvider({
   const [optimisticRuntime] = useState(() =>
     createOptimisticRuntime({
       basePath,
+      queries,
       snapshot: () => optimisticSnapshot.current,
       onResponse: (response, optimistic) => syncResponse.current?.(response, optimistic),
     })
   );
   useSyncExternalStore(optimisticRuntime.subscribe, optimisticRuntime.revision, () => 0);
+  const queryRevision = useSyncExternalStore(queries.subscribeAll, queries.revision, () => 0);
   useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
   const snapshotVersions = useRef(new WeakMap<RouterState, number>());
   const prefetchCache = useRef(new Map<string, CacheEntry>());
@@ -266,6 +331,7 @@ export function RouterProvider({
       hmrRefresh: boolean
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — response shapes (redirect, stale-deploy, deferred) + abort-signal wiring require this depth
     ): Promise<RouterState | null> => {
+      const hydrateQueries = queries.captureHydration();
       // Normalize trailing slashes so "/docs/routing/" matches the route
       // pattern "/docs/routing" — static hosts (GitHub Pages, Netlify) often
       // redirect to or serve URLs with a trailing slash.
@@ -341,6 +407,7 @@ export function RouterProvider({
           __furinRedirect,
           __furinError,
           __furinTitle,
+          __furinQueries,
           ...cleanSyncData
         } = syncData as {
           __furinStatus?: number;
@@ -349,6 +416,7 @@ export function RouterProvider({
           __furinError?: { digest: string; message: string; status: number };
           __furinHead?: HeadOptions;
           __furinTitle?: string;
+          __furinQueries?: QuerySeed[];
           [key: string]: unknown;
         };
 
@@ -425,7 +493,14 @@ export function RouterProvider({
           };
         }
 
-        return { data, head: __furinHead, match: loadedMatch, title };
+        return {
+          data,
+          head: __furinHead,
+          match: loadedMatch,
+          querySeeds: __furinQueries,
+          hydrateQueries,
+          title,
+        };
       } catch (err: unknown) {
         if (!isAbortError(err)) {
           log.error({
@@ -437,7 +512,7 @@ export function RouterProvider({
         return null;
       }
     },
-    [routes, basePath, resolveNoMatchState]
+    [routes, basePath, resolveNoMatchState, queries]
   );
 
   const fetchConfirmedPageState = useCallback(
@@ -1118,6 +1193,25 @@ export function RouterProvider({
         return (await response.json()) as SyncChangePagePayload;
       },
       onInvalidations: applyInvalidations,
+      onReset: () => queries.invalidateAll(),
+      onQueries: (identities) => {
+        queries.invalidate(identities);
+        const tags = new Set(identities.map(queryTag));
+        const affected = (snapshot: RouterState) =>
+          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity)));
+        for (const [href, entry] of prefetchCache.current) {
+          entry.promise
+            .then((snapshot) => {
+              if (snapshot && affected(snapshot) && prefetchCache.current.get(href) === entry) {
+                prefetchCache.current.delete(href);
+              }
+            })
+            .catch(() => undefined);
+        }
+        if (autoRefresh && affected(currentState.current)) {
+          invalidationRefresh.run();
+        }
+      },
     });
     const recover = () => {
       if (disposed) {
@@ -1152,9 +1246,27 @@ export function RouterProvider({
       disposed = true;
       unsubscribe?.();
     };
-  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh]);
+  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh, queries]);
 
-  const renderedData = optimisticRuntime.project(state.data, currentHref);
+  const queryData = useMemo(
+    () =>
+      projectDeferredQueryData(
+        state.data,
+        state.querySeeds ?? [],
+        (seed) => {
+          if (seed.local && typeof window !== "undefined") {
+            const original = new URL(seed.url);
+            return queries.snapshot(
+              new URL(original.pathname + original.search, window.location.origin).href
+            ).data;
+          }
+          return queries.snapshot(seed.url).data;
+        },
+        resolvedQueries.current
+      ),
+    [queries, state.data, state.querySeeds, queryRevision, deferredRevision]
+  );
+  const renderedData = optimisticRuntime.project(queryData, currentHref);
   let pageElement: React.ReactNode;
   if (state.notFound || !state.match) {
     const notFoundElement = buildNotFoundPageElement(
@@ -1213,7 +1325,7 @@ export function RouterProvider({
     </SearchStoreContext.Provider>
   );
   if (initialDocumentState === null) {
-    return routerTree;
+    return <QueryStoreContext.Provider value={queries}>{routerTree}</QueryStoreContext.Provider>;
   }
   return (
     <DocumentProvider
@@ -1222,7 +1334,7 @@ export function RouterProvider({
         head: state.head,
       }}
     >
-      {routerTree}
+      <QueryStoreContext.Provider value={queries}>{routerTree}</QueryStoreContext.Provider>
     </DocumentProvider>
   );
 }

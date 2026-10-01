@@ -1,15 +1,18 @@
 import type { Context } from "elysia";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import { isDeferred } from "../../client.ts";
+import { currentQueryEnvironment } from "../../client/query-store.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
+import { isDeferred } from "../../shared/defer.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
+import type { QuerySeed } from "../../shared/sync-query.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { captureQueryReads } from "../sync/query-context.ts";
 import { cacheMixedPublicLoader } from "./mixed-cache.ts";
 
 export type LoaderResult =
@@ -407,30 +410,39 @@ function requestFieldPromises(
   return fields;
 }
 
-export async function withRequestLoaderData(
+export function withRequestLoaderData(
   route: ResolvedRoute,
   ctx: Context,
   publicResult: Extract<LoaderResult, { type: "data" }>
 ): Promise<Extract<LoaderResult, { type: "data" }>> {
-  const requestFields = runRequestLoaderFields(route, ctx);
-  if (requestFields === undefined) {
-    throw new Error(
-      "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
-    );
-  }
-  await requestFields.noFieldCompletion;
-  return {
-    ...publicResult,
-    deferredPromises: {
-      ...(publicResult.deferredPromises ?? {}),
-      ...requestFieldPromises(
-        route,
-        requestFields.fields,
-        publicResult.syncData,
-        publicResult.deferredPromises
-      ),
+  return captureQueryReads(
+    ctx,
+    async () => {
+      currentQueryEnvironment()?.store.hydrate(
+        (publicResult.syncData.__furinQueries as QuerySeed[] | undefined) ?? []
+      );
+      const requestFields = runRequestLoaderFields(route, ctx);
+      if (requestFields === undefined) {
+        throw new Error(
+          "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
+        );
+      }
+      await requestFields.noFieldCompletion;
+      return {
+        ...publicResult,
+        deferredPromises: {
+          ...(publicResult.deferredPromises ?? {}),
+          ...requestFieldPromises(
+            route,
+            requestFields.fields,
+            publicResult.syncData,
+            publicResult.deferredPromises
+          ),
+        },
+      };
     },
-  };
+    "eden-request-queries"
+  );
 }
 
 /**
@@ -792,11 +804,11 @@ function createPublicLoaderContext(ctx: Context): { [key: string]: unknown } {
 }
 
 export function runLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, true, false);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, true, false));
 }
 
 export function runPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, false, false);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, false, false));
 }
 
 export function hasSsrLoaderAncestor(route: ResolvedRoute): boolean {
@@ -816,7 +828,7 @@ export function hasMixedLoaderModes(route: ResolvedRoute): boolean {
 }
 
 export function runMixedLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, true, true);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, true, true));
 }
 
 export function runRouteLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
@@ -824,7 +836,7 @@ export function runRouteLoaders(route: ResolvedRoute, ctx: Context): Promise<Loa
 }
 
 export function runSegmentPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, false, true);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, false, true));
 }
 
 export function hasRequestLoader(route: ResolvedRoute): boolean {

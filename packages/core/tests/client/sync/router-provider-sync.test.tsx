@@ -1,16 +1,27 @@
 /// <reference lib="dom" />
 import "../../setup/global.ts";
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { act, createElement } from "react";
+import { treaty } from "@elysia/eden";
+import { Elysia } from "elysia";
+import { act, createElement, Suspense, use } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/index.ts";
+import { withSync } from "../../../src/client.ts";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
 
 interface PageProps {
   message?: unknown;
   [key: string]: unknown;
+}
+
+declare module "@teyik0/furin/routes" {
+  interface RoutePatternMap {
+    "/optimistic-board/:boardId": { useLoaderData: () => { message: string } };
+  }
 }
 
 interface RenderedRouter {
@@ -20,6 +31,7 @@ interface RenderedRouter {
 }
 
 const BROWSER_EVENTS_RUNTIME_KEY = Symbol.for("furin.browser-events.runtime");
+const OPTIMISTIC_BOARD_REGEX = /^\/optimistic-board\/[^/]+$/;
 
 interface SyncBrowserEvent {
   channel: "sync";
@@ -146,6 +158,231 @@ describe("RouterProvider sync refresh", () => {
     globalThis.fetch = originalFetch;
     Reflect.deleteProperty(globalThis, BROWSER_EVENTS_RUNTIME_KEY);
     await uninstallDom();
+  });
+
+  test("one GET projection updates loader props and holds a scoped refresh until the write settles", async () => {
+    const gate = Promise.withResolvers<void>();
+    let count = 0;
+    let reads = 0;
+    let loaderReads = 0;
+    let changesRead = false;
+    const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };
+    const app = new Elysia()
+      .get("/count", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { count };
+      })
+      .post("/count", async () => {
+        count += 1;
+        await gate.promise;
+        return { ok: true };
+      });
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    function Counter(props: PageProps) {
+      const countData = props.countData as { count: number };
+      return <main>{countData.count}</main>;
+    }
+    const seed = () => [
+      {
+        url: `${window.location.origin}/count`,
+        data: { count },
+        identity,
+        bindings: [{ target: ["countData"], source: [] }],
+      },
+    ];
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = Counter;
+    route.load = async () => ({
+      default: { component: Counter, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      if (String(input).includes("/changes")) {
+        changesRead = true;
+        return Promise.resolve(
+          Response.json({
+            cursor: "1",
+            hasMore: false,
+            reset: false,
+            changes: [{ cursor: "1", invalidations: [], queries: [identity] }],
+          })
+        );
+      }
+      loaderReads += 1;
+      return Promise.resolve(makeNdjsonResponse({ countData: { count }, __furinQueries: seed() }));
+    }) as unknown as typeof fetch;
+    const rendered = await renderRouter(route, initialMatch, {
+      countData: { count },
+      __furinQueries: seed(),
+    });
+    currentCleanup = rendered.cleanup;
+    expect(rendered.container.textContent).toBe("0");
+    expect(reads).toBe(0);
+    let write: ReturnType<typeof api.count.post>;
+    try {
+      await act(async () => {
+        write = api.count.post(undefined, {
+          optimistic: (cache) => cache.update(api.count.get, (data) => ({ count: data.count + 1 })),
+        });
+        await Promise.resolve();
+      });
+      expect(rendered.container.textContent).toBe("1");
+      await act(async () => {
+        browserEvents.emit("0");
+        await waitForDom(() => changesRead, { timeoutMs: 2000 });
+      });
+      expect(loaderReads).toBe(0);
+      await act(async () => {
+        gate.resolve();
+        await write;
+      });
+      expect(rendered.container.textContent).toBe("1");
+      expect(loaderReads).toBeGreaterThan(0);
+    } finally {
+      gate.resolve();
+    }
+  });
+
+  test("a streamed private GET updates promise props optimistically, rolls back, and refreshes on sync", async () => {
+    const writeGate = Promise.withResolvers<void>();
+    const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };
+    let reads = 0;
+    let loaderReads = 0;
+    let changesRead = false;
+    const app = new Elysia()
+      .get("/count", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { count: 0 };
+      })
+      .post("/count", async () => {
+        await writeGate.promise;
+        return new Response("Rejected", { status: 500 });
+      });
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    function Value({ data }: { data: Promise<{ count: number }> }) {
+      return <main>{use(data).count}</main>;
+    }
+    function Counter(props: PageProps) {
+      return (
+        <Suspense fallback="pending">
+          <Value data={props.privateData as Promise<{ count: number }>} />
+        </Suspense>
+      );
+    }
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = Counter;
+    route.load = async () => ({
+      default: { component: Counter, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    const encoder = new TextEncoder();
+    let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+        controller.enqueue(encoder.encode(serializeRouteFrames({}, ["privateData"])));
+      },
+    });
+    const parsed = await parseDeferredNdjson(stream, undefined);
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      if (String(input).includes("/changes")) {
+        changesRead = true;
+        return Promise.resolve(
+          Response.json({
+            cursor: "1",
+            hasMore: false,
+            reset: false,
+            changes: [{ cursor: "1", invalidations: [], queries: [identity] }],
+          })
+        );
+      }
+      loaderReads += 1;
+      return Promise.resolve(
+        new Response(
+          serializeRouteFrames(
+            {
+              __furinQueries: [
+                {
+                  url: `${window.location.origin}/count`,
+                  identity,
+                  data: { count: 0 },
+                  bindings: [{ source: [], target: ["privateData"] }],
+                },
+              ],
+            },
+            ["privateData"]
+          ) +
+            serializeRouteFrame({
+              type: "defer-resolve",
+              key: "privateData",
+              value: toCrossJSON({ count: 0 }),
+            }),
+          { headers: { "Content-Type": "application/x-ndjson" } }
+        )
+      );
+    }) as unknown as typeof fetch;
+    const rendered = await renderRouter(route, initialMatch, {
+      ...parsed.syncData,
+      ...parsed.deferredPromises,
+    });
+    currentCleanup = rendered.cleanup;
+    expect(rendered.container.textContent).toBe("pending");
+    try {
+      await act(async () => {
+        streamController?.enqueue(
+          encoder.encode(
+            serializeRouteFrame({
+              type: "defer-resolve",
+              key: "privateData",
+              value: toCrossJSON({ count: 0 }),
+              queries: toCrossJSON([
+                {
+                  url: `${window.location.origin}/count`,
+                  identity,
+                  data: { count: 0 },
+                  bindings: [{ source: [], target: ["privateData"] }],
+                },
+              ]),
+            })
+          )
+        );
+        streamController?.close();
+        await parsed.deferredPromises.privateData;
+      });
+      expect(rendered.container.textContent).toBe("0");
+      expect(reads).toBe(0);
+      let write: ReturnType<typeof api.count.post>;
+      await act(async () => {
+        write = api.count.post(undefined, {
+          optimistic: (cache) => cache.update(api.count.get, (data) => ({ count: data.count + 1 })),
+        });
+        await Promise.resolve();
+      });
+      expect(rendered.container.textContent).toBe("1");
+      await act(async () => {
+        browserEvents.emit("0");
+        await waitForDom(() => changesRead, { timeoutMs: 2000 });
+      });
+      expect(loaderReads).toBe(0);
+      await act(async () => {
+        writeGate.resolve();
+        await write;
+      });
+      expect(rendered.container.textContent).toBe("0");
+      expect(loaderReads).toBeGreaterThan(0);
+    } finally {
+      writeGate.resolve();
+    }
   });
 
   test("performs one initial catch-up read from the WebSocket cursor", async () => {
@@ -328,10 +565,6 @@ describe("RouterProvider sync refresh", () => {
     expect(requested.data).toBe(1);
   });
 });
-
-import { treaty } from "@elysia/eden";
-import { Elysia } from "elysia";
-import { withSync } from "../../../src/client.ts";
 
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
@@ -544,7 +777,44 @@ describe("Eden optimistic loader projection", () => {
     }
   );
 
-  test("targets the exact query snapshot and ignores absent routes", async () => {
+  test("updates the active dynamic route without repeating its params or query", async () => {
+    window.history.replaceState(null, "", "/optimistic-board/one?filter=open");
+    const gate = Promise.withResolvers<void>();
+    const app = new Elysia().post("/cards", async () => {
+      await gate.promise;
+      return { ok: true };
+    });
+    globalThis.fetch = (async () =>
+      makeNdjsonResponse({ message: "confirmed" })) as unknown as typeof fetch;
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    const route = makeRoute("/optimistic-board/:boardId");
+    route.regex = OPTIMISTIC_BOARD_REGEX;
+    const rendered = await renderRouter(route, await loadInitialMatch(route));
+    ({ cleanup } = rendered);
+    let call: ReturnType<typeof api.cards.post> | undefined;
+    await act(async () => {
+      call = api.cards.post(undefined, {
+        optimistic: (cache) =>
+          cache.update("/optimistic-board/:boardId", (loader) => ({
+            ...loader,
+            message: "optimistic",
+          })),
+      });
+      await Promise.resolve();
+    });
+    expect(rendered.container.textContent).toBe("optimistic");
+    await act(async () => {
+      gate.resolve();
+      await call;
+    });
+    await waitForDom(() => rendered.container.textContent === "confirmed", { timeoutMs: 2000 });
+  });
+
+  test("uses the active static route's query snapshot and ignores absent routes", async () => {
     window.history.replaceState(null, "", "/board?filter=open");
     const gate = Promise.withResolvers<void>();
     const app = new Elysia().post("/cards", async () => {
@@ -565,15 +835,11 @@ describe("Eden optimistic loader projection", () => {
     await act(async () => {
       call = api.cards.post(undefined, {
         optimistic(cache) {
-          cache.update("/board", (loader) => ({ ...loader, message: "wrong unfiltered snapshot" }));
+          cache.update("/board", (loader) => ({ ...loader, message: "optimistic" }));
           cache.update("/other", (loader) => ({ ...loader, message: "wrong route" }));
           cache.update({ path: "/board", search: { filter: "closed" } }, (loader) => ({
             ...loader,
             message: "wrong filtered snapshot",
-          }));
-          cache.update({ path: "/board", search: { filter: "open" } }, (loader) => ({
-            ...loader,
-            message: "optimistic",
           }));
         },
       });

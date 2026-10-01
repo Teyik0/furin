@@ -4,7 +4,8 @@ import { createElement } from "react";
 import { FurinDocumentFallback } from "../../client/document.tsx";
 import { isNotFoundError } from "../../shared/not-found.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
-import { autoInvalidateRegistry } from "../auto-invalidate/registry.ts";
+import { queryTagsFromData } from "../../shared/sync-query.ts";
+import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import {
   captureISRCacheGeneration,
   deleteISRCache,
@@ -452,11 +453,16 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
         route: input.route.pattern,
       },
     });
-    const cacheStored = await storeRenderedISR(input, html, generatedAt);
+    const discoveredTags = queryTagsFromData(syncData);
+    const cacheStored =
+      input.pageCache !== undefined &&
+      discoveredTags.some((tag) => !input.pageCacheIdentity.tags.includes(tag))
+        ? false
+        : await storeRenderedISR(input, html, generatedAt);
     if (cacheStored && input.pageCache === undefined) {
       autoInvalidateRegistry.registerLoaderTags(
         input.cacheKey,
-        input.route.tags,
+        [...(input.route.tags ?? []), ...discoveredTags],
         "render:isr-html"
       );
     }
@@ -496,7 +502,9 @@ export async function handleISR(
     mode: "isr",
     path: resolvedPath,
     scope: currentInstance().prefix,
-    tags: route.tags ?? [],
+    tags: [
+      ...new Set([...(route.tags ?? []), ...getAutoInvalidateRegistry().tagsForPath(cacheKey)]),
+    ],
   };
 
   const lookup = await lookupISRCache(

@@ -10,6 +10,7 @@ import type {
 } from "@teyik0/furin/link";
 import type { useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
+import { Link } from "../../src/client/link.tsx";
 
 import "@teyik0/furin/routes";
 
@@ -71,6 +72,12 @@ declare module "@teyik0/furin/routes" {
     "/elysia-products": typeof generatedRoute;
     "/elysia-slugs/:slug": typeof generatedSlugRoute;
   }
+  interface RoutePatternMap {
+    "/elysia-boards/:boardId": typeof generatedBoardRoute;
+    "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
+    "/elysia-products": typeof generatedRoute;
+    "/elysia-slugs/:slug": typeof generatedSlugRoute;
+  }
 }
 const assertRouteMapBridge = () => {
   type HasProductsRoute = "/elysia-products" extends keyof RouteManifest ? true : false;
@@ -98,9 +105,24 @@ const assertTypedLinkParams = () => {
   // Routes without path params expose `undefined` params.
   expectTypeOf<RouteParamsOf<"/elysia-products">>().toEqualTypeOf<undefined>();
   // LinkProps picks the projection up.
-  expectTypeOf<LinkProps<"/elysia-boards/:boardId">["params"]>().toEqualTypeOf<
-    { boardId: string | number } | undefined
-  >();
+  expectTypeOf<LinkProps<"/elysia-boards/:boardId">["params"]>().toEqualTypeOf<{
+    boardId: string | number;
+  }>();
+};
+
+const assertLinkDestinations = () => {
+  Link({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  Link({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
+  Link({ search: { page: 2 }, to: "/elysia-products" });
+  Link({ to: "/elysia-boards/42" });
+  // @ts-expect-error a named dynamic route requires its URL segment
+  Link({ to: "/elysia-boards/:boardId" });
+  // @ts-expect-error optional schemas do not make path segments optional
+  Link({ params: {}, to: "/elysia-optional-boards/:boardId" });
+  // @ts-expect-error path params retain their schema types
+  Link({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  // @ts-expect-error named routes retain their query schema
+  Link({ search: { page: "two" }, to: "/elysia-products" });
 };
 
 const assertTypedNavigate = (
@@ -138,6 +160,9 @@ const assertTypedNavigate = (
 describe("Elysia RouteMap bridge", () => {
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
+  test("requires params for named dynamic links", () => {
+    expectTypeOf(assertLinkDestinations).toBeFunction();
+  });
   test("types imperative navigation destinations, params, and search", () => {
     expectTypeOf(assertTypedNavigate).toBeFunction();
   });

@@ -34,6 +34,13 @@ const PRODUCT_DETAIL_RE = /^\/products\/([^/]+)$/;
 const PRODUCT_NEW_RE = /^\/products\/new$/;
 const HREF_ATTRIBUTE_RE = /\shref="([^"]*)"/;
 
+const assertNamedLinkJsx = () => {
+  const valid = <Link params={{ boardId: 42 }} to="/elysia-boards/:boardId" />;
+  // @ts-expect-error a named dynamic link requires its path params
+  const missingParams = <Link to="/elysia-boards/:boardId" />;
+  return [valid, missingParams];
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeRouterContext(overrides: Partial<RouterContextValue> | undefined): RouterContextValue {
@@ -535,6 +542,10 @@ describe("Link", () => {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 describe("types", () => {
+  test("JSX Link requires params for a named dynamic route", () => {
+    expectTypeOf(assertNamedLinkJsx).toBeFunction();
+  });
+
   test("PreloadStrategy is the correct union", () => {
     expectTypeOf<PreloadStrategy>().toEqualTypeOf<false | "intent" | "viewport" | "render">();
   });
