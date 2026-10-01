@@ -1,0 +1,25 @@
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_d6e72b37c6efdc::t_a9e7a559b20d76 254
+examples/task-manager/tests/board-card.test.tsx
+  s_d6e72b37c6efdc::t_d06c62e3b3e9e4 92,97-98
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_d6e72b37c6efdc::t_60770bc8d18d05 53-54,64-67,115-116
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_d6e72b37c6efdc::t_05b143d162fc4a 101-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "053dc503a25ad38fb30fc10b09c26b08491efd14",
+  "prompts": {},
+  "sessions": {
+    "s_d6e72b37c6efdc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f979-d779-7623-a941-c132a83de267",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
