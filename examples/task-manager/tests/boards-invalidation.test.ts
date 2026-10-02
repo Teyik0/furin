@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { furinSync } from "@teyik0/furin";
 import { eq } from "drizzle-orm";
 import { Elysia } from "elysia";
 
@@ -7,10 +8,11 @@ import { __resetSyncState } from "../../../packages/core/src/server/sync/stream"
 import { boardPlugin } from "../src/api/modules/boards";
 import { db } from "../src/db";
 import { boards } from "../src/db/schema";
+import { taskManagerSync } from "../src/sync";
 
 const CREATED_BOARD_NAME = "Invalidation create test board";
 const DELETED_BOARD_NAME = "Invalidation delete test board";
-const boardApp = new Elysia().use(boardPlugin);
+const boardApp = new Elysia().use(furinSync(taskManagerSync)).use(boardPlugin);
 
 interface CreatedBoard {
   id: string;

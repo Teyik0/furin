@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.6.0-alpha.1",
+  "version": "0.7.0-alpha.1",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
@@ -127,6 +127,16 @@
       "types": "./dist/client-only.d.ts",
       "bun": "./src/client-only.ts",
       "import": "./dist/client-only.js"
+    },
+    "./sync/drizzle": {
+      "types": "./dist/server/sync/drizzle/index.d.ts",
+      "bun": "./src/server/sync/drizzle/index.ts",
+      "import": "./dist/server/sync/drizzle/index.js"
+    },
+    "./sync/prisma": {
+      "types": "./dist/server/sync/prisma/index.d.ts",
+      "bun": "./src/server/sync/prisma/index.ts",
+      "import": "./dist/server/sync/prisma/index.js"
     }
   },
   "main": "./dist/furin.js",
@@ -147,13 +157,15 @@
     "benchmark:rsc": "bun scripts/benchmark-rsc-transport.ts",
     "build": "bun run build.ts",
     "fix": "ultracite fix",
-    "test": "bun test --parallel=2 --isolate --max-concurrency 4 --bail --timeout 15000",
-    "test:dev": "bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
+    "generate:sync-prisma": "bun --bun node_modules/prisma/build/index.js generate --schema tests/fixtures/sync-prisma/schema.prisma",
+    "test": "bun run generate:sync-prisma && bun test --parallel=2 --isolate --max-concurrency 4 --bail --timeout 15000",
+    "test:dev": "bun run generate:sync-prisma && bun test --changed --parallel --isolate --max-concurrency 4 --bail --timeout 15000",
     "test:hmr:soak": "FURIN_WEBVIEW_TESTS=1 FURIN_HMR_SOAK_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts -t 'tracks memory' --timeout 3600000",
     "test:webview": "FURIN_WEBVIEW_TESTS=1 bun test tests/browser/hmr-conformance.webview.test.ts --timeout 60000",
-    "tscheck": "tsc --noEmit"
+    "tscheck": "bun run generate:sync-prisma && tsc --noEmit"
   },
   "dependencies": {
+    "@elysia/eden": "^2.0.0-beta.5",
     "@elysia/static": "2.0.0-beta.2",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vercel/functions": "^3.9.9",
@@ -167,16 +179,27 @@
     "yuku-parser": "0.12.0"
   },
   "devDependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@prisma/client-runtime-utils": "7.10.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "expect-type": "^1.4.0"
+    "drizzle-orm": "0.45.3",
+    "expect-type": "^1.4.0",
+    "prisma": "7.10.0"
   },
   "peerDependencies": {
+    "drizzle-orm": "^0.45.3",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typebox": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    }
   },
   "engines": {
     "bun": ">=1.4.0"

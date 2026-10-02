@@ -1,353 +1,428 @@
-import { expect, mock, test } from "bun:test";
+import "../../../packages/core/tests/setup/global.ts";
+import { afterEach, expect, mock, test } from "bun:test";
+import { treaty } from "@elysia/eden";
+import { withSync } from "@teyik0/furin/client";
+import { RouterProvider, useRouter } from "@teyik0/furin/link";
+import { Elysia } from "elysia";
+import { serializeCompactJsonLine } from "../../../packages/core/src/shared/compact-json.ts";
 import {
   installDom,
   resetDomState,
   useDomTests as setupDomTests,
+  waitForDom,
 } from "../../../packages/core/tests/support/dom.ts";
 
 installDom();
 resetDomState();
-
 const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
-
 setupDomTests();
 
+interface Card {
+  column: "backlog" | "todo" | "done";
+  id: string;
+  title: string;
+}
 interface MutationResult {
-  data: { column: "backlog"; id: string; title: string } | null;
+  data: object | null;
   error: { message: string } | null;
 }
-
 let resolveCreate: ((result: MutationResult) => void) | undefined;
-let createCalls = 0;
-let resolveDelete:
-  | ((result: { data: { ok: true } | null; error: { message: string } | null }) => void)
-  | undefined;
-let resolveMove:
-  | ((result: { data: object | null; error: { message: string } | null }) => void)
-  | undefined;
+let createFailure: Response | Error | undefined;
+let resolveDelete: typeof resolveCreate;
+let resolveMove: typeof resolveCreate;
+let confirmedCards: Card[] = [];
+let refresh: (() => Promise<void>) | undefined;
+const boardPattern = /^\/board\/[^/]+$/;
+const originalFetch = globalThis.fetch;
+const boardIdentity = { id: "board", scope: { boardId: "board-1" }, session: "test" };
 
-mock.module("../src/lib/api", () => ({
-  apiClient: {
-    api: {
-      boards: () => ({
-        cards: {
-          post: () =>
-            new Promise<MutationResult>((resolve) => {
-              createCalls += 1;
-              resolveCreate = resolve;
-            }),
-        },
-        stats: { get: () => Promise.resolve({ data: null, error: null }) },
-      }),
-      cards: () => ({
-        delete: () =>
-          new Promise((resolve) => {
-            resolveDelete = resolve;
-          }),
-        patch: () =>
-          new Promise((resolve) => {
-            resolveMove = resolve;
-          }),
-      }),
-    },
-  },
-}));
-
-const { Kanban } = await import("../src/components/ui/kanban");
-
-interface TestDataTransfer {
-  getData: (type: string) => string;
-  setData: (type: string, value: string) => void;
-}
-
-function createDataTransfer(): TestDataTransfer {
-  const values = new Map<string, string>();
+function boardData() {
   return {
-    getData: (type) => values.get(type) ?? "",
-    setData: (type, value) => values.set(type, value),
+    board: { id: "board-1", name: "Board" },
+    cards: confirmedCards.map((card) => ({ ...card })),
   };
 }
 
-function dispatchDrag(element: Element, type: string, dataTransfer: TestDataTransfer): void {
-  const EventConstructor = document.defaultView?.Event ?? Event;
-  const event = new EventConstructor(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
-  element.dispatchEvent(event);
+function response(result: MutationResult): Response {
+  return Response.json(result.error ?? result.data, { status: result.error ? 422 : 200 });
+}
+const app = new Elysia()
+  .get("/api/boards/:boardId", () =>
+    Response.json(boardData(), {
+      headers: {
+        "x-furin-query": JSON.stringify(boardIdentity),
+      },
+    })
+  )
+  .post("/api/boards/:boardId/cards", async () =>
+    response(
+      await new Promise<MutationResult>((resolve) => {
+        resolveCreate = resolve;
+      })
+    )
+  )
+  .delete("/api/cards/:id", async () =>
+    response(
+      await new Promise<MutationResult>((resolve) => {
+        resolveDelete = resolve;
+      })
+    )
+  )
+  .patch("/api/cards/:id", async () =>
+    response(
+      await new Promise<MutationResult>((resolve) => {
+        resolveMove = resolve;
+      })
+    )
+  );
+
+mock.module("../src/lib/api", () => ({
+  api: withSync(
+    treaty<typeof app>(window.location.origin, {
+      fetcher: ((input, init) => {
+        if (init?.method === "POST" && createFailure) {
+          return createFailure instanceof Error
+            ? Promise.reject(createFailure)
+            : Promise.resolve(createFailure.clone());
+        }
+        return app.handle(new Request(input, init));
+      }) as typeof fetch,
+    })
+  ).api,
+}));
+const { Kanban } = await import("../src/components/ui/kanban");
+const { moveCard } = await import("../src/lib/card-mutations");
+
+test("optimistic moves renumber both affected columns", () => {
+  const cards = [
+    { id: "a", title: "A", column: "todo" as const, position: 0 },
+    { id: "b", title: "B", column: "todo" as const, position: 1 },
+    { id: "c", title: "C", column: "done" as const, position: 0 },
+    { id: "d", title: "D", column: "done" as const, position: 1 },
+  ];
+  const moved = moveCard(cards, "a", "done", "d");
+  expect(moved?.nextCards.map(({ id, column, position }) => ({ id, column, position }))).toEqual([
+    { id: "b", column: "todo", position: 0 },
+    { id: "c", column: "done", position: 0 },
+    { id: "a", column: "done", position: 1 },
+    { id: "d", column: "done", position: 2 },
+  ]);
+});
+
+function Page({ initialCards }: { initialCards: Card[] }) {
+  const router = useRouter();
+  refresh = () => router.refresh();
+  return createElement(Kanban, { boardId: "board-1", initialCards: initialCards as never });
 }
 
-function setTextareaValue(element: HTMLTextAreaElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
-  setter?.call(element, value);
-  const EventConstructor = document.defaultView?.Event ?? Event;
-  const InputEventConstructor = document.defaultView?.InputEvent;
-  element.dispatchEvent(
-    InputEventConstructor
-      ? new InputEventConstructor("input", { bubbles: true, data: value, inputType: "insertText" })
-      : new EventConstructor("input", { bubbles: true })
+async function renderBoard(cards: Card[]) {
+  window.history.replaceState(null, "", "/board/board-1");
+  confirmedCards = cards;
+  const querySeeds = () => [
+    {
+      url: `${window.location.origin}/api/boards/board-1`,
+      identity: boardIdentity,
+      bindings: [{ target: ["initialCards"], source: ["cards"] }],
+      data: boardData(),
+    },
+  ];
+  globalThis.fetch = (async () =>
+    new Response(
+      serializeCompactJsonLine({ initialCards: confirmedCards, __furinQueries: querySeeds() }),
+      {
+        headers: { "Content-Type": "application/x-ndjson" },
+      }
+    )) as unknown as typeof fetch;
+  const route = {
+    component: Page,
+    load: async () => ({
+      default: { component: Page, _route: { __type: "FURIN_ROUTE" } as never },
+    }),
+    pageRoute: { __type: "FURIN_ROUTE" } as never,
+    pattern: "/board/:boardId",
+    regex: boardPattern,
+  };
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  await act(() =>
+    root.render(
+      createElement(RouterProvider, {
+        autoRefresh: true,
+        basePath: "",
+        defaultPreload: "intent",
+        defaultPreloadDelay: 50,
+        defaultPreloadStaleTime: 30_000,
+        initialData: { initialCards: cards, __furinQueries: querySeeds() },
+        initialDigest: undefined,
+        initialMatch: route as never,
+        initialNotFound: undefined,
+        prefetchCacheSize: 50,
+        root: null,
+        routes: [route as never],
+      })
+    )
   );
+  return {
+    container,
+    cleanup: async () => {
+      await act(() => root.unmount());
+      container.remove();
+    },
+  };
+}
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  resolveCreate = undefined;
+  createFailure = undefined;
+  resolveDelete = undefined;
+  resolveMove = undefined;
+  refresh = undefined;
+});
+
+function setTextareaValue(element: HTMLTextAreaElement, value: string) {
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set?.call(
+    element,
+    value
+  );
+  const EventConstructor = document.defaultView?.Event ?? Event;
+  element.dispatchEvent(new EventConstructor("input", { bubbles: true }));
   element.dispatchEvent(new EventConstructor("change", { bubbles: true }));
 }
 
-test("shows a created card optimistically before the server responds", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-
+async function submitCard(container: Element, title: string) {
+  const add = Array.from(container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Add card"
+  );
+  await act(() => add?.click());
+  const input = container.querySelector<HTMLTextAreaElement>("textarea");
+  expect(input).not.toBeNull();
   await act(() => {
-    root.render(createElement(Kanban, { boardId: "board-1", initialCards: [] }));
+    if (input) {
+      setTextareaValue(input, title);
+    }
   });
+  await act(async () => {
+    input?.closest("form")?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+    await Promise.resolve();
+  });
+}
 
-  try {
-    const addButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "Add card"
-    );
-    await act(() => addButton?.click());
+async function dragCard(container: Element, destination: Element) {
+  const card = container.querySelector('[draggable="true"]');
+  const values = new Map<string, string>();
+  const dataTransfer = {
+    getData: (type: string) => values.get(type) ?? "",
+    setData: (type: string, value: string) => {
+      values.set(type, value);
+    },
+  };
+  const dispatch = (element: Element, type: string) => {
+    const EventConstructor = document.defaultView?.Event ?? Event;
+    const event = new EventConstructor(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    element.dispatchEvent(event);
+  };
+  await act(async () => {
+    if (card) {
+      dispatch(card, "dragstart");
+      dispatch(destination, "drop");
+    }
+    await Promise.resolve();
+  });
+}
 
-    const textarea = container.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label="New task content"]'
-    );
-    const form = textarea?.closest("form");
-    expect(textarea).not.toBeNull();
-    expect(form).not.toBeNull();
-
-    await act(() => {
-      if (textarea) {
-        setTextareaValue(textarea, "Optimistic task");
-      }
-    });
-    await act(() => form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click());
-
-    expect(container.textContent).toContain("Optimistic task");
-    expect(createCalls).toBe(1);
-    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
-
-    await act(async () => {
-      resolveCreate?.({
-        data: { column: "backlog", id: "card-created", title: "Optimistic task" },
-        error: null,
+test.each(["network", "empty", "text", "json-null", "invalid-json"])(
+  "preserves the new-card draft after a %s failure",
+  async (failure) => {
+    if (failure === "network") {
+      createFailure = new TypeError("Failed to fetch");
+    } else if (failure === "json-null") {
+      createFailure = Response.json(null, { status: 502 });
+    } else {
+      createFailure = new Response(failure === "empty" ? null : "Bad gateway", {
+        status: 502,
+        headers: failure === "invalid-json" ? { "Content-Type": "application/json" } : {},
       });
+    }
+    const board = await renderBoard([]);
+    try {
+      await submitCard(board.container, "My task draft");
+      expect(board.container.textContent).toContain("Could not create the card. Please try again.");
+      expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(0);
+      expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+        "My task draft"
+      );
+      expect(
+        board.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
+      ).toBe(false);
+    } finally {
+      await board.cleanup();
+    }
+  }
+);
+
+test("creates an optimistic card through Eden and replaces it with confirmed loader props", async () => {
+  const board = await renderBoard([]);
+  try {
+    await submitCard(board.container, "Optimistic task");
+    const input = board.container.querySelector<HTMLTextAreaElement>("textarea");
+    const submit = input
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const cancel = input
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="button"]');
+    expect(input?.disabled).toBe(true);
+    expect(submit?.disabled).toBe(true);
+    expect(submit?.textContent).toContain("Adding…");
+    expect(cancel?.disabled).toBe(true);
+    expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
+    expect(board.container.textContent).toContain("Optimistic task");
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
+    confirmedCards = [{ id: "created", column: "backlog", title: "Optimistic task" }];
+    await act(async () => {
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
+      }
+      resolveCreate({ data: confirmedCards[0] ?? null, error: null });
       await Promise.resolve();
     });
-    expect(container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
+    await waitForDom(
+      () => board.container.querySelector('a[href="/board/board-1/card/created"]') !== null,
+      { timeoutMs: 2000 }
+    );
+    expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(1);
+    expect(board.container.querySelector("textarea")).toBeNull();
   } finally {
-    await act(() => root.unmount());
-    container.remove();
+    await board.cleanup();
   }
 });
 
-test("applies remote create, move, and delete loader refreshes", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-
+test("removes only a rejected optimistic insertion", async () => {
+  const board = await renderBoard([]);
   try {
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [{ column: "backlog", id: "card-1", title: "First task" }],
-        })
-      );
-    });
-    expect(container.textContent).toContain("First task");
-
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [
-            { column: "backlog", id: "card-1", title: "First task" },
-            { column: "todo", id: "card-2", title: "Remote task" },
-          ],
-        })
-      );
-    });
-    expect(container.querySelectorAll("ul").item(1).textContent).toContain("Remote task");
-
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [
-            { column: "done", id: "card-1", title: "First task" },
-            { column: "todo", id: "card-2", title: "Remote task" },
-          ],
-        })
-      );
-    });
-    expect(container.querySelectorAll("ul").item(3).textContent).toContain("First task");
-
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [{ column: "done", id: "card-1", title: "First task" }],
-        })
-      );
-    });
-    expect(container.textContent).not.toContain("Remote task");
-  } finally {
-    await act(() => root.unmount());
-    container.remove();
-  }
-});
-
-test("does not restore an optimistic board when loader data returns to an earlier reference", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-  const initialCards = [{ column: "backlog" as const, id: "card-1", title: "Move me" }];
-  const refreshedCards = [{ column: "backlog" as const, id: "card-1", title: "Refreshed" }];
-
-  try {
-    await act(() => {
-      root.render(createElement(Kanban, { boardId: "board-1", initialCards }));
-    });
-    const card = container.querySelector('[draggable="true"]');
-    const todoColumn = container.querySelectorAll("ul").item(1);
-    const dataTransfer = createDataTransfer();
-
-    await act(() => {
-      if (card) {
-        dispatchDrag(card, "dragstart", dataTransfer);
-        dispatchDrag(todoColumn, "drop", dataTransfer);
+    await submitCard(board.container, "Rejected task");
+    expect(board.container.querySelector('[draggable="true"]')?.textContent).toContain(
+      "Rejected task"
+    );
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
+    await act(async () => {
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
       }
+      resolveCreate({ data: null, error: { message: "failed" } });
+      await Promise.resolve();
     });
-    expect(todoColumn.textContent).toContain("Move me");
-
-    await act(() => {
-      root.render(createElement(Kanban, { boardId: "board-1", initialCards: refreshedCards }));
-    });
-    expect(container.querySelectorAll("ul").item(0).textContent).toContain("Refreshed");
-
-    await act(() => {
-      root.render(createElement(Kanban, { boardId: "board-1", initialCards }));
-    });
-    expect(container.querySelectorAll("ul").item(0).textContent).toContain("Move me");
-    expect(container.querySelectorAll("ul").item(1).textContent).not.toContain("Move me");
+    expect(board.container.querySelector('[draggable="true"]')).toBeNull();
+    expect(board.container.textContent).toContain("Could not create the card");
+    const input = board.container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(input?.value).toBe("Rejected task");
+    expect(input?.disabled).toBe(false);
+    expect(
+      input?.closest("form")?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
+    ).toBe(false);
   } finally {
-    await act(() => root.unmount());
-    container.remove();
+    await board.cleanup();
   }
 });
 
-test("removes an optimistic created card when creation fails", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-
+test("clears a rejected draft and its error when the add form is cancelled and reopened", async () => {
+  const board = await renderBoard([]);
   try {
-    await act(() => {
-      root.render(createElement(Kanban, { boardId: "board-1", initialCards: [] }));
+    await submitCard(board.container, "Rejected draft");
+    await waitForDom(() => resolveCreate !== undefined, { timeoutMs: 2000 });
+    await act(async () => {
+      if (!resolveCreate) {
+        throw new Error("Create request did not reach the server");
+      }
+      resolveCreate({ data: null, error: { message: "failed" } });
+      await Promise.resolve();
     });
-    const addButton = Array.from(container.querySelectorAll("button")).find(
+    expect(board.container.textContent).toContain("Could not create the card");
+    const cancel = board.container
+      .querySelector("textarea")
+      ?.closest("form")
+      ?.querySelector<HTMLButtonElement>('button[type="button"]');
+    await act(() => cancel?.click());
+    expect(board.container.querySelector("textarea")).toBeNull();
+    const add = Array.from(board.container.querySelectorAll("button")).find(
       (button) => button.textContent === "Add card"
     );
-    await act(() => addButton?.click());
-    const textarea = container.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label="New task content"]'
-    );
-    const form = textarea?.closest("form");
-    await act(() => {
-      if (textarea) {
-        setTextareaValue(textarea, "Rejected task");
-      }
-    });
-    await act(() => form?.querySelector<HTMLButtonElement>('button[type="submit"]')?.click());
-    expect(container.querySelector('[draggable="true"]')?.textContent).toContain("Rejected task");
-
-    await act(async () => {
-      resolveCreate?.({ data: null, error: { message: "failed" } });
-      await Promise.resolve();
-    });
-
-    expect(container.querySelector('[draggable="true"]')).toBeNull();
-    expect(container.textContent).toContain("failed");
+    await act(() => add?.click());
+    expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(board.container.textContent).not.toContain("Could not create the card");
   } finally {
-    await act(() => root.unmount());
-    container.remove();
+    await board.cleanup();
   }
 });
 
-test("removes a card optimistically and restores it when deletion fails", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-
+test("restores a card after a definitive deletion rejection", async () => {
+  const board = await renderBoard([{ id: "1", column: "backlog", title: "Delete me" }]);
   try {
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [{ column: "backlog", id: "card-1", title: "Delete me" }],
-        })
-      );
-    });
-    const card = container.querySelector('[draggable="true"]');
-    const barrel = container.querySelector('button[aria-label^="Delete card"]');
-    expect(card).not.toBeNull();
+    const barrel = board.container.querySelector('button[aria-label^="Delete card"]');
     expect(barrel).not.toBeNull();
-
-    const dataTransfer = createDataTransfer();
-    await act(() => {
-      if (card && barrel) {
-        dispatchDrag(card, "dragstart", dataTransfer);
-        dispatchDrag(barrel, "drop", dataTransfer);
-      }
-    });
-    expect(container.textContent).not.toContain("Delete me");
-
+    if (barrel) {
+      await dragCard(board.container, barrel);
+    }
+    expect(board.container.textContent).not.toContain("Delete me");
+    await waitForDom(() => resolveDelete !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      resolveDelete?.({ data: null, error: { message: "failed" } });
+      if (!resolveDelete) {
+        throw new Error("Delete request did not reach the server");
+      }
+      resolveDelete({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
-
-    expect(container.textContent).toContain("Delete me");
-    expect(container.textContent).toContain("Could not delete the card");
+    expect(board.container.textContent).toContain("Delete me");
+    expect(board.container.textContent).toContain("Could not delete the card");
   } finally {
-    await act(() => root.unmount());
-    container.remove();
+    await board.cleanup();
   }
 });
 
-test("moves a card optimistically and restores it when the move fails", async () => {
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  document.body.appendChild(container);
-
+test("moves a card through projected loader props and removes a rejected move", async () => {
+  const board = await renderBoard([{ id: "1", column: "backlog", title: "Move me" }]);
   try {
-    await act(() => {
-      root.render(
-        createElement(Kanban, {
-          boardId: "board-1",
-          initialCards: [{ column: "backlog", id: "card-1", title: "Move me" }],
-        })
-      );
-    });
-    const card = container.querySelector('[draggable="true"]');
-    const columns = container.querySelectorAll("ul");
-    const todoColumn = columns.item(1);
-    const dataTransfer = createDataTransfer();
-
-    await act(() => {
-      if (card) {
-        dispatchDrag(card, "dragstart", dataTransfer);
-        dispatchDrag(todoColumn, "drop", dataTransfer);
-      }
-    });
-    expect(todoColumn.textContent).toContain("Move me");
-
+    const columns = board.container.querySelectorAll("ul");
+    await dragCard(board.container, columns.item(1));
+    expect(columns.item(1).textContent).toContain("Move me");
+    await waitForDom(() => resolveMove !== undefined, { timeoutMs: 2000 });
     await act(async () => {
-      resolveMove?.({ data: null, error: { message: "failed" } });
+      if (!resolveMove) {
+        throw new Error("Move request did not reach the server");
+      }
+      resolveMove({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
-
     expect(columns.item(0).textContent).toContain("Move me");
-    expect(todoColumn.textContent).not.toContain("Move me");
-    expect(container.textContent).toContain("Could not move the card");
+    expect(columns.item(1).textContent).not.toContain("Move me");
+    expect(board.container.textContent).toContain("Could not move the card");
   } finally {
-    await act(() => root.unmount());
-    container.remove();
+    await board.cleanup();
+  }
+});
+
+test("renders remote inserts, moves and deletions from fresh loaders", async () => {
+  const board = await renderBoard([{ id: "1", column: "backlog", title: "First" }]);
+  try {
+    confirmedCards = [
+      { id: "1", column: "done", title: "First" },
+      { id: "2", column: "todo", title: "Remote" },
+    ];
+    await act(async () => {
+      await refresh?.();
+    });
+    expect(board.container.querySelectorAll("ul").item(3).textContent).toContain("First");
+    expect(board.container.textContent).toContain("Remote");
+    confirmedCards = [{ id: "1", column: "done", title: "First" }];
+    await act(async () => {
+      await refresh?.();
+    });
+    expect(board.container.textContent).not.toContain("Remote");
+  } finally {
+    await board.cleanup();
   }
 });

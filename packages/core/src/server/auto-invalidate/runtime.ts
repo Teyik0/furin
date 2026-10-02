@@ -132,6 +132,7 @@ async function invalidateTagsForInstance(
   let deleted = false;
   const purgedPaths = new Set<string>();
   const logicalPurgedPaths = new Set<string>();
+  const sharedInvalidations: Promise<{ invalidated: boolean; paths: readonly string[] }>[] = [];
   const pageCache = getPageCacheAdapter(instance);
   const sharedResult =
     pageCache === undefined
@@ -153,7 +154,20 @@ async function invalidateTagsForInstance(
   // queueing it for purge — otherwise a mounted app's `/admin/x` stays stale.
   for (const path of taggedPaths) {
     const logicalPath = pathWithoutSearch(path);
+    const registered = getAutoInvalidateRegistry(instance)
+      .tagsForPath(path)
+      .some((tag) => tagList.includes(tag));
     const result = revalidatePathForInstance(instance, logicalPath, "page", false);
+    if (pageCache !== undefined && registered) {
+      sharedInvalidations.push(
+        pageCache.invalidate({
+          kind: "path",
+          scope: instance.prefix,
+          path: logicalPath,
+          type: "page",
+        })
+      );
+    }
     deleted = result.deleted || deleted;
     purgedPaths.add(physicalPath(instance.prefix, logicalPath));
     logicalPurgedPaths.add(logicalPath);
@@ -162,6 +176,8 @@ async function invalidateTagsForInstance(
       logicalPurgedPaths.add(purged);
     }
   }
+  const pathResults = await Promise.all(sharedInvalidations);
+  deleted = pathResults.some((result) => result.invalidated) || deleted;
   if (IS_DEV) {
     withInstance(instance, () => {
       const request = currentInstrumentationRequest();

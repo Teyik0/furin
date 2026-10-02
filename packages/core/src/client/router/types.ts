@@ -1,4 +1,4 @@
-import type { RouteMap } from "@teyik0/furin/routes";
+import type { RouteMap, RoutePatternMap } from "@teyik0/furin/routes";
 import type React from "react";
 import type { HeadOptions } from "../../client.ts";
 import type {
@@ -15,6 +15,12 @@ import type { FurinServerErrorPayload } from "../server-error.ts";
 /** Exact public projection of the generated Elysia route map. */
 export type RouteManifest = RouteMap;
 
+type RouteOf<To extends RouteTo> = To extends keyof RoutePatternMap
+  ? RoutePatternMap[To]
+  : To extends keyof RouteManifest
+    ? RouteManifest[To]
+    : never;
+
 type RouteSearchInput<Route> = Route extends { elysia: infer App }
   ? unknown extends ElysiaRouteQuery<ElysiaRouteLeaf<App>>
     ? undefined
@@ -24,13 +30,13 @@ type RouteSearchInput<Route> = Route extends { elysia: infer App }
 type RouteParamInput<Value> = Value extends number ? string | number : Value;
 
 /**
- * The valid `to` pathname union derived from the generated RouteMap.
+ * Literal route patterns for `to` completion, with a string fallback for concrete URLs.
  * Falls back to `string` when furin-env.d.ts has not been generated yet.
- * When augmented, also includes `https://` and `http://` for external links.
+ * The string fallback also accepts concrete paths and external URLs.
  */
 export type RouteTo = keyof RouteManifest extends never
   ? string
-  : (string & {}) | keyof RouteManifest | `https://${string}` | `http://${string}`;
+  : keyof RoutePatternMap | (string & {});
 
 /**
  * The typed search params for a given `to` pathname.
@@ -38,8 +44,8 @@ export type RouteTo = keyof RouteManifest extends never
  */
 export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
   ? SearchParamsInput
-  : To extends keyof RouteManifest
-    ? RouteSearchInput<RouteManifest[To]>
+  : To extends keyof RouteManifest | keyof RoutePatternMap
+    ? RouteSearchInput<RouteOf<To>>
     : undefined;
 
 /**
@@ -49,8 +55,8 @@ export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
  */
 export type RouteParamsOf<To extends RouteTo> = keyof RouteManifest extends never
   ? Record<string, string | number>
-  : To extends keyof RouteManifest
-    ? RouteManifest[To] extends { elysia: infer App }
+  : To extends keyof RouteManifest | keyof RoutePatternMap
+    ? RouteOf<To> extends { elysia: infer App }
       ? unknown extends ElysiaRouteParams<ElysiaRouteLeaf<App>>
         ? undefined
         : keyof ElysiaRouteParams<ElysiaRouteLeaf<App>> extends never
@@ -65,7 +71,26 @@ export type RouteParamsOf<To extends RouteTo> = keyof RouteManifest extends neve
 
 export type PreloadStrategy = false | "intent" | "viewport" | "render";
 
-export interface LinkProps<To extends RouteTo = RouteTo>
+type LinkPathParamKeys<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
+  ? LinkPathParamKeys<Segment> | LinkPathParamKeys<Rest>
+  : Path extends `:${infer Key}`
+    ? Key
+    : Path extends "*"
+      ? "*"
+      : never;
+
+type LinkParams<To extends RouteTo> = [To] extends [keyof RoutePatternMap]
+  ? LinkPathParamKeys<To> extends never
+    ? { params?: RouteParamsOf<To> }
+    : {
+        params: RouteParamsOf<To> &
+          Required<
+            Pick<RouteParamsOf<To>, Extract<LinkPathParamKeys<To>, keyof RouteParamsOf<To>>>
+          >;
+      }
+  : { params?: RouteParamsOf<To> };
+
+export interface LinkBaseProps<To extends RouteTo>
   extends Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "children"> {
   /**
    * Extra props merged onto the anchor when the link is active.
@@ -110,6 +135,39 @@ export interface LinkProps<To extends RouteTo = RouteTo>
   to: To;
 }
 
+export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> & LinkParams<To>;
+
+export type NavigationTo = keyof RouteManifest | keyof RoutePatternMap extends never
+  ? string
+  : keyof RoutePatternMap | keyof RouteManifest | `https://${string}` | `http://${string}`;
+
+export type RouteTarget<To extends NavigationTo> = To extends NavigationTo
+  ? { to: To; hash?: string; search?: RouteSearch<NoInfer<To>> } & LinkParams<NoInfer<To>>
+  : never;
+
+export interface NavigationOptions {
+  replace?: boolean;
+  resetScroll?: boolean;
+}
+
+export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & NavigationOptions;
+export type Navigate = <To extends NavigationTo>(next: NavigateInput<To>) => Promise<void>;
+
+export interface RouterNavigate {
+  (href: string, opts?: NavigationOptions): Promise<void>;
+  <To extends NavigationTo>(next: NavigateInput<To>): Promise<void>;
+}
+
+export interface Prefetch {
+  (href: string, opts?: { staleTime?: number }): void;
+  <To extends NavigationTo>(next: RouteTarget<To> & { staleTime?: number }): void;
+}
+
+export type Router = Omit<RouterContextValue, "navigate" | "prefetch"> & {
+  navigate: RouterNavigate;
+  prefetch: Prefetch;
+};
+
 export interface RouterContextValue {
   /**
    * Sub-path prefix for static deployments (e.g. "/furin").
@@ -119,6 +177,8 @@ export interface RouterContextValue {
   basePath: string;
   /** Current **logical** pathname + search (basePath stripped). Used by Link for active-state detection. */
   currentHref: string;
+  /** Pattern of the currently rendered route, when a page route is matched. */
+  currentPattern?: string;
   defaultPreload: PreloadStrategy;
   defaultPreloadDelay: number;
   defaultPreloadStaleTime: number;
@@ -245,6 +305,7 @@ export interface RouterState {
   /** The canonical href after server-side redirects (e.g. query-default redirect). */
   finalHref?: string;
   head?: HeadOptions;
+  hydrateQueries?: ReturnType<import("../query-store.ts").QueryStore["captureHydration"]>;
   /**
    * The currently rendered route.
    *
@@ -259,6 +320,7 @@ export interface RouterState {
    * Explicit boundary chain to use for the not-found render.
    */
   notFoundBoundaries?: ClientSegmentBoundary[] | undefined;
+  querySeeds?: import("../../shared/sync-query.ts").QuerySeed[];
   title?: string;
 }
 

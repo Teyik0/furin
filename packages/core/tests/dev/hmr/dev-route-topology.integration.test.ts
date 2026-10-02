@@ -194,6 +194,8 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
 
   test("hot-remove — deleting pages/about.tsx stops serving the route", async () => {
     removeAppPath(app.path, "src/pages/about.tsx");
+    const immediateResponse = await fetch(`http://localhost:${port}/about`);
+    expect(immediateResponse.status).toBe(404);
 
     let status = 0;
     const gone = await pollUntil(
@@ -218,9 +220,22 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     );
     expect(dataResponse.status).toBe(404);
 
-    const snapshotResponse = await fetch(`http://localhost:${port}/_furin/devtools/snapshot`);
-    const snapshot = (await snapshotResponse.json()) as { routes: Array<{ pattern: string }> };
-    expect(snapshot.routes.some((route) => route.pattern === "/about")).toBe(false);
+    const removedFromSnapshot = await pollUntil(
+      async () => {
+        try {
+          const snapshotResponse = await fetch(`http://localhost:${port}/_furin/devtools/snapshot`);
+          const snapshot = (await snapshotResponse.json()) as {
+            routes: Array<{ pattern: string }>;
+          };
+          return !snapshot.routes.some((route) => route.pattern === "/about");
+        } catch {
+          return false;
+        }
+      },
+      40,
+      250
+    );
+    expect(removedFromSnapshot).toBe(true);
   }, 20_000);
 
   test("hot-added routes retain schema normalization", async () => {

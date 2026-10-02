@@ -2297,6 +2297,65 @@ browserTest(
 );
 
 browserTest(
+  "a root UI edit with an imported loader does not refetch data",
+  async () => {
+    const root = (version: string) => `
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+import { loadData } from "../lib/loader";
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(loadData)
+  .layout(({ children, message }) => (
+    <html lang="en">
+      <head><HeadContent /></head>
+      <body>
+        <output data-testid="root-version">${version}</output>
+        {children}
+        <output data-testid="root-data">{message}</output>
+        <Scripts />
+      </body>
+    </html>
+  ));`;
+    const harness = await createBrowserHarness(
+      pageSource("root-page", false),
+      [
+        { contents: root("root-v1"), relativePath: "src/pages/root.tsx" },
+        {
+          contents: 'export const loadData = () => ({ message: "loader-stable" });',
+          relativePath: "src/lib/loader.ts",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-stable");
+    await harness.view.click('[data-testid="increment"]');
+    await harness.view.evaluate("performance.clearResourceTimings()");
+
+    writeAppFile(harness.app.path, "src/pages/root.tsx", root("root-v2"));
+
+    await waitForElementText(harness.view, '[data-testid="root-version"]', "root-v2");
+    await Bun.sleep(300);
+    expect(
+      (await harness.view.evaluate(`performance.getEntriesByType("resource")
+        .filter((entry) => entry.name.includes("/_furin/data")).length`)) as number
+    ).toBe(0);
+    await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-stable");
+    expect((await readSnapshot(harness.view)).count).toBe("1");
+
+    writeAppFile(
+      harness.app.path,
+      "src/lib/loader.ts",
+      'export const loadData = () => ({ message: "loader-updated" });'
+    );
+    writeAppFile(harness.app.path, "src/pages/root.tsx", root("root-v3"));
+    await waitForElementText(harness.view, '[data-testid="root-version"]', "root-v3");
+    await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-updated");
+  },
+  30_000
+);
+
+browserTest(
   "an imported component and loader edit refreshes both atomically",
   async () => {
     const harness = await createBrowserHarness(

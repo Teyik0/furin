@@ -27,4 +27,29 @@ declare module "@teyik0/furin/routes" {
     "/docs/routing": typeof import("./src/pages/docs/routing").route;
     "/docs/sync": typeof import("./src/pages/docs/sync").route;
   }
+
+  interface RoutePatternMap {
+    "/": typeof import("./src/pages/index").route;
+    "/docs": typeof import("./src/pages/docs/index").route;
+    "/docs/api-routes": typeof import("./src/pages/docs/api-routes").route;
+    "/docs/caching": typeof import("./src/pages/docs/caching").route;
+    "/docs/cli": typeof import("./src/pages/docs/cli").route;
+    "/docs/comparison": typeof import("./src/pages/docs/comparison").route;
+    "/docs/configuration": typeof import("./src/pages/docs/configuration").route;
+    "/docs/data-loading": typeof import("./src/pages/docs/data-loading").route;
+    "/docs/defer": typeof import("./src/pages/docs/defer").route;
+    "/docs/deployment": typeof import("./src/pages/docs/deployment").route;
+    "/docs/dev-hmr": typeof import("./src/pages/docs/dev-hmr").route;
+    "/docs/error-handling": typeof import("./src/pages/docs/error-handling").route;
+    "/docs/getting-started": typeof import("./src/pages/docs/getting-started").route;
+    "/docs/head-seo": typeof import("./src/pages/docs/head-seo").route;
+    "/docs/layouts": typeof import("./src/pages/docs/layouts").route;
+    "/docs/link-navigation": typeof import("./src/pages/docs/link-navigation").route;
+    "/docs/logging": typeof import("./src/pages/docs/logging").route;
+    "/docs/multi-instance": typeof import("./src/pages/docs/multi-instance").route;
+    "/docs/plugins": typeof import("./src/pages/docs/plugins").route;
+    "/docs/rendering": typeof import("./src/pages/docs/rendering").route;
+    "/docs/routing": typeof import("./src/pages/docs/routing").route;
+    "/docs/sync": typeof import("./src/pages/docs/sync").route;
+  }
 }

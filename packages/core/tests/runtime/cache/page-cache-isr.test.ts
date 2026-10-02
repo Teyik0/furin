@@ -1,13 +1,17 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import type { Context } from "elysia";
+import { treaty } from "@elysia/eden";
+import { type Context, Elysia } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
+import { withSync } from "../../../src/client.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate/index.ts";
+import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import {
   __resetCacheState,
   revalidatePath,
   waitForPendingISRRevalidations,
 } from "../../../src/server/cache/index.ts";
+import { deleteISRCache, getISRCache, setISRCache } from "../../../src/server/cache/isr.ts";
 import {
   createMemoryPageCache,
   type PageCacheAdapter,
@@ -23,6 +27,7 @@ import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 function createContext(path: string): Context {
   return {
@@ -62,6 +67,38 @@ function scanFixture(): ReturnType<typeof scanPages> {
   fixturePromise ??= scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
   return fixturePromise;
 }
+
+test("deleting a refreshed local ISR entry removes its invalidation dependency", async () => {
+  const fixture = await scanFixture();
+  const matched = fixture.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Missing ISR fixture");
+  }
+  const instance = registerInstance(createInstance("", "/local-isr-owner/pages"));
+  const route = { ...matched, tags: ["local-isr-owner"] };
+  try {
+    __setDevMode(false);
+    await withInstance(instance, async () => {
+      await handleISR(route, createContext("/isr-page"), fixture.root, "test");
+      const cached = getISRCache("/isr-page");
+      if (!cached) {
+        throw new Error("ISR entry was not stored");
+      }
+      setISRCache("/isr-page", {
+        ...cached,
+        generatedAt: Date.now() - (cached.revalidate + 1) * 1000,
+      });
+      await handleISR(route, createContext("/isr-page"), fixture.root, "test");
+      await waitForPendingISRRevalidations();
+      expect(autoInvalidateRegistry.pathsForTags(["local-isr-owner"])).toContain("/isr-page");
+      deleteISRCache("/isr-page");
+      expect(autoInvalidateRegistry.pathsForTags(["local-isr-owner"])).toEqual([]);
+    });
+  } finally {
+    withInstance(instance, () => __resetCacheState());
+    __setDevMode(true);
+  }
+});
 
 test("ISR replicas use the configured page cache as their source of truth", (done) => {
   const scenario = runSharedCacheSourceOfTruth();
@@ -167,6 +204,72 @@ test("stale ISR refreshes the shared entry", (done) => {
   const scenario = runStaleISRRefresh();
   scenario.then(() => done(), done);
 }, 15_000);
+
+test("background discovery cannot drop query tags from a shared ISR entry", async () => {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Missing ISR fixture");
+  }
+  const query = { id: "cards", scope: {}, session: "public" };
+  let reads = 0;
+  const api = withSync(
+    treaty(
+      new Elysia().get("/cards", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(query);
+        return { timestamp: 2 };
+      })
+    )
+  );
+  const route = {
+    ...matched,
+    tags: undefined,
+    page: {
+      ...matched.page,
+      loader: async () => (await api.cards.get()).data ?? {},
+    },
+  };
+  const instance = registerInstance(createInstance("", "/background-query/pages"));
+  instance.buildId = "build-a";
+  const cache = createMemoryPageCache();
+  const identity: PageCacheIdentity = {
+    buildId: instance.buildId,
+    key: "/isr-page",
+    mode: "isr",
+    path: "/isr-page",
+    scope: "",
+    tags: [queryTag(query)],
+  };
+  const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+  if (!lease) {
+    throw new Error("Missing cache lease");
+  }
+  await cache.commit({
+    identity,
+    lease,
+    entry: {
+      cachedAt: 0,
+      payload: "<html>stale</html>",
+      revalidate: 60,
+    },
+  });
+  setPageCacheAdapter(instance, { ...cache, read: () => cache.read(identity) });
+  try {
+    await withInstance(instance, () =>
+      handleISR(route, createContext("/isr-page"), result.root, instance.buildId)
+    );
+    await waitForPendingISRRevalidations();
+    expect(reads).toBe(1);
+    expect((await cache.read(identity))?.payload).toBe("<html>stale</html>");
+    await cache.invalidate({ kind: "tags", scope: "", tags: [queryTag(query)] });
+    expect(await cache.read(identity)).toBeNull();
+  } finally {
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
+});
 
 async function runStaleISRRefresh(): Promise<void> {
   __setDevMode(false);
@@ -311,6 +414,55 @@ test("revalidateTag invalidates shared ISR entries", async () => {
   try {
     expect(await revalidateTag("posts")).toBe(true);
     expect(await cache.read(identity)).toBeNull();
+  } finally {
+    resetPageCacheAdapter(instance);
+    __resetCacheState();
+  }
+});
+
+test("ISR discovers Eden dependencies without loader tags and invalidates the shared entry", async () => {
+  __setDevMode(false);
+  const result = await scanFixture();
+  const matched = result.routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (!matched) {
+    throw new Error("Route /isr-page not found");
+  }
+  const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
+  let value = 1;
+  let reads = 0;
+  const api = withSync(
+    treaty(
+      new Elysia().get("/cards", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { timestamp: value };
+      })
+    )
+  );
+  const route: ResolvedRoute = {
+    ...matched,
+    mode: "isr",
+    page: { ...matched.page, loader: async () => (await api.cards.get()).data ?? {} },
+    tags: undefined,
+  };
+  const instance = registerInstance(createInstance("", "/eden-dependency/pages"));
+  instance.buildId = "build-a";
+  setPageCacheAdapter(instance, createMemoryPageCache());
+  const render = (context: Context) =>
+    withInstance(instance, () => handleISR(route, context, result.root, instance.buildId));
+  try {
+    const discovery = createContext("/isr-page");
+    await render(discovery);
+    expect(discovery.set.headers["cache-control"]).toBe("no-store");
+    await render(createContext("/isr-page"));
+    await render(createContext("/isr-page"));
+    expect(reads).toBe(2);
+
+    value = 2;
+    expect(await revalidateTag(queryTag(identity))).toBe(true);
+    const fresh = await render(createContext("/isr-page"));
+    expect(fresh).toContain('data-timestamp="2"');
+    expect(reads).toBe(3);
   } finally {
     resetPageCacheAdapter(instance);
     __resetCacheState();

@@ -1,12 +1,9 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: delete button handler depends on board-specific mutation state
-import { useSync } from "@teyik0/furin/client";
 import { useState } from "react";
-import { apiClient } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export function DeleteBoardButton({ boardId }: { boardId: string }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteBoard = useSync(apiClient.api.boards({ boardId }).delete);
 
   const handleDelete = async () => {
     if (isDeleting) {
@@ -14,7 +11,7 @@ export function DeleteBoardButton({ boardId }: { boardId: string }) {
     }
     setIsDeleting(true);
     try {
-      const { error } = await deleteBoard();
+      const { error } = await api.boards({ boardId }).delete();
       if (error) {
         throw new Error("Could not delete the board. Please try again.");
       }

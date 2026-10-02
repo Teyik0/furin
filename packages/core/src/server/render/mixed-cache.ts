@@ -1,8 +1,11 @@
 import type { Context } from "elysia";
 import { fromCrossJSON, toCrossJSONAsync } from "seroval";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import { currentQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
-import { isDeferred } from "../../client.ts";
+import { isDeferred } from "../../shared/defer.ts";
+import { bindQueryData, projectQueryData } from "../../shared/query-bindings.ts";
+import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
 import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
@@ -27,6 +30,15 @@ interface ParentDependency {
 interface SegmentSnapshot {
   data: Parameters<typeof fromCrossJSON>[0];
   dependencies: ParentDependency[];
+  queries?: QuerySeed[];
+}
+
+function capturedQueryTags(): string[] {
+  return (
+    currentQueryEnvironment()
+      ?.store.dehydrate()
+      .map((seed) => queryTag(seed.identity)) ?? []
+  );
 }
 
 const mixedCacheKey = Symbol("furin-mixed-loader-cache");
@@ -115,7 +127,11 @@ async function readCachedSegment(
         return;
       }
     }
-    return fromCrossJSON(snapshot.data, {}) as Record<string, unknown>;
+    const environment = currentQueryEnvironment();
+    environment?.store.hydrate(snapshot.queries ?? []);
+    environment?.onRead();
+    const data = fromCrossJSON(snapshot.data, {}) as Record<string, unknown>;
+    return projectQueryData(data, snapshot.queries ?? [], (seed) => seed.data);
   } catch {
     getLogger().warn("Mixed loader cache entry is invalid; loading fresh data");
   }
@@ -136,6 +152,9 @@ async function createSegmentSnapshot(
   return JSON.stringify({
     data: await toCrossJSONAsync(data),
     dependencies,
+    queries: bindQueryData(data, currentQueryEnvironment()?.store.dehydrate() ?? []).filter(
+      (seed) => (seed.bindings?.length ?? 0) > 0
+    ),
   } satisfies SegmentSnapshot);
 }
 
@@ -184,6 +203,9 @@ async function commitSharedSegment(
   cached: CachedSegment,
   revalidate: number
 ): Promise<void> {
+  if (capturedQueryTags().some((tag) => !identity.tags.includes(tag))) {
+    return;
+  }
   try {
     await shared.commit({
       entry: {
@@ -235,6 +257,7 @@ export async function cacheMixedPublicLoader(
   run: () => Promise<Record<string, unknown>>
 ): Promise<Record<string, unknown>> {
   const instance = currentInstance();
+  const declaredTags = route.tags ?? [];
   const mode = segment.mode ?? route.mode;
   const revalidate = mode === "isr" ? (segment.revalidate ?? 60) : Number.POSITIVE_INFINITY;
   const requestUrl = new URL(ctx.request.url);
@@ -256,7 +279,12 @@ export async function cacheMixedPublicLoader(
     mode: mode === "isr" ? ("isr" as const) : ("ssg" as const),
     path,
     scope: instance.prefix,
-    tags: route.tags ?? [],
+    tags: [
+      ...new Set([
+        ...declaredTags,
+        ...getAutoInvalidateRegistry().tagsForPath(`${path}${requestUrl.search}`),
+      ]),
+    ],
   };
   const stored =
     shared === undefined
@@ -283,7 +311,7 @@ export async function cacheMixedPublicLoader(
       generation,
       key,
       `${path}${requestUrl.search}`,
-      route.tags,
+      [...declaredTags, ...capturedQueryTags()],
       cached
     );
     if (shared !== undefined && lease !== null) {

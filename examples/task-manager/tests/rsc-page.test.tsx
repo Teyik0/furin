@@ -8,6 +8,7 @@ mock.module("../src/api/modules/boards/service", () => ({
     name,
   }),
   deleteBoard: (_boardId: string) => true,
+  getBoard: (_boardId: string) => null,
   getBoardData: (_boardId: string) => null,
   getBoardStats: (_boardId: string) => null,
   getBoards: () => [

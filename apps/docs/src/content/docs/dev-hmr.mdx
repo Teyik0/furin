@@ -167,27 +167,36 @@ If the signature changes, Furin replaces the inner boundary and React remounts
 that component. Rebuilding the route table removes obsolete registry entries
 without replacing surviving entries.
 
-### Reconcile, then refresh data
+### Commit code and data together
+
+Component-only route edits preserve loader data, including when a loader uses
+imported helpers. Furin compares the server stages and the contents of their
+transitive application imports before requesting fresh data. Import bindings
+and paths participate in this comparison; server code stays out of the client
+bundle. Unresolved dependencies still trigger a conservative refresh. Bun can
+also re-evaluate a route after an import update without rerunning the transform;
+those updates refresh data because the embedded dependency fingerprint may be
+stale.
 
 The initial document calls `hydrateRoot(document, app)`. The React root is kept
 on `window.__FURIN_ROOT__`, the object that survives Bun module re-evaluation.
 Subsequent updates call `root.render(app)`; they reconcile an already-owned DOM
 and never attempt to hydrate it a second time.
 
-After the component update, Furin schedules `window.__FURIN_HMR_REFRESH__` on the
-next animation frame. The router:
+The route's HMR accept handler invokes `window.__FURIN_HMR_REFRESH__` directly.
+Component-only edits commit without requesting data. When fresh data is needed,
+the router:
 
 1. invalidates the current page's prefetch entry;
 2. requests fresh route data with `x-furin-hmr-refresh: 1`;
 3. asks the topology watcher to refresh before resolving that data request;
 4. reruns or retrieves loaders according to the current route mode; and
-5. replaces the current router state without adding a history entry or resetting
-   scroll.
+5. commits the updated component with the fresh router state without adding a
+   history entry or resetting scroll.
 
 Navigation versions and abort signals prevent an older, slower loader response
-from overwriting a newer refresh. Code and data still arrive as two updates, so
-a loader-backed component can briefly render its new code with the previous
-payload before the data request converges.
+from overwriting a newer refresh. The router waits for fresh data before
+publishing the updated component and router state together.
 
 ### Transport recovery
 
@@ -387,10 +396,8 @@ Furin does not hide these cases behind a global reload because that would make
 the passing Fast Refresh cases lose state and would conceal graph invalidation
 regressions.
 
-Loader-backed edits are not atomic: code can render once with the previous data
-before the refresh resolves. Large-project cold start, warm start, memory, and
-edit-to-paint performance also need published reproducible benchmarks before
-making comparative speed claims.
+Large-project cold start, warm start, memory, and edit-to-paint performance need
+published reproducible benchmarks before making comparative speed claims.
 
 ## Verification
 

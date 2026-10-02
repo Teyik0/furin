@@ -49,10 +49,18 @@ export default function BlogError({ error, reset }: ErrorProps) {
 |---|---|
 | `error.message` | Safe public message chosen by Furin's error normalization |
 | `error.digest` | Deterministic 10-character hexadecimal correlation ID |
-| `error.status` | HTTP status; thrown error values normally become `500` |
+| `error.status` | HTTP status; thrown Responses and Eden problems retain their status, while other errors become `500` |
 | `reset()` | Clears the client boundary and reloads the current route; it is a no-op during server rendering |
 
-Thrown `Error` messages are not exposed directly. Ordinary failures become `Something went wrong`; the complete error and matching digest stay in server logs. A deliberately thrown `Response` may supply a public body and status.
+Thrown `Error` messages are not exposed directly. Ordinary failures become `Something went wrong`; the complete error and matching digest stay in server logs. A deliberately thrown `Response` may supply a public body and status. Throwing an Eden error whose value is an Elysia Problem Detail preserves its HTTP status and uses the problem's `detail` (or `title`) as the public message:
+
+```ts
+const { data: content, error } = await api().content.get();
+if (error) throw error;
+return { content };
+```
+
+The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed ISR renders are not cached.
 
 Without an authored boundary, Furin renders its built-in safe error screen. If the root document itself cannot render, a framework-owned minimal document is the last resort.
 

@@ -43,8 +43,8 @@ declare module "*.woff2" {
   export default src;
 }
 declare module "*.mdx" {
-  import type { ComponentType } from "react";
+  import type { ComponentType, ElementType } from "react";
 
-  const MDXComponent: ComponentType;
+  const MDXComponent: ComponentType<{ components?: { [tag: string]: ElementType } }>;
   export default MDXComponent;
 }

@@ -14,6 +14,7 @@ await $`bunx tsc --project tsconfig.dts.json`;
 const shared = {
   external: [
     "elysia",
+    "drizzle-orm",
     "react",
     "react-dom",
     "react-server-dom-webpack",
@@ -44,6 +45,8 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/migrate.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/drizzle/index.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/prisma/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/redis/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/sqlite/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/plugin/index.ts`] }),

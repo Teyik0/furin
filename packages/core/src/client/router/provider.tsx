@@ -1,11 +1,24 @@
 import { log } from "evlog";
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
+import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
+import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
 import { subscribeBrowserEvent } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
+import { QueryStoreContext } from "../query.tsx";
+import { QueryStore } from "../query-store.ts";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
 import {
@@ -27,6 +40,7 @@ import {
   stripHashFromHref,
   toLogical,
 } from "./link-utils.ts";
+import { createOptimisticRuntime, registerOptimisticRuntime, SYNC_REQUEST } from "./optimistic.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import {
   buildDataEndpoint,
@@ -123,10 +137,24 @@ export function RouterProvider({
   syncPath,
 }: RouterProviderProps): React.ReactElement {
   const initialDocumentState = useDocumentState();
+  const [queries] = useState(() => {
+    const store = new QueryStore(
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+    store.hydrate(
+      (initialData.__furinQueries as QuerySeed[] | undefined) ?? [],
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+    return store;
+  });
   // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
   // the provider boots into the inline not-found UI.
   const [state, setState] = useState<RouterState>(() => ({
-    data: initialData,
+    data: Object.fromEntries(
+      Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
+    ),
+    querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
+    hydrateQueries: queries.captureHydration(),
     error: initialError
       ? {
           ...initialError,
@@ -138,6 +166,46 @@ export function RouterProvider({
     notFound: initialNotFound,
   }));
   const [boundaryResetVersion, setBoundaryResetVersion] = useState(0);
+  const currentState = useRef(state);
+  useLayoutEffect(() => {
+    currentState.current = state;
+  }, [state]);
+  useLayoutEffect(() => {
+    queries.hydrate(
+      state.querySeeds ?? [],
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+  }, [queries, state.querySeeds]);
+  const resolvedQueries = useRef(new WeakMap<Promise<unknown>, DeferredQueryValue>());
+  const [deferredRevision, setDeferredRevision] = useState(0);
+  useEffect(() => {
+    const snapshot = currentState.current;
+    const hydrated = new Set(snapshot.querySeeds?.map((seed) => seed.url));
+    let disposed = false;
+    for (const promise of Object.values(state.data)) {
+      if (!(promise instanceof Promise)) {
+        continue;
+      }
+      promise.then(
+        (value: unknown) => {
+          if (disposed) {
+            return;
+          }
+          resolvedQueries.current.set(promise, { value });
+          const seeds = (snapshot.querySeeds ?? []).filter((seed) => !hydrated.has(seed.url));
+          snapshot.hydrateQueries?.(seeds, window.location.origin);
+          for (const seed of seeds) {
+            hydrated.add(seed.url);
+          }
+          setDeferredRevision((revision) => revision + 1);
+        },
+        () => undefined
+      );
+    }
+    return () => {
+      disposed = true;
+    };
+  }, [queries, state.data]);
   const [isNavigating, setIsNavigating] = useState(false);
   // currentHref stores the LOGICAL path (basePath stripped) so Link active-state
   // detection works with route patterns that never include the basePath prefix.
@@ -147,6 +215,33 @@ export function RouterProvider({
     }
     return normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search;
   });
+  const optimisticSnapshot = useRef({
+    href: currentHref,
+    loaded: state.match !== null,
+    pattern: state.match?.pattern,
+  });
+  useLayoutEffect(() => {
+    optimisticSnapshot.current = {
+      href: currentHref,
+      loaded: state.match !== null && !(state.error || state.notFound),
+      pattern: state.match?.pattern,
+    };
+  }, [currentHref, state.match, state.error, state.notFound]);
+  const syncResponse = useRef<
+    ((response: Response | undefined, optimistic: boolean) => void) | undefined
+  >(undefined);
+  const [optimisticRuntime] = useState(() =>
+    createOptimisticRuntime({
+      basePath,
+      queries,
+      snapshot: () => optimisticSnapshot.current,
+      onResponse: (response, optimistic) => syncResponse.current?.(response, optimistic),
+    })
+  );
+  useSyncExternalStore(optimisticRuntime.subscribe, optimisticRuntime.revision, () => 0);
+  const queryRevision = useSyncExternalStore(queries.subscribeAll, queries.revision, () => 0);
+  useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
+  const snapshotVersions = useRef(new WeakMap<RouterState, number>());
   const prefetchCache = useRef(new Map<string, CacheEntry>());
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
@@ -236,6 +331,7 @@ export function RouterProvider({
       hmrRefresh: boolean
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — response shapes (redirect, stale-deploy, deferred) + abort-signal wiring require this depth
     ): Promise<RouterState | null> => {
+      const hydrateQueries = queries.captureHydration();
       // Normalize trailing slashes so "/docs/routing/" matches the route
       // pattern "/docs/routing" — static hosts (GitHub Pages, Netlify) often
       // redirect to or serve URLs with a trailing slash.
@@ -311,6 +407,7 @@ export function RouterProvider({
           __furinRedirect,
           __furinError,
           __furinTitle,
+          __furinQueries,
           ...cleanSyncData
         } = syncData as {
           __furinStatus?: number;
@@ -319,6 +416,7 @@ export function RouterProvider({
           __furinError?: { digest: string; message: string; status: number };
           __furinHead?: HeadOptions;
           __furinTitle?: string;
+          __furinQueries?: QuerySeed[];
           [key: string]: unknown;
         };
 
@@ -395,7 +493,14 @@ export function RouterProvider({
           };
         }
 
-        return { data, head: __furinHead, match: loadedMatch, title };
+        return {
+          data,
+          head: __furinHead,
+          match: loadedMatch,
+          querySeeds: __furinQueries,
+          hydrateQueries,
+          title,
+        };
       } catch (err: unknown) {
         if (!isAbortError(err)) {
           log.error({
@@ -407,7 +512,32 @@ export function RouterProvider({
         return null;
       }
     },
-    [routes, basePath, resolveNoMatchState]
+    [routes, basePath, resolveNoMatchState, queries]
+  );
+
+  const fetchConfirmedPageState = useCallback(
+    async (href: string, signal: AbortSignal | undefined, hmrRefresh: boolean) => {
+      for (;;) {
+        try {
+          // biome-ignore lint/performance/noAwaitInLoops: a snapshot must be read after local writes settle.
+          await optimisticRuntime.wait(href, signal);
+        } catch (error) {
+          if (signal?.aborted) {
+            return null;
+          }
+          throw error;
+        }
+        const version = optimisticRuntime.revision(href);
+        const snapshot = await fetchPageState(href, signal, hmrRefresh);
+        if (optimisticRuntime.publishable(href, version)) {
+          if (snapshot) {
+            snapshotVersions.current.set(snapshot, version);
+          }
+          return snapshot;
+        }
+      }
+    },
+    [fetchPageState, optimisticRuntime]
   );
 
   const invalidatePrefetch = useCallback((path: string, type: "page" | "layout") => {
@@ -463,16 +593,26 @@ export function RouterProvider({
     signal: AbortSignal | undefined
   ): Promise<RouterState | null> {
     const cached = prefetchCache.current.get(redirectLogical);
-    const useCached = cached !== undefined && !shouldRefetch(cached);
+    const useCached =
+      cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(redirectLogical);
     let redirectState =
       useCached && cached
         ? await cached.promise
-        : await fetchPageState(redirectLogical, signal, false);
+        : await fetchConfirmedPageState(redirectLogical, signal, false);
     if (navVersion.current !== myVersion) {
       return null;
     }
-    if (useCached && isRedirectState(redirectState)) {
-      redirectState = await fetchPageState(redirectLogical, signal, false);
+    if (
+      useCached &&
+      (isRedirectState(redirectState) ||
+        (redirectState &&
+          !optimisticRuntime.publishable(
+            redirectLogical,
+            snapshotVersions.current.get(redirectState) ??
+              optimisticRuntime.revision(redirectLogical)
+          )))
+    ) {
+      redirectState = await fetchConfirmedPageState(redirectLogical, signal, false);
     }
     return navVersion.current === myVersion ? redirectState : null;
   }
@@ -517,6 +657,7 @@ export function RouterProvider({
         | undefined
     ) {
       const logicalHref = normalizeHref(rawLogicalHref);
+      const beforeCommit = opts?.beforeCommit;
       const finishUserNavigation =
         opts?.hmrRefresh === true ? undefined : beginUserNavigation(pendingUserNavigation);
       navVersion.current += 1;
@@ -528,14 +669,26 @@ export function RouterProvider({
       setIsNavigating(true);
       try {
         const cached = prefetchCache.current.get(logicalHref);
-        const useCached = cached !== undefined && !shouldRefetch(cached);
+        const useCached =
+          cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(logicalHref);
         let newState =
           useCached && cached
             ? await cached.promise
-            : await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
-        const cachedRedirect = useCached && isRedirectState(newState);
+            : await fetchConfirmedPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
+        const cachedRedirect =
+          useCached &&
+          (isRedirectState(newState) ||
+            (newState &&
+              !optimisticRuntime.publishable(
+                logicalHref,
+                snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(logicalHref)
+              )));
         if (cachedRedirect) {
-          newState = await fetchPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
+          newState = await fetchConfirmedPageState(
+            logicalHref,
+            navSignal,
+            opts?.hmrRefresh === true
+          );
         }
         if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
@@ -577,7 +730,19 @@ export function RouterProvider({
         if (opts?.shouldCommit?.() === false) {
           return;
         }
-        opts?.beforeCommit?.();
+        const publicationHref = newState.finalHref ?? resolved.href;
+        if (
+          !optimisticRuntime.publishable(
+            publicationHref,
+            snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(publicationHref)
+          )
+        ) {
+          return;
+        }
+        if (!(newState.error || newState.notFound)) {
+          optimisticRuntime.commit(publicationHref);
+        }
+        beforeCommit?.();
         const effectiveLogical = newState.finalHref ?? resolved.href;
         const physicalEffective = basePath + effectiveLogical;
         if (opts?.resetScroll ?? true) {
@@ -617,12 +782,19 @@ export function RouterProvider({
         }
       }
     },
-    [basePath, fetchPageState, defaultPreloadStaleTime, prefetchCacheSize]
+    [
+      basePath,
+      fetchConfirmedPageState,
+      defaultPreloadStaleTime,
+      prefetchCacheSize,
+      optimisticRuntime,
+    ]
   );
 
   const [searchStore] = useState(() =>
     createSearchStore({
       currentHref,
+      currentPattern: state.match?.pattern,
       navigate,
       search: resolvedSearch,
       searchRoutes: routes,
@@ -631,11 +803,12 @@ export function RouterProvider({
   const searchSnapshot = useMemo(
     () => ({
       currentHref,
+      currentPattern: state.match?.pattern,
       navigate,
       search: resolvedSearch,
       searchRoutes: routes,
     }),
-    [currentHref, navigate, resolvedSearch, routes]
+    [currentHref, state.match?.pattern, navigate, resolvedSearch, routes]
   );
 
   useLayoutEffect(() => {
@@ -673,10 +846,38 @@ export function RouterProvider({
         onError: (error) => {
           log.warn({ action: "sync_refresh_failed", error: String(error) });
         },
-        refresh: () => refresh(undefined),
+        refresh: async () => {
+          await waitForUserNavigation(pendingUserNavigation);
+          await refresh(undefined);
+        },
       }),
     [refresh]
   );
+
+  useLayoutEffect(() => {
+    syncResponse.current = (response, optimistic) => {
+      const invalidated: Array<{ path: string; type: "page" | "layout" }> = [];
+      if (
+        response &&
+        (response.url === "" || new URL(response.url).origin === window.location.origin)
+      ) {
+        applyRevalidateHeader(response.headers, (path, type) => {
+          const resolvedType = type ?? "page";
+          invalidatePrefetch(path, resolvedType);
+          invalidated.push({ path, type: resolvedType });
+        });
+      }
+      if (
+        optimistic ||
+        (autoRefresh && shouldAutoRefreshPath(optimisticSnapshot.current.href, invalidated))
+      ) {
+        invalidationRefresh.run();
+      }
+    };
+    return () => {
+      syncResponse.current = undefined;
+    };
+  }, [autoRefresh, invalidatePrefetch, invalidationRefresh]);
 
   // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
   // callback swaps the hot component only after fresh data is ready and just
@@ -739,13 +940,20 @@ export function RouterProvider({
       try {
         const cached = prefetchCache.current.get(logicalHref);
         let newState: RouterState | null;
-        if (cached && !shouldRefetch(cached)) {
+        if (cached && !shouldRefetch(cached) && !optimisticRuntime.has(logicalHref)) {
           newState = await cached.promise;
-          if (isRedirectState(newState)) {
-            newState = await fetchPageState(logicalHref, navSignal, false);
+          if (
+            isRedirectState(newState) ||
+            (newState &&
+              !optimisticRuntime.publishable(
+                logicalHref,
+                snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(logicalHref)
+              ))
+          ) {
+            newState = await fetchConfirmedPageState(logicalHref, navSignal, false);
           }
         } else {
-          newState = await fetchPageState(logicalHref, navSignal, false);
+          newState = await fetchConfirmedPageState(logicalHref, navSignal, false);
         }
         if (navVersion.current !== myVersion) {
           return;
@@ -771,6 +979,18 @@ export function RouterProvider({
           return;
         }
         newState = resolved.state;
+        const publicationHref = newState.finalHref ?? resolved.href;
+        if (
+          !optimisticRuntime.publishable(
+            publicationHref,
+            snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(publicationHref)
+          )
+        ) {
+          return;
+        }
+        if (!(newState.error || newState.notFound)) {
+          optimisticRuntime.commit(publicationHref);
+        }
 
         currentMatchRef.current = newState.match;
         if (!newState.error) {
@@ -797,7 +1017,7 @@ export function RouterProvider({
         }
       }
     })();
-  }, [fetchPageState, basePath]);
+  }, [fetchConfirmedPageState, basePath, optimisticRuntime]);
 
   // Disable native scroll restoration and assign a key to the initial history entry.
   useEffect(() => {
@@ -900,6 +1120,9 @@ export function RouterProvider({
     const originalFetch = window.fetch;
     const wrapped = async (...args: Parameters<typeof fetch>): Promise<Response> => {
       const response = await originalFetch.apply(window, args);
+      if (args[1] && SYNC_REQUEST in args[1]) {
+        return response;
+      }
       if (!isSameOriginFetchResult(args[0], response.url, window.location.origin)) {
         return response;
       }
@@ -972,6 +1195,25 @@ export function RouterProvider({
         return (await response.json()) as SyncChangePagePayload;
       },
       onInvalidations: applyInvalidations,
+      onReset: () => queries.invalidateAll(),
+      onQueries: (identities) => {
+        queries.invalidate(identities);
+        const tags = new Set(identities.map(queryTag));
+        const affected = (snapshot: RouterState) =>
+          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity)));
+        for (const [href, entry] of prefetchCache.current) {
+          entry.promise
+            .then((snapshot) => {
+              if (snapshot && affected(snapshot) && prefetchCache.current.get(href) === entry) {
+                prefetchCache.current.delete(href);
+              }
+            })
+            .catch(() => undefined);
+        }
+        if (autoRefresh && affected(currentState.current)) {
+          invalidationRefresh.run();
+        }
+      },
     });
     const recover = () => {
       if (disposed) {
@@ -1006,19 +1248,41 @@ export function RouterProvider({
       disposed = true;
       unsubscribe?.();
     };
-  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh]);
+  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh, queries]);
 
+  const queryData = useMemo(
+    () =>
+      projectDeferredQueryData(
+        state.data,
+        state.querySeeds ?? [],
+        (seed) => {
+          if (seed.local && typeof window !== "undefined") {
+            const original = new URL(seed.url);
+            return queries.snapshot(
+              new URL(original.pathname + original.search, window.location.origin).href
+            ).data;
+          }
+          return queries.snapshot(seed.url).data;
+        },
+        resolvedQueries.current
+      ),
+    [queries, state.data, state.querySeeds, queryRevision, deferredRevision]
+  );
+  const renderedData = optimisticRuntime.project(queryData, currentHref);
   let pageElement: React.ReactNode;
   if (state.notFound || !state.match) {
-    pageElement = buildNotFoundPageElement(
+    const notFoundElement = buildNotFoundPageElement(
       state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries,
       state.notFound ?? {}
     );
+    pageElement = root?.layout
+      ? createElement(root.layout as React.ElementType, renderedData, notFoundElement)
+      : notFoundElement;
   } else {
     pageElement = buildPageElement(
       state.match,
       root,
-      state.data,
+      renderedData,
       {
         onReset: () => {
           refresh(undefined).catch((err: unknown) => {
@@ -1037,6 +1301,7 @@ export function RouterProvider({
         {
           basePath,
           currentHref,
+          currentPattern: state.match?.pattern,
           defaultPreload,
           defaultPreloadDelay,
           defaultPreloadStaleTime,
@@ -1063,7 +1328,7 @@ export function RouterProvider({
     </SearchStoreContext.Provider>
   );
   if (initialDocumentState === null) {
-    return routerTree;
+    return <QueryStoreContext.Provider value={queries}>{routerTree}</QueryStoreContext.Provider>;
   }
   return (
     <DocumentProvider
@@ -1072,7 +1337,7 @@ export function RouterProvider({
         head: state.head,
       }}
     >
-      {routerTree}
+      <QueryStoreContext.Provider value={queries}>{routerTree}</QueryStoreContext.Provider>
     </DocumentProvider>
   );
 }

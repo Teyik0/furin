@@ -16,22 +16,20 @@ export {
   reconcileHotComponentRegistry,
   updateHotComponent,
 } from "./client/hmr.ts";
+export { useQuery } from "./client/query.tsx";
+export { getRouteApi } from "./client/route-api.tsx";
 export {
-  type SyncMutation,
-  type SyncMutationContext,
-  type SyncMutationErrorContext,
-  type SyncMutationHeaders,
-  type SyncMutationOptions,
-  type SyncMutationRunner,
-  type SyncMutationSuccessContext,
-  type UseSyncOptions,
-  useSync,
+  createClient,
+  type OptimisticCache,
+  type SyncCallOptions,
+  type SyncClientOptions,
+  withSync,
 } from "./client/sync.ts";
 export { Await, useAsyncError, useAsyncValue } from "./shared/await.tsx";
 
-export type RenderingMode = "ssr" | "ssg" | "isr";
+export { type DeferredData, defer, isDeferred } from "./shared/defer.ts";
 
-const DEFERRED_BRAND: unique symbol = Symbol.for("@teyik0/furin/deferred");
+export type RenderingMode = "ssr" | "ssg" | "isr";
 
 export type MetaDescriptor =
   | { charSet: "utf-8" }
@@ -64,51 +62,4 @@ export interface HeadOptions {
    * user-controlled or loader-derived data here without sanitisation.
    */
   styles?: Array<{ type?: string; children: string }>;
-}
-
-// ── Deferred data ──────────────────────────────────────────────────────────────
-
-/**
- * A loader return value that contains a mix of synchronous scalar fields and
- * lazy `Promise<T>` fields. Scalar fields are serialised into the initial HTML
- * shell; Promise fields are streamed as late `<script>` resolution chunks.
- *
- * @example
- * loader: () => defer({
- *   title: "My Board",          // synchronous — available immediately
- *   stats: fetchStats(),         // Promise — streamed when it resolves
- * })
- */
-export type DeferredData<T extends object> = T & {
-  readonly [DEFERRED_BRAND]: true;
-};
-
-/**
- * Wraps loader data so that Promise-valued fields are streamed lazily while
- * scalar fields are embedded in the initial HTML shell immediately.
- *
- * Use in any `defineRoute().loader()`. Promise-valued fields are streamed lazily;
- * scalar fields are embedded in the initial HTML shell.
- */
-export function defer<T extends object>(
-  data: T & { readonly [DEFERRED_BRAND]?: never }
-): DeferredData<T> {
-  if (Object.hasOwn(data, DEFERRED_BRAND)) {
-    throw new Error("[furin] defer() received data that is already deferred.");
-  }
-  return { ...data, [DEFERRED_BRAND]: true };
-}
-
-/**
- * Type guard for DeferredData. Used by the render pipeline to distinguish a
- * plain loader return from a deferred one.
- */
-export function isDeferred(value: unknown): value is DeferredData<object> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    DEFERRED_BRAND in value &&
-    Object.hasOwn(value, DEFERRED_BRAND) &&
-    value[DEFERRED_BRAND] === true
-  );
 }

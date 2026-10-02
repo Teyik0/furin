@@ -126,11 +126,13 @@ export const route = defineRoute()
     const result = await getPostsApi().api.posts.index.get({
       headers: request.headers,
     });
-    if (result.error) throw result.error.value;
+    if (result.error) throw result.error;
     return { posts: result.data };
   })
   .page(({ posts }) => <PostList posts={posts} />);
 ```
+
+Throw the Eden error wrapper so Furin can preserve a Problem Details response's HTTP status and public message in the nearest error boundary.
 
 The server Treaty client contains only the hooks and dependencies composed into `api`; hooks on an unrelated instance are not inherited. Direct execution also does not automatically forward the incoming page request, so pass headers or cookies when identity matters.
 

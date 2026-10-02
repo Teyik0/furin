@@ -168,15 +168,15 @@ describe("defineRoute", () => {
 
   test("does not expose parent request fields to a public child loader", () => {
     const parent = defineRootRoute()
-      .config({ mode: "ssr" })
+      .config({ mode: "ssg" })
       .requestLoader(() => ({ session: "private" }))
       .loader(() => ({ organization: "public" }))
       .layout(({ children }) => children);
     const child = defineRoute()
-      .config({ layout: parent, mode: "ssr" })
+      .config({ layout: parent, mode: "isr", revalidate: 60 })
       .loader((context) => {
         const organization: Promise<string> = context.organization;
-        // @ts-expect-error Request loader data must not enter a public loader.
+        // @ts-expect-error Request loader data must not enter a cached loader.
         expect(context.session).toBeUndefined();
         return { title: organization };
       })
@@ -185,7 +185,7 @@ describe("defineRoute", () => {
     expect(child.loader).toBeFunction();
   });
 
-  test("passes inherited private fields to a child page as promises", () => {
+  test("types inherited private fields in a child loader and page", () => {
     const parent = defineRootRoute()
       .config({ mode: "ssr" })
       .requestLoader(() => ({ session: "private" }))
@@ -193,17 +193,84 @@ describe("defineRoute", () => {
       .layout(({ children }) => children);
     const child = defineRoute()
       .config({ layout: parent, mode: "ssr" })
-      .loader((context) => {
-        // @ts-expect-error private data must not enter a public loader.
-        expect(context.session).toBeUndefined();
-        return { title: "Child" };
+      .loader(async (context) => {
+        const privateSession: Promise<string> = context.session;
+        return { inheritedSession: await privateSession, title: "Child" };
       })
-      .page(({ session, organization, title }) => {
+      .page(({ inheritedSession, session, organization, title }) => {
         const privateSession: Promise<string> = session;
+        const loaderSession: string = inheritedSession;
         const publicOrganization: string = organization;
-        return `${title}:${publicOrganization}:${String(privateSession)}`;
+        return `${title}:${publicOrganization}:${String(privateSession)}:${String(loaderSession)}`;
       });
     expect(child.page).toBeFunction();
+  });
+
+  test("types an SSG layout request field in an SSR child loader", () => {
+    const parent = defineRootRoute()
+      .config({ mode: "ssg" })
+      .requestLoader(() => ({ adminUser: { id: "admin-1" } }))
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout: parent, mode: "ssr" })
+      .loader(async ({ adminUser }) => {
+        const user: { id: string } = await adminUser;
+        return { id: user.id };
+      })
+      .page(({ id }) => id);
+
+    expect(child.loader).toBeFunction();
+  });
+
+  test("defines head after requestLoader without a public loader", () => {
+    const page = defineRoute()
+      .config({ layout: rootRoute, mode: "ssg" })
+      .requestLoader(() => ({ result: { count: 25 } }))
+      .head(({ path }) => ({ meta: [{ title: path }] }))
+      .page(({ result }) => {
+        const reservations: Promise<{ count: number }> = result;
+        return String(reservations);
+      });
+
+    expect(page.head?.({ params: {}, path: "/reservations", query: {} })).toEqual({
+      meta: [{ title: "/reservations" }],
+    });
+    expect("loader" in page).toBe(false);
+  });
+
+  test("defines head on a query route without a public loader", () => {
+    const page = defineRoute()
+      .config({
+        layout: rootRoute,
+        mode: "isr",
+        query: t.Object({ status: t.String() }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ result: "private" }))
+      .head(({ query }) => ({ meta: [{ title: query.status }] }))
+      .page(({ result }) => String(result));
+
+    expect(
+      page.head?.({ params: {}, path: "/reservations", query: { status: "pending" } })
+    ).toEqual({ meta: [{ title: "pending" }] });
+    expect("loader" in page).toBe(false);
+  });
+
+  test("defines head on a params route without a public loader", () => {
+    const page = defineRoute()
+      .config({
+        layout: rootRoute,
+        mode: "ssg",
+        params: t.Object({ id: t.String() }),
+      })
+      .requestLoader(() => ({ result: "private" }))
+      .head(({ params }) => ({ meta: [{ title: params.id }] }))
+      .page(({ result }) => String(result));
+
+    expect(page.head?.({ params: { id: "123" }, path: "/reservations/123", query: {} })).toEqual({
+      meta: [{ title: "123" }],
+    });
+    expect("loader" in page).toBe(false);
   });
 
   test("types parent loader data without retaining the parent at runtime", async () => {

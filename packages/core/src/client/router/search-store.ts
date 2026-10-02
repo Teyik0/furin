@@ -5,6 +5,7 @@ import type { RouterContextValue } from "./types.ts";
 
 export interface SearchStoreSnapshot {
   currentHref: string;
+  currentPattern: string | undefined;
   navigate: RouterContextValue["navigate"];
   search: SearchParamsInput;
   searchRoutes: SearchRouteMetadata[];
@@ -23,6 +24,7 @@ export interface SearchStore {
 function searchSnapshotChanged(a: SearchStoreSnapshot, b: SearchStoreSnapshot): boolean {
   return (
     a.currentHref !== b.currentHref ||
+    a.currentPattern !== b.currentPattern ||
     a.navigate !== b.navigate ||
     a.search !== b.search ||
     a.searchRoutes !== b.searchRoutes
@@ -66,6 +68,7 @@ export function createSearchStore(initialSnapshot: SearchStoreSnapshot): SearchS
 export function searchSnapshotFromRouterContext(context: RouterContextValue): SearchStoreSnapshot {
   return {
     currentHref: context.currentHref,
+    currentPattern: context.currentPattern,
     navigate: context.navigate,
     search: context.search,
     searchRoutes: context.searchRoutes,
@@ -74,6 +77,7 @@ export function searchSnapshotFromRouterContext(context: RouterContextValue): Se
 
 export const FALLBACK_SEARCH_STORE = createSearchStore({
   currentHref: "/",
+  currentPattern: undefined,
   navigate: (href, _opts) => {
     if (typeof window !== "undefined") {
       if (navigationHrefPolicy(href, window.location.origin) === "blocked") {

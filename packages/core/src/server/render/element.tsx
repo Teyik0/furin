@@ -2,6 +2,7 @@ import { createElement, type ElementType, type ReactNode } from "react";
 import { wrapSegmentBoundaries } from "../../client/boundaries.tsx";
 import { DefaultErrorFallback, DefaultNotFoundFallback } from "../../client/default-screens.tsx";
 import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import { withRouteSnapshot } from "../../client/route-api.tsx";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { FurinNotFoundError, NotFoundComponent } from "../../shared/not-found.ts";
 import type { ResolvedRoute, SegmentBoundary } from "../router/types.ts";
@@ -47,7 +48,7 @@ export function buildElement(
     element = createElement(RootLayoutComponent as ElementType, data, element);
   }
 
-  return element;
+  return withRouteSnapshot(element, route.pattern, data);
 }
 
 export function wrapRootLayout(

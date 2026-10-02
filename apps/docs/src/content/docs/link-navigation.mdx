@@ -18,7 +18,7 @@ import { Link } from "@teyik0/furin/link";
 </Link>;
 ```
 
-Generated route types autocomplete `to`, `params`, and `search`. Values are validated again by the destination route's TypeBox schemas on the server.
+Generated route patterns autocomplete in `to`; dynamic patterns require their typed `params`. Concrete URLs remain supported. Values are validated again by the destination route's TypeBox schemas on the server.
 
 ### Props
 
@@ -86,7 +86,34 @@ function SearchButton() {
 }
 ```
 
-`useNavigate()` accepts `to`, `search`, `hash`, `replace`, and `resetScroll`. Unlike `<Link>`, it does not currently expand a separate `params` object; pass an already resolved pathname when navigating to a dynamic route.
+`useNavigate()` accepts typed `to`, `params`, and `search` values, plus `hash`, `replace`, and `resetScroll`. Path parameters use the same encoding as `<Link>`. Dynamic routes require their path parameters:
+
+```tsx
+const navigate = useNavigate();
+await navigate({ to: "/blog/:slug", params: { slug: "hello-furin" } });
+```
+
+Once the route manifest is generated, unknown internal destinations are rejected by TypeScript. Before generation, navigation accepts plain strings so a new project can type-check.
+
+`useRouter().navigate()` and `useRouter().prefetch()` accept the same typed route patterns, params and search values:
+
+```tsx
+import { useRouter } from "@teyik0/furin/link";
+
+const router = useRouter();
+router.prefetch({
+  to: "/blog/:slug",
+  params: { slug: "hello-furin" },
+  staleTime: 30_000,
+});
+await router.navigate({
+  to: "/blog/:slug",
+  params: { slug: "hello-furin" },
+  replace: true,
+});
+```
+
+Prefetch loads data without navigating; navigation reuses it while fresh. Path encoding and search-default omission use the same rules as `<Link>`. Historical calls such as `router.navigate("/blog/hello-furin", { replace: true })` and `router.prefetch("/blog/hello-furin", { staleTime: 30_000 })` remain supported. Raw URL strings do not receive schema checking; use structured destinations for type safety and route-pattern completion.
 
 Unsafe schemes are rejected. External `http(s)` destinations use a document navigation.
 
@@ -109,6 +136,8 @@ function Pagination() {
 ```
 
 Updates merge with the current search object. Pass `{ replace: true }` to avoid a new history entry or `{ resetScroll: false }` to preserve the current position. Setting a field back to its schema default removes it from the URL.
+
+The route argument autocompletes generated patterns (for example, `/products/:productId`) and must identify the currently rendered route. A mismatch throws instead of reading or updating search state under the wrong route type.
 
 ## Router Controls
 

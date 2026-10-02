@@ -3,6 +3,7 @@ import type { ElementType } from "react";
 import { createElement } from "react";
 import { type BoundaryOptions, FurinErrorBoundary, wrapSegmentBoundaries } from "../boundaries.tsx";
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
+import { withRouteSnapshot } from "../route-api.tsx";
 import { FurinServerError } from "../server-error.ts";
 import { RouterContext } from "./context.ts";
 import type {
@@ -111,5 +112,5 @@ export function buildPageElement(
     }
   }
 
-  return element;
+  return error ? element : withRouteSnapshot(element, match.pattern, data);
 }

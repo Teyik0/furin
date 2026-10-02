@@ -87,6 +87,10 @@ export class SqliteSyncAdapter implements SyncAdapter {
   }
 
   async beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
+    return this.beginMutationSync(input);
+  }
+
+  protected beginMutationSync(input: BeginMutationInput): BeginMutationResult {
     const transaction = this.database.transaction(
       (mutation: BeginMutationInput): BeginMutationResult => {
         const now = Date.now();
@@ -165,18 +169,15 @@ export class SqliteSyncAdapter implements SyncAdapter {
   }
 
   async completeMutation(input: CompleteMutationInput): Promise<CompleteMutationResult> {
+    return this.completeMutationSync(input);
+  }
+
+  protected completeMutationSync(input: CompleteMutationInput): CompleteMutationResult {
     const transaction = this.database.transaction(
       (completion: CompleteMutationInput): CompleteMutationResult => {
         const now = Date.now();
         const key = mutationKey(completion.lease);
-        const active = this.database
-          .query<{ mutation_id: string }, [string, string, string, number]>(
-            `SELECT mutation_id FROM furin_sync_mutations
-             WHERE namespace = ? AND mutation_key = ? AND mutation_id = ?
-               AND state = 'in-progress' AND lease_expires_at > ?`
-          )
-          .get(this.namespace, key, completion.lease.id, now);
-        if (!active) {
+        if (!this.hasMutationLeaseSync(completion.lease)) {
           return { kind: "lost" };
         }
 
@@ -257,6 +258,16 @@ export class SqliteSyncAdapter implements SyncAdapter {
       }
     );
     return transaction.immediate(input);
+  }
+
+  protected hasMutationLeaseSync(lease: MutationLease): boolean {
+    return (
+      this.database
+        .query<{ mutation_id: string }, [string, string, string, number]>(
+          `SELECT mutation_id FROM furin_sync_mutations WHERE namespace = ? AND mutation_key = ? AND mutation_id = ? AND state = 'in-progress' AND lease_expires_at > ?`
+        )
+        .get(this.namespace, mutationKey(lease), lease.id, Date.now()) !== null
+    );
   }
 
   async abortMutation(lease: MutationLease): Promise<void> {

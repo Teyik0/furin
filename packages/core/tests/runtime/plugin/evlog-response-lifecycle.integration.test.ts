@@ -1,12 +1,26 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 
-test("a regular response returns before its wide event is emitted", () => {
-  const result = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+async function runFixture(source: string) {
+  const child = Bun.spawn({
+    cmd: [process.execPath, "-e", source],
+    cwd: join(import.meta.dir, "../../.."),
+    env: { ...process.env, NODE_ENV: "test" },
+    stderr: "pipe",
+    stdout: "pipe",
+    timeout: 10_000,
+    killSignal: "SIGKILL",
+  });
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  return { exitCode, stdout, stderr };
+}
+
+test("a regular response returns before its wide event is emitted", async () => {
+  const result = await runFixture(`
 import { Elysia } from "elysia";
 import { createFurinEvlog } from "./src/server/evlog.ts";
 
@@ -30,14 +44,7 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   marker: events[0]?.marker,
   status: events[0]?.status,
 }));
-`,
-    ],
-    cwd: join(import.meta.dir, "../../.."),
-    env: { ...process.env, NODE_ENV: "test" },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 30_000,
-  });
+`);
 
   expect(result.exitCode, result.stderr.toString()).toBe(0);
   const output = result.stdout.toString();
@@ -52,12 +59,8 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   });
 });
 
-test("registers the full deferred emission with waitUntil before returning", () => {
-  const result = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("registers the full deferred emission with waitUntil before returning", async () => {
+  const result = await runFixture(`
 import { Elysia } from "elysia";
 import { createFurinEvlog, setRuntimeEvlogWaitUntil } from "./src/server/evlog.ts";
 
@@ -80,14 +83,7 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   events: events.length,
   registeredBeforeReturn,
 }) + "__END__");
-`,
-    ],
-    cwd: join(import.meta.dir, "../../.."),
-    env: { ...process.env, NODE_ENV: "test" },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 30_000,
-  });
+`);
 
   expect(result.exitCode, result.stderr.toString()).toBe(0);
   const output = result.stdout.toString();
@@ -103,12 +99,8 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   });
 });
 
-test("a streaming response emits its wide event only after the body finishes", () => {
-  const result = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("a streaming response emits its wide event only after the body finishes", async () => {
+  const result = await runFixture(`
 import { Elysia } from "elysia";
 import { createFurinEvlog } from "./src/server/evlog.ts";
 
@@ -142,14 +134,7 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   events: events.length,
   status: events[0]?.status,
 }));
-`,
-    ],
-    cwd: join(import.meta.dir, "../../.."),
-    env: { ...process.env, NODE_ENV: "test" },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 30_000,
-  });
+`);
 
   expect(result.exitCode, result.stderr.toString()).toBe(0);
   const output = result.stdout.toString();
@@ -164,12 +149,8 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   });
 });
 
-test("a failed request emits one wide event with its HTTP status", () => {
-  const result = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("a failed request emits one wide event with its HTTP status", async () => {
+  const result = await runFixture(`
 import { Elysia } from "elysia";
 import { createFurinEvlog } from "./src/server/evlog.ts";
 
@@ -189,14 +170,7 @@ process.stdout.write("__RESULT__" + JSON.stringify({
   responseStatus: response.status,
   status: events[0]?.status,
 }));
-`,
-    ],
-    cwd: join(import.meta.dir, "../../.."),
-    env: { ...process.env, NODE_ENV: "test" },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 30_000,
-  });
+`);
 
   expect(result.exitCode, result.stderr.toString()).toBe(0);
   const output = result.stdout.toString();

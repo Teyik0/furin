@@ -135,6 +135,36 @@ async function setBuiltRouteContext(appPath: string): Promise<void> {
 beforeEach(resetState);
 afterEach(resetState);
 
+test.serial("furin() runs inherited private data in an SSR child loader", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  writeAppFile(
+    app.path,
+    "src/pages/root.tsx",
+    [
+      'import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";',
+      'export const route = defineRootRoute().config({ mode: "ssr" })',
+      '  .requestLoader(() => ({ session: "private" }))',
+      "  .layout(({ children }) => <html><head><HeadContent /></head><body>{children}<Scripts /></body></html>);",
+    ].join("\n")
+  );
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })',
+      "  .loader(async ({ session }) => ({ message: await session }))",
+      "  .page(({ message }) => <main>{message}</main>);",
+    ].join("\n")
+  );
+  process.chdir(app.path);
+  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const response = await instance.handle(new Request("http://furin/"));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("<main>private</main>");
+});
+
 test.serial("furin() writes dev files in development", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);
@@ -230,6 +260,43 @@ test.serial("furin() refreshes route types after a topology change", async () =>
     );
 
     await waitForFileContent(typesPath, '"/settings": typeof import("./src/pages/settings").route');
+  } finally {
+    await instance.stop();
+  }
+});
+
+test.serial("a failed route import keeps its tags while healthy route types update", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  const typesPath = join(app.path, "furin-env.d.ts");
+  const taggedRoute = (tag: string): string =>
+    [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { route as rootRoute } from "./root";',
+      "export const route = defineRoute()",
+      `  .config({ layout: rootRoute, mode: "ssr", tags: ["${tag}"] })`,
+      "  .page(() => <main>Tagged</main>);",
+    ].join("\n");
+  writeAppFile(app.path, "src/pages/fragile.tsx", taggedRoute("fragile"));
+  writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("before"));
+  __setDevMode(true);
+  process.chdir(app.path);
+
+  const instance = await createTestApp({ pagesDir });
+  instance.listen(0);
+  try {
+    await waitForFileContent(typesPath, "fragile: 'fragile';");
+    writeAppFile(app.path, "src/pages/fragile.tsx", 'throw new Error("broken route");');
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("after"));
+
+    await waitForFileContent(typesPath, "after: 'after';");
+    const generated = readFileSync(typesPath, "utf8");
+    expect(generated).toContain("fragile: 'fragile';");
+    expect(generated).not.toContain("before: 'before';");
+
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("latest"));
+    await waitForFileContent(typesPath, "latest: 'latest';");
+    expect(readFileSync(typesPath, "utf8")).toContain("fragile: 'fragile';");
   } finally {
     await instance.stop();
   }

@@ -5,6 +5,7 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
+import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -186,7 +187,7 @@ export async function prerenderPprDocument(
       prefix,
       version: 1,
     },
-    tags: route.tags,
+    tags: [...(route.tags ?? []), ...queryTagsFromData(result.syncData)],
   };
 }
 

@@ -13,3 +13,5 @@ sqlite.run("PRAGMA foreign_keys = ON");
 ensureTaskManagerSchema(sqlite);
 
 export const db = drizzle(sqlite, { schema });
+
+export type TaskManagerTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

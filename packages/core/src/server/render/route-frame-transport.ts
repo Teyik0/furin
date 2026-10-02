@@ -5,6 +5,7 @@ import {
   serializeRouteFrames,
   serializeRouteFrameValue,
 } from "../../shared/route-frame.ts";
+import { deferredQuerySeeds } from "../sync/query-context.ts";
 import { serializeDeferredRejection } from "./loaders.ts";
 
 export async function serializeDeferredRouteFrame(
@@ -14,11 +15,13 @@ export async function serializeDeferredRouteFrame(
 ): Promise<string> {
   try {
     const { rscFrames, value } = serializeRouteFrameValue(await promise, idPrefix);
+    const queries = deferredQuerySeeds(promise);
     return (
       serializeRouteFrame({
         key,
         type: "defer-resolve",
         value,
+        ...(queries && { queries: toCrossJSON(queries) }),
       }) + rscFrames
     );
   } catch (error) {

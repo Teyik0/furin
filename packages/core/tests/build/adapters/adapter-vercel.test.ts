@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { version } from "../../../package.json";
 import { buildApp } from "../../../src/build/index.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
@@ -188,7 +189,7 @@ export const route = defineRoute()
       const bootstrap = readFileSync(join(serverFunctionDir, "index.js"), "utf8");
 
       expect(config.version).toBe(3);
-      expect(config.framework).toEqual({ name: "furin", version: "0.6.0-alpha.1" });
+      expect(config.framework).toEqual({ name: "furin", version });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",

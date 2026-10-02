@@ -37,13 +37,13 @@
     "lefthook": "^2.1.14",
     "react-doctor": "^0.9.14",
     "typescript": "^7.0.2",
-    "ultracite": "7.12.0"
+    "ultracite": "7.12.1"
   },
   "engines": {
     "bun": ">=1.4.0"
   },
   "catalog": {
-    "elysia": "2.0.0-beta.19",
+    "elysia": "2.0.0-beta.20",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
     "@types/react": "^19.3.0",

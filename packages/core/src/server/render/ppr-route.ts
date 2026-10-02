@@ -204,6 +204,9 @@ async function renderSharedPpr(
     if (lease === null || !isPprArtifact(result)) {
       return result;
     }
+    if ((result.tags ?? []).some((tag) => !identity.tags.includes(tag))) {
+      return result;
+    }
     try {
       await input.pageCache.commit({
         entry: {
@@ -287,7 +290,14 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
     mode: "ppr",
     path: input.resolvedPath,
     scope: prefix,
-    tags: input.route.tags ?? [],
+    tags: [
+      ...new Set([
+        ...(input.route.tags ?? []),
+        ...getAutoInvalidateRegistry().tagsForPath(
+          input.cacheKey.slice(input.cacheKey.indexOf(":") + 1)
+        ),
+      ]),
+    ],
   };
   const revalidate = resolveDocumentRevalidate(input.route) ?? 60;
   const lookup = await lookupSharedPpr(input, identity);
@@ -387,7 +397,7 @@ async function getPprArtifact(
       artifact: result,
       revalidate: resolveDocumentRevalidate(route) ?? 60,
     });
-    autoInvalidateRegistry.registerLoaderTags(resolvedPath, route.tags, "render:ppr-public-shell");
+    autoInvalidateRegistry.registerLoaderTags(resolvedPath, result.tags, "render:ppr-public-shell");
     return result;
   }
 

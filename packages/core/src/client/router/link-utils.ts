@@ -1,4 +1,9 @@
-import { buildSearchParams, type SearchParamsInput } from "../../shared/search-params.ts";
+import {
+  buildSearchParams,
+  findSearchDefaultsForRouteTarget,
+  type SearchParamsInput,
+  type SearchRouteMetadata,
+} from "../../shared/search-params.ts";
 import type { CacheEntry } from "./types.ts";
 
 const HASH_FRAGMENT_RE = /#.*$/;
@@ -92,6 +97,29 @@ export function applyLinkParams(
     url = url.replace("/*", () => `/${encodedWildcard}`);
   }
   return url;
+}
+
+export interface RuntimeRouteTarget {
+  hash?: string;
+  params?: object;
+  search?: object;
+  to: string;
+}
+
+export function resolveRouteTarget(
+  target: RuntimeRouteTarget,
+  routes: SearchRouteMetadata[]
+): string {
+  const path = applyLinkParams(
+    target.to,
+    target.params as Record<string, string | number> | undefined
+  );
+  return buildHref(
+    path,
+    target.search as SearchParamsInput | undefined,
+    target.hash,
+    findSearchDefaultsForRouteTarget(path, routes)
+  );
 }
 
 /**

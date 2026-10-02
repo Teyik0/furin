@@ -14,6 +14,7 @@ import type {
   SyncNotifier,
   SyncSubscription,
 } from "../adapter.ts";
+import type { SyncSql, SyncSqlQuery } from "./sql.ts";
 
 const CHANGE_RETENTION = 1000;
 const LEASE_MS = 30_000;
@@ -53,7 +54,7 @@ function notificationChannel(namespace: string): string {
   return `furin_sync_${digest.slice(0, 52)}`;
 }
 
-async function readCurrentCursor(sql: SQL, namespace: string): Promise<string> {
+async function readCurrentCursor(sql: SyncSqlQuery, namespace: string): Promise<string> {
   const rows = await sql<Pick<CursorRow, "current_cursor">[]>`
     SELECT current_cursor FROM furin_sync.streams WHERE namespace = ${namespace}
   `;
@@ -79,15 +80,17 @@ function storedResponse(row: MutationRow): StoredResponse {
 
 export class PostgresSyncAdapter implements SyncAdapter {
   readonly notificationChannel: string;
+  readonly publishesNotifications: boolean;
   readonly scope = "distributed" as const;
   private readonly namespace: string;
-  private readonly sql: SQL;
+  private readonly sql: SyncSql;
 
-  constructor(options: PostgresSyncAdapterOptions) {
+  constructor(options: { namespace: string; sql: SyncSql; publishNotifications?: false }) {
     if (options.namespace.length === 0) {
       throw new Error("[furin-sync-postgres] namespace must not be empty.");
     }
     this.notificationChannel = notificationChannel(options.namespace);
+    this.publishesNotifications = options.publishNotifications !== false;
     this.namespace = options.namespace;
     this.sql = options.sql;
   }
@@ -95,6 +98,12 @@ export class PostgresSyncAdapter implements SyncAdapter {
   beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
     return this.sql.begin(async (tx) => {
       const key = mutationKey(input);
+      const [lock] = await tx<{ acquired: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0)) AS acquired
+      `;
+      if (!lock?.acquired) {
+        return { kind: "conflict", reason: "in-progress" } as const;
+      }
       await tx`
         DELETE FROM furin_sync.mutations
         WHERE ctid IN (
@@ -107,9 +116,9 @@ export class PostgresSyncAdapter implements SyncAdapter {
               AND expires_at <= clock_timestamp()
             )
           LIMIT 100
+          FOR UPDATE SKIP LOCKED
         )
       `;
-      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0))`;
       const rows = await tx<MutationRow[]>`
         SELECT mutation_id, fingerprint, state, response_status, response_headers,
                response_body,
@@ -177,19 +186,21 @@ export class PostgresSyncAdapter implements SyncAdapter {
   }
 
   completeMutation(input: CompleteMutationInput): Promise<CompleteMutationResult> {
+    return this.completeMutationInTransaction(input, true);
+  }
+
+  /** Only used on the native transaction that already holds lockMutation's row lock. */
+  completeLockedMutation(input: CompleteMutationInput): Promise<CompleteMutationResult> {
+    return this.completeMutationInTransaction(input, false);
+  }
+
+  private completeMutationInTransaction(
+    input: CompleteMutationInput,
+    checkExpiration: boolean
+  ): Promise<CompleteMutationResult> {
     return this.sql.begin(async (tx) => {
       const key = mutationKey(input.lease);
-      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0))`;
-      const active = await tx<{ mutation_id: string }[]>`
-        SELECT mutation_id FROM furin_sync.mutations
-        WHERE namespace = ${this.namespace}
-          AND mutation_key = ${key}
-          AND mutation_id = ${input.lease.id}
-          AND state = 'in-progress'
-          AND lease_expires_at > clock_timestamp()
-        FOR UPDATE
-      `;
-      if (active.length === 0) {
+      if (!(await this.lockMutationInTransaction(tx, input.lease, checkExpiration))) {
         return { kind: "lost" } as const;
       }
 
@@ -240,11 +251,34 @@ export class PostgresSyncAdapter implements SyncAdapter {
           AND mutation_key = ${key}
           AND mutation_id = ${input.lease.id}
       `;
-      if (cursor !== undefined) {
+      if (cursor !== undefined && this.publishesNotifications) {
         await tx.notify(this.notificationChannel, cursor);
       }
       return { cursor, kind: "committed" } as const;
     });
+  }
+
+  lockMutation(lease: MutationLease): Promise<boolean> {
+    return this.sql.begin((tx) => this.lockMutationInTransaction(tx, lease, true));
+  }
+
+  private async lockMutationInTransaction(
+    tx: SyncSqlQuery,
+    lease: MutationLease,
+    checkExpiration: boolean
+  ): Promise<boolean> {
+    const key = mutationKey(lease);
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`${this.namespace}:${key}`}, 0))::text`;
+    const active = await tx<{ mutation_id: string }[]>`
+        SELECT mutation_id FROM furin_sync.mutations
+        WHERE namespace = ${this.namespace}
+          AND mutation_key = ${key}
+          AND mutation_id = ${lease.id}
+          AND state = 'in-progress'
+          AND (NOT ${checkExpiration} OR lease_expires_at > clock_timestamp())
+        FOR UPDATE
+      `;
+    return active.length > 0;
   }
 
   async abortMutation(lease: MutationLease): Promise<void> {

@@ -1,7 +1,9 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: SSG rendering writes route outputs in a deterministic sequence
 import type { Context } from "elysia";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
+import { queryFromTag } from "../../shared/sync-query.ts";
 import { mapWithConcurrency } from "../../shared/utils/index.ts";
+import { getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import type { SsgCacheEntry } from "../cache/isr-ssg.ts";
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
@@ -45,7 +47,7 @@ export async function prerenderRoute(
     html: renderResult.html,
     ndjson: renderResult.ndjson,
     status: renderResult.status,
-    tags: route.tags,
+    tags: [...(route.tags ?? []), ...(renderResult.queryTags ?? [])],
   };
 }
 
@@ -64,7 +66,13 @@ export async function prerenderSSG(
     if (cached.tags === route.tags) {
       return cached;
     }
-    const taggedEntry: SsgCacheEntry = { ...cached, tags: route.tags };
+    const taggedEntry: SsgCacheEntry = {
+      ...cached,
+      tags: [
+        ...(route.tags ?? []),
+        ...(cached.tags ?? []).filter((tag) => queryFromTag(tag) !== undefined),
+      ],
+    };
     setSSGCache(resolvedPath, taggedEntry);
     return taggedEntry;
   }
@@ -118,6 +126,9 @@ async function renderAndStoreSharedSsg(
   try {
     const entry = await input.renderFresh();
     if (entry instanceof Response || lease === null) {
+      return { cacheStored: false, entry };
+    }
+    if ((entry.tags ?? []).some((tag) => !input.identity.tags.includes(tag))) {
       return { cacheStored: false, entry };
     }
     let cacheStored = false;
@@ -203,7 +214,9 @@ export async function prerenderRuntimeSSG(
     mode: "ssg",
     path: resolvedPath,
     scope: currentInstance().prefix,
-    tags: route.tags ?? [],
+    tags: [
+      ...new Set([...(route.tags ?? []), ...getAutoInvalidateRegistry().tagsForPath(resolvedPath)]),
+    ],
   };
   const renderFresh = () =>
     prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes);

@@ -20,6 +20,41 @@ const CORE_DIR = import.meta.dir.replace(/[\\/]tests(?:[\\/].*)?$/, "");
 const TMP_DIR = join(CORE_DIR, ".tmp-tests", "react-singleton");
 
 describe("furin-dev-page React singleton", () => {
+  test("route readers keep SSR snapshots isolated across HMR module reloads", () =>
+    withTmpPage(
+      TMP_DIR,
+      `import { getRouteApi } from "@teyik0/furin/client";
+       const board = getRouteApi("/hmr-board/:boardId");
+       export default function Page() {
+         const { boardId } = board.useParams();
+         const { title } = board.useLoaderData();
+         return <output>{boardId}:{title}</output>;
+       }`,
+      async (pagePath) => {
+        const timestamp = Date.now();
+        const first = await import(`${pagePath}?furin-server&t=${timestamp}`);
+        const second = await import(`${pagePath}?furin-server&t=${timestamp + 1}`);
+        const makeElement = (component: typeof first.default, boardId: string, title: string) =>
+          buildElement(
+            {
+              mode: "ssr",
+              page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component },
+              path: pagePath,
+              pattern: "/hmr-board/:boardId",
+              routeChain: [],
+              segmentBoundaries: [],
+            },
+            { params: { boardId }, title },
+            { __type: "FURIN_ROUTE" }
+          );
+        const firstTree = makeElement(first.default, "a", "First");
+        const secondTree = makeElement(second.default, "b", "Second");
+
+        expect(renderToString(secondTree)).toBe("<output>b<!-- -->:<!-- -->Second</output>");
+        expect(renderToString(firstTree)).toBe("<output>a<!-- -->:<!-- -->First</output>");
+      }
+    ));
+
   test("useState from virtual namespace is the same reference as the main process useState", () =>
     withTmpPage(
       TMP_DIR,

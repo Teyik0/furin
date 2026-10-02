@@ -42,6 +42,9 @@ type PublicLoaderData = LoaderData & {
 } & {
   [Key in `__furin${string}`]?: never;
 };
+type RequestLoaderData = PublicLoaderData & {
+  [Key in keyof Context | "log"]?: never;
+};
 interface SchemaValues {
   [key: string]: unknown;
 }
@@ -51,6 +54,7 @@ type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSche
 declare const privateFieldBrand: unique symbol;
 declare const ssrFieldBrand: unique symbol;
 declare const inheritedDataBrand: unique symbol;
+declare const loaderDataBrand: unique symbol;
 declare const noRequestLoader: unique symbol;
 type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
 interface SsrField<Value> {
@@ -64,6 +68,11 @@ type SsrParentData<Data extends LoaderData> = PublicParentData<Data> & {
   [Key in keyof Data as Data[Key] extends SsrField<unknown>
     ? Key
     : never]: Data[Key] extends SsrField<infer Value> ? Value : never;
+};
+type SsrLoaderParentData<Data extends LoaderData> = SsrParentData<Data> & {
+  [Key in keyof Data as Data[Key] extends PrivateField<unknown>
+    ? Key
+    : never]: Data[Key] extends PrivateField<infer Value> ? Value : never;
 };
 interface NoRequestLoader extends LoaderData {
   readonly [noRequestLoader]: never;
@@ -203,7 +212,7 @@ type LoaderContext<
       log: RequestLogger;
     } & Omit<Context<{ params: Params; query: Query }>, "params" | "query">
   : PublicLoaderContext<Params, Query>) &
-  PromisedData<Mode extends "ssr" ? SsrParentData<ParentData> : PublicParentData<ParentData>>;
+  PromisedData<Mode extends "ssr" ? SsrLoaderParentData<ParentData> : PublicParentData<ParentData>>;
 
 type PageRequestLoaderCheck<
   Mode extends RenderingMode,
@@ -466,9 +475,11 @@ function registerLayout<
   return app;
 }
 
-function withMetadata<Mode extends RenderingMode, ParentData extends LoaderData>(
-  metadata: RouteMetadata
-) {
+function withMetadata<
+  Mode extends RenderingMode,
+  ParentData extends LoaderData,
+  Data extends LoaderData = NoFields,
+>(metadata: RouteMetadata) {
   return {
     mode: metadata.mode as Mode,
     revalidate: metadata.revalidate,
@@ -480,6 +491,7 @@ function withMetadata<Mode extends RenderingMode, ParentData extends LoaderData>
     staticParams: RouteMetadata["staticParams"];
     tags: readonly string[] | undefined;
     readonly [inheritedDataBrand]?: ParentData;
+    readonly [loaderDataBrand]?: RenderLoaderData<ParentData, Data>;
   };
 }
 
@@ -522,18 +534,21 @@ class NoSchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly requestLoaderFunction: RequestLoader<Params, Query, RequestData> | undefined;
 
   constructor(
     metadata: RouteMetadata,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
+    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
+    head?: Head<Params, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
-  requestLoader<Data extends PublicLoaderData>(
+  requestLoader<Data extends RequestLoaderData>(
     requestLoader: RequestLoader<Params, Query, Data>
   ): Omit<NoSchemaChain<Params, Query, ParentData, Data, ParentParams, Mode>, "staticParams"> {
     return new NoSchemaChain(this.metadata, requestLoader);
@@ -557,6 +572,12 @@ class NoSchemaChain<
     return new LoadedNoSchema(this.metadata, loader, undefined, this.requestLoaderFunction);
   }
 
+  head(
+    head: Head<Params, Query, ParentData, NoFields, Mode>
+  ): Pick<NoSchemaChain<Params, Query, ParentData, RequestData, ParentParams, Mode>, "page"> {
+    return new NoSchemaChain(this.metadata, this.requestLoaderFunction, head);
+  }
+
   page(
     component: Component<Params, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -567,6 +588,7 @@ class NoSchemaChain<
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
       elysia: registerPlain<Params, Query, ParentData, NoFields, Mode>(undefined),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
     };
@@ -582,6 +604,7 @@ class NoSchemaChain<
         undefined,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
     };
@@ -626,22 +649,20 @@ class LoadedNoSchema<
     assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerPlain<Params, Query, ParentData, Data, Mode>(this.loaderFunction),
       head: this.headFunction,
       loader: this.loaderFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 
   layout(component: LayoutComponent<Params, Query, ParentData, Data, RequestData>) {
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
         undefined,
@@ -652,8 +673,6 @@ class LoadedNoSchema<
       layout: component,
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 }
@@ -667,6 +686,7 @@ class HeadedNoSchema<
   Mode extends RenderingMode = RenderingMode,
 > extends LoadedNoSchema<Params, Query, ParentData, Data, RequestData, Mode> {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 class QuerySchemaChain<
@@ -677,6 +697,7 @@ class QuerySchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<NoFields, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly querySchema: QuerySchema;
   protected readonly requestLoaderFunction: RequestLoader<NoFields, Query, RequestData> | undefined;
@@ -684,14 +705,16 @@ class QuerySchemaChain<
   constructor(
     metadata: RouteMetadata,
     querySchema: QuerySchema,
-    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined
+    requestLoader: RequestLoader<NoFields, Query, RequestData> | undefined,
+    head?: Head<NoFields, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.querySchema = querySchema;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
-  requestLoader<Data extends PublicLoaderData>(
+  requestLoader<Data extends RequestLoaderData>(
     requestLoader: RequestLoader<NoFields, Query, Data>
   ): Omit<
     QuerySchemaChain<Query, QuerySchema, ParentData, Data, ParentParams, Mode>,
@@ -725,6 +748,15 @@ class QuerySchemaChain<
     );
   }
 
+  head(
+    head: Head<NoFields, Query, ParentData, NoFields, Mode>
+  ): Pick<
+    QuerySchemaChain<Query, QuerySchema, ParentData, RequestData, ParentParams, Mode>,
+    "page"
+  > {
+    return new QuerySchemaChain(this.metadata, this.querySchema, this.requestLoaderFunction, head);
+  }
+
   page(
     component: Component<NoFields, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -738,6 +770,7 @@ class QuerySchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
@@ -754,6 +787,7 @@ class QuerySchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
@@ -808,7 +842,7 @@ class LoadedQuerySchema<
     assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerQuery<Query, QuerySchema, ParentData, Data, Mode>(
         this.querySchema,
@@ -819,15 +853,13 @@ class LoadedQuerySchema<
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 
   layout(component: LayoutComponent<NoFields, Query, ParentData, Data, RequestData>) {
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerLayout<NoFields, Query, ParentData, Data, Mode>(
         undefined,
@@ -839,8 +871,6 @@ class LoadedQuerySchema<
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
       schemas: { query: this.querySchema },
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 }
@@ -854,6 +884,7 @@ class HeadedQuerySchema<
   Mode extends RenderingMode = RenderingMode,
 > extends LoadedQuerySchema<Query, QuerySchema, ParentData, Data, RequestData, Mode> {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 class SchemaChain<
@@ -866,6 +897,7 @@ class SchemaChain<
   ParentParams = NoFields,
   Mode extends RenderingMode = RenderingMode,
 > {
+  protected readonly headFunction: Head<Params, Query, ParentData, NoFields, Mode> | undefined;
   protected readonly metadata: RouteMetadata;
   protected readonly paramsSchema: ParamsSchema;
   protected readonly querySchema: QuerySchema;
@@ -875,27 +907,20 @@ class SchemaChain<
     metadata: RouteMetadata,
     paramsSchema: ParamsSchema,
     querySchema: QuerySchema,
-    requestLoader: RequestLoader<Params, Query, RequestData> | undefined
+    requestLoader: RequestLoader<Params, Query, RequestData> | undefined,
+    head?: Head<Params, Query, ParentData, NoFields, Mode>
   ) {
     this.metadata = metadata;
     this.paramsSchema = paramsSchema;
     this.querySchema = querySchema;
     this.requestLoaderFunction = requestLoader;
+    this.headFunction = head;
   }
 
-  requestLoader<RequestLoaderData extends PublicLoaderData>(
-    requestLoader: RequestLoader<Params, Query, RequestLoaderData>
+  requestLoader<Data extends RequestLoaderData>(
+    requestLoader: RequestLoader<Params, Query, Data>
   ): Omit<
-    SchemaChain<
-      Params,
-      Query,
-      ParamsSchema,
-      QuerySchema,
-      ParentData,
-      RequestLoaderData,
-      ParentParams,
-      Mode
-    >,
+    SchemaChain<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, ParentParams, Mode>,
     "staticParams"
   > {
     return new SchemaChain(this.metadata, this.paramsSchema, this.querySchema, requestLoader);
@@ -937,6 +962,30 @@ class SchemaChain<
     );
   }
 
+  head(
+    head: Head<Params, Query, ParentData, NoFields, Mode>
+  ): Pick<
+    SchemaChain<
+      Params,
+      Query,
+      ParamsSchema,
+      QuerySchema,
+      ParentData,
+      RequestData,
+      ParentParams,
+      Mode
+    >,
+    "page"
+  > {
+    return new SchemaChain(
+      this.metadata,
+      this.paramsSchema,
+      this.querySchema,
+      this.requestLoaderFunction,
+      head
+    );
+  }
+
   page(
     component: Component<Params, Query, ParentData, NoFields, RequestData>,
     ..._requestLoaderCheck: PageRequestLoaderCheck<Mode, RequestData>
@@ -951,6 +1000,7 @@ class SchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
@@ -967,6 +1017,7 @@ class SchemaChain<
         this.querySchema,
         undefined
       ),
+      head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
@@ -1027,7 +1078,7 @@ class LoadedSchema<
     assertPageRequestLoaderMode(this.metadata, this.requestLoaderFunction);
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, Mode>(
         this.paramsSchema,
@@ -1039,15 +1090,13 @@ class LoadedSchema<
       page: component,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 
   layout(component: LayoutComponent<Params, Query, ParentData, Data, RequestData>) {
     return {
       __type: "FURIN_ROUTE" as const,
-      ...withMetadata<Mode, ParentData>(this.metadata),
+      ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
       elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
         this.paramsSchema,
@@ -1059,8 +1108,6 @@ class LoadedSchema<
       loader: this.loaderFunction,
       requestLoader: this.requestLoaderFunction,
       schemas: { params: this.paramsSchema, query: this.querySchema },
-      useLoaderData: (): RenderLoaderData<ParentData, Data> =>
-        undefined as unknown as RenderLoaderData<ParentData, Data>,
     };
   }
 }
@@ -1085,6 +1132,7 @@ class HeadedSchema<
   Mode
 > {
   declare readonly head: never;
+  declare readonly layout: never;
 }
 
 /**
@@ -1334,6 +1382,10 @@ export type RouteParams<Route> = Route extends { elysia: infer App }
   ? ElysiaRouteParams<ElysiaRouteLeaf<App>>
   : never;
 
-export type RouteLoaderData<Route> = Route extends { useLoaderData: () => infer Data }
-  ? Data
-  : never;
+export type RouteLoaderData<Route> = Route extends {
+  readonly [loaderDataBrand]?: infer Data;
+}
+  ? NonNullable<Data>
+  : Route extends { loader: (...args: never[]) => infer Data }
+    ? Awaited<Data>
+    : never;

@@ -23,6 +23,28 @@ The return object is serialized into the initial document and route-data respons
 
 Returning a plain promise inside a plain object does not opt into streaming: it is resolved as normal loader data. Use `defer()` explicitly when a field should stream.
 
+## Reading Data In Descendant Components
+
+Use `getRouteApi()` with a generated route pattern to read the active page's loader snapshot and validated params without passing them through every component:
+
+```tsx
+import { getRouteApi } from "@teyik0/furin/client";
+
+const postRoute = getRouteApi("/blog/:slug");
+
+function PostToolbar() {
+  const { slug } = postRoute.useParams();
+  const { post } = postRoute.useLoaderData();
+  return <span>{slug}: {post.title}</span>;
+}
+```
+
+Both hooks infer their types from the route definition. Params are the server-validated values, not raw URL strings. Loader data follows Furin's flat page data contract, including inherited loader fields; `params`, `path`, `query`, and internal transport metadata are not loader fields.
+
+These hooks read the existing rendered snapshot in SSR and hydration. They do not call the loader again. Navigation, refreshes and optimistic projections update the snapshot. The pattern must match the active page: calling these hooks outside its rendered tree throws rather than returning unrelated data. To read search state, use [useSearch](/docs/link-navigation#search-state).
+
+Route definitions do not expose a `route.useLoaderData()` hook. `getRouteApi()` avoids importing the page module into its descendants.
+
 ## Layout Data And Parallelism
 
 Every layout and the page can have a loader. They start without waiting for the entire parent chain. A descendant loader receives each ancestor field as an individual promise; render callbacks receive the resolved fields as flat props:
@@ -116,11 +138,11 @@ export const route = defineRoute()
   ));
 ```
 
-The context exposes `cookies.get(name)`, a read-only snapshot of `headers`, `log`, `params`, `path`, `query`, and the original `request`. Request loaders across the route chain run in parallel. Furin infers their field names from TypeScript at build time, so the return type must have a finite set of keys. Each field becomes a real promise prop and streams separately; a missing optional public prop remains `undefined`. If an `async` request loader waits for several values before returning its object, those fields start streaming only after that wait. Their fields use the same reserved names as public loaders. The context object is shallowly frozen; the `request`, `params`, and `query` values are not immutable. Return only data safe to send to the current browser: request-loader output is serialized into the HTML stream or route-data response, so never return session tokens or server secrets.
+The context exposes `cookies.get(name)`, a read-only snapshot of `headers`, `log`, `params`, `path`, `query`, and the original `request`. Request loaders across the route chain run in parallel. Furin infers their field names from TypeScript at build time, so the return type must have a finite set of keys. Each field becomes a real promise prop and streams separately; a missing optional public prop remains `undefined`. SSR descendant `loader()` functions can also await fields from ancestor `requestLoader()` functions; SSG and ISR loaders cannot read them. If an `async` request loader waits for several values before returning its object, those fields start streaming only after that wait. Their fields use the same reserved names as public loaders. The context object is shallowly frozen; the `request`, `params`, and `query` values are not immutable. Return only data safe to send to the current browser: request-loader output is serialized into the HTML stream or route-data response, so never return session tokens or server secrets.
 
 For SSG or ISR on a Bun server, Furin caches only the public loader result, renders request data per request, and marks the final document `private, no-store`. Pure static export rejects every `requestLoader()` because no request runtime exists.
 
-An SSR page cannot declare its own `requestLoader()`: use `loader()` for request data and `defer()` when some fields should stream independently. An SSR page can still inherit `requestLoader()` fields from a shared layout that also serves SSG or ISR pages.
+An SSR page cannot declare its own `requestLoader()`: use `loader()` for request data and `defer()` when some fields should stream independently. Its `loader()` and page component can inherit `requestLoader()` fields from a shared layout that also serves SSG or ISR pages. The SSR loader receives each field as a promise and awaits only the fields it needs.
 
 ## Redirects, Missing Data, And Headers
 

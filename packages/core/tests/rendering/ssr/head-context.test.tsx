@@ -26,6 +26,44 @@ function createLoaderContext(): Context {
 }
 
 describe("SSR head context", () => {
+  test("runs head beside a requestLoader without a public loader", async () => {
+    const rootTerminal = defineRootRoute()
+      .config({ mode: "ssr" })
+      .layout(({ children }) => children);
+    const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
+    const terminal = defineRoute()
+      .config({ layout: rootTerminal, mode: "ssg" })
+      .requestLoader(() => ({ result: "private" }))
+      .head(({ path }) => ({ meta: [{ title: path }] }))
+      .page(() => null);
+    const page = adaptDefinedPage(terminal, rootRoute);
+    const route: ResolvedRoute = {
+      mode: "ssg",
+      page,
+      path: "/account.tsx",
+      pattern: "/account",
+      requestKeys: ["result"],
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+    };
+
+    const prepared = await prepareRender(
+      route,
+      createLoaderContext(),
+      { path: "/", route: rootRoute },
+      undefined,
+      false,
+      undefined
+    );
+
+    if (prepared instanceof Response) {
+      throw new Error("Expected a prepared render result.");
+    }
+    expect(prepared.headData).toEqual({ meta: [{ title: "/account" }] });
+    expect(page.loader).toBeUndefined();
+    expect(await prepared.deferredPromises?.result).toBe("private");
+  });
+
   test("reuses synchronous loader data as the component context without exposing it to head mutations", async () => {
     const rootTerminal = defineRootRoute()
       .config({ mode: "ssr" })

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import MagicString from "magic-string";
+import { join } from "node:path";
 import { deadCodeElimination } from "../../../src/plugin/dead-code-elimination";
 import { transformForClient } from "../../../src/plugin/transform-client";
+import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
   test("removes server stages and rewrites the builder import", () => {
@@ -168,7 +170,74 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(signature(transform("component-v2"))).toBe(signature(transform("component-v1")));
   });
 
-  test("conservatively refreshes data when a loader depends on an imported binding", () => {
+  test("tracks transitive loader imports while ignoring a root component edit", () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const filename = join(app.path, "src/pages/root.tsx");
+      const source = (version: string, imported: string) => `
+import { defineRootRoute } from "@teyik0/furin";
+import { ${imported} as loadData } from "../lib/loader";
+export const route = defineRootRoute()
+  .loader(loadData)
+  .layout(({ children }) => <html><body className="${version}">{children}</body></html>);`;
+      writeAppFile(app.path, "src/pages/root.tsx", source("v1", "loadData"));
+      writeAppFile(app.path, "src/lib/loader.ts", 'export { loadData, otherLoader } from "./data";');
+      writeAppFile(app.path, "src/lib/data.ts", `export const loadData = () => ({ message: "v1" });
+export const otherLoader = () => ({ message: "other" });`);
+      const signature = (version: string, imported: string) => {
+        const output = transformForClient(source(version, imported), filename).code;
+        return output.match(/const previousDataSignature = "([^"]+)"/u)?.[1];
+      };
+
+      const initial = signature("v1", "loadData");
+      expect(initial).toStartWith("imports:");
+      expect(signature("v2", "loadData")).toBe(initial);
+      expect(signature("v2", "otherLoader")).not.toBe(initial);
+
+      writeAppFile(app.path, "src/lib/data.ts", `export const loadData = () => ({ message: "v2" });
+export const otherLoader = () => ({ message: "other" });`);
+      expect(signature("v2", "loadData")).not.toBe(initial);
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("refreshes data when an imported loader reads an export from its route", () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const source = `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "../lib/loader";
+export const message = "v1";
+export const route = defineRoute().loader(loadData).page(({ message }) => <p>{message}</p>);`;
+      writeAppFile(app.path, "src/pages/index.tsx", source);
+      writeAppFile(app.path, "src/lib/loader.ts", `import { message } from "../pages/index";
+export const loadData = () => ({ message });`);
+
+      const output = transformForClient(source, join(app.path, "src/pages/index.tsx"));
+      expect(output.code).toContain('const previousDataSignature = "external:');
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("does not traverse package internals when fingerprinting loader imports", () => {
+    const app = createTmpApp("cli-app");
+    try {
+      writeAppFile(app.path, "node_modules/hmr-loader/package.json", '{"main":"index.ts"}');
+      writeAppFile(app.path, "node_modules/hmr-loader/index.ts", 'export { loadData } from "missing-peer";');
+      const output = transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+import { loadData } from "hmr-loader";
+export const route = defineRoute().loader(loadData).page(() => null);`,
+        join(app.path, "src/pages/index.tsx")
+      );
+      expect(output.code).toContain('const previousDataSignature = "imports:');
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("conservatively refreshes data when a loader import cannot be resolved", () => {
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 import { loadData } from "./loader";

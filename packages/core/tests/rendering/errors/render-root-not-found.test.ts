@@ -45,9 +45,9 @@ const rootWithQueryLayout = {
   ...result.root,
   route: {
     ...result.root.route,
-    layout: ({ children, query }) => {
-      receivedQuery = query;
-      return children;
+    layout: (props) => {
+      receivedQuery = props.query;
+      return result.root.route.layout(props);
     },
     query: t.Object({ page: t.Number(), tag: t.Array(t.String()) }),
   },
@@ -57,9 +57,15 @@ response = await renderRootNotFound(
   new Request("http://localhost/missing?page=2&tag=first&tag=second")
 );
 assert(response.status === 404, "query-aware response status");
-await response.text();
+body = await response.text();
 assert(receivedQuery.page === 2, "root not-found query coercion");
 assert(receivedQuery.tag.join("|") === "first|second", "root not-found repeated query keys");
+const dataJson = body.match(/<script[^>]*id="__FURIN_DATA__"[^>]*>([^<]+)<\\/script>/)?.[1];
+assert(dataJson, "root not-found hydration payload");
+const data = JSON.parse(dataJson);
+assert(data.path === "/missing", "root not-found hydration path");
+assert(data.query.page === 2, "root not-found hydration query coercion");
+assert(data.query.tag.join("|") === "first|second", "root not-found hydration repeated query keys");
 
 __resetTemplateState();
 result = await scanPages(fixturesDir);

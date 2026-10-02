@@ -6,6 +6,7 @@ import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
+import { hmrDependencySignature } from "./hmr-dependencies.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
 
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
@@ -14,6 +15,7 @@ const REACT_COMPONENT_WRAPPERS = new Set(["forwardRef", "memo"]);
 const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader", "staticParams"]);
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
+const HMR_SOURCE_SIGNATURE = "furin.hmr.source-signature";
 const TYPESCRIPT_RUNTIME_WRAPPERS = new Map([
   ["TSAsExpression", ["expression"]],
   ["TSInstantiationExpression", ["expression"]],
@@ -256,16 +258,16 @@ function collectDeclarationBindings(
 
 function collectModuleBindings(program: Program): {
   declarations: Map<string, AstNode>;
-  imports: Set<string>;
+  imports: Map<string, ImportDeclaration>;
 } {
   const declarations = new Map<string, AstNode>();
-  const imports = new Set<string>();
+  const imports = new Map<string, ImportDeclaration>();
   for (const statement of program.body as unknown as AstNode[]) {
     if (statement.type === "ImportDeclaration" && Array.isArray(statement.specifiers)) {
       for (const specifier of statement.specifiers as AstNode[]) {
         const local = localName(specifier);
         if (local) {
-          imports.add(local);
+          imports.set(local, statement as unknown as ImportDeclaration);
         }
       }
       continue;
@@ -399,7 +401,7 @@ function walkWithAncestors(
 
 interface HmrDependencyState {
   dependencies: Map<number, AstNode>;
-  hasUnresolvedImport: boolean;
+  imports: Set<ImportDeclaration>;
   importTrackedDependencies: Set<number>;
   moduleBindings: ReturnType<typeof collectModuleBindings>;
 }
@@ -420,8 +422,9 @@ function collectDependencyIdentifier(
   }
   const declaration = state.moduleBindings.declarations.get(child.name);
   if (!declaration) {
-    if (trackImports && state.moduleBindings.imports.has(child.name)) {
-      state.hasUnresolvedImport = true;
+    const imported = state.moduleBindings.imports.get(child.name);
+    if (trackImports && imported) {
+      state.imports.add(imported);
     }
     return;
   }
@@ -450,11 +453,16 @@ function collectDependencies(
   });
 }
 
-function createHmrDataSignature(code: string, program: Program, bindings: Set<string>): string {
+function createHmrDataSignature(
+  code: string,
+  program: Program,
+  bindings: Set<string>,
+  filename: string
+): string {
   const serverStages: Array<{ source: string; start: number }> = [];
   const dependencyState: HmrDependencyState = {
     dependencies: new Map(),
-    hasUnresolvedImport: false,
+    imports: new Set(),
     importTrackedDependencies: new Set(),
     moduleBindings: collectModuleBindings(program),
   };
@@ -500,6 +508,10 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
 
   const dataSource = [
     ...serverStages,
+    ...[...dependencyState.imports].map((imported) => ({
+      source: code.slice(imported.start, imported.end),
+      start: imported.start,
+    })),
     ...[...dependencyState.dependencies.values()].map((dependency) => ({
       source: code.slice(dependency.start, dependency.end),
       start: dependency.start,
@@ -509,7 +521,14 @@ function createHmrDataSignature(code: string, program: Program, bindings: Set<st
     .map((entry) => entry.source)
     .join("\n");
   const hash = new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
-  return dependencyState.hasUnresolvedImport ? `external:${hash}` : hash;
+  if (dependencyState.imports.size === 0) {
+    return hash;
+  }
+  const dependencies = hmrDependencySignature(
+    new Set([...dependencyState.imports].map((imported) => imported.source.value)),
+    filename
+  );
+  return dependencies === undefined ? `external:${hash}` : `imports:${hash}:${dependencies}`;
 }
 
 function calledHookName(call: AstNode): string | null {
@@ -867,7 +886,8 @@ export function transformForClient(code: string, filename: string): TransformRes
     const hmrDataSignature = createHmrDataSignature(
       code,
       originalParse.program,
-      collectDefineRouteBindings(originalParse.program)
+      collectDefineRouteBindings(originalParse.program),
+      filename
     );
     const signatureValue = Array.isArray(hookSignature)
       ? JSON.stringify(hookSignature)
@@ -875,6 +895,11 @@ export function transformForClient(code: string, filename: string): TransformRes
     source.append(`
 if (import.meta.hot && route?.component) {
   const previousDataSignature = ${JSON.stringify(hmrDataSignature)};
+  const previousSourceSignature = ${JSON.stringify(Bun.hash(code).toString(16))};
+  Object.defineProperty(route, Symbol.for(${JSON.stringify(HMR_SOURCE_SIGNATURE)}), {
+    configurable: true,
+    value: previousSourceSignature,
+  });
   Object.defineProperty(route, Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)}), {
     configurable: true,
     value: previousDataSignature,
@@ -890,10 +915,14 @@ if (import.meta.hot && route?.component) {
         updatedRoute,
         Symbol.for(${JSON.stringify(HMR_DATA_SIGNATURE)})
       );
+      // An unchanged source can be re-evaluated by Bun after an import edit
+      // without rerunning this transform. Its embedded dependency hash is stale.
       const dataChanged =
         previousDataSignature.startsWith("external:") ||
         typeof updatedDataSignature !== "string" ||
         updatedDataSignature.startsWith("external:") ||
+        (updatedDataSignature.startsWith("imports:") &&
+          Reflect.get(updatedRoute, Symbol.for(${JSON.stringify(HMR_SOURCE_SIGNATURE)})) === previousSourceSignature) ||
         updatedDataSignature !== previousDataSignature;
       window.__FURIN_HMR_UPDATE__?.(${JSON.stringify(filename)}, updatedRoute.component, dataChanged);
     }

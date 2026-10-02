@@ -94,12 +94,56 @@ describe("sync adapter bundle isolation", () => {
     expect(hybrid).not.toContain(sqliteMarker);
   });
 
+  test("loads ORM adapters only through their dedicated entrypoints", async () => {
+    const [drizzle, prisma] = await Promise.all([bundle("drizzle", "bun"), bundle("prisma", "bun")]);
+    expect(drizzle).toContain(sqliteMarker);
+    expect(drizzle).toContain(postgresMarker);
+    expect(prisma).toContain(postgresMarker);
+    expect(prisma).not.toContain(sqliteMarker);
+    expect(prisma).not.toContain("@prisma/client/runtime");
+    expect(drizzle).not.toContain(redisMarker);
+    expect(prisma).not.toContain(redisMarker);
+  });
+
   test("does not introduce legacy adapter dependencies through the core manifest", async () => {
     const core = await manifest("../../package.json");
     expect(dependencyNames(core)).not.toContain("@teyik0/furin-sync-postgres");
     expect(dependencyNames(core)).not.toContain("@teyik0/furin-sync-redis");
     expect(dependencyNames(core)).not.toContain("@teyik0/furin-sync-sqlite");
   });
+
+  test("loads the published client without requiring consumers to install Eden", async () => {
+    const root = resolve(import.meta.dir, "../../../..");
+    const directory = mkdtempSync(join(tmpdir(), "furin-client-consumer-"));
+    try {
+      const archive = pack(join(root, "packages/core"), directory);
+      writeFileSync(
+        join(directory, "package.json"),
+        JSON.stringify({ dependencies: { "@teyik0/furin": archive }, private: true })
+      );
+      const install = Bun.spawnSync({
+        cmd: ["bun", "install", "--production", "--ignore-scripts"],
+        cwd: directory,
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      expect(install.exitCode).toBe(0);
+      const client = Bun.spawnSync({
+        cmd: [
+          "bun",
+          "-e",
+          'import { createClient, defineRoute, defer } from "@teyik0/furin/client"; if (![createClient, defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing client export");',
+        ],
+        cwd: directory,
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      expect(client.stderr.toString()).toBe("");
+      expect(client.exitCode).toBe(0);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }, 30_000);
 
   test("bundles isolated subpaths from the packed core package", async () => {
     const root = resolve(import.meta.dir, "../../../..");

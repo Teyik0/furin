@@ -66,6 +66,10 @@ export class AutoInvalidateRegistry {
     return [...paths];
   }
 
+  tagsForPath(path: string): string[] {
+    return [...(this.pathToTags.get(path) ?? [])];
+  }
+
   unregisterPath(urlPath: string, owner?: string): void {
     if (owner === undefined) {
       this.pathOwners.delete(urlPath);

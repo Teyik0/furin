@@ -2,6 +2,7 @@
 export interface SyncChangePayload {
   cursor: string;
   invalidations: readonly string[];
+  queries?: readonly import("../../shared/sync-query.ts").QueryIdentity[];
 }
 
 export interface SyncChangePagePayload {
@@ -14,6 +15,8 @@ export interface SyncChangePagePayload {
 interface SyncCatchUpOptions {
   fetchPage: (after: string | undefined) => Promise<SyncChangePagePayload>;
   onInvalidations: (invalidations: readonly string[]) => void;
+  onQueries?: (identities: readonly import("../../shared/sync-query.ts").QueryIdentity[]) => void;
+  onReset?: () => void;
 }
 
 export interface SyncCatchUp {
@@ -81,12 +84,16 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       do {
         page = await options.fetchPage(currentCursor ?? "0");
         if (page.reset) {
+          options.onReset?.();
           options.onInvalidations(["/:layout"]);
           currentCursor = page.cursor;
           break;
         }
         for (const change of page.changes) {
           options.onInvalidations(change.invalidations);
+          if (change.queries) {
+            options.onQueries?.(change.queries);
+          }
         }
         currentCursor = page.cursor;
       } while (page.hasMore);

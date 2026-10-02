@@ -4,14 +4,14 @@ import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
 } from "../shared/search-params.ts";
-import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouter } from "./router/context.ts";
+import { CLIENT_FALLBACK_ROUTER, RouterContext, useRouterContext } from "./router/context.ts";
 import {
   applyLinkParams,
   buildHref,
   navigationHrefPolicy,
   normalizeHref,
 } from "./router/link-utils.ts";
-import type { LinkProps, RouterContextValue, RouteTo } from "./router/types.ts";
+import type { LinkBaseProps, LinkProps, RouterContextValue, RouteTo } from "./router/types.ts";
 
 // biome-ignore lint/performance/noBarrelFile: re-exporting router symbols preserves backward compatibility for @teyik0/furin/link consumers
 export * from "./router/index.ts";
@@ -40,7 +40,7 @@ function computeLinkView<To extends RouteTo>(
     activeProps,
     inactiveProps,
   }: Pick<
-    LinkProps<To>,
+    LinkBaseProps<To>,
     "to" | "params" | "search" | "hash" | "children" | "activeProps" | "inactiveProps"
   >,
   router: RouterContextValue
@@ -108,8 +108,8 @@ function LinkInteractive<To extends RouteTo>({
   // @ts-expect-error: defensive strip of accidental href prop passed via spread
   href: _href,
   ...anchorProps
-}: LinkProps<To>): React.ReactElement {
-  const router = useRouter();
+}: LinkBaseProps<To>): React.ReactElement {
+  const router = useRouterContext();
   const anchorRef = useRef<HTMLAnchorElement>(null);
   const intentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -278,7 +278,7 @@ export const SSR_FALLBACK_ROUTER: RouterContextValue = {
  * returning the final `<a>` element.
  */
 function renderLinkElement<To extends RouteTo>(
-  props: LinkProps<To>,
+  props: LinkBaseProps<To>,
   router: RouterContextValue
 ): React.ReactElement {
   const { href, isActive, resolvedChildren, extraProps } = computeLinkView(props, router);
@@ -347,8 +347,8 @@ export function Link<To extends RouteTo>(props: LinkProps<To>): React.ReactEleme
 
   // ── Client rendering ──────────────────────────────────────────────────────
   return createElement(
-    LinkInteractive as React.ComponentType<LinkProps<RouteTo>>,
-    props as LinkProps<RouteTo>
+    LinkInteractive as React.ComponentType<LinkBaseProps<RouteTo>>,
+    props as LinkBaseProps<RouteTo>
   );
 }
 

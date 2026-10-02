@@ -8,4 +8,10 @@ declare module "@teyik0/furin/routes" {
     "/weather/search": typeof import("./src/pages/weather/search").route;
     [path: `/weather/${string}`]: typeof import("./src/pages/weather/[city]").route;
   }
+
+  interface RoutePatternMap {
+    "/": typeof import("./src/pages/index").route;
+    "/weather/:city": typeof import("./src/pages/weather/[city]").route;
+    "/weather/search": typeof import("./src/pages/weather/search").route;
+  }
 }

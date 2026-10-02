@@ -11,11 +11,17 @@ declare module "@teyik0/furin/routes" {
     ]: typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
     [path: `/board/${string}`]: typeof import("./src/pages/board/[boardId]/index").route;
   }
+
+  interface RoutePatternMap {
+    "/": typeof import("./src/pages/index").route;
+    "/board/:boardId": typeof import("./src/pages/board/[boardId]/index").route;
+    "/board/:boardId/card/:cardId": typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
+    "/rsc": typeof import("./src/pages/rsc").route;
+  }
 }
 
 declare module "@teyik0/furin" {
   interface FurinCacheTags {
-    board: "board";
     boards: "boards";
     cards: "cards";
   }

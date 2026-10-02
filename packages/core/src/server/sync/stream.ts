@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { queryFromTag } from "../../shared/sync-query.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { SyncAdapter, SyncChange, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
@@ -150,7 +151,9 @@ function clientInvalidations(change: SyncChange): string[] {
   const entries = new Set<string>();
   for (const invalidation of change.invalidations) {
     if (invalidation.kind === "tags") {
-      entries.add("/:layout");
+      if (invalidation.tags.some((tag) => !queryFromTag(tag))) {
+        entries.add("/:layout");
+      }
     } else {
       entries.add(
         invalidation.type === "layout" ? `${invalidation.path}:layout` : invalidation.path
@@ -177,10 +180,23 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
         changes: page.changes.map((change) => ({
           cursor: change.cursor,
           invalidations: clientInvalidations(change),
+          ...queryInvalidations(change),
         })),
       };
     }
   );
+}
+
+function queryInvalidations(change: SyncChange) {
+  const queries = change.invalidations.flatMap((entry) =>
+    entry.kind === "tags"
+      ? entry.tags.flatMap((tag) => {
+          const query = queryFromTag(tag);
+          return query ? [query] : [];
+        })
+      : []
+  );
+  return queries.length > 0 ? { queries } : {};
 }
 
 /** @internal — closes process-local stream state between tests. */

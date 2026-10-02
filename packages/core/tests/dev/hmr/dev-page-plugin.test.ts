@@ -4,12 +4,38 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
   loadDevPageContents,
+  registerDevPagePlugin,
   rewriteRelativeImports,
   rewriteSingletonImports,
   toImportSpecifier,
   transformDevSource,
   WORKSPACE_SOURCE_FILTER,
 } from "../../../src/server/dev-page-plugin.ts";
+
+test.each([
+  {
+    name: "development loader keeps text import attributes",
+    source:
+      'import migrationSql from "./migration.sql" with { type: "text" }; export const sql = migrationSql;',
+  },
+  {
+    name: "a type-only import cannot consume a text import from the same file",
+    source:
+      'import { type Ignored } from "./migration.sql"; import migrationSql from "./migration.sql" with { type: "text" }; export const sql = migrationSql;',
+  },
+])("$name", async ({ source }) => {
+  const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-import-"));
+  const filePath = resolve(directory, "migration.ts");
+  try {
+    writeFileSync(resolve(directory, "migration.sql"), "SELECT 1;");
+    writeFileSync(filePath, source);
+    registerDevPagePlugin();
+    const imported = (await import(filePath)) as { sql: string };
+    expect(imported.sql).toBe("SELECT 1;");
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
 
 test("a deleted page finishes an in-flight load from its last transformed source", async () => {
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-page-"));

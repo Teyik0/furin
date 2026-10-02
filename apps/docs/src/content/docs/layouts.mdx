@@ -82,6 +82,6 @@ Do not skip a parent to reuse an unrelated layout. Extract ordinary React compon
 
 ## Rendering Modes Across A Chain
 
-Each segment keeps its mode. An SSR layout can read request data above an SSG or ISR page: its loader runs per request, the public child's loader stays cached, and the document is `private, no-store`. The child cannot read the layout's private fields. For a cached HTML shell, move private work to `requestLoader()` and `<Suspense>`; see [Rendering Modes](/docs/rendering). SSR children can inherit layout `requestLoader()` fields but cannot declare their own.
+Each segment keeps its mode. An SSR layout can read request data above an SSG or ISR page: its loader runs per request, the public child's loader stays cached, and the document is `private, no-store`. The public child loader cannot read the layout's private fields. For a cached HTML shell, move private work to `requestLoader()` and `<Suspense>`; see [Rendering Modes](/docs/rendering). SSR child loaders and components can inherit layout `requestLoader()` fields as promises, but SSR pages cannot declare their own `requestLoader()`.
 
 Deferred fields also flow through layouts. Render them with `<Await>` inside `<Suspense>` exactly as you would in a page; see [Deferred Data](/docs/defer).

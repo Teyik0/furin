@@ -1,8 +1,8 @@
 import type { Context } from "elysia";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import { isDeferred } from "../../client.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
+import { isDeferred } from "../../shared/defer.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
 import { getLogger } from "../context-logger.ts";
@@ -10,6 +10,7 @@ import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/i
 import { resolveRouteRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
+import { captureQueryReads } from "../sync/query-context.ts";
 import { cacheMixedPublicLoader } from "./mixed-cache.ts";
 
 export type LoaderResult =
@@ -38,12 +39,13 @@ export type LoaderResult =
        * has already been consumed by `runLoaders` (do NOT read it again).
        */
       error: unknown;
-      /** HTTP status to return. Default 500; sourced from `Response.status` for thrown Response objects. */
+      /** HTTP status to return. Default 500; sourced from thrown Responses and Eden problems. */
       status: number;
       /**
        * Safe public message extracted at the loader boundary. For thrown
        * `Response` objects: response body or `statusText`. For thrown `Error`
-       * / non-Error values: a generic "Something went wrong" string (the raw
+       * values carrying an Eden problem: its detail or title. For other
+       * `Error` / non-Error values: a generic "Something went wrong" string (the raw
        * error/message is never leaked here — `errorMessageOf` decides what to
        * surface from the original `error` value when an `error.tsx` fallback
        * exists).
@@ -90,6 +92,19 @@ function assertPublicLoaderKey(key: string): void {
   }
 }
 
+function assertRequestLoaderKey(key: string, ctx: Context): void {
+  assertPublicLoaderKey(key);
+  if (
+    key === "log" ||
+    Object.hasOwn(ctx, key) ||
+    (key in ctx && !Object.hasOwn(Object.prototype, key))
+  ) {
+    throw new Error(
+      `[furin] requestLoader data key "${key}" is reserved: it is overwritten by the SSR loader context. Rename this field to avoid conflicts.`
+    );
+  }
+}
+
 /**
  * `true` only for HTTP responses that are syntactically valid redirects:
  * a navigation redirect status code AND a `Location` header. A redirect status
@@ -120,8 +135,9 @@ async function readResponseMessage(res: Response): Promise<string> {
 /**
  * Wraps the Elysia context so that any property NOT present on `ctx` is
  * returned as an individual `Promise<value>` resolved from the accumulated
- * parent data. Properties that ARE present on `ctx` (request, params, set, …)
- * are returned as-is.
+ * parent data. Inherited request fields use their own promises, independent
+ * of public parent loaders. Properties that ARE present on `ctx` (request,
+ * params, set, …) are returned as-is.
  *
  * A per-prop cache ensures the same Promise instance is returned on repeated
  * access of the same field (stable reference for Promise.all etc.).
@@ -129,6 +145,7 @@ async function readResponseMessage(res: Response): Promise<string> {
 function createLoaderCtx(
   ctx: Record<string, unknown>,
   accumulatedParentPromise: Promise<Record<string, unknown>>,
+  inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
   onParentFieldAccess?: (key: string) => void
 ): Record<string, unknown> {
   const cache = new Map<string, Promise<unknown>>();
@@ -151,6 +168,9 @@ function createLoaderCtx(
         (prop in target && !Object.hasOwn(Object.prototype, prop))
       ) {
         return target[prop];
+      }
+      if (inheritedRequestFields && Object.hasOwn(inheritedRequestFields, prop)) {
+        return inheritedRequestFields[prop];
       }
       // Everything else is a parent-data field → individual lazy Promise.
       onParentFieldAccess?.(prop);
@@ -284,7 +304,13 @@ function observeLoader<T extends object>(
 export function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
-): { fields: Record<string, Promise<unknown>>; noFieldCompletion: Promise<void> } | undefined {
+):
+  | {
+      fields: Record<string, Promise<unknown>>;
+      fieldsByLoader: Record<string, Promise<unknown>>[];
+      noFieldCompletion: Promise<void>;
+    }
+  | undefined {
   const loaderIndexes = route.routeChain.flatMap((entry, index) =>
     entry.requestLoader ? [index] : []
   );
@@ -314,7 +340,7 @@ export function runRequestLoaderFields(
     const result = observeLoader(() => invocation, `request:${index}`, ctx.path).then((value) => {
       const data = value as Record<string, unknown>;
       for (const key of Object.keys(data)) {
-        assertPublicLoaderKey(key);
+        assertRequestLoaderKey(key, ctx);
         if (!declarations[index]?.includes(key)) {
           throw new Error(
             `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`
@@ -328,23 +354,34 @@ export function runRequestLoaderFields(
     });
     return { index, result };
   });
-  const fields: Record<string, Promise<unknown>> = {};
+  let fields: Record<string, Promise<unknown>> = {};
+  const fieldsByLoader = route.routeChain.map((_, boundaryIndex) => {
+    fields = { ...fields };
+    for (const key of declarations[boundaryIndex] ?? []) {
+      if (!route.requestKeys?.includes(key)) {
+        continue;
+      }
+      const candidates = results.filter(
+        ({ index }) => index <= boundaryIndex && declarations[index]?.includes(key)
+      );
+      fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
+        for (let index = values.length - 1; index >= 0; index -= 1) {
+          const data = values[index];
+          if (data && Object.hasOwn(data, key)) {
+            return data[key];
+          }
+        }
+      });
+      fields[key].catch(() => {
+        /* React or the transport observes the original rejection after public loaders settle. */
+      });
+    }
+    return fields;
+  });
   for (const key of route.requestKeys) {
-    const candidates = results.filter(({ index }) => declarations[index]?.includes(key));
-    if (candidates.length === 0) {
+    if (!Object.hasOwn(fields, key)) {
       throw new Error(`[furin] No requestLoader declares field "${key}" in ${route.pattern}.`);
     }
-    fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
-      for (let index = values.length - 1; index >= 0; index -= 1) {
-        const data = values[index];
-        if (data && Object.hasOwn(data, key)) {
-          return data[key];
-        }
-      }
-    });
-    fields[key].catch(() => {
-      /* React or the transport observes the original rejection after public loaders settle. */
-    });
   }
   const noFieldCompletion = Promise.all(
     results.filter(({ index }) => declarations[index]?.length === 0).map(({ result }) => result)
@@ -352,7 +389,7 @@ export function runRequestLoaderFields(
   noFieldCompletion.catch(() => {
     /* The caller observes this after the public loaders settle. */
   });
-  return { fields, noFieldCompletion };
+  return { fields, fieldsByLoader, noFieldCompletion };
 }
 
 function requestFieldPromises(
@@ -371,30 +408,36 @@ function requestFieldPromises(
   return fields;
 }
 
-export async function withRequestLoaderData(
+export function withRequestLoaderData(
   route: ResolvedRoute,
   ctx: Context,
   publicResult: Extract<LoaderResult, { type: "data" }>
 ): Promise<Extract<LoaderResult, { type: "data" }>> {
-  const requestFields = runRequestLoaderFields(route, ctx);
-  if (requestFields === undefined) {
-    throw new Error(
-      "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
-    );
-  }
-  await requestFields.noFieldCompletion;
-  return {
-    ...publicResult,
-    deferredPromises: {
-      ...(publicResult.deferredPromises ?? {}),
-      ...requestFieldPromises(
-        route,
-        requestFields.fields,
-        publicResult.syncData,
-        publicResult.deferredPromises
-      ),
+  return captureQueryReads(
+    ctx,
+    async () => {
+      const requestFields = runRequestLoaderFields(route, ctx);
+      if (requestFields === undefined) {
+        throw new Error(
+          "[furin] internal invariant: requestLoader data requested for a route without requestLoader"
+        );
+      }
+      await requestFields.noFieldCompletion;
+      return {
+        ...publicResult,
+        deferredPromises: {
+          ...(publicResult.deferredPromises ?? {}),
+          ...requestFieldPromises(
+            route,
+            requestFields.fields,
+            publicResult.syncData,
+            publicResult.deferredPromises
+          ),
+        },
+      };
     },
-  };
+    "eden-request-queries"
+  );
 }
 
 /**
@@ -512,6 +555,28 @@ async function normalizeLoaderError(
     const message = body || "Something went wrong";
     return { error: err, headers, message, status, type: "error" };
   }
+  if (
+    err instanceof Error &&
+    "status" in err &&
+    typeof err.status === "number" &&
+    err.status >= 400 &&
+    err.status <= 599 &&
+    "value" in err &&
+    err.value !== null &&
+    typeof err.value === "object" &&
+    "status" in err.value &&
+    err.value.status === err.status &&
+    "type" in err.value &&
+    typeof err.value.type === "string"
+  ) {
+    let message = "Something went wrong";
+    if ("detail" in err.value && typeof err.value.detail === "string") {
+      message = err.value.detail;
+    } else if ("title" in err.value && typeof err.value.title === "string") {
+      message = err.value.title;
+    }
+    return { error: err, headers, message, status: err.status, type: "error" };
+  }
   if (isFurinRscRenderError(err)) {
     getLogger().error(err);
     return {
@@ -556,6 +621,7 @@ function startSegmentLoader(
   label: string,
   parent: Promise<Record<string, unknown>>,
   publicParent: Promise<Record<string, unknown>>,
+  inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
   ctxRecord: Record<string, unknown>,
   publicCtxRecord: Record<string, unknown>,
   mixed: boolean
@@ -565,6 +631,7 @@ function startSegmentLoader(
   const loaderCtx = createLoaderCtx(
     publicSegment ? publicCtxRecord : ctxRecord,
     publicSegment ? publicParent : parent,
+    publicSegment ? undefined : inheritedRequestFields,
     publicSegment ? (key) => parentFieldsRead.add(key) : undefined
   );
   return observeLoader(
@@ -605,7 +672,7 @@ async function runLoadersInternal(
     let publicParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
 
     let loaderIndex = 0;
-    for (const r of route.routeChain) {
+    for (const [routeIndex, r] of route.routeChain.entries()) {
       const parentAccum = accumulatedParentPromise; // capture for closure
       const publicParent = publicParentPromise;
       const privateSegment = mixed && (r.mode ?? route.mode) === "ssr";
@@ -620,6 +687,7 @@ async function runLoadersInternal(
           `layout:${loaderIndex}`,
           parentAccum,
           publicParent,
+          requestFields?.fieldsByLoader[routeIndex - 1],
           ctxRecord,
           publicCtxRecord,
           mixed
@@ -662,6 +730,7 @@ async function runLoadersInternal(
           "page",
           accumulatedParentPromise,
           publicParentPromise,
+          requestFields?.fields,
           ctxRecord,
           publicCtxRecord,
           mixed
@@ -730,11 +799,11 @@ function createPublicLoaderContext(ctx: Context): { [key: string]: unknown } {
 }
 
 export function runLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, true, false);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, true, false));
 }
 
 export function runPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, false, false);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, false, false));
 }
 
 export function hasSsrLoaderAncestor(route: ResolvedRoute): boolean {
@@ -754,7 +823,7 @@ export function hasMixedLoaderModes(route: ResolvedRoute): boolean {
 }
 
 export function runMixedLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, true, true);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, true, true));
 }
 
 export function runRouteLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
@@ -762,7 +831,7 @@ export function runRouteLoaders(route: ResolvedRoute, ctx: Context): Promise<Loa
 }
 
 export function runSegmentPublicLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
-  return runLoadersInternal(route, ctx, false, true);
+  return captureQueryReads(ctx, () => runLoadersInternal(route, ctx, false, true));
 }
 
 export function hasRequestLoader(route: ResolvedRoute): boolean {

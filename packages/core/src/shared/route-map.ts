@@ -31,16 +31,26 @@ function compareRouteProperties(left: RouteMapEntry, right: RouteMapEntry): numb
 }
 
 export function routeMapDeclaration(entries: RouteMapEntry[]): string {
-  const body = entries
-    .toSorted(compareRouteProperties)
+  const sorted = entries.toSorted(compareRouteProperties);
+  const body = sorted
     .map(
       (entry) =>
         `    ${routeTypeProperty(entry.pattern)}: typeof import(${JSON.stringify(entry.importSpecifier)}).route;`
     )
     .join("\n");
+  const patterns = sorted
+    .map(
+      (entry) =>
+        `    ${JSON.stringify(entry.pattern)}: typeof import(${JSON.stringify(entry.importSpecifier)}).route;`
+    )
+    .join("\n");
   return `declare module "@teyik0/furin/routes" {
   interface RouteMap {
 ${body}
+  }
+
+  interface RoutePatternMap {
+${patterns}
   }
 }`;
 }

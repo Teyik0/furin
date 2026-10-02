@@ -5,7 +5,11 @@ import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
-import { runLoaders, runPublicLoaders } from "../../../src/server/render/loaders.ts";
+import {
+  runLoaders,
+  runPublicLoaders,
+  runRouteLoaders,
+} from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { evlogErrorMock, evlogWarnMock } from "../../setup/evlog-mock.ts";
@@ -27,6 +31,147 @@ function createMockLoaderContext(overrides: Partial<Context>): Context {
 }
 
 describe("runLoaders requestLoader", () => {
+  test("rejects request fields shadowed by the SSR loader context", async () => {
+    const route = {
+      mode: "ssr",
+      page: { loader: () => ({}) },
+      path: "/shadow.tsx",
+      pattern: "/shadow",
+      requestKeys: ["request"],
+      routeChain: [{ __type: "FURIN_ROUTE", requestLoader: () => ({ request: "shadowed" }) }],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runRouteLoaders(route, createMockLoaderContext({ path: "/shadow" }));
+
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      await expect(result.deferredPromises?.request).rejects.toThrow('"request" is reserved');
+    }
+  });
+
+  test("passes an SSG layout request field to its SSR child loader", async () => {
+    let requestCalls = 0;
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async (ctx: { adminUser: Promise<string>; siteName: Promise<string> }) => ({
+          greeting: `${await ctx.siteName}: ${await ctx.adminUser}`,
+        }),
+        mode: "ssr",
+      },
+      path: "/admin.tsx",
+      pattern: "/admin",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: () => ({ siteName: "Coffee" }),
+          mode: "ssg",
+          requestLoader: ({ request }: { request: Request }) => {
+            requestCalls += 1;
+            return { adminUser: request.headers.get("x-admin") };
+          },
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const checkRequest = async (adminUser: string) => {
+      const result = await runRouteLoaders(
+        route,
+        createMockLoaderContext({
+          request: new Request("http://localhost/admin", { headers: { "x-admin": adminUser } }),
+        })
+      );
+      expect(result.type).toBe("data");
+      if (result.type === "data") {
+        expect(result.syncData.greeting).toBe(`Coffee: ${adminUser}`);
+        expect(await result.deferredPromises?.adminUser).toBe(adminUser);
+      }
+    };
+    await checkRequest("Alice");
+    await checkRequest("Bob");
+    expect(requestCalls).toBe(2);
+  });
+
+  test("lets an SSR child await a request field before a public layout loader finishes", async () => {
+    const publicGate = Promise.withResolvers<void>();
+    const observedUser = Promise.withResolvers<string>();
+    const route = {
+      mode: "ssr",
+      page: {
+        loader: async ({ adminUser }: { adminUser: Promise<string> }) => {
+          const user = await adminUser;
+          observedUser.resolve(user);
+          return { user };
+        },
+        mode: "ssr",
+      },
+      path: "/admin.tsx",
+      pattern: "/admin",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: async () => {
+            await publicGate.promise;
+            return { siteName: "Coffee" };
+          },
+          mode: "ssg",
+          requestLoader: () => ({ adminUser: "Alice" }),
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const running = runRouteLoaders(route, createMockLoaderContext({ path: "/admin" }));
+    const receivedBeforePublicLoader = await Promise.race([
+      observedUser.promise.then(() => true),
+      Bun.sleep(5000).then(() => false),
+    ]);
+    publicGate.resolve();
+    const result = await running;
+
+    expect(receivedBeforePublicLoader).toBe(true);
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      expect(result.syncData.user).toBe("Alice");
+    }
+  });
+
+  test("keeps layout request fields out of a cached child loader", async () => {
+    const route = {
+      mode: "isr",
+      page: {
+        loader: async (ctx: { adminUser: Promise<string | undefined> }) => ({
+          observedAdmin: await ctx.adminUser,
+        }),
+        mode: "isr",
+        revalidate: 60,
+      },
+      path: "/public.tsx",
+      pattern: "/public",
+      requestKeys: ["adminUser"],
+      routeChain: [
+        {
+          __type: "FURIN_ROUTE",
+          loader: () => ({ siteName: "Coffee" }),
+          mode: "ssg",
+          requestLoader: () => ({ adminUser: "Alice" }),
+        },
+      ],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runRouteLoaders(route, createMockLoaderContext({ path: "/public" }));
+    expect(result.type).toBe("data");
+    if (result.type === "data") {
+      expect(result.syncData.observedAdmin).toBeUndefined();
+      expect(await result.deferredPromises?.adminUser).toBe("Alice");
+    }
+  });
+
   test("runs public and request loaders concurrently", async () => {
     const publicGate = Promise.withResolvers<void>();
     const requestGate = Promise.withResolvers<void>();
@@ -86,6 +231,39 @@ describe("runLoaders requestLoader", () => {
     expect(result.type).toBe("error");
     if (result.type === "error") {
       expect((result.error as Error).message).toBe("Access denied");
+    }
+  });
+
+  test("preserves an Eden problem thrown by a public loader", async () => {
+    const error = Object.assign(new Error("Eden response"), {
+      status: 404,
+      value: {
+        detail: "Content not found",
+        status: 404,
+        title: "Not Found",
+        type: "about:blank",
+      },
+    });
+    const route = {
+      mode: "isr",
+      page: {
+        loader: () => {
+          throw error;
+        },
+      },
+      path: "/content.tsx",
+      pattern: "/content",
+      routeChain: [],
+      segmentBoundaries: [],
+    } as unknown as ResolvedRoute;
+
+    const result = await runPublicLoaders(route, createMockLoaderContext({ path: "/content" }));
+
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect(result.error).toBe(error);
+      expect(result.status).toBe(404);
+      expect(result.message).toBe("Content not found");
     }
   });
 

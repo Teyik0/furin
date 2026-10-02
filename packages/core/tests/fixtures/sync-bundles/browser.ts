@@ -1,3 +1,3 @@
-import { useSync } from "../../../dist/client.js";
+import { withSync } from "../../../dist/client.js";
 
-console.log(useSync);
+console.log(withSync);

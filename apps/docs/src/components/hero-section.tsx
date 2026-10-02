@@ -1,4 +1,3 @@
-// biome-ignore-all lint/performance/noJsxPropsBind: hero code tabs depend on local active tab state
 import { useState } from "react";
 
 const TAB_NAMES = ["server.ts", "pages/root.tsx", "pages/index.tsx"] as const;

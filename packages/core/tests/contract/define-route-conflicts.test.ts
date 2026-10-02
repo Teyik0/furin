@@ -44,7 +44,7 @@ const createConflictingChild = () =>
       return String(user);
     });
 
-const createConflictingHeadAndLayout = () =>
+const createConflictingHead = () =>
   defineRoute()
     .config({ layout: createParentRoute(), mode: "ssr" })
     .loader(() => ({ visits: "many" }))
@@ -53,11 +53,46 @@ const createConflictingHeadAndLayout = () =>
       const count: number = visits;
       return { meta: [{ title: String(count) }] };
     })
+    .page(() => null);
+
+const createConflictingLayout = () =>
+  defineRoute()
+    .config({ layout: createParentRoute(), mode: "ssr" })
+    .loader(() => ({ visits: "many" }))
     .layout(({ children, visits }) => {
       // @ts-expect-error — same branded conflict, layout reads included.
       const _conflict: number = visits;
       return children;
     });
+
+const rejectHeadedLayouts = () => {
+  const route = defineRootRoute().config({ mode: "ssr" });
+  // @ts-expect-error — head metadata is supported on pages only.
+  route.head(() => ({})).layout(() => null);
+  const loadedRoute = route.loader(() => ({})).head(() => ({}));
+  // @ts-expect-error — the same restriction applies after a public loader.
+  loadedRoute.layout(() => null);
+  const queryRoute = defineRootRoute().config({ mode: "ssr", query: t.Object({ id: t.String() }) });
+  // @ts-expect-error — query routes cannot attach head metadata to layouts.
+  queryRoute.head(() => ({})).layout(() => null);
+  const paramsRoute = defineRootRoute().config({
+    mode: "ssr",
+    params: t.Object({ id: t.String() }),
+  });
+  // @ts-expect-error — params routes cannot attach head metadata to layouts.
+  paramsRoute.head(() => ({})).layout(() => null);
+};
+
+const rejectRequestLoaderContextKeys = () => {
+  const route = defineRootRoute().config({ mode: "ssr" });
+  // @ts-expect-error — request is already the Elysia Request in SSR loaders.
+  route.requestLoader(() => ({ request: "shadowed" }));
+  // @ts-expect-error — headers is already the parsed Elysia header object.
+  route.requestLoader(() => ({ headers: "shadowed" }));
+  // @ts-expect-error — redirect comes from the Elysia context prototype.
+  route.requestLoader(() => ({ redirect: "shadowed" }));
+  route.loader(() => ({ headers: "public headers remain valid" }));
+};
 
 const createParentlessRoute = () =>
   defineRootRoute()
@@ -156,7 +191,13 @@ describe("defineRoute parentData conflicts", () => {
   });
 
   test("conflict propagates to head and layout reads too", () => {
-    expectTypeOf<ReturnType<typeof createConflictingHeadAndLayout>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createConflictingHead>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof createConflictingLayout>>().not.toBeNever();
+  });
+
+  test("headed layouts and request context collisions are rejected", () => {
+    expectTypeOf<ReturnType<typeof rejectHeadedLayouts>>().not.toBeNever();
+    expectTypeOf<ReturnType<typeof rejectRequestLoaderContextKeys>>().not.toBeNever();
   });
 
   test("no parent means no conflict surface", () => {

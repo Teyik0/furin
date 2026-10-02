@@ -4,7 +4,8 @@ import { createElement } from "react";
 import { FurinDocumentFallback } from "../../client/document.tsx";
 import { isNotFoundError } from "../../shared/not-found.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
-import { autoInvalidateRegistry } from "../auto-invalidate/registry.ts";
+import { queryTagsFromData } from "../../shared/sync-query.ts";
+import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import {
   captureISRCacheGeneration,
   deleteISRCache,
@@ -452,11 +453,16 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
         route: input.route.pattern,
       },
     });
-    const cacheStored = await storeRenderedISR(input, html, generatedAt);
+    const discoveredTags = queryTagsFromData(syncData);
+    const cacheStored =
+      input.pageCache !== undefined &&
+      discoveredTags.some((tag) => !input.pageCacheIdentity.tags.includes(tag))
+        ? false
+        : await storeRenderedISR(input, html, generatedAt);
     if (cacheStored && input.pageCache === undefined) {
       autoInvalidateRegistry.registerLoaderTags(
         input.cacheKey,
-        input.route.tags,
+        [...(input.route.tags ?? []), ...discoveredTags],
         "render:isr-html"
       );
     }
@@ -496,7 +502,9 @@ export async function handleISR(
     mode: "isr",
     path: resolvedPath,
     scope: currentInstance().prefix,
-    tags: route.tags ?? [],
+    tags: [
+      ...new Set([...(route.tags ?? []), ...getAutoInvalidateRegistry().tagsForPath(cacheKey)]),
+    ],
   };
 
   const lookup = await lookupISRCache(
@@ -747,17 +755,28 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
       return;
     }
     if (input.sharedCache !== undefined && lease !== null) {
+      const { identity } = input.sharedCache;
+      if ((result.queryTags ?? []).some((tag) => !identity.tags.includes(tag))) {
+        return;
+      }
       await input.sharedCache.adapter.commit({
         entry: { cachedAt: Date.now(), payload: result.html, revalidate: input.revalidate },
         identity: input.sharedCache.identity,
         lease,
       });
     } else if (input.cacheGeneration !== undefined) {
-      setISRCacheIfGenerationUnchanged(
+      const stored = setISRCacheIfGenerationUnchanged(
         input.cacheKey,
         { generatedAt: Date.now(), html: result.html, revalidate: input.revalidate },
         input.cacheGeneration
       );
+      if (stored) {
+        autoInvalidateRegistry.registerLoaderTags(
+          input.cacheKey,
+          [...(input.route.tags ?? []), ...(result.queryTags ?? [])],
+          "render:isr-html"
+        );
+      }
     }
   } catch (error: unknown) {
     await handleBackgroundRevalidationError(input, error);

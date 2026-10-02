@@ -55,8 +55,11 @@ jobs:
       - name: Install packages
         run: bun install --frozen-lockfile
 
-      - name: Test PostgreSQL adapter
-        run: bun test packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+      - name: Generate Prisma test client
+        run: bun run --cwd packages/core generate:sync-prisma
+
+      - name: Test PostgreSQL adapters and atomic mutations
+        run: bun test --isolate packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts packages/core/tests/client/sync/atomic-postgres-sync.test.ts
 
       - name: Test Redis adapter and notifier
         run: bun test packages/core/tests/client/sync/adapters/redis-sync.test.ts
