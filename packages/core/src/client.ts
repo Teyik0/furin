@@ -3,6 +3,11 @@
   entry for furin/client consumers, not a generic internal barrel.
 */
 
+export {
+  type ClientModule,
+  clientModule,
+  preloadClientModule,
+} from "./client/client-module.ts";
 export { defineRootRoute, defineRoute } from "./client/define-route.ts";
 export {
   type DocumentAssets,

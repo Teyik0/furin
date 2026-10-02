@@ -11,7 +11,10 @@ import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderSSG } from "../server/render/ssg.ts";
 import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
-import { setProductionTemplateContent } from "../server/render/template.ts";
+import {
+  setProductionPreloadManifest,
+  setProductionTemplateContent,
+} from "../server/render/template.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -467,7 +470,7 @@ export async function buildStaticTarget(
   ensureDir(targetDir);
 
   // ── 4. Build client bundle ────────────────────────────────────────────────
-  const { entryChunk, cssChunks } = await buildClient(ssgRoutes, {
+  const { entryChunk, cssChunks, preloadManifest } = await buildClient(ssgRoutes, {
     basePath,
     clientLogging: Boolean(options.clientLogging),
     metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
@@ -475,6 +478,7 @@ export async function buildStaticTarget(
     outDir: targetDir,
     pagesDir: dirname(root.path),
     plugins: options.plugins,
+    preloadRouteChunks: options.preload?.routeChunks,
     publicPath,
     reactCompiler: options.reactCompiler,
     rootLayout: root.path,
@@ -492,6 +496,7 @@ export async function buildStaticTarget(
   // prepareRender() checks getProductionTemplate() first (before IS_DEV), so
   // setting the content here is sufficient — no need to flip IS_DEV globally.
   setProductionTemplateContent(shellHtml);
+  setProductionPreloadManifest(preloadManifest);
 
   // ── 7. Copy public/ → outDir/ ─────────────────────────────────────────────
   const publicSrcDir = join(rootDir, "public");

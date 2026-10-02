@@ -7,6 +7,7 @@ import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
 import { generateHydrateEntry } from "./hydrate";
+import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
@@ -29,6 +30,8 @@ export interface BuildClientResult {
   cssChunks: string[];
   /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
   entryChunk: string;
+  /** Chunk URLs to modulepreload per route and per `clientModule()`. */
+  preloadManifest: ClientPreloadManifest;
 }
 
 /**
@@ -53,6 +56,7 @@ export async function buildClient(
     outDir,
     rootLayout,
     plugins,
+    preloadRouteChunks,
     publicPath,
     basePath,
     clientLogging,
@@ -141,7 +145,8 @@ export async function buildClient(
     reactCompilerOutputMode: "client",
     minify: true,
     sourcemap: "none",
-    metafile: metafilePath !== undefined,
+    // Always on: the preload manifest is derived from the chunk graph.
+    metafile: true,
     // Hash the entry point name so it gets immutable caching like chunks.
     // Without this, _hydrate.js keeps the same name across builds and browsers
     // serve stale versions that reference old chunk hashes → dynamic import 404.
@@ -175,10 +180,10 @@ export async function buildClient(
   };
 
   const result = await runBunBuild(clientBuildConfig);
+  if (result.metafile === undefined) {
+    throw new Error("[furin] client build did not produce the requested metafile");
+  }
   if (metafilePath !== undefined) {
-    if (result.metafile === undefined) {
-      throw new Error("[furin] client build did not produce the requested metafile");
-    }
     mkdirSync(dirname(metafilePath), { recursive: true });
     writeFileSync(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
     console.log(`[furin] Client metafile: ${metafilePath}`);
@@ -209,7 +214,14 @@ export async function buildClient(
   }
   const entryChunk = `${publicPrefix}${basename(entryOutput.path)}`;
   const cssChunks = cssOutputs.map((o) => `${publicPrefix}${basename(o.path)}`);
+  const preloadManifest = writeClientPreloadManifest(
+    result.metafile,
+    result.outputs.map((output) => output.path),
+    entryOutput.path,
+    preloadRouteChunks === false ? [] : routes,
+    publicPrefix
+  );
 
   console.log("[furin] Production client build complete");
-  return { entryChunk, cssChunks };
+  return { entryChunk, cssChunks, preloadManifest };
 }

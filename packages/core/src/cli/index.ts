@@ -181,6 +181,7 @@ if (command === "preview") {
     optimizeImports: config.optimizeImports,
     pagesDir: undefined,
     plugins: config.plugins,
+    preload: config.preload,
     reactCompiler: config.reactCompiler,
     rootDir: config.rootDir,
     serverEntry: resolvedServerEntry,
