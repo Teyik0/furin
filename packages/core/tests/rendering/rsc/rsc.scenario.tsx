@@ -450,7 +450,7 @@ try {
           sharedActionCalls += 1;
           return <button type="button">Shared action</button>;
         }}
-        Empty={() => {
+        Empty={(): undefined => {
           sharedEmptyCalls += 1;
         }}
         src={SharedElement}
