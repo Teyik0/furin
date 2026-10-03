@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { measureAppStartup } from "../../../../../scripts/measure-dev-startup.ts";
 
-test("measures a new Bun process through port open and its first complete response", async () => {
+test("measures startup and follows a second route discovered in the first HTML response", async () => {
   const projectDir = mkdtempSync(join(tmpdir(), "furin-startup-probe-"));
   mkdirSync(join(projectDir, "src"));
   writeFileSync(
@@ -14,9 +14,10 @@ test("measures a new Bun process through port open and its first complete respon
       "Bun.serve({",
       "  port: Number(process.env.PORT),",
       '  hostname: "127.0.0.1",',
-      "  fetch: async () => {",
+      "  fetch: async (request) => {",
       "    await Bun.sleep(60);",
-      '    return new Response("<h1>ready</h1>", { headers: { "Content-Type": "text/html" } });',
+      '    const html = new URL(request.url).pathname === "/" ? \'<h1>ready</h1><a href="/board/generated-id">Board</a>\' : "<h1>Board details</h1>";',
+      '    return new Response(html, { headers: { "Content-Type": "text/html" } });',
       "  },",
       "});",
     ].join("\n")
@@ -27,7 +28,10 @@ test("measures a new Bun process through port open and its first complete respon
       projectDir,
       {
         first: { path: "/", contains: "<h1>ready</h1>" },
-        second: { path: "/second", contains: "<h1>ready</h1>" },
+        second: (html: string) => {
+          expect(html).toContain('href="/board/generated-id"');
+          return { path: "/board/generated-id", contains: "<h1>Board details</h1>" };
+        },
         preload: undefined,
       },
       {}
