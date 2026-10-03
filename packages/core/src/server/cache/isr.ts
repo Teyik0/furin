@@ -1,38 +1,23 @@
 import { allStateBuckets, type FurinInstance, instanceSlot } from "../instance.ts";
 import { createHtmlRouteCache, type ISRCacheEntry } from "./isr-ssg";
 import { registerCacheInvalidator } from "./registry";
-import type { Cache } from "./route-cache";
+import type { Cache, CacheGeneration } from "./route-cache";
 import { createStoreView, type StoreView } from "./store-view";
 
 interface ISRCacheState {
   cache: Cache<ISRCacheEntry>;
-  generations: Map<string, Set<ISRCacheGeneration>>;
   pendingRevalidations: Map<string, Promise<void>>;
 }
 
-export interface ISRCacheGeneration {
-  valid: boolean;
-}
+export type ISRCacheGeneration = CacheGeneration;
 
 // Per-instance ISR HTML cache — registered against the owning instance's
 // invalidator map on first access.
 const instanceIsrCache = instanceSlot<ISRCacheState>((instance) => {
-  const generations = new Map<string, Set<ISRCacheGeneration>>();
   const pendingRevalidations = new Map<string, Promise<void>>();
-  const cache = createHtmlRouteCache<ISRCacheEntry>("isr", {
-    onDelete: (key) => {
-      const pending = generations.get(key);
-      if (pending === undefined) {
-        return;
-      }
-      for (const generation of pending) {
-        generation.valid = false;
-      }
-      generations.delete(key);
-    },
-  });
+  const cache = createHtmlRouteCache<ISRCacheEntry>("isr");
   registerCacheInvalidator(cache, instance);
-  return { cache, generations, pendingRevalidations };
+  return { cache, pendingRevalidations };
 });
 
 export function isrRouteCache(instance?: FurinInstance): Cache<ISRCacheEntry> {
@@ -57,24 +42,11 @@ export function setISRCache(key: string, entry: ISRCacheEntry): void {
 }
 
 export function captureISRCacheGeneration(key: string): ISRCacheGeneration {
-  const state = instanceIsrCache();
-  const generation = { valid: true };
-  const pending = state.generations.get(key);
-  if (pending === undefined) {
-    state.generations.set(key, new Set([generation]));
-  } else {
-    pending.add(generation);
-  }
-  return generation;
+  return instanceIsrCache().cache.captureGeneration(key);
 }
 
 export function releaseISRCacheGeneration(key: string, generation: ISRCacheGeneration): void {
-  const { generations } = instanceIsrCache();
-  const pending = generations.get(key);
-  pending?.delete(generation);
-  if (pending?.size === 0) {
-    generations.delete(key);
-  }
+  instanceIsrCache().cache.releaseGeneration(key, generation);
 }
 
 export function setISRCacheIfGenerationUnchanged(

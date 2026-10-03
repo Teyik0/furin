@@ -8,7 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/index.ts";
-import { withSync } from "../../../src/client.ts";
+import { useQuery, withSync } from "../../../src/client.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
@@ -246,6 +246,55 @@ describe("RouterProvider sync refresh", () => {
     } finally {
       gate.resolve();
     }
+  });
+
+  test("an opaque journal reset refreshes observed GETs and the current route", async () => {
+    const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };
+    let count = 0;
+    let reads = 0;
+    let loaderReads = 0;
+    const app = new Elysia().get("/count", ({ set }) => {
+      reads += 1;
+      set.headers["x-furin-query"] = JSON.stringify(identity);
+      return { count };
+    });
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    function Counter(props: PageProps) {
+      return <main>{`${props.message}:${useQuery(api.count.get).data?.count}`}</main>;
+    }
+    const seed = () => [{ url: `${window.location.origin}/count`, identity, data: { count } }];
+    const route = makeRoute("/board");
+    route.load = async () => ({
+      default: { component: Counter, _route: { __type: "FURIN_ROUTE" } as never },
+    });
+    globalThis.fetch = mock((input: RequestInfo | URL) => {
+      if (String(input).includes("/changes")) {
+        return Promise.resolve(
+          Response.json({ changes: [], cursor: "1", hasMore: false, reset: true })
+        );
+      }
+      loaderReads += 1;
+      return Promise.resolve(makeNdjsonResponse({ message: "After", __furinQueries: seed() }));
+    }) as unknown as typeof fetch;
+    const rendered = await renderRouter(route, await loadInitialMatch(route), {
+      message: "Before",
+      __furinQueries: seed(),
+    });
+    currentCleanup = rendered.cleanup;
+    expect(rendered.container.textContent).toBe("Before:0");
+    expect(reads).toBe(0);
+    count = 1;
+    await act(async () => {
+      browserEvents.emit("0");
+      await Bun.sleep(0);
+    });
+    expect(rendered.container.textContent).toBe("After:1");
+    expect(reads).toBe(1);
+    expect(loaderReads).toBe(1);
   });
 
   test("a streamed private GET updates promise props optimistically, rolls back, and refreshes on sync", async () => {

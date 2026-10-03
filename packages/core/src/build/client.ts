@@ -138,6 +138,7 @@ export async function buildClient(
     files: hydrateEntry.files,
     outdir: clientDir,
     target: "browser",
+    env: "FURIN_PUBLIC_*",
     format: "esm",
     splitting: true,
     optimizeImports,
@@ -175,6 +176,11 @@ export async function buildClient(
       "@teyik0/furin/search": SEARCH_MODULE_PATH,
     },
     define: {
+      ...Object.fromEntries(
+        Object.entries(process.env)
+          .filter(([name, value]) => name.startsWith("FURIN_PUBLIC_") && value !== undefined)
+          .map(([name, value]) => [`process.env.${name}`, JSON.stringify(value)])
+      ),
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
   };

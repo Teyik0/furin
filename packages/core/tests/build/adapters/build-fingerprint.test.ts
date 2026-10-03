@@ -14,7 +14,8 @@ describe("createBuildFingerprint", () => {
       const fingerprints = await Promise.all([first, second].map(async (appDir) => {
         const rootPath = join(appDir, "src/pages/root.tsx");
         mkdirSync(join(appDir, "src/pages"), { recursive: true });
-        writeFileSync(rootPath, "identical root");
+        writeFileSync(rootPath, 'export { value as default } from "../data";');
+        writeFileSync(join(appDir, "src/data.ts"), 'export const value = "identical root";');
         const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
         return createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
       }));
@@ -149,7 +150,7 @@ describe("createBuildFingerprint", () => {
       const rootPath = join(appDir, "root.tsx");
       const layoutPath = join(appDir, "_route.tsx");
       writeFileSync(rootPath, "root");
-      writeFileSync(layoutPath, "server-only layout loader");
+      writeFileSync(layoutPath, 'export const loader = () => "server-only layout loader";');
       const root: RootLayout = {
         path: rootPath,
         route: { __type: "FURIN_ROUTE" },
@@ -166,6 +167,57 @@ describe("createBuildFingerprint", () => {
       );
 
       expect(fingerprint).toContain("server-only layout loader");
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
+  test("changes when a transitive server dependency changes without changing the entry or client", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-dependency-"));
+    try {
+      const rootPath = join(appDir, "root.tsx");
+      const serverPath = join(appDir, "server.ts");
+      const servicePath = join(appDir, "service.ts");
+      const dependencyPath = join(appDir, "data.ts");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(serverPath, 'export { load } from "./service";');
+      writeFileSync(servicePath, 'import { value } from "./data"; export const load = () => value;');
+      writeFileSync(dependencyPath, 'export const value = "Before";');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      writeFileSync(dependencyPath, 'export const value = "After";');
+      const second = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+      expect(second.includes('app/data.ts:export const value = "After";')).toBe(true);
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
+  test("follows application aliases and literal dynamic imports without recursing through cycles", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-alias-"));
+    try {
+      mkdirSync(join(appDir, "src/data"), { recursive: true });
+      const rootPath = join(appDir, "root.tsx");
+      const detailsPath = join(appDir, "src/data/details.ts");
+      writeFileSync(join(appDir, "tsconfig.json"), JSON.stringify({
+        compilerOptions: { baseUrl: ".", paths: { "@data/*": ["src/data/*"] } },
+      }));
+      writeFileSync(rootPath, 'export { load as default } from "@data/service";');
+      writeFileSync(
+        join(appDir, "src/data/service.ts"),
+        'export const value = "Before"; export const load = () => import("./details");'
+      );
+      writeFileSync(detailsPath, 'import { value } from "./service"; export const result = value;');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      writeFileSync(detailsPath, 'import { value } from "./service"; export const result = `${value}:After`;');
+      const second = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+      expect(second.includes("app/src/data/details.ts:")).toBe(true);
+      expect(second.includes("app/src/data/service.ts:")).toBe(true);
     } finally {
       rmSync(appDir, { force: true, recursive: true });
     }

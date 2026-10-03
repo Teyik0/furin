@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -6,6 +6,24 @@ import {
   reconcileHotComponentRegistry,
   updateHotComponent,
 } from "../../src/client/hmr.ts";
+
+test("a keyed hot component renders without forwarding React's reserved key prop", () => {
+  const errors = spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const registry: HotComponentRegistry = new Map();
+    const component = updateHotComponent(
+      registry,
+      "page:/keyed.tsx",
+      ({ label }: { label: string }) => label
+    );
+    expect(renderToStaticMarkup(createElement(component, { key: "page", label: "Keyed" }))).toBe(
+      "Keyed"
+    );
+    expect(errors).not.toHaveBeenCalled();
+  } finally {
+    errors.mockRestore();
+  }
+});
 
 test("a hot component keeps its identity while using the latest implementation", () => {
   const registry: HotComponentRegistry = new Map();

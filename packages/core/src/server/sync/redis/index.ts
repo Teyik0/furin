@@ -41,7 +41,7 @@ interface MutationDocument {
   fingerprint: string;
   id: string;
   leaseUntil?: number;
-  response?: SerializedResponse;
+  response?: SerializedResponse | string;
   state: "in-progress" | "succeeded";
 }
 
@@ -92,13 +92,17 @@ function parseMutation(raw: string): MutationDocument {
 }
 
 function deserializeResponse(document: MutationDocument): StoredResponse {
-  const { response } = document;
+  const response =
+    typeof document.response === "string"
+      ? (JSON.parse(document.response) as SerializedResponse)
+      : document.response;
   if (response === undefined) {
     throw new Error("[furin-sync-redis] Succeeded mutation has no replay response.");
   }
   return {
     body: Uint8Array.fromBase64(response.body),
-    headers: response.headers,
+    // Legacy Lua receipts encoded an empty header array as an empty object.
+    headers: Array.isArray(response.headers) ? response.headers : [],
     status: response.status,
   };
 }

@@ -32,10 +32,9 @@ afterEach(async () => {
   await uninstallDom();
 });
 
-// The route's load() is the chunk import(): Bun's `modulePreload` (on by
-// default for browser builds) inserts a <link rel="modulepreload"> for every
-// chunk the target statically imports before the import runs.
-test("hovering a Link loads the target route's chunks once", async () => {
+// Intent prefetch loads the route module; the prefetch cache suppresses a
+// second load when the link is hovered again within its stale time.
+test("intent prefetch loads the route once across hovers within stale time", async () => {
   const homeComponent = () => createElement(Link, { preloadDelay: 0, to: "/target" }, "Target");
   const loadTarget = mock(() => Promise.resolve(pageModule(() => createElement("p", null, "T"))));
   const routes: ClientRoute[] = [

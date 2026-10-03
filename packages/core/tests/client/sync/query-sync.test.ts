@@ -54,9 +54,8 @@ test("identified GETs and committed mutations share a board-scoped identity", as
     ]);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
-      changes: [
-        { invalidations: [], queries: [{ id: "board.cards", scope: { boardId: "alpha" } }] },
-      ],
+      changes: [],
+      reset: true,
     });
   } finally {
     database.close();
@@ -135,7 +134,8 @@ test("atomic query invalidations roll back with the domain write and replay with
     expect(selections).toBe(2);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
-      changes: [{ queries: [{ id: "board.cards", scope: { boardId: "alpha" } }] }],
+      changes: [],
+      reset: true,
     });
   } finally {
     database.close();

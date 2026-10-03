@@ -366,6 +366,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       250
     );
     expect(removed).toBe(true);
+    expect(server.getStderr()).not.toContain("ENOENT");
   }, 20_000);
 
   test("root requestLoader stays private on cached pages and refreshes after hot editing", async () => {

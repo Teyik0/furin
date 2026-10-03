@@ -64,7 +64,10 @@ test.serial(
       expect(document.querySelector('meta[name="description"]')).toBe(meta);
       expect(document.querySelector('link[href="/existing"]')).toBe(link);
       expect(document.querySelector('script[data-test="existing"]')).toBe(script);
-      expect(Array.from(document.querySelectorAll("style")).slice(1)).toEqual(styles);
+      const updatedStyles = Array.from(document.querySelectorAll("style"));
+      expect(updatedStyles).toHaveLength(3);
+      expect(updatedStyles[1]).toBe(styles[0]);
+      expect(updatedStyles[2]).toBe(styles[1]);
     } finally {
       await act(() => root.unmount());
       container.remove();

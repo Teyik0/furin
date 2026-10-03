@@ -23,6 +23,13 @@ export interface QueryReadIdentity extends QueryIdentity {
   session: string;
 }
 
+export function serializeQueryHeader(identity: QueryIdentity | readonly QueryIdentity[]): string {
+  return JSON.stringify(identity).replace(
+    /[^\u0020-\u007e]/g,
+    (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
+  );
+}
+
 export interface QuerySeed {
   bindings?: QueryBinding[];
   data: unknown;

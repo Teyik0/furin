@@ -265,7 +265,7 @@ export function rewriteBareImports(transpiled: string, dir: string): string {
       literal?.type !== "Literal" ||
       typeof specifier !== "string" ||
       specifier.startsWith(".") ||
-      specifier.startsWith("/") ||
+      isAbsolute(specifier) ||
       specifier.startsWith("file:") ||
       SINGLETON_PATHS.has(specifier)
     ) {

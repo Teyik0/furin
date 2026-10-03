@@ -34,7 +34,7 @@ function createContext(): Context {
   } as Context;
 }
 
-function createCanvasRoute(): { root: RootLayout; route: ResolvedRoute } {
+function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: ResolvedRoute } {
   const scene = clientModule(() => Promise.resolve({}), SCENE_KEY);
   const rootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
@@ -53,7 +53,9 @@ function createCanvasRoute(): { root: RootLayout; route: ResolvedRoute } {
   const terminal = defineRoute()
     .config({ layout: rootTerminal, mode: "ssr" })
     .page(() => {
-      preloadClientModule(scene);
+      if (preloadScene) {
+        preloadClientModule(scene);
+      }
       return <canvas />;
     });
   const page = adaptDefinedPage(terminal, rootRoute);
@@ -92,7 +94,7 @@ describe("module preloading", () => {
 
   test("a buffered render hoists route and client module preloads into <head> once", async () => {
     installBuild();
-    const { root, route } = createCanvasRoute();
+    const { root, route } = createCanvasRoute(true);
 
     const { html } = await renderToHTML(route, createContext(), root);
 
@@ -106,7 +108,7 @@ describe("module preloading", () => {
 
   test("a streaming render hoists route and client module preloads into <head> once", async () => {
     installBuild();
-    const { root, route } = createCanvasRoute();
+    const { root, route } = createCanvasRoute(true);
 
     const response = await renderSSR(route, createContext(), root, undefined);
     const html = await response.text();
@@ -117,5 +119,19 @@ describe("module preloading", () => {
       "/_client/shared.js",
     ]);
     expect(html.match(MODULE_PRELOAD_RE)).toHaveLength(3);
+  });
+
+  test("an empty manifest without explicit client preloads emits no module preloads", async () => {
+    setProductionTemplateContent(
+      generateProdIndexHtml("/_client/entry.js", [], "build", undefined, false)
+    );
+    setProductionPreloadManifest({ modules: {}, routes: {} });
+    const { root, route } = createCanvasRoute(false);
+
+    const { html } = await renderToHTML(route, createContext(), root);
+    expect(headPreloads(html)).toEqual([]);
+
+    const response = await renderSSR(route, createContext(), root, undefined);
+    expect(headPreloads(await response.text())).toEqual([]);
   });
 });

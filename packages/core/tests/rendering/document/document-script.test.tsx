@@ -16,7 +16,12 @@ test("inline head scripts cannot close their script element and inject HTML", as
         },
         dataJson: undefined,
         head: {
-          scripts: [{ children: 'window.message = "</script><img src=x onerror=alert(1)>";' }],
+          scripts: [
+            {
+              children:
+                'if (1 < 2 && 3 > 2) window.message = "</script><img src=x onerror=alert(1)>";',
+            },
+          ],
         },
         syncJson: undefined,
       }}
@@ -33,4 +38,5 @@ test("inline head scripts cannot close their script element and inject HTML", as
   expect(html).not.toContain("</script><img");
   expect(html.match(/<\/script>/g)).toHaveLength(1);
   expect(html).toContain("window.message");
+  expect(html).toContain("if (1 < 2 && 3 > 2)");
 });

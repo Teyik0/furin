@@ -588,7 +588,7 @@ test("furinSync refuses oversized Response bodies without re-executing retries",
   }
 });
 
-test("sync changes exposes durable invalidations without retaining the legacy SSE route", async () => {
+test("sync changes exposes a refresh cursor without private durable invalidations", async () => {
   const cursor = "12";
   const reads: ReadChangesInput[] = [];
   const adapter: SyncAdapter = {
@@ -622,12 +622,12 @@ test("sync changes exposes durable invalidations without retaining the legacy SS
   );
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({
-    changes: [{ cursor, invalidations: ["/board:layout"] }],
+    changes: [],
     cursor,
     hasMore: false,
-    reset: false,
+    reset: true,
   });
-  expect(reads).toEqual([{ after: "9", limit: 25 }]);
+  expect(reads).toEqual([]);
 
   const removedStream = await app.handle(new Request("http://localhost/_furin/sync"));
   expect(removedStream.status).toBe(404);

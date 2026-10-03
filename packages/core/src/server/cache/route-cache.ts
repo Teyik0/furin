@@ -5,7 +5,12 @@ export interface CacheInvalidationResult {
   purgedPaths: string[];
 }
 
+export interface CacheGeneration {
+  valid: boolean;
+}
+
 export interface Cache<Entry> {
+  captureGeneration: (key: string) => CacheGeneration;
   clear: () => void;
   delete: (key: string) => boolean;
   entries: () => IterableIterator<[string, Entry]>;
@@ -14,6 +19,7 @@ export interface Cache<Entry> {
   invalidatePath: (path: string, type: RevalidateType) => CacheInvalidationResult;
   keys: () => IterableIterator<string>;
   readonly name: string;
+  releaseGeneration: (key: string, generation: CacheGeneration) => void;
   set: (key: string, entry: Entry) => void;
   get size(): number;
   readonly store: Map<string, Entry>;
@@ -54,7 +60,15 @@ function matchesPath(urlPath: string, path: string, type: RevalidateType): boole
 
 export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cache<Entry> {
   const store = new Map<string, Entry>();
+  const generations = new Map<string, Set<CacheGeneration>>();
   const pathFromKey = options.pathFromKey ?? defaultPathFromKey;
+
+  const invalidateGenerations = (key: string): void => {
+    for (const generation of generations.get(key) ?? []) {
+      generation.valid = false;
+    }
+    generations.delete(key);
+  };
 
   const evictOldest = (): void => {
     if (options.maxSize === undefined || store.size <= options.maxSize) {
@@ -67,6 +81,7 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
   };
 
   const deleteEntry = (key: string): boolean => {
+    invalidateGenerations(key);
     const entry = store.get(key);
     if (entry === undefined) {
       return false;
@@ -77,7 +92,20 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
   };
 
   return {
+    captureGeneration(key) {
+      const generation = { valid: true };
+      let pending = generations.get(key);
+      if (pending === undefined) {
+        pending = new Set();
+        generations.set(key, pending);
+      }
+      pending.add(generation);
+      return generation;
+    },
     clear() {
+      for (const key of generations.keys()) {
+        invalidateGenerations(key);
+      }
       for (const key of [...store.keys()]) {
         deleteEntry(key);
       }
@@ -104,14 +132,15 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
       let deleted = false;
       const purgedPaths: string[] = [];
 
-      for (const key of [...store.keys()]) {
+      for (const key of new Set([...store.keys(), ...generations.keys()])) {
         const urlPath = pathFromKey(key);
         if (urlPath === null || !matchesPath(urlPath, path, type)) {
           continue;
         }
-        deleteEntry(key);
-        deleted = true;
-        purgedPaths.push(urlPath);
+        if (deleteEntry(key)) {
+          deleted = true;
+          purgedPaths.push(urlPath);
+        }
       }
 
       return { deleted, purgedPaths: [...new Set(purgedPaths)] };
@@ -120,6 +149,13 @@ export function createRouteCache<Entry>(options: RouteCacheOptions<Entry>): Cach
       return store.keys();
     },
     name: options.name,
+    releaseGeneration(key, generation) {
+      const pending = generations.get(key);
+      pending?.delete(generation);
+      if (pending?.size === 0) {
+        generations.delete(key);
+      }
+    },
     set(key, entry) {
       const previous = store.get(key);
       if (previous !== undefined) {

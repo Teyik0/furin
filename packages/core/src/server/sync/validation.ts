@@ -1,11 +1,13 @@
 import type { Context, Elysia } from "elysia";
 import { createContext } from "elysia/context";
+import { installMutationHandlers } from "./mutation-handler.ts";
 
 const applications = new WeakMap<object, Elysia>();
 const boundApplications = new WeakSet<Elysia>();
 
 /** Bind the final application's models, guards and normalization to native request contexts. */
 export function bindSyncValidation(app: Elysia): void {
+  installMutationHandlers(app);
   if (boundApplications.has(app)) {
     return;
   }

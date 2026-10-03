@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { Elysia, NotFound } from "elysia";
 import { Suspense, use } from "react";
+import { clientModule, preloadClientModule } from "../../../src/client/client-module.ts";
 import {
   defineRootRoute,
   defineRoute,
@@ -48,7 +49,9 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
       </main>
     ));
   function User({ data }: { data: Promise<string> }) {
-    return <strong>{use(data)}</strong>;
+    const user = use(data);
+    preloadClientModule(clientModule(() => Promise.resolve({}), ["/_client/account.js"]));
+    return <strong>{user}</strong>;
   }
   const root = { path: "/root.tsx", route: adaptDefinedLayout(rootRoute, undefined) };
   const definedPage = adaptDefinedPage(page, root.route);
@@ -71,8 +74,10 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
     .use(createRoutePlugin(route, root, "build-1"))
     .error("global", NotFound, ({ request }) => renderRootNotFound(root, request));
 
-  const first = await app.handle(new Request("http://localhost/account"));
-  const second = await app.handle(new Request("http://localhost/account"));
+  const [first, second] = await Promise.all([
+    app.handle(new Request("http://localhost/account")),
+    app.handle(new Request("http://localhost/account")),
+  ]);
   const firstNonce = first.headers.get("content-security-policy")?.match(noncePattern)?.[1];
   const secondNonce = second.headers.get("content-security-policy")?.match(noncePattern)?.[1];
   const html = await first.text();
@@ -83,6 +88,16 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
   expect(html).toContain(`nonce="${firstNonce}"`);
   expect(html).toContain("window.accountReady = true");
   expect(html).toContain("Alice");
+  const preloadPattern = /<link\b[^>]*rel="modulepreload"[^>]*>/g;
+  expect(html.match(preloadPattern)).toHaveLength(1);
+  for (const tag of html.match(preloadPattern) ?? []) {
+    expect(tag).toContain(`nonce="${firstNonce}"`);
+  }
+  const secondHtml = await second.text();
+  expect(secondHtml.match(preloadPattern)).toHaveLength(1);
+  for (const tag of secondHtml.match(preloadPattern) ?? []) {
+    expect(tag).toContain(`nonce="${secondNonce}"`);
+  }
   for (const tag of html.match(scriptTagPattern) ?? []) {
     if (!tag.includes('type="application/json"')) {
       expect(tag).toContain(`nonce="${firstNonce}"`);

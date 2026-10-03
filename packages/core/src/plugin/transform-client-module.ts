@@ -103,7 +103,15 @@ export function transformClientModules(
       if (specifier === null) {
         return;
       }
-      const key = JSON.stringify(clientModuleKey(Bun.resolveSync(specifier, dirname(filename))));
+      let key: string;
+      try {
+        key = JSON.stringify(clientModuleKey(Bun.resolveSync(specifier, dirname(filename))));
+      } catch (error) {
+        throw new Error(
+          `[furin] Cannot resolve clientModule import ${JSON.stringify(specifier)} in ${filename}`,
+          { cause: error }
+        );
+      }
       if (environment === "client") {
         transformed.appendLeft(loader.end, `, ${key}`);
       } else {

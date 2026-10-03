@@ -9,6 +9,12 @@ export interface ClientModule<T> {
 }
 
 let resolveModuleHrefs: (key: string) => readonly string[] = () => [];
+let resolveNonce: () => string | undefined = () => undefined;
+
+/** @internal Reads the nonce from the active server render, without bundling server state. */
+export function setClientModuleNonceResolver(resolver: () => string | undefined): void {
+  resolveNonce = resolver;
+}
 
 /** @internal The server resolves build keys against the client preload manifest. */
 export function setClientModuleHrefResolver(resolver: (key: string) => readonly string[]): void {
@@ -44,7 +50,8 @@ export function clientModule<T>(
  * hoists one `<link rel="modulepreload">` per chunk into `<head>`.
  */
 export function preloadClientModule<T>(mod: ClientModule<T>): void {
+  const nonce = resolveNonce();
   for (const href of mod.hrefs) {
-    preloadModule(href, { as: "script" });
+    preloadModule(href, { as: "script", nonce });
   }
 }

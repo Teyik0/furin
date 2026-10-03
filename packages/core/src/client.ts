@@ -52,8 +52,11 @@ export interface HeadOptions {
   /**
    * Inline scripts injected into `<head>`.
    *
-   * **Security warning:** `children` is injected as raw HTML — never pass
-   * user-controlled or loader-derived data here without sanitisation.
+   * Server rendering inserts `children` as raw script content. Client rendering
+   * passes `children` to React as text, not as HTML.
+   *
+   * **Security warning:** Never pass user-controlled or loader-derived data
+   * here without sanitisation.
    */
   scripts?: Array<{
     src?: string;

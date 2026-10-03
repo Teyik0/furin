@@ -6,6 +6,71 @@ import { transformForClient } from "../../../src/plugin/transform-client";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
+  test("preserves a spread remount policy without retaining server configuration", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "furin";
+import { secret, parentRoute } from "./server";
+const sharedConfig = {
+  layout: parentRoute,
+  serverValue: secret,
+  remountDeps: ({ query }) => [query.view],
+};
+export const route = defineRoute().config({ ...sharedConfig, mode: "ssr" }).page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain("remountDeps: ({ query }) => [query.view]");
+    expect(result.code).not.toContain("./server");
+    expect(result.code).not.toContain("serverValue");
+    expect(result.code).not.toContain("sharedConfig");
+  });
+
+  test.each([
+    { config: "...base, ...sharedConfig", expected: "remountDeps: () => [\"shared\"]" },
+    { config: "...sharedConfig, remountDeps: () => [\"explicit\"]", expected: "remountDeps: () => [\"explicit\"]" },
+    { config: "remountDeps: () => [\"explicit\"], ...sharedConfig", expected: "remountDeps: () => [\"shared\"]" },
+    { config: "...sharedConfig, ...{ remountDeps: undefined }", expected: "remountDeps: undefined" },
+  ])("resolves remount overrides in object spread order: $config", ({ config, expected }) => {
+    const result = transformForClient(
+      `import { defineRoute } from "furin";
+const base = { mode: "ssr", remountDeps: () => ["base"] };
+const sharedConfig = { ...base, remountDeps: () => ["shared"] };
+export const route = defineRoute().config({ ${config} }).page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(`.config({ ${expected} })`);
+  });
+
+  test("requires an explicit policy after an unresolvable config spread", () => {
+    const source = `import { defineRoute } from "furin";
+import { config } from "./shared";
+export const route = defineRoute().config({ ...config, POLICY }).page(() => null);`;
+    expect(() => transformForClient(source.replace("POLICY", "mode: 'ssr'"), "route.tsx"))
+      .toThrow("declare remountDeps after dynamic spreads");
+    expect(transformForClient(source.replace("POLICY", "remountDeps: () => []"), "route.tsx").code)
+      .toContain(".config({ remountDeps: () => [] })");
+  });
+
+  test("rejects a route builder split across variables before exposing its loader", () => {
+    expect(() => transformForClient(
+      'import { defineRoute } from "furin"; const builder = defineRoute().config({ mode: "ssr" }); export const route = builder.loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      "route.tsx"
+    )).toThrow("one fluent chain");
+  });
+
+  test("rejects calculated builder methods before exposing server code", () => {
+    expect(() => transformForClient(
+      'import { defineRoute } from "furin"; export const route = defineRoute().config({ mode: "ssr" })["loader"](() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      "route.tsx"
+    )).toThrow("static builder methods");
+  });
+
+  test("rejects namespace route factories that cannot be stripped safely", () => {
+    expect(() => transformForClient(
+      'import * as Furin from "furin"; export const route = Furin.defineRoute().config({ mode: "ssr" }).loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      "route.tsx"
+    )).toThrow("named import");
+  });
+
   test.each([
     "remountDeps",
     "remountDeps: selectIdentity",

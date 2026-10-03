@@ -18,13 +18,16 @@ type Identity = RemountDeps<{ id: number; tab: string }, { view: string }>;
 const DOCUMENT_PATTERN = /^\/identity\/[^/]+\/[^/]+$/;
 const policies: Array<{ name: string; remountDeps: Identity | undefined }> = [
   { name: "default", remountDeps: undefined },
+  { name: "default schema edit", remountDeps: undefined },
   { name: "custom", remountDeps: ({ params }) => [params.id] },
   { name: "preserved", remountDeps: () => [] },
+  { name: "negative zero default", remountDeps: undefined },
+  { name: "negative zero custom", remountDeps: ({ params }) => [params.id] },
 ];
 
 test.each(policies)(
-  "$name page identity survives hydration and a data refresh",
-  async ({ remountDeps }) => {
+  "$name page identity follows its remount policy through hydration and a data refresh",
+  async ({ name, remountDeps }) => {
     const layout = defineRootRoute()
       .config({ mode: "ssr" })
       .layout(({ children }) => <section>{children}</section>);
@@ -62,7 +65,13 @@ test.each(policies)(
       pattern: route.pattern,
       regex: DOCUMENT_PATTERN,
     };
-    const data = { params: { id: 42, tab: "edit" }, query: { view: "grid" }, title: "SSR" };
+    const negativeZero = name.startsWith("negative zero");
+    const refreshedId = name === "default schema edit" ? "42" : 42;
+    const data = {
+      params: { id: negativeZero ? -0 : 42, tab: "edit" },
+      query: { view: "grid" },
+      title: "SSR",
+    };
     const container = document.createElement("div");
     container.innerHTML = renderToString(buildElement(route, data, rootLayout));
     document.body.appendChild(container);
@@ -85,13 +94,20 @@ test.each(policies)(
           buildPageElement(
             match,
             rootLayout,
-            { params: { tab: "edit", id: 42 }, query: { view: "list" }, title: "Refreshed" },
+            {
+              params: {
+                tab: "edit",
+                id: negativeZero ? 0 : refreshedId,
+              },
+              query: { view: "list" },
+              title: "Refreshed",
+            },
             undefined,
             undefined
           )
         )
       );
-      expect(container.textContent).toBe("Refreshed 1");
+      expect(container.textContent).toBe(negativeZero ? "Refreshed 0" : "Refreshed 1");
       expect(errors).toEqual([]);
     } finally {
       await act(() => root?.unmount());

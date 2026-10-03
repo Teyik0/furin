@@ -14,6 +14,28 @@ import {
 
 const MDX_FILTER = /\.mdx$/;
 
+test("a virtual page can load its deferred render module", async () => {
+  const directory = mkdtempSync(resolve(import.meta.dir, "dev-render-"));
+  const filePath = resolve(directory, "page.tsx");
+  try {
+    writeFileSync(resolve(directory, "label.ts"), 'export const label = "Deferred page";');
+    writeFileSync(
+      filePath,
+      `import { defineRoute } from "@teyik0/furin";
+      import { label } from "./label";
+      export const route = defineRoute().config({ mode: "ssr" }).page(() => <p>{label}</p>);`
+    );
+    registerDevPagePlugin();
+    const { route } = await import(`${filePath}?furin-server&t=1`);
+    const loadRender = Reflect.get(route.component, Symbol.for("furin.dev.render"));
+    expect(loadRender).toBeFunction();
+    const { default: render } = await loadRender();
+    expect(render().props.children).toBe("Deferred page");
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test("a virtual development loader resolves a dynamically imported MDX alias", async () => {
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-mdx-"));
   const filePath = resolve(directory, "page.ts");
@@ -62,6 +84,7 @@ test("virtual modules resolve static imports and re-exports while preserving imp
       [
         `export const example = '${example}';`,
         '// import "@/value.ts"',
+        'export const prefix = "😀";',
         'import { value } from "@/value.ts";',
         'export { value } from "@/value.ts";',
         'export const label = "café " + value;',

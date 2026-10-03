@@ -1,5 +1,4 @@
 import { createElement } from "react";
-import { renderToReadableStream } from "react-dom/server";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
@@ -15,6 +14,7 @@ import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import { buildNotFoundElement, wrapRootLayout } from "./element.tsx";
+import { renderToReadableStream } from "./react-stream.ts";
 import { generateIndexHtml } from "./shell.ts";
 import { withSSRRouterContext } from "./ssr.ts";
 import {

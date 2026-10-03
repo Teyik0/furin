@@ -37,7 +37,8 @@ function isApiError(value: unknown): value is { status: number; value: unknown }
 function normalizeMutationError<Method extends MutationMethod>(
   cause: unknown
 ): MutationError<Method> {
-  const exception = isApiError(cause) && cause.value instanceof Error ? cause.value : cause;
+  const exception =
+    isApiError(cause) && cause.status === 0 && cause.value instanceof Error ? cause.value : cause;
   if (isApiError(exception)) {
     const { value } = exception;
     if (
@@ -90,7 +91,13 @@ export function useMutation<Method extends MutationMethod>(
           ReturnType<Method>
         >;
         if (result.error !== null) {
-          if ("response" in result && result.response === undefined && isApiError(result.error)) {
+          if (
+            "response" in result &&
+            result.response === undefined &&
+            result.error instanceof EdenFetchError &&
+            result.error.status === 503 &&
+            (result.error.value instanceof Error || typeof result.error.value === "string")
+          ) {
             throw result.error.value;
           }
           throw result.error;

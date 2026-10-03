@@ -8,7 +8,7 @@ import type { SsgCacheEntry } from "../cache/isr-ssg.ts";
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
-import { getSSGCache, setSSGCache } from "../cache/ssg.ts";
+import { getSSGCache, setSSGCache, ssgRouteCache } from "../cache/ssg.ts";
 import { createLogger, getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import { resolveDocumentMode } from "../router/patterns.ts";
@@ -51,20 +51,20 @@ export async function prerenderRoute(
   };
 }
 
-export async function prerenderSSG(
+async function prerenderLocalSSG(
   route: ResolvedRoute,
   params: Record<string, string>,
   root: RootLayout,
   origin: string,
   basePath?: string,
   searchRoutes?: SearchRouteMetadata[]
-): Promise<SsgCacheEntry | Response> {
+): Promise<RuntimeSsgResult> {
   const resolvedPath = resolvePath(route.pattern, params);
 
   const cached = getSSGCache(resolvedPath);
   if (cached) {
     if (cached.tags === route.tags) {
-      return cached;
+      return { cacheStored: true, entry: cached };
     }
     const taggedEntry: SsgCacheEntry = {
       ...cached,
@@ -74,15 +74,37 @@ export async function prerenderSSG(
       ],
     };
     setSSGCache(resolvedPath, taggedEntry);
-    return taggedEntry;
+    return { cacheStored: true, entry: taggedEntry };
   }
 
-  const entry = await prerenderRoute(route, params, root, origin, "ssg", basePath, searchRoutes);
-  if (entry instanceof Response) {
-    return entry;
+  const cache = ssgRouteCache();
+  const generation = cache.captureGeneration(resolvedPath);
+  try {
+    const entry = await prerenderRoute(route, params, root, origin, "ssg", basePath, searchRoutes);
+    if (entry instanceof Response || entry.status !== 200 || !generation.valid) {
+      return { cacheStored: false, entry };
+    }
+    setSSGCache(resolvedPath, entry);
+    return { cacheStored: true, entry };
+  } finally {
+    cache.releaseGeneration(resolvedPath, generation);
   }
-  setSSGCache(resolvedPath, entry);
+}
 
+export async function prerenderSSG(
+  route: ResolvedRoute,
+  params: Record<string, string>,
+  root: RootLayout,
+  origin: string,
+  basePath?: string,
+  searchRoutes?: SearchRouteMetadata[]
+): Promise<SsgCacheEntry | Response> {
+  const { entry } = await prerenderLocalSSG(route, params, root, origin, basePath, searchRoutes);
+  if (!(entry instanceof Response) && entry.status !== 200) {
+    throw new Error(
+      `[furin] Failed to prerender SSG route "${route.pattern}" (HTTP ${entry.status}).`
+    );
+  }
   return entry;
 }
 
@@ -125,7 +147,7 @@ async function renderAndStoreSharedSsg(
 ): Promise<RuntimeSsgResult> {
   try {
     const entry = await input.renderFresh();
-    if (entry instanceof Response || lease === null) {
+    if (entry instanceof Response || entry.status !== 200 || lease === null) {
       return { cacheStored: false, entry };
     }
     const identityTags = new Set(input.identity.tags);
@@ -202,10 +224,7 @@ export async function prerenderRuntimeSSG(
 ): Promise<RuntimeSsgResult> {
   const pageCache = getPageCacheAdapter();
   if (pageCache === undefined) {
-    return {
-      cacheStored: true,
-      entry: await prerenderSSG(route, params, root, origin, undefined, searchRoutes),
-    };
+    return prerenderLocalSSG(route, params, root, origin, undefined, searchRoutes);
   }
 
   const resolvedPath = resolvePath(route.pattern, params);
@@ -221,7 +240,7 @@ export async function prerenderRuntimeSSG(
   };
   const renderFresh = () =>
     prerenderRoute(route, params, root, origin, "ssg", undefined, searchRoutes);
-  return resolveSharedSsg({ identity, pageCache, renderFresh });
+  return await resolveSharedSsg({ identity, pageCache, renderFresh });
 }
 
 /**

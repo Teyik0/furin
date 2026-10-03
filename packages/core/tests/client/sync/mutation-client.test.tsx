@@ -17,21 +17,27 @@ afterEach(async () => {
 
 test.each([
   ["business", "Invalid title"],
+  ["business-without-response", "Invalid title"],
+  ["business-503-without-response", "Invalid title"],
   ["network", "Network unavailable"],
   ["unknown", "Mutation failed"],
 ])("a %s failure remains visible and retryable", async (kind, message) => {
   let attempts = 0;
   const networkError = new TypeError("Network unavailable");
-  const businessError = { status: 422, value: { detail: "Invalid title" } };
+  const businessError = {
+    status: kind === "business-503-without-response" ? 503 : 422,
+    value: { detail: "Invalid title" },
+  };
   let observed: { status: number; value: { detail: string }; cause?: unknown } | undefined;
   const update = () => {
     attempts += 1;
-    if (attempts === 1 && kind !== "business") {
+    if (attempts === 1 && !kind.startsWith("business")) {
       return Promise.reject(kind === "network" ? networkError : "Unknown failure");
     }
     return Promise.resolve({
       data: attempts === 1 ? null : "Saved",
       error: attempts === 1 ? businessError : null,
+      ...(kind.endsWith("without-response") ? { response: undefined } : {}),
     });
   };
   function View() {
@@ -62,7 +68,7 @@ test.each([
     await Promise.resolve();
   });
   expect(container.querySelector("output")?.textContent).toBe(message);
-  if (kind === "business") {
+  if (kind.startsWith("business")) {
     expect(observed).toBe(businessError);
   } else {
     expect(observed?.status).toBe(0);

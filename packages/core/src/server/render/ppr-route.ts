@@ -389,17 +389,26 @@ async function getPprArtifact(
   }
   const pprRoutes = getPprRoutes();
   const cached = externalPrerender ? undefined : pprRoutes.get(cacheKey);
-  if (cached === undefined || cached.artifact.state.buildId !== buildId) {
-    const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
-    if (!isPprArtifact(result)) {
+  if (cached?.artifact.state.buildId !== buildId) {
+    const generation = pprRoutes.captureGeneration(cacheKey);
+    try {
+      const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
+      if (!(isPprArtifact(result) && generation.valid)) {
+        return result;
+      }
+      pprRoutes.set(cacheKey, {
+        artifact: result,
+        revalidate: resolveDocumentRevalidate(route) ?? 60,
+      });
+      autoInvalidateRegistry.registerLoaderTags(
+        resolvedPath,
+        result.tags,
+        "render:ppr-public-shell"
+      );
       return result;
+    } finally {
+      pprRoutes.releaseGeneration(cacheKey, generation);
     }
-    pprRoutes.set(cacheKey, {
-      artifact: result,
-      revalidate: resolveDocumentRevalidate(route) ?? 60,
-    });
-    autoInvalidateRegistry.registerLoaderTags(resolvedPath, result.tags, "render:ppr-public-shell");
-    return result;
   }
 
   if (documentMode !== "isr" || Date.now() - cached.artifact.cachedAt < cached.revalidate * 1000) {
