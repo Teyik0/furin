@@ -405,7 +405,7 @@ jobs:
           } | tee "$RUNNER_TEMP/furin-performance/budgets.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install benchmark tools
-        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
         with:
           tool: hyperfine,oha
 
