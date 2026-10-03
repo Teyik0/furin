@@ -377,9 +377,9 @@ export async function prepareRender(
     return loaderResult.response;
   }
 
-  // Build-time paths (SSG) opt into re-throwing so CI fails loudly instead of
-  // silently generating a 404/500 page for buggy loaders.
-  if (throwOnFailure && (loaderResult.type === "not-found" || loaderResult.type === "error")) {
+  // Build-time paths (SSG) rethrow loader failures; authored notFound results
+  // still render their 404 document for static export.
+  if (throwOnFailure && loaderResult.type === "error") {
     throw loaderResult.error;
   }
 

@@ -1,7 +1,13 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import { buildRoutePrerenders } from "../../../src/build/ssg-cache.ts";
-import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import {
+  defineRootRoute,
+  defineRoute,
+  HeadContent,
+  notFound,
+  Scripts,
+} from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
@@ -128,4 +134,28 @@ test("SSG build prerendering rejects a failed React shell", async () => {
   await expect(
     buildRoutePrerenders([resolveRoute(terminal)], root, "http://localhost", "")
   ).rejects.toThrow("HTTP 500");
+});
+
+test("SSG build prerendering keeps a notFound page and its 404 status", async () => {
+  const terminal = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssg" })
+    .loader(() => notFound(undefined))
+    .page(() => <main>Catalog</main>);
+  const missingRoot: RootLayout = {
+    ...root,
+    notFound: () => <main>Missing catalog</main>,
+  };
+
+  const prerenders = await buildRoutePrerenders(
+    [resolveRoute(terminal)],
+    missingRoot,
+    "http://localhost",
+    ""
+  );
+
+  expect(prerenders).toHaveLength(1);
+  expect(prerenders[0]?.result).toMatchObject({
+    html: expect.stringContaining("Missing catalog"),
+    status: 404,
+  });
 });

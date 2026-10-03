@@ -11,11 +11,13 @@ import {
   transformDevSource,
   WORKSPACE_SOURCE_FILTER,
 } from "../../../src/server/dev-page-plugin.ts";
+import { createTmpApp } from "../../support/app-fixtures.ts";
 
 const MDX_FILTER = /\.mdx$/;
 
 test("a virtual page can load its deferred render module", async () => {
-  const directory = mkdtempSync(resolve(import.meta.dir, "dev-render-"));
+  const app = createTmpApp("cli-app");
+  const directory = app.path;
   const filePath = resolve(directory, "page.tsx");
   try {
     writeFileSync(resolve(directory, "label.ts"), 'export const label = "Deferred page";');
@@ -32,7 +34,7 @@ test("a virtual page can load its deferred render module", async () => {
     const { default: render } = await loadRender();
     expect(render().props.children).toBe("Deferred page");
   } finally {
-    rmSync(directory, { force: true, recursive: true });
+    app.cleanup();
   }
 });
 

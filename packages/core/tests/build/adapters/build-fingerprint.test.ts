@@ -195,6 +195,37 @@ describe("createBuildFingerprint", () => {
     }
   });
 
+  test("accepts plugin-owned virtual imports while fingerprinting filesystem dependencies", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-virtual-"));
+    try {
+      const rootPath = join(appDir, "root.tsx");
+      writeFileSync(
+        rootPath,
+        'import virtual from "virtual:content"; import { value } from "./data"; export default `${virtual}:${value}`;'
+      );
+      writeFileSync(join(appDir, "data.ts"), 'export const value = "local data";');
+      const build = await Bun.build({
+        entrypoints: [rootPath],
+        plugins: [{
+          name: "virtual-content",
+          setup(builder) {
+            builder.onResolve({ filter: /^virtual:/ }, ({ path }) => ({ path, namespace: "virtual" }));
+            builder.onLoad({ filter: /.*/, namespace: "virtual" }, () => ({
+              contents: 'export default "plugin content";',
+              loader: "js",
+            }));
+          },
+        }],
+      });
+      expect(build.success).toBe(true);
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const fingerprint = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      expect(fingerprint).toContain('app/data.ts:export const value = "local data";');
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
   test("follows application aliases and literal dynamic imports without recursing through cycles", async () => {
     const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-alias-"));
     try {

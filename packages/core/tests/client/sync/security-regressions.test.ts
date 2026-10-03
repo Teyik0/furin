@@ -68,10 +68,11 @@ test("change catch-up authorizes requests and keeps other users' resources priva
     ...options,
     principal: ({ request, status }: Context) => {
       principalCalls += 1;
-      if (!request.headers.get("authorization")) {
+      const principal = request.headers.get("authorization");
+      if (!principal) {
         throw status(401);
       }
-      return "alice";
+      return principal;
     },
   };
   const app = new Elysia()
@@ -99,18 +100,26 @@ test("change catch-up authorizes requests and keeps other users' resources priva
     expect(write.status).toBe(200);
     const anonymous = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(anonymous.status).toBe(401);
-    const otherUser = await app.handle(
-      new Request("http://localhost/_furin/sync/changes?after=0", {
-        headers: { authorization: "bob" },
+    await Promise.all(
+      ["alice", "bob"].map(async (principal) => {
+        const response = await app.handle(
+          new Request("http://localhost/_furin/sync/changes?after=0", {
+            headers: { authorization: principal },
+          })
+        );
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(JSON.parse(body)).toEqual({
+          changes: [],
+          cursor: "1",
+          hasMore: false,
+          reset: true,
+        });
+        expect(body).not.toContain("victim@example.test");
+        expect(body).not.toContain("/documents/private-id");
       })
     );
-    expect(await otherUser.json()).toEqual({
-      changes: [],
-      cursor: "1",
-      hasMore: false,
-      reset: true,
-    });
-    expect(principalCalls).toBe(3);
+    expect(principalCalls).toBe(4);
   } finally {
     database.close();
   }

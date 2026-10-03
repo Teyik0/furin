@@ -139,7 +139,13 @@ export async function createBuildFingerprint(
         ) {
           return [];
         }
-        const dependency = Bun.resolveSync(specifier, dirname(path));
+        let dependency: string;
+        try {
+          dependency = Bun.resolveSync(specifier, dirname(path));
+        } catch {
+          // Build plugins can supply imports that have no filesystem path.
+          return [];
+        }
         if (!isAbsolute(dependency) || toPosixPath(dependency).includes("/node_modules/")) {
           return [];
         }

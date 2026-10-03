@@ -100,7 +100,7 @@ export async function prerenderSSG(
   searchRoutes?: SearchRouteMetadata[]
 ): Promise<SsgCacheEntry | Response> {
   const { entry } = await prerenderLocalSSG(route, params, root, origin, basePath, searchRoutes);
-  if (!(entry instanceof Response) && entry.status !== 200) {
+  if (!(entry instanceof Response) && entry.status >= 500) {
     throw new Error(
       `[furin] Failed to prerender SSG route "${route.pattern}" (HTTP ${entry.status}).`
     );

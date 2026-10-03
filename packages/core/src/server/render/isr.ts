@@ -670,33 +670,11 @@ async function handleBackgroundRevalidationError(
   input: BackgroundRevalidationInput,
   error: unknown
 ): Promise<void> {
-  const logger = createLogger({});
   if (isNotFoundError(error)) {
-    if (input.sharedCache === undefined) {
-      deleteISRCache(input.cacheKey);
-    } else {
-      try {
-        await input.sharedCache.adapter.invalidate({
-          kind: "path",
-          path: input.sharedCache.identity.path,
-          scope: input.sharedCache.identity.scope,
-          type: "page",
-        });
-      } catch {
-        logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
-      }
-    }
-    logger.set({
-      furin: {
-        cache: "revalidation_invalidated",
-        reason: "not_found",
-        render: "isr",
-        route: input.route.pattern,
-      },
-    });
-    logger.emit();
+    await invalidateBackgroundNotFound(input);
     return;
   }
+  const logger = createLogger({});
   logger.set({
     furin: {
       cache: "revalidation_failed",
@@ -705,6 +683,33 @@ async function handleBackgroundRevalidationError(
     },
   });
   logger.error(error instanceof Error ? error : new Error(String(error)));
+  logger.emit();
+}
+
+async function invalidateBackgroundNotFound(input: BackgroundRevalidationInput): Promise<void> {
+  const logger = createLogger({});
+  if (input.sharedCache === undefined) {
+    deleteISRCache(input.cacheKey);
+  } else {
+    try {
+      await input.sharedCache.adapter.invalidate({
+        kind: "path",
+        path: input.sharedCache.identity.path,
+        scope: input.sharedCache.identity.scope,
+        type: "page",
+      });
+    } catch {
+      logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
+    }
+  }
+  logger.set({
+    furin: {
+      cache: "revalidation_invalidated",
+      reason: "not_found",
+      render: "isr",
+      route: input.route.pattern,
+    },
+  });
   logger.emit();
 }
 
@@ -748,6 +753,10 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
       input.search
     );
     if (result instanceof Response) {
+      return;
+    }
+    if (result.status === 404) {
+      await invalidateBackgroundNotFound(input);
       return;
     }
     if (result.status !== 200) {
