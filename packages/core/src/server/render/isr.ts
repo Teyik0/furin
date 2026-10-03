@@ -687,6 +687,9 @@ async function handleBackgroundRevalidationError(
 }
 
 async function invalidateBackgroundNotFound(input: BackgroundRevalidationInput): Promise<void> {
+  if (input.sharedCache === undefined && !input.cacheGeneration?.valid) {
+    return;
+  }
   const logger = createLogger({});
   if (input.sharedCache === undefined) {
     deleteISRCache(input.cacheKey);

@@ -213,3 +213,79 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   expect(isrCache.has(missCacheKey)).toBe(false);
   expect(invalidatedMissCtx.set.headers["cache-control"]).toBe("no-store");
 }
+
+test.serial(
+  "an old 404 revalidation preserves a newer local cache entry",
+  (done) => {
+    runNotFoundGenerationRace("loader").then(() => done(), done);
+  },
+  15_000
+);
+
+test.serial(
+  "an old notFound exception preserves a newer local cache entry",
+  (done) => {
+    runNotFoundGenerationRace("head").then(() => done(), done);
+  },
+  15_000
+);
+
+async function runNotFoundGenerationRace(source: "head" | "loader"): Promise<void> {
+  __setDevMode(false);
+  __resetCacheState();
+  const { root, routes } = await scanPages(join(import.meta.dir, "../../fixtures/pages/default"));
+  const base = routes.find((candidate) => candidate.pattern === "/isr-page");
+  if (base === undefined) {
+    throw new Error("Route /isr-page not found");
+  }
+  const cacheKey = `/isr-page/not-found-${source}-race`;
+  const started = Promise.withResolvers<void>();
+  const gate = createDeferred();
+  const oldRoute = createISRRoute(
+    { ...base, mode: "isr" },
+    {
+      loader: async () => {
+        started.resolve();
+        await gate.promise;
+        if (source === "loader") {
+          notFound(undefined);
+        }
+        return { timestamp: 1 };
+      },
+      pattern: cacheKey,
+    }
+  );
+  if (source === "head") {
+    oldRoute.page.head = () => notFound(undefined);
+  }
+  const freshRoute = createISRRoute(
+    { ...base, mode: "isr" },
+    {
+      loader: () => ({ timestamp: 2 }),
+      pattern: cacheKey,
+    }
+  );
+  isrCache.set(cacheKey, { generatedAt: 0, html: "<html>old</html>", revalidate: 60 });
+  let freshHtml: string | undefined;
+  try {
+    await handleISR(oldRoute, createMockLoaderContext({ path: cacheKey }), root, "");
+    await started.promise;
+    await revalidatePath(cacheKey, "page");
+    const rendered = await handleISR(
+      freshRoute,
+      createMockLoaderContext({ path: cacheKey }),
+      root,
+      ""
+    );
+    if (typeof rendered !== "string") {
+      throw new Error("Expected freshly rendered ISR HTML");
+    }
+    freshHtml = rendered;
+    expect(freshHtml).toContain('data-timestamp="2"');
+    expect(isrCache.get(cacheKey)?.html).toBe(freshHtml);
+  } finally {
+    gate.resolve();
+    await waitForPendingISRRevalidations();
+  }
+  expect(isrCache.get(cacheKey)?.html).toBe(freshHtml);
+}
