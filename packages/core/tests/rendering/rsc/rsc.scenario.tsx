@@ -427,6 +427,45 @@ try {
   expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
   expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
 
+  const SharedElement = await createCompositeComponent<{
+    Action: () => ReactNode;
+    Empty: () => ReactNode;
+    Wrapper: (props: {
+      emptyFirst: ReactNode;
+      emptySecond: ReactNode;
+      first: ReactNode;
+      second: ReactNode;
+    }) => ReactNode;
+  }>(({ Action, Empty, Wrapper }) => {
+    const shared = <span>{Action()}</span>;
+    const empty = Empty();
+    return Wrapper({ emptyFirst: empty, emptySecond: empty, first: shared, second: shared });
+  });
+  let sharedActionCalls = 0;
+  let sharedEmptyCalls = 0;
+  expect(
+    await renderHtml(
+      <CompositeComponent
+        Action={() => {
+          sharedActionCalls += 1;
+          return <button type="button">Shared action</button>;
+        }}
+        Empty={() => {
+          sharedEmptyCalls += 1;
+        }}
+        src={SharedElement}
+        Wrapper={({ emptyFirst, emptySecond, first, second }) => {
+          expect(emptyFirst).toBeUndefined();
+          expect(emptySecond).toBeUndefined();
+          expect(first).toBe(second);
+          return <aside>{first}</aside>;
+        }}
+      />
+    )
+  ).toBe('<aside><span><button type="button">Shared action</button></span></aside>');
+  expect(sharedActionCalls).toBe(1);
+  expect(sharedEmptyCalls).toBe(1);
+
   await Promise.all(
     [true, false].map(async (explicitKey) => {
       const Keyed = await createCompositeComponent<{

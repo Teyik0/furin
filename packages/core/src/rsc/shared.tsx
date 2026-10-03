@@ -107,13 +107,14 @@ function resolveSlotArgument(
   if (!containsSlot(value, new WeakSet())) {
     return value;
   }
-  const cached = visited.get(value);
-  if (cached !== undefined) {
-    return cached;
+  if (visited.has(value)) {
+    return visited.get(value);
   }
   if (isValidElement(value)) {
     const resolved = resolveSlotElement(value, slots);
-    return isValidElement(resolved) ? Children.map(value, () => resolved)?.[0] : resolved;
+    const result = isValidElement(resolved) ? Children.map(value, () => resolved)?.[0] : resolved;
+    visited.set(value, result);
+    return result;
   }
   if (Array.isArray(value)) {
     const result: unknown[] = [];
