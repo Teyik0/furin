@@ -88,10 +88,7 @@ function containsSlot(value: unknown, visited: WeakSet<object>): value is object
   }
   visited.add(value);
   if (isValidElement(value)) {
-    return (
-      value.type === SLOT_MARKER ||
-      containsSlot((value.props as { children?: ReactNode }).children, visited)
-    );
+    return value.type === SLOT_MARKER || containsSlot(value.props, visited);
   }
   if (Array.isArray(value)) {
     return value.some((item) => containsSlot(item, visited));
@@ -107,15 +104,16 @@ function resolveSlotArgument(
   slots: object,
   visited: WeakMap<object, unknown>
 ): unknown {
-  const cached = value !== null && typeof value === "object" ? visited.get(value) : undefined;
-  if (cached !== undefined) {
-    return cached;
-  }
   if (!containsSlot(value, new WeakSet())) {
     return value;
   }
+  const cached = visited.get(value);
+  if (cached !== undefined) {
+    return cached;
+  }
   if (isValidElement(value)) {
-    return resolveSlotElement(value, slots);
+    const resolved = resolveSlotElement(value, slots);
+    return isValidElement(resolved) ? Children.map(value, () => resolved)?.[0] : resolved;
   }
   if (Array.isArray(value)) {
     const result: unknown[] = [];
@@ -161,17 +159,12 @@ function resolveSlotElement(child: ReactElement, slots: object): ReactNode {
       const args = (marker.args ?? []).map((argument) =>
         resolveSlotArgument(argument, slots, visited)
       );
-      const result = (implementation as (...args: unknown[]) => ReactNode)(...args);
-      return child.key !== null && isValidElement(result)
-        ? cloneElement(result, { key: child.key })
-        : result;
+      return (implementation as (...args: unknown[]) => ReactNode)(...args);
     }
     return implementation as ReactNode;
   }
-  const props = child.props as { children?: ReactNode };
-  return props.children === undefined
-    ? child
-    : cloneElement(child, undefined, resolveSlots(props.children, slots));
+  const props = resolveSlotArgument(child.props, slots, new WeakMap());
+  return props === child.props ? child : cloneElement(child, props as object);
 }
 
 function resolveSlots(node: ReactNode, slots: object): ReactNode {

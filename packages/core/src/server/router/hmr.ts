@@ -584,5 +584,5 @@ export function computeRouteDependencies(pagePath: string, rootPath: string): st
     }
   }
   const graph = devGraph(undefined);
-  return [...new Set(deps.flatMap((path) => graph.sourceDependencies(path)))];
+  return [...new Set(deps.flatMap((path) => graph.sourceDependencies(path)))].filter(existsSync);
 }

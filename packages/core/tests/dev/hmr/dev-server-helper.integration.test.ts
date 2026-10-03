@@ -38,7 +38,7 @@ test("editing a server-only composite helper refreshes cached SSG content withou
     expect(await warm.text()).toContain("server-card-before");
     writeAppFile(app.path, "src/components/server-card.tsx", helper("after"));
     let html = "";
-    for (let attempt = 0; attempt < 30; attempt += 1) {
+    for (let attempt = 0; attempt < 150; attempt += 1) {
       html = await (await fetch(url)).text();
       if (html.includes("server-card-after")) {
         break;

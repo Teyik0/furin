@@ -851,7 +851,7 @@ export async function furin({
     const { writeDevFiles } = await import("./build/hydrate.ts");
     const { getHmrDataSignature } = await import("./plugin/transform-client.ts");
     let serverSourceVersion = 0;
-    let serverDataSignature: string | undefined;
+    let serverDataSignatures = new Map<string, string>();
     let serverSourcePaths: string | undefined;
     const writeCurrentDevFiles = (
       snapshot: DevelopmentRouteSnapshot,
@@ -867,31 +867,33 @@ export async function furin({
         ]),
       ].toSorted();
       const nextPaths = JSON.stringify(paths);
-      const nextSignature = Bun.hash(
-        paths
-          .map((path) => {
-            try {
-              const signature = getHmrDataSignature(readFileSync(path, "utf8"), path);
-              return signature.startsWith("external:") ? graph.sourceVersion(path) : signature;
-            } catch {
-              // A broken route still needs a client entry for its diagnostic.
-              return graph.sourceVersion(path);
+      const nextSignatures = new Map(
+        paths.map((path) => {
+          let signature: string;
+          try {
+            signature = getHmrDataSignature(readFileSync(path, "utf8"), path);
+            if (signature.startsWith("external:")) {
+              signature = graph.sourceVersion(path);
             }
-          })
-          .join(":")
-      ).toString(16);
+          } catch {
+            // A broken route still needs a client entry for its diagnostic.
+            signature = graph.sourceVersion(path);
+          }
+          return [path, signature] as const;
+        })
+      );
       // Route additions/removals already update the native client manifest.
       // Rebase their signature without issuing a second data invalidation.
-      const importsChanged = changedSources.some((path) => !paths.includes(path));
-      if (
-        importsChanged &&
-        serverSourcePaths === nextPaths &&
-        serverDataSignature !== nextSignature
-      ) {
+      const changedPaths = new Set(changedSources);
+      const importsChanged = paths.some(
+        (path) =>
+          !changedPaths.has(path) && serverDataSignatures.get(path) !== nextSignatures.get(path)
+      );
+      if (importsChanged && serverSourcePaths === nextPaths) {
         serverSourceVersion += 1;
       }
       serverSourcePaths = nextPaths;
-      serverDataSignature = nextSignature;
+      serverDataSignatures = nextSignatures;
       writeDevFiles(
         snapshot.routes,
         {

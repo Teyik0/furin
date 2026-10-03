@@ -2595,12 +2595,14 @@ browserTest(
   60_000
 );
 
-for (const importKind of ["static", "dynamic", "circular"] as const) {
+for (const importKind of ["static", "dynamic", "circular", "route-export"] as const) {
   browserTest(
     `editing a ${importKind} server-only composite helper refreshes the browser while preserving client state`,
     async () => {
       const helper = (version: string): string =>
-        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }`;
+        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }${importKind === "route-export" ? '\nimport { defineRoute } from "@teyik0/furin";\nimport { route as rootRoute } from "./root";\nexport const route = defineRoute().config({ layout: rootRoute }).page(() => <main>Helper route</main>);' : ""}`;
+      const helperPath =
+        importKind === "route-export" ? "src/pages/helper.tsx" : "src/components/server-card.tsx";
       let page = rscPageSource("server-helper")
         .replace(
           'import { useState } from "react";',
@@ -2618,10 +2620,12 @@ for (const importKind of ["static", "dynamic", "circular"] as const) {
           .replace("  }))", "  }); })");
       } else if (importKind === "circular") {
         page += "\nexport const seed = 1;";
+      } else if (importKind === "route-export") {
+        page = page.replace('from "../components/server-card"', 'from "./helper"');
       }
       const harness = await createBrowserHarness(
         page,
-        [{ contents: helper("before"), relativePath: "src/components/server-card.tsx" }],
+        [{ contents: helper("before"), relativePath: helperPath }],
         false
       );
       activeHarness = harness;
@@ -2632,7 +2636,7 @@ for (const importKind of ["static", "dynamic", "circular"] as const) {
       await harness.view.click('[data-testid="increment"]');
       await waitForElementText(harness.view, '[data-testid="count"]', "1");
 
-      writeAppFile(harness.app.path, "src/components/server-card.tsx", helper("after"));
+      writeAppFile(harness.app.path, helperPath, helper("after"));
 
       await waitForElementText(harness.view, '[data-testid="rsc-value"]', "after");
       const after = await readSnapshot(harness.view);

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import stripServer from "@teyik0/furin/strip-plugin";
 import { createDocsServer } from "../src/server";
 
@@ -20,8 +21,8 @@ test("the landing keeps its server content and interactive slots without shippin
   expect(html.includes("<furin-rsc-slot")).toBe(false);
 
   const build = await Bun.build({
-    entrypoints: [new URL("../src/pages/index.tsx", import.meta.url).pathname],
-    external: ["*"],
+    entrypoints: [fileURLToPath(new URL("../src/pages/index.tsx", import.meta.url))],
+    packages: "external",
     plugins: [stripServer],
     target: "browser",
   });
@@ -29,20 +30,8 @@ test("the landing keeps its server content and interactive slots without shippin
   const bundle = await build.outputs[0]?.text();
   expect(bundle).not.toContain("Your loader is");
   expect(bundle).not.toContain("Nothing you have to wire.");
+  expect(bundle).not.toContain("Streaming SSR");
+  expect(bundle).not.toContain("Fresh HTML streamed");
+  expect(bundle).toContain("mode-card group");
+  expect(bundle).toContain('setProperty("--p"');
 });
-
-test.each([
-  ["stack-reveal", "Streaming SSR"],
-  ["modes-grid", "Fresh HTML streamed"],
-])(
-  "%s ships its controller without duplicating its server-rendered content",
-  async (name, content) => {
-    const build = await Bun.build({
-      entrypoints: [new URL(`../src/components/landing/${name}.tsx`, import.meta.url).pathname],
-      external: ["*"],
-      target: "browser",
-    });
-    expect(build.success).toBe(true);
-    expect(await build.outputs[0]?.text()).not.toContain(content);
-  }
-);

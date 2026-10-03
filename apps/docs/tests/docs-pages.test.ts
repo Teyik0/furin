@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { evaluate } from "@mdx-js/mdx";
 import { RouterContext } from "@teyik0/furin/link";
 import stripServer from "@teyik0/furin/strip-plugin";
@@ -73,6 +74,8 @@ test("server-rendered MDX slots hydrate interactive code tabs and internal links
               },
               prefetch: () => undefined,
               refresh: () => Promise.resolve(),
+              search: {},
+              searchRoutes: [],
             },
           },
           createElement(DocContent, { src })
@@ -101,7 +104,7 @@ test("getting started preserves its server content without bundling its MDX in t
   expect(html).not.toContain("__FURIN_DEV_DIAGNOSTIC__");
 
   const build = await Bun.build({
-    entrypoints: [new URL("../src/pages/docs/getting-started.tsx", import.meta.url).pathname],
+    entrypoints: [fileURLToPath(new URL("../src/pages/docs/getting-started.tsx", import.meta.url))],
     external: ["*"],
     plugins: [stripServer],
     target: "browser",
@@ -120,7 +123,8 @@ test("every documentation page keeps its MDX content on the server", async () =>
       const heading = getDocSourceText(DOCS_BY_PATH[path].sourcePath)
         .split("\n")
         .find((line) => line.startsWith("# "))
-        ?.slice(2);
+        ?.slice(2)
+        .trimEnd();
       expect(response.status).toBe(200);
       expect(heading).toBeDefined();
       expect(html).toContain(heading?.replaceAll("&", "&amp;") ?? "");
@@ -128,12 +132,13 @@ test("every documentation page keeps its MDX content on the server", async () =>
     })
   );
   const build = await Bun.build({
-    entrypoints: paths.map(
-      (path) =>
+    entrypoints: paths.map((path) =>
+      fileURLToPath(
         new URL(
           `../src/pages/docs/${path === "/docs" ? "index" : path.slice(6)}.tsx`,
           import.meta.url
-        ).pathname
+        )
+      )
     ),
     external: ["*"],
     plugins: [stripServer],

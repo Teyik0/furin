@@ -6,6 +6,7 @@ const ROUTE_DEPENDENCY_SCENARIOS = `
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { computeRouteDependencies } from "./src/server/router/hmr.ts";
+import { devGraph } from "./src/server/dev/graph.ts";
 
 function assert(condition, message) {
   if (!condition) {
@@ -29,6 +30,12 @@ deps = computeRouteDependencies(pagePath, rootPath);
 assert(deps.length === 2, "expected 2 dependencies, got " + deps.length);
 assert(deps[0] === pagePath, "first dependency should be the page path");
 assert(deps[1] === rootPath, "second dependency should be the root path");
+
+const missingAsset = join(fixturesDir, "optional.mdx");
+devGraph(undefined).recordImports(pagePath, [missingAsset]);
+deps = computeRouteDependencies(pagePath, rootPath);
+assert(!deps.includes(missingAsset), "a missing optional import must not permanently invalidate the cache");
+assert(deps.includes(pagePath), "existing page dependency must remain tracked");
 
 process.exit(0);
 `;

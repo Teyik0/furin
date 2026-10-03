@@ -627,7 +627,10 @@ function collectDependencyIdentifier(
   const parent = ancestors.at(-1);
   const jsxReference =
     child.type === "JSXIdentifier" &&
-    ((parent?.type === "JSXOpeningElement" && parent.name === child) ||
+    ((parent?.type === "JSXOpeningElement" &&
+      parent.name === child &&
+      typeof child.name === "string" &&
+      child.name[0] === child.name[0]?.toUpperCase()) ||
       (parent?.type === "JSXMemberExpression" && parent.object === child));
   if (
     !(child.type === "Identifier" || jsxReference) ||

@@ -195,6 +195,24 @@ export const route = defineRoute().loader(loadData).page(Page);`,
     expect(signature(transform("loader-v2"))).not.toBe(signature(transform("loader-v1")));
   });
 
+  test("ignores intrinsic JSX tags while tracking member-expression components in loader data", () => {
+    const signature = (inputValue: string, componentValue: string): string =>
+      transformForClient(
+        `import { defineRoute } from "@teyik0/furin";
+const input = "${inputValue}";
+const widget = { Input: () => <span>${componentValue}</span> };
+export const route = defineRoute()
+  .loader(() => ({ content: <><input /><widget.Input /></> }))
+  .page(({ content }) => content);`,
+        "route.tsx"
+      ).code.match(/const previousDataSignature = "([^"]+)"/u)?.[1] ?? "";
+
+    const initial = signature("before", "before");
+    expect(initial).not.toBe("");
+    expect(signature("after", "before")).toBe(initial);
+    expect(signature("before", "after")).not.toBe(initial);
+  });
+
   test("changes the HMR data signature when an isomorphic server branch changes", () => {
     const transform = (serverMessage: string) =>
       transformForClient(

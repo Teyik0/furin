@@ -1,7 +1,15 @@
 import { expect } from "bun:test";
 import { type Context, Elysia } from "elysia";
 import { defer } from "furin/client";
-import { isValidElement, type ReactNode } from "react";
+import {
+  act,
+  createElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  useState,
+} from "react";
+import { createRoot } from "react-dom/client";
 import { renderToReadableStream } from "react-dom/server";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
@@ -13,6 +21,8 @@ import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import "../../setup/global.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
 
@@ -386,6 +396,37 @@ try {
     />
   );
 
+  let previousIconData: SlotData | undefined;
+  const IconProps = await createCompositeComponent<{
+    Action: (props: { label: string }) => ReactNode;
+    Wrapper: (props: { data: SlotData; item: ReactElement<{ icon: ReactNode }> }) => ReactNode;
+  }>(({ Action, Wrapper }) => (
+    <Wrapper
+      data={slotData}
+      item={createElement("span", {
+        icon: Action({ label: "Icon action" }),
+      })}
+    />
+  ));
+  const renderIconProps = () =>
+    renderHtml(
+      <CompositeComponent
+        Action={({ label }) => <button type="button">{label}</button>}
+        src={IconProps}
+        Wrapper={({ data: receivedData, item }) => {
+          expect(receivedData.flags).toEqual([false, true]);
+          expect(receivedData.self).toBe(receivedData);
+          if (previousIconData !== undefined) {
+            expect(receivedData).toBe(previousIconData);
+          }
+          previousIconData = receivedData;
+          return <aside>{item.props.icon}</aside>;
+        }}
+      />
+    );
+  expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
+  expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
+
   await Promise.all(
     [true, false].map(async (explicitKey) => {
       const Keyed = await createCompositeComponent<{
@@ -421,6 +462,95 @@ try {
       );
     })
   );
+
+  const KeyedCounter = await createCompositeComponent<{
+    Counter: () => ReactNode;
+  }>(({ Counter }) => <Counter key="stable-marker" />);
+  function ClientCounter() {
+    const [count, setCount] = useState(0);
+    return (
+      <button onClick={() => setCount((current) => current + 1)} type="button">
+        {count}
+      </button>
+    );
+  }
+  installDom();
+  resetDomState();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const clientRoot = createRoot(container);
+  try {
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent Counter={() => <ClientCounter key="first" />} src={KeyedCounter} />
+      );
+    });
+    await waitForDom(() => container.textContent === "0", { timeoutMs: 2000 });
+    await act(() => {
+      container.querySelector("button")?.click();
+    });
+    expect(container.textContent).toBe("1");
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent Counter={() => <ClientCounter key="second" />} src={KeyedCounter} />
+      );
+    });
+    expect(container.textContent).toBe("0");
+
+    const markerCounters = (names: string[]) =>
+      createCompositeComponent<{
+        Item: () => ReactNode;
+        Wrapper: (props: { children: ReactNode }) => ReactNode;
+      }>(({ Item, Wrapper }) => (
+        <Wrapper>
+          {names.map((name) => (
+            <Item key={name} />
+          ))}
+        </Wrapper>
+      ));
+    const initialCounters = await markerCounters(["first", "second"]);
+    const reorderedCounters = await markerCounters(["second", "first"]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter />}
+          src={initialCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    await act(() => container.querySelector("button")?.click());
+    expect([...container.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "1",
+      "0",
+    ]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter />}
+          src={reorderedCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    expect([...container.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "0",
+      "1",
+    ]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter key="changed-result" />}
+          src={reorderedCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    expect(container.textContent).toBe("00");
+  } finally {
+    act(() => clientRoot.unmount());
+    await uninstallDom();
+  }
 
   for (const mode of ["ssg", "isr"] as const) {
     const bufferedRoute =
