@@ -192,6 +192,29 @@ function removeChainedServerCalls(
       if (!object) {
         return;
       }
+      if (property.name === "config" && Array.isArray(call.arguments)) {
+        const config = asAstNode(call.arguments[0]);
+        if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
+          const remount = config.properties.map(asAstNode).find((entry) => {
+            if (entry?.type !== "Property") {
+              return false;
+            }
+            const key = asAstNode(entry.key);
+            return key?.type === "Identifier"
+              ? entry.computed !== true && key.name === "remountDeps"
+              : key?.type === "Literal" && key.value === "remountDeps";
+          });
+          if (remount) {
+            source.update(
+              object.end,
+              call.end,
+              `.config({ ${source.original.slice(remount.start, remount.end)} })`
+            );
+            transformed = true;
+            return;
+          }
+        }
+      }
       source.remove(object.end, call.end);
       transformed = true;
     },

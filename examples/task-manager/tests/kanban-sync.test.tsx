@@ -405,6 +405,34 @@ test("moves a card through projected loader props and removes a rejected move", 
   }
 });
 
+test("keeps deletion and movement errors separate", async () => {
+  const board = await renderBoard([{ id: "1", column: "backlog", title: "My task" }]);
+  try {
+    const barrel = board.container.querySelector('button[aria-label^="Delete card"]');
+    if (!barrel) {
+      throw new Error("Delete drop zone is missing");
+    }
+    await dragCard(board.container, barrel);
+    await waitForDom(() => resolveDelete !== undefined, { timeoutMs: 2000 });
+    await act(async () => {
+      resolveDelete?.({ data: null, error: { message: "failed" } });
+      await Promise.resolve();
+    });
+    expect(board.container.textContent).toContain("Could not delete the card");
+
+    await dragCard(board.container, board.container.querySelectorAll("ul").item(1));
+    await waitForDom(() => resolveMove !== undefined, { timeoutMs: 2000 });
+    await act(async () => {
+      resolveMove?.({ data: null, error: { message: "failed" } });
+      await Promise.resolve();
+    });
+    expect(board.container.textContent).toContain("Could not move the card");
+    expect(board.container.textContent).toContain("Could not delete the card");
+  } finally {
+    await board.cleanup();
+  }
+});
+
 test("renders remote inserts, moves and deletions from fresh loaders", async () => {
   const board = await renderBoard([{ id: "1", column: "backlog", title: "First" }]);
   try {
@@ -423,6 +451,43 @@ test("renders remote inserts, moves and deletions from fresh loaders", async () 
     });
     expect(board.container.textContent).not.toContain("Remote");
   } finally {
+    await board.cleanup();
+  }
+});
+
+test("drag highlights stay within the current kanban column", async () => {
+  const board = await renderBoard([{ id: "1", column: "backlog", title: "First" }]);
+  const otherContainer = document.createElement("div");
+  document.body.appendChild(otherContainer);
+  const otherRoot = createRoot(otherContainer);
+  try {
+    await act(() =>
+      otherRoot.render(createElement(Kanban, { boardId: "board-2", initialCards: [] }))
+    );
+    const firstColumn = board.container.querySelector("ul");
+    const otherIndicators = otherContainer.querySelectorAll<HTMLElement>("[data-column]");
+    for (const indicator of otherIndicators) {
+      indicator.style.opacity = "0.5";
+    }
+    const EventConstructor = document.defaultView?.Event ?? Event;
+    await act(() => {
+      const event = new EventConstructor("dragover", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clientY", { value: 100 });
+      firstColumn?.dispatchEvent(event);
+    });
+    expect(
+      board.container.querySelector<HTMLElement>('[data-column="backlog"]')?.style.opacity
+    ).toBe("0");
+    expect(firstColumn?.querySelector<HTMLElement>('[data-before="-1"]')?.style.opacity).toBe("1");
+    expect([...otherIndicators].map((indicator) => indicator.style.opacity)).toEqual([
+      "0.5",
+      "0.5",
+      "0.5",
+      "0.5",
+    ]);
+  } finally {
+    await act(() => otherRoot.unmount());
+    otherContainer.remove();
     await board.cleanup();
   }
 });

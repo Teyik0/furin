@@ -6,6 +6,44 @@ import { transformForClient } from "../../../src/plugin/transform-client";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
+  test.each([
+    "remountDeps",
+    "remountDeps: selectIdentity",
+    "remountDeps({ params }) { return [params.id]; }",
+    "['remountDeps']: selectIdentity",
+  ])("preserves a %s declaration in client config", (declaration) => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+const remountDeps = ({ params }) => [params.id];
+const selectIdentity = remountDeps;
+export const route = defineRoute()
+  .config({ layout: serverLayout, mode: "ssr", ${declaration} })
+  .page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(`.config({ ${declaration} })`);
+    expect(result.code).not.toContain("serverLayout");
+  });
+
+  test("keeps remount dependencies while removing server config and its imports", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { schema, secret, parentRoute } from "./server";
+import { documentKey } from "./identity";
+export const route = defineRoute()
+  .config({ layout: parentRoute, mode: "ssr", params: schema,
+    remountDeps: ({ params }) => [documentKey(params.id)] })
+  .loader(() => ({ secret }))
+  .page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(".config({ remountDeps: ({ params }) => [documentKey(params.id)] })");
+    expect(result.code).toContain('from "./identity"');
+    expect(result.code).not.toContain("./server");
+    expect(result.code).not.toContain("params: schema");
+    expect(result.code).not.toContain("layout: parentRoute");
+  });
+
   test("removes server stages and rewrites the builder import", () => {
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";

@@ -149,6 +149,7 @@ async function invalidateTagsForInstance(
     ...getAutoInvalidateRegistry(instance).pathsForTags(tagList),
     ...(sharedResult?.paths ?? []),
   ]);
+  const tags = new Set(tagList);
   // Registry paths are LOGICAL (unprefixed); the CDN caches the PHYSICAL
   // request URL, so prefix each with the instance's mount prefix before
   // queueing it for purge — otherwise a mounted app's `/admin/x` stays stale.
@@ -156,7 +157,7 @@ async function invalidateTagsForInstance(
     const logicalPath = pathWithoutSearch(path);
     const registered = getAutoInvalidateRegistry(instance)
       .tagsForPath(path)
-      .some((tag) => tagList.includes(tag));
+      .some((tag) => tags.has(tag));
     const result = revalidatePathForInstance(instance, logicalPath, "page", false);
     if (pageCache !== undefined && registered) {
       sharedInvalidations.push(

@@ -21,6 +21,7 @@ export {
   reconcileHotComponentRegistry,
   updateHotComponent,
 } from "./client/hmr.ts";
+export { useMutation } from "./client/mutation.ts";
 export { useQuery } from "./client/query.tsx";
 export { getRouteApi } from "./client/route-api.tsx";
 export {

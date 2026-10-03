@@ -56,7 +56,11 @@ test("hovering a Link loads the target route's chunks once", async () => {
         defaultPreloadStaleTime: 30_000,
         initialData: {},
         initialDigest: undefined,
-        initialMatch: { ...routes[0], component: homeComponent, pageRoute: undefined },
+        initialMatch: {
+          ...routes[0],
+          component: homeComponent,
+          pageRoute: pageModule(homeComponent).default._route,
+        },
         initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,

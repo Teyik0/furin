@@ -454,9 +454,9 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
       },
     });
     const discoveredTags = queryTagsFromData(syncData);
+    const identityTags = new Set(input.pageCacheIdentity.tags);
     const cacheStored =
-      input.pageCache !== undefined &&
-      discoveredTags.some((tag) => !input.pageCacheIdentity.tags.includes(tag))
+      input.pageCache !== undefined && discoveredTags.some((tag) => !identityTags.has(tag))
         ? false
         : await storeRenderedISR(input, html, generatedAt);
     if (cacheStored && input.pageCache === undefined) {
@@ -756,7 +756,8 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
     }
     if (input.sharedCache !== undefined && lease !== null) {
       const { identity } = input.sharedCache;
-      if ((result.queryTags ?? []).some((tag) => !identity.tags.includes(tag))) {
+      const identityTags = new Set(identity.tags);
+      if ((result.queryTags ?? []).some((tag) => !identityTags.has(tag))) {
         return;
       }
       await input.sharedCache.adapter.commit({

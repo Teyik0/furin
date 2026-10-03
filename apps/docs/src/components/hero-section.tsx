@@ -49,7 +49,7 @@ export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, s
         {/* react-doctor-disable-next-line react/no-danger, react-doctor/dangerous-html-sink */}
         <div
           className="relative [&>pre]:overflow-auto [&>pre]:bg-transparent! [&>pre]:p-6 [&>pre]:font-mono [&>pre]:text-[13px] [&>pre]:leading-[1.7]"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted Shiki syntax-highlighted output; never contains user input
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted TanStack Highlight syntax-highlighted output; never contains user input
           dangerouslySetInnerHTML={{ __html: codeHtmlMap[active] }}
         />
         {active === "pages/index.tsx" && (

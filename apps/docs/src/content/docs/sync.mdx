@@ -254,6 +254,85 @@ useQuery(api.cards.get, {
 
 A scope invalidation refreshes every cached query variant of that resource. Different scopes remain separate. Create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation); do not reuse one cache across principals. Response session identities also clear data from a previous principal and reject its late responses. Per-call authorization changes are not cache keys: keep one client per authenticated session.
 
+### Mutation State In React
+
+`useMutation` adds React state to an existing mutation without changing its arguments:
+
+```tsx
+import { useMutation } from "@teyik0/furin/client";
+import { useRouter } from "@teyik0/furin/link";
+
+function DeleteCard({ cardId }: { cardId: string }) {
+  const router = useRouter();
+  const remove = useMutation(api.cards({ id: cardId }).delete, {
+    onSuccess: async () => {
+      await router.navigate("/boards");
+    },
+  });
+
+  return (
+    <>
+      <button disabled={remove.isPending} onClick={() => remove.mutate()}>
+        Delete card
+      </button>
+      {remove.error ? <p>Could not delete the card.</p> : null}
+    </>
+  );
+}
+```
+
+The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. Errors with Eden's `{ status, value }` shape retain their original object and inferred payload. Network errors and other exceptions, including failures in `onSuccess`, become an `EdenFetchError` with `status: 0`, `value: { detail: string }` and the original value in `cause`. Status `0` is a client-side sentinel, not an HTTP response code. API payloads remain unchanged, so their fields are not necessarily the same across endpoints.
+
+Eden's synthetic network errors without an HTTP response are normalized too; a real HTTP `503` response retains its server payload. There is one error callback, with no separate native `Error` branch:
+
+```tsx
+const save = useMutation(api.cards({ id: cardId }).patch, {
+  onError(error) {
+    setErrorMessage(error.value.detail ?? "Could not save the card");
+    // error.status === 0 distinguishes client-side exceptions when needed.
+  },
+});
+```
+
+This endpoint's API errors include a `detail` field. Other API payloads keep their own schema; use `error.status` to narrow a specific response when needed. `mutateAsync` also rejects if an `onError` callback throws.
+
+Calls run in parallel. `isPending` stays true until every call and its awaited `onSuccess` or `onError` callback finishes. Only the most recently started call publishes `data` or `error`; callbacks still run for each call. Disable the relevant controls while pending if the UI should prevent repeated submissions. The hook does not deduplicate calls or provide a shared mutation lock. `reset()` clears the displayed result and prevents earlier in-flight calls from publishing it again, but does not cancel those requests or their callbacks.
+
+Eden's body and options stay inferred, including existing optimistic updates:
+
+```tsx
+const save = useMutation(api.cards({ id: cardId }).patch);
+
+save.mutate({ title }, {
+  optimistic(cache) {
+    cache.update(api.cards({ id: cardId }).get, card => ({ ...card, title }));
+  },
+});
+```
+
+Retries, idempotency, rollback and invalidation remain the client's responsibility. The hook adds no extra requests or retries.
+
+### External APIs
+
+The hook does not require an Eden client. Any asynchronous function returning `{ data, error }` works, with `error: null` indicating success:
+
+```tsx
+async function deleteExternalCard(cardId: string) {
+  const response = await fetch(`/external-api/cards/${encodeURIComponent(cardId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    return { data: null, error: new Error("Could not delete the card") };
+  }
+  return { data: null, error: null };
+}
+
+const remove = useMutation(deleteExternalCard);
+// remove.mutate(cardId)
+```
+
+This supplies mutation state and callbacks, not Furin Sync integration: an external API needs its own cache refresh strategy unless it implements the Sync protocol. Furin's page server still uses Elysia; the business API does not have to. A static export can be hosted without an Elysia server.
+
 ### Reuse A Mutation And Its Optimism
 
 ```ts

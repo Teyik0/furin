@@ -150,6 +150,8 @@ export function installBrowserEventsRuntime(
         reconnectAttempt = 0;
         updateStatus("connected");
       });
+      // This listener belongs to our same-origin EventSource, not window.postMessage.
+      // react-doctor-disable-next-line react-doctor/postmessage-origin-risk
       connection.addEventListener("message", (message) => onMessageData(message.data));
       connection.addEventListener("error", () => {
         if (eventSource !== connection || suspended) {
@@ -185,6 +187,8 @@ export function installBrowserEventsRuntime(
       reconnectAttempt = 0;
       updateStatus("connected");
     });
+    // This listener belongs to our same-host WebSocket, not window.postMessage.
+    // react-doctor-disable-next-line react-doctor/postmessage-origin-risk
     connection.addEventListener("message", (message) => onMessageData(message.data));
     connection.addEventListener("close", () => {
       if (socket !== connection) {

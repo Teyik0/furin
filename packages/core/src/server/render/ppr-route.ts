@@ -204,7 +204,8 @@ async function renderSharedPpr(
     if (lease === null || !isPprArtifact(result)) {
       return result;
     }
-    if ((result.tags ?? []).some((tag) => !identity.tags.includes(tag))) {
+    const identityTags = new Set(identity.tags);
+    if ((result.tags ?? []).some((tag) => !identityTags.has(tag))) {
       return result;
     }
     try {

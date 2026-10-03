@@ -100,6 +100,8 @@ export const route = defineRoute()
 
 Schema defaults are applied before loaders run. Navigation omits values equal to those defaults from the generated URL, keeping canonical links clean.
 
+Changing path parameters remounts the page by default; query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
+
 ## Special Files
 
 | File | Role | Creates a URL? |

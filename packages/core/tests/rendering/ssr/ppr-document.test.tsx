@@ -137,6 +137,8 @@ test("a serialized public shell resumes independently for two sessions", async (
       if (!isPprArtifact(artifact)) {
         throw new Error("Prerender failed");
       }
+      // Exercise persistence through JSON, including its loss of non-JSON values.
+      // react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone
       const saved = JSON.parse(JSON.stringify(artifact)) as typeof artifact;
       return resumePprDocument(
         route,

@@ -47,10 +47,8 @@
  * guaranteeing a single shared React instance regardless of CWD or
  * hot-reload state.
  *
- * All import/re-export occurrences of each quoted specifier are replaced using
- * a context-aware regex (requires a preceding `from` or `import` keyword) so
- * that modules which both import and re-export from the same package are fully
- * rewritten while string literals in non-import positions are left untouched.
+ * Static imports, re-exports, and literal dynamic imports are rewritten from
+ * the parsed module, leaving ordinary strings and comments untouched.
  */
 
 import { statSync } from "node:fs";
@@ -61,6 +59,7 @@ import { splitDevPage } from "../plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../plugin/transform-isomorphic.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
+import { walkAST } from "../shared/utils/ast-walk.ts";
 import { invalidateDevLoaderCacheBySource } from "./cache/dev-loader.ts";
 import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
@@ -244,69 +243,45 @@ function rewriteRelativeImportsWithVersion(
 }
 
 /**
- * Rewrites all remaining bare specifiers in the transpiled JS to absolute
- * on-disk paths resolved from `dir` (the page file's directory).
- *
- * Uses `Bun.Transpiler.scan()` on the original source to get the authoritative
- * list of *actual* import specifiers (parsing correctly handles template
- * literals, comments, etc.).  For each bare specifier that is not already
- * handled by `rewriteSingletonImports`, it calls `Bun.resolveSync` and
- * replaces **every** import/re-export occurrence of the quoted specifier using
- * a context-aware regex with the `g` flag — mirroring the approach used by
- * `rewriteSingletonImports`.  This correctly handles modules that both import
- * and re-export from the same package without leaving any bare specifier
- * behind.  String literals that happen to contain the same text (inside
- * template literals, JSX props, etc.) are not touched because the regex
- * requires a preceding `from` or `import` keyword.
+ * Resolves static imports, re-exports, and literal dynamic imports from the
+ * page file's directory, including tsconfig aliases in virtual modules.
  *
  * @internal exported for testing
  */
-export function rewriteBareImports(source: string, transpiled: string, dir: string): string {
-  const scanner = new Bun.Transpiler({ loader: "tsx" });
-  let { imports } = scanner.scan(source);
-  // Deduplicate: scan() may return the same specifier multiple times if it
-  // appears in both `import` and `export ... from` positions.
-  const seen = new Set<string>();
-  imports = imports.filter((imp) => {
-    if (seen.has(imp.path)) {
-      return false;
+export function rewriteBareImports(transpiled: string, dir: string): string {
+  const output = new MagicString(transpiled);
+  walkAST(parseSource(transpiled, "js").program, (node) => {
+    if (
+      node.type !== "ImportDeclaration" &&
+      node.type !== "ExportNamedDeclaration" &&
+      node.type !== "ExportAllDeclaration" &&
+      node.type !== "ImportExpression"
+    ) {
+      return;
     }
-    seen.add(imp.path);
-    return true;
-  });
-
-  let result = transpiled;
-  for (const imp of imports) {
-    const spec = imp.path;
-    // Skip relative paths (already rewritten by rewriteRelativeImports before transpilation)
-    // and already-absolute paths.
-    if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("file:")) {
-      continue;
-    }
-    // Skip React singletons — already handled by rewriteSingletonImports.
-    if (SINGLETON_PATHS.has(spec)) {
-      continue;
+    const literal = node.source as AstNode | undefined;
+    const specifier = literal?.value;
+    if (
+      literal?.type !== "Literal" ||
+      typeof specifier !== "string" ||
+      specifier.startsWith(".") ||
+      specifier.startsWith("/") ||
+      specifier.startsWith("file:") ||
+      SINGLETON_PATHS.has(specifier)
+    ) {
+      return;
     }
 
     let resolved: string;
     try {
-      resolved = toImportSpecifier(Bun.resolveSync(spec, dir));
+      resolved = toImportSpecifier(Bun.resolveSync(specifier, dir));
     } catch {
-      // Not resolvable from the file's directory — leave as a bare specifier
-      // so Bun falls back to CWD-relative resolution (adequate for most cases).
-      continue;
+      // Leave unresolved imports to Bun's native resolution and diagnostics.
+      return;
     }
-
-    // Replace ALL import/re-export occurrences of the bare specifier using a
-    // context-aware regex with the `g` flag. This correctly handles modules
-    // that both import and re-export from the same package. The regex only
-    // matches when the specifier is preceded by `from` or `import` so string
-    // literals in non-import positions are left untouched.
-    // react-doctor-disable-next-line react-doctor/js-hoist-regexp
-    const re = new RegExp(`((?:from|import(?:\\s+type)?)\\s+)["']${escapeRegExp(spec)}["']`, "g");
-    result = result.replace(re, (_, g1: string) => `${g1}${JSON.stringify(resolved)}`);
-  }
-  return result;
+    output.update(literal.start, literal.end, JSON.stringify(resolved));
+  });
+  return output.toString();
 }
 
 function getSourceLoader(filePath: string): SourceLoader | null {
@@ -485,7 +460,7 @@ export function transformDevSource(
 
     let result = transpiled;
     if (options.rewriteBareImports) {
-      result = rewriteBareImports(serverSource, result, dirname(filePath));
+      result = rewriteBareImports(result, dirname(filePath));
     }
 
     result = rewriteSingletonImports(result);

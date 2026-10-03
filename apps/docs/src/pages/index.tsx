@@ -1,7 +1,6 @@
 import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
 import { Suspense } from "react";
-import { codeToHtml } from "shiki";
 import { FeatureCard, HeroCodeWindow } from "@/components/hero-section";
 import {
   ApiIcon,
@@ -21,6 +20,7 @@ import { Reveal } from "@/components/landing/reveal";
 import { ShipSection } from "@/components/landing/ship-section";
 import { StackReveal } from "@/components/landing/stack-reveal";
 import { SyncSection } from "@/components/landing/sync-section";
+import { highlighter } from "@/lib/highlight";
 import { route as parentRoute } from "./root";
 
 const FILES = {
@@ -166,23 +166,14 @@ function delay(ms: number) {
 
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(async () => {
+  .loader(() => {
     const entries = Object.entries(FILES) as [FileName, string][];
-    const codeHtmlMap = Promise.all(
-      entries.map(async ([name, code]) => [
-        name,
-        await codeToHtml(code, { lang: "tsx", theme: "github-dark" }),
-      ])
-    ).then((resolvedEntries) => Object.fromEntries(resolvedEntries) as Record<FileName, string>);
-    const [syncServerHtml, syncClientHtml] = await Promise.all(
-      [SYNC_SERVER, SYNC_CLIENT].map((code) =>
-        codeToHtml(code, { lang: "tsx", theme: "github-dark" })
-      )
-    );
     return {
-      codeHtmlMap: await codeHtmlMap,
-      syncClientHtml: syncClientHtml as string,
-      syncServerHtml: syncServerHtml as string,
+      codeHtmlMap: Object.fromEntries(
+        entries.map(([name, code]) => [name, highlighter.highlightToHtml(code, { lang: "tsx" })])
+      ) as Record<FileName, string>,
+      syncClientHtml: highlighter.highlightToHtml(SYNC_CLIENT, { lang: "tsx" }),
+      syncServerHtml: highlighter.highlightToHtml(SYNC_SERVER, { lang: "tsx" }),
     };
   })
   .head(() => ({

@@ -2,8 +2,6 @@ import { furin } from "@teyik0/furin";
 import { api } from "./api";
 import { taskManagerSync } from "./sync";
 
-export const port = Number(process.env.PORT ?? 3002);
-
 const app = api.use(
   await furin({
     logger: {
@@ -23,7 +21,7 @@ const app = api.use(
 );
 
 if (import.meta.main) {
-  app.listen(port);
+  app.listen(Number(process.env.PORT ?? 3002));
   console.log(`Task Manager running at http://localhost:${app.server?.port}`);
 }
 

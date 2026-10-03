@@ -55,7 +55,7 @@ function CodePanel({ html, title }: { html: string; title: string }) {
       {/* react-doctor-disable-next-line react/no-danger, react-doctor/dangerous-html-sink */}
       <div
         className="[&>pre]:overflow-x-auto [&>pre]:bg-transparent! [&>pre]:p-5 [&>pre]:font-mono [&>pre]:text-[12.5px] [&>pre]:leading-[1.7]"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted Shiki output of static snippets
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted TanStack Highlight output of static snippets
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>

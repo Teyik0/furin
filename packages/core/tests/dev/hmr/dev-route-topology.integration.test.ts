@@ -469,5 +469,6 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       250
     );
     expect(served, `${lastDocument}\n${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+    expect(server.getStderr()).not.toContain("ENOENT");
   }, 20_000);
 });

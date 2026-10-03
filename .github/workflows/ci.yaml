@@ -65,11 +65,11 @@ jobs:
 
       - name: React Doctor (main)
         if: github.ref == 'refs/heads/main'
-        run: bunx react-doctor -y --annotations
+        run: bunx react-doctor -y --scope full --annotations
 
       - name: React Doctor (PR)
         if: github.ref != 'refs/heads/main'
-        run: bunx react-doctor -y --diff main --annotations
+        run: bunx react-doctor -y --scope changed --base main --annotations
 
       - name: Publish Preview
         working-directory: packages/core

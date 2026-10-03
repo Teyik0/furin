@@ -128,7 +128,8 @@ async function renderAndStoreSharedSsg(
     if (entry instanceof Response || lease === null) {
       return { cacheStored: false, entry };
     }
-    if ((entry.tags ?? []).some((tag) => !input.identity.tags.includes(tag))) {
+    const identityTags = new Set(input.identity.tags);
+    if ((entry.tags ?? []).some((tag) => !identityTags.has(tag))) {
       return { cacheStored: false, entry };
     }
     let cacheStored = false;

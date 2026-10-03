@@ -1,12 +1,7 @@
+import { useMutation } from "@teyik0/furin/client";
 import { Link } from "@teyik0/furin/link";
 import { domAnimation, LazyMotion, MotionConfig, m } from "framer-motion";
-import {
-  type Dispatch,
-  type DragEvent,
-  type SetStateAction,
-  useActionState,
-  useState,
-} from "react";
+import { type DragEvent, useRef, useState } from "react";
 import { FaFire } from "react-icons/fa";
 import { FiArrowUpRight, FiPlus, FiTrash } from "react-icons/fi";
 import type { BoardData } from "@/db/schema";
@@ -14,89 +9,113 @@ import { api } from "@/lib/api";
 import { moveCard } from "@/lib/card-mutations";
 import { cn } from "../../lib/utils";
 
-export type ColumnType = "backlog" | "todo" | "doing" | "done";
-
-export interface KanbanCard {
-  column: ColumnType;
-  id: string;
-  title: string;
-}
-
 interface KanbanProps {
   boardId: string;
   initialCards: BoardData["cards"];
 }
+
+const columns = [
+  { column: "backlog", headingColor: "text-neutral-400", title: "Backlog" },
+  { column: "todo", headingColor: "text-yellow-300", title: "TODO" },
+  { column: "doing", headingColor: "text-blue-300", title: "In Progress" },
+  { column: "done", headingColor: "text-emerald-300", title: "Complete" },
+] as const;
+
+interface MoveInput {
+  before: string;
+  cardId: string;
+  column: ColumnType;
+  position: number;
+}
+
 export const Kanban = ({ boardId, initialCards }: KanbanProps) => {
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const move = useMutation(({ cardId, column, position, before }: MoveInput) =>
+    api.cards({ id: cardId }).patch(
+      { column, position },
+      {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
+          })),
+      }
+    )
+  );
+  const remove = useMutation((cardId: string) =>
+    api.cards({ id: cardId }).delete(undefined, {
+      optimistic: (cache) =>
+        cache.update(api.boards({ boardId }).get, (data) => ({
+          ...data,
+          cards: data.cards.filter((card) => card.id !== cardId),
+        })),
+    })
+  );
+
+  const handleMove = (cardId: string, column: ColumnType, before: string) => {
+    if (before === cardId) {
+      return;
+    }
+    const result = moveCard(initialCards, cardId, column, before);
+    if (!result) {
+      return;
+    }
+    const position = result.nextCards
+      .filter((card) => card.column === column)
+      .findIndex((card) => card.id === cardId);
+    move.mutate({ cardId, column, position, before });
+  };
+  const handleDragStart = () => setIsDragging(true);
+  const handleDragEnd = () => setIsDragging(false);
 
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
-        {errorMessage ? (
+        {move.error ? (
           <div className="mx-6 mt-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
-            {errorMessage}
+            Could not move the card. Please try again.
+          </div>
+        ) : null}
+        {remove.error ? (
+          <div className="mx-6 mt-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
+            Could not delete the card. Please try again.
           </div>
         ) : null}
 
         <div className="flex h-full w-full gap-4 overflow-x-auto p-6">
-          <Column
-            boardId={boardId}
-            cards={initialCards}
-            column="backlog"
-            headingColor="text-neutral-400"
-            setErrorMessage={setErrorMessage}
-            setIsDragging={setIsDragging}
-            title="Backlog"
-          />
-          <Column
-            boardId={boardId}
-            cards={initialCards}
-            column="todo"
-            headingColor="text-yellow-300"
-            setErrorMessage={setErrorMessage}
-            setIsDragging={setIsDragging}
-            title="TODO"
-          />
-          <Column
-            boardId={boardId}
-            cards={initialCards}
-            column="doing"
-            headingColor="text-blue-300"
-            setErrorMessage={setErrorMessage}
-            setIsDragging={setIsDragging}
-            title="In Progress"
-          />
-          <Column
-            boardId={boardId}
-            cards={initialCards}
-            column="done"
-            headingColor="text-emerald-300"
-            setErrorMessage={setErrorMessage}
-            setIsDragging={setIsDragging}
-            title="Complete"
-          />
+          {columns.map((column) => (
+            <Column
+              key={column.column}
+              {...column}
+              boardId={boardId}
+              cards={initialCards}
+              onDragEnd={handleDragEnd}
+              onDragStart={handleDragStart}
+              onMove={handleMove}
+            />
+          ))}
         </div>
 
-        <BurnBarrel
-          boardId={boardId}
-          isDragging={isDragging}
-          setErrorMessage={setErrorMessage}
-          setIsDragging={setIsDragging}
-        />
+        <BurnBarrel isDragging={isDragging} onDelete={remove.mutate} onDragEnd={handleDragEnd} />
       </MotionConfig>
     </LazyMotion>
   );
 };
 
+export type ColumnType = "backlog" | "todo" | "doing" | "done";
+export interface KanbanCard {
+  column: ColumnType;
+  id: string;
+  title: string;
+}
 interface ColumnProps {
   boardId: string;
   cards: KanbanCard[];
   column: ColumnType;
   headingColor: string;
-  onMutation?: () => void;
-  setErrorMessage: Dispatch<SetStateAction<string | null>>;
-  setIsDragging: Dispatch<SetStateAction<boolean>>;
+  onDragEnd: () => void;
+  onDragStart: () => void;
+  onMove: (cardId: string, column: ColumnType, before: string) => void;
   title: string;
 }
 
@@ -105,56 +124,33 @@ const Column = ({
   headingColor,
   cards,
   column,
-  setErrorMessage,
   boardId,
-  setIsDragging,
+  onDragEnd,
+  onDragStart,
+  onMove,
 }: ColumnProps) => {
   const [active, setActive] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
   const handleDragStart = (e: DragEvent, card: KanbanCard) => {
     e.dataTransfer.setData("cardId", card.id);
-    setIsDragging(true);
+    onDragStart();
   };
 
-  const handleDragEnd = async (e: DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     const cardId = e.dataTransfer.getData("cardId");
 
     setActive(false);
-    setIsDragging(false);
+    onDragEnd();
     clearHighlights();
 
     const indicators = getIndicators();
-    const { element } = getNearestIndicator(e, indicators);
+    const { element } = getNearestIndicator(e.clientY, indicators);
     if (!element) {
       return;
     }
 
     const before = element.dataset.before ?? "-1";
-    if (before === cardId) {
-      return;
-    }
-
-    const moveResult = moveCard(cards, cardId, column, before);
-    if (!moveResult) {
-      return;
-    }
-
-    const destColumnCards = moveResult.nextCards.filter((c) => c.column === column);
-    const newPosition = destColumnCards.findIndex((c) => c.id === cardId);
-
-    setErrorMessage(null);
-    const { error } = await api.cards({ id: cardId }).patch(
-      { column, position: newPosition },
-      {
-        optimistic: (cache) =>
-          cache.update(api.boards({ boardId }).get, (data) => ({
-            ...data,
-            cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
-          })),
-      }
-    );
-    if (error) {
-      setErrorMessage("Could not move the card. Please try again.");
-    }
+    onMove(cardId, column, before);
   };
 
   const handleDragOver = (e: DragEvent) => {
@@ -173,42 +169,15 @@ const Column = ({
   const highlightIndicator = (e: DragEvent) => {
     const indicators = getIndicators();
     clearHighlights(indicators);
-    const el = getNearestIndicator(e, indicators);
+    const el = getNearestIndicator(e.clientY, indicators);
     if (!el.element) {
       return;
     }
     el.element.style.opacity = "1";
   };
 
-  // react-doctor-disable-next-line react-doctor/prefer-module-scope-pure-function
-  const getNearestIndicator = (e: DragEvent, indicators: HTMLElement[]) => {
-    const lastIndicator = indicators.at(-1);
-    if (!lastIndicator) {
-      return {
-        element: null,
-        offset: Number.NEGATIVE_INFINITY,
-      };
-    }
-
-    const DISTANCE_OFFSET = 50;
-    return indicators.reduce(
-      (closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = e.clientY - (box.top + DISTANCE_OFFSET);
-        if (offset < 0 && offset > closest.offset) {
-          return { element: child, offset };
-        }
-        return closest;
-      },
-      {
-        element: lastIndicator,
-        offset: Number.NEGATIVE_INFINITY,
-      }
-    );
-  };
-
   const getIndicators = () =>
-    Array.from(document.querySelectorAll(`[data-column="${column}"]`) as unknown as HTMLElement[]);
+    Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-column]") ?? []);
 
   const handleDragLeave = () => {
     clearHighlights();
@@ -236,7 +205,8 @@ const Column = ({
         )}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
-        onDrop={handleDragEnd}
+        onDrop={handleDrop}
+        ref={listRef}
       >
         {filteredCards.map((c) => (
           <Card key={c.id} {...c} boardId={boardId} handleDragStart={handleDragStart} />
@@ -251,6 +221,22 @@ const Column = ({
 interface CardProps extends KanbanCard {
   boardId: string;
   handleDragStart: (e: DragEvent, card: KanbanCard) => void;
+}
+
+function getNearestIndicator(clientY: number, indicators: HTMLElement[]) {
+  const lastIndicator = indicators.at(-1);
+  if (!lastIndicator) {
+    return { element: null, offset: Number.NEGATIVE_INFINITY };
+  }
+
+  const DISTANCE_OFFSET = 50;
+  return indicators.reduce(
+    (closest, child) => {
+      const offset = clientY - (child.getBoundingClientRect().top + DISTANCE_OFFSET);
+      return offset < 0 && offset > closest.offset ? { element: child, offset } : closest;
+    },
+    { element: lastIndicator, offset: Number.NEGATIVE_INFINITY }
+  );
 }
 
 const Card = ({ title, id, column, boardId, handleDragStart }: CardProps) => (
@@ -301,13 +287,12 @@ const DropIndicator = ({ beforeId, column }: DropIndicatorProps) => (
 );
 
 interface BurnBarrelProps {
-  boardId: string;
   isDragging: boolean;
-  setErrorMessage: Dispatch<SetStateAction<string | null>>;
-  setIsDragging: Dispatch<SetStateAction<boolean>>;
+  onDelete: (cardId: string) => void;
+  onDragEnd: () => void;
 }
 
-const BurnBarrel = ({ boardId, isDragging, setErrorMessage, setIsDragging }: BurnBarrelProps) => {
+const BurnBarrel = ({ isDragging, onDelete, onDragEnd }: BurnBarrelProps) => {
   const [active, setActive] = useState(false);
 
   const handleDragOver = (e: DragEvent) => {
@@ -319,26 +304,16 @@ const BurnBarrel = ({ boardId, isDragging, setErrorMessage, setIsDragging }: Bur
     setActive(false);
   };
 
-  const handleDrop = async (e: DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     const cardId = e.dataTransfer.getData("cardId");
     setActive(false);
-    setIsDragging(false);
+    onDragEnd();
 
     if (!cardId) {
       return;
     }
 
-    setErrorMessage(null);
-    const { error } = await api.cards({ id: cardId }).delete(undefined, {
-      optimistic: (cache) =>
-        cache.update(api.boards({ boardId }).get, (data) => ({
-          ...data,
-          cards: data.cards.filter((card) => card.id !== cardId),
-        })),
-    });
-    if (error) {
-      setErrorMessage("Could not delete the card. Please try again.");
-    }
+    onDelete(cardId);
   };
 
   return (
@@ -376,55 +351,42 @@ interface AddCardFormProps extends AddCardProps {
 
 const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
   const [text, setText] = useState("");
-  const [addError, handleSubmit, isPending] = useActionState(
-    async (_previous: string | null, formData: FormData): Promise<string | null> => {
-      const title = String(formData.get("title") ?? "").trim();
-      if (!title) {
-        return null;
-      }
+  const add = useMutation(api.boards({ boardId }).cards.post, { onSuccess: onClose });
+  const handleSubmit = (formData: FormData) => {
+    const title = String(formData.get("title") ?? "").trim();
+    if (!title) {
+      return;
+    }
 
-      const temporaryId = crypto.randomUUID();
-      const createdAt = new Date().toISOString();
-      try {
-        const { error } = await api.boards({ boardId }).cards.post(
-          { column, title },
-          {
-            optimistic: (cache) =>
-              cache.update(api.boards({ boardId }).get, (data) => ({
-                ...data,
-                cards: [
-                  ...data.cards,
-                  {
-                    boardId,
-                    column,
-                    createdAt,
-                    description: "",
-                    id: temporaryId,
-                    position: data.cards.filter((card) => card.column === column).length,
-                    title,
-                  },
-                ],
-              })),
-          }
-        );
-        if (error) {
-          return error.value?.detail ?? "Could not create the card. Please try again.";
-        }
-
-        onClose();
-        return null;
-      } catch {
-        return "Could not create the card. Please try again.";
+    add.mutate(
+      { column, title },
+      {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: [
+              ...data.cards,
+              {
+                boardId,
+                column,
+                createdAt: new Date().toISOString(),
+                description: "",
+                id: crypto.randomUUID(),
+                position: data.cards.filter((card) => card.column === column).length,
+                title,
+              },
+            ],
+          })),
       }
-    },
-    null
-  );
+    );
+  };
 
   return (
     <m.form action={handleSubmit} className="mt-1.5" layout>
-      {!isPending && addError ? (
+      {add.error ? (
         <p className="mb-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 text-xs">
-          {addError}
+          {(add.error.status === 0 ? null : add.error.value?.detail) ??
+            "Could not create the card. Please try again."}
         </p>
       ) : null}
       <textarea
@@ -433,7 +395,7 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
           "w-full rounded-lg border border-violet-500/40 bg-violet-500/8 p-2.5 text-sm",
           "resize-none text-neutral-200 placeholder-neutral-600 focus:outline-none"
         )}
-        disabled={isPending}
+        disabled={add.isPending}
         name="title"
         onChange={(e) => setText(e.target.value)}
         placeholder="Add new task..."
@@ -443,7 +405,7 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
       <div className="mt-1.5 flex items-center justify-end gap-1.5">
         <button
           className="px-3 py-1.5 text-neutral-600 text-xs transition-colors hover:text-neutral-400"
-          disabled={isPending}
+          disabled={add.isPending}
           onClick={onClose}
           type="button"
         >
@@ -454,10 +416,10 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
             "flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5",
             "font-medium text-white text-xs transition-colors hover:bg-violet-500"
           )}
-          disabled={isPending}
+          disabled={add.isPending}
           type="submit"
         >
-          <span>{isPending ? "Adding…" : "Add"}</span>
+          <span>{add.isPending ? "Adding…" : "Add"}</span>
           <FiPlus />
         </button>
       </div>

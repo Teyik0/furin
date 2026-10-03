@@ -1,5 +1,6 @@
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import type { HeadOptions, RenderingMode } from "../../client.ts";
+import type { RemountDependency } from "../../shared/page-key.ts";
 
 interface DefinedRouteTerminal {
   __type: "FURIN_ROUTE";
@@ -10,6 +11,7 @@ interface DefinedRouteTerminal {
   loader?: (...args: never[]) => unknown;
   mode?: RenderingMode;
   page?: (...args: never[]) => React.ReactNode;
+  remountDeps?: (context: never) => readonly RemountDependency[];
   requestLoader?: (...args: never[]) => unknown;
   revalidate?: number;
   schemas?: { params?: unknown; query?: unknown };
@@ -66,6 +68,7 @@ export function adaptDefinedPage(route: DefinedRouteTerminal, parent: RuntimeRou
       params: route.schemas?.params,
       parent,
       query: route.schemas?.query,
+      remountDeps: route.remountDeps as RuntimeRoute["remountDeps"],
       requestLoader: route.requestLoader as RuntimeRoute["requestLoader"],
     },
     component,

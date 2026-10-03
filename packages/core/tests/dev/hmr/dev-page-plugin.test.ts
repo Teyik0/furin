@@ -12,6 +12,76 @@ import {
   WORKSPACE_SOURCE_FILTER,
 } from "../../../src/server/dev-page-plugin.ts";
 
+const MDX_FILTER = /\.mdx$/;
+
+test("a virtual development loader resolves a dynamically imported MDX alias", async () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-mdx-"));
+  const filePath = resolve(directory, "page.ts");
+  const markdown = "# Sync & Invalidations\n";
+  try {
+    writeFileSync(
+      resolve(directory, "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { paths: { "@/*": ["./*"] } } })
+    );
+    writeFileSync(resolve(directory, "sync.mdx"), markdown);
+    writeFileSync(
+      filePath,
+      'export async function loadSync() { return (await import("@/sync.mdx")).default; }'
+    );
+    Bun.plugin({
+      name: "dev-loader-test-mdx",
+      setup(build) {
+        build.onLoad({ filter: MDX_FILTER }, async (args) => ({
+          contents: `export default ${JSON.stringify(await Bun.file(args.path).text())};`,
+          loader: "js",
+        }));
+      },
+    });
+    registerDevPagePlugin();
+    const imported = (await import(`${filePath}?furin-server&t=1`)) as {
+      loadSync: () => Promise<string>;
+    };
+    expect(await imported.loadSync()).toBe(markdown);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("virtual modules resolve static imports and re-exports while preserving import examples", async () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-alias-"));
+  const filePath = resolve(directory, "page.ts");
+  const example = 'import "@/value.ts"';
+  try {
+    writeFileSync(
+      resolve(directory, "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { paths: { "@/*": ["./*"] } } })
+    );
+    writeFileSync(resolve(directory, "value.ts"), 'export const value = "loaded";');
+    writeFileSync(
+      filePath,
+      [
+        `export const example = '${example}';`,
+        '// import "@/value.ts"',
+        'import { value } from "@/value.ts";',
+        'export { value } from "@/value.ts";',
+        'export const label = "café " + value;',
+      ].join("\n")
+    );
+    registerDevPagePlugin();
+    const imported = (await import(`${filePath}?furin-server&t=1`)) as {
+      example: string;
+      label: string;
+      value: string;
+    };
+
+    expect(imported.example).toBe(example);
+    expect(imported.value).toBe("loaded");
+    expect(imported.label).toBe("café loaded");
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test.each([
   {
     name: "development loader keeps text import attributes",
