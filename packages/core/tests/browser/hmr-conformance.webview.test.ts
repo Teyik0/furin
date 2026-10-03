@@ -2595,6 +2595,104 @@ browserTest(
   60_000
 );
 
+for (const importKind of ["static", "dynamic", "circular"] as const) {
+  browserTest(
+    `editing a ${importKind} server-only composite helper refreshes the browser while preserving client state`,
+    async () => {
+      const helper = (version: string): string =>
+        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }`;
+      let page = rscPageSource("server-helper")
+        .replace(
+          'import { useState } from "react";',
+          'import { useState } from "react";\nimport { ServerCard } from "../components/server-card";'
+        )
+        .replace('mode: "ssr"', 'mode: "ssg"')
+        .replace('<article data-testid="rsc-value">rsc-server-helper</article>', "<ServerCard />");
+      if (importKind === "dynamic") {
+        page = page
+          .replace('import { ServerCard } from "../components/server-card";\n', "")
+          .replace(
+            "  .loader(async () => ({",
+            '  .loader(async () => { const { ServerCard } = await import("../components/server-card"); return ({'
+          )
+          .replace("  }))", "  }); })");
+      } else if (importKind === "circular") {
+        page += "\nexport const seed = 1;";
+      }
+      const harness = await createBrowserHarness(
+        page,
+        [{ contents: helper("before"), relativePath: "src/components/server-card.tsx" }],
+        false
+      );
+      activeHarness = harness;
+      const documentId = (await harness.view.evaluate(
+        "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+      )) as string;
+      await waitForElementText(harness.view, '[data-testid="rsc-value"]', "before");
+      await harness.view.click('[data-testid="increment"]');
+      await waitForElementText(harness.view, '[data-testid="count"]', "1");
+
+      writeAppFile(harness.app.path, "src/components/server-card.tsx", helper("after"));
+
+      await waitForElementText(harness.view, '[data-testid="rsc-value"]', "after");
+      const after = await readSnapshot(harness.view);
+      expect(after.count).toBe("1");
+      expect(after.documentId).toBe(documentId);
+    },
+    60_000
+  );
+}
+
+browserTest(
+  "editing a server-only composite helper used by a nested layout preserves client state",
+  async () => {
+    const helper = (version: string): string =>
+      `export function ServerCard() { return <article data-testid="rsc-value">${version}</article>; }`;
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        { contents: helper("before"), relativePath: "src/components/server-card.tsx" },
+        {
+          contents: [
+            'import { defineRoute } from "@teyik0/furin";',
+            'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
+            'import { ServerCard } from "../../components/server-card";',
+            'import { route as rootRoute } from "../root";',
+            "export const route = defineRoute()",
+            '  .config({ layout: rootRoute, mode: "ssg" })',
+            "  .loader(async () => ({ card: await createCompositeComponent(() => <ServerCard />) }))",
+            "  .layout(({ children, card }) => <section>{children}<CompositeComponent src={card} /></section>);",
+          ].join("\n"),
+          relativePath: "src/pages/nested/_route.tsx",
+        },
+        {
+          contents: pageSource("nested-helper", false)
+            .replace('from "./root"', 'from "./_route"')
+            .replace('mode: "ssr"', 'mode: "ssg"'),
+          relativePath: "src/pages/nested/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/nested`);
+    await waitForElementText(harness.view, '[data-testid="rsc-value"]', "before");
+    const documentId = (await harness.view.evaluate(
+      "(() => { window.__furinTestDocumentId = crypto.randomUUID(); return window.__furinTestDocumentId; })()"
+    )) as string;
+    await harness.view.click('[data-testid="increment"]');
+    await waitForElementText(harness.view, '[data-testid="count"]', "1");
+
+    writeAppFile(harness.app.path, "src/components/server-card.tsx", helper("after"));
+
+    await waitForElementText(harness.view, '[data-testid="rsc-value"]', "after");
+    const after = await readSnapshot(harness.view);
+    expect(after.count).toBe("1");
+    expect(after.documentId).toBe(documentId);
+  },
+  60_000
+);
+
 browserTest(
   "a route added during development becomes available to browser navigation",
   async () => {

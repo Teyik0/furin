@@ -1,23 +1,26 @@
 import { defineRoute } from "@teyik0/furin";
+import { DocContent } from "@/components/doc-content";
 import { DocPage } from "@/components/doc-page";
-import Comparison from "@/content/docs/comparison.mdx";
+import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 import { route as parentRoute } from "./_route";
 
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(() => {
+  .loader(async () => {
+    const { default: Comparison } = await import("@/content/docs/comparison.mdx");
     const doc = DOCS_BY_PATH["/docs/comparison"];
-    return { markdownSource: getDocSourceText(doc.sourcePath) };
+    return {
+      content: await renderDocContent(Comparison),
+      markdownSource: getDocSourceText(doc.sourcePath),
+    };
   })
   .head(() => ({
     meta: [{ title: "Next.js vs TanStack Start vs Furin — Furin" }],
   }))
-  .page(({ markdownSource }) => (
-    <DocPage
-      Content={Comparison}
-      doc={DOCS_BY_PATH["/docs/comparison"]}
-      markdownSource={markdownSource}
-    />
+  .page(({ content, markdownSource }) => (
+    <DocPage doc={DOCS_BY_PATH["/docs/comparison"]} markdownSource={markdownSource}>
+      <DocContent src={content} />
+    </DocPage>
   ));

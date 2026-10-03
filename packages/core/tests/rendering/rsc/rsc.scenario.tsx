@@ -1,7 +1,7 @@
 import { expect } from "bun:test";
 import { type Context, Elysia } from "elysia";
 import { defer } from "furin/client";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
@@ -339,6 +339,87 @@ try {
     )
   ).toBe(
     '<article><h2>Profile</h2><footer><button type="button">Loaded</button></footer></article>'
+  );
+
+  interface SlotData {
+    flags: boolean[];
+    self?: SlotData;
+  }
+  const slotData: SlotData = { flags: [false, true] };
+  slotData.self = slotData;
+  let previousSlotData: SlotData | undefined;
+  const Nested = await createCompositeComponent<{
+    Wrapper: (props: { children: ReactNode; data: SlotData }) => ReactNode;
+    Action: (props: { label: string }) => ReactNode;
+  }>(({ Wrapper, Action }) => (
+    <Wrapper data={slotData}>
+      <span>
+        <Action label="Nested action" />
+      </span>
+    </Wrapper>
+  ));
+  expect(
+    await renderHtml(
+      <CompositeComponent
+        Action={({ label }) => <button type="button">{label}</button>}
+        src={Nested}
+        Wrapper={({ children, data: receivedData }) => {
+          expect(receivedData.flags).toEqual([false, true]);
+          expect(receivedData.self).toBe(receivedData);
+          if (previousSlotData !== undefined) {
+            expect(receivedData).toBe(previousSlotData);
+          }
+          previousSlotData = receivedData;
+          return <aside>{children}</aside>;
+        }}
+      />
+    )
+  ).toBe('<aside><span><button type="button">Nested action</button></span></aside>');
+  await renderHtml(
+    <CompositeComponent
+      Action={({ label }) => <button type="button">{label}</button>}
+      src={Nested}
+      Wrapper={({ children, data: receivedData }) => {
+        expect(previousSlotData).toBe(receivedData);
+        return <aside>{children}</aside>;
+      }}
+    />
+  );
+
+  await Promise.all(
+    [true, false].map(async (explicitKey) => {
+      const Keyed = await createCompositeComponent<{
+        Wrapper: (props: { children: ReactNode }) => ReactNode;
+        Action: (props: { label: string }) => ReactNode;
+      }>(({ Wrapper, Action }) => (
+        <Wrapper>
+          <Action key={explicitKey ? "1" : undefined} label="First" />
+          <Action label="Second" />
+        </Wrapper>
+      ));
+      expect(
+        await renderHtml(
+          <CompositeComponent
+            Action={({ label }) => (
+              <button key={label === "First" ? "1" : undefined} type="button">
+                {label}
+              </button>
+            )}
+            src={Keyed}
+            Wrapper={({ children }) => {
+              const nodes = (Array.isArray(children) ? children : [children]).filter(
+                isValidElement
+              );
+              expect(nodes).toHaveLength(2);
+              expect(new Set(nodes.map((node) => node.key)).size).toBe(2);
+              return <aside>{children}</aside>;
+            }}
+          />
+        )
+      ).toBe(
+        '<aside><button type="button">First</button><button type="button">Second</button></aside>'
+      );
+    })
   );
 
   for (const mode of ["ssg", "isr"] as const) {

@@ -60,10 +60,7 @@ type DocPageProps = {
 export function DocPage({ Content, children, doc, markdownSource }: DocPageProps) {
   const content = Content ? <Content components={MDX_COMPONENTS} /> : children;
   return (
-    <article
-      className="doc-content prose prose-slate dark:prose-invert max-w-none"
-      id="doc-content"
-    >
+    <article className="doc-content prose dark:prose-invert max-w-none" id="doc-content">
       <DocsActions doc={doc} markdownSource={markdownSource} />
       {content}
     </article>

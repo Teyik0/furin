@@ -25,10 +25,10 @@ test(
   "dev ISR and SSG loader cache integration",
   async () => {
     const result = await runDevCacheScenarioWorker();
-    expect(result.type).toBe("pass");
     if (result.type === "fail") {
       throw new Error([result.message, result.stack].filter(Boolean).join("\n"));
     }
+    expect(result.type).toBe("pass");
   },
   { timeout: 30_000 }
 );

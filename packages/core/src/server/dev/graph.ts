@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, isAbsolute, resolve } from "node:path";
 import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { currentInstance, type FurinInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -84,7 +84,7 @@ export function resolveDevSourceImports(
           ? resolve(dirname(path), imported.path)
           : Bun.resolveSync(imported.path, dirname(path));
       const resolved = normalizeModulePath(absolute);
-      if (!resolved.includes("/node_modules/")) {
+      if (isAbsolute(resolved) && !resolved.includes("/node_modules/")) {
         imports.push(resolved);
       }
     } catch {
@@ -266,6 +266,20 @@ export class DevGraph<Snapshot> {
   dependsOn(from: string, to: string): boolean {
     const normalizedTo = normalizeModulePath(to);
     return this.importChain(from, normalizedTo).includes(normalizedTo);
+  }
+
+  sourceDependencies(from: string): string[] {
+    const pending = [normalizeModulePath(from)];
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const path = pending.pop();
+      if (path === undefined || visited.has(path)) {
+        continue;
+      }
+      visited.add(path);
+      pending.push(...(this.#dependencies.get(path) ?? []));
+    }
+    return [...visited];
   }
 
   clearSourceErrors(path: string): void {

@@ -1,6 +1,4 @@
-import { Link } from "@teyik0/furin/link";
-import { Reveal } from "./reveal";
-import { SyncDemo } from "./sync-demo";
+import type { LandingSlots } from "./landing-server";
 
 const CALLOUTS = [
   {
@@ -66,7 +64,10 @@ function CodePanel({ html, title }: { html: string; title: string }) {
 export function SyncSection({
   clientHtml,
   serverHtml,
-}: {
+  Link,
+  Reveal,
+  SyncDemo,
+}: Pick<LandingSlots, "Link" | "Reveal" | "SyncDemo"> & {
   clientHtml: string;
   serverHtml: string;
 }) {

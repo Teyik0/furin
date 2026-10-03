@@ -133,7 +133,13 @@ describe.serial("buildPackageTarget", () => {
     const { root, routes } = await scanPages(pagesDir);
     await expect(buildPackageTarget({ pagesDir, prefix: "", root, routes }, app.path,
       join(app.path, ".furin/build"), { target: "package", reactCompiler: false }))
-      .rejects.toThrow();
+      .rejects.toMatchObject({
+        errors: expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining("imports furin/client-only from the ssr graph."),
+          }),
+        ]),
+      });
   });
 
   test("strips browser-only client modules from the package server artifact", async () => {

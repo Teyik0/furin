@@ -10,6 +10,7 @@ const HINT_COLUMN = 41;
 const LINE_HEIGHT = "calc(13px * 1.7)";
 
 export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, string> }) {
+  "use no memo";
   const [active, setActive] = useState<TabName>("pages/index.tsx");
 
   return (

@@ -41,6 +41,7 @@ function chipFor(step: Step, who: Who): Chip {
 }
 
 function Board({ who, step, active }: { who: Who; step: Step; active: boolean }) {
+  "use no memo";
   const chip = chipFor(step, who);
   const moving = step.actor === who && step.phase === "optimistic";
   return (
@@ -104,6 +105,7 @@ function Board({ who, step, active }: { who: Who; step: Step; active: boolean })
  * Pure DOM/CSS; the loop only runs while the demo is on screen.
  */
 export function SyncDemo() {
+  "use no memo";
   const ref = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(STATIC_STEP);
   const [active, setActive] = useState(false);

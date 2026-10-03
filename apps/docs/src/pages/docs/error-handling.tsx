@@ -1,23 +1,26 @@
 import { defineRoute } from "@teyik0/furin";
+import { DocContent } from "@/components/doc-content";
 import { DocPage } from "@/components/doc-page";
-import ErrorHandling from "@/content/docs/error-handling.mdx";
+import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 import { route as parentRoute } from "./_route";
 
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(() => {
+  .loader(async () => {
+    const { default: ErrorHandling } = await import("@/content/docs/error-handling.mdx");
     const doc = DOCS_BY_PATH["/docs/error-handling"];
-    return { markdownSource: getDocSourceText(doc.sourcePath) };
+    return {
+      content: await renderDocContent(ErrorHandling),
+      markdownSource: getDocSourceText(doc.sourcePath),
+    };
   })
   .head(() => ({
     meta: [{ title: "Error Handling — Furin" }],
   }))
-  .page(({ markdownSource }) => (
-    <DocPage
-      Content={ErrorHandling}
-      doc={DOCS_BY_PATH["/docs/error-handling"]}
-      markdownSource={markdownSource}
-    />
+  .page(({ content, markdownSource }) => (
+    <DocPage doc={DOCS_BY_PATH["/docs/error-handling"]} markdownSource={markdownSource}>
+      <DocContent src={content} />
+    </DocPage>
   ));

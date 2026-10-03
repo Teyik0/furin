@@ -1,6 +1,5 @@
-import { Link } from "@teyik0/furin/link";
 import type { CSSProperties } from "react";
-import { Reveal } from "./reveal";
+import type { LandingSlots } from "./landing-server";
 
 // Output shortened from a real `--compile embed` run on examples/task-manager
 // (Bun 1.4.2, macOS arm64): a 70,020,594-byte executable.
@@ -15,7 +14,7 @@ const LINES = [
 ] as const;
 
 /** Compact "ship one binary" strip: the compile command, the artifact, and running it. */
-export function ShipSection() {
+export function ShipSection({ Link, Reveal }: Pick<LandingSlots, "Link" | "Reveal">) {
   return (
     <section className="lp-defer relative py-24 sm:py-32">
       <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">

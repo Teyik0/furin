@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 const COMMAND = "bun create furin@latest";
 
 export function CopyCommand({ className }: { className?: string }) {
+  "use no memo";
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {

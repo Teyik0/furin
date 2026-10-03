@@ -18,6 +18,15 @@ test("discovers relative imports with a custom file extension", () => {
   expect(imports).toEqual([join(import.meta.dir, "article.content").replaceAll("\\", "/")]);
 });
 
+test("tracks local sources without treating runtime builtins as source files", () => {
+  const { imports } = resolveDevSourceImports(
+    'import { file } from "bun"; import { readFile } from "node:fs"; import Content from "./article.content";',
+    join(import.meta.dir, "page.tsx"),
+    "tsx"
+  );
+  expect(imports).toEqual([join(import.meta.dir, "article.content").replaceAll("\\", "/")]);
+});
+
 test("maps a JavaScript import specifier to its TypeScript source", () => {
   const directory = mkdtempSync(join(tmpdir(), "furin-graph-import-"));
   try {

@@ -41,6 +41,7 @@ function pickParticleCount(variant: ChimeCanvasProps["variant"]): number {
  * stay `pointer-events: none` underneath real DOM content.
  */
 export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCanvasProps) {
+  "use no memo";
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<ChimeScene | null>(null);
   const [ready, setReady] = useState(false);

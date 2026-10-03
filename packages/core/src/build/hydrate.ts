@@ -361,6 +361,12 @@ if (__deferred && __deferred._chunks) {
       initialNotFound: loaderData.__furinNotFound ?? {},${routerProviderDefaults}
     } as any);
   } else {
+    // A removed active route has no match in the new development manifest.
+    // Reload its document so the server can render the current 404 response.
+    if (import.meta.hot && (window as unknown as { __FURIN_ROOT__?: unknown }).__FURIN_ROOT__) {
+      window.location.reload();
+      return;
+    }
     // No match and no 404 signal — either the client bundle is out of sync
     // with the server (stale deploy) or the server returned something we
     // don't know how to hydrate. Bail loudly; the page stays static.
@@ -447,13 +453,21 @@ if (__deferred && __deferred._chunks) {
 export function writeDevFiles(
   routes: ResolvedRoute[],
   { outDir, rootLayout, basePath, clientLogging, skipRouteTypes }: BuildClientOptions,
-  projectRoot: string
+  projectRoot: string,
+  serverSourceVersion?: string
 ): void {
   if (!existsSync(outDir)) {
     mkdirSync(outDir, { recursive: true });
   }
 
-  const hydrateCode = generateHydrateEntry(routes, rootLayout, basePath, clientLogging);
+  // Server-only helpers are absent from Bun's client graph. A live version
+  // makes their edits use the same transactional HMR path as client edits.
+  const serverVersion =
+    serverSourceVersion === undefined
+      ? ""
+      : `\nif (import.meta.hot) import.meta.hot.data.furinServerSourceVersion = ${JSON.stringify(serverSourceVersion)};\n`;
+  const hydrateCode =
+    generateHydrateEntry(routes, rootLayout, basePath, clientLogging) + serverVersion;
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";
   let changed = false;

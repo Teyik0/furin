@@ -612,6 +612,7 @@ function walkWithAncestors(
 
 interface HmrDependencyState {
   dependencies: Map<number, AstNode>;
+  dynamicImports: Set<string>;
   imports: Set<ImportDeclaration>;
   importTrackedDependencies: Set<number>;
   moduleBindings: ReturnType<typeof collectModuleBindings>;
@@ -623,8 +624,13 @@ function collectDependencyIdentifier(
   trackImports: boolean,
   state: HmrDependencyState
 ): void {
+  const parent = ancestors.at(-1);
+  const jsxReference =
+    child.type === "JSXIdentifier" &&
+    ((parent?.type === "JSXOpeningElement" && parent.name === child) ||
+      (parent?.type === "JSXMemberExpression" && parent.object === child));
   if (
-    child.type !== "Identifier" ||
+    !(child.type === "Identifier" || jsxReference) ||
     typeof child.name !== "string" ||
     !isReferenceIdentifier(child, ancestors) ||
     hasShadowingDeclaration(child.name, ancestors)
@@ -661,6 +667,12 @@ function collectDependencies(
 ): void {
   walkWithAncestors(node, [], (child, ancestors) => {
     collectDependencyIdentifier(child, ancestors, trackImports, state);
+    if (trackImports && child.type === "ImportExpression") {
+      const specifier = asAstNode(child.source)?.value;
+      if (typeof specifier === "string") {
+        state.dynamicImports.add(specifier);
+      }
+    }
   });
 }
 
@@ -673,6 +685,7 @@ function createHmrDataSignature(
   const serverStages: Array<{ source: string; start: number }> = [];
   const dependencyState: HmrDependencyState = {
     dependencies: new Map(),
+    dynamicImports: new Set(),
     imports: new Set(),
     importTrackedDependencies: new Set(),
     moduleBindings: collectModuleBindings(program),
@@ -732,14 +745,27 @@ function createHmrDataSignature(
     .map((entry) => entry.source)
     .join("\n");
   const hash = new Bun.CryptoHasher("sha256").update(dataSource).digest("hex");
-  if (dependencyState.imports.size === 0) {
+  if (dependencyState.imports.size === 0 && dependencyState.dynamicImports.size === 0) {
     return hash;
   }
   const dependencies = hmrDependencySignature(
-    new Set([...dependencyState.imports].map((imported) => imported.source.value)),
+    new Set([
+      ...[...dependencyState.imports].map((imported) => imported.source.value),
+      ...dependencyState.dynamicImports,
+    ]),
     filename
   );
   return dependencies === undefined ? `external:${hash}` : `imports:${hash}:${dependencies}`;
+}
+
+/** Server stages and their imports share one signature across both HMR graphs. */
+export function getHmrDataSignature(code: string, filename: string): string {
+  const { diagnostics, program } = parseSource(code, detectLangFromPath(filename));
+  const error = diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (error) {
+    throw new Error(`Failed to parse ${filename}: ${error.message}`);
+  }
+  return createHmrDataSignature(code, program, collectDefineRouteBindings(program), filename);
 }
 
 function calledHookName(call: AstNode): string | null {

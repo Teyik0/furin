@@ -14,6 +14,7 @@ interface RevealProps {
  * by this component), so no-JS visitors and crawlers always see the content.
  */
 export function Reveal({ children, className, delay = 0 }: RevealProps) {
+  "use no memo";
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
