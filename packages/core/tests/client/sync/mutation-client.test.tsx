@@ -113,6 +113,91 @@ test.each([
   }
 );
 
+test.each([
+  { body: null, detail: "Mutation failed" },
+  { body: "", detail: "Mutation failed" },
+  { body: "Bad gateway", detail: "Bad gateway" },
+  { body: 123, detail: "Mutation failed" },
+  { body: ["Unexpected payload"], detail: "Mutation failed" },
+])(
+  "an unexpected HTTP body $body becomes a readable Eden error without losing its status",
+  async ({ body, detail }) => {
+    const app = new Elysia().delete("/cards", () => ({ ok: true }));
+    const api = createClient<typeof app>(window.location.origin, {
+      fetcher: ((_input, _init) =>
+        Promise.resolve(Response.json(body, { status: 502 }))) as typeof fetch,
+    });
+    let observed: unknown;
+    let rejected: Promise<unknown> | undefined;
+    function View() {
+      const mutation = useMutation(api.cards.delete, {
+        onError(error) {
+          observed = error;
+        },
+      });
+      return (
+        <button
+          disabled={mutation.isPending}
+          onClick={() => {
+            rejected = mutation.mutateAsync().catch((error: unknown) => error);
+          }}
+          type="button"
+        >
+          {mutation.error ? mutation.error.value.detail : "Save"}
+        </button>
+      );
+    }
+    const container = document.createElement("div");
+    root = createRoot(container);
+    await act(() => root?.render(<View />));
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await Promise.resolve();
+    });
+    expect(observed).toMatchObject({ status: 502, value: { detail } });
+    expect(await rejected).toBe(observed);
+    expect(container.textContent).toBe(detail);
+    expect(container.querySelector("button")?.disabled).toBe(false);
+  }
+);
+
+test.each([
+  { code: "CONFLICT" },
+  { code: "CONFLICT", detail: null },
+  { code: "CONFLICT", detail: 123 },
+])("business fields remain typed when a missing or invalid detail is normalized", async (value) => {
+  const failure = Object.freeze({ status: 409 as const, value: Object.freeze(value) });
+  let observed: unknown;
+  function View() {
+    const mutation = useMutation(async () => ({ data: null, error: failure }), {
+      onError(error) {
+        observed = error;
+      },
+    });
+    return (
+      <button onClick={() => mutation.mutate()} type="button">
+        {mutation.error?.status === 409
+          ? `${mutation.error.value.code}:${mutation.error.value.detail}`
+          : "Save"}
+      </button>
+    );
+  }
+  const container = document.createElement("div");
+  root = createRoot(container);
+  await act(() => root?.render(<View />));
+  await act(async () => {
+    container.querySelector("button")?.click();
+    await Promise.resolve();
+  });
+  expect(container.textContent).toBe("CONFLICT:Mutation failed");
+  expect(observed).toMatchObject({
+    status: 409,
+    value: { code: "CONFLICT", detail: "Mutation failed" },
+    cause: failure,
+  });
+  expect(failure.value).toBe(value);
+});
+
 test.each(["throw", "return", "success-callback"])(
   "a %s exception has the same Eden shape in onError, state and mutateAsync",
   async (source) => {

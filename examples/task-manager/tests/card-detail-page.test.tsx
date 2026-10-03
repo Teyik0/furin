@@ -73,7 +73,7 @@ test("card mutations disable both actions while pending and allow retry after re
   document.body.appendChild(container);
   const root = createRoot(container);
   try {
-    await act(() =>
+    act(() =>
       root.render(
         createElement(CardPage, {
           boardName: "Board",
@@ -277,7 +277,7 @@ test.each([
       button?.click();
       await Promise.resolve();
     });
-    let message = `Could not ${action} the card. Please try again.`;
+    let message = "Mutation failed";
     if (failure === "validation") {
       message = "Title is invalid";
     } else if (failure === "network") {
@@ -345,7 +345,7 @@ test("a rejected save preserves the user's title and description", async () => {
       container.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
       await Promise.resolve();
     });
-    await waitForDom(() => container.textContent?.includes("Could not save the card") === true, {
+    await waitForDom(() => container.textContent?.includes("Mutation failed") === true, {
       timeoutMs: 2000,
     });
     expect(submittedCards.at(-1)).toEqual({

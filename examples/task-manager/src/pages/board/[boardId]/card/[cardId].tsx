@@ -191,7 +191,7 @@ export const route = defineRoute()
                       id="card-delete-error"
                       role="alert"
                     >
-                      {remove.error.value?.detail ?? "Could not delete the card. Please try again."}
+                      {remove.error.value.detail}
                     </p>
                   ) : null}
                 </div>
@@ -207,7 +207,7 @@ export const route = defineRoute()
                   </button>
                   {save.error ? (
                     <p className="max-w-xs text-red-300 text-sm" id="card-save-error" role="alert">
-                      {save.error.value?.detail ?? "Could not save the card. Please try again."}
+                      {save.error.value.detail}
                     </p>
                   ) : null}
                 </div>

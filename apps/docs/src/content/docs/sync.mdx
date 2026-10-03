@@ -281,20 +281,22 @@ function DeleteCard({ cardId }: { cardId: string }) {
 }
 ```
 
-The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. Errors with Eden's `{ status, value }` shape retain their original object and inferred payload. Network errors and other exceptions, including failures in `onSuccess`, become an `EdenFetchError` with `status: 0`, `value: { detail: string }` and the original value in `cause`. Status `0` is a client-side sentinel, not an HTTP response code. API payloads remain unchanged, so their fields are not necessarily the same across endpoints.
+The hook returns `data`, `error`, `isPending`, `mutate`, `mutateAsync` and `reset`. `mutate` returns `void` and reports failures through `error` and the optional `onError` callback. `mutateAsync` resolves with the response's `data`, or rejects with the same error exposed to `onError`. Every exposed error has Eden's `{ status, value }` shape, with `value.detail` guaranteed to be a string at runtime and in TypeScript.
 
-Eden's synthetic network errors without an HTTP response are normalized too; a real HTTP `503` response retains its server payload. There is one error callback, with no separate native `Error` branch:
+An API error whose object payload already contains a string `detail` remains unchanged. Otherwise the hook creates an `EdenFetchError`, keeping the HTTP status and the inferred fields of object payloads while adding `detail`. A nonempty text body becomes the detail; empty, null, array or other primitive bodies use `"Mutation failed"`. The original error is retained in `cause`, without mutating it.
+
+Network errors and other exceptions, including failures in `onSuccess` and Eden's synthetic errors without an HTTP response, become an `EdenFetchError` with `status: 0` and the exception's message in `value.detail` (or `"Mutation failed"` for non-Error exceptions). Status `0` is a client-side sentinel, not an HTTP response code. This normalization belongs to `useMutation`; direct Eden calls retain their native response contract. There is one error callback, with no separate native `Error` branch:
 
 ```tsx
 const save = useMutation(api.cards({ id: cardId }).patch, {
   onError(error) {
-    setErrorMessage(error.value.detail ?? "Could not save the card");
+    setErrorMessage(error.value.detail);
     // error.status === 0 distinguishes client-side exceptions when needed.
   },
 });
 ```
 
-This endpoint's API errors include a `detail` field. Other API payloads keep their own schema; use `error.status` to narrow a specific response when needed. `mutateAsync` also rejects if an `onError` callback throws.
+Object payloads retain their endpoint-specific fields; use `error.status` to narrow a specific response when needed. The hook guarantees the `detail` field, not runtime validation of every other field against the server's TypeScript schema. Normalized messages are not localized or tailored to a particular UI. `mutateAsync` also rejects if an `onError` callback throws.
 
 Calls run in parallel. `isPending` stays true until every call and its awaited `onSuccess` or `onError` callback finishes. Only the most recently started call publishes `data` or `error`; callbacks still run for each call. Disable the relevant controls while pending if the UI should prevent repeated submissions. The hook does not deduplicate calls or provide a shared mutation lock. `reset()` clears the displayed result and prevents earlier in-flight calls from publishing it again, but does not cancel those requests or their callbacks.
 

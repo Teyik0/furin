@@ -19,13 +19,12 @@ function assertMutationTypes() {
       expectTypeOf(data).toEqualTypeOf<Awaited<ReturnType<typeof api.cards.post>>["data"]>();
     },
     onError(error) {
-      expectTypeOf(error.value.detail).toEqualTypeOf<string | undefined>();
+      expectTypeOf(error.value.detail).toEqualTypeOf<string>();
       if (error.status === 0) {
         expectTypeOf(error).toEqualTypeOf<EdenFetchError<0, { detail: string }>>();
       } else {
-        expectTypeOf(error).toEqualTypeOf<
-          NonNullable<Awaited<ReturnType<typeof api.cards.post>>["error"]>
-        >();
+        expectTypeOf(error.status).toEqualTypeOf<422>();
+        expectTypeOf(error.value.detail).toEqualTypeOf<string>();
       }
     },
   });
@@ -33,11 +32,8 @@ function assertMutationTypes() {
   expectTypeOf(save.data).toEqualTypeOf<
     Awaited<ReturnType<typeof api.cards.post>>["data"] | undefined
   >();
-  expectTypeOf(save.error).toEqualTypeOf<
-    | NonNullable<Awaited<ReturnType<typeof api.cards.post>>["error"]>
-    | EdenFetchError<0, { detail: string }>
-    | null
-  >();
+  expectTypeOf(save.error?.value.detail).toEqualTypeOf<string | undefined>();
+  expectTypeOf(save.error?.status).toEqualTypeOf<422 | 0 | undefined>();
   save.mutate(
     { title: "Draft" },
     {
@@ -59,6 +55,35 @@ function assertMutationTypes() {
   expectTypeOf(external.error).toEqualTypeOf<EdenFetchError<0, { detail: string }> | null>();
   const externalFailure = useMutation(async () => ({ data: null, error: new Error("Failed") }));
   expectTypeOf(externalFailure.error).toEqualTypeOf<EdenFetchError<0, { detail: string }> | null>();
+  const business = useMutation(async () => ({
+    data: null,
+    error: { status: 409 as const, value: { code: "CONFLICT" as const } },
+  }));
+  if (business.error?.status === 409) {
+    expectTypeOf(business.error.value.code).toEqualTypeOf<"CONFLICT">();
+    expectTypeOf(business.error.value.detail).toEqualTypeOf<string>();
+  }
+  const nullable = useMutation(async () => ({
+    data: null,
+    error: { status: 502 as const, value: null },
+  }));
+  if (nullable.error) {
+    expectTypeOf(nullable.error.value.detail).toEqualTypeOf<string>();
+  }
+  const text = useMutation(async () => ({
+    data: null,
+    error: { status: 503 as const, value: "Unavailable" },
+  }));
+  if (text.error) {
+    expectTypeOf(text.error.value.detail).toEqualTypeOf<string>();
+  }
+  const mixed = useMutation(async (hasBody: boolean) => ({
+    data: null,
+    error: { status: 502 as const, value: hasBody ? { detail: "Unavailable" } : null },
+  }));
+  if (mixed.error) {
+    expectTypeOf(mixed.error.value.detail).toEqualTypeOf<string>();
+  }
   // @ts-expect-error external API inputs are inferred
   external.mutate(1);
 }

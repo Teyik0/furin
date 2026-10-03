@@ -385,8 +385,7 @@ const AddCardForm = ({ column, boardId, onClose }: AddCardFormProps) => {
     <m.form action={handleSubmit} className="mt-1.5" layout>
       {add.error ? (
         <p className="mb-1.5 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 text-xs">
-          {(add.error.status === 0 ? null : add.error.value?.detail) ??
-            "Could not create the card. Please try again."}
+          {add.error.value.detail}
         </p>
       ) : null}
       <textarea

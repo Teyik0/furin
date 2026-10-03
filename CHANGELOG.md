@@ -24,7 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Metadata without a public loader** — `.head()` can follow `.config()` or `.requestLoader()` directly when metadata only needs validated route values and synchronous public ancestor fields.
 
 ### Changed
-- **Elysia dependency alignment** — the workspace and scaffolder catalog now target Elysia `2.0.0-beta.20`.
+- **Elysia beta update** — upgrade from `2.0.0-beta.20` to the pinned `2.0.0-beta.21`, aligning the workspace catalog and lockfile, generated-project dependencies, deployment documentation, and CI benchmark workflows.
 - **Task-manager sync example** — board and card mutations now use the enriched Eden client, scoped query invalidation, shared optimistic projections, and atomic Drizzle transactions, with reusable card mutations and fewer duplicated UI snapshots.
 - **Route-pattern DX** — `Link` destinations autocomplete generated patterns and require their path params. `useSearch("/board/:boardId")` infers search fields from the route pattern without interpolating the current URL; `RouteMap` and `RoutePatternMap` remain available.
 - **Isomorphic task-manager client** — the server branch passes the Elysia API instance directly to `createClient()`, removing the custom fetcher and HTTP roundtrip; the browser branch uses the current origin.
@@ -32,6 +32,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Lazy documentation features** — documentation search loads on demand, and sync documentation is imported only for its route, reducing client code loaded by other pages.
 
 ### Fixed
+- **Task-manager board creation** — clear the board name after a successful creation through the mutation's `onSuccess` callback, while preserving the draft after a rejected creation.
 - **Development HMR** — component-only route edits retain loader data when imported server dependencies are unchanged; server edits still refresh data.
 - **Eden loader errors** — thrown Problem Details retain their HTTP status and public message, including error boundaries and uncached ISR failures.
 - **Navigation parameter inference** — dynamic navigation requires only URL segment keys; inherited non-URL schema fields retain their optionality, and union destinations preserve the matching params contract.

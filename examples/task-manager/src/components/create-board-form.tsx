@@ -4,7 +4,9 @@ import { api } from "@/lib/api";
 
 export function CreateBoardForm() {
   const [name, setName] = useState("");
-  const create = useMutation(api.boards.post);
+  const create = useMutation(api.boards.post, {
+    onSuccess: () => setName(""),
+  });
 
   const handleCreate = (formData: FormData) => {
     const trimmed = String(formData.get("name") ?? "").trim();

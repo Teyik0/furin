@@ -234,35 +234,38 @@ async function dragCard(container: Element, destination: Element) {
   });
 }
 
-test.each(["network", "empty", "text", "json-null", "invalid-json"])(
-  "preserves the new-card draft after a %s failure",
-  async (failure) => {
-    if (failure === "network") {
-      createFailure = new TypeError("Failed to fetch");
-    } else if (failure === "json-null") {
-      createFailure = Response.json(null, { status: 502 });
-    } else {
-      createFailure = new Response(failure === "empty" ? null : "Bad gateway", {
-        status: 502,
-        headers: failure === "invalid-json" ? { "Content-Type": "application/json" } : {},
-      });
-    }
-    const board = await renderBoard([]);
-    try {
-      await submitCard(board.container, "My task draft");
-      expect(board.container.textContent).toContain("Could not create the card. Please try again.");
-      expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(0);
-      expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
-        "My task draft"
-      );
-      expect(
-        board.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
-      ).toBe(false);
-    } finally {
-      await board.cleanup();
-    }
+test.each([
+  { failure: "network", message: /Failed to fetch/ },
+  { failure: "empty", message: /Mutation failed/ },
+  { failure: "text", message: /Bad gateway/ },
+  { failure: "json-null", message: /Mutation failed/ },
+  { failure: "invalid-json", message: /JSON.*Bad/ },
+])("preserves the new-card draft after a $failure failure", async ({ failure, message }) => {
+  if (failure === "network") {
+    createFailure = new TypeError("Failed to fetch");
+  } else if (failure === "json-null") {
+    createFailure = Response.json(null, { status: 502 });
+  } else {
+    createFailure = new Response(failure === "empty" ? null : "Bad gateway", {
+      status: 502,
+      headers: failure === "invalid-json" ? { "Content-Type": "application/json" } : {},
+    });
   }
-);
+  const board = await renderBoard([]);
+  try {
+    await submitCard(board.container, "My task draft");
+    expect(board.container.querySelector("form p")?.textContent).toMatch(message);
+    expect(board.container.querySelectorAll('[draggable="true"]')).toHaveLength(0);
+    expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+      "My task draft"
+    );
+    expect(
+      board.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled
+    ).toBe(false);
+  } finally {
+    await board.cleanup();
+  }
+});
 
 test("creates an optimistic card through Eden and replaces it with confirmed loader props", async () => {
   const board = await renderBoard([]);
@@ -317,7 +320,7 @@ test("removes only a rejected optimistic insertion", async () => {
       await Promise.resolve();
     });
     expect(board.container.querySelector('[draggable="true"]')).toBeNull();
-    expect(board.container.textContent).toContain("Could not create the card");
+    expect(board.container.textContent).toContain("Mutation failed");
     const input = board.container.querySelector<HTMLTextAreaElement>("textarea");
     expect(input?.value).toBe("Rejected task");
     expect(input?.disabled).toBe(false);
@@ -341,7 +344,7 @@ test("clears a rejected draft and its error when the add form is cancelled and r
       resolveCreate({ data: null, error: { message: "failed" } });
       await Promise.resolve();
     });
-    expect(board.container.textContent).toContain("Could not create the card");
+    expect(board.container.textContent).toContain("Mutation failed");
     const cancel = board.container
       .querySelector("textarea")
       ?.closest("form")
@@ -353,7 +356,7 @@ test("clears a rejected draft and its error when the add form is cancelled and r
     );
     await act(() => add?.click());
     expect(board.container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
-    expect(board.container.textContent).not.toContain("Could not create the card");
+    expect(board.container.textContent).not.toContain("Mutation failed");
   } finally {
     await board.cleanup();
   }

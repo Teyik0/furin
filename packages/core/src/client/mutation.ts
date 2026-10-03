@@ -8,8 +8,20 @@ interface MutationResponse {
 
 type MutationMethod = (...args: never[]) => Promise<MutationResponse>;
 type MutationData<Method extends MutationMethod> = Awaited<ReturnType<Method>>["data"];
+type ErrorValue<Value> = Value extends { detail: string }
+  ? Value
+  : Value extends readonly unknown[]
+    ? { detail: string }
+    : Value extends object
+      ? Omit<Value, "detail"> & { detail: string }
+      : { detail: string };
+type ApiError<Failure> = Failure extends { status: infer Status extends number; value: infer Value }
+  ? Value extends { detail: string }
+    ? Failure
+    : EdenFetchError<Status, ErrorValue<Value>>
+  : never;
 type MutationError<Method extends MutationMethod> =
-  | Extract<NonNullable<Awaited<ReturnType<Method>>["error"]>, { status: number; value: unknown }>
+  | ApiError<NonNullable<Awaited<ReturnType<Method>>["error"]>>
   | EdenFetchError<0, { detail: string }>;
 
 function isApiError(value: unknown): value is { status: number; value: unknown } {
@@ -27,7 +39,21 @@ function normalizeMutationError<Method extends MutationMethod>(
 ): MutationError<Method> {
   const exception = isApiError(cause) && cause.value instanceof Error ? cause.value : cause;
   if (isApiError(exception)) {
-    return exception as MutationError<Method>;
+    const { value } = exception;
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "detail" in value &&
+      typeof value.detail === "string"
+    ) {
+      return exception as MutationError<Method>;
+    }
+    const error = new EdenFetchError(exception.status, {
+      ...(typeof value === "object" && value !== null && !Array.isArray(value) ? value : {}),
+      detail: typeof value === "string" && value ? value : "Mutation failed",
+    });
+    error.cause = exception;
+    return error as MutationError<Method>;
   }
   const error = new EdenFetchError(0, {
     detail: exception instanceof Error ? exception.message : "Mutation failed",
