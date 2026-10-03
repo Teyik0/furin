@@ -3,6 +3,7 @@ import { toCrossJSONAsync } from "seroval";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
+import { physicalPath } from "../../shared/prefix.ts";
 import { containsRscSource } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
@@ -109,13 +110,10 @@ async function serializeLoaderDataResponse(
   routeContext: RouteDataContext
 ): Promise<Response> {
   if (result.type === "redirect") {
-    const redirectUrl = new URL(result.response.headers.get("location") ?? "/", requestUrl);
-    const serialized = await toCrossJSONAsync({
-      __furinRedirect: redirectUrl.pathname + redirectUrl.search + redirectUrl.hash,
-    });
-    return new Response(`${JSON.stringify(serialized)}\n`, {
-      headers: { "content-type": "application/x-ndjson" },
-    });
+    const { prefix } = currentInstance();
+    const pageUrl = new URL(requestUrl);
+    pageUrl.pathname = physicalPath(prefix, pageUrl.pathname);
+    return serializeNavigationRedirect(result.response, pageUrl, prefix);
   }
   if (result.type === "not-found") {
     const serialized = await toCrossJSONAsync({
@@ -169,15 +167,29 @@ export async function serializeGuardRedirect(
   const pageUrl = logicalPath
     ? new URL(prefix + logicalPath.pathname + logicalPath.url.search, requestUrl)
     : requestUrl;
+
+  return await serializeNavigationRedirect(response, pageUrl, prefix);
+}
+
+async function serializeNavigationRedirect(
+  response: Response,
+  pageUrl: URL,
+  prefix: string
+): Promise<Response> {
+  const location = response.headers.get("location");
+  if (!location) {
+    return response;
+  }
   const target = new URL(location, pageUrl);
   const withinMount =
     prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
   const href =
-    target.origin === requestUrl.origin && withinMount
+    target.origin === pageUrl.origin && withinMount
       ? (target.pathname.slice(prefix.length) || "/") + target.search + target.hash
       : target.href;
   const serialized = await toCrossJSONAsync({ __furinRedirect: href });
   const headers = new Headers(response.headers);
+  headers.delete("content-length");
   headers.delete("location");
   headers.set("content-type", "application/x-ndjson");
   headers.set("cache-control", "private, no-store");
@@ -343,11 +355,13 @@ async function handleSSGRequest(
     return entry;
   }
 
+  ctx.set.status = entry.status;
+
   const resolvedPath = resolvePath(route.pattern, params);
 
   // ETag: "buildId:cachedAt" — unique per render cycle, changes after revalidatePath
   const etag = buildId ? `"${buildId}:${entry.cachedAt}"` : null;
-  if (etag && ctx.request.headers.get("if-none-match") === etag) {
+  if (entry.status === 200 && etag && ctx.request.headers.get("if-none-match") === etag) {
     ctx.set.status = 304;
     return;
   }
@@ -355,9 +369,10 @@ async function handleSSGRequest(
   ctx.set.headers["content-type"] = "text/html; charset=utf-8";
   // Browser: max-age=0 + must-revalidate → always validates via ETag (304 = free)
   // CDN:     s-maxage=31536000 → cache for 1 year, purge via revalidatePath + purger
-  ctx.set.headers["cache-control"] = cacheStored
-    ? "public, max-age=0, must-revalidate, s-maxage=31536000"
-    : "no-store";
+  ctx.set.headers["cache-control"] =
+    cacheStored && entry.status === 200
+      ? "public, max-age=0, must-revalidate, s-maxage=31536000"
+      : "no-store";
   if (etag) {
     ctx.set.headers.etag = etag;
   }

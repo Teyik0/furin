@@ -1,7 +1,6 @@
 import { Elysia } from "elysia";
-import { queryFromTag } from "../../shared/sync-query.ts";
 import { IS_DEV } from "../runtime-env.ts";
-import type { SyncAdapter, SyncChange, SyncSubscription } from "./adapter.ts";
+import type { SyncAdapter, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
 import { syncRuntimeOptions } from "./config.ts";
 import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
@@ -147,56 +146,33 @@ function parseChangeQuery(
   return { after, limit };
 }
 
-function clientInvalidations(change: SyncChange): string[] {
-  const entries = new Set<string>();
-  for (const invalidation of change.invalidations) {
-    if (invalidation.kind === "tags") {
-      if (invalidation.tags.some((tag) => !queryFromTag(tag))) {
-        entries.add("/:layout");
-      }
-    } else {
-      entries.add(
-        invalidation.type === "layout" ? `${invalidation.path}:layout` : invalidation.path
-      );
-    }
-  }
-  return [...entries];
-}
-
 export function createSyncChangesPlugin(options: FurinSyncOptions) {
   const syncPath = options.path ?? defaultSyncPath;
   const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
   return new Elysia({ name: `furin-sync-changes-${syncPath}` }).get(
     `${syncPath}/changes`,
-    async ({ request, set }) => {
+    async (context) => {
+      const { request, set } = context;
       set.headers["cache-control"] = "no-store";
       const query = parseChangeQuery(request);
       if ("error" in query) {
         return query.error;
       }
-      const page = await runtime.adapter.readChanges(query);
+      const principal = await options.principal(context);
+      if (principal.length === 0) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      const cursor = await runtime.adapter.currentCursor();
+      // The journal is shared across principals. Resource paths and query scopes
+      // are private; clients refresh their authorized reads when its cursor moves.
       return {
-        ...page,
-        changes: page.changes.map((change) => ({
-          cursor: change.cursor,
-          invalidations: clientInvalidations(change),
-          ...queryInvalidations(change),
-        })),
+        changes: [],
+        cursor,
+        hasMore: false,
+        reset: query.after !== undefined && query.after !== cursor,
       };
     }
   );
-}
-
-function queryInvalidations(change: SyncChange) {
-  const queries = change.invalidations.flatMap((entry) =>
-    entry.kind === "tags"
-      ? entry.tags.flatMap((tag) => {
-          const query = queryFromTag(tag);
-          return query ? [query] : [];
-        })
-      : []
-  );
-  return queries.length > 0 ? { queries } : {};
 }
 
 /** @internal — closes process-local stream state between tests. */

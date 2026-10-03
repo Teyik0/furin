@@ -5,6 +5,7 @@ import type { RuntimeRoute } from "../../client/internal/runtime-types.ts";
 import { withRouteSnapshot } from "../../client/route-api.tsx";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { FurinNotFoundError, NotFoundComponent } from "../../shared/not-found.ts";
+import { pageKey } from "../../shared/page-key.ts";
 import type { ResolvedRoute, SegmentBoundary } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
 
@@ -14,7 +15,10 @@ export function buildElement(
   rootLayout: RuntimeRoute
 ): ReactNode {
   const Component = route.page.component;
-  let element: ReactNode = createElement(Component, data);
+  let element: ReactNode = createElement(Component, {
+    ...data,
+    key: pageKey(route.pattern, data, route.page._route.remountDeps),
+  });
 
   // Index segmentBoundaries by depth for O(1) lookup during the wrap loop.
   // Directory depth `d` maps 1:1 to routeChain[d] in Furin's model (routeChain

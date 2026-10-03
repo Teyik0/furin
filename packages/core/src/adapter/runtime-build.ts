@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
@@ -16,7 +16,10 @@ import { buildRscGraph } from "../rsc/build/index.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasMixedLoaderModes, hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { setProductionTemplateContent } from "../server/render/template.ts";
+import {
+  setProductionPreloadManifest,
+  setProductionTemplateContent,
+} from "../server/render/template.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
@@ -40,6 +43,7 @@ const MIXED_CACHE_IMPORT_RE = /mixed-cache(?:\.ts)?$/;
 const ANY_MODULE_RE = /.*/;
 const REACT_SERVER_IMPORT_RE = /^react-dom\/server(?:\.edge)?$/;
 const REACT_STATIC_IMPORT_RE = /^react-dom\/static\.edge$/;
+const SCRIPT_FILE_RE = /\.[cm]?[jt]sx?$/;
 const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry${_ext}`,
   `${_pkgSrcDir}/build/entry-template${_ext}`,
@@ -75,7 +79,7 @@ function compareCodeUnits(a: string, b: string): number {
 /**
  * Deterministic build-ID input covering everything that can change rendered
  * output: client chunks, route shape, route/root/error/not-found source
- * contents and the framework's own render pipeline sources.
+ * contents, their application dependencies and the framework's own render pipeline sources.
  */
 export async function createBuildFingerprint(
   entryChunk: string,
@@ -110,6 +114,47 @@ export async function createBuildFingerprint(
       }
     }
   }
+  const sources = new Map<string, string>();
+  const visit = async (inputPath: string): Promise<void> => {
+    const path = existsSync(inputPath) ? realpathSync(inputPath) : inputPath;
+    fingerprintPaths.delete(inputPath);
+    fingerprintPaths.add(path);
+    if (sources.has(path)) {
+      return;
+    }
+    sources.set(path, "");
+    const content = existsSync(path) ? await Bun.file(path).text() : "";
+    sources.set(path, content);
+    if (!SCRIPT_FILE_RE.test(path)) {
+      return;
+    }
+    const transpiler = new Bun.Transpiler({ loader: path.endsWith("x") ? "tsx" : "ts" });
+    await Promise.all(
+      transpiler.scanImports(content).flatMap(({ path: specifier }) => {
+        if (
+          specifier === "furin" ||
+          specifier.startsWith("furin/") ||
+          specifier === "@teyik0/furin" ||
+          specifier.startsWith("@teyik0/furin/")
+        ) {
+          return [];
+        }
+        let dependency: string;
+        try {
+          dependency = Bun.resolveSync(specifier, dirname(path));
+        } catch {
+          // Build plugins can supply imports that have no filesystem path.
+          return [];
+        }
+        if (!isAbsolute(dependency) || toPosixPath(dependency).includes("/node_modules/")) {
+          return [];
+        }
+        fingerprintPaths.add(dependency);
+        return [visit(dependency)];
+      })
+    );
+  };
+  await Promise.all([...fingerprintPaths].map(visit));
   for (const path of BUILD_ID_INPUT_PATHS) {
     if (!existsSync(path)) {
       console.warn(
@@ -120,12 +165,14 @@ export async function createBuildFingerprint(
     fingerprintPaths.add(path);
   }
 
-  const fileParts = await Promise.all(
-    [...fingerprintPaths].toSorted().map(async (path) => {
-      const content = existsSync(path) ? await Bun.file(path).text() : "";
-      return `${stableFingerprintPath(path, projectRoot)}:${content}`;
-    })
-  );
+  const fileParts = (
+    await Promise.all(
+      [...fingerprintPaths].map(async (path) => {
+        const content = sources.get(path) ?? (existsSync(path) ? await Bun.file(path).text() : "");
+        return `${stableFingerprintPath(path, projectRoot)}:${content}`;
+      })
+    )
+  ).sort(compareCodeUnits);
 
   const routeParts = routes
     .map((route) =>
@@ -143,7 +190,8 @@ export async function createBuildFingerprint(
 }
 
 function stableFingerprintPath(path: string, projectRoot: string): string {
-  const projectPath = relative(projectRoot, path);
+  const absolutePath = existsSync(path) ? realpathSync(path) : path;
+  const projectPath = relative(realpathSync(projectRoot), absolutePath);
   if (
     !isAbsolute(projectPath) &&
     projectPath !== ".." &&
@@ -152,7 +200,7 @@ function stableFingerprintPath(path: string, projectRoot: string): string {
   ) {
     return `app/${toPosixPath(projectPath)}`;
   }
-  const frameworkPath = relative(_pkgRoot, path);
+  const frameworkPath = relative(_pkgRoot, absolutePath);
   if (
     !isAbsolute(frameworkPath) &&
     frameworkPath !== ".." &&
@@ -304,7 +352,7 @@ export async function buildRuntimeApp(
   const clientDirName = clientDirNameForPrefix(prefix);
   const label = prefix === "" ? "root app" : `app "${prefix}"`;
 
-  const { entryChunk, cssChunks } = await buildClient(routes, {
+  const { entryChunk, cssChunks, preloadManifest } = await buildClient(routes, {
     basePath: prefix,
     clientDirName,
     clientLogging: options.clientLogging ?? false,
@@ -315,6 +363,7 @@ export async function buildRuntimeApp(
     outDir: targetDir,
     pagesDir: app.pagesDir,
     plugins: options.plugins,
+    preloadRouteChunks: options.preload?.routeChunks,
     publicPath: `${prefix}/_client/`,
     reactCompiler: options.reactCompiler,
     rootLayout: root.path,
@@ -336,6 +385,7 @@ export async function buildRuntimeApp(
   writeFileSync(join(clientDir, "index.html"), indexHtml);
 
   setProductionTemplateContent(indexHtml);
+  setProductionPreloadManifest(preloadManifest);
   ssgRouteCache().clear();
   let ssgCache: SSGCacheSnapshot | undefined;
   let prerenders: RoutePrerender[] = [];
@@ -361,6 +411,7 @@ export async function buildRuntimeApp(
       modulePaths,
       nativeRoutes: composableRouteModuleSpecifier(app),
       prefix,
+      preloadManifest,
       rootConventions,
       rootPath: root.path,
       routeMetadata,

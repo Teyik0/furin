@@ -1,6 +1,5 @@
 import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
-import { renderToReadableStream } from "react-dom/server";
 import { toCrossJSON, toCrossJSONAsync } from "seroval";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
 import { RouterContext } from "../../client/router/context.ts";
@@ -20,6 +19,8 @@ import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search
 import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
+import { mergeRouteSchemas } from "../router/schema-merge.ts";
+import { parseRouteParams, parseRouteQuery } from "../router/schemas.ts";
 // FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
@@ -51,12 +52,14 @@ import {
   runSegmentPublicLoaders,
   serializeDeferredRejection,
 } from "./loaders.ts";
+import { renderToReadableStream } from "./react-stream.ts";
 import { serializeDeferredRouteFrame } from "./route-frame-transport.ts";
 import { generateIndexHtml, safeJson } from "./shell.ts";
 import {
   documentAssetsFromTemplate,
   getDevDocumentAssets,
   getProductionDocumentAssets,
+  getProductionPreloadManifest,
 } from "./template.ts";
 
 // Re-export types consumed by sibling render modules (not a public barrel).
@@ -268,9 +271,8 @@ export function assertDeferredModeAllowed(
   route: ResolvedRoute,
   deferredPromises: Record<string, Promise<unknown>> | undefined
 ): void {
-  const deferredKeys = Object.keys(deferredPromises ?? {}).filter(
-    (key) => !route.requestKeys?.includes(key)
-  );
+  const requestKeys = new Set(route.requestKeys);
+  const deferredKeys = Object.keys(deferredPromises ?? {}).filter((key) => !requestKeys.has(key));
   if (deferredKeys.length > 0 && route.mode !== "ssr" && !hasSsrLoaderAncestor(route)) {
     throw new Error(
       `[furin] page "${route.pattern}" returned defer() but the route is rendered in "${route.mode}" mode. ` +
@@ -345,6 +347,11 @@ function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentA
   return documentAssetsFromTemplate(generateIndexHtml());
 }
 
+function withRouteModulePreloads(assets: DocumentAssets, pattern: string): DocumentAssets {
+  const modulePreloads = getProductionPreloadManifest()?.routes[pattern];
+  return modulePreloads ? { ...assets, modulePreloads } : assets;
+}
+
 /**
  * Shared pipeline steps used by both `renderToHTML` (buffered) and `renderSSR`
  * (streaming). Runs loaders, builds props, head data, resolves assets,
@@ -370,9 +377,9 @@ export async function prepareRender(
     return loaderResult.response;
   }
 
-  // Build-time paths (SSG) opt into re-throwing so CI fails loudly instead of
-  // silently generating a 404/500 page for buggy loaders.
-  if (throwOnFailure && (loaderResult.type === "not-found" || loaderResult.type === "error")) {
+  // Build-time paths (SSG) rethrow loader failures; authored notFound results
+  // still render their 404 document for static export.
+  if (throwOnFailure && loaderResult.type === "error") {
     throw loaderResult.error;
   }
 
@@ -390,7 +397,7 @@ export async function prepareRender(
   const componentProps =
     deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
 
-  const assets = await resolveDocumentAssets(ctx);
+  const assets = withRouteModulePreloads(await resolveDocumentAssets(ctx), route.pattern);
   const errorComponent = route.error ?? root.error;
 
   let element: ReactNode;
@@ -517,6 +524,36 @@ async function renderBufferedResult(
   };
 }
 
+async function normalizePrerenderContext(
+  route: ResolvedRoute,
+  ctx: Omit<Context, "params" | "query"> & {
+    params: { [key: string]: unknown };
+    query: SearchParamsInput;
+  }
+): Promise<void> {
+  const parsedParams = await parseRouteParams(
+    ctx.params,
+    mergeRouteSchemas(route.routeChain, "params")
+  );
+  if (!parsedParams.ok) {
+    throw new Error(`[furin] Invalid prerender params for "${route.pattern}".`, {
+      cause: parsedParams.errors,
+    });
+  }
+  ctx.params = parsedParams.params;
+  const querySchema = mergeRouteSchemas(route.routeChain, "query");
+  if (querySchema === undefined) {
+    return;
+  }
+  const parsedQuery = await parseRouteQuery(new URL(ctx.request.url), querySchema);
+  if (!parsedQuery.ok) {
+    throw new Error(`[furin] Invalid prerender query for "${route.pattern}".`, {
+      cause: parsedQuery.errors,
+    });
+  }
+  ctx.query = parsedQuery.query;
+}
+
 export function renderForPath(
   route: ResolvedRoute,
   params: Record<string, string>,
@@ -556,6 +593,10 @@ export function renderForPath(
           request: new Request(requestUrl),
           set: { headers: {} },
         } as Context);
+
+      if (requestContext === undefined) {
+        await normalizePrerenderContext(route, ctx);
+      }
 
       const loaderResult = await (hasMixedLoaderModes(route)
         ? runSegmentPublicLoaders(route, ctx)

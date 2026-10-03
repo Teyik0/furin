@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { buildClient } from "../../../src/build/client.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
@@ -43,6 +43,48 @@ afterEach(() => {
 });
 
 describe.serial("buildBunTarget Bun branches", () => {
+  test("client builds inline public environment values without exposing private ones", async () => {
+    const app = createCompileTmpApp();
+    const previousPublic = process.env.FURIN_PUBLIC_AUDIT;
+    const previousPrivate = process.env.FURIN_PRIVATE_AUDIT;
+    process.env.FURIN_PUBLIC_AUDIT = "public-environment-marker";
+    process.env.FURIN_PRIVATE_AUDIT = "private-environment-marker";
+    try {
+      writeFileSync(
+        join(app.path, "src/pages/index.tsx"),
+        'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute().config({ mode: "ssr" }).page(() => <main>{process.env.FURIN_PUBLIC_AUDIT}{process.env.FURIN_PRIVATE_AUDIT}</main>);'
+      );
+      const { root, routes } = await scanPages(join(app.path, "src/pages"));
+      const outDir = join(app.path, "environment-build");
+      await buildClient(routes, {
+        basePath: "",
+        clientLogging: false,
+        outDir,
+        publicPath: "/_client/",
+        rootLayout: root.path,
+      });
+      const clientDir = join(outDir, "client");
+      const code = readdirSync(clientDir)
+        .filter((path) => path.endsWith(".js"))
+        .map((path) => readFileSync(join(clientDir, path), "utf8"))
+        .join("\n");
+      expect(code).toContain("public-environment-marker");
+      expect(code).not.toContain("process.env.FURIN_PUBLIC_AUDIT");
+      expect(code).not.toContain("private-environment-marker");
+    } finally {
+      if (previousPublic === undefined) {
+        delete process.env.FURIN_PUBLIC_AUDIT;
+      } else {
+        process.env.FURIN_PUBLIC_AUDIT = previousPublic;
+      }
+      if (previousPrivate === undefined) {
+        delete process.env.FURIN_PRIVATE_AUDIT;
+      } else {
+        process.env.FURIN_PRIVATE_AUDIT = previousPrivate;
+      }
+    }
+  });
+
   test("rejects server compilation without a server entry", async () => {
     const app = trackedTmpApp("cli-app");
 

@@ -9,6 +9,7 @@ import type {
   FurinUnwrap,
 } from "./shared/elysia-contract.ts";
 import { getSchemaValidator, isTypeBoxObjectSchema } from "./shared/elysia-contract.ts";
+import type { RemountDependency, RemountDeps } from "./shared/page-key.ts";
 
 type NoFields = NonNullable<unknown>;
 type Awaitable<T> = Promise<T> | T;
@@ -166,9 +167,11 @@ type RenderingConfig = SharedRouteConfig &
       }
   );
 
-export type DefineRouteConfig = RenderingConfig;
+export type DefineRouteConfig<Params = NoFields, Query = NoFields> = RenderingConfig & {
+  remountDeps?: RemountDeps<Params, Query>;
+};
 
-type ConfigFor = RenderingConfig;
+type ConfigFor<Params, Query> = DefineRouteConfig<Params, Query>;
 
 type StaticParamsContext<ParentParams, ParentData extends LoaderData> = {
   params: Partial<ParentParams>;
@@ -185,7 +188,8 @@ interface ErasedStaticParamsContext {
   [key: string]: unknown;
 }
 
-type RouteMetadata = DefineRouteConfig & {
+type RouteMetadata = RenderingConfig & {
+  remountDeps?: (context: never) => readonly RemountDependency[];
   staticParams?: (context: ErasedStaticParamsContext) => Awaitable<readonly unknown[]>;
 };
 
@@ -483,11 +487,13 @@ function withMetadata<
   return {
     mode: metadata.mode as Mode,
     revalidate: metadata.revalidate,
+    remountDeps: metadata.remountDeps,
     staticParams: metadata.staticParams,
     tags: metadata.tags,
   } as {
     mode: Mode;
     revalidate: number | undefined;
+    remountDeps: RouteMetadata["remountDeps"];
     staticParams: RouteMetadata["staticParams"];
     tags: readonly string[] | undefined;
     readonly [inheritedDataBrand]?: ParentData;
@@ -1142,7 +1148,7 @@ class HeadedSchema<
  */
 class UnconfiguredRoute {
   config<LayoutRoute, QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
       layout: LayoutRoute;
       mode: Mode;
       params?: undefined;
@@ -1165,7 +1171,7 @@ class UnconfiguredRoute {
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ConfigFor & {
+    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
       layout: LayoutRoute;
       mode: Mode;
       params: ParamsSchema;
@@ -1185,7 +1191,7 @@ class UnconfiguredRoute {
     >
   >;
   config<LayoutRoute, ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
       layout: LayoutRoute;
       mode: Mode;
       params: ParamsSchema;
@@ -1205,7 +1211,7 @@ class UnconfiguredRoute {
     >
   >;
   config<LayoutRoute, Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<NoFields, NoFields> & {
       layout: LayoutRoute;
       mode: Mode;
       params?: undefined;
@@ -1227,7 +1233,7 @@ class UnconfiguredRoute {
     ParamsSchema extends FurinSchema | undefined,
     QuerySchema extends FurinSchema | undefined,
   >(
-    options: DefineRouteConfig & {
+    options: DefineRouteConfig<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
       layout: LayoutRoute;
       mode: RenderingMode;
       params?: ParamsSchema;
@@ -1276,7 +1282,7 @@ class UnconfiguredRoute {
  */
 class UnconfiguredRootRoute {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
       mode: Mode;
       params?: undefined;
       query: QuerySchema;
@@ -1290,7 +1296,7 @@ class UnconfiguredRootRoute {
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ConfigFor & {
+    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
       mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
@@ -1309,7 +1315,7 @@ class UnconfiguredRootRoute {
     >
   >;
   config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
       mode: Mode;
       params: ParamsSchema;
       query?: undefined;
@@ -1328,7 +1334,7 @@ class UnconfiguredRootRoute {
     >
   >;
   config<Mode extends RenderingMode>(
-    options: ConfigFor & {
+    options: ConfigFor<NoFields, NoFields> & {
       mode: Mode;
       params?: undefined;
       query?: undefined;
@@ -1338,7 +1344,7 @@ class UnconfiguredRootRoute {
     NoSchemaChain<NoFields, NoFields, NoFields, NoRequestLoader, NoFields, Mode>
   >;
   config<ParamsSchema extends FurinSchema | undefined, QuerySchema extends FurinSchema | undefined>(
-    options: DefineRouteConfig & {
+    options: DefineRouteConfig<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
       mode: RenderingMode;
       params?: ParamsSchema;
       query?: QuerySchema;

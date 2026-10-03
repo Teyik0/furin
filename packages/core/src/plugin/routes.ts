@@ -770,6 +770,8 @@ function resolveRouteModuleImports(dependencyPath: string, packageRoot: string):
       if (
         isAbsolute(resolvedImport) &&
         isWithinDirectory(resolvedImport, packageRoot) &&
+        // Each import has its own path segments; constructing a Set adds no reusable lookup.
+        // react-doctor-disable-next-line react-doctor/js-set-map-lookups
         !relative(packageRoot, resolvedImport).split(sep).includes("node_modules")
       ) {
         resolvedImports.push(resolvedImport);

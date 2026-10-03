@@ -5,7 +5,6 @@ import "@teyik0/furin/routes";
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
-    "/rsc": typeof import("./src/pages/rsc").route;
     [
       path: `/board/${string}/card/${string}`
     ]: typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
@@ -16,13 +15,11 @@ declare module "@teyik0/furin/routes" {
     "/": typeof import("./src/pages/index").route;
     "/board/:boardId": typeof import("./src/pages/board/[boardId]/index").route;
     "/board/:boardId/card/:cardId": typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
-    "/rsc": typeof import("./src/pages/rsc").route;
   }
 }
 
 declare module "@teyik0/furin" {
   interface FurinCacheTags {
-    boards: "boards";
     cards: "cards";
   }
 }

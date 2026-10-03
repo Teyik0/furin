@@ -205,8 +205,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   const invalidatedMissCtx = createMockLoaderContext({ path: missCacheKey });
   const rendering = handleISR(route, invalidatedMissCtx, result.root, "");
   await waitForBackground(() => missLoaderStarted, "cache-miss render did not start");
-  isrCache.set(missCacheKey, { generatedAt: 0, html: "superseded", revalidate: 60 });
-  revalidatePath(missCacheKey, "page");
+  await revalidatePath(missCacheKey, "page");
   missGate.resolve();
 
   await rendering;

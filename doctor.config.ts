@@ -3,7 +3,15 @@ import type { ReactDoctorConfig } from "react-doctor/api";
 export default {
   deadCode: false,
   ignore: {
+    // Prisma generates server test fixtures; these files are not browser build artifacts.
+    files: ["tests/fixtures/sync-prisma/generated/**"],
     overrides: [
+      {
+        // Eden callbacks run in declaration order; Vercel fallbacks update shared
+        // prerender specs in route order. Parallel execution would change semantics.
+        files: ["src/client/sync.ts", "src/adapter/vercel.ts"],
+        rules: ["react-doctor/async-await-in-loop"],
+      },
       {
         // `DocsToc` creates an IntersectionObserver from a nested registration
         // helper, but the effect-level cleanup disconnects that observer.

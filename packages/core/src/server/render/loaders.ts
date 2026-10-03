@@ -330,6 +330,8 @@ export function runRequestLoaderFields(
   if (declarations?.length !== route.routeChain.length) {
     throw new Error(`[furin] Missing per-loader request field metadata for ${route.pattern}.`);
   }
+  const declaredKeys = declarations.map((keys) => new Set(keys));
+  const requestKeys = new Set(route.requestKeys);
   const requestContext = createRequestLoaderContext(ctx);
   const results = loaderIndexes.map((index) => {
     const loader = route.routeChain[index]?.requestLoader;
@@ -341,7 +343,7 @@ export function runRequestLoaderFields(
       const data = value as Record<string, unknown>;
       for (const key of Object.keys(data)) {
         assertRequestLoaderKey(key, ctx);
-        if (!declarations[index]?.includes(key)) {
+        if (!declaredKeys[index]?.has(key)) {
           throw new Error(
             `[furin] requestLoader in ${route.pattern} returned undeclared field "${key}".`
           );
@@ -358,11 +360,11 @@ export function runRequestLoaderFields(
   const fieldsByLoader = route.routeChain.map((_, boundaryIndex) => {
     fields = { ...fields };
     for (const key of declarations[boundaryIndex] ?? []) {
-      if (!route.requestKeys?.includes(key)) {
+      if (!requestKeys.has(key)) {
         continue;
       }
       const candidates = results.filter(
-        ({ index }) => index <= boundaryIndex && declarations[index]?.includes(key)
+        ({ index }) => index <= boundaryIndex && declaredKeys[index]?.has(key)
       );
       fields[key] = Promise.all(candidates.map(({ result }) => result)).then((values) => {
         for (let index = values.length - 1; index >= 0; index -= 1) {

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./highlight.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -136,5 +137,626 @@
 
   .doc-content h3 {
     @apply mt-8;
+  }
+}
+
+/* ------------------------------------------------------------------ Landing */
+
+.landing {
+  --lp-accent: #0f8583;
+  --lp-accent-soft: rgb(15 133 131 / 0.14);
+  --lp-accent-rgb: 15 133 131;
+  --lp-bg-rgb: 246 248 250;
+  --lp-ink-rgb: 15 23 42;
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  position: relative;
+  font-family: var(--font-sans);
+}
+
+.dark .landing {
+  --lp-accent: #4fc9c6;
+  --lp-accent-soft: rgb(79 201 198 / 0.16);
+  --lp-accent-rgb: 79 201 198;
+  --lp-bg-rgb: 8 13 24;
+  --lp-ink-rgb: 255 255 255;
+}
+
+/* film grain, above content but below the fixed header */
+.landing::after {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.035;
+}
+
+.dark .landing::after {
+  mix-blend-mode: overlay;
+  opacity: 0.06;
+}
+
+/* ---- type */
+
+.lp-eyebrow {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+}
+
+.jp-mark {
+  font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-size: 14px;
+  color: var(--lp-accent);
+  letter-spacing: 0.12em;
+}
+
+.lp-display {
+  font-size: clamp(2.9rem, 7.4vw, 6.4rem);
+  font-weight: 600;
+  line-height: 0.96;
+  color: var(--foreground);
+  letter-spacing: -0.052em;
+  text-wrap: balance;
+}
+
+.lp-display__accent {
+  /* layer 1: a one-shot light sweep; layer 2: resting ink → accent gradient */
+  color: transparent;
+  /* layer 1: a one-shot light sweep; layer 2: resting ink → accent gradient */
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 42%,
+      rgb(255 255 255 / 0.95) 50%,
+      transparent 58%
+    ),
+    linear-gradient(90deg, var(--foreground) 10%, var(--lp-accent) 95%);
+  background-repeat: no-repeat;
+  background-position:
+    0% 0,
+    0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-size:
+    300% 100%,
+    100% 100%;
+  animation: lp-shimmer 2.4s cubic-bezier(0.45, 0, 0.2, 1) 1.2s both;
+}
+
+.lp-h2 {
+  font-size: clamp(2.2rem, 4.6vw, 3.9rem);
+  font-weight: 600;
+  line-height: 1.02;
+  color: var(--foreground);
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.lp-code {
+  padding: 0.1em 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--foreground);
+  background: rgb(var(--lp-ink-rgb) / 0.07);
+  border-radius: 0.35rem;
+}
+
+/* ---- controls */
+
+.lp-cta {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  height: 3rem;
+  padding: 0 1.4rem 0 1.6rem;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--background);
+  letter-spacing: -0.01em;
+  background: var(--foreground);
+  border-radius: 999px;
+  transition:
+    box-shadow 300ms ease,
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-cta:hover {
+  box-shadow: 0 10px 40px -10px var(--lp-accent);
+  transform: translateY(-1px);
+}
+
+.lp-cta:focus-visible {
+  outline: 2px solid var(--lp-accent);
+  outline-offset: 3px;
+}
+
+.lp-cta__arrow {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-cta:hover .lp-cta__arrow {
+  transform: translateX(3px);
+}
+
+.glass-pill {
+  background: rgb(var(--lp-bg-rgb) / 0.55);
+  border: 1px solid rgb(var(--lp-ink-rgb) / 0.12);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+/* ---- hero */
+
+.chime-poster--hero {
+  background:
+    radial-gradient(
+      32rem 26rem at 72% 34%,
+      rgb(var(--lp-accent-rgb) / 0.16),
+      transparent 70%
+    ),
+    radial-gradient(
+      60rem 30rem at 50% -10%,
+      rgb(59 130 246 / 0.08),
+      transparent 70%
+    );
+}
+
+.chime-poster--mini {
+  background: radial-gradient(
+    closest-side at 50% 45%,
+    rgb(var(--lp-accent-rgb) / 0.18),
+    transparent
+  );
+}
+
+@media (max-width: 767px) {
+  .chime-poster--hero {
+    background: radial-gradient(
+      24rem 22rem at 50% 22%,
+      rgb(var(--lp-accent-rgb) / 0.16),
+      transparent 70%
+    );
+  }
+}
+
+/* legibility veil: fades the particle field under the copy and into the next section */
+.hero-veil {
+  background:
+    linear-gradient(to top, var(--background) 0%, transparent 22%),
+    linear-gradient(to right, rgb(var(--lp-bg-rgb) / 0.7) 0%, transparent 55%);
+}
+
+@media (max-width: 767px) {
+  .hero-veil {
+    background: linear-gradient(
+      to top,
+      var(--background) 8%,
+      rgb(var(--lp-bg-rgb) / 0.75) 45%,
+      transparent 70%
+    );
+  }
+}
+
+/* Hero copy and CTA are opaque from the first paint (LCP + "visible quickly"); they only rise. */
+.hero-in {
+  animation: lp-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.scroll-cue {
+  position: relative;
+  width: 1px;
+  height: 28px;
+  overflow: hidden;
+  background: rgb(var(--lp-ink-rgb) / 0.15);
+}
+
+.scroll-cue::after {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 10px;
+  content: "";
+  background: var(--lp-accent);
+  animation: lp-cue 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Below-the-fold sections skip style/layout/paint until they approach the viewport:
+   the initial render of the full page was one ~130 ms task at 4x CPU. */
+.lp-defer {
+  contain-intrinsic-size: auto 900px;
+  content-visibility: auto;
+}
+
+/* ---- reveal */
+
+.reveal {
+  transition:
+    opacity 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 900ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 900ms ease;
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.js-reveal .reveal:not([data-shown]) {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(22px);
+}
+
+/* ---- stack */
+
+.stack-stage {
+  perspective: 1800px;
+  perspective-origin: 50% 30%;
+}
+
+.stack-rig {
+  --slab-w: min(25rem, 72vw);
+  --slab-h: calc(var(--slab-w) * 0.6);
+  width: var(--slab-w);
+  height: var(--slab-h);
+  transform: translate(-50%, -38%) rotateX(calc(60deg - var(--p, 0) * 6deg))
+    rotateZ(calc(-40deg + var(--p, 0) * 8deg))
+    scale(calc(1.08 - var(--p, 0) * 0.16));
+  transform-style: preserve-3d;
+}
+
+.stack-slab {
+  --pi: clamp(0, calc(var(--p, 0) * 3.2 - var(--i) * 0.95 + 0.3), 1);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.4rem 1.5rem;
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--hue-glow), transparent 60%),
+    linear-gradient(145deg, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.55));
+  border: 1px solid rgb(15 23 42 / 0.1);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 30px 60px -30px rgb(15 23 42 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+  opacity: var(--pi);
+  transform: translateZ(calc(var(--i) * 5.5rem + (1 - var(--pi)) * 22rem));
+  will-change: transform, opacity;
+}
+
+.dark .stack-slab {
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--hue-glow), transparent 60%),
+    linear-gradient(145deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.015)),
+    rgb(8 13 24 / 0.72);
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow:
+    0 40px 80px -30px rgb(0 0 0 / 0.8),
+    0 0 60px -20px var(--hue-glow),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.stack-step {
+  opacity: clamp(0.28, calc(var(--p, 0) * 3.2 - var(--i) * 0.95 + 0.4), 1);
+  transition: opacity 200ms linear;
+}
+
+/* ---- code window */
+
+.code-glass {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.045), transparent 30%),
+    rgb(11 15 24 / 0.86);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  box-shadow:
+    0 50px 120px -50px rgb(var(--lp-accent-rgb) / 0.55),
+    0 30px 60px -30px rgb(0 0 0 / 0.6),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.type-hint {
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms,
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1) 1000ms;
+}
+
+.js-reveal .type-reveal:not([data-shown]) .type-hint {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.type-hint__box {
+  position: relative;
+  padding: 0.6rem 0.85rem;
+  line-height: 1.6;
+  background: rgb(22 28 40 / 0.96);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 20px 40px -12px rgb(0 0 0 / 0.7),
+    0 0 0 1px rgb(79 201 198 / 0.12);
+}
+
+.type-hint__box::before {
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  content: "";
+  background: rgb(22 28 40);
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  border-left: 1px solid rgb(255 255 255 / 0.12);
+  rotate: 45deg;
+  translate: 0 -50%;
+}
+
+.type-hint-line {
+  background: linear-gradient(
+    90deg,
+    rgb(79 201 198 / 0.12),
+    rgb(79 201 198 / 0.02) 70%
+  );
+  border-left: 2px solid var(--lp-accent);
+  transition: opacity 600ms ease 900ms;
+}
+
+.js-reveal .type-reveal:not([data-shown]) .type-hint-line {
+  opacity: 0;
+}
+
+/* ---- rendering modes */
+
+.mode-card {
+  position: relative;
+  height: 100%;
+  min-height: 19rem;
+  padding: 1.6rem;
+  overflow: hidden;
+  background: rgb(var(--lp-ink-rgb) / 0.02);
+  border: 1px solid rgb(var(--lp-ink-rgb) / 0.09);
+  border-radius: 1.25rem;
+  transform: perspective(900px) rotateX(var(--rx, 0deg))
+    rotateY(var(--ry, 0deg));
+  transition:
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease;
+}
+
+.mode-card:hover {
+  border-color: rgb(var(--lp-accent-rgb) / 0.35);
+  transition:
+    transform 120ms linear,
+    border-color 300ms ease;
+}
+
+.mode-card__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    22rem circle at var(--mx, 50%) var(--my, 50%),
+    var(--lp-accent-soft),
+    transparent 45%
+  );
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.mode-card:hover .mode-card__glow {
+  opacity: 1;
+}
+
+/* ---- features */
+
+.feature-grid {
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.feature-card {
+  padding: 2rem 1.75rem 2.25rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transition: background-color 300ms ease;
+}
+
+.feature-card:hover {
+  background: rgb(var(--lp-ink-rgb) / 0.025);
+}
+
+/* ---- sync */
+
+.lp-link {
+  font-weight: 500;
+  color: var(--lp-accent);
+  text-underline-offset: 4px;
+}
+
+.lp-link:hover {
+  text-decoration: underline;
+}
+
+.sync-callout {
+  position: relative;
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.sync-callout__n {
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--lp-accent);
+  letter-spacing: 0.18em;
+}
+
+.sync-window {
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.04), transparent 30%),
+    rgb(11 15 24 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 1rem;
+  box-shadow:
+    0 30px 60px -30px rgb(0 0 0 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.sync-chip {
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgb(161 161 170);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 999px;
+  transition:
+    color 300ms ease,
+    border-color 300ms ease,
+    background-color 300ms ease;
+}
+
+.sync-chip--optimistic {
+  color: #fcd34d;
+  background: rgb(252 211 77 / 0.08);
+  border-color: rgb(252 211 77 / 0.35);
+}
+
+.sync-chip--synced {
+  color: #6fe3df;
+  background: rgb(79 201 198 / 0.1);
+  border-color: rgb(79 201 198 / 0.4);
+}
+
+.sync-lanes {
+  --card-h: 2.75rem;
+  position: relative;
+  height: calc(var(--card-h) * 2 + 0.375rem);
+}
+
+.sync-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: calc((100% - 1rem) / 3);
+  height: var(--card-h);
+  padding: 0 0.6rem;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: rgb(212 212 216);
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 0.5rem;
+  transform: translate(
+    calc(var(--c) * (100% + 0.5rem)),
+    calc(var(--r) * (100% + 0.375rem))
+  );
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.sync-card--mover {
+  color: rgb(244 244 245);
+  border-color: rgb(79 201 198 / 0.45);
+}
+
+.sync-card--dragging {
+  box-shadow:
+    0 12px 28px -10px rgb(0 0 0 / 0.7),
+    0 0 0 1px rgb(252 211 77 / 0.45);
+}
+
+/* ---- ship */
+
+.ship-line {
+  transition: opacity 400ms ease;
+  transition-delay: calc(var(--i) * 140ms + 300ms);
+}
+
+.ship-line--out {
+  color: rgb(161 161 170);
+}
+
+.ship-line--cmd {
+  color: rgb(244 244 245);
+}
+
+.js-reveal .ship-term:not([data-shown]) .ship-line {
+  opacity: 0;
+}
+
+/* ---- keyframes */
+
+@keyframes lp-rise {
+  from {
+    transform: translateY(14px);
+  }
+}
+
+@keyframes lp-shimmer {
+  from {
+    background-position:
+      100% 0,
+      0 0;
+  }
+}
+
+@keyframes lp-cue {
+  from {
+    top: -10px;
+  }
+  to {
+    top: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-in,
+  .lp-display__accent,
+  .scroll-cue::after {
+    animation: none;
+  }
+
+  .reveal,
+  .type-hint,
+  .mode-card,
+  .sync-card,
+  .ship-line {
+    transition: none;
+  }
+
+  .js-reveal .ship-term:not([data-shown]) .ship-line {
+    opacity: 1;
+  }
+
+  .js-reveal .reveal:not([data-shown]),
+  .js-reveal .type-reveal:not([data-shown]) .type-hint,
+  .js-reveal .type-reveal:not([data-shown]) .type-hint-line {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  .mode-card {
+    transform: none;
   }
 }

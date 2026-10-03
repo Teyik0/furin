@@ -56,7 +56,7 @@ jobs:
         run: bun run knip
 
       - name: React Doctor
-        run: bunx react-doctor --diff false
+        run: bunx react-doctor -y --scope full
 
       - name: Setup auth for Bun
         run: |

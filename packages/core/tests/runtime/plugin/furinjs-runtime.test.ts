@@ -18,6 +18,7 @@ const { getProductionTemplate, __resetTemplateState } = await import(
   "../../../src/server/render/template"
 );
 const { __setDevMode } = await import("../../../src/server/runtime-env");
+const { generateProdIndexHtml } = await import("../../../src/server/render/shell");
 
 const tmpApps: TmpApp[] = [];
 const originalCwd = process.cwd();
@@ -293,6 +294,30 @@ test.serial("furin() production hydrates embedded SSG cache", async () => {
 
   expect(instance).toBeInstanceOf(Elysia);
   expect(getSSGCache("/")?.html).toBe("<html>prebuilt</html>");
+});
+
+test.serial("furin() production preloads route chunks from the compiled manifest", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(false);
+  process.chdir(app.path);
+
+  const clientDir = join(app.path, "client");
+  mkdirSync(clientDir, { recursive: true });
+  writeFileSync(
+    join(clientDir, "index.html"),
+    generateProdIndexHtml("/_client/entry.js", [], "build", undefined, false)
+  );
+  process.env.FURIN_CLIENT_DIR = "client";
+
+  __setCompileContext({
+    ...(await createCompileContext(app.path)),
+    preloadManifest: { modules: {}, routes: { "/": ["/_client/index-abc.js"] } },
+  });
+
+  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const html = await (await instance.handle(new Request("http://localhost/"))).text();
+
+  expect(html).toContain('<link rel="modulepreload" href="/_client/index-abc.js"/>');
 });
 
 test.serial("furin() production revalidates embedded SSG cache tags", async () => {

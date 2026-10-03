@@ -161,12 +161,79 @@ function chainRootIsDefineRoute(
   return false;
 }
 
+function assertCompleteRouteChains(
+  program: Program,
+  bindings: Set<string>,
+  filename: string
+): void {
+  const namespaces = new Set<string>();
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration") {
+      continue;
+    }
+    const declaration = statement as unknown as ImportDeclaration;
+    if (!isFurinRouteModule(declaration.source.value) || declaration.importKind === "type") {
+      continue;
+    }
+    for (const specifier of declaration.specifiers as unknown as AstNode[]) {
+      const name = localName(specifier);
+      if (name && specifier.type === "ImportNamespaceSpecifier") {
+        namespaces.add(name);
+      }
+    }
+  }
+  walk(program, {
+    MemberExpression(node, context) {
+      const object = asAstNode(node.object);
+      const property = asAstNode(node.property);
+      const method = property?.type === "Identifier" ? property.name : property?.value;
+      if (
+        object?.type === "Identifier" &&
+        typeof object.name === "string" &&
+        namespaces.has(object.name) &&
+        (method === "defineRoute" || method === "defineRootRoute") &&
+        !hasShadowingDeclaration(object.name, context.ancestors() as AstNode[])
+      ) {
+        throw new Error(`[furin] ${filename}: route builders require a named import.`);
+      }
+      if (
+        node.computed &&
+        context.parent?.type === "CallExpression" &&
+        chainRootIsDefineRoute(node.object, bindings, context.ancestors() as AstNode[])
+      ) {
+        throw new Error(`[furin] ${filename}: route builders require static builder methods.`);
+      }
+    },
+    VariableDeclarator(node, context) {
+      const initializer = asAstNode(node.init);
+      if (
+        !(
+          initializer &&
+          chainRootIsDefineRoute(initializer, bindings, context.ancestors() as AstNode[])
+        )
+      ) {
+        return;
+      }
+      const callee = initializer.type === "CallExpression" ? asAstNode(initializer.callee) : null;
+      const method = callee?.type === "MemberExpression" ? asAstNode(callee.property) : null;
+      if (method?.type !== "Identifier" || (method.name !== "page" && method.name !== "layout")) {
+        throw new Error(
+          `[furin] ${filename}: route builders must use one fluent chain ending in .page() or .layout().`
+        );
+      }
+    },
+  });
+}
+
 function removeChainedServerCalls(
   source: MagicString,
   program: Program,
-  bindings: Set<string>
+  bindings: Set<string>,
+  configBindings: Set<string>,
+  filename: string
 ): boolean {
   let transformed = rewriteClientImports(source, program, bindings);
+  const { declarations } = collectModuleBindings(program);
 
   walk(program, {
     CallExpression(call, context) {
@@ -192,11 +259,155 @@ function removeChainedServerCalls(
       if (!object) {
         return;
       }
+      if (property.name === "config" && Array.isArray(call.arguments)) {
+        const config = asAstNode(call.arguments[0]);
+        if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
+          collectConfigBindings(config, declarations, configBindings);
+          const remount = resolveRemountProperty(
+            config,
+            declarations,
+            configBindings,
+            new Set(),
+            filename
+          );
+          if (remount) {
+            source.update(
+              object.end,
+              call.end,
+              `.config({ ${source.original.slice(remount.start, remount.end)} })`
+            );
+            transformed = true;
+            return;
+          }
+        }
+      }
       source.remove(object.end, call.end);
       transformed = true;
     },
   });
   return transformed;
+}
+
+function collectConfigBindings(
+  config: AstNode | null,
+  declarations: Map<string, AstNode>,
+  names: Set<string>
+): void {
+  if (config?.type === "Identifier" && typeof config.name === "string" && !names.has(config.name)) {
+    names.add(config.name);
+    const declaration = declarations.get(config.name);
+    collectConfigBindings(asAstNode(declaration?.init), declarations, names);
+  } else if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
+    for (const property of config.properties) {
+      const entry = asAstNode(property);
+      if (entry?.type === "SpreadElement") {
+        collectConfigBindings(asAstNode(entry.argument), declarations, names);
+      }
+    }
+  }
+}
+
+function resolveRemountProperty(
+  config: AstNode | null,
+  declarations: Map<string, AstNode>,
+  configBindings: Set<string>,
+  visiting: Set<string>,
+  filename: string
+): AstNode | null {
+  if (
+    config?.type === "Identifier" &&
+    typeof config.name === "string" &&
+    !visiting.has(config.name)
+  ) {
+    visiting.add(config.name);
+    configBindings.add(config.name);
+    const declaration = declarations.get(config.name);
+    const result = resolveRemountProperty(
+      asAstNode(declaration?.init),
+      declarations,
+      configBindings,
+      visiting,
+      filename
+    );
+    visiting.delete(config.name);
+    return result;
+  }
+  if (config?.type !== "ObjectExpression" || !Array.isArray(config.properties)) {
+    throw new Error(
+      `[furin] ${filename}: route config spreads must resolve to local object literals; declare remountDeps after dynamic spreads.`
+    );
+  }
+  for (let index = config.properties.length - 1; index >= 0; index -= 1) {
+    const entry = asAstNode(config.properties[index]);
+    if (entry?.type === "SpreadElement") {
+      const remount = resolveRemountProperty(
+        asAstNode(entry.argument),
+        declarations,
+        configBindings,
+        visiting,
+        filename
+      );
+      if (remount) {
+        return remount;
+      }
+    } else if (entry?.type === "Property") {
+      const key = asAstNode(entry.key);
+      if (
+        (key?.type === "Identifier" && entry.computed !== true && key.name === "remountDeps") ||
+        (key?.type === "Literal" && key.value === "remountDeps")
+      ) {
+        return entry;
+      }
+    }
+  }
+  return null;
+}
+
+function pruneUnusedConfigBindings(
+  source: MagicString,
+  filename: string,
+  names: Set<string>
+): MagicString {
+  let result = source;
+  let pruned = true;
+  while (pruned) {
+    pruned = false;
+    const code = result.toString();
+    const { program } = parseSource(code, detectLangFromPath(filename));
+    const references = new Set<string>();
+    walkWithAncestors(program, [], (node, ancestors) => {
+      if (
+        node.type === "Identifier" &&
+        typeof node.name === "string" &&
+        isReferenceIdentifier(node, ancestors)
+      ) {
+        references.add(node.name);
+      }
+    });
+    result = new MagicString(code);
+    for (const statement of program.body) {
+      if (statement.type !== "VariableDeclaration") {
+        continue;
+      }
+      const retained = statement.declarations.filter(
+        (declaration) =>
+          declaration.id.type !== "Identifier" ||
+          !names.has(declaration.id.name) ||
+          references.has(declaration.id.name)
+      );
+      if (retained.length !== statement.declarations.length) {
+        result.update(
+          statement.start,
+          statement.end,
+          retained.length
+            ? `${statement.kind} ${retained.map((node) => code.slice(node.start, node.end)).join(", ")};`
+            : ""
+        );
+        pruned = true;
+      }
+    }
+  }
+  return result;
 }
 
 function collectBindingNames(pattern: unknown, names: string[]): void {
@@ -856,9 +1067,20 @@ export function transformForClient(code: string, filename: string): TransformRes
 
   let source = new MagicString(clientSource);
   const routeBindings = collectDefineRouteBindings(program);
-  const removedRouteCode = removeChainedServerCalls(source, program, routeBindings);
+  assertCompleteRouteChains(program, routeBindings, filename);
+  const configBindings = new Set<string>();
+  const removedRouteCode = removeChainedServerCalls(
+    source,
+    program,
+    routeBindings,
+    configBindings,
+    filename
+  );
   const removedServerCode = isomorphicResult.transformed || removedRouteCode;
   if (removedServerCode) {
+    if (configBindings.size > 0) {
+      source = pruneUnusedConfigBindings(source, filename, configBindings);
+    }
     source = deadCodeElimination(source, code, lang);
   }
   const transformedCode = source.toString();

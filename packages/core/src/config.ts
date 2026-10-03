@@ -99,6 +99,11 @@ export const configSchema = t.Object({
   optimizeImports: t.Optional(t.Array(t.String())),
   pagesDir: t.Optional(t.String()),
   /**
+   * Module preloading. `routeChunks` (default true) makes `<HeadContent />`
+   * emit `<link rel="modulepreload">` for the current route's chunks.
+   */
+  preload: t.Optional(t.Object({ routeChunks: t.Optional(t.Boolean()) })),
+  /**
    * Enable Bun's native Rust React Compiler for production client bundles.
    * Enabled by default.
    */

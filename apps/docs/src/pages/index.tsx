@@ -1,6 +1,6 @@
 import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
-import { codeToHtml } from "shiki";
+import { Suspense } from "react";
 import { FeatureCard, HeroCodeWindow } from "@/components/hero-section";
 import {
   ApiIcon,
@@ -12,6 +12,15 @@ import {
   RenderIcon,
   TypeIcon,
 } from "@/components/icons";
+import { ChimeCanvas } from "@/components/landing/chime-canvas";
+import { CopyCommand } from "@/components/landing/copy-command";
+import { LandingFont } from "@/components/landing/landing-font";
+import { ModesGrid } from "@/components/landing/modes-grid";
+import { Reveal } from "@/components/landing/reveal";
+import { ShipSection } from "@/components/landing/ship-section";
+import { StackReveal } from "@/components/landing/stack-reveal";
+import { SyncSection } from "@/components/landing/sync-section";
+import { highlighter } from "@/lib/highlight";
 import { route as parentRoute } from "./root";
 
 const FILES = {
@@ -22,9 +31,10 @@ export const route = defineRoute()
   .config({ layout: rootRoute, mode: "ssr" })
   .loader(async () => ({
     message: "Hello from Furin!",
+    renderedAt: Date.now(),
   }))
-  .page(({ message }) => (
-    <h1>{message}</h1>
+  .page(({ message, renderedAt }) => (
+    <h1>{message} · {renderedAt}</h1>
   ))`,
   "pages/root.tsx": `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin"
 import { Link } from "@teyik0/furin/link"
@@ -69,154 +79,255 @@ export default app`,
 
 type FileName = keyof typeof FILES;
 
+// Abridged from examples/task-manager: src/api/modules/{boards,cards}/index.ts,
+// src/lib/api.ts (client branch) and src/lib/card-mutations.ts (moveBoardCard).
+const SYNC_SERVER = `// boards/index.ts
+.get(
+  "/boards/:boardId",
+  { sync: { id: "board", scope: ({ params }) => ({ boardId: params.boardId }) } },
+  ({ params, problem }) => { /* … getBoardData(params.boardId) */ }
+)
+
+// cards/index.ts
+.patch("/cards/:id", {
+  body: t.Object({ column: t.Optional(columnType), /* … */ }),
+  sync: {
+    invalidate: ({ params, responseValue }) => cardInvalidations(params.id, responseValue),
+  },
+}, ({ params, body, problem, mutation }) => mutation((tx) => { /* … */ }))`;
+
+const SYNC_CLIENT = `// api.ts
+createClient<Api>(window.location.origin, { retry: 2 }).api
+
+// card-mutations.ts · moveBoardCard
+return api.cards({ id: cardId }).patch(
+  { column, position },
+  {
+    optimistic: (cache) =>
+      cache.update(api.boards({ boardId }).get, (data) => ({
+        ...data,
+        cards: moveCard(data.cards, cardId, column, before)?.nextCards ?? data.cards,
+      })),
+  }
+);`;
+
+const FEATURES = [
+  {
+    description:
+      "Automatic route generation from your file structure. Dynamic routes, nested layouts, and catch-all patterns.",
+    icon: <FileIcon />,
+    title: "File-Based Routing",
+  },
+  {
+    description: "SSR for dynamic content, SSG for static pages, ISR for the best of both worlds.",
+    icon: <RenderIcon />,
+    title: "Multiple Rendering Modes",
+  },
+  {
+    description: "Complete TypeScript inference across the stack. No code generation required.",
+    icon: <TypeIcon />,
+    title: "Full Type Safety",
+  },
+  {
+    description:
+      "Compose your UI with powerful layout patterns. Data flows flat through the component tree.",
+    icon: <LayoutIcon />,
+    title: "Nested Layouts",
+  },
+  {
+    description:
+      "React Fast Refresh for instant feedback during development. Powered by Bun's speed.",
+    icon: <HmrIcon />,
+    title: "Fast Refresh",
+  },
+  {
+    description:
+      "Build your backend alongside your frontend with Elysia's powerful API capabilities.",
+    icon: <ApiIcon />,
+    title: "API Routes",
+  },
+  {
+    description:
+      'Compile to a standalone binary with Bun. "server" separates client assets; "embed" produces a single executable.',
+    icon: <CompileIcon />,
+    title: "Bun Binary Compile",
+  },
+  {
+    description:
+      "Pass Bun plugins (e.g. Tailwind, custom transforms) directly in furin.config.ts. They run before the internal client transform.",
+    icon: <PluginIcon />,
+    title: "User Plugins",
+  },
+] as const;
+
+function delay(ms: number) {
+  return { "--d": `${ms}ms` } as React.CSSProperties;
+}
+
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(async () => {
+  .loader(() => {
     const entries = Object.entries(FILES) as [FileName, string][];
-    const codeHtmlMap = Promise.all(
-      entries.map(async ([name, code]) => [
-        name,
-        await codeToHtml(code, { lang: "tsx", theme: "github-dark" }),
-      ])
-    ).then((resolvedEntries) => Object.fromEntries(resolvedEntries) as Record<FileName, string>);
-    return { codeHtmlMap: await codeHtmlMap };
+    return {
+      codeHtmlMap: Object.fromEntries(
+        entries.map(([name, code]) => [name, highlighter.highlightToHtml(code, { lang: "tsx" })])
+      ) as Record<FileName, string>,
+      syncClientHtml: highlighter.highlightToHtml(SYNC_CLIENT, { lang: "tsx" }),
+      syncServerHtml: highlighter.highlightToHtml(SYNC_SERVER, { lang: "tsx" }),
+    };
   })
   .head(() => ({
     links: [{ href: "/", rel: "canonical" }],
-    meta: [{ title: "Furin — The Fast, Minimal React Framework for Bun" }],
+    meta: [
+      { title: "Furin — The React framework that rings fast" },
+      {
+        content:
+          "Furin is a React meta-framework on Elysia and Bun: SSR, SSG and ISR per route, SPA navigation, end-to-end TypeScript inference, native HMR and single-binary compile.",
+        name: "description",
+      },
+    ],
   }))
-  .page(({ codeHtmlMap }) => (
-    <div>
-      {/* Hero */}
-      <section className="relative flex min-h-[calc(100vh-3.5rem)] items-center overflow-hidden bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.22),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(59,130,246,0.12),transparent)]">
-        {/* Grid overlay — uses currentColor so it flips with the theme */}
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-            backgroundSize: "64px 64px",
-          }}
-        />
+  .page(({ codeHtmlMap, syncClientHtml, syncServerHtml }) => (
+    <div className="landing">
+      <LandingFont />
+      {/* 1 — Hero */}
+      <section className="hero relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col overflow-hidden">
+        <ChimeCanvas className="-z-10" variant="hero" />
+        <div className="hero-veil pointer-events-none absolute inset-0 -z-10" />
 
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:px-8">
-          {/* Left: headline */}
-          <div className="flex flex-col justify-center">
-            <h1 className="mb-6 font-semibold text-3xl text-foreground leading-[1.1] sm:text-6xl lg:text-[3.75rem]">
-              Furin.{" "}
-              <span className="text-muted-foreground">
-                The Fast, Minimal, and Modern React Meta Framework for Bun.
-              </span>
+        <div className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col justify-end px-5 pt-[40svh] pb-14 sm:px-8 md:justify-center md:pt-24 md:pb-24">
+          <div className="max-w-[46rem]">
+            <p className="hero-in lp-eyebrow mb-7" style={delay(0)}>
+              <span className="jp-mark">風鈴</span>
+              <span className="mx-2 text-foreground/25">/</span>
+              React · Elysia · Bun
+            </p>
+            <h1 className="hero-in lp-display mb-7" style={delay(60)}>
+              The React framework <span className="lp-display__accent">that rings fast.</span>
             </h1>
-
-            <p className="max-w-lg text-lg text-muted-foreground leading-relaxed">
-              Rethinking web development speed and simplicity with Bun.
+            <p
+              className="hero-in mb-10 max-w-xl text-[17px] text-muted-foreground leading-relaxed sm:text-lg"
+              style={delay(160)}
+            >
+              SSR, SSG &amp; ISR per route with SPA navigation — on Elysia and Bun, fully typed end
+              to end.
             </p>
-            <p className="mb-10 max-w-lg text-lg text-muted-foreground leading-relaxed">
-              One unique process, frontend and backend with bun native HMR.
-            </p>
-
-            <div className="flex flex-wrap gap-4">
-              <Link
-                className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-[background-color,box-shadow] hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
-                to="/docs"
-              >
-                Get Started
+            <div className="hero-in flex flex-wrap items-center gap-3" style={delay(240)}>
+              <Link className="lp-cta" to="/docs">
+                Get started
+                <span aria-hidden="true" className="lp-cta__arrow">
+                  →
+                </span>
               </Link>
-              <a
-                className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
-                href="https://github.com/teyik0/furin"
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                View on GitHub
-              </a>
+              <CopyCommand />
             </div>
           </div>
+        </div>
 
-          {/* Right: tabbed code window — intentionally always dark */}
-          <div className="flex items-center justify-center">
-            <HeroCodeWindow codeHtmlMap={codeHtmlMap} />
-          </div>
+        <div className="relative mx-auto hidden w-full max-w-7xl items-center justify-between px-5 pb-8 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.2em] sm:px-8 md:flex">
+          <span className="motion-reduce:invisible">Click anywhere to ring</span>
+          <span className="flex items-center gap-3">
+            Scroll
+            <span className="scroll-cue" />
+          </span>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="border-border border-t py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <h2 className="mb-4 text-center font-semibold text-3xl text-foreground">
-            Everything you need
-          </h2>
-          <p className="mb-12 text-center text-muted-foreground">
-            A complete React meta-framework, batteries included.
-          </p>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <FeatureCard
-              description="Automatic route generation from your file structure. Dynamic routes, nested layouts, and catch-all patterns."
-              icon={<FileIcon />}
-              title="File-Based Routing"
-            />
-            <FeatureCard
-              description="SSR for dynamic content, SSG for static pages, ISR for the best of both worlds."
-              icon={<RenderIcon />}
-              title="Multiple Rendering Modes"
-            />
-            <FeatureCard
-              description="Complete TypeScript inference across the stack. No code generation required."
-              icon={<TypeIcon />}
-              title="Full Type Safety"
-            />
-            <FeatureCard
-              description="Compose your UI with powerful layout patterns. Data flows flat through the component tree."
-              icon={<LayoutIcon />}
-              title="Nested Layouts"
-            />
-            <FeatureCard
-              description="React Fast Refresh for instant feedback during development. Powered by Bun's speed."
-              icon={<HmrIcon />}
-              title="Fast Refresh"
-            />
-            <FeatureCard
-              description="Build your backend alongside your frontend with Elysia's powerful API capabilities."
-              icon={<ApiIcon />}
-              title="API Routes"
-            />
-            <FeatureCard
-              description='Compile to a standalone binary with Bun. "server" separates client assets; "embed" produces a single executable.'
-              icon={<CompileIcon />}
-              title="Bun Binary Compile"
-            />
-            <FeatureCard
-              description="Pass Bun plugins (e.g. Tailwind, custom transforms) directly in furin.config.ts. They run before the internal client transform."
-              icon={<PluginIcon />}
-              title="User Plugins"
-            />
-          </div>
-        </div>
-      </section>
+      {/* Everything below the hero hydrates as its own boundary (React selective hydration),
+          so the first hydration task only covers the shell and the hero. */}
+      <Suspense fallback={null}>
+        {/* 2 — Stack */}
+        <StackReveal />
 
-      {/* CTA */}
-      <section className="border-border border-t py-24">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="mb-4 font-semibold text-3xl text-foreground">Ready to build?</h2>
-          <p className="mb-10 text-lg text-muted-foreground">
-            Explore the live demo or dive into the documentation.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link
-              className="rounded-full bg-blue-600 px-8 py-3 font-medium text-sm text-white transition-[background-color,box-shadow] hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-lg"
-              to="/docs"
-            >
-              Explore Examples
-            </Link>
-            <Link
-              className="rounded-full border border-border px-8 py-3 font-medium text-foreground/70 text-sm transition-colors hover:border-foreground/40 hover:text-foreground"
-              to="/docs"
-            >
-              Read the Docs
-            </Link>
+        {/* 3 — Code + types */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <Reveal className="min-w-0">
+              <p className="lp-eyebrow mb-5">02 — Types</p>
+              <h2 className="lp-h2 mb-6">
+                Your loader is
+                <br />
+                <span className="text-muted-foreground">your props.</span>
+              </h2>
+              <p className="max-w-md text-muted-foreground leading-relaxed sm:text-lg">
+                Whatever <code className="lp-code">.loader()</code> returns is inferred straight
+                into <code className="lp-code">.page()</code> — across layouts, through Elysia,
+                without a codegen step.
+              </p>
+            </Reveal>
+            <Reveal className="type-reveal min-w-0" delay={120}>
+              <HeroCodeWindow codeHtmlMap={codeHtmlMap} />
+            </Reveal>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* 4 — Rendering modes */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <Reveal className="mb-14 max-w-2xl">
+              <p className="lp-eyebrow mb-5">03 — Rendering</p>
+              <h2 className="lp-h2">
+                Pick a mode per route.
+                <br />
+                <span className="text-muted-foreground">Change it with one line.</span>
+              </h2>
+            </Reveal>
+            <ModesGrid />
+          </div>
+        </section>
+
+        {/* Sync + ship (from the motion video) */}
+        <SyncSection clientHtml={syncClientHtml} serverHtml={syncServerHtml} />
+        <ShipSection />
+
+        {/* 5 — Features */}
+        <section className="lp-defer relative py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <Reveal className="mb-14 max-w-3xl">
+              <p className="lp-eyebrow mb-5">06 — Batteries</p>
+              <h2 className="lp-h2">
+                Everything you need.
+                <br />
+                <span className="text-muted-foreground">Nothing you have to wire.</span>
+              </h2>
+            </Reveal>
+            <div className="feature-grid grid sm:grid-cols-2 lg:grid-cols-4">
+              {FEATURES.map((feature, i) => (
+                <Reveal delay={(i % 4) * 70} key={feature.title}>
+                  <FeatureCard
+                    description={feature.description}
+                    icon={feature.icon}
+                    title={feature.title}
+                  />
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 6 — Final CTA */}
+        <section className="lp-defer relative isolate overflow-hidden py-24 sm:py-32">
+          <div className="mx-auto flex max-w-3xl flex-col items-center px-5 text-center sm:px-8">
+            <div className="relative mb-4 h-72 w-56">
+              <ChimeCanvas ringOnEnter variant="mini" />
+            </div>
+            <Reveal>
+              <h2 className="lp-h2 mb-5">Hear it ring.</h2>
+              <p className="mx-auto mb-10 max-w-md text-muted-foreground sm:text-lg">
+                One command, one process, one binary. Start building in under a minute.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link className="lp-cta" to="/docs">
+                  Read the docs
+                  <span aria-hidden="true" className="lp-cta__arrow">
+                    →
+                  </span>
+                </Link>
+                <CopyCommand />
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </Suspense>
     </div>
   ));

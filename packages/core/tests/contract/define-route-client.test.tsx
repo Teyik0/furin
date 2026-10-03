@@ -5,6 +5,13 @@ const Page = () => "page";
 const Layout = ({ children }: { children: React.ReactNode }) => children;
 
 describe("client defineRoute", () => {
+  test("retains remount dependencies on the client terminal", () => {
+    const remountDeps = () => ["document"];
+    const route = defineRoute().config({ remountDeps }).page(Page);
+
+    expect(route.remountDeps).toBe(remountDeps);
+  });
+
   test("keeps only the terminal component contract", () => {
     const pageRoute = defineRoute().page(Page);
     const layoutRoute = defineRoute().layout(Layout);

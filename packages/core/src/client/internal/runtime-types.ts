@@ -1,6 +1,7 @@
 import type React from "react";
 import type { HeadOptions, RenderingMode } from "../../client.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
+import type { RemountDeps } from "../../shared/page-key.ts";
 
 export type RuntimeData = Record<string, unknown>;
 
@@ -22,6 +23,7 @@ export interface RuntimeRoute {
   params?: unknown;
   parent?: RuntimeRoute;
   query?: unknown;
+  remountDeps?: RemountDeps<object, object>;
   requestLoader?: (ctx: RequestLoaderContext) => Awaitable<object>;
   revalidate?: number;
   sourcePath?: string;

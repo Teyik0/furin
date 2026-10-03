@@ -1,6 +1,8 @@
 // ── HTML template state (per furin instance) ────────────────────────────────
 
 import { readFileSync } from "node:fs";
+import type { ClientPreloadManifest } from "../../build/preload-manifest.ts";
+import { setClientModuleHrefResolver } from "../../client/client-module.ts";
 import type { DocumentAssets } from "../../client/document.tsx";
 import { injectBrowserEventsClient } from "../browser-events/plugin.ts";
 import { injectInstrumentationClient } from "../devtools/instrumentation.ts";
@@ -18,6 +20,7 @@ interface TemplateState {
   prodAssets: DocumentAssets | null;
   prodContent: string | null;
   prodPath: string | null;
+  prodPreload: ClientPreloadManifest | null;
 }
 
 const instanceTemplateState = instanceSlot(
@@ -27,6 +30,7 @@ const instanceTemplateState = instanceSlot(
     prodAssets: null,
     prodContent: null,
     prodPath: null,
+    prodPreload: null,
   })
 );
 
@@ -206,6 +210,24 @@ function readDocumentAssets(state: TemplateState): DocumentAssets | null {
   return state.prodAssets;
 }
 
+export function setProductionPreloadManifest(
+  manifest: ClientPreloadManifest,
+  instance?: FurinInstance
+): void {
+  instanceTemplateState(instance).prodPreload = manifest;
+}
+
+/** The client build's preload manifest, or `null` in dev and before a build. */
+export function getProductionPreloadManifest(): ClientPreloadManifest | null {
+  return (
+    instanceTemplateState().prodPreload ??
+    instanceTemplateState(defaultInstanceBucket()).prodPreload
+  );
+}
+
+// Server-side clientModule() calls carry a build key instead of chunk URLs.
+setClientModuleHrefResolver((key) => getProductionPreloadManifest()?.modules[key] ?? []);
+
 /** @internal test-only — resets all template state */
 export function __resetTemplateState(): void {
   for (const instance of allStateBuckets()) {
@@ -215,5 +237,6 @@ export function __resetTemplateState(): void {
     state.prodAssets = null;
     state.prodContent = null;
     state.prodPath = null;
+    state.prodPreload = null;
   }
 }

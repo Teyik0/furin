@@ -37,6 +37,7 @@ import { initializeFurinLogger } from "./server/logger.ts";
 import { renderRootNotFound } from "./server/render/not-found.ts";
 import { warmSSGCache } from "./server/render/ssg.ts";
 import {
+  setProductionPreloadManifest,
   setProductionTemplateContent,
   setProductionTemplatePath,
 } from "./server/render/template.ts";
@@ -261,6 +262,9 @@ async function setupCompiledTemplate(
   clientDir: string,
   instance: FurinInstance
 ): Promise<void> {
+  if (ctx.preloadManifest) {
+    setProductionPreloadManifest(ctx.preloadManifest, instance);
+  }
   if (ctx.templateHtml === undefined) {
     await setupProdTemplate(embedded, clientDir, instance);
     return;

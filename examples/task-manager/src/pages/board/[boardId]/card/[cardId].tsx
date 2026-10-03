@@ -1,9 +1,11 @@
 import { defineRoute, notFound } from "@teyik0/furin";
+import { useMutation } from "@teyik0/furin/client";
 import { Link, useRouter } from "@teyik0/furin/link";
 import { t } from "elysia";
 import { useState } from "react";
 import { FaArrowLeft, FaChevronRight } from "react-icons/fa";
 import { FiTrash2 } from "react-icons/fi";
+import type { Card } from "@/db/schema";
 import { api } from "@/lib/api";
 import { route as parentRoute } from "./_route";
 
@@ -58,79 +60,41 @@ export const route = defineRoute()
   .head(({ card, boardName }) => ({
     meta: [{ title: `${card.title} | ${boardName} | Task Manager` }],
   }))
-  .page(({ card, boardName, renderedAt, formattedCreatedAt, params }) => {
-    const [seededCard, setSeededCard] = useState(card);
-    const [isDirty, setIsDirty] = useState(false);
-    const [title, setTitle] = useState(card.title);
-    const [description, setDescription] = useState(card.description);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    if (
-      seededCard.id !== card.id ||
-      seededCard.title !== card.title ||
-      seededCard.description !== card.description
-    ) {
-      setSeededCard(card);
-      if (seededCard.id !== card.id || !isDirty) {
-        setIsDirty(false);
-        setTitle(card.title);
-        setDescription(card.description);
-        setErrorMessage(null);
-      }
-    }
+  .page(({ card, boardName, renderedAt, formattedCreatedAt, params: { boardId } }) => {
+    const [draft, setDraft] = useState<Pick<Card, "title" | "description"> | null>(null);
+    const { title, description } = draft ?? card;
     const router = useRouter();
+    const save = useMutation(api.cards({ id: card.id }).patch, {
+      onSuccess: () => router.navigate(`/board/${boardId}`),
+    });
+    const remove = useMutation(api.cards({ id: card.id }).delete, {
+      onSuccess: () => router.navigate(`/board/${boardId}`),
+    });
+    const isMutating = save.isPending || remove.isPending;
 
-    const handleSave = async (formData: FormData) => {
-      try {
-        const changes = {
-          description: String(formData.get("description") ?? ""),
-          title: String(formData.get("title") ?? ""),
-        };
-        const { error } = await api.cards({ id: card.id }).patch(changes, {
-          optimistic(cache) {
-            cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
-            cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
-              ...data,
-              cards: data.cards.map((item) =>
-                item.id === card.id ? { ...item, ...changes } : item
-              ),
-            }));
-          },
-        });
-
-        if (error) {
-          setErrorMessage(
-            error.value?.detail ??
-              (error.status === 422
-                ? "Validation error"
-                : "Could not save the card. Please try again.")
-          );
-          return;
-        }
-        setErrorMessage(null);
-        await router.navigate(`/board/${params.boardId}`);
-      } catch {
-        setErrorMessage("Could not save the card. Please try again.");
-      }
+    const handleSave = (formData: FormData) => {
+      const changes = {
+        description: String(formData.get("description") ?? ""),
+        title: String(formData.get("title") ?? ""),
+      };
+      save.mutate(changes, {
+        optimistic(cache) {
+          cache.update(api.cards({ id: card.id }).get, (data) => ({ ...data, ...changes }));
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: data.cards.map((item) => (item.id === card.id ? { ...item, ...changes } : item)),
+          }));
+        },
+      });
     };
-
-    const handleDelete = async () => {
-      try {
-        const { error } = await api.cards({ id: card.id }).delete(undefined, {
-          optimistic: (cache) =>
-            cache.update(api.boards({ boardId: params.boardId }).get, (data) => ({
-              ...data,
-              cards: data.cards.filter((item) => item.id !== card.id),
-            })),
-        });
-        if (error) {
-          setErrorMessage(error.value?.detail ?? "Could not delete the card. Please try again.");
-          return;
-        }
-        setErrorMessage(null);
-        await router.navigate(`/board/${params.boardId}`);
-      } catch {
-        setErrorMessage("Could not delete the card. Please try again.");
-      }
+    const handleDelete = () => {
+      remove.mutate(undefined, {
+        optimistic: (cache) =>
+          cache.update(api.boards({ boardId }).get, (data) => ({
+            ...data,
+            cards: data.cards.filter((item) => item.id !== card.id),
+          })),
+      });
     };
 
     return (
@@ -139,7 +103,7 @@ export const route = defineRoute()
           <nav className="flex items-center gap-1.5 text-sm">
             <Link
               className="flex items-center gap-1.5 text-zinc-500 transition-colors hover:text-zinc-300"
-              to={`/board/${params.boardId}`}
+              to={`/board/${boardId}`}
             >
               <FaArrowLeft size={13} />
               <span>{boardName}</span>
@@ -165,12 +129,6 @@ export const route = defineRoute()
             </div>
 
             <form action={handleSave} className="space-y-5 p-6">
-              {errorMessage ? (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
-                  {errorMessage}
-                </div>
-              ) : null}
-
               <div>
                 <label
                   className="mb-1.5 block font-semibold text-xs text-zinc-500 uppercase tracking-wider"
@@ -184,8 +142,8 @@ export const route = defineRoute()
                   id="card-title"
                   name="title"
                   onChange={(event) => {
-                    setIsDirty(true);
-                    setTitle(event.target.value);
+                    const { value } = event.target;
+                    setDraft((current) => ({ ...(current ?? card), title: value }));
                   }}
                   placeholder="Card title..."
                   type="text"
@@ -206,8 +164,8 @@ export const route = defineRoute()
                   id="card-description"
                   name="description"
                   onChange={(event) => {
-                    setIsDirty(true);
-                    setDescription(event.target.value);
+                    const { value } = event.target;
+                    setDraft((current) => ({ ...(current ?? card), description: value }));
                   }}
                   placeholder="Add a description..."
                   rows={5}
@@ -215,22 +173,44 @@ export const route = defineRoute()
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <button
-                  className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-2.5 font-medium text-red-400 text-sm transition-[border-color,background-color,transform] hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.98]"
-                  onClick={handleDelete}
-                  type="button"
-                >
-                  <FiTrash2 size={14} />
-                  Delete card
-                </button>
+              <div className="flex items-start justify-between gap-4 pt-1">
+                <div className="space-y-2">
+                  <button
+                    aria-describedby={remove.error ? "card-delete-error" : undefined}
+                    className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-4 py-2.5 font-medium text-red-400 text-sm transition-[border-color,background-color,transform] hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.98]"
+                    disabled={isMutating}
+                    onClick={handleDelete}
+                    type="button"
+                  >
+                    <FiTrash2 size={14} />
+                    Delete card
+                  </button>
+                  {remove.error ? (
+                    <p
+                      className="max-w-xs text-red-300 text-sm"
+                      id="card-delete-error"
+                      role="alert"
+                    >
+                      {remove.error.value.detail}
+                    </p>
+                  ) : null}
+                </div>
 
-                <button
-                  className="rounded-xl bg-violet-600 px-5 py-2.5 font-semibold text-sm text-white shadow-lg shadow-violet-500/20 transition-[background-color,transform] hover:bg-violet-500 active:scale-[0.98]"
-                  type="submit"
-                >
-                  Save Changes
-                </button>
+                <div className="space-y-2 text-right">
+                  <button
+                    aria-describedby={save.error ? "card-save-error" : undefined}
+                    className="rounded-xl bg-violet-600 px-5 py-2.5 font-semibold text-sm text-white shadow-lg shadow-violet-500/20 transition-[background-color,transform] hover:bg-violet-500 active:scale-[0.98]"
+                    disabled={isMutating}
+                    type="submit"
+                  >
+                    Save Changes
+                  </button>
+                  {save.error ? (
+                    <p className="max-w-xs text-red-300 text-sm" id="card-save-error" role="alert">
+                      {save.error.value.detail}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </form>
           </div>

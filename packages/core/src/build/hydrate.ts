@@ -106,7 +106,7 @@ export function generateHydrateEntry(
         ? `, segmentBoundaries: [${boundaryLiterals.join(", ")}]`
         : "";
     const pageComponentKey = JSON.stringify(`page:${resolvedPage}`);
-    const loadBody = `Promise.all([${lazyImports.join(", ")}]).then(([${importIdents.join(", ")}]) => { const __furin_page_route = __furin_page.route; let __furin_parent = root; ${layoutAssignments} return { default: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", parent: __furin_parent }, component: hotComponent(${pageComponentKey}, __furin_page_route.component) }${boundaryResult} }; })`;
+    const loadBody = `Promise.all([${lazyImports.join(", ")}]).then(([${importIdents.join(", ")}]) => { const __furin_page_route = __furin_page.route; let __furin_parent = root; ${layoutAssignments} return { default: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", parent: __furin_parent, remountDeps: __furin_page_route.remountDeps }, component: hotComponent(${pageComponentKey}, __furin_page_route.component) }${boundaryResult} }; })`;
 
     const searchDefaultsEntry = searchDefaults
       ? `, searchDefaults: ${JSON.stringify(searchDefaults)}`
