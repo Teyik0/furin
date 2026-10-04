@@ -10,7 +10,7 @@ Furin maps source files in `src/pages` to URL paths. Directories create URL segm
 | `pages/blog/archive.tsx` | `/blog/archive` |
 | `pages/blog/[slug].tsx` | `/blog/:slug` |
 | `pages/docs/[...path].tsx` | `/docs/*` |
-| `pages/(marketing)/index.tsx` | `/` |
+| `pages/(marketing)/pricing.tsx` | `/pricing` |
 | `pages/(admin)/users/[id].tsx` | `/users/:id` |
 
 Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js`. Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.

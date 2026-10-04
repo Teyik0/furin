@@ -340,7 +340,10 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root, pagesDir);
       devRoute.notFound = notFound;
       devRoute.error = errorComponent;
-      devRoute.segmentBoundaries = segmentBoundaries;
+      devRoute.segmentBoundaries = alignSegmentBoundaryDepths(
+        segmentBoundaries,
+        devRoute.routeChain
+      );
       routes.push(devRoute);
       continue;
     }
@@ -366,7 +369,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       path: absolutePath,
       pattern,
       routeChain,
-      segmentBoundaries,
+      segmentBoundaries: alignSegmentBoundaryDepths(segmentBoundaries, routeChain),
       tags: collectRouteTags(routeChain, page),
     });
   }
@@ -419,6 +422,25 @@ async function resolveDefinedLayoutParent(
   }
 
   return parent;
+}
+
+function alignSegmentBoundaryDepths(
+  boundaries: SegmentBoundary[],
+  routeChain: RuntimeRoute[]
+): SegmentBoundary[] {
+  return boundaries.map((boundary) => {
+    let depth = 0;
+    for (const [index, entry] of routeChain.entries()) {
+      if (!entry.sourcePath) {
+        continue;
+      }
+      const directory = entry.sourcePath.slice(0, entry.sourcePath.lastIndexOf("/"));
+      if (boundary.path === directory || boundary.path.startsWith(`${directory}/`)) {
+        depth = index;
+      }
+    }
+    return { ...boundary, depth };
+  });
 }
 
 /**

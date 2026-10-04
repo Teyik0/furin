@@ -20,22 +20,25 @@ export function buildElement(
     key: pageKey(route.pattern, data, route.page._route.remountDeps),
   });
 
-  // Index segmentBoundaries by depth for O(1) lookup during the wrap loop.
-  // Directory depth `d` maps 1:1 to routeChain[d] in Furin's model (routeChain
-  // is ordered shallow→deep, with index 0 being the root).
-  const byDepth = new Map<number, SegmentBoundary>();
+  // Directories without layouts share their enclosing layout's chain index.
+  // Keep their boundaries in inside-out order instead of overwriting them.
+  const byDepth = new Map<number, SegmentBoundary[]>();
   const legacyRoute = route as ResolvedRoute & {
     segmentBoundaries?: SegmentBoundary[];
   };
   for (const segment of legacyRoute.segmentBoundaries ?? []) {
-    byDepth.set(segment.depth, segment);
+    const boundaries = byDepth.get(segment.depth) ?? [];
+    boundaries.unshift(segment);
+    byDepth.set(segment.depth, boundaries);
   }
 
   // Build inside-out. At each level we first wrap the accumulated subtree
   // with the boundary declared at this depth (so the boundary sits INSIDE
   // the layout at the same depth), THEN wrap with the layout itself.
   for (let i = route.routeChain.length - 1; i >= 1; i -= 1) {
-    element = wrapSegmentBoundaries(element, byDepth.get(i), undefined);
+    for (const segment of byDepth.get(i) ?? []) {
+      element = wrapSegmentBoundaries(element, segment, undefined);
+    }
     const routeEntry = route.routeChain[i];
     if (routeEntry?.layout) {
       const Layout = routeEntry.layout;
@@ -43,9 +46,11 @@ export function buildElement(
     }
   }
 
-  // Depth 0 = pagesDir itself = the root layout directory. Boundary wraps
-  // everything below the root layout; root layout wraps the boundary.
-  element = wrapSegmentBoundaries(element, byDepth.get(0), undefined);
+  // Index-0 boundaries wrap everything below the root layout, including
+  // pathless directories without their own layouts.
+  for (const segment of byDepth.get(0) ?? []) {
+    element = wrapSegmentBoundaries(element, segment, undefined);
+  }
 
   if (rootLayout.layout) {
     const RootLayoutComponent = rootLayout.layout;

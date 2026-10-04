@@ -216,6 +216,8 @@ export interface RouterContextValue {
 export interface ClientSegmentBoundary {
   depth: number;
   error?: ErrorComponent;
+  /** False when a pathless directory shares index 0 but does not own the root fallback. */
+  isRoot?: boolean;
   notFound?: NotFoundComponent;
 }
 
