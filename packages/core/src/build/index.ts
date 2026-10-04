@@ -2,6 +2,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { buildBunTarget } from "../adapter/bun";
+import { buildCloudflareTarget } from "../adapter/cloudflare";
 import { buildPackageTarget } from "../adapter/package";
 import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
@@ -33,6 +34,7 @@ export type {
 
 // "package" is intentionally excluded from `--target all` — it is an
 // alternative packaging of ONE app, not an additional deploy target.
+// Cloudflare remains opt-in while ISR, PPR, RSC and Sync are unsupported.
 const IMPLEMENTED_TARGETS = ["bun", "vercel", "static"] as const satisfies BuildTarget[];
 export const BUILD_OUTPUT_DIR = ".furin/build";
 let isomorphicRuntimePluginRegistered = false;
@@ -233,6 +235,14 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
           buildRoot,
           serverEntry,
           options
+        );
+        break;
+      case "cloudflare":
+        if (!serverEntry) {
+          throw new Error("[furin] `--target cloudflare` requires a server entry point.");
+        }
+        manifest.targets.cloudflare = await buildCloudflareTarget(
+          apps, rootDir, buildRoot, serverEntry, options
         );
         break;
       default:

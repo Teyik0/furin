@@ -2,6 +2,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import type {
+  AotWorkerConfig,
   AotWorkerOperation,
   AotWorkerRequest,
   AotWorkerResponse,
@@ -56,12 +57,14 @@ export function handleWSResponse(){return e()}
 }
 
 /** Elysia AOT evaluation has its own module cache, independent of prerender loaders. */
-export function elysiaAot(entry: string): Bun.BunPlugin {
+export function elysiaAot(entry: string, target?: AotWorkerConfig["target"]): Bun.BunPlugin {
   const entryPath = resolve(entry);
   return {
     name: "elysia-aot",
     async setup(build) {
-      const worker = new Worker(AOT_WORKER_PATH, { workerData: { entry: entryPath } });
+      const worker = new Worker(AOT_WORKER_PATH, {
+        workerData: { entry: entryPath, target: target ?? "bun" } satisfies AotWorkerConfig,
+      });
       const pending = new Map<
         number,
         {

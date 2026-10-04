@@ -18,7 +18,7 @@ furin build [options]
 
 | Flag | Value | Default | Meaning |
 |---|---|---|---|
-| `--target` | `bun`, `vercel`, `static`, `package`, or `all` | `bun` | Select output |
+| `--target` | `bun`, `vercel`, `cloudflare`, `static`, `package`, or `all` | `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
@@ -37,6 +37,9 @@ furin build --target bun --compile server
 # One self-contained executable
 furin build --target bun --compile embed
 
+# Cloudflare Workers with CDN assets
+furin build --target cloudflare
+
 # Pure static output
 furin build --target static
 
@@ -47,7 +50,7 @@ furin build --target package --pagesDir ./src/admin --prefix /admin
 furin build --target all
 ```
 
-`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
+`all` preserves the deploy targets `bun`, `vercel`, and `static`. It excludes `package`, which is an alternative packaging of one app, and the initial `cloudflare` target, which must be selected explicitly because its runtime has a narrower feature set.
 
 ### Target Status
 
@@ -57,6 +60,7 @@ furin build --target all
 | `static` | Implemented | `static.outDir`, default `dist` |
 | `package` | Implemented | `.furin/build/package` |
 | `vercel` | Implemented | `.vercel/output` (Bun Function, CDN assets, native SSG/ISR) |
+| `cloudflare` | SSR/SSG; no ISR, PPR, RSC, or Sync | `.furin/build/cloudflare` (Worker, Wrangler config, CDN assets) |
 
 Every successful build writes `.furin/build/manifest.json`. It records route modes, app prefixes, output paths, build IDs, and target-specific metadata.
 

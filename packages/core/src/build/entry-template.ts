@@ -21,10 +21,12 @@ const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/server/runtime-env${_ext}`;
 /** One app's compile context payload — the generated entry can carry several. */
 export interface EntryAppContext {
   buildId?: string;
+  /** Empty for filesystem-free adapters whose assets and templates are embedded or platform-owned. */
+  clientDir?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
   /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
+  deploymentTarget?: "vercel" | "cloudflare";
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
   /** Additional route modules such as filesystem-derived `_route` layouts. */
@@ -177,6 +179,7 @@ function buildAppContextBlock(
   const contextLines = [
     "__setCompileContext({",
     `  buildId: ${JSON.stringify(app.buildId ?? "")},`,
+    ...(app.clientDir === undefined ? [] : [`  clientDir: ${JSON.stringify(app.clientDir)},`]),
     `  clientLogging: ${JSON.stringify(app.clientLogging ?? false)},`,
     deploymentTargetLine,
     `  prefix: ${JSON.stringify(app.prefix ?? "")},`,

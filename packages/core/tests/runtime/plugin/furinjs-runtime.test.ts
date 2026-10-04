@@ -111,6 +111,27 @@ test.serial("furin() production loads client assets from FURIN_CLIENT_DIR", asyn
   expect(getProductionTemplate()).toContain("custom");
 });
 
+test.serial("furin() disk client assets have one immutable cache policy", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(false);
+  process.chdir(app.path);
+
+  const clientDir = join(app.path, "client");
+  mkdirSync(clientDir, { recursive: true });
+  writeFileSync(join(clientDir, "index.html"), "<html><!--ssr-outlet--></html>");
+  writeFileSync(join(clientDir, "app-abcdefgh.js"), "export const app = true;");
+  process.env.FURIN_CLIENT_DIR = "client";
+
+  await setCompileContext(app.path);
+  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const response = await instance.handle(new Request("http://furin/_client/app-abcdefgh.js"));
+
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("export const app = true;");
+  expect(response.headers.get("cache-control")).toBe("immutable, max-age=31536000");
+  expect(response.headers.get("etag")).not.toBeNull();
+});
+
 test.serial("furin() production rejects missing FURIN_CLIENT_DIR assets", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(false);

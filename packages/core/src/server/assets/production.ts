@@ -90,9 +90,8 @@ export async function createProductionAssetsPlugin(
   return publicAssets.use(
     await staticPlugin({
       assets: clientDir,
-      headers: {
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
+      directive: "immutable",
+      maxAge: 31_536_000,
       prefix: "/_client",
     })
   );

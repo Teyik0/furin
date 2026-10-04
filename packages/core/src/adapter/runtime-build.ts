@@ -331,6 +331,7 @@ function isFrameworkRuntimeImporter(importer: string): boolean {
 }
 
 export interface RuntimeAppBuild {
+  browserFiles: string[];
   buildId: string;
   clientDir: string;
   entryApp: BuildEntryOptions["apps"][number];
@@ -345,14 +346,14 @@ export async function buildRuntimeApp(
   targetDir: string,
   serverEntry: string | null,
   options: BuildAppOptions,
-  targetName: "bun" | "vercel"
+  targetName: "bun" | "vercel" | "cloudflare"
 ): Promise<RuntimeAppBuild> {
   const { prefix, root, routes } = app;
   const modulePaths = routeSourcePaths(app);
   const clientDirName = clientDirNameForPrefix(prefix);
   const label = prefix === "" ? "root app" : `app "${prefix}"`;
 
-  const { entryChunk, cssChunks, preloadManifest } = await buildClient(routes, {
+  const { entryChunk, cssChunks, preloadManifest, browserFiles } = await buildClient(routes, {
     basePath: prefix,
     clientDirName,
     clientLogging: options.clientLogging ?? false,
@@ -364,7 +365,7 @@ export async function buildRuntimeApp(
     pagesDir: app.pagesDir,
     plugins: options.plugins,
     preloadRouteChunks: options.preload?.routeChunks,
-    publicPath: `${prefix}/_client/`,
+    publicPath: targetName === "cloudflare" ? "/_client/" : `${prefix}/_client/`,
     reactCompiler: options.reactCompiler,
     rootLayout: root.path,
   });
@@ -402,11 +403,12 @@ export async function buildRuntimeApp(
 
   return {
     buildId,
+    browserFiles,
     clientDir,
     entryApp: {
       buildId,
       clientLogging: options.clientLogging ?? false,
-      deploymentTarget: targetName === "vercel" ? "vercel" : undefined,
+      deploymentTarget: targetName === "bun" ? undefined : targetName,
       embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
       nativeRoutes: composableRouteModuleSpecifier(app),
@@ -433,7 +435,7 @@ export async function buildRuntimeAppsSequentially(
   targetDir: string,
   serverEntry: string | null,
   options: BuildAppOptions,
-  targetName: "bun" | "vercel"
+  targetName: "bun" | "vercel" | "cloudflare"
 ): Promise<{
   builds: RuntimeAppBuild[];
   entryApps: BuildEntryOptions["apps"];
@@ -459,7 +461,7 @@ export async function buildRuntimeAppsSequentially(
       headlineBuildId = built.buildId;
     }
   }
-  if (serverEntry) {
+  if (serverEntry && targetName !== "cloudflare") {
     await buildRscGraph(apps, targetDir, headlineBuildId, options.plugins);
   }
 

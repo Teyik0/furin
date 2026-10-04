@@ -38,7 +38,7 @@ export interface CompileContext {
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
   /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
+  deploymentTarget?: "vercel" | "cloudflare";
   embedded?: EmbeddedAppData;
   modules: Record<string, unknown>;
   /** Elysia-native route tree generated for this mounted app. */

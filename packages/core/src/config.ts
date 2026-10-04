@@ -2,7 +2,7 @@ import type { BunPlugin } from "bun";
 import { t } from "elysia";
 import type { Static } from "typebox";
 
-export const BUILD_TARGETS = ["bun", "vercel", "static", "package"] as const;
+export const BUILD_TARGETS = ["bun", "vercel", "static", "package", "cloudflare"] as const;
 
 export type BuildTarget = (typeof BUILD_TARGETS)[number];
 
