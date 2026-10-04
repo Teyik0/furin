@@ -538,7 +538,7 @@ export default { fetch: handle };
 `;
 }
 
-async function buildPprFallbacks(
+async function buildProductionFallbacks(
   apps: RuntimeTargetApp[],
   builds: RuntimeAppBuild[],
   specs: PrerenderSpec[],
@@ -551,13 +551,9 @@ async function buildPprFallbacks(
       .filter((prerender) => prerender.result === undefined)
       .map((prerender) => {
         const path = physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path);
-        const spec = specs.find(
-          (candidate) =>
-            candidate.config.chain !== undefined &&
-            new RegExp(`^(?:${candidate.source})$`).test(path)
-        );
+        const spec = specs.find((candidate) => new RegExp(`^(?:${candidate.source})$`).test(path));
         if (!spec) {
-          throw new Error(`[furin] Missing PPR build target for ${path}`);
+          throw new Error(`[furin] Missing prerender build target for ${path}`);
         }
         return { path, prerender, spec };
       })
@@ -565,7 +561,7 @@ async function buildPprFallbacks(
   if (jobs.length === 0) {
     return;
   }
-  const resultPath = join(targetDir, "ppr-results.json");
+  const resultPath = join(targetDir, "prerender-results.json");
   const requests = jobs.map(
     ({ path, spec }) =>
       `http://localhost/${spec.functionName}?${ISR_PATH_PARAM}=${encodeURIComponent(path)}`
@@ -573,9 +569,9 @@ async function buildPprFallbacks(
   const script = `
 const handler = (await import(${JSON.stringify(pathToFileURL(join(functionsDir, "__server.func/index.js")).href)})).default;
 const results = [];
-for (const url of ${JSON.stringify(requests)}) {
+for (const [index, url] of ${JSON.stringify(requests)}.entries()) {
   const response = await handler.fetch(new Request(url));
-  if (response.status >= 400) throw new Error("PPR build failed for " + url + ": HTTP " + response.status);
+  if (response.status >= 500 || (response.status >= 400 && ${JSON.stringify(jobs.map(({ spec }) => spec.config.chain !== undefined))}[index])) throw new Error("Production prerender failed for " + url + ": HTTP " + response.status);
   results.push({ body: await response.text(), headers: Object.fromEntries(response.headers), status: response.status });
 }
 await Bun.write(${JSON.stringify(resultPath)}, JSON.stringify(results));
@@ -594,7 +590,7 @@ process.exit(0);
       new Response(child.stderr).text(),
     ]);
     if (exitCode !== 0) {
-      throw new Error(`[furin] PPR production prerender failed:\n${stderr}\n${stdout}`);
+      throw new Error(`[furin] Production prerender failed:\n${stderr}\n${stdout}`);
     }
     const results = JSON.parse(readFileSync(resultPath, "utf8")) as {
       body: string;
@@ -812,7 +808,7 @@ export async function buildVercelTarget(
     .filter((output) => output.path.endsWith(".js"))
     .reduce((total, output) => total + output.size, 0);
   writeFileSync(join(serverFunctionDir, "index.js"), vercelBootstrapSource(serverBundleBytes));
-  await buildPprFallbacks(apps, builds, prerenderSpecs, functionsDir, rootDir, targetDir);
+  await buildProductionFallbacks(apps, builds, prerenderSpecs, functionsDir, rootDir, targetDir);
 
   writeFileSync(
     join(serverFunctionDir, ".vc-config.json"),

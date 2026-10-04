@@ -66,8 +66,13 @@ export function withBuildStub<T>(
   let buildCallCount = 0;
 
   const build = ((config) => {
-    const { compile, outdir, plugins } = config as Bun.BuildConfig;
     onBuild?.(config as Bun.BuildConfig);
+    // Vercel prerenders execute the compiled handler, so its server bundle
+    // must be real even when client assets are stubbed for adapter assertions.
+    if (typeof config.naming === "object" && config.naming.entry === "handler.[ext]") {
+      return Bun.build(config);
+    }
+    const { compile, outdir, plugins } = config as Bun.BuildConfig;
     runPluginSetups(plugins);
     const outfile = typeof compile === "object" ? compile.outfile : undefined;
     if (typeof outfile === "string") {
