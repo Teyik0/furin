@@ -26,7 +26,7 @@ test("Vercel prerenders production-compatible composite Flight for direct hydrat
         "export const route = defineRoute()",
         '  .config({ layout: rootRoute, mode: "isr", revalidate: 300 })',
         "  .loader(async () => {",
-        `    if ((process.env.NODE_ENV ?? null) !== ${JSON.stringify(previousNodeEnv ?? null)}) throw new Error("Build changed NODE_ENV during prerender");`,
+        '    if (process.env.NODE_ENV !== "production") throw new Error("Prerender must use the production handler");',
         "    return { shell: await createCompositeComponent<{ action: () => React.ReactNode }>(({ action }) => <main><h1>RSC page</h1>{action()}</main>) };",
         "  })",
         '  .page(({ shell }) => <CompositeComponent src={shell} action={() => <button type="button">Action</button>} />);',

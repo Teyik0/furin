@@ -121,3 +121,37 @@ export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir +
     app.cleanup();
   }
 }, 30_000);
+
+test("Vercel prerenders include the mounted app's browser events and custom sync path", async () => {
+  const app = createApiPrerenderApp("isr");
+  try {
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      `import { furin } from "@teyik0/furin";
+import { SqliteSyncAdapter, migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
+import { Database } from "bun:sqlite";
+import { api } from "./api";
+const database = new Database(import.meta.dir + "/sync.db");
+migrateSqliteSync(database);
+const sync = {
+  adapter: new SqliteSyncAdapter({ database, namespace: "prerender" }),
+  path: "/changes",
+  principal: () => "test",
+};
+export default api.use(await furin({ pagesDir: "./src/pages", prefix: "/tasks", sync }));`
+    );
+    const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
+    expect(build.exitCode, build.stderr).toBe(0);
+    const fallback = await Bun.file(
+      join(app.path, ".vercel/output/functions/tasks-isr.prerender-fallback.html")
+    ).text();
+    expect(fallback).toContain('src="/tasks/_furin/events/client.js"');
+    expect(fallback).toContain(
+      '<script id="__FURIN_SYNC__" type="application/json">{"path":"/changes"}</script>'
+    );
+    expect(fallback).toContain("In-memory API");
+  } finally {
+    app.cleanup();
+  }
+}, 30_000);

@@ -483,12 +483,13 @@ test("method-specific response schemas take precedence over ALL routes", async (
   sqlite.close();
 });
 
-test("ALL routes validate mutation responses before committing", async () => {
+test("ALL mutations beside a mount roll back invalid responses and commit retries once", async () => {
   const sqlite = new Database(":memory:");
   sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
   migrateSqliteSync(sqlite);
   const db = drizzle(sqlite);
   const adapter = drizzleSyncAdapter({ db, namespace: "all-route" });
+  let count = "invalid" as unknown as number;
   const app = new Elysia()
     .use(furinSync({ adapter, principal: () => "user" }))
     .all(
@@ -497,22 +498,33 @@ test("ALL routes validate mutation responses before committing", async () => {
       ({ mutation }) =>
         mutation((tx) => {
           tx.insert(counter).values({ value: 1 }).run();
-          return { count: "invalid" } as unknown as { count: number };
+          return { count };
         })
     )
+    .mount("/auth", () => Response.json({ session: "mounted" }))
     .get("/counter", () => db.select().from(counter).all());
-  expect(
-    (
-      await app.handle(
-        new Request("http://localhost/mutation", {
-          method: "POST",
-          headers: { "idempotency-key": "one" },
-        })
-      )
-    ).status
-  ).toBe(500);
+  const request = () =>
+    new Request("http://localhost/mutation", {
+      method: "POST",
+      headers: { "idempotency-key": "one" },
+    });
+  expect((await app.handle(new Request("http://localhost/auth/session"))).status).toBe(200);
+  expect((await app.handle(request())).status).toBe(500);
   expect(await (await app.handle(new Request("http://localhost/counter"))).json()).toEqual([]);
   expect(await adapter.currentCursor()).toBe("0");
+  count = 1;
+  const initial = await app.handle(request());
+  expect(initial.status).toBe(200);
+  expect(await initial.json()).toEqual({ count: 1 });
+  expect(initial.headers.get("x-furin-sync")).toBe("1");
+  const replay = await app.handle(request());
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toEqual({ count: 1 });
+  expect(replay.headers.get("x-furin-sync")).toBe("1");
+  expect(await (await app.handle(new Request("http://localhost/counter"))).json()).toEqual([
+    { value: 1 },
+  ]);
+  expect(await adapter.currentCursor()).toBe("1");
   sqlite.close();
 });
 
