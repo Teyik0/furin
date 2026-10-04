@@ -1,0 +1,74 @@
+packages/core/tests/support/with-build-stub.ts
+  s_cd8a49090aa00e::t_b9622e7d630ca5 70-71,73-74
+  s_cd8a49090aa00e::t_af4b78ebb6148b 72
+  s_f649b4527e18d7::t_13f99e4568e2ae 75
+packages/core/src/adapter/vercel.ts
+  s_cd8a49090aa00e::t_ff7b52b4871622 541,556,564,572,574,593,811
+  s_cd8a49090aa00e::t_205f8c48fe9eee 554
+packages/core/tests/runtime/sync/mutation-handler.test.ts
+  s_f649b4527e18d7::t_55f2ddfb5a708d 1,5-7,11,42-43
+  s_f649b4527e18d7::t_30a5163b360f1e 2-4,8-10,12-41,44
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_cd8a49090aa00e::t_ffbbbcb8e0420e 142
+  s_cd8a49090aa00e::t_4009e61eaced03 124-141,143-149,153-157
+  s_cd8a49090aa00e::t_205f8c48fe9eee 150-152
+packages/core/tests/client/sync/atomic-furin-sync.test.ts
+  s_f649b4527e18d7::t_d9ec9f3e66cfb9 50-59
+  s_f649b4527e18d7::t_c56327568c8829 16-49,60-70
+CHANGELOG.md
+  s_f649b4527e18d7::t_d9ec9f3e66cfb9 9-10,14-16
+  s_f649b4527e18d7::t_9eda5675af19c9 486-487
+  s_e82ef220f655cf::t_33434e1b0d089f 17
+packages/core/src/adapter/runtime-build.ts
+  s_cd8a49090aa00e::t_ff7b52b4871622 394
+examples/task-manager/tests/cards-invalidation.test.ts
+  s_cd8a49090aa00e::t_205f8c48fe9eee 6-12,15,17-20,22
+  s_cd8a49090aa00e::t_06122fee2a2df8 1-5,13-14,16,21,23-36
+packages/core/src/build/ssg-cache.ts
+  s_f649b4527e18d7::t_2f60bfbddd1299 15,34
+  s_cd8a49090aa00e::t_ff7b52b4871622 40-41,70
+packages/core/tests/client/sync/atomic-sync.test.ts
+  s_f649b4527e18d7::t_c56327568c8829 486,492,501,504,506-512,515-527
+packages/core/package.json
+  s_f649b4527e18d7::t_d9ec9f3e66cfb9 3
+packages/core/tests/rendering/rsc/rsc-vercel-build.test.ts
+  s_cd8a49090aa00e::t_26c47142010d67 29
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_f649b4527e18d7::t_55f2ddfb5a708d 2,128-135,137-138,141-142,168-171,174,178-179,181
+packages/core/src/server/sync/mutation-handler.ts
+  s_f649b4527e18d7::t_5988dab0eff66f 48-53
+bun.lock
+  s_e82ef220f655cf::t_86f2e37797826f 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f76fed259b54054c9f63fc72febc0a0bbd6fb7de",
+  "prompts": {},
+  "sessions": {
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_e82ef220f655cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a107fc-4f5b-7823-92fb-204746828109",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_f649b4527e18d7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a107fb-ad46-72d0-86bf-d1e2e59783ea",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
