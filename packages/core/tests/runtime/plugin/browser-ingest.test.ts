@@ -68,6 +68,40 @@ test.serial("native DevTools records correlated development requests", async () 
   expect(pageEvents[0]?.requestId).toBe(pageEvents[1]?.requestId);
 });
 
+test.serial("browser telemetry reaches the composed DevTools hub through real HTTP", async () => {
+  __setDevMode(true);
+  const app = (await createTestApp(false)).listen({ port: 0, hostname: "127.0.0.1" });
+  const origin = app.server?.url.origin;
+  if (!origin) {
+    throw new Error("Expected the telemetry test server to listen");
+  }
+  try {
+    const response = await fetch(`${origin}/_furin/devtools/browser-events`, {
+      body: JSON.stringify({
+        clientId: "http-browser",
+        clientTimestamp: Date.now(),
+        state: "connected",
+        type: "hmr.connection.changed",
+      }),
+      headers: { "content-type": "application/json", origin },
+      method: "POST",
+    });
+    expect(response.status).toBe(204);
+    const snapshot = await (await fetch(`${origin}/_furin/devtools/snapshot`)).json();
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        clientId: "http-browser",
+        instanceId: snapshot.instance.id,
+        sessionId: snapshot.sessionId,
+        state: "connected",
+        type: "hmr.connection.changed",
+      })
+    );
+  } finally {
+    await app.stop();
+  }
+});
+
 test.serial("native DevTools does not record its own transport requests", async () => {
   __setDevMode(true);
   const app = (await createTestApp(false)).listen(0);

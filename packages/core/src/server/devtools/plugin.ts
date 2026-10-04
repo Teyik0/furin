@@ -193,7 +193,7 @@ export function createDevtoolsPlugin(
         },
       });
     })
-    .post("/_furin/devtools/browser-events", async ({ request, server }) => {
+    .post("/_furin/devtools/browser-events", { parse: "none" }, async ({ request, server }) => {
       const forbidden = forbiddenDevelopmentRequest(request, server);
       if (forbidden) {
         return forbidden;
