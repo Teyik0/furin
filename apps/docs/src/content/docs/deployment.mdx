@@ -309,7 +309,7 @@ Do not gate unsupported `sync` or `pageCache` options on runtime environment var
 
 Asset requests are served by the platform without invoking the Worker when they match a deployed file. Non-asset requests go to the Worker; the assets configuration is not an SPA fallback that turns unknown routes into `200 index.html` responses.
 
-The initial target does not cache page documents or navigation data at Cloudflare's edge. Treat dynamic Worker responses as origin responses, preserve their cache headers, and do not add a rule forcing personalized responses into a shared cache. Hashed browser files get immutable caching. Unversioned public files revalidate by default; custom `public/_headers` rules can change their policy, so use immutable caching only when those files are versioned.
+The initial target forces HTML documents and `/_furin/data` responses to `private, no-store`, regardless of an application-provided cache policy. Do not add an edge rule that forces these responses into a shared cache. Hashed browser files get immutable caching. Unversioned public files revalidate by default; custom `public/_headers` rules can change their policy, so use immutable caching only when those files are versioned.
 
 Worker API responses and redirects without an explicit cache policy default to `private, no-store`. Explicit cache policies on non-HTML APIs remain application-owned; configure invalidation before opting them into an edge cache.
 

@@ -153,6 +153,29 @@ export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: $
   }
 }, 60_000);
 
+test("Cloudflare rejects root application routes inside the immutable asset namespace", async () => {
+  const app = createTmpApp("cli-app-ssr");
+  try {
+    writeAppFile(app.path, "src/pages/_client/index.tsx", `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssr" })
+  .page(() => <main>Reserved namespace</main>);
+`);
+    const build = await runCli(["build", "--target", "cloudflare"], { cwd: app.path });
+    expect(build.exitCode).toBe(1);
+    expect(build.stderr).toContain("reserved /_client namespace");
+    writeAppFile(app.path, "src/server.ts", `import { furin } from "@teyik0/furin";
+import Elysia from "elysia";
+export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "/admin" }));
+`);
+    const prefixed = await runCli(["build", "--target", "cloudflare"], { cwd: app.path });
+    expect(prefixed.exitCode, prefixed.stderr).toBe(0);
+  } finally {
+    app.cleanup();
+  }
+}, 60_000);
+
 test("Workers assets serve only browser bundles and public files with immutable hashed caching", async () => {
   const app = createTmpApp("cli-app-ssr");
   let runtime: Miniflare | undefined;

@@ -30,6 +30,7 @@ const FURIN_ALIAS = /^furin(?=\/|$)/;
 const HASHED_ASSET = /-[a-zA-Z0-9]{8}\.[^.]+$/;
 const HEADER_LINE_BREAK = /\r?\n/;
 const HEADER_RULE = /^(?:\/|https:\/\/)/;
+const CLIENT_NAMESPACE = /^\/_client(?:\/|$)/;
 const ALL_MODULES = /.*/;
 
 function cloudflareRuntimePlugin(): Bun.BunPlugin {
@@ -66,12 +67,15 @@ function cloudflareRuntimePlugin(): Bun.BunPlugin {
 
 function assertSupportedRoutes(apps: RuntimeTargetApp[]): void {
   for (const app of apps) {
-    if (app.prefix === "/_client" || app.prefix.startsWith("/_client/")) {
+    if (CLIENT_NAMESPACE.test(app.prefix)) {
       throw new Error(
         "[furin] Cloudflare apps cannot mount inside the reserved /_client namespace."
       );
     }
     for (const route of app.routes) {
+      if (CLIENT_NAMESPACE.test(`${app.prefix}${route.pattern}`)) {
+        throw new Error("[furin] Cloudflare routes cannot claim the reserved /_client namespace.");
+      }
       if (
         route.mode === "isr" ||
         app.root.route.mode === "isr" ||
