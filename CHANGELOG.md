@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Route groups** — directories such as `(admin)` organize pages without adding a URL segment, while preserving nested layouts, loaders, and error boundaries. Groups can be nested; conflicting public route patterns are rejected.
+
 ## [0.7.0-alpha.2] — 2026-10-04
 
 ### Fixed
