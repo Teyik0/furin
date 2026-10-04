@@ -1,6 +1,6 @@
 # File-Based Routing
 
-Furin maps source files in `src/pages` to URL paths. Directories create URL segments; `index` files collapse to their parent path.
+Furin maps source files in `src/pages` to URL paths. Directories create URL segments; `index` files collapse to their parent path. Route-group directories such as `(admin)` organize pages without adding a URL segment.
 
 | File | URL |
 |---|---|
@@ -10,6 +10,8 @@ Furin maps source files in `src/pages` to URL paths. Directories create URL segm
 | `pages/blog/archive.tsx` | `/blog/archive` |
 | `pages/blog/[slug].tsx` | `/blog/:slug` |
 | `pages/docs/[...path].tsx` | `/docs/*` |
+| `pages/(marketing)/index.tsx` | `/` |
+| `pages/(admin)/users/[id].tsx` | `/users/:id` |
 
 Route modules may use `.tsx`, `.ts`, `.jsx`, or `.js`. Furin rejects duplicate route patterns, including ambiguous dynamic names such as `[id].tsx` and `[slug].tsx` in the same directory.
 
@@ -125,6 +127,31 @@ pages/root.tsx
 ```
 
 The settings page references the dashboard route in `config({ layout })`, and the dashboard layout references the root route. Development validates this explicit type chain against the filesystem and repairs stale imports after route moves. See [Nested Layouts](/docs/layouts).
+
+**Route groups**
+
+Wrap a directory name in parentheses to create a route group:
+
+```text
+src/pages/
+├── root.tsx
+├── (marketing)/
+│   ├── _route.tsx
+│   ├── index.tsx          → /
+│   └── about.tsx          → /about
+└── (admin)/
+    ├── _route.tsx
+    └── users/
+        └── [id].tsx       → /users/:id
+```
+
+Groups may appear at any directory level and may be nested. For example, `pages/(admin)/(settings)/users/[id].tsx` still resolves to `/users/:id`.
+
+A group's `_route.tsx` wraps only pages inside that group. Layout loaders, `error.tsx`, and `not-found.tsx` keep their normal filesystem scope. Reference the nearest layout through `config({ layout })`, just as for an ordinary directory. The shared `pages/root.tsx` remains required.
+
+Groups do not create routes or access controls by themselves. Two pages cannot resolve to the same URL: `(admin)/about.tsx` and `(marketing)/about.tsx` conflict, as do `(admin)/users/[id].tsx` and `(marketing)/users/[slug].tsx`. Furin reports both source paths when rejecting a conflict.
+
+Links and navigation APIs use the public URL, such as `/users/:id`, while generated types retain the grouped source path for imports. Only directories are groups; a file named `(admin).tsx` creates the literal route `/(admin)`.
 
 ## Generated Route Types
 

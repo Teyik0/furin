@@ -13,7 +13,7 @@ import {
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
-import { filePathToPattern, resolveMode } from "./patterns.ts";
+import { filePathToPattern, resolveMode, routePatternKey } from "./patterns.ts";
 import { routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout, SegmentBoundary } from "./types.ts";
 
@@ -248,12 +248,6 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
 
 const CONVENTION_FILE_NAMES = ["not-found", "error"] as const;
 const SOURCE_MODULE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"] as const;
-const DYNAMIC_ROUTE_SEGMENT_RE = /(^|\/):[^/]+/g;
-
-function routePatternKey(pattern: string): string {
-  return pattern.replace(DYNAMIC_ROUTE_SEGMENT_RE, "$1:param");
-}
-
 function isConventionFileName(name: string): boolean {
   return (CONVENTION_FILE_NAMES as readonly string[]).includes(name);
 }
