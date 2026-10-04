@@ -1,0 +1,82 @@
+packages/core/src/server/devtools/plugin.ts
+  s_fdfc7b46fb89f9::t_97b589d15a7658 277
+packages/core/src/devtools/collector.ts
+  s_eb4334a35ae091::t_2007023a85a49e 2-3,11,294-297,299-342,367,383,385,391,396,412-414,465,468-476,482-495,498-499
+packages/core/src/devtools/hmr-correlation.ts
+  s_eb4334a35ae091::t_fa01311e2fa3ec 1-122
+packages/core/tests/runtime/devtools/devtools-hmr-trace.test.tsx
+  s_fdfc7b46fb89f9::t_dbb813c40cbf6b 1-291
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_eb4334a35ae091::t_13019773e569ed 94,323,367,383,388-394,414-657
+packages/core/tests/runtime/devtools/devtools-correlation.test.ts
+  s_eb4334a35ae091::t_aceafffdd19d1f 1-151
+packages/core/src/devtools/dashboard.tsx
+  h_a2cbd1b0e3ae6e 267,271-274,280,282-283,286
+  s_2a4069bf188ef3::t_b265e10f4c0f92 303,326-327,436-438,450,484-488,513-515,522-526,535-538,545,600
+  s_eb4334a35ae091::t_5f889a1da06ea8 13,97,101-103,158,163-166,169,171-173,177-180,208-211,215-217,219,222-235,252-254,259-261,263-266,268-270,275,281,480-483,512,516-517,521
+packages/core/tests/runtime/devtools/devtools-event-history.test.ts
+  s_eb4334a35ae091::t_f0778938a52d88 1-49
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_fdfc7b46fb89f9::t_d603d51b2fa505 482-483
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_eb4334a35ae091::t_b94d23bea1c33f 5,29,92,109-111,128,141,149-214,216-217,219-222,224,226-294,296
+  h_a2cbd1b0e3ae6e 223,295
+  s_cd8a49090aa00e::t_29d6ceb5f709f4 298-355,357-358
+packages/core/src/server/devtools/hub.ts
+  s_eb4334a35ae091::t_8bd855bd66423e 1,7,10-11,16,18,21-38,48,51,73,75,78-93,95,101
+packages/core/src/devtools/protocol.ts
+  s_fdfc7b46fb89f9::t_85347ea94daf47 79,177,210,214,218,222,226,238,242-250,254-266,270,274,278,289,360,362-363,434,517,537-541
+packages/core/tests/runtime/devtools/devtools-session.test.ts
+  s_fdfc7b46fb89f9::t_79ccfaa5304c6e 1-68
+packages/core/src/devtools/event-history.ts
+  s_fdfc7b46fb89f9::t_496b413fe4e692 1-42
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_fdfc7b46fb89f9::t_d68ddacf305bbb 3,71-82
+apps/docs/tests/docs-pages.test.ts
+  s_fdfc7b46fb89f9::t_ee113d9d65a3f7 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1fbfeb128b221256011d511110b410794a93e79",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  },
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_eb4334a35ae091": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1056c-31df-7681-a2ed-9da20a8f938c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fdfc7b46fb89f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1057a-ce6d-7fb3-997b-5ca33ae3bc7a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
