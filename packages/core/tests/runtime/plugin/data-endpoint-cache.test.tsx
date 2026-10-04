@@ -56,6 +56,35 @@ afterAll(async () => {
 });
 
 describe("navigation data cache contract", () => {
+  test("loader redirects preserve external destinations and response cookies", async () => {
+    const cookie = "session=; Max-Age=0; Path=/";
+    const route = resolveRoute(
+      defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr" })
+        .loader(() => {
+          throw new Response(null, {
+            headers: {
+              location: "https://auth.example/authorize?client=furin",
+              "set-cookie": cookie,
+            },
+            status: 302,
+          });
+        })
+        .page(() => null),
+      "/logout"
+    );
+
+    const response = await fetchData(route);
+    if (response.body === null) {
+      throw new Error("Missing navigation payload");
+    }
+    const payload = await parseDeferredNdjson(response.body, undefined);
+    expect(payload.syncData.__furinRedirect).toBe("https://auth.example/authorize?client=furin");
+    expect(response.headers.get("set-cookie")).toBe(cookie);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
   test("caches SSG payloads for one year under the page cache tag", async () => {
     const route = resolveRoute(
       defineRoute()

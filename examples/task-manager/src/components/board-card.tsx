@@ -1,5 +1,5 @@
+import { useMutation } from "@teyik0/furin/client";
 import { Link } from "@teyik0/furin/link";
-import { startTransition, useActionState } from "react";
 import type { Board } from "@/db/schema";
 import { api } from "@/lib/api";
 
@@ -18,29 +18,16 @@ function avatarColor(id: string): string {
 }
 
 export function BoardCard({ board }: { board: Board & { formattedCreatedAt: string } }) {
-  const gradient = avatarColor(board.id);
-  const initial = board.name.charAt(0).toUpperCase();
-  const [errorMessage, deleteBoard, isPending] = useActionState(
-    async (_previous: string | null): Promise<string | null> => {
-      try {
-        const { error } = await api.boards({ boardId: board.id }).delete();
-        return error
-          ? (error.value?.detail ?? "Could not delete the board. Please try again.")
-          : null;
-      } catch {
-        return "Could not delete the board. Please try again.";
-      }
-    },
-    null
-  );
+  const remove = useMutation(api.boards({ boardId: board.id }).delete);
+  const errorMessage = remove.error?.value.detail ?? null;
 
   return (
     <div className="group relative rounded-2xl border border-white/8 bg-white/3 transition-[border-color,background-color,box-shadow] duration-200 hover:border-violet-500/30 hover:bg-white/5 hover:shadow-violet-500/5 hover:shadow-xl">
       <div className="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           className="flex size-6 items-center justify-center rounded-full bg-white/8 text-white/40 text-xs transition-colors hover:bg-red-500/20 hover:text-red-400"
-          disabled={isPending}
-          onClick={() => startTransition(deleteBoard)}
+          disabled={remove.isPending}
+          onClick={() => remove.mutate()}
           title="Delete board"
           type="button"
         >
@@ -51,16 +38,16 @@ export function BoardCard({ board }: { board: Board & { formattedCreatedAt: stri
       <Link className="block p-5" to={`/board/${board.id}`}>
         <div className="flex items-start gap-3">
           <div
-            className={`flex size-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br ${gradient} font-bold text-sm text-white shadow-md`}
+            className={`flex size-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br ${avatarColor(board.id)} font-bold text-sm text-white shadow-md`}
           >
-            {initial}
+            {board.name.charAt(0).toUpperCase()}
           </div>
 
           <div className="min-w-0 flex-1">
             <h2 className="truncate font-semibold text-base text-white transition-colors group-hover:text-violet-200">
               {board.name}
             </h2>
-            {!isPending && errorMessage ? (
+            {!remove.isPending && errorMessage ? (
               <p className="mt-1 text-red-300 text-xs">{errorMessage}</p>
             ) : null}
             <p className="mt-0.5 text-xs text-zinc-600">Created {board.formattedCreatedAt}</p>

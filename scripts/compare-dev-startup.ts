@@ -69,7 +69,7 @@ export function formatDevStartupComparison(comparison: StartupComparison): strin
   return [
     "## Development cold-start budgets",
     "",
-    "Median of three new Bun processes per app. HTML is read completely and its content checked: Weather `/` then `/weather/london`, Task Manager `/` then `/rsc`, docs `/docs` then `/docs/routing`. Weather uses fixed Open-Meteo responses; Task Manager uses a fresh temporary database. Base and PR run on the same CI runner after builds, with filesystem and generated caches retained. These measurements do not include browser hydration. The allowance is the larger of 30% of the base or 500 ms for startup, 100 ms for the second route.",
+    "Median of three new Bun processes per app. HTML is read completely and its content checked: Weather `/` then `/weather/london`, Task Manager `/` then the first linked `/board/:boardId`, docs `/docs` then `/docs/routing`. Weather uses fixed Open-Meteo responses; Task Manager uses a fresh temporary database. Base and PR run on the same CI runner after builds, with filesystem and generated caches retained. These measurements do not include browser hydration. The allowance is the larger of 30% of the base or 500 ms for startup, 100 ms for the second route.",
     "",
     "| App | Milestone | Base | PR | Allowed regression | Result |",
     "|---|---|---:|---:|---:|:---:|",

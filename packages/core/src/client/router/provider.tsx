@@ -171,11 +171,11 @@ export function RouterProvider({
     currentState.current = state;
   }, [state]);
   useLayoutEffect(() => {
-    queries.hydrate(
+    state.hydrateQueries?.(
       state.querySeeds ?? [],
       typeof window === "undefined" ? undefined : window.location.origin
     );
-  }, [queries, state.querySeeds]);
+  }, [state.hydrateQueries, state.querySeeds]);
   const resolvedQueries = useRef(new WeakMap<Promise<unknown>, DeferredQueryValue>());
   const [deferredRevision, setDeferredRevision] = useState(0);
   useEffect(() => {
@@ -264,6 +264,7 @@ export function RouterProvider({
   const pendingScrollRef = useRef<
     { type: "restore"; key: string } | { type: "reset"; href: string } | null
   >(null);
+  const renderedHistoryKey = useRef<string | undefined>(undefined);
   /**
    * Tracks the last successfully rendered match for use in the no-route 404 path.
    * `null` on the initial render when the URL didn't match any route and the
@@ -541,25 +542,13 @@ export function RouterProvider({
   );
 
   const invalidatePrefetch = useCallback((path: string, type: "page" | "layout") => {
-    const normalizedPath = stripHashFromHref(path);
-
-    if (type === "page") {
-      for (const key of [...prefetchCache.current.keys()]) {
-        if (stripHashFromHref(key) === normalizedPath) {
-          prefetchCache.current.delete(key);
-        }
-      }
-      return;
-    }
-
-    // layout: prefix match — evict the path itself and all nested children
-    const prefix =
-      normalizedPath === "/" || normalizedPath.endsWith("/")
-        ? normalizedPath
-        : `${normalizedPath}/`;
+    const normalizedPath = normalizeHref(new URL(path, "http://furin.local").pathname);
     for (const key of [...prefetchCache.current.keys()]) {
-      const normalizedKey = stripHashFromHref(key);
-      if (normalizedKey === normalizedPath || normalizedKey.startsWith(prefix)) {
+      if (
+        shouldAutoRefreshPath(normalizeHref(stripHashFromHref(key)), [
+          { path: normalizedPath, type },
+        ])
+      ) {
         prefetchCache.current.delete(key);
       }
     }
@@ -766,12 +755,13 @@ export function RouterProvider({
             physicalEffective
           );
         } else {
-          const currentKey = getHistoryKey(history.state);
+          const currentKey = renderedHistoryKey.current;
           if (currentKey) {
             saveScrollPosition(currentKey);
           }
           window.history.pushState({ _furinKey: generateHistoryKey() }, "", physicalEffective);
         }
+        renderedHistoryKey.current = getHistoryKey(history.state);
         const effectiveUrl = new URL(physicalEffective, window.location.origin);
         const logicalPath = normalizeHref(toLogical(effectiveUrl.pathname, basePath));
         setCurrentHref(logicalPath + effectiveUrl.search);
@@ -924,6 +914,9 @@ export function RouterProvider({
 
   const handlePopState = useCallback(() => {
     const finishUserNavigation = beginUserNavigation(pendingUserNavigation);
+    if (renderedHistoryKey.current) {
+      saveScrollPosition(renderedHistoryKey.current);
+    }
     const destKey = getHistoryKey(history.state);
     const logicalPath = normalizeHref(toLogical(window.location.pathname, basePath));
     const logicalHref = logicalPath + window.location.search;
@@ -1004,6 +997,7 @@ export function RouterProvider({
         if (effectiveLogical !== logicalHref) {
           window.history.replaceState(history.state, "", basePath + effectiveLogical);
         }
+        renderedHistoryKey.current = destKey;
         setCurrentHref(normalizeHref(effectiveLogical));
         if (destKey) {
           pendingScrollRef.current = { key: destKey, type: "restore" };
@@ -1025,6 +1019,7 @@ export function RouterProvider({
     if (!getHistoryKey(history.state)) {
       history.replaceState({ ...getHistoryStateObject(), _furinKey: generateHistoryKey() }, "");
     }
+    renderedHistoryKey.current = getHistoryKey(history.state);
   }, []);
 
   // Render-synchronous scroll restoration.
@@ -1106,7 +1101,7 @@ export function RouterProvider({
         return;
       }
       e.preventDefault();
-      navigate(logicalHref, { resetScroll: !logicalHref.includes("#") });
+      navigate(logicalHref, undefined);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);

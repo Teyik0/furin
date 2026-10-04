@@ -203,7 +203,8 @@ async function commitSharedSegment(
   cached: CachedSegment,
   revalidate: number
 ): Promise<void> {
-  if (capturedQueryTags().some((tag) => !identity.tags.includes(tag))) {
+  const identityTags = new Set(identity.tags);
+  if (capturedQueryTags().some((tag) => !identityTags.has(tag))) {
     return;
   }
   try {

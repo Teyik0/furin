@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
+import { waitForPendingISRRevalidations } from "../../../src/server/cache/isr.ts";
 import { renderForPath } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
@@ -189,6 +190,34 @@ test("synthetic ISR renders preserve repeated query values for loaders", async (
   );
 
   expect(observedQuery).toEqual({ tag: ["a", "b"] });
+});
+
+test("ISR regeneration preserves query coercion and schema defaults", async () => {
+  const values: number[] = [];
+  const terminal = defineRoute()
+    .config({
+      layout: rootTerminal,
+      mode: "isr",
+      query: t.Object({ count: t.Number({ default: 1 }) }),
+      revalidate: 0,
+    })
+    .loader(({ query }) => {
+      const value = query.count + 1;
+      values.push(value);
+      return { value };
+    })
+    .page(({ value }) => <main>{value}</main>);
+  const route = resolveRoute(terminal, "/typed.tsx", "/typed", root);
+  const app = new Elysia().use(createRoutePlugin(route, root, "build"));
+
+  await app.handle(new Request("http://localhost/typed?count=2"));
+  await app.handle(new Request("http://localhost/typed?count=2"));
+  await waitForPendingISRRevalidations();
+  await app.handle(new Request("http://localhost/typed"));
+  await app.handle(new Request("http://localhost/typed"));
+  await waitForPendingISRRevalidations();
+
+  expect(values).toEqual([3, 3, 2, 2]);
 });
 
 test("synthetic ISR renders preserve __proto__ query values for loaders", async () => {

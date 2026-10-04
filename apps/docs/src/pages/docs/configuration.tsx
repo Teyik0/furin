@@ -1,23 +1,26 @@
 import { defineRoute } from "@teyik0/furin";
+import { DocContent } from "@/components/doc-content";
 import { DocPage } from "@/components/doc-page";
-import Configuration from "@/content/docs/configuration.mdx";
+import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 import { route as parentRoute } from "./_route";
 
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(() => {
+  .loader(async () => {
+    const { default: Configuration } = await import("@/content/docs/configuration.mdx");
     const doc = DOCS_BY_PATH["/docs/configuration"];
-    return { markdownSource: getDocSourceText(doc.sourcePath) };
+    return {
+      content: await renderDocContent(Configuration),
+      markdownSource: getDocSourceText(doc.sourcePath),
+    };
   })
   .head(() => ({
     meta: [{ title: "Configuration — Furin" }],
   }))
-  .page(({ markdownSource }) => (
-    <DocPage
-      Content={Configuration}
-      doc={DOCS_BY_PATH["/docs/configuration"]}
-      markdownSource={markdownSource}
-    />
+  .page(({ content, markdownSource }) => (
+    <DocPage doc={DOCS_BY_PATH["/docs/configuration"]} markdownSource={markdownSource}>
+      <DocContent src={content} />
+    </DocPage>
   ));

@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { RedisClient, SQL } from "bun";
+import { Elysia } from "elysia";
+import { furinSync } from "../../../../src/server/sync/plugin.ts";
 import { postgresSyncAdapter } from "../../../../src/server/sync/postgres/index.ts";
 import { redisSyncAdapter, redisSyncNotifier } from "../../../../src/server/sync/redis/index.ts";
 import { testSyncAdapterConformance } from "../../../helpers/sync-adapter-conformance.ts";
@@ -38,6 +40,26 @@ describeWithRedis("Redis sync", () => {
   });
 
   testSyncAdapterConformance(() => adapter);
+
+  test("replays an HTTP 204 response with an empty header list", async () => {
+    let executions = 0;
+    const app = new Elysia()
+      .use(furinSync({ adapter, principal: () => "user" }))
+      .post("/delete", () => {
+        executions += 1;
+        return new Response(null, { status: 204 });
+      });
+    const send = () =>
+      app.handle(
+        new Request("http://localhost/delete", {
+          headers: { "idempotency-key": "empty-headers" },
+          method: "POST",
+        })
+      );
+    expect((await send()).status).toBe(204);
+    expect((await send()).status).toBe(204);
+    expect(executions).toBe(1);
+  });
 
   test("resets malformed stream cursors", async () => {
     expect(await adapter.readChanges({ after: "0x0-0", limit: 10 })).toEqual({

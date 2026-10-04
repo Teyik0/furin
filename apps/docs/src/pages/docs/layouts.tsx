@@ -1,23 +1,26 @@
 import { defineRoute } from "@teyik0/furin";
+import { DocContent } from "@/components/doc-content";
 import { DocPage } from "@/components/doc-page";
-import Layouts from "@/content/docs/layouts.mdx";
+import { renderDocContent } from "@/lib/doc-content";
 import { DOCS_BY_PATH } from "@/lib/docs";
 import { getDocSourceText } from "@/lib/docs-server";
 import { route as parentRoute } from "./_route";
 
 export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
-  .loader(() => {
+  .loader(async () => {
+    const { default: Layouts } = await import("@/content/docs/layouts.mdx");
     const doc = DOCS_BY_PATH["/docs/layouts"];
-    return { markdownSource: getDocSourceText(doc.sourcePath) };
+    return {
+      content: await renderDocContent(Layouts),
+      markdownSource: getDocSourceText(doc.sourcePath),
+    };
   })
   .head(() => ({
     meta: [{ title: "Nested Layouts — Furin" }],
   }))
-  .page(({ markdownSource }) => (
-    <DocPage
-      Content={Layouts}
-      doc={DOCS_BY_PATH["/docs/layouts"]}
-      markdownSource={markdownSource}
-    />
+  .page(({ content, markdownSource }) => (
+    <DocPage doc={DOCS_BY_PATH["/docs/layouts"]} markdownSource={markdownSource}>
+      <DocContent src={content} />
+    </DocPage>
   ));

@@ -62,6 +62,38 @@ Prefetching loads the destination route module and route data ahead of navigatio
 
 Use `preload={false}` for destinations that are expensive, rarely opened, or inappropriate to request before an explicit click.
 
+## Module Preloading
+
+Production builds read Bun's chunk graph so JavaScript downloads in parallel instead of one import level at a time:
+
+- **Server-rendered pages** (SSR, ISR, SSG, static export): `<HeadContent />` emits one `<link rel="modulepreload">` per chunk the current route hydrates (page, layouts, boundaries and all their transitive static imports), minus chunks the entry script already loads. Opt out with `defineConfig({ preload: { routeChunks: false } })`.
+- **SPA navigation**: preloading a `<Link>` imports the target route, and Bun's built-in `modulePreload` adds a modulepreload link for every chunk that route statically imports.
+
+For browser-only modules such as a WebGL scene, declare them with `clientModule()` and call `preloadClientModule()` while rendering:
+
+```tsx
+import { clientModule, preloadClientModule } from "@teyik0/furin/client";
+import { useEffect } from "react";
+
+const chimeScene = clientModule(() => import("./chime-scene"));
+
+export function ChimeCanvas() {
+  preloadClientModule(chimeScene); // SSR: <link rel="modulepreload"> in <head>
+  useEffect(() => {
+    let disposed = false;
+    chimeScene.load().then(({ mountChime }) => {
+      if (!disposed) mountChime();
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+  return <canvas />;
+}
+```
+
+The build strips the `import()` from the server bundle, so the module never runs or ships server-side. The argument must be an inline `() => import("…")`. In development `hrefs` is empty and preloading is a no-op: Bun's dev server serves unhashed modules on demand.
+
 ## Programmatic Navigation
 
 ```tsx

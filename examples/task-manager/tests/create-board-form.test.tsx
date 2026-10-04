@@ -46,55 +46,58 @@ afterEach(() => {
   transportFailure = undefined;
 });
 
-test.each(["network", "empty", "text", "json-null", "invalid-json"])(
-  "keeps board creation retryable after a %s failure",
-  async (failure) => {
-    if (failure === "network") {
-      transportFailure = new TypeError("Failed to fetch");
-    } else if (failure === "json-null") {
-      createResponse = Promise.resolve(Response.json(null, { status: 502 }));
-    } else if (failure === "invalid-json") {
-      createResponse = Promise.resolve(
-        new Response("invalid", { headers: { "Content-Type": "application/json" }, status: 502 })
-      );
-    } else {
-      createResponse = Promise.resolve(
-        new Response(failure === "empty" ? null : "Bad gateway", { status: 502 })
-      );
-    }
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    try {
-      await act(() => root.render(createElement(CreateBoardForm)));
-      const input = container.querySelector<HTMLInputElement>("input");
-      const button = container.querySelector<HTMLButtonElement>('button[type="submit"]');
-      await act(() => {
-        if (input) {
-          setInputValue(input, "My draft");
-        }
-      });
-      await act(async () => {
-        button?.click();
-        await Promise.resolve();
-      });
-      expect(container.textContent).toContain("Could not create the board. Please try again.");
-      expect(input?.value).toBe("My draft");
-      expect(button?.disabled).toBe(false);
-      transportFailure = undefined;
-      createResponse = undefined;
-      await act(async () => {
-        button?.click();
-        await Promise.resolve();
-      });
-      expect(input?.value).toBe("");
-      expect(container.textContent).not.toContain("Could not create the board.");
-    } finally {
-      await act(() => root.unmount());
-      container.remove();
-    }
+test.each([
+  { failure: "network", message: /Failed to fetch/ },
+  { failure: "empty", message: /Mutation failed/ },
+  { failure: "text", message: /Bad gateway/ },
+  { failure: "json-null", message: /Mutation failed/ },
+  { failure: "invalid-json", message: /JSON.*invalid/ },
+])("keeps board creation retryable after a $failure failure", async ({ failure, message }) => {
+  if (failure === "network") {
+    transportFailure = new TypeError("Failed to fetch");
+  } else if (failure === "json-null") {
+    createResponse = Promise.resolve(Response.json(null, { status: 502 }));
+  } else if (failure === "invalid-json") {
+    createResponse = Promise.resolve(
+      new Response("invalid", { headers: { "Content-Type": "application/json" }, status: 502 })
+    );
+  } else {
+    createResponse = Promise.resolve(
+      new Response(failure === "empty" ? null : "Bad gateway", { status: 502 })
+    );
   }
-);
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(() => root.render(createElement(CreateBoardForm)));
+    const input = container.querySelector<HTMLInputElement>("input");
+    const button = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    await act(() => {
+      if (input) {
+        setInputValue(input, "My draft");
+      }
+    });
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+    expect(container.querySelector("p")?.textContent).toMatch(message);
+    expect(input?.value).toBe("My draft");
+    expect(button?.disabled).toBe(false);
+    transportFailure = undefined;
+    createResponse = undefined;
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+    expect(input?.value).toBe("");
+    expect(container.querySelector("p")).toBeNull();
+  } finally {
+    await act(() => root.unmount());
+    container.remove();
+  }
+});
 
 function setInputValue(element: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
@@ -103,6 +106,26 @@ function setInputValue(element: HTMLInputElement, value: string): void {
   element.dispatchEvent(new EventConstructor("input", { bubbles: true }));
   element.dispatchEvent(new EventConstructor("change", { bubbles: true }));
 }
+
+test.each(["", "   "])("does not submit an empty board name: %j", async (name) => {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(() => root.render(createElement(CreateBoardForm)));
+    const input = container.querySelector("input") as HTMLInputElement;
+    await act(() => setInputValue(input, name));
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await Promise.resolve();
+    });
+    expect(createCalls).toHaveLength(0);
+    expect(input.disabled).toBe(false);
+  } finally {
+    await act(() => root.unmount());
+    container.remove();
+  }
+});
 
 test("creates a board with the idempotency key generated by the enriched Eden client", async () => {
   const container = document.createElement("div");

@@ -179,7 +179,7 @@ describe.serial("task-manager production E2E", () => {
     rmSync(workingDirectory, { force: true, recursive: true });
   }, 15_000);
 
-  test("a synced board mutation reaches two browser tabs, the durable journal, and the invalidated ISR page", async () => {
+  test("a synced board mutation reaches two browser tabs, requests a refresh, and invalidates the ISR page", async () => {
     const boardName = `E2E board ${crypto.randomUUID()}`;
     const idempotencyKey = crypto.randomUUID();
 
@@ -232,14 +232,7 @@ describe.serial("task-manager production E2E", () => {
       );
       expect(changesResponse.status).toBe(200);
       const changes = (await changesResponse.json()) as SyncChangesResponse;
-      expect(changes).toMatchObject({ cursor: "1", hasMore: false, reset: false });
-      expect(changes.changes).toEqual([
-        {
-          cursor: "1",
-          invalidations: ["/", "/rsc", "/board:layout"],
-          queries: [{ id: "boards", scope: {} }],
-        },
-      ]);
+      expect(changes).toEqual({ cursor: "1", hasMore: false, reset: true, changes: [] });
 
       const replayResponse = await withTimeout(
         createBoard(),

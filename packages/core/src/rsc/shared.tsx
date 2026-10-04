@@ -82,27 +82,96 @@ export function restoreRscSource(kind: RscSourceKind, bytes: Uint8Array): unknow
   return kind === "renderable" ? createRenderableSource(state) : { [RSC_SOURCE]: state };
 }
 
+function containsSlot(value: unknown, visited: WeakSet<object>): value is object {
+  if (value === null || typeof value !== "object" || visited.has(value)) {
+    return false;
+  }
+  visited.add(value);
+  if (isValidElement(value)) {
+    return value.type === SLOT_MARKER || containsSlot(value.props, visited);
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => containsSlot(item, visited));
+  }
+  return (
+    Object.getPrototypeOf(value) === Object.prototype &&
+    Object.values(value).some((item) => containsSlot(item, visited))
+  );
+}
+
+function resolveSlotArgument(
+  value: unknown,
+  slots: object,
+  visited: WeakMap<object, unknown>
+): unknown {
+  if (!containsSlot(value, new WeakSet())) {
+    return value;
+  }
+  if (visited.has(value)) {
+    return visited.get(value);
+  }
+  if (isValidElement(value)) {
+    const resolved = resolveSlotElement(value, slots);
+    const result = isValidElement(resolved) ? Children.map(value, () => resolved)?.[0] : resolved;
+    visited.set(value, result);
+    return result;
+  }
+  if (Array.isArray(value)) {
+    const result: unknown[] = [];
+    visited.set(value, result);
+    for (const item of value) {
+      result.push(resolveSlotArgument(item, slots, visited));
+    }
+    const keys = new Set(result.filter(isValidElement).map((element) => element.key));
+    for (const [index, resolved] of result.entries()) {
+      if (isValidElement(resolved) && resolved.key === null) {
+        let key = String(index);
+        while (keys.has(key)) {
+          key = `.${key}`;
+        }
+        keys.add(key);
+        result[index] = cloneElement(resolved, { key });
+      }
+    }
+    return result;
+  }
+  const result = {};
+  visited.set(value, result);
+  for (const [key, item] of Object.entries(value)) {
+    Object.defineProperty(result, key, {
+      configurable: true,
+      enumerable: true,
+      value: resolveSlotArgument(item, slots, visited),
+      writable: true,
+    });
+  }
+  return result;
+}
+
+function resolveSlotElement(child: ReactElement, slots: object): ReactNode {
+  if (child.type === SLOT_MARKER) {
+    const marker = child.props as { args?: unknown[]; name?: string };
+    if (typeof marker.name !== "string") {
+      return null;
+    }
+    const implementation = Reflect.get(slots, marker.name) as unknown;
+    if (typeof implementation === "function") {
+      const visited = new WeakMap<object, unknown>();
+      const args = (marker.args ?? []).map((argument) =>
+        resolveSlotArgument(argument, slots, visited)
+      );
+      return (implementation as (...args: unknown[]) => ReactNode)(...args);
+    }
+    return implementation as ReactNode;
+  }
+  const props = resolveSlotArgument(child.props, slots, new WeakMap());
+  return props === child.props ? child : cloneElement(child, props as object);
+}
+
 function resolveSlots(node: ReactNode, slots: object): ReactNode {
-  return Children.map(node, (child) => {
-    if (!isValidElement(child)) {
-      return child;
-    }
-    if (child.type === SLOT_MARKER) {
-      const marker = child.props as { args?: unknown[]; name?: string };
-      if (typeof marker.name !== "string") {
-        return null;
-      }
-      const implementation = Reflect.get(slots, marker.name) as unknown;
-      if (typeof implementation === "function") {
-        return (implementation as (...args: unknown[]) => ReactNode)(...(marker.args ?? []));
-      }
-      return implementation as ReactNode;
-    }
-    const props = child.props as { children?: ReactNode };
-    return props.children === undefined
-      ? child
-      : cloneElement(child, undefined, resolveSlots(props.children, slots));
-  });
+  return Children.map(node, (child) =>
+    isValidElement(child) ? resolveSlotElement(child, slots) : child
+  );
 }
 
 export function CompositeComponent<TProps extends object>(

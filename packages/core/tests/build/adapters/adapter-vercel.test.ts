@@ -582,6 +582,7 @@ export const route = defineRoute()
       (path) => !path.startsWith("furin-production-runtime-stub:")
     );
     expect(serverInputs.some((path) => path.endsWith("/src/build/hydrate.ts"))).toBe(true);
+    expect(serverInputs.some((path) => path.endsWith("/plugin/transform-client.ts"))).toBe(false);
     expect(
       serverInputs.some((path) => path.endsWith("/plugin/route-config-autofix.ts"))
     ).toBe(false);

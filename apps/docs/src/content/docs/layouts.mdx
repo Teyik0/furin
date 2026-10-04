@@ -85,3 +85,52 @@ Do not skip a parent to reuse an unrelated layout. Extract ordinary React compon
 Each segment keeps its mode. An SSR layout can read request data above an SSG or ISR page: its loader runs per request, the public child's loader stays cached, and the document is `private, no-store`. The public child loader cannot read the layout's private fields. For a cached HTML shell, move private work to `requestLoader()` and `<Suspense>`; see [Rendering Modes](/docs/rendering). SSR child loaders and components can inherit layout `requestLoader()` fields as promises, but SSR pages cannot declare their own `requestLoader()`.
 
 Deferred fields also flow through layouts. Render them with `<Await>` inside `<Suspense>` exactly as you would in a page; see [Deferred Data](/docs/defer).
+
+## Page State and Navigation
+
+Furin gives each page a React identity based on its route pattern and validated
+path parameters. Navigating from one entity to another, such as `/cards/one` to
+`/cards/two`, remounts the page and resets its local state, including mutation
+errors. Shared layouts stay mounted, and the data cache is not cleared.
+
+Refreshing loader data, applying sync updates, or changing only search parameters
+or the URL hash preserves the current page's state. A remount does not cancel an
+already-running network request, and leaving a route does not store its local
+state for a later visit.
+
+Use `remountDeps` in `config()` to choose which values identify a page:
+
+Config spreads can provide `remountDeps` through local object literals. For an imported or dynamically computed config, declare `remountDeps` explicitly after the spread so the client transform can preserve it without including server configuration.
+
+```tsx
+export const route = defineRoute()
+  .config({
+    layout: rootRoute,
+    mode: "ssr",
+    params: t.Object({ documentId: t.String(), tab: t.String() }),
+    remountDeps: ({ params }) => [params.documentId],
+  })
+  .page(({ params }) => <Editor documentId={params.documentId} tab={params.tab} />);
+```
+
+This page remounts when `documentId` changes, but keeps its state when `tab`
+changes. Return `[]` to preserve state across all parameter changes while the
+same route remains active:
+
+```tsx
+remountDeps: () => []
+```
+
+The callback receives only `params` and `query`, inferred from the route's schemas.
+It must be synchronous and deterministic, and return a readonly array of
+primitives: strings, numbers, booleans, `null`, or `undefined`. Dependencies are
+compared by value, not by the array's reference. Search values affect page identity
+only when explicitly included in this array; loader data never participates.
+
+Declare the callback directly in the inline `config()` object. It runs on both
+the server and the client, so its helpers must be browser-safe. Furin retains only
+this callback from the configuration in the client bundle; schemas and other
+server options are removed. This option controls pages, not layout lifetimes.
+
+Previously, changing path parameters could preserve a page's local state. Use
+`remountDeps: () => []` if a route intentionally relies on that behavior.

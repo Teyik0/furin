@@ -48,7 +48,7 @@ if value.state ~= 'in-progress' or value.id ~= ARGV[1] or value.leaseUntil <= no
   return {'lost'}
 end
 value.state = 'succeeded'
-value.response = cjson.decode(ARGV[2])
+value.response = ARGV[2]
 value.leaseUntil = nil
 local cursor = ''
 if ARGV[3] ~= '[]' then

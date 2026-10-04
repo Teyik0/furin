@@ -330,4 +330,36 @@ describe("scroll restoration on browser back", () => {
 
     cleanup();
   });
+
+  test("saves the scroll of the entry left by back and forward navigation", async () => {
+    const routes = [makeRoute("/page-a", "Page A", "/page-b"), makeRoute("/page-b", "Page B")];
+    const { cleanup, container } = await renderRouter(routes, "/page-a");
+    const win = globalThis as unknown as Window & typeof globalThis;
+    try {
+      currentScrollY = 100;
+      const link = container.querySelector('a[href="/page-b"]') as HTMLAnchorElement;
+      await dispatchReactEvent(link, new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await waitForDom(() => container.textContent?.includes("Page B") === true, undefined);
+      await flushReactUpdates();
+
+      currentScrollY = 200;
+      await runHistoryUpdate(() => win.history.back());
+      await waitForDom(() => container.textContent?.includes("Page A") === true, undefined);
+      await flushReactUpdates();
+      expect(currentScrollY).toBe(100);
+
+      currentScrollY = 300;
+      await runHistoryUpdate(() => win.history.forward());
+      await waitForDom(() => container.textContent?.includes("Page B") === true, undefined);
+      await flushReactUpdates();
+      expect(currentScrollY).toBe(200);
+
+      await runHistoryUpdate(() => win.history.back());
+      await waitForDom(() => container.textContent?.includes("Page A") === true, undefined);
+      await flushReactUpdates();
+      expect(currentScrollY).toBe(300);
+    } finally {
+      cleanup();
+    }
+  });
 });

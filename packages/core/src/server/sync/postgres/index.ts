@@ -321,6 +321,8 @@ export class PostgresSyncAdapter implements SyncAdapter {
       ORDER BY cursor ASC
       LIMIT ${input.limit + 1}
     `;
+    // Re-read after the changes query to detect retention pruning during that query.
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const latestCursorRows = await this.sql<CursorRow[]>`
       SELECT current_cursor, oldest_cursor
       FROM furin_sync.streams WHERE namespace = ${this.namespace}

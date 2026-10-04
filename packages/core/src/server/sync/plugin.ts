@@ -1,5 +1,5 @@
 import { type Context, Elysia, ElysiaStatus } from "elysia";
-import { queryTag } from "../../shared/sync-query.ts";
+import { queryTag, serializeQueryHeader } from "../../shared/sync-query.ts";
 import {
   appendPendingInvalidationHeader,
   isSuccessfulMutationResponse,
@@ -25,6 +25,7 @@ import {
 } from "./atomic.ts";
 import { MutationLeaseLost } from "./execution-error.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
+import { installMutationHandlers, prepareMutationHandler } from "./mutation-handler.ts";
 import {
   appendQueryInvalidations,
   resolveSyncInvalidations,
@@ -332,12 +333,18 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
     }
   }
 
-  const beginMutationHook = hideTransportResponse(beginMutation);
   const finishMutationHook = hideTransportResponse(finishMutation);
 
   const plugin = new Elysia({ name: "furin-sync" })
     .derive("global", (ctx) => ({ mutation: mutationFor(ctx) }))
-    .beforeHandle("global", beginMutationHook)
+    .beforeHandle("global", (context) => {
+      if (
+        isMutationMethod(context.request.method) &&
+        !routeMetadata.get(context.request)?.disabled
+      ) {
+        prepareMutationHandler(context, () => beginMutation(context));
+      }
+    })
     .afterHandle("global", finishMutationHook)
     .afterHandle("global", async (ctx) => {
       const read = routeMetadata.get(ctx.request)?.read;
@@ -364,7 +371,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
         session: new Bun.CryptoHasher("sha256").update(principal).digest("hex"),
       };
       queryTag(identity);
-      ctx.set.headers["x-furin-query"] = JSON.stringify(identity);
+      ctx.set.headers["x-furin-query"] = serializeQueryHeader(identity);
     })
     .error(
       "global",
@@ -402,6 +409,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
 
 export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {
   return (app: Elysia) => {
+    installMutationHandlers(app);
     if ("executeMutation" in options.adapter) {
       bindSyncValidation(app);
     }

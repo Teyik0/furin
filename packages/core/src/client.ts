@@ -3,6 +3,11 @@
   entry for furin/client consumers, not a generic internal barrel.
 */
 
+export {
+  type ClientModule,
+  clientModule,
+  preloadClientModule,
+} from "./client/client-module.ts";
 export { defineRootRoute, defineRoute } from "./client/define-route.ts";
 export {
   type DocumentAssets,
@@ -16,6 +21,7 @@ export {
   reconcileHotComponentRegistry,
   updateHotComponent,
 } from "./client/hmr.ts";
+export { useMutation } from "./client/mutation.ts";
 export { useQuery } from "./client/query.tsx";
 export { getRouteApi } from "./client/route-api.tsx";
 export {
@@ -46,8 +52,11 @@ export interface HeadOptions {
   /**
    * Inline scripts injected into `<head>`.
    *
-   * **Security warning:** `children` is injected as raw HTML — never pass
-   * user-controlled or loader-derived data here without sanitisation.
+   * Server rendering inserts `children` as raw script content. Client rendering
+   * passes `children` to React as text, not as HTML.
+   *
+   * **Security warning:** Never pass user-controlled or loader-derived data
+   * here without sanitisation.
    */
   scripts?: Array<{
     src?: string;

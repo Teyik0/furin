@@ -6,6 +6,7 @@ import type { DevStartupReport, StartupAppReport, StartupSample } from "./compar
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const SAMPLE_COUNT = 3;
+const BOARD_LINK_RE = /href="(\/board\/[^"/]+)"/;
 
 interface StartupPage {
   contains: string;
@@ -15,10 +16,10 @@ interface StartupPage {
 interface StartupTarget {
   first: StartupPage;
   preload: string | undefined;
-  second: StartupPage;
+  second: StartupPage | ((html: string) => StartupPage);
 }
 
-async function readPage(origin: string, page: StartupPage): Promise<void> {
+async function readPage(origin: string, page: StartupPage): Promise<string> {
   const response = await fetch(`${origin}${page.path}`, {
     signal: AbortSignal.timeout(STARTUP_TIMEOUT_MS),
   });
@@ -32,6 +33,7 @@ async function readPage(origin: string, page: StartupPage): Promise<void> {
   ) {
     throw new Error(`${page.path} did not render the expected HTML (HTTP ${response.status})`);
   }
+  return html;
 }
 
 function reservePort(): number {
@@ -92,10 +94,11 @@ export async function measureAppStartup(
       throw new Error(`Port did not open within ${STARTUP_TIMEOUT_MS} ms`);
     }
     const origin = `http://127.0.0.1:${port}`;
-    await readPage(origin, target.first);
+    const html = await readPage(origin, target.first);
     const readyMs = performance.now() - startedAt;
     const secondStartedAt = performance.now();
-    await readPage(origin, target.second);
+    const second = typeof target.second === "function" ? target.second(html) : target.second;
+    await readPage(origin, second);
     sample = { listenMs, readyMs, secondRouteMs: performance.now() - secondStartedAt };
   } catch (error) {
     failure = error;
@@ -172,7 +175,13 @@ if (import.meta.main) {
         {
           first: { contains: "Project Alpha", path: "/" },
           preload: undefined,
-          second: { contains: "Task Manager RSC", path: "/rsc" },
+          second: (html) => {
+            const path = html.match(BOARD_LINK_RE)?.[1];
+            if (path === undefined) {
+              throw new Error("Task Manager did not render a board link");
+            }
+            return { contains: "Project Alpha", path };
+          },
         },
         tempDir
       ),

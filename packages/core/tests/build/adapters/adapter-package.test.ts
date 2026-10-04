@@ -120,6 +120,47 @@ async function runBuildPackageTargetScenarios(): Promise<void> {
 }
 
 describe.serial("buildPackageTarget", () => {
+  test("rejects client-only dependencies reached by package server loaders", async () => {
+    const app = trackedTmpApp("cli-app");
+    writeAppFile(app.path, "src/browser.ts", 'import "@teyik0/furin/client-only"; export const value = 1;');
+    writeAppFile(app.path, "src/pages/index.tsx", `
+      import { defineRoute } from "@teyik0/furin";
+      export const route = defineRoute().config({ mode: "ssr" })
+        .loader(async () => ({ value: (await import("../browser")).value }))
+        .page(() => <main>Package</main>);
+    `);
+    const pagesDir = join(app.path, "src/pages");
+    const { root, routes } = await scanPages(pagesDir);
+    await expect(buildPackageTarget({ pagesDir, prefix: "", root, routes }, app.path,
+      join(app.path, ".furin/build"), { target: "package", reactCompiler: false }))
+      .rejects.toMatchObject({
+        errors: expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining("imports furin/client-only from the ssr graph."),
+          }),
+        ]),
+      });
+  });
+
+  test("strips browser-only client modules from the package server artifact", async () => {
+    const app = trackedTmpApp("cli-app");
+    writeAppFile(app.path, "src/scene.ts", 'export const mount = () => "PACKAGE_BROWSER_ONLY_MARKER";');
+    writeAppFile(app.path, "src/pages/index.tsx", `
+      import { defineRoute } from "@teyik0/furin";
+      import { clientModule } from "@teyik0/furin/client";
+      const scene = clientModule(() => import("../scene"));
+      export const route = defineRoute().config({ mode: "ssr" })
+        .page(() => <main>{String(scene.hrefs.length)}</main>);
+    `);
+    const pagesDir = join(app.path, "src/pages");
+    const { root, routes } = await scanPages(pagesDir);
+    await buildPackageTarget({ pagesDir, prefix: "", root, routes }, app.path,
+      join(app.path, ".furin/build"), { target: "package", reactCompiler: false });
+    const artifact = readFileSync(join(app.path, ".furin/build/package/register.js"), "utf8");
+    expect(artifact.includes("PACKAGE_BROWSER_ONLY_MARKER")).toBe(false);
+    expect(artifact.includes("clientModule() can only be loaded in the browser")).toBe(true);
+  });
+
   test("emits package assets, factory types, and stable build metadata", (done) => {
     runBuildPackageTargetScenarios().then(() => done(), done);
   });

@@ -33,6 +33,7 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `reactCompiler` | `boolean` | `true` | Enable Bun's React compiler in client builds |
 | `optimizeImports` | `string[]` | Bun defaults | Extra package barrels for Bun import optimization |
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
+| `preload.routeChunks` | `boolean` | `true` | Emit `<link rel="modulepreload">` for the current route's chunks |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
 | `vercel.regions` | `VercelRegion[]` | Vercel project default | Function compute regions |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |

@@ -12,16 +12,11 @@ const config: KnipConfig = {
         "scripts/compare-vercel-framework-reports.ts",
         "scripts/startup-weather-preload.ts",
       ],
-      // @biomejs/biome is used via biome.jsonc but not directly imported in JS/TS
-      // @commitlint/cli is the CLI runner; commitlint plugin detects config-conventional
-      ignoreDependencies: ["@biomejs/biome", "@commitlint/cli", "@happy-dom/global-registrator"],
     },
     "apps/docs": {
       // Furin uses file-based routing: all files in pages/ are entry points
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
-      // Tailwind v4 plugins loaded via CSS @import/@plugin directives, not JS imports
-      ignoreDependencies: ["tailwindcss", "tw-animate-css", "@tailwindcss/typography"],
-      project: ["src/**/*.{ts,tsx}"],
+      project: ["src/**/*.{ts,tsx,css,mdx}"],
     },
     "apps/scaffolder": {
       // templates/ contains EJS files referencing deps of generated projects, not the scaffolder itself
@@ -29,30 +24,27 @@ const config: KnipConfig = {
     },
     "examples/task-manager": {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
-      ignoreDependencies: ["tailwindcss"],
       ignoreIssues: {
         "src/api/modules/boards/service.ts": ["exports", "types"],
       },
-      project: ["src/**/*.{ts,tsx}"],
+      project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/weather": {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
-      ignoreDependencies: ["tailwindcss"],
-      project: ["src/**/*.{ts,tsx}"],
+      project: ["src/**/*.{ts,tsx,css}"],
     },
     "packages/core": {
-      entry: ["src/server/sync/postgres/migrate.ts", "tests/**/*.{ts,tsx}"],
+      entry: [
+        "src/server/sync/postgres/migrate.ts",
+        "tests/**/*.{ts,tsx}",
+        "tests/fixtures/sync-prisma/schema.prisma",
+      ],
       ignore: [
-        "src/server/cache/dev-loader.ts",
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",
         "src/server/devtools/instrumentation.production.ts",
-        "src/server/internal.ts",
-        "src/server/render/template.ts",
         "src/server/router/hmr.production.ts",
-        "src/server/sync/stream.ts",
       ],
-      ignoreDependencies: ["expect-type"],
       ignoreIssues: {
         // discovery.ts loads this export through a runtime-computed module URL.
         "src/build/request-keys.ts": ["exports"],
@@ -63,7 +55,7 @@ const config: KnipConfig = {
         "src/server/render/ssr.ts": ["types"],
         "src/server/sync/config.ts": ["exports"],
       },
-      project: ["src/**/*.{ts,tsx}"],
+      project: ["src/**/*.{ts,tsx}", "tests/fixtures/**/*.prisma"],
     },
   },
 };

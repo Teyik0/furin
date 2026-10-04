@@ -5,6 +5,7 @@ import {
   queryFromTag,
   queryTag,
   type SyncQueryIdentity,
+  serializeQueryHeader,
 } from "../../shared/sync-query.ts";
 import type {
   InvalidationInput,
@@ -68,7 +69,7 @@ export function appendQueryInvalidations(
     }
   }
   if (queries.length > 0) {
-    context.set.headers["x-furin-queries"] = JSON.stringify(queries);
+    context.set.headers["x-furin-queries"] = serializeQueryHeader(queries);
     context.set.headers["x-furin-sync"] = "1";
   }
 }

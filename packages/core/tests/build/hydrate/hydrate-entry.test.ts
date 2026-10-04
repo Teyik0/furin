@@ -37,6 +37,12 @@ const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 // ── B12: no basePath — generated code is unchanged ───────────────────────────
 
 describe("generateHydrateEntry", () => {
+  test("forwards the imported page's remount dependencies into the client route", () => {
+    const code = generateHydrateEntry(ROUTES, ROOT, "", false);
+
+    expect(code).toContain("remountDeps: __furin_page_route.remountDeps");
+  });
+
   test("hydrates the document owned by the root layout", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
 

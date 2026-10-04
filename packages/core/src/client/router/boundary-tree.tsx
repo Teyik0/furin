@@ -1,6 +1,7 @@
 import type React from "react";
 import type { ElementType } from "react";
 import { createElement } from "react";
+import { pageKey } from "../../shared/page-key.ts";
 import { type BoundaryOptions, FurinErrorBoundary, wrapSegmentBoundaries } from "../boundaries.tsx";
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
 import { withRouteSnapshot } from "../route-api.tsx";
@@ -63,7 +64,10 @@ export function buildPageElement(
 ): React.ReactNode {
   let element: React.ReactNode = error
     ? createElement(RouteErrorThrower, { error })
-    : createElement(match.component, data);
+    : createElement(match.component, {
+        ...data,
+        key: pageKey(match.pattern, data, match.pageRoute.remountDeps),
+      });
 
   // Reconstruct the FULL route chain (shallow→deep, index 0 = root) by walking
   // parents. We keep every route — not only the ones declaring a layout — so a

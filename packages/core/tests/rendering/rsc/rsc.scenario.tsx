@@ -1,7 +1,15 @@
 import { expect } from "bun:test";
 import { type Context, Elysia } from "elysia";
 import { defer } from "furin/client";
-import type { ReactNode } from "react";
+import {
+  act,
+  createElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  useState,
+} from "react";
+import { createRoot } from "react-dom/client";
 import { renderToReadableStream } from "react-dom/server";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
@@ -13,6 +21,8 @@ import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import "../../setup/global.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
 
@@ -340,6 +350,246 @@ try {
   ).toBe(
     '<article><h2>Profile</h2><footer><button type="button">Loaded</button></footer></article>'
   );
+
+  interface SlotData {
+    flags: boolean[];
+    self?: SlotData;
+  }
+  const slotData: SlotData = { flags: [false, true] };
+  slotData.self = slotData;
+  let previousSlotData: SlotData | undefined;
+  const Nested = await createCompositeComponent<{
+    Wrapper: (props: { children: ReactNode; data: SlotData }) => ReactNode;
+    Action: (props: { label: string }) => ReactNode;
+  }>(({ Wrapper, Action }) => (
+    <Wrapper data={slotData}>
+      <span>
+        <Action label="Nested action" />
+      </span>
+    </Wrapper>
+  ));
+  expect(
+    await renderHtml(
+      <CompositeComponent
+        Action={({ label }) => <button type="button">{label}</button>}
+        src={Nested}
+        Wrapper={({ children, data: receivedData }) => {
+          expect(receivedData.flags).toEqual([false, true]);
+          expect(receivedData.self).toBe(receivedData);
+          if (previousSlotData !== undefined) {
+            expect(receivedData).toBe(previousSlotData);
+          }
+          previousSlotData = receivedData;
+          return <aside>{children}</aside>;
+        }}
+      />
+    )
+  ).toBe('<aside><span><button type="button">Nested action</button></span></aside>');
+  await renderHtml(
+    <CompositeComponent
+      Action={({ label }) => <button type="button">{label}</button>}
+      src={Nested}
+      Wrapper={({ children, data: receivedData }) => {
+        expect(previousSlotData).toBe(receivedData);
+        return <aside>{children}</aside>;
+      }}
+    />
+  );
+
+  let previousIconData: SlotData | undefined;
+  const IconProps = await createCompositeComponent<{
+    Action: (props: { label: string }) => ReactNode;
+    Wrapper: (props: { data: SlotData; item: ReactElement<{ icon: ReactNode }> }) => ReactNode;
+  }>(({ Action, Wrapper }) => (
+    <Wrapper
+      data={slotData}
+      item={createElement("span", {
+        icon: Action({ label: "Icon action" }),
+      })}
+    />
+  ));
+  const renderIconProps = () =>
+    renderHtml(
+      <CompositeComponent
+        Action={({ label }) => <button type="button">{label}</button>}
+        src={IconProps}
+        Wrapper={({ data: receivedData, item }) => {
+          expect(receivedData.flags).toEqual([false, true]);
+          expect(receivedData.self).toBe(receivedData);
+          if (previousIconData !== undefined) {
+            expect(receivedData).toBe(previousIconData);
+          }
+          previousIconData = receivedData;
+          return <aside>{item.props.icon}</aside>;
+        }}
+      />
+    );
+  expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
+  expect(await renderIconProps()).toBe('<aside><button type="button">Icon action</button></aside>');
+
+  const SharedElement = await createCompositeComponent<{
+    Action: () => ReactNode;
+    Empty: () => ReactNode;
+    Wrapper: (props: {
+      emptyFirst: ReactNode;
+      emptySecond: ReactNode;
+      first: ReactNode;
+      second: ReactNode;
+    }) => ReactNode;
+  }>(({ Action, Empty, Wrapper }) => {
+    const shared = <span>{Action()}</span>;
+    const empty = Empty();
+    return Wrapper({ emptyFirst: empty, emptySecond: empty, first: shared, second: shared });
+  });
+  let sharedActionCalls = 0;
+  let sharedEmptyCalls = 0;
+  expect(
+    await renderHtml(
+      <CompositeComponent
+        Action={() => {
+          sharedActionCalls += 1;
+          return <button type="button">Shared action</button>;
+        }}
+        Empty={(): undefined => {
+          sharedEmptyCalls += 1;
+        }}
+        src={SharedElement}
+        Wrapper={({ emptyFirst, emptySecond, first, second }) => {
+          expect(emptyFirst).toBeUndefined();
+          expect(emptySecond).toBeUndefined();
+          expect(first).toBe(second);
+          return <aside>{first}</aside>;
+        }}
+      />
+    )
+  ).toBe('<aside><span><button type="button">Shared action</button></span></aside>');
+  expect(sharedActionCalls).toBe(1);
+  expect(sharedEmptyCalls).toBe(1);
+
+  await Promise.all(
+    [true, false].map(async (explicitKey) => {
+      const Keyed = await createCompositeComponent<{
+        Wrapper: (props: { children: ReactNode }) => ReactNode;
+        Action: (props: { label: string }) => ReactNode;
+      }>(({ Wrapper, Action }) => (
+        <Wrapper>
+          <Action key={explicitKey ? "1" : undefined} label="First" />
+          <Action label="Second" />
+        </Wrapper>
+      ));
+      expect(
+        await renderHtml(
+          <CompositeComponent
+            Action={({ label }) => (
+              <button key={label === "First" ? "1" : undefined} type="button">
+                {label}
+              </button>
+            )}
+            src={Keyed}
+            Wrapper={({ children }) => {
+              const nodes = (Array.isArray(children) ? children : [children]).filter(
+                isValidElement
+              );
+              expect(nodes).toHaveLength(2);
+              expect(new Set(nodes.map((node) => node.key)).size).toBe(2);
+              return <aside>{children}</aside>;
+            }}
+          />
+        )
+      ).toBe(
+        '<aside><button type="button">First</button><button type="button">Second</button></aside>'
+      );
+    })
+  );
+
+  const KeyedCounter = await createCompositeComponent<{
+    Counter: () => ReactNode;
+  }>(({ Counter }) => <Counter key="stable-marker" />);
+  function ClientCounter() {
+    const [count, setCount] = useState(0);
+    return (
+      <button onClick={() => setCount((current) => current + 1)} type="button">
+        {count}
+      </button>
+    );
+  }
+  installDom();
+  resetDomState();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const clientRoot = createRoot(container);
+  try {
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent Counter={() => <ClientCounter key="first" />} src={KeyedCounter} />
+      );
+    });
+    await waitForDom(() => container.textContent === "0", { timeoutMs: 2000 });
+    await act(() => {
+      container.querySelector("button")?.click();
+    });
+    expect(container.textContent).toBe("1");
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent Counter={() => <ClientCounter key="second" />} src={KeyedCounter} />
+      );
+    });
+    expect(container.textContent).toBe("0");
+
+    const markerCounters = (names: string[]) =>
+      createCompositeComponent<{
+        Item: () => ReactNode;
+        Wrapper: (props: { children: ReactNode }) => ReactNode;
+      }>(({ Item, Wrapper }) => (
+        <Wrapper>
+          {names.map((name) => (
+            <Item key={name} />
+          ))}
+        </Wrapper>
+      ));
+    const initialCounters = await markerCounters(["first", "second"]);
+    const reorderedCounters = await markerCounters(["second", "first"]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter />}
+          src={initialCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    await act(() => container.querySelector("button")?.click());
+    expect([...container.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "1",
+      "0",
+    ]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter />}
+          src={reorderedCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    expect([...container.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "0",
+      "1",
+    ]);
+    await act(() => {
+      clientRoot.render(
+        <CompositeComponent
+          Item={() => <ClientCounter key="changed-result" />}
+          src={reorderedCounters}
+          Wrapper={({ children }) => <aside>{children}</aside>}
+        />
+      );
+    });
+    expect(container.textContent).toBe("00");
+  } finally {
+    act(() => clientRoot.unmount());
+    await uninstallDom();
+  }
 
   for (const mode of ["ssg", "isr"] as const) {
     const bufferedRoute =

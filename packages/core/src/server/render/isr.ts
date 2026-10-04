@@ -454,9 +454,9 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
       },
     });
     const discoveredTags = queryTagsFromData(syncData);
+    const identityTags = new Set(input.pageCacheIdentity.tags);
     const cacheStored =
-      input.pageCache !== undefined &&
-      discoveredTags.some((tag) => !input.pageCacheIdentity.tags.includes(tag))
+      input.pageCache !== undefined && discoveredTags.some((tag) => !identityTags.has(tag))
         ? false
         : await storeRenderedISR(input, html, generatedAt);
     if (cacheStored && input.pageCache === undefined) {
@@ -670,33 +670,11 @@ async function handleBackgroundRevalidationError(
   input: BackgroundRevalidationInput,
   error: unknown
 ): Promise<void> {
-  const logger = createLogger({});
   if (isNotFoundError(error)) {
-    if (input.sharedCache === undefined) {
-      deleteISRCache(input.cacheKey);
-    } else {
-      try {
-        await input.sharedCache.adapter.invalidate({
-          kind: "path",
-          path: input.sharedCache.identity.path,
-          scope: input.sharedCache.identity.scope,
-          type: "page",
-        });
-      } catch {
-        logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
-      }
-    }
-    logger.set({
-      furin: {
-        cache: "revalidation_invalidated",
-        reason: "not_found",
-        render: "isr",
-        route: input.route.pattern,
-      },
-    });
-    logger.emit();
+    await invalidateBackgroundNotFound(input);
     return;
   }
+  const logger = createLogger({});
   logger.set({
     furin: {
       cache: "revalidation_failed",
@@ -705,6 +683,36 @@ async function handleBackgroundRevalidationError(
     },
   });
   logger.error(error instanceof Error ? error : new Error(String(error)));
+  logger.emit();
+}
+
+async function invalidateBackgroundNotFound(input: BackgroundRevalidationInput): Promise<void> {
+  if (input.sharedCache === undefined && !input.cacheGeneration?.valid) {
+    return;
+  }
+  const logger = createLogger({});
+  if (input.sharedCache === undefined) {
+    deleteISRCache(input.cacheKey);
+  } else {
+    try {
+      await input.sharedCache.adapter.invalidate({
+        kind: "path",
+        path: input.sharedCache.identity.path,
+        scope: input.sharedCache.identity.scope,
+        type: "page",
+      });
+    } catch {
+      logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
+    }
+  }
+  logger.set({
+    furin: {
+      cache: "revalidation_invalidated",
+      reason: "not_found",
+      render: "isr",
+      route: input.route.pattern,
+    },
+  });
   logger.emit();
 }
 
@@ -750,13 +758,18 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
     if (result instanceof Response) {
       return;
     }
+    if (result.status === 404) {
+      await invalidateBackgroundNotFound(input);
+      return;
+    }
     if (result.status !== 200) {
       logRevalidationSkipped(input.route, "non_200_render", result.status);
       return;
     }
     if (input.sharedCache !== undefined && lease !== null) {
       const { identity } = input.sharedCache;
-      if ((result.queryTags ?? []).some((tag) => !identity.tags.includes(tag))) {
+      const identityTags = new Set(identity.tags);
+      if ((result.queryTags ?? []).some((tag) => !identityTags.has(tag))) {
         return;
       }
       await input.sharedCache.adapter.commit({

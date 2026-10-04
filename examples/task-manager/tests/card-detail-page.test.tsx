@@ -4,6 +4,9 @@ import { treaty } from "@elysia/eden";
 import { withSync } from "@teyik0/furin/client";
 import { RouterContext, SSR_FALLBACK_ROUTER } from "@teyik0/furin/link";
 import { Elysia } from "elysia";
+import { buildPageElement } from "../../../packages/core/src/client/router/boundary-tree.tsx";
+import type { LoadedClientRoute } from "../../../packages/core/src/client/router/types.ts";
+import { adaptDefinedPage } from "../../../packages/core/src/server/router/defined-route.ts";
 import {
   installDom,
   resetDomState,
@@ -19,6 +22,8 @@ setupDomTests();
 
 const submittedCards: unknown[] = [];
 let mutationFailure: Response | Error | undefined;
+let pendingMutation: Promise<Response> | undefined;
+let mutationRequests = 0;
 const app = new Elysia().patch("/cards/:id", ({ body }) => {
   submittedCards.push(body);
   return Response.json({ message: "Save rejected" }, { status: 422 });
@@ -27,6 +32,10 @@ mock.module("../src/lib/api", () => ({
   api: withSync(
     treaty<typeof app>(window.location.origin, {
       fetcher: ((input, init) => {
+        mutationRequests += 1;
+        if (pendingMutation) {
+          return pendingMutation;
+        }
         if (mutationFailure) {
           return mutationFailure instanceof Error
             ? Promise.reject(mutationFailure)
@@ -38,10 +47,167 @@ mock.module("../src/lib/api", () => ({
   ),
 }));
 const { route } = await import("../src/pages/board/[boardId]/card/[cardId]");
+const page = adaptDefinedPage(route, { __type: "FURIN_ROUTE" });
+const match: LoadedClientRoute = {
+  component: page.component,
+  load: () => Promise.resolve({ default: page }),
+  pageRoute: page._route,
+  pattern: "/board/:boardId/card/:cardId",
+  regex: /^\/board\/[^/]+\/card\/[^/]+$/,
+};
+
+function CardPage(props: Parameters<typeof route.page>[0]) {
+  return buildPageElement(match, null, props, undefined, undefined);
+}
 
 afterEach(() => {
   mutationFailure = undefined;
+  pendingMutation = undefined;
+  mutationRequests = 0;
 });
+
+test("card mutations disable both actions while pending and allow retry after rejection", async () => {
+  const response = Promise.withResolvers<Response>();
+  pendingMutation = response.promise;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    act(() =>
+      root.render(
+        createElement(CardPage, {
+          boardName: "Board",
+          formattedCreatedAt: "Sep 30",
+          renderedAt: "12:00",
+          sidebarBoards: [],
+          params: { boardId: "board-1", cardId: "card-1" },
+          card: {
+            id: "card-1",
+            boardId: "board-1",
+            column: "todo",
+            title: "Draft",
+            description: "Draft description",
+            createdAt: "2026-09-30",
+            position: 0,
+          },
+        })
+      )
+    );
+    const remove = container.querySelector<HTMLButtonElement>('button[type="button"]');
+    const save = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    await act(async () => {
+      remove?.click();
+      await Promise.resolve();
+    });
+    await act(() => {
+      remove?.click();
+      save?.click();
+    });
+    expect(mutationRequests).toBe(1);
+    expect(remove?.disabled).toBe(true);
+    expect(save?.disabled).toBe(true);
+    await act(async () => {
+      response.resolve(Response.json({ detail: "Delete rejected" }, { status: 422 }));
+      await response.promise;
+    });
+    expect(container.textContent).toContain("Delete rejected");
+    expect(remove?.disabled).toBe(false);
+    expect(save?.disabled).toBe(false);
+    pendingMutation = undefined;
+    mutationFailure = Response.json({ detail: "Retry rejected" }, { status: 422 });
+    await act(async () => {
+      remove?.click();
+      await Promise.resolve();
+    });
+    expect(mutationRequests).toBe(2);
+    expect(container.textContent).toContain("Retry rejected");
+  } finally {
+    response.resolve(Response.json({ ok: true }));
+    await act(() => root.unmount());
+    container.remove();
+  }
+});
+
+test.each(["save", "delete"])(
+  "switching to %s keeps each error beside its own action",
+  async (action) => {
+    const response = Promise.withResolvers<Response>();
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    document.body.appendChild(container);
+    try {
+      await act(() =>
+        root.render(
+          createElement(CardPage, {
+            boardName: "Board",
+            formattedCreatedAt: "Sep 30",
+            renderedAt: "12:00",
+            sidebarBoards: [],
+            params: { boardId: "board-1", cardId: "card-1" },
+            card: {
+              id: "card-1",
+              boardId: "board-1",
+              column: "todo",
+              title: "Draft",
+              description: "Draft description",
+              createdAt: "2026-09-30",
+              position: 0,
+            },
+          })
+        )
+      );
+      const save = container.querySelector<HTMLButtonElement>('button[type="submit"]');
+      const remove = container.querySelector<HTMLButtonElement>('button[type="button"]');
+      const first = action === "save" ? remove : save;
+      const second = action === "save" ? save : remove;
+      mutationFailure = Response.json({ detail: "Previous failure" }, { status: 422 });
+      await act(async () => {
+        first?.click();
+        await Promise.resolve();
+      });
+      expect(container.textContent).toContain("Previous failure");
+      expect(first?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Previous failure"
+      );
+      expect(second?.parentElement?.querySelector('[role="alert"]')).toBeNull();
+      pendingMutation = response.promise;
+      await act(async () => {
+        second?.click();
+        await Promise.resolve();
+      });
+      expect(first?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Previous failure"
+      );
+      expect(second?.parentElement?.querySelector('[role="alert"]')).toBeNull();
+      await act(async () => {
+        response.resolve(Response.json({ detail: "Current failure" }, { status: 422 }));
+        await response.promise;
+      });
+      expect(first?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Previous failure"
+      );
+      expect(second?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Current failure"
+      );
+      pendingMutation = undefined;
+      mutationFailure = Response.json({ detail: "Final failure" }, { status: 422 });
+      await act(async () => {
+        first?.click();
+        await Promise.resolve();
+      });
+      expect(first?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Final failure"
+      );
+      expect(second?.parentElement?.querySelector('[role="alert"]')?.textContent).toBe(
+        "Current failure"
+      );
+    } finally {
+      response.resolve(Response.json({ ok: true }));
+      await act(() => root.unmount());
+      container.remove();
+    }
+  }
+);
 
 test.each([
   { action: "save", failure: "network" },
@@ -81,7 +247,7 @@ test.each([
         createElement(
           RouterContext.Provider,
           { value: { ...SSR_FALLBACK_ROUTER, navigate } },
-          createElement(route.page, {
+          createElement(CardPage, {
             boardName: "Board",
             formattedCreatedAt: "Sep 30",
             renderedAt: "12:00",
@@ -111,10 +277,16 @@ test.each([
       button?.click();
       await Promise.resolve();
     });
-    const message =
-      failure === "validation"
-        ? "Title is invalid"
-        : `Could not ${action} the card. Please try again.`;
+    let message = "Mutation failed";
+    if (failure === "validation") {
+      message = "Title is invalid";
+    } else if (failure === "network") {
+      message = "Failed to fetch";
+    } else if (failure === "navigation") {
+      message = "Navigation failed";
+    } else if (failure === "invalid-json") {
+      message = 'JSON Parse error: Unexpected identifier "invalid"';
+    }
     await waitForDom(() => container.textContent?.includes(message) === true, { timeoutMs: 2000 });
     expect(container.textContent).toContain(message);
     expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe("Draft");
@@ -140,7 +312,7 @@ test("a rejected save preserves the user's title and description", async () => {
   try {
     await act(() =>
       root.render(
-        createElement(route.page, {
+        createElement(CardPage, {
           boardName: "Board",
           card: {
             id: "card-1",
@@ -173,7 +345,7 @@ test("a rejected save preserves the user's title and description", async () => {
       container.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
       await Promise.resolve();
     });
-    await waitForDom(() => container.textContent?.includes("Validation error") === true, {
+    await waitForDom(() => container.textContent?.includes("Mutation failed") === true, {
       timeoutMs: 2000,
     });
     expect(submittedCards.at(-1)).toEqual({
@@ -200,7 +372,7 @@ test.each([
   const render = (id: string, title: string) =>
     act(() =>
       root.render(
-        createElement(route.page, {
+        createElement(CardPage, {
           boardName: "Board",
           formattedCreatedAt: "Sep 30",
           renderedAt: "12:00",
@@ -233,7 +405,18 @@ test.each([
         setFieldValue(description, "Draft description");
       });
     }
+    mutationFailure = Response.json({ detail: "Previous error" }, { status: 422 });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("Previous error");
     await render(nextId, "Second");
+    if (nextId === "card-1") {
+      expect(container.textContent).toContain("Previous error");
+    } else {
+      expect(container.textContent).not.toContain("Previous error");
+    }
     const expected = edited && nextId === "card-1" ? "Draft" : "Second";
     expect(container.querySelector<HTMLInputElement>('input[name="title"]')?.value).toBe(expected);
     expect(

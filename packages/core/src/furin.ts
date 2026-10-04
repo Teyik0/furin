@@ -37,6 +37,7 @@ import { initializeFurinLogger } from "./server/logger.ts";
 import { renderRootNotFound } from "./server/render/not-found.ts";
 import { warmSSGCache } from "./server/render/ssg.ts";
 import {
+  setProductionPreloadManifest,
   setProductionTemplateContent,
   setProductionTemplatePath,
 } from "./server/render/template.ts";
@@ -261,6 +262,9 @@ async function setupCompiledTemplate(
   clientDir: string,
   instance: FurinInstance
 ): Promise<void> {
+  if (ctx.preloadManifest) {
+    setProductionPreloadManifest(ctx.preloadManifest, instance);
+  }
   if (ctx.templateHtml === undefined) {
     await setupProdTemplate(embedded, clientDir, instance);
     return;
@@ -845,7 +849,51 @@ export async function furin({
     navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
-    const writeCurrentDevFiles = (snapshot: DevelopmentRouteSnapshot): void => {
+    const { getHmrDataSignature } = await import("./plugin/transform-client.ts");
+    let serverSourceVersion = 0;
+    let serverDataSignatures = new Map<string, string>();
+    let serverSourcePaths: string | undefined;
+    const writeCurrentDevFiles = (
+      snapshot: DevelopmentRouteSnapshot,
+      changedSources: readonly string[]
+    ): void => {
+      const paths = [
+        ...new Set([
+          snapshot.root.path,
+          ...snapshot.routes.flatMap((route) => [
+            route.path,
+            ...route.routeChain.flatMap((entry) => (entry.sourcePath ? [entry.sourcePath] : [])),
+          ]),
+        ]),
+      ].toSorted();
+      const nextPaths = JSON.stringify(paths);
+      const nextSignatures = new Map(
+        paths.map((path) => {
+          let signature: string;
+          try {
+            signature = getHmrDataSignature(readFileSync(path, "utf8"), path);
+            if (signature.startsWith("external:")) {
+              signature = graph.sourceVersion(path);
+            }
+          } catch {
+            // A broken route still needs a client entry for its diagnostic.
+            signature = graph.sourceVersion(path);
+          }
+          return [path, signature] as const;
+        })
+      );
+      // Route additions/removals already update the native client manifest.
+      // Rebase their signature without issuing a second data invalidation.
+      const changedPaths = new Set(changedSources);
+      const importsChanged = paths.some(
+        (path) =>
+          !changedPaths.has(path) && serverDataSignatures.get(path) !== nextSignatures.get(path)
+      );
+      if (importsChanged && serverSourcePaths === nextPaths) {
+        serverSourceVersion += 1;
+      }
+      serverSourcePaths = nextPaths;
+      serverDataSignatures = nextSignatures;
       writeDevFiles(
         snapshot.routes,
         {
@@ -858,10 +906,11 @@ export async function furin({
           // instance owns it, otherwise mounted apps clobber each other's types.
           skipRouteTypes: prefix !== "",
         },
-        cwd
+        cwd,
+        String(serverSourceVersion)
       );
     };
-    writeCurrentDevFiles(initialSnapshot);
+    writeCurrentDevFiles(initialSnapshot, []);
     graph.commit(initialSnapshot);
     const hmrEntry = (await import(join(furinDir, "index.html"))).default;
     const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
@@ -882,7 +931,7 @@ export async function furin({
                 }
           );
           const nextSnapshot = createDevelopmentRouteSnapshot(prefix, next.root, nextRoutes);
-          writeCurrentDevFiles(nextSnapshot);
+          writeCurrentDevFiles(nextSnapshot, changedSources);
           graph.commit(nextSnapshot);
           matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
           const diagnostics = devDiagnosticStore(instance);

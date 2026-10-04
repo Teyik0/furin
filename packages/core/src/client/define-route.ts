@@ -1,3 +1,5 @@
+import type { RemountDeps } from "../shared/page-key.ts";
+
 type ClientComponent = (props: never) => React.ReactNode;
 
 interface ClientRuntimeProps {
@@ -10,8 +12,11 @@ interface ClientRuntimeProps {
 
 type ClientRuntimeComponent = (props: ClientRuntimeProps) => React.ReactNode;
 
-export function defineRoute() {
+function createRouteBuilder(remountDeps: RemountDeps<never, never> | undefined) {
   return {
+    config(options: { remountDeps?: RemountDeps<never, never> }) {
+      return createRouteBuilder(options.remountDeps);
+    },
     layout<Component extends ClientComponent>(component: Component) {
       const runtimeComponent = component as unknown as ClientRuntimeComponent;
       return {
@@ -26,9 +31,14 @@ export function defineRoute() {
         __type: "FURIN_ROUTE" as const,
         component: runtimeComponent,
         page: runtimeComponent,
+        remountDeps,
       };
     },
   };
+}
+
+export function defineRoute() {
+  return createRouteBuilder(undefined);
 }
 
 /** Client stub for the root-layout builder — identical surface. */

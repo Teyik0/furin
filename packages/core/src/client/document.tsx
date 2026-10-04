@@ -1,4 +1,5 @@
 import { createContext, createElement, type ReactNode, useContext } from "react";
+import { preloadModule } from "react-dom";
 import type { HeadOptions, MetaDescriptor } from "../client.ts";
 
 export interface DocumentAssets {
@@ -7,6 +8,8 @@ export interface DocumentAssets {
   extensionErrorFilterScript?: string;
   faviconHref: string | undefined;
   frameworkModules: readonly string[];
+  /** Route chunks to `<link rel="modulepreload">` (production server renders only). */
+  modulePreloads?: readonly string[];
   staticMode: boolean;
   stylesheets: readonly string[];
 }
@@ -44,25 +47,25 @@ export function useDocumentState(): DocumentState | null {
   return useContext(DocumentContext);
 }
 
-function renderMeta(meta: MetaDescriptor, index: number): ReactNode {
+function renderMeta(meta: MetaDescriptor, key: string): ReactNode {
   if ("title" in meta) {
-    return <title key={`title:${index}`}>{meta.title}</title>;
+    return <title key={key}>{meta.title}</title>;
   }
   if ("script:ld+json" in meta) {
     return (
       <script
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD is an explicit raw-head API and is escaped by the route author contract.
         dangerouslySetInnerHTML={{ __html: serializeJson(meta["script:ld+json"]) }}
-        key={`json-ld:${index}`}
+        key={key}
         type="application/ld+json"
       />
     );
   }
   if ("tagName" in meta) {
     const { tagName, ...attributes } = meta;
-    return createElement(tagName, { ...attributes, key: `${tagName}:${index}` });
+    return createElement(tagName, { ...attributes, key });
   }
-  return createElement("meta", { ...meta, key: `meta:${index}` });
+  return createElement("meta", { ...meta, key });
 }
 
 export function HeadContent(): ReactNode {
@@ -70,6 +73,16 @@ export function HeadContent(): ReactNode {
   if (state === null) {
     throw new Error("[furin] <HeadContent /> must be rendered inside the root layout.");
   }
+  for (const href of state.assets.modulePreloads ?? []) {
+    preloadModule(href, { as: "script", nonce: state.nonce });
+  }
+  const occurrences = new Map<string, number>();
+  const descriptorKey = (descriptor: object): string => {
+    const identity = JSON.stringify(descriptor);
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    return `${identity}:${occurrence}`;
+  };
 
   return (
     <>
@@ -89,27 +102,24 @@ export function HeadContent(): ReactNode {
       {state.assets.stylesheets.map((href) => (
         <link crossOrigin="" href={href} key={href} rel="stylesheet" />
       ))}
-      {state.head?.meta?.map(renderMeta)}
-      {state.head?.links?.map((link, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: duplicate link descriptors are valid and their declared order is significant.
-        <link key={`${link.rel}:${link.href}:${index}`} {...link} />
+      {state.head?.meta?.map((meta) => renderMeta(meta, descriptorKey(meta)))}
+      {state.head?.links?.map((link) => (
+        <link key={descriptorKey(link)} {...link} />
       ))}
-      {state.head?.scripts?.map(({ children, ...attributes }, index) => (
+      {state.head?.scripts?.map(({ children, ...attributes }) => (
         <script
-          // biome-ignore lint/suspicious/noArrayIndexKey: duplicate inline scripts are valid and their declared order is significant.
-          key={`script:${index}`}
+          key={descriptorKey({ children, ...attributes })}
           {...attributes}
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: HeadOptions scripts are an explicit raw HTML API.
-          dangerouslySetInnerHTML={children === undefined ? undefined : { __html: children }}
           nonce={state.nonce ?? attributes.nonce}
-        />
+        >
+          {children}
+        </script>
       ))}
-      {state.head?.styles?.map(({ children, type }, index) => (
+      {state.head?.styles?.map(({ children, type }) => (
         <style
           // biome-ignore lint/security/noDangerouslySetInnerHtml: HeadOptions styles are an explicit raw HTML API.
           dangerouslySetInnerHTML={{ __html: children }}
-          // biome-ignore lint/suspicious/noArrayIndexKey: duplicate inline styles are valid and their declared order is significant.
-          key={`style:${index}`}
+          key={descriptorKey({ children, type })}
           nonce={state.nonce}
           type={type}
         />

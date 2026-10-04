@@ -564,7 +564,7 @@ export async function renderDevSSGWithLoaderCache(
 /**
  * @internal Lists every source file whose contents can affect the render
  * output for a given page: the page itself, every intermediate `_route.*`
- * between the page and the pages root, and `root.tsx`.
+ * between the page and the pages root, `root.tsx`, and their local imports.
  *
  * Only paths that EXIST on disk are returned.  `isDevLoaderCacheValid` treats
  * a `statSync` throw as "invalid" (conservative on missing files), so listing
@@ -583,5 +583,6 @@ export function computeRouteDependencies(pagePath: string, rootPath: string): st
       }
     }
   }
-  return deps;
+  const graph = devGraph(undefined);
+  return [...new Set(deps.flatMap((path) => graph.sourceDependencies(path)))].filter(existsSync);
 }

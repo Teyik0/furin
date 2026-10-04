@@ -57,7 +57,8 @@ export function updateHotComponent<Props>(
     boundary: (props) => slot.current(props),
     current: component as ClientComponent<never>,
     signature: readHookSignature(component),
-    stable: (props) => jsx(slot.boundary as (props: unknown) => ReactNode, props) as ReactNode,
+    stable: (props: object) =>
+      jsx(slot.boundary as (props: unknown) => ReactNode, { ...props }) as ReactNode,
   };
   registry.set(key, slot);
   return slot.stable as ClientComponent<Props>;

@@ -32,12 +32,8 @@ export function sha256Hex(source: string): string {
 
 export function createMutationFingerprint(input: FingerprintInput): string {
   const url = new URL(input.request.url);
-  const query = [...url.searchParams.entries()].sort(
-    ([leftKey, leftValue], [rightKey, rightValue]) =>
-      leftKey === rightKey
-        ? compareCodePoints(leftValue, rightValue)
-        : compareCodePoints(leftKey, rightKey)
-  );
+  url.searchParams.sort();
+  const query = [...url.searchParams.entries()];
   const source = JSON.stringify({
     body: canonicalize(input.body) ?? null,
     contentType: input.request.headers.get("content-type") ?? "",

@@ -195,6 +195,8 @@ describe.serial("partial prerendering", () => {
           },
           get: (key) => Promise.resolve(values.get(key) ?? null),
           set: (key, value, options) => {
+            // Model the provider's JSON wire format, rather than an in-memory clone.
+            // react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone
             values.set(key, JSON.parse(JSON.stringify(value)));
             writes.push({ key, tags: options?.tags, ttl: options?.ttl });
             return Promise.resolve();
