@@ -233,6 +233,19 @@ jobs:
             "dependencies.react-dom=$react_version" \
             "devDependencies.@types/react=$react_types_version" \
             "devDependencies.@types/react-dom=$react_dom_types_version"
+          # The fixture's pinned peers belong to its original Furin version,
+          # not necessarily to the baseline tarball being measured.
+          bun -e '
+            const baseline = await Bun.file(`${process.env.RUNNER_TEMP}/furin-benchmark-base/package.json`).json();
+            const fixture = await Bun.file("package.json").json();
+            for (const name of ["elysia", "evlog", "exact-mirror", "typebox"]) {
+              const version = baseline.catalog[name];
+              if (typeof version === "string") {
+                fixture.dependencies[name] = version;
+              }
+            }
+            await Bun.write("package.json", `${JSON.stringify(fixture, null, 2)}\n`);
+          '
           cd ../..
           bun pm pkg set "devDependencies.@types/react=$react_types_version" "devDependencies.@types/react-dom=$react_dom_types_version"
           bun install --lockfile-only

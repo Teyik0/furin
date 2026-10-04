@@ -18,9 +18,15 @@ export interface AotWorkerResult {
   virtualType?: string;
 }
 
+export interface AotWorkerError {
+  message: string;
+  name: string;
+  stack?: string;
+}
+
 export type AotWorkerResponse =
   | (AotWorkerResult & { id: number; ok: true })
-  | { error: Error; id: number; ok: false };
+  | { error: AotWorkerError; id: number; ok: false };
 
 const port = parentPort;
 if (!port) {
@@ -47,8 +53,13 @@ port.on("message", async (request: AotWorkerRequest) => {
     }
     port.postMessage({ code, id: request.id, ok: true, virtualType } satisfies AotWorkerResponse);
   } catch (error) {
+    const diagnostic = error instanceof Error ? error : new Error(String(error));
     port.postMessage({
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: {
+        message: diagnostic.message,
+        name: diagnostic.name,
+        stack: diagnostic.stack,
+      },
       id: request.id,
       ok: false,
     } satisfies AotWorkerResponse);

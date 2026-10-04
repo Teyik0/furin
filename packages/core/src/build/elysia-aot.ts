@@ -87,7 +87,12 @@ export function elysiaAot(entry: string, target?: AotWorkerConfig["target"]): Bu
         if (response.ok) {
           request?.resolve(response);
         } else {
-          request?.reject(response.error);
+          const error = new Error(response.error.message);
+          error.name = response.error.name;
+          if (response.error.stack !== undefined) {
+            error.stack = response.error.stack;
+          }
+          request?.reject(error);
         }
       });
       worker.on("error", fail);
