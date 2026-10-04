@@ -117,10 +117,15 @@ export const route = defineRoute()
   .config({ layout: parentRoute, mode: "ssg" })
   .loader(async () => {
     const entries = Object.entries(FILES) as [FileName, string][];
+    const lines = FILES["pages/index.tsx"].split("\n");
+    const hintLine = lines.findIndex((line) => line.includes(".page(("));
+    const hintSource = lines[hintLine];
     const data = {
       codeHtmlMap: Object.fromEntries(
         entries.map(([name, code]) => [name, highlighter.highlightToHtml(code, { lang: "tsx" })])
       ) as Record<FileName, string>,
+      hintPosition:
+        hintSource === undefined ? undefined : { column: hintSource.length, line: hintLine },
       syncClientHtml: highlighter.highlightToHtml(SYNC_CLIENT, { lang: "tsx" }),
       syncServerHtml: highlighter.highlightToHtml(SYNC_SERVER, { lang: "tsx" }),
     };

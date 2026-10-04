@@ -3,6 +3,7 @@ import { evaluate } from "@mdx-js/mdx";
 import { createElement } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
+import { visitParents } from "unist-util-visit-parents";
 import { installDom } from "../../../packages/core/tests/support/dom";
 import { CodeTab, CodeTabs } from "../src/components/code-tabs";
 import { highlighter } from "../src/lib/highlight";
@@ -10,6 +11,27 @@ import rehypeHighlight from "../src/lib/rehype-highlight";
 
 installDom();
 const runtime = { Fragment, jsx, jsxs };
+
+test("MDX highlighting preserves code text split by an earlier rehype plugin", async () => {
+  const source = "export const value = 42;\n";
+  const splitText = () => (tree: Parameters<ReturnType<typeof rehypeHighlight>>[0]) => {
+    visitParents(tree, "element", (node) => {
+      if (node.tagName === "code") {
+        node.children = [
+          { type: "text", value: "export const " },
+          { type: "text", value: "value = 42;\n" },
+        ];
+      }
+    });
+  };
+  const compiled = await evaluate(`\`\`\`ts\n${source}\`\`\``, {
+    ...runtime,
+    rehypePlugins: [splitText, rehypeHighlight],
+  });
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(createElement(compiled.default));
+  expect(container.querySelector("pre code")?.textContent).toBe(source);
+});
 
 test("MDX highlights TSX while preserving its filename window and source text", async () => {
   const source = "export const App = () => <button>Click</button>;\n";

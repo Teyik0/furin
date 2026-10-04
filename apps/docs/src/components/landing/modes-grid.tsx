@@ -12,6 +12,8 @@ function track(e: PointerEvent<HTMLElement>) {
 }
 
 function reset(e: PointerEvent<HTMLElement>) {
+  e.currentTarget.style.setProperty("--mx", "50%");
+  e.currentTarget.style.setProperty("--my", "50%");
   e.currentTarget.style.setProperty("--rx", "0deg");
   e.currentTarget.style.setProperty("--ry", "0deg");
 }

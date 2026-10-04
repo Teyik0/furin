@@ -36,11 +36,11 @@ function pickParticleCount(variant: ChimeCanvasProps["variant"]): number {
 
 /**
  * Client-only WebGL wind chime. The server (and no-WebGL clients) render only
- * the CSS poster; three.js is fetched as a separate chunk after hydration.
+ * the CSS poster; the scene initializes lazily after hydration.
  * Pointer/click/scroll are read from the closest <section>, so the canvas can
  * stay `pointer-events: none` underneath real DOM content.
  */
-export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCanvasProps) {
+export function ChimeCanvas({ variant, className, ringOnEnter }: ChimeCanvasProps) {
   "use no memo";
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<ChimeScene | null>(null);
@@ -146,6 +146,7 @@ export function ChimeCanvas({ variant, className, ringOnEnter = false }: ChimeCa
         // Let hydration and the first paint finish before touching WebGL.
         cancelIdle = whenIdle(() => {
           boot().catch(() => {
+            canvas.getContext("webgl2")?.getExtension("WEBGL_lose_context")?.loseContext();
             // WebGL unavailable: the CSS poster remains, which is the intended fallback.
           });
         });

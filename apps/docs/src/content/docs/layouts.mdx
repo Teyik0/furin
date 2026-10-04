@@ -100,6 +100,8 @@ state for a later visit.
 
 Use `remountDeps` in `config()` to choose which values identify a page:
 
+Config spreads can provide `remountDeps` through local object literals. For an imported or dynamically computed config, declare `remountDeps` explicitly after the spread so the client transform can preserve it without including server configuration.
+
 ```tsx
 export const route = defineRoute()
   .config({

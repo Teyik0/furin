@@ -1,6 +1,6 @@
 /**
  * Procedural 風鈴 (wind chime) scene in raw WebGL2: ~6 tiny programs, a handful of draws per
- * frame and no per-frame allocations. Browser-only — every DOM/GL access happens inside
+ * frame and preallocated transform matrices. Browser-only — every DOM/GL access happens inside
  * createChimeScene(), so the module is safe to import (and bundle) on the server.
  */
 
@@ -421,11 +421,30 @@ function lookAt(out: Mat4, eye: Float32Array, target: Float32Array, basis: Float
   const ux = fy * rz;
   const uy = fz * rx - fx * rz;
   const uz = -fy * rx;
-  basis.set([rx, 0, rz, ux, uy, uz, -fx, -fy, -fz]);
+  basis[0] = rx;
+  basis[1] = 0;
+  basis[2] = rz;
+  basis[3] = ux;
+  basis[4] = uy;
+  basis[5] = uz;
+  basis[6] = -fx;
+  basis[7] = -fy;
+  basis[8] = -fz;
   const ex = eye[0] as number;
   const ey = eye[1] as number;
   const ez = eye[2] as number;
-  out.set([rx, ux, fx, 0, 0, uy, fy, 0, rz, uz, fz, 0]);
+  out[0] = rx;
+  out[1] = ux;
+  out[2] = fx;
+  out[3] = 0;
+  out[4] = 0;
+  out[5] = uy;
+  out[6] = fy;
+  out[7] = 0;
+  out[8] = rz;
+  out[9] = uz;
+  out[10] = fz;
+  out[11] = 0;
   out[12] = -(rx * ex + rz * ez);
   out[13] = -(ux * ex + uy * ey + uz * ez);
   out[14] = -(fx * ex + fy * ey + fz * ez);
@@ -983,8 +1002,12 @@ export async function createChimeScene(
     multiply(swing, root, local, tmp);
     compose(local, 0, -THREAD_LEN - 0.02, 0, clampA(sim.cx), clampA(sim.cz), 1);
     multiply(clapperPivot, swing, local, tmp);
-    eye.set([s * -0.3, s * 0.35, cameraBaseZ + s * 3.2]);
-    target.set([s * -0.3, s * 0.2, 0]);
+    eye[0] = s * -0.3;
+    eye[1] = s * 0.35;
+    eye[2] = cameraBaseZ + s * 3.2;
+    target[0] = s * -0.3;
+    target[1] = s * 0.2;
+    target[2] = 0;
     lookAt(view, eye, target, basis);
   }
 
@@ -1103,6 +1126,7 @@ export async function createChimeScene(
 
   /** Glass: back faces then front faces, no depth write so both layers show. */
   function drawGlass(pal: Palette) {
+    blend(false);
     gl.enable(gl.CULL_FACE);
     const u = bindProgram(P.glass);
     gl.uniform3fv(u("uCam"), eye);
@@ -1111,8 +1135,8 @@ export async function createChimeScene(
     gl.uniform3fv(u("uTint"), pal.glassTint);
     gl.uniform1f(u("uBaseAlpha"), pal.glassAlpha);
     gl.uniform1f(u("uFilm"), pal.film);
-    for (const face of [gl.FRONT, gl.BACK]) {
-      gl.cullFace(face);
+    for (let pass = 0; pass < 2; pass += 1) {
+      gl.cullFace(pass === 0 ? gl.FRONT : gl.BACK);
       withModel(P.glass, clapperPivot, 0, MOUTH_Y + THREAD_LEN + 0.07, 0, 0, 1);
       drawMesh(D.clapper, gl.TRIANGLES);
       withModel(P.glass, swing, 0, -THREAD_LEN, 0, 0, 1);
@@ -1143,6 +1167,7 @@ export async function createChimeScene(
     const time = clock.elapsed;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0, 0, 0, 0);
+    gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT + gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.BLEND);
     gl.enable(gl.DEPTH_TEST);
@@ -1231,6 +1256,7 @@ export async function createChimeScene(
         gl.deleteProgram(p);
       }
       gl.deleteTexture(texture);
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
     },
     resize() {
       layout();

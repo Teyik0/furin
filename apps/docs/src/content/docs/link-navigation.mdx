@@ -73,6 +73,7 @@ For browser-only modules such as a WebGL scene, declare them with `clientModule(
 
 ```tsx
 import { clientModule, preloadClientModule } from "@teyik0/furin/client";
+import { useEffect } from "react";
 
 const chimeScene = clientModule(() => import("./chime-scene"));
 

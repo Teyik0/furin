@@ -13,7 +13,7 @@ interface RevealProps {
  * SSR output is visible by default (`.reveal` only hides once `html.js-reveal` is set
  * by this component), so no-JS visitors and crawlers always see the content.
  */
-export function Reveal({ children, className, delay = 0 }: RevealProps) {
+export function Reveal({ children, className, delay }: RevealProps) {
   "use no memo";
   const ref = useRef<HTMLDivElement>(null);
 
@@ -43,7 +43,7 @@ export function Reveal({ children, className, delay = 0 }: RevealProps) {
     <div
       className={cn("reveal", className)}
       ref={ref}
-      style={{ "--reveal-delay": `${delay}ms` } as CSSProperties}
+      style={{ "--reveal-delay": `${delay ?? 0}ms` } as CSSProperties}
     >
       {children}
     </div>

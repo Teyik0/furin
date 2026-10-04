@@ -3,13 +3,15 @@ import { useState } from "react";
 const TAB_NAMES = ["pages/index.tsx", "pages/root.tsx", "server.ts"] as const;
 type TabName = (typeof TAB_NAMES)[number];
 
-/** Zero-based line of `.page(({ ... }) =>` in the pages/index.tsx sample; the hint sits beside it. */
-const HINT_LINE = 9;
-/** Monospace column just past the end of that line. */
-const HINT_COLUMN = 41;
 const LINE_HEIGHT = "calc(13px * 1.7)";
 
-export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, string> }) {
+export function HeroCodeWindow({
+  codeHtmlMap,
+  hintPosition,
+}: {
+  codeHtmlMap: Record<TabName, string>;
+  hintPosition: { column: number; line: number } | undefined;
+}) {
   "use no memo";
   const [active, setActive] = useState<TabName>("pages/index.tsx");
 
@@ -20,10 +22,10 @@ export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, s
         <span className="size-2.5 rounded-full bg-white/15" />
         <span className="size-2.5 rounded-full bg-white/15" />
         <span className="size-2.5 rounded-full bg-white/15" />
-        <div className="ml-3 flex gap-1 overflow-x-auto" role="tablist">
+        <div className="ml-3 flex gap-1 overflow-x-auto">
           {TAB_NAMES.map((name) => (
             <button
-              aria-selected={active === name}
+              aria-pressed={active === name}
               className={`shrink-0 rounded-md px-2.5 py-1 font-mono text-[12px] transition-colors focus-visible:outline-2 focus-visible:outline-[var(--lp-accent)] ${
                 active === name
                   ? "bg-white/[0.08] text-zinc-100"
@@ -31,7 +33,6 @@ export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, s
               }`}
               key={name}
               onClick={() => setActive(name)}
-              role="tab"
               type="button"
             >
               {name}
@@ -40,10 +41,13 @@ export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, s
         </div>
       </div>
       <div className="relative">
-        {active === "pages/index.tsx" && (
+        {active === "pages/index.tsx" && hintPosition && (
           <div
             className="type-hint-line pointer-events-none absolute inset-x-0 max-sm:hidden"
-            style={{ height: LINE_HEIGHT, top: `calc(1.5rem + ${HINT_LINE} * ${LINE_HEIGHT})` }}
+            style={{
+              height: LINE_HEIGHT,
+              top: `calc(1.5rem + ${hintPosition.line} * ${LINE_HEIGHT})`,
+            }}
           />
         )}
         {/* Code content */}
@@ -53,12 +57,12 @@ export function HeroCodeWindow({ codeHtmlMap }: { codeHtmlMap: Record<TabName, s
           // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted TanStack Highlight syntax-highlighted output; never contains user input
           dangerouslySetInnerHTML={{ __html: codeHtmlMap[active] }}
         />
-        {active === "pages/index.tsx" && (
+        {active === "pages/index.tsx" && hintPosition && (
           <div
             className="pointer-events-none absolute -translate-y-1/2 font-mono text-[13px] max-sm:hidden"
             style={{
-              left: `calc(1.5rem + ${HINT_COLUMN}ch)`,
-              top: `calc(1.5rem + ${HINT_LINE + 0.5} * ${LINE_HEIGHT})`,
+              left: `calc(1.5rem + ${hintPosition.column}ch)`,
+              top: `calc(1.5rem + ${hintPosition.line + 0.5} * ${LINE_HEIGHT})`,
             }}
           >
             <div className="type-hint type-hint__box text-[12px]">

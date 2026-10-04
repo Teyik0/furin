@@ -33,6 +33,7 @@ export interface LandingSlots {
 
 interface LandingServerProps {
   codeHtmlMap: ComponentProps<typeof HeroCodeWindowComponent>["codeHtmlMap"];
+  hintPosition: ComponentProps<typeof HeroCodeWindowComponent>["hintPosition"];
   slots: LandingSlots;
   syncClientHtml: string;
   syncServerHtml: string;
@@ -144,6 +145,7 @@ function delay(ms: number) {
 
 export function LandingServer({
   codeHtmlMap,
+  hintPosition,
   syncClientHtml,
   syncServerHtml,
   slots,
@@ -223,7 +225,7 @@ export function LandingServer({
                   Frontend and backend share a single Bun process. Elysia serves your pages as a
                   plugin, React renders them — and your types cross every boundary.
                 </p>
-                <ol className="mt-10 hidden space-y-3 font-mono text-[13px] sm:block">
+                <ol className="sr-only mt-10 space-y-3 font-mono text-[13px] sm:not-sr-only">
                   {LAYERS.toReversed().map((layer, i) => (
                     <li
                       className="stack-step flex items-center gap-3"
@@ -299,7 +301,7 @@ export function LandingServer({
               </p>
             </Reveal>
             <Reveal className="type-reveal min-w-0" delay={120}>
-              <HeroCodeWindow codeHtmlMap={codeHtmlMap} />
+              <HeroCodeWindow codeHtmlMap={codeHtmlMap} hintPosition={hintPosition} />
             </Reveal>
           </div>
         </section>

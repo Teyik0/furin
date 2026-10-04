@@ -33,7 +33,9 @@ const rehypeHighlight = () => (tree: HastNode) => {
 
     const className: string[] = node.properties?.className ?? [];
     const lang = className.join(" ").match(LANG_RE)?.[1] ?? "text";
-    const rawText: string = node.children[0]?.value ?? "";
+    const rawText: string = node.children
+      .map((child: HastNode) => (child.type === "text" ? child.value : ""))
+      .join("");
 
     const fileMatch = rawText.match(FILE_COMMENT_RE);
     const title = fileMatch ? fileMatch[1] : lang;

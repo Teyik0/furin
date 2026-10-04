@@ -10,6 +10,9 @@ export function CreateBoardForm() {
 
   const handleCreate = (formData: FormData) => {
     const trimmed = String(formData.get("name") ?? "").trim();
+    if (!trimmed) {
+      return;
+    }
     create.mutate(
       { name: trimmed },
       {
@@ -17,7 +20,7 @@ export function CreateBoardForm() {
           cache.update(api.boards.get, (data) => [
             {
               id: crypto.randomUUID(),
-              name,
+              name: trimmed,
               createdAt: new Date().toISOString(),
             },
             ...data,

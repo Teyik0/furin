@@ -1,5 +1,5 @@
 import { Check, Copy } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const COMMAND = "bun create furin@latest";
@@ -7,19 +7,25 @@ const COMMAND = "bun create furin@latest";
 export function CopyCommand({ className }: { className?: string }) {
   "use no memo";
   const [copied, setCopied] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
 
-  useEffect(() => {
-    if (!copied) {
-      return;
-    }
-    const id = window.setTimeout(() => setCopied(false), 1600);
-    return () => window.clearTimeout(id);
-  }, [copied]);
+  useEffect(
+    () => () => {
+      if (timer.current !== undefined) {
+        window.clearTimeout(timer.current);
+      }
+    },
+    []
+  );
 
   const copy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(COMMAND);
+      if (timer.current !== undefined) {
+        window.clearTimeout(timer.current);
+      }
       setCopied(true);
+      timer.current = window.setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard blocked (insecure context / permissions): the command stays selectable.
     }
