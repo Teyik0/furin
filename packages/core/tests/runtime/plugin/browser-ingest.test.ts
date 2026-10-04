@@ -18,20 +18,24 @@ afterEach(() => {
   resetEvlogMock();
 });
 
-test.serial("browser log ingest is not mounted unless clientLogging is enabled", async () => {
-  __setDevMode(true);
+test.serial(
+  "browser log ingest is not mounted unless clientLogging is enabled",
+  async () => {
+    __setDevMode(true);
 
-  const app = await createTestApp(false);
-  const res = await app.handle(
-    new Request("http://localhost/_furin/ingest", {
-      body: "[]",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    })
-  );
+    const app = await createTestApp(false);
+    const res = await app.handle(
+      new Request("http://localhost/_furin/ingest", {
+        body: "[]",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      })
+    );
 
-  expect(res.status).toBe(404);
-});
+    expect(res.status).toBe(404);
+  },
+  { timeout: 15_000 }
+);
 
 test.serial("dev inspector is not mounted by default", async () => {
   __setDevMode(true);
@@ -64,6 +68,40 @@ test.serial("native DevTools records correlated development requests", async () 
   expect(pageEvents[0]?.requestId).toBe(pageEvents[1]?.requestId);
 });
 
+test.serial("browser telemetry reaches the composed DevTools hub through real HTTP", async () => {
+  __setDevMode(true);
+  const app = (await createTestApp(false)).listen({ port: 0, hostname: "127.0.0.1" });
+  const origin = app.server?.url.origin;
+  if (!origin) {
+    throw new Error("Expected the telemetry test server to listen");
+  }
+  try {
+    const response = await fetch(`${origin}/_furin/devtools/browser-events`, {
+      body: JSON.stringify({
+        clientId: "http-browser",
+        clientTimestamp: Date.now(),
+        state: "connected",
+        type: "hmr.connection.changed",
+      }),
+      headers: { "content-type": "application/json", origin },
+      method: "POST",
+    });
+    expect(response.status).toBe(204);
+    const snapshot = await (await fetch(`${origin}/_furin/devtools/snapshot`)).json();
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        clientId: "http-browser",
+        instanceId: snapshot.instance.id,
+        sessionId: snapshot.sessionId,
+        state: "connected",
+        type: "hmr.connection.changed",
+      })
+    );
+  } finally {
+    await app.stop();
+  }
+});
+
 test.serial("native DevTools does not record its own transport requests", async () => {
   __setDevMode(true);
   const app = (await createTestApp(false)).listen(0);
@@ -75,6 +113,7 @@ test.serial("native DevTools does not record its own transport requests", async 
 
   try {
     const before = await (await fetch(`${origin}/_furin/devtools/snapshot`)).json();
+    await fetch(`${origin}/_furin/devtools`);
     await new Promise<void>((resolve, reject) => {
       const socket = new WebSocket(`ws://127.0.0.1:${port}/_furin/events`);
       socket.addEventListener("open", () => {

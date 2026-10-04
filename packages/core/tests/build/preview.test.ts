@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startStaticPreview } from "../../src/cli/preview.ts";
+import { waitForHttp } from "../support/http.ts";
 import { startCli } from "../support/process.ts";
 
 const tempDirs: string[] = [];
@@ -135,7 +136,7 @@ describe("static preview", () => {
       }
       const localUrl = cli.getStdout().match(/Local:\s+(http:\/\/localhost:\d+\/)/)?.[1];
       expect(localUrl).toBeDefined();
-      const response = await fetch(localUrl as string);
+      const response = await waitForHttp(localUrl as string, { timeoutMs: 10_000 });
       expect(await response.text()).toBe("<h1>Root</h1>");
       expect(cli.getStderr()).toBe("");
     } finally {

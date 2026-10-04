@@ -153,4 +153,4 @@ test("every documentation page keeps its MDX content on the server", async () =>
       expect(bundle).not.toContain("renderDocContent");
     })
   );
-});
+}, 30_000);

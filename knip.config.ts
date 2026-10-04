@@ -35,6 +35,8 @@ const config: KnipConfig = {
     },
     "packages/core": {
       entry: [
+        "src/devtools/collector.ts",
+        "src/devtools/dashboard.tsx",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",
