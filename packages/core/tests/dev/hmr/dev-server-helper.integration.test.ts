@@ -32,7 +32,12 @@ test("editing a server-only composite helper refreshes cached SSG content withou
   });
   try {
     const url = `http://localhost:${port}/`;
-    const initial = await waitForHttp(url, {});
+    const initial = await waitForHttp(url, {}).catch((error: unknown) => {
+      throw new Error(
+        `Development server failed to become ready.\nstdout:\n${server.getStdout()}\nstderr:\n${server.getStderr()}`,
+        { cause: error }
+      );
+    });
     expect(await initial.text()).toContain("server-card-before");
     const warm = await fetch(url);
     expect(await warm.text()).toContain("server-card-before");
