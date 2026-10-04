@@ -1,0 +1,23 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_cd8a49090aa00e::t_d66639b9c567f4 465,484-485
+packages/core/src/devtools/dashboard.tsx
+  s_cd8a49090aa00e::t_14a5a34c431ae5 370-371,373,382,384,480-487,489-492,537,560
+packages/core/tests/runtime/devtools/devtools-correlation.test.ts
+  s_cd8a49090aa00e::t_0102d3dc9b4beb 21,32,75,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a7b6c70a30c5e22b36296b7cc7c959be50132ca",
+  "prompts": {},
+  "sessions": {
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
