@@ -237,11 +237,16 @@ jobs:
           # not necessarily to the baseline tarball being measured.
           bun -e '
             const baseline = await Bun.file(`${process.env.RUNNER_TEMP}/furin-benchmark-base/package.json`).json();
+            const lock = Bun.JSONC.parse(await Bun.file(`${process.env.RUNNER_TEMP}/furin-benchmark-base/bun.lock`).text());
             const fixture = await Bun.file("package.json").json();
             for (const name of ["elysia", "evlog", "exact-mirror", "typebox"]) {
-              const version = baseline.catalog[name];
-              if (typeof version === "string") {
-                fixture.dependencies[name] = version;
+              if (typeof baseline.catalog[name] === "string") {
+                const resolved = lock.packages?.[name]?.[0];
+                const prefix = `${name}@`;
+                if (typeof resolved !== "string" || !resolved.startsWith(prefix) || !resolved.slice(prefix.length)) {
+                  throw new Error(`Cannot resolve baseline peer ${name} from baseline bun.lock`);
+                }
+                fixture.dependencies[name] = resolved.slice(prefix.length);
               }
             }
             await Bun.write("package.json", `${JSON.stringify(fixture, null, 2)}\n`);
