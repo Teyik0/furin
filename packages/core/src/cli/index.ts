@@ -20,10 +20,7 @@ function bail(msg: string): never {
   process.exit(1);
 }
 
-function resolveCompileMode(
-  flag: string | boolean | undefined,
-  configCompile: "server" | "embed" | undefined
-): "server" | "embed" | undefined {
+function resolveCompileMode(flag: string | boolean | undefined): "server" | "embed" | undefined {
   if (flag === "embed") {
     return "embed";
   }
@@ -33,7 +30,7 @@ function resolveCompileMode(
   if (flag !== undefined && flag !== false) {
     bail(`Invalid compile mode "${flag}". Valid: --compile server or --compile embed`);
   }
-  return configCompile;
+  return undefined;
 }
 
 function extractCompileFlag(args: string[]): {
@@ -176,8 +173,9 @@ if (command === "preview") {
             },
           ]
         : config.apps,
+    bun: config.bun,
     clientLogging: config.clientLogging ?? false,
-    compile: resolveCompileMode(compileFlag, config.bun?.compile),
+    compile: resolveCompileMode(compileFlag),
     optimizeImports: config.optimizeImports,
     pagesDir: undefined,
     plugins: config.plugins,

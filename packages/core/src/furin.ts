@@ -69,10 +69,13 @@ export type CacheTag = keyof FurinCacheTags extends never ? string : keyof Furin
 
 async function createProductionBrowserEventsPlugin(
   sync: FurinSyncOption | undefined,
-  deploymentTarget: "vercel" | undefined
+  deploymentTarget: "vercel" | "cloudflare" | undefined
 ): Promise<AnyElysia> {
   if (!sync) {
     return new Elysia();
+  }
+  if (deploymentTarget === "cloudflare") {
+    throw new Error("[furin] Cloudflare Workers does not support Furin Sync yet.");
   }
   const browserEvents = await import("./server/browser-events/plugin.ts");
   // Vercel invokes app.handle(Request), so Elysia's Bun.Server WebSocket upgrade is unavailable.
@@ -712,6 +715,9 @@ function configurePageCache(
   ctx: CompileContext | null,
   pageCache: PageCacheAdapter | undefined
 ): void {
+  if (pageCache !== undefined && ctx?.deploymentTarget === "cloudflare") {
+    throw new Error("[furin] Cloudflare Workers does not support custom pageCache adapters yet.");
+  }
   if (pageCache !== undefined && ctx?.deploymentTarget === "vercel") {
     throw new Error(
       "[furin] pageCache cannot be configured with the Vercel target. Vercel owns SSG, ISR, and PPR public caching."

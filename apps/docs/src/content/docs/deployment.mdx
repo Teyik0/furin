@@ -1,19 +1,22 @@
 # Deployment
 
-Furin ships a native Vercel Build Output target plus four Bun-native production shapes: a bundled server, a compiled server with assets on disk, a self-contained executable, and a pure static export. The `package` output composes a page tree into another Elysia application.
+Furin provides deployment targets for Bun, Vercel, Cloudflare Workers, and static hosting. Railway, Fly.io, Render, and self-hosted Docker deployments share the Bun server bundle; they do not need separate runtime adapters. Compiled executables remain optional. The `package` output composes a page tree into another Elysia application.
 
 ## Choose An Output
 
 | Requirement | Recommended output |
 |---|---|
 | Vercel Functions, CDN assets, and native ISR | Vercel Build Output |
+| Cloudflare Workers SSR/SSG with native CDN assets | Cloudflare Workers target |
 | SSR, ISR, APIs, or Sync in a normal Bun environment | Bun server bundle |
 | Small operational artifact with assets mounted beside it | Compiled `server` |
 | One distributable executable | Compiled `embed` |
 | Only SSG pages and no request runtime | Static export |
 | Publish a Furin app for another Elysia host | Package target |
 
-Furin intentionally exposes only adapters it can build and verify today. Node.js and Cloudflare are not accepted build targets; use Bun, Vercel's Bun runtime, a static export, or the package target.
+Choose Cloudflare Workers only when the application and its dependencies are compatible with the Workers runtime. Bun remains the build tool, not the deployed runtime on that target. ISR, PPR, RSC, and Sync are not supported by the initial Workers target and fail the build explicitly. Node.js is not a build target.
+
+For a managed Bun host, start with [Railway](#railway). For containers, use the same [Docker image](#docker-server-bundle) on [Fly.io](#flyio), [Render](#render), or [a self-hosted server](#self-hosting-and-coolify). All of these can put a CDN in front of browser assets without compiling the server to an executable.
 
 ## Elysia 2 / Kiana Migration
 
@@ -39,7 +42,7 @@ See the official [Elysia 2 DayDream release post](https://elysiajs.com/blog/elys
 
 Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, compiled executables, and Vercel Bun Functions. Applications using `.mount()` skip AOT because Elysia's AOT plugin cannot compile mounted handlers; beta.19 bundles its runtime TypeBox dependencies without Furin's former setup shim. It generates a real, listener-free application entry for Elysia's dry run and keeps the boot entry separate. Runtime compiler stripping stays on `auto`: Furin completes the export surface of Kiana's no-WebSocket stub while preserving its throwing behavior, so applications without Sync can still remove unused WebSocket code. Applications whose dynamic handlers require the JIT fallback keep it automatically. Compiled applications with and without Sync are exercised end-to-end to cover both paths.
 
-No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
+Bun uses Elysia's native Bun adapter, Vercel runs the Bun-targeted bundle through `app.handle(Request)`, and Cloudflare uses a dedicated Workers deployment path. Static exports have no server runtime, and package builds let the host application own its adapter. A Bun-targeted bundle cannot run in Workers merely by exporting a `fetch` handler.
 
 ## Bun Server Bundle
 
@@ -51,6 +54,189 @@ bun .furin/build/bun/server.js
 The target directory contains `server.js`, one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
 
 Deploy the whole `.furin/build/bun` directory. `server.js` resolves client assets beside itself; `FURIN_CLIENT_DIR` can override the root instance's directory when a platform mounts assets elsewhere.
+
+## Docker Server Bundle
+
+Use one immutable image containing the non-compiled server and its matching client/public assets. This example assumes a standalone application with a committed `bun.lock` and no runtime files outside Furin's output:
+
+```dockerfile
+FROM oven/bun:1.4.2 AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bunx --no-install furin build --target bun
+
+FROM oven/bun:1.4.2 AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+COPY --from=build --chown=bun:bun /app/.furin/build/bun/ ./
+USER bun
+EXPOSE 3000
+CMD ["bun", "server.js"]
+```
+
+Create a `.dockerignore` beside it:
+
+```text
+node_modules
+.git
+.furin
+.vercel
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+```
+
+Supply secrets at runtime through the host's secret store, not Docker build arguments. Public `FURIN_PUBLIC_*` values are build-time inputs and must not contain secrets. Pin the image digest in your production CI if reproducible base images are required.
+
+If the browser reads public configuration, declare **each actual variable** in the build stage before the Furin build. For example, replace the build command above with:
+
+```dockerfile
+ARG FURIN_PUBLIC_API_URL
+RUN bunx --no-install furin build --target bun
+```
+
+Railway and Render supply configured service variables as Docker build arguments, but the Dockerfile must declare the matching `ARG` names to consume them. On Fly or local Docker, pass public values explicitly with `--build-arg FURIN_PUBLIC_API_URL=https://api.example.com`. Fly runtime secrets do not configure the browser build. Rebuild the image when a public value changes; setting it only on the running container cannot change emitted JavaScript.
+
+For a monorepo, use the repository root as the Docker build context, copy workspace manifests before installing, and build the library before the selected application when it is a workspace dependency. Change the final `COPY` to that application's `.furin/build/bun` directory. Do not blindly use the standalone Dockerfile for a `workspace:*` application. Native modules, externalized dependencies, database migrations, and application-owned runtime files must also be included when the application needs them; a bundled server does not embed a SQLite database.
+
+## Railway
+
+Railway can run the [Docker server bundle](#docker-server-bundle) directly. Use Docker instead of relying on framework auto-detection:
+
+1. Commit the Dockerfile, `.dockerignore`, and lockfile, then create a Railway service from the repository.
+2. Set the Dockerfile/build context for the application. In a monorepo, preserve access to its workspace dependencies.
+3. Set the healthcheck path to `/_furin/health/ready`.
+4. Generate a public domain or attach a custom domain. Railway supplies `PORT`; let the generated Bun server read it.
+5. Supply application secrets through Railway Variables. Configure the deployment drain/termination window to allow Furin's full graceful shutdown, at least 35 seconds plus an operational margin.
+
+Configure these settings in the dashboard for a new service: Dockerfile builder/path, readiness healthcheck with a startup timeout appropriate to your app, and an on-failure restart policy. Railway's legacy `railway.toml`/`railway.json` Config as Code is deprecated and supported only for legacy services until **2026-12-01**; do not use it as a new deployment recipe. Use Railway's current [Infrastructure as Code workflow](https://docs.railway.com/infrastructure-as-code) when settings must be managed in source control.
+
+### Railway CDN
+
+Railway has a [native CDN](https://docs.railway.com/networking/cdn), currently in beta. Enable it in the service's **Settings > Edge**. Recommended initial configuration:
+
+- **HTML Caching: Never**.
+- Preserve origin cache headers for browser assets; do not force a TTL over `private` or `no-store`.
+- Add an [Edge Rule](https://docs.railway.com/networking/edge-rules) with **Override cache > Bypass** for every path other than `/_client/*`, `/public/*`, and `/favicon.ico`. Include the corresponding prefixed paths for mounted Furin apps.
+
+The bypass rule matters: disabling HTML caching alone does **not** disable JSON caching. Public `/_furin/data` responses can have cacheable headers, and an origin `revalidatePath()` does not purge Railway's CDN. If your plan does not provide the required Edge Rules, leave the native CDN disabled and use the [asset-only Cloudflare policy](#cdn-policy-for-bun-hosts) instead.
+
+Request the same browser asset twice and inspect `x-cache: HIT` and `Age`. Check that page documents, navigation data, APIs, and healthchecks bypass the CDN. Railway compresses eligible responses with Brotli/gzip and passes through WebSockets and uncached streams.
+
+Railway supports whole-service CDN purges, not per-URL purges. `railway cdn purge html` does not remove cached JSON navigation data; that requires `railway cdn purge all`. Purge-on-deploy is not mutation-time invalidation. Do not enable HTML/data edge caching until both variants and query strings have an explicit invalidation policy. Keep immutable assets available across releases rather than relying on them having reached every edge location.
+
+See [Railway's Bun guide](https://docs.railway.com/guides/bun) and [Infrastructure as Code](https://docs.railway.com/infrastructure-as-code) for platform setup.
+
+## Fly.io
+
+Use the same Dockerfile and let Fly terminate TLS. A minimal `fly.toml` is:
+
+```toml
+app = "your-furin-app"
+primary_region = "cdg"
+kill_signal = "SIGTERM"
+kill_timeout = "45s"
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+PORT = "3000"
+NODE_ENV = "production"
+
+[http_service]
+internal_port = 3000
+force_https = true
+auto_stop_machines = "off"
+auto_start_machines = true
+min_machines_running = 1
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "15s"
+timeout = "5s"
+method = "GET"
+path = "/_furin/health/ready"
+```
+
+Replace the app name and choose a region close to your database. Configure secrets with `fly secrets set`, then deploy with `fly deploy`. Fly Proxy is not a page-cache adapter: add the [asset-only CDN policy](#cdn-policy-for-bun-hosts) on your custom domain when edge asset caching is wanted.
+
+Keep a single machine for a file-backed SQLite application, with an explicitly mounted volume and application-configured database path. For multiple machines, use shared PostgreSQL/Redis as appropriate; do not copy the local example database into each replica.
+
+See [Fly's Dockerfile deployment guide](https://fly.io/docs/languages-and-frameworks/dockerfile/) and [configuration reference](https://fly.io/docs/reference/configuration/).
+
+## Render
+
+Create a Docker Web Service using the same Dockerfile, or commit a `render.yaml` Blueprint:
+
+```yaml
+services:
+  - type: web
+    name: furin-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /_furin/health/ready
+    maxShutdownDelaySeconds: 45
+    envVars:
+      - key: NODE_ENV
+        value: production
+```
+
+Render supplies `PORT`; the generated server reads it. Add secrets in the dashboard, not the Blueprint. For a service created in the dashboard, set **Max Shutdown Delay** to 45 seconds too: Render's 30-second default is shorter than Furin's full drain window. Select a service plan with the uptime your application requires. Configure the [asset-only CDN policy](#cdn-policy-for-bun-hosts) on a custom domain: a Docker Web Service is not a static-site deployment and does not automatically provide Furin ISR invalidation at the edge.
+
+See [Render Docker deployments](https://render.com/docs/docker) and the [Blueprint specification](https://render.com/docs/blueprint-spec).
+
+## Self-Hosting And Coolify
+
+Use the Docker image on a VPS, Docker Compose, or Coolify's Dockerfile deployment. In Coolify, set the application port to `3000`, configure the readiness healthcheck, supply secrets through its environment settings, and attach the production domain. The same cache and multi-replica rules apply; Coolify is an orchestrator, not a new Furin runtime.
+
+For a single-host deployment:
+
+```sh
+docker build -t furin-app .
+docker run -d --name furin-app \
+  --env-file .env.production \
+  -p 127.0.0.1:3000:3000 \
+  --stop-timeout 45 \
+  --restart unless-stopped \
+  furin-app
+```
+
+The local environment file must stay outside version control and out of the image. Bind Bun to loopback at the host boundary and expose only the reverse proxy publicly. A Caddy starting point is:
+
+```caddyfile
+app.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:3000 {
+    flush_interval -1
+  }
+}
+```
+
+Caddy terminates TLS and supports WebSocket upgrades; the negative flush interval avoids buffering streaming responses. When Caddy runs in Compose rather than on the host, proxy to the application service name, such as `app:3000`, on a private Docker network instead of `127.0.0.1`. Test streaming and idle timeouts with your workload; see the [production checklist](#production-checklist).
+
+### CDN Policy For Bun Hosts
+
+The recommended default is **same-origin CDN assets, origin-owned HTML/data caching**. It avoids an additional DNS/TLS connection for a separate asset domain and keeps `revalidatePath()` and `revalidateTag()` effective without an external page purge.
+
+For Cloudflare in front of Railway, Fly, Render, or your VPS:
+
+1. Attach your application domain to the origin and enable Cloudflare proxying for its DNS record.
+2. Use **Full (strict)** TLS with a valid origin certificate, not Flexible TLS.
+3. Create an asset Cache Rule matching only `/_client/*`, `/public/*`, and `/favicon.ico` (including mount prefixes). Make those paths eligible for caching and respect the origin's cache headers. Do not override private/no-store responses or cache missing assets and errors.
+4. Create a later, overriding bypass rule for every non-asset path. Page documents, `/_furin/data`, APIs, events, Sync, and healthchecks must continue to reach the origin. Avoid a global “Cache Everything” rule.
+5. Keep the full query string in cache keys. Let Cloudflare negotiate compression without buffering private streams.
+
+`/_client` browser bundles use content-hashed filenames and can have a one-year immutable lifetime. Unversioned `public/` files and `favicon.ico` need a shorter TTL or explicit purging when changed; do not mark them immutable. Check their actual origin headers rather than assuming a platform's fallback TTL is appropriate. Only expose public assets, never `.furin/build/private`, server bundles, templates, or environment files.
+
+Cloudflare should return `CF-Cache-Status: HIT` for a warmed asset. A miss can occur at another edge location; a local cache hit does not prove global distribution. For a public page and its navigation data, verify neither is served from the edge cache under this policy.
+
+If you later cache public HTML/navigation data at the CDN, configure both the shared origin cache and a CDN purge integration. Purge all query-specific variants of both representations on mutation. Furin's `setCachePurger()` callback is best-effort, not a synchronous global freshness guarantee; monitor failures and accept a bounded TTL or keep those responses bypassed. Cloudflare Workers `cache.delete()` only purges the local datacenter and is not a global purge.
 
 ## Compiled Executables
 
@@ -65,6 +251,101 @@ furin build --target bun --compile embed
 Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
 
 Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
+
+## Cloudflare Workers
+
+The Cloudflare target is a **Workers runtime adapter**, not a compiled Bun server behind Cloudflare. Bun builds the application; Cloudflare runs the emitted Worker and serves browser/public assets through [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/).
+
+Use a default-exported Elysia application and guard `.listen()` with `import.meta.main`, as in the [server-entry example](#server-entry) below. The build selects Elysia's Workers-compatible adapter; the application does not need to import another adapter to build this target.
+
+### Build And Deploy
+
+```sh
+furin build --target cloudflare
+bunx --bun wrangler deploy --dry-run --config .furin/build/cloudflare/wrangler.jsonc
+bunx --bun wrangler deploy --config .furin/build/cloudflare/wrangler.jsonc
+```
+
+Authenticate Wrangler separately before deploying. Deployment writes to your Cloudflare account; a Furin build does not publish anything.
+
+Keep `bun run dev` for normal application development. Wrangler 4.100.0's local `dev` proxy currently hangs under Bun even for a minimal non-Furin Worker; it is not a verified Bun-local preview workflow. Furin's integration tests execute the emitted Worker in Miniflare/workerd and verify native HTTP requests, while Wrangler's Bun-driven `deploy --dry-run` validates the deployment artifact without publishing it. Pin your Wrangler version in the application's dev dependencies for CI, and verify platform-specific bindings separately.
+
+The generated artifact has this shape:
+
+```text
+.furin/build/cloudflare/
+├── wrangler.jsonc
+├── worker.js
+└── assets/
+    ├── _client/
+    ├── public/
+    └── favicon.ico
+```
+
+Optional directories/files are present only when the application supplies them. Cloudflare uses one content-hashed `/_client/` namespace for browser assets across mounted applications, so server-rendered asset imports and browser imports resolve to the same files. Pages and framework data endpoints retain their configured mount prefixes. The Worker contains the compiled route tree and templates; private templates, loader snapshots, source maps, and server bundles are not public static assets.
+
+Wrangler configuration uses `nodejs_compat` for supported Node APIs. This is not Bun compatibility: application dependencies using `Bun.file`, `bun:sqlite`, TCP listeners, or a local filesystem at request time still need a Workers-compatible replacement. Elysia's `file()` also cannot serve an origin filesystem in Workers; put those files in `public/`. Do not construct `Response` objects at module scope or use a prebuilt `Response` as an inline route value: construct it inside the request handler instead. These application-level runtime restrictions are not all detectable by the build, so a successful bundle alone is not proof that arbitrary application dependencies can run in Workers.
+
+Only assets emitted by the browser build are automatically published. A file emitted only by the server bundle is rejected rather than referenced through a broken CDN URL or exposed accidentally. For a public image URL returned by a server loader, put the image in `public/` and return its public URL.
+
+The adapter preserves `public/_headers` for native static asset responses and adds one immutable rule for the reserved `/_client/*` namespace, regardless of the number of chunks. Up to 99 custom rules remain available under Cloudflare's 100-rule limit. Do not supply `public/_client` files, mount an application inside `/_client`, or redefine the reserved rule. Custom security headers still apply to browser assets, while the adapter owns their immutable cache policy. `_headers` does not apply to Worker-rendered HTML/APIs; set their security headers in Elysia request handling.
+
+### Supported Behavior
+
+| Feature | Initial Workers target |
+|---|---|
+| SSR and browser hydration/navigation | Worker request handler |
+| SSG | Built-in public route snapshot served by the Worker |
+| Browser/public assets | Native Workers Static Assets CDN |
+| ISR | Rejected: no globally coherent page-cache adapter yet |
+| PPR / request loaders in cacheable documents | Rejected |
+| SSR with inherited layout request loaders | Supported; SSR pages use `loader()` / `defer()` for their own request data |
+| RSC | Rejected |
+| Sync | Rejected |
+| Application `@elysia/static` mounts | Rejected; use `public/` |
+| Custom `pageCache`, Bun executable compilation, private server source maps | Rejected |
+
+Do not gate unsupported `sync` or `pageCache` options on runtime environment variables. Constant options are rejected during the build, but a runtime-only value cannot always be detected there. The Worker validates them again at initialization and will fail to start if a deployment enables them. Keep these options absent for this target.
+
+Asset requests are served by the platform without invoking the Worker when they match a deployed file. Non-asset requests go to the Worker; the assets configuration is not an SPA fallback that turns unknown routes into `200 index.html` responses.
+
+The initial target forces HTML documents and `/_furin/data` responses to `private, no-store`, regardless of an application-provided cache policy. Do not add an edge rule that forces these responses into a shared cache. Hashed browser files get immutable caching. Unversioned public files revalidate by default; custom `public/_headers` rules can change their policy, so use immutable caching only when those files are versioned.
+
+Worker API responses and redirects without an explicit cache policy default to `private, no-store`. Explicit cache policies on non-HTML APIs remain application-owned; configure invalidation before opting them into an edge cache.
+
+Workers' Cache API is datacenter-local, does not implement `stale-while-revalidate`, and `cache.delete()` is not a global purge. The adapter therefore rejects ISR rather than presenting isolate-local memory as a durable global cache. Use the Bun target with a shared page cache, or Vercel's native ISR, when those guarantees are required.
+
+Bindings and secrets belong in Wrangler configuration and Cloudflare's secret store. Never put secrets in `FURIN_PUBLIC_*`. Keep the deploy configuration under version control outside generated output when adding bindings, custom domains, or platform-specific settings, and point its `main` and `assets.directory` at the generated files. Do not rely on edits inside `.furin/build` surviving the next build.
+
+For example, a developer-owned root `wrangler.jsonc` can select the Worker name:
+
+```json
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "your-furin-app",
+  "main": ".furin/build/cloudflare/worker.js",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".furin/build/cloudflare/assets",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  }
+}
+```
+
+Build first, then use `bunx --bun wrangler deploy --config wrangler.jsonc`. Configure secrets using the same Worker name/configuration so they are attached to the intended deployment, not the generated default name.
+
+### Static-Only Cloudflare Hosting
+
+For an application containing only SSG pages, the existing static export is smaller and does not need a Worker:
+
+```sh
+furin build --target static
+bunx --bun wrangler pages deploy dist
+```
+
+Use the configured static output directory if it is not `dist`. Static hosting has no SSR, APIs, request loaders, or runtime invalidation. Use a Pages project name appropriate to your account and do not confuse this static workflow with Workers SSR.
 
 ## Vercel
 

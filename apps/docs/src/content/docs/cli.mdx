@@ -18,12 +18,12 @@ furin build [options]
 
 | Flag | Value | Default | Meaning |
 |---|---|---|---|
-| `--target` | `bun`, `vercel`, `static`, `package`, or `all` | `bun` | Select output |
+| `--target` | `bun`, `vercel`, `cloudflare`, `static`, `package`, or `all` | `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
-| `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
+| `--analyze` | Boolean flag | `false` | Write Bun metafiles under `.furin/build/analysis` |
 
 `--compile` without a value means `server`; `--compile=embed` is also accepted.
 
@@ -37,6 +37,9 @@ furin build --target bun --compile server
 # One self-contained executable
 furin build --target bun --compile embed
 
+# Cloudflare Workers with CDN assets
+furin build --target cloudflare
+
 # Pure static output
 furin build --target static
 
@@ -47,7 +50,7 @@ furin build --target package --pagesDir ./src/admin --prefix /admin
 furin build --target all
 ```
 
-`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
+`all` preserves the deploy targets `bun`, `vercel`, and `static`. It excludes `package`, which is an alternative packaging of one app, and the initial `cloudflare` target, which must be selected explicitly because its runtime has a narrower feature set.
 
 ### Target Status
 
@@ -57,12 +60,13 @@ furin build --target all
 | `static` | Implemented | `static.outDir`, default `dist` |
 | `package` | Implemented | `.furin/build/package` |
 | `vercel` | Implemented | `.vercel/output` (Bun Function, CDN assets, native SSG/ISR) |
+| `cloudflare` | SSR/SSG; no ISR, PPR, RSC, or Sync | `.furin/build/cloudflare` (Worker, Wrangler config, CDN assets) |
 
 Every successful build writes `.furin/build/manifest.json`. It records route modes, app prefixes, output paths, build IDs, and target-specific metadata.
 
 ### Analyze Output
 
-`--analyze` writes Bun metafiles for client builds. They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
+`--analyze` writes Bun metafiles for client builds and the Bun, Vercel, and Cloudflare server builds. Cloudflare emits both `cloudflare-client.json` and `cloudflare-server.json`. Analysis stays outside the public asset directory. These graphs describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
 
 ## `furin preview`
 

@@ -19,7 +19,7 @@ afterEach(() => {
 
 describe("CLI config resolution", () => {
   test("only advertises implemented runtime adapters", () => {
-    expect(BUILD_TARGETS).toEqual(["bun", "vercel", "static", "package"]);
+    expect(BUILD_TARGETS).toEqual(["bun", "vercel", "static", "package", "cloudflare"]);
   });
 
   test("loadCliConfig uses defaults when no config file is present", async () => {

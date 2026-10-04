@@ -13,6 +13,14 @@ real generated application entry. The listener lives in a separate boot entry,
 so AOT capture never opens a port. `strip` remains disabled while the Kiana beta
 WebSocket capability imports helpers omitted by its automatic WS stub.
 
+## Cloudflare Workers adapter
+
+`furin build --target cloudflare` keeps Bun's browser and server build pipeline and emits `.furin/build/cloudflare/worker.js`, `assets/`, and `wrangler.jsonc`. The server uses Elysia 2's `workerd` AOT target, React's edge renderer, embedded templates and SSG snapshots, and the Web Standard request handler. No Bun runtime is deployed.
+
+Workers Assets serves only emitted browser files and `public/`, with exact immutable header rules for content-hashed browser assets. All mounted apps share `/_client/` asset URLs so server file-loader URLs match hydration. Dynamic HTML and navigation are deliberately `private, no-store`; no Workers Cache API cache claims global coherence.
+
+SSR/SSG and deferred streaming are tested in Miniflare/workerd. ISR, PPR, RSC, Sync, custom page caches, executables and private server source maps fail explicitly. `@elysia/static` application mounts fail at build time. Cloudflare remains excluded from `--target all` for backward compatibility.
+
 ## Vercel adapter
 
 The Vercel target emits Build Output API v3 directly to `.vercel/output`:

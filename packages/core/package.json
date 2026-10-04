@@ -186,6 +186,7 @@
     "@types/react-dom": "catalog:",
     "drizzle-orm": "0.45.3",
     "expect-type": "^1.4.0",
+    "miniflare": "4.20260601.0",
     "prisma": "7.10.0"
   },
   "peerDependencies": {

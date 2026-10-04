@@ -1,5 +1,6 @@
 import type {
   BuildTarget,
+  FurinConfig,
   StaticExportConfig,
   VercelDeploymentConfig,
 } from "../config";
@@ -107,6 +108,8 @@ export interface BuildAppOptions {
    * and server-entry auto-detection.
    */
   apps?: BuildAppSpec[];
+  /** Defaults applied only to the Bun build target. */
+  bun?: FurinConfig["bun"];
   /** Inject the evlog client logger into the hydrate entry. Defaults to false. */
   clientLogging?: boolean;
   compile?: "server" | "embed";

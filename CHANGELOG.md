@@ -10,6 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 - **Route groups** — directories such as `(admin)` organize pages without adding a URL segment, while preserving nested layouts, loaders, and error boundaries. Groups can be nested; conflicting public route patterns are rejected.
+- **Cloudflare Workers target** — `furin build --target cloudflare` emits a native SSR/SSG Worker, Wrangler configuration, and content-hashed CDN assets. Worker responses are private by default; explicit non-HTML cache policies, including public policies, and custom static headers are preserved. Unsupported ISR, PPR, RSC, Sync, page-cache adapters, executable compilation, and private server maps fail explicitly.
+- **Production hosting guides** — Railway, Fly.io, Render, and Docker/self-hosted Coolify deployments use the non-compiled Bun bundle with readiness checks, graceful shutdown, and safe asset-only CDN policies.
+
+### Fixed
+- **Bun asset caching** — disk-served browser assets use one immutable cache policy without conflicting `max-age` directives, while retaining ETags.
+- **Workers capability boundaries** — reject ISR anywhere in a route chain, including below an SSR document, and reject application mounts that would put unversioned public files inside the immutable browser-asset namespace.
+- **Workers response privacy and dependency resolution** — unmarked APIs and redirects default to `private, no-store`, explicit non-HTML cache policies and WebSocket upgrades remain intact, and renderer overrides apply only to Furin runtime imports.
+- **Workers HTML and build artifacts** — HTML media types are matched case-insensitively without accepting unrelated subtypes, manifests use relocatable app-relative paths, and `--analyze` includes the private Worker metafile alongside the client graph.
+- **Target-scoped compilation defaults** — configured `bun.compile` applies only to Bun builds; Workers builds no longer inherit it, while an explicit unsupported compile request still fails.
+- **Workspace test scheduling** — run workspace suites sequentially while retaining each suite's file-level parallelism, preventing nested concurrency from starving integration tests.
 
 ### Fixed
 - **Sync with Elysia mounts** — preserve native `.mount()` compilation and request forwarding for root and prefixed handlers, including Better Auth GET and POST endpoints. Ordinary `.all()` mutations retain authorization before reservation/replay, idempotency, and atomic transactions.

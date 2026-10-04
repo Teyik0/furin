@@ -129,6 +129,21 @@ test("every documentation page keeps its MDX content on the server", async () =>
       expect(heading).toBeDefined();
       expect(html).toContain(heading?.replaceAll("&", "&amp;") ?? "");
       expect(html).not.toContain("__FURIN_DEV_DIAGNOSTIC__");
+      if (path === "/docs/deployment") {
+        expect(html).toContain("Docker Server Bundle");
+        expect(html).toContain("Railway CDN");
+        expect(html).toContain(">Fly.io</h2>");
+        expect(html).toContain(">Render</h2>");
+        expect(html).toContain("Cloudflare Workers");
+        expect(html).toContain("Self-Hosting And Coolify");
+        expect(html).toContain("wrangler deploy");
+        expect(html).toContain("server.js");
+        expect(html).toContain("FURIN_PUBLIC_API_URL");
+        expect(html).toContain("kill_timeout");
+        expect(html).toContain("maxShutdownDelaySeconds");
+        expect(html).toContain('href="https://docs.railway.com/networking/cdn"');
+        expect(html).toContain("no-store");
+      }
     })
   );
   const build = await Bun.build({

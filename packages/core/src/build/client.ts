@@ -30,6 +30,8 @@ export interface BuildClientResult {
   cssChunks: string[];
   /** Public path of the JS entry chunk, e.g. `/_client/chunk-abc.js` */
   entryChunk: string;
+  /** Files emitted by the browser bundler, excluding private source maps and the SSR template. */
+  browserFiles: string[];
   /** Chunk URLs to modulepreload per route and per `clientModule()`. */
   preloadManifest: ClientPreloadManifest;
 }
@@ -229,5 +231,12 @@ export async function buildClient(
   );
 
   console.log("[furin] Production client build complete");
-  return { entryChunk, cssChunks, preloadManifest };
+  return {
+    entryChunk,
+    cssChunks,
+    preloadManifest,
+    browserFiles: result.outputs
+      .filter((output) => output.kind !== "sourcemap")
+      .map((output) => output.path),
+  };
 }

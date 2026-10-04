@@ -8,21 +8,32 @@ export type AotWorkerOperation =
 
 export type AotWorkerRequest = AotWorkerOperation & { id: number };
 
+export interface AotWorkerConfig {
+  entry: string;
+  target: "bun" | "workerd";
+}
+
 export interface AotWorkerResult {
   code?: string;
   virtualType?: string;
 }
 
+export interface AotWorkerError {
+  message: string;
+  name: string;
+  stack?: string;
+}
+
 export type AotWorkerResponse =
   | (AotWorkerResult & { id: number; ok: true })
-  | { error: Error; id: number; ok: false };
+  | { error: AotWorkerError; id: number; ok: false };
 
 const port = parentPort;
 if (!port) {
   throw new Error("[furin] Elysia AOT worker requires a parent port.");
 }
-const { entry } = workerData as { entry: string };
-const hooks = aotFactory({ entry, strip: false, target: "bun" });
+const { entry, target } = workerData as AotWorkerConfig;
+const hooks = aotFactory({ entry, strip: false, target });
 Bun.plugin(isomorphicTransformPlugin("server"));
 
 port.on("message", async (request: AotWorkerRequest) => {
@@ -42,8 +53,13 @@ port.on("message", async (request: AotWorkerRequest) => {
     }
     port.postMessage({ code, id: request.id, ok: true, virtualType } satisfies AotWorkerResponse);
   } catch (error) {
+    const diagnostic = error instanceof Error ? error : new Error(String(error));
     port.postMessage({
-      error: error instanceof Error ? error : new Error(String(error)),
+      error: {
+        message: diagnostic.message,
+        name: diagnostic.name,
+        stack: diagnostic.stack,
+      },
       id: request.id,
       ok: false,
     } satisfies AotWorkerResponse);

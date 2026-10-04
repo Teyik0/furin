@@ -444,15 +444,27 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       ].join("\n")
     );
 
+    let lastRootSource = "";
     const fixed = await pollUntil(
-      async () =>
-        readFileSync(rootPath, "utf8").includes("<HeadContent />") &&
-        readFileSync(rootPath, "utf8").includes("<Scripts />"),
+      () => {
+        lastRootSource = readFileSync(rootPath, "utf8");
+        return Promise.resolve(
+          lastRootSource.includes("<HeadContent />") && lastRootSource.includes("<Scripts />")
+        );
+      },
       40,
       250
     );
 
-    expect(fixed).toBe(true);
+    expect(
+      fixed,
+      [
+        `Root layout autofix did not converge after 40 polls (250 ms) on ${process.platform}, Bun ${Bun.version}.`,
+        `${rootPath}:\n${lastRootSource}`,
+        `Server stdout (last 8000 characters):\n${server.getStdout().slice(-8000)}`,
+        `Server stderr (last 8000 characters):\n${server.getStderr().slice(-8000)}`,
+      ].join("\n")
+    ).toBe(true);
     let lastDocument = "";
     const served = await pollUntil(
       async () => {
