@@ -1,0 +1,19 @@
+packages/core/tests/build/worker-build-artifacts.test.ts
+  s_9f7f06cf3ad0c4::t_5c7815f38958e1 22,26-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5546f3cdf7eb410d35f1eed8ceb198cb794f674e",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
