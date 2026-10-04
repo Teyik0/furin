@@ -288,7 +288,7 @@ Wrangler configuration uses `nodejs_compat` for supported Node APIs. This is not
 
 Only assets emitted by the browser build are automatically published. A file emitted only by the server bundle is rejected rather than referenced through a broken CDN URL or exposed accidentally. For a public image URL returned by a server loader, put the image in `public/` and return its public URL.
 
-The adapter preserves `public/_headers` for native static asset responses and adds one immutable rule for the reserved `/_client/*` namespace, regardless of the number of chunks. Up to 99 custom rules remain available under Cloudflare's 100-rule limit. Do not supply `public/_client` files or redefine the reserved rule. Custom security headers still apply to browser assets, while the adapter owns their immutable cache policy. `_headers` does not apply to Worker-rendered HTML/APIs; set their security headers in Elysia request handling.
+The adapter preserves `public/_headers` for native static asset responses and adds one immutable rule for the reserved `/_client/*` namespace, regardless of the number of chunks. Up to 99 custom rules remain available under Cloudflare's 100-rule limit. Do not supply `public/_client` files, mount an application inside `/_client`, or redefine the reserved rule. Custom security headers still apply to browser assets, while the adapter owns their immutable cache policy. `_headers` does not apply to Worker-rendered HTML/APIs; set their security headers in Elysia request handling.
 
 ### Supported Behavior
 

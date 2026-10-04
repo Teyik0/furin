@@ -64,8 +64,17 @@ function cloudflareRuntimePlugin(): Bun.BunPlugin {
 
 function assertSupportedRoutes(apps: RuntimeTargetApp[]): void {
   for (const app of apps) {
+    if (app.prefix === "/_client" || app.prefix.startsWith("/_client/")) {
+      throw new Error(
+        "[furin] Cloudflare apps cannot mount inside the reserved /_client namespace."
+      );
+    }
     for (const route of app.routes) {
-      if (resolveDocumentMode(route) === "isr") {
+      if (
+        route.mode === "isr" ||
+        app.root.route.mode === "isr" ||
+        route.routeChain.some((entry) => entry.mode === "isr")
+      ) {
         throw new Error(
           `[furin] Cloudflare Workers does not support ISR (${route.pattern}): shared durable caching and global invalidation are required.`
         );

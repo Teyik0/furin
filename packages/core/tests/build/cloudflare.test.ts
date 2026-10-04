@@ -112,6 +112,47 @@ export const route = defineRoute()
   }
 }, 60_000);
 
+test("Cloudflare rejects ISR layouts even when the document is SSR", async () => {
+  const app = createTmpApp("cli-app-ssr");
+  try {
+    writeAppFile(app.path, "src/pages/private/_route.tsx", `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "../root";
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .loader(() => ({ title: "ISR layout" }))
+  .layout(({ children }) => <section>{children}</section>);
+`);
+    writeAppFile(app.path, "src/pages/private/index.tsx", `import { defineRoute } from "@teyik0/furin";
+import { route as layoutRoute } from "./_route";
+export const route = defineRoute()
+  .config({ layout: layoutRoute, mode: "ssr" })
+  .page(() => <main>Private dashboard</main>);
+`);
+    const build = await runCli(["build", "--target", "cloudflare"], { cwd: app.path });
+    expect(build.exitCode).toBe(1);
+    expect(build.stderr).toContain("Cloudflare Workers does not support ISR");
+  } finally {
+    app.cleanup();
+  }
+}, 60_000);
+
+test("Cloudflare cannot mount apps inside its immutable asset namespace", async () => {
+  for (const prefix of ["/_client", "/_client/nested"]) {
+    const app = createTmpApp("cli-app-ssr");
+    try {
+      writeAppFile(app.path, "src/server.ts", `import { furin } from "@teyik0/furin";
+import Elysia from "elysia";
+export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: ${JSON.stringify(prefix)} }));
+`);
+      const build = await runCli(["build", "--target", "cloudflare"], { cwd: app.path });
+      expect(build.exitCode).toBe(1);
+      expect(build.stderr).toContain("reserved /_client namespace");
+    } finally {
+      app.cleanup();
+    }
+  }
+}, 60_000);
+
 test("Workers assets serve only browser bundles and public files with immutable hashed caching", async () => {
   const app = createTmpApp("cli-app-ssr");
   let runtime: Miniflare | undefined;
