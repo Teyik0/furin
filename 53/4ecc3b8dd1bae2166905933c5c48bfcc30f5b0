@@ -1,0 +1,67 @@
+packages/core/src/client/document.tsx
+  s_9a7285306b2245::t_9f283beac7ff69 72,141
+packages/core/src/client/router/provider.tsx
+  s_9a7285306b2245::t_35de6b36d99120 95,922
+packages/core/src/furin.ts
+  s_9a7285306b2245::t_07b34f97986b79 6,31,344,653
+packages/core/src/plugin/route-config-autofix.ts
+  s_9a7285306b2245::t_65f0e3adede1dd 46-50,52,848,884-887,894-902
+packages/core/src/plugin/transform-client.ts
+  s_9a7285306b2245::t_40e89a21704b0c 83,98,101-106,109,156
+packages/core/src/server/dev-page-plugin.ts
+  s_9a7285306b2245::t_3b4ba10ca1c78a 28-30,60,221-228,236-243,245,349
+packages/core/src/server/logger.ts
+  s_9a7285306b2245::t_c8f6dffff01b47 1-21
+packages/core/src/server/render/isr.ts
+  s_9a7285306b2245::t_a0117b258dd167 230-238,240-244
+packages/core/src/server/render/ssr.ts
+  s_9a7285306b2245::t_9554ea6bfc0f20 133-136,141-154,174-179,393,439-478,540,620,709
+packages/core/src/server/router/discovery.ts
+  s_9a7285306b2245::t_12f88f741f4fcb 2,17,270,518-520
+packages/core/src/server/router/hmr.ts
+  s_9a7285306b2245::t_afd7053b8296cd 2,24,63,70,85
+packages/core/src/server/router/plugin.ts
+  s_9a7285306b2245::t_8c36d2225c329c 34-35,382-387,389-393
+packages/core/src/server/router/source-version.ts
+  s_9a7285306b2245::t_bb4136f0c6b5fa 1-16
+packages/core/tests/bench/params-validation.bench.ts
+  s_9a7285306b2245::t_b03922b2e2ba6c 66-68,74-77
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_9a7285306b2245::t_a75a522bca30d3 7-11,17,50-54,97-98,125-138,141-143,232,258-294,314,362,397
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_9a7285306b2245::t_6889ea36169c35 70,74,81,87-89,264-269,271-275,277-286,288-300,357-373
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_9a7285306b2245::t_b8d0aa1e2c3b4a 429-448,701-736
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_9a7285306b2245::t_3c4c2b413c56e3 494-521
+packages/core/tests/rendering/document/document-root.test.tsx
+  s_9a7285306b2245::t_c2fd1f7ee442de 26-51,71,73,75-76,135,137,139-141,154-190,199,201,203-204,214-299
+packages/core/tests/rendering/rsc/rsc-render-error.scenario.tsx
+  s_9a7285306b2245::t_db82eb7d11359a 3,41-47
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_9a7285306b2245::t_71b8fa28a9e29f 3,20-26
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_9a7285306b2245::t_6d7d0b186bfd2d 4,33-39
+packages/core/tests/routing/cache/dev-route-module-cache.test.ts
+  s_9a7285306b2245::t_de745c5646b891 5-8,40-61
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_9a7285306b2245::t_49b8a514ac352c 81,85-86,254
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_9a7285306b2245::t_eee9630d1d7f47 14,33,141-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "534ecc3b8dd1bae2166905933c5c48bfcc30f5b0",
+  "prompts": {},
+  "sessions": {
+    "s_9a7285306b2245": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d54-5b90-70c1-a60a-bdf4c6183da2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

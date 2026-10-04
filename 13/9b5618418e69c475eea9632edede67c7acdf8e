@@ -1,0 +1,78 @@
+packages/core/tests/rendering/rsc/rsc.test.tsx
+  s_1a2b9d268ec3c6::t_770eef05f2dd87 3-18,25-28
+  s_1a2b9d268ec3c6::t_2f88795112513f 29
+  s_1a2b9d268ec3c6::t_1a391ae4955557 22-24,30-31
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_1a2b9d268ec3c6::t_bb778cf7cae52c 272-274
+scripts/measure-client-bundle.ts
+  s_1a2b9d268ec3c6::t_2f88795112513f 135
+  s_1a2b9d268ec3c6::t_f9c82487f1c9a9 134
+packages/core/src/server/render/ssr.ts
+  s_1a2b9d268ec3c6::t_fbe0bb7deb5fd7 496
+  s_1a2b9d268ec3c6::t_9e016d331cc6e2 28-30,39,503-504
+  s_1a2b9d268ec3c6::t_975a726b02998e 16
+  s_1a2b9d268ec3c6::t_4d090dbcc61f07 443-445,450,453-454,460,464,474-478
+  s_1a2b9d268ec3c6::t_81f1c74deef36f 618-623,648
+  s_1a2b9d268ec3c6::t_ba79931f79a253 413-442,446-449,451-452,455-459,461-463,465-473,479-483
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_1a2b9d268ec3c6::t_0eda59b000e31d 2-117,211,245
+  s_1a2b9d268ec3c6::t_796271e986cad2 1,118,327-334
+  s_1a2b9d268ec3c6::t_a1017146652ba0 119-210,212-244,246-326
+packages/core/src/server/render/route-frame-transport.ts
+  s_1a2b9d268ec3c6::t_e6e90c3d18076a 1-52
+packages/core/src/server/render/assemble.ts
+  s_1a2b9d268ec3c6::t_398b1a56832f0e 152-197,199-200
+  s_1a2b9d268ec3c6::t_8d46b5ff1ac19e 198
+packages/core/src/server/router/plugin.ts
+  s_42eb67a14d65f5::t_72b5e1a072a9b8 299
+  s_1a2b9d268ec3c6::t_f7d287db26d2ff 3,5,11,13
+  s_1a2b9d268ec3c6::t_8d46b5ff1ac19e 73-81
+  s_1a2b9d268ec3c6::t_806b06eda20984 189-192
+packages/core/src/build/hydrate.ts
+  s_1a2b9d268ec3c6::t_5974e91b13c5c3 173-175,230-235
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_1a2b9d268ec3c6::t_649f2b7ffa3adf 416,425
+  s_1a2b9d268ec3c6::t_11cc3dac67d9f0 640,672,674-676,719-722
+  s_42eb67a14d65f5::t_1a6ccf15fdf73f 110-114,219-233,308-320
+  s_42eb67a14d65f5::t_1a91607fbc5625 321-322
+packages/core/tests/routing/cache/dev-isr-loader-cache.test.ts
+  s_1a2b9d268ec3c6::t_2a80c9fc754066 1-9,12-21,24-34
+  s_1a2b9d268ec3c6::t_049a2d35ff7dd6 11
+  s_1a2b9d268ec3c6::t_9bc6d11751909c 10
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_1a2b9d268ec3c6::t_eb97c03deb8474 88-94,107-108,110-112,114-118,120
+  s_1a2b9d268ec3c6::t_72e83bfd83a580 1,54
+  s_1a2b9d268ec3c6::t_2f88795112513f 86,95-106,109,122-124
+  s_1a2b9d268ec3c6::t_c21ddd199afcce 5,13-14,38,42,45-46,48-50,113,121
+  s_1a2b9d268ec3c6::t_1013ec8ef7c158 24-26,31
+  s_1a2b9d268ec3c6::t_93695a9109fb38 6-10,27-28,125
+  s_1a2b9d268ec3c6::t_e9905d777b209d 56-69,71-80,82-84
+  s_1a2b9d268ec3c6::t_b5fa6986cbbe52 2,15,17-22
+  s_1a2b9d268ec3c6::t_9f2b6e818ad8bb 55,87
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_1a2b9d268ec3c6::t_0848e1bd03162f 1-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "139b5618418e69c475eea9632edede67c7acdf8e",
+  "prompts": {},
+  "sessions": {
+    "s_1a2b9d268ec3c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f0f-bb13-7f10-b93d-95966209ce5b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_42eb67a14d65f5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f0b-e1a2-7840-adf3-abe01277ece4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

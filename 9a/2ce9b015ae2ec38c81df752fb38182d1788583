@@ -1,0 +1,87 @@
+packages/core/tests/rsc-build.test.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 54-63
+  s_a70364d45e7872::t_eab6c3c6e5573f 2,5,33-38,40-43
+  s_a70364d45e7872::t_93741d8b79ddd4 39
+packages/core/src/server/render/ppr-route.ts
+  s_2a79e7b3c44651::t_89949496aa0cea 18-23,178,188
+  s_2a79e7b3c44651::t_a1ec443ea7c336 121-122,179-187,189-191
+packages/core/src/rsc/version.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 18-21
+packages/core/scripts/benchmark-rsc-transport.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 3
+packages/core/tests/transform-client.test.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 33
+packages/core/src/adapter/static.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 246-250,256-257,262,273
+examples/task-manager/src/components/delete-board-button.tsx
+  s_a70364d45e7872::t_04a69b2479748e 1-37
+packages/core/package.json
+  s_2a79e7b3c44651::t_a1ec443ea7c336 121
+examples/task-manager/tests/boards-invalidation.test.ts
+  s_a70364d45e7872::t_628cd43c27a3cb 50,64
+examples/task-manager/tests/rsc-page.test.tsx
+  s_a70364d45e7872::t_10224d46305002 1-26,29
+  s_a70364d45e7872::t_f8ceb4e74481e1 27-28
+packages/core/src/server/render/loaders.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 194-196
+packages/core/src/rsc/transport-benchmark.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 1-2,18
+packages/core/tests/rsc-transport-benchmark.test.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 6
+packages/core/tests/loaders.test.ts
+  s_2a79e7b3c44651::t_89949496aa0cea 24,76-79
+  s_2a79e7b3c44651::t_a1ec443ea7c336 69-75,80-82
+  s_2a79e7b3c44651::t_7542e1aad73e33 83
+packages/core/build.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 51
+packages/core/src/rsc/codec.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 20,55-87,93
+packages/core/tests/ppr.test.tsx
+  s_2a79e7b3c44651::t_89949496aa0cea 217
+  s_2a79e7b3c44651::t_c77906c5470f9d 118
+  s_2a79e7b3c44651::t_a1ec443ea7c336 110-117,119-216,218
+packages/core/tests/adapter-static.test.ts
+  s_2a79e7b3c44651::t_a1ec443ea7c336 90-103
+examples/task-manager/src/pages/rsc.tsx
+  s_a70364d45e7872::t_e722dca5df4070 97-109,115-116,118-119,122-123
+  s_a70364d45e7872::t_04a69b2479748e 3-6,8-21,29-43,45-90,92-96,110-114,124-131,133-137
+  s_a70364d45e7872::t_93741d8b79ddd4 2,91,117,120-121
+  s_a70364d45e7872::t_be20ca3ac60c46 1,7,22-28
+  s_a70364d45e7872::t_fd3a265bff1f97 44
+  s_a70364d45e7872::t_f8ceb4e74481e1 132
+packages/core/src/rsc/build/index.ts
+  s_a70364d45e7872::t_1755858b18e6d5 68
+apps/docs/src/content/docs/rendering.mdx
+  s_a70364d45e7872::t_97ee1e2bb0efef 43-44
+  s_a70364d45e7872::t_2a9dc66f3af644 45-54
+examples/task-manager/src/api/modules/boards/index.ts
+  s_a70364d45e7872::t_a232a695247ef8 9,13
+apps/docs/src/content/docs/comparison.mdx
+  s_a70364d45e7872::t_97ee1e2bb0efef 27,83,92
+examples/task-manager/furin-env.d.ts
+  s_a70364d45e7872::t_7fa4aff5c4037d 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9a2ce9b015ae2ec38c81df752fb38182d1788583",
+  "prompts": {},
+  "sessions": {
+    "s_2a79e7b3c44651": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3354-1b70-7643-ae7b-0541ef950c43",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a70364d45e7872": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3356-deff-7332-80b7-98d044151cf3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

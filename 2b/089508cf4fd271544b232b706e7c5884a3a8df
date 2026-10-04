@@ -1,0 +1,49 @@
+packages/core/tests/build/measurement/compare-dev-startup.test.ts
+  s_0625dc665bad11::t_653fba2631ba9f 1-39
+packages/core/tests/build/measurement/measure-dev-startup.test.ts
+  s_0625dc665bad11::t_cf6867d6c0dec6 1-32
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_0625dc665bad11::t_555ad300c8800f 109-120,126-151
+  s_3295c4a2d42648::t_e5d0fada9c998d 121-125
+  s_0625dc665bad11::t_759d5617314e36 2-10,152
+  s_0625dc665bad11::t_98d97f85a775d5 153-155
+  s_3295c4a2d42648::t_52545272735712 156-158
+.github/workflows/ci.yaml
+  s_0625dc665bad11::t_b31ee47a76af4e 310,332-334,354-357,371-375,377,379-381
+packages/core/src/plugin/routes.ts
+  s_0625dc665bad11::t_4ed0346cd40ad2 767-771
+scripts/measure-dev-startup.ts
+  s_0625dc665bad11::t_bda9759ff9cef6 1-14,16-50,52-79,83-109,113-130,133-139
+  s_0625dc665bad11::t_ed15d4abf86d1a 15,51
+  s_0625dc665bad11::t_eda9c62a9f8007 80-82,110-112,131-132
+packages/core/tests/build/measurement/dev-startup-workflow.test.ts
+  s_0625dc665bad11::t_8bc86cb40899c1 1-25
+scripts/compare-dev-startup.ts
+  s_0625dc665bad11::t_eda9c62a9f8007 40-43,109-112,133-135
+  s_0625dc665bad11::t_e443a651a5440b 66
+  s_0625dc665bad11::t_5b6597af451046 1-39,44-65,67-108,113-132,136-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b089508cf4fd271544b232b706e7c5884a3a8df",
+  "prompts": {},
+  "sessions": {
+    "s_0625dc665bad11": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e197-2e92-76b1-a488-dba44ee192fc",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

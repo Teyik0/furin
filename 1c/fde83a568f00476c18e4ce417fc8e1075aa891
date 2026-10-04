@@ -1,0 +1,26 @@
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_a9bbb765ef24b1::t_820485018b03ae 107-110
+apps/docs/src/content/docs/api-routes.mdx
+  s_a9bbb765ef24b1::t_cfa2544d10d5df 129,135
+  s_a9bbb765ef24b1::t_523b4144dd717c 136
+CHANGELOG.md
+  s_a9bbb765ef24b1::t_8fe750e5f135f1 9-11
+packages/core/src/client/router/navigation.ts
+  s_a9bbb765ef24b1::t_cfa2544d10d5df 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1cfde83a568f00476c18e4ce417fc8e1075aa891",
+  "prompts": {},
+  "sessions": {
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

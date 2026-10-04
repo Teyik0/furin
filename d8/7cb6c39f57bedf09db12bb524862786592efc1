@@ -1,0 +1,31 @@
+CHANGELOG.md
+  s_ca8fdc92fd1a52::t_e45912e0c8138d 16,21,23-26
+  s_ca8fdc92fd1a52::t_4f8c6b6a65b4dc 15,17-20
+  s_ca8fdc92fd1a52::t_240a957d716761 197
+apps/docs/furin-env.d.ts
+  s_7e941f2bc779fa::t_0b9738004b8076 19,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "d87cb6c39f57bedf09db12bb524862786592efc1",
+  "prompts": {},
+  "sessions": {
+    "s_7e941f2bc779fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb9fedbf-89b7-45bf-b305-69c1d3858949",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ca8fdc92fd1a52": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a499b345ffeiaY1kFB2hpEwRq",
+        "model": "glm-5.1"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

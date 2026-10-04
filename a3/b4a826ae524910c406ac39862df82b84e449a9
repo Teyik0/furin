@@ -1,0 +1,27 @@
+packages/core/tests/support/hmr-proxy.test.ts
+  s_2a4069bf188ef3::t_35f58ba39977de 19
+  s_2a4069bf188ef3::t_c6a1b042911910 9-18,20-23,81-109
+  s_2a4069bf188ef3::t_75256ea8998254 110
+packages/core/tests/support/hmr-proxy.ts
+  s_2a4069bf188ef3::t_35f58ba39977de 4,34
+  s_2a4069bf188ef3::t_67c42b90d01867 8,15-16,32-33,41,68,71,81-84
+  s_2a4069bf188ef3::t_5cb3c4965a552c 37-39
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_67c42b90d01867 916,2445,2486
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a3b4a826ae524910c406ac39862df82b84e449a9",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

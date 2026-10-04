@@ -1,0 +1,49 @@
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_7c2a26ae7397db::t_7611955e26e8dd 201-203
+packages/core/src/server/browser-events/plugin.ts
+  s_7c2a26ae7397db::t_791a2ac0087061 30,39,125
+  s_7c2a26ae7397db::t_b1ca48b6f2929a 120
+packages/core/tests/build/private-server-sourcemaps.test.ts
+  s_7c2a26ae7397db::t_e50d5795a2d815 27-44
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_7c2a26ae7397db::t_77c40279aca5ab 114-130,134,136-137
+  s_7c2a26ae7397db::t_901218055f806d 113,135
+  s_7c2a26ae7397db::t_5ee20e6fc20104 131-133
+packages/core/src/server/browser-events/shutdown.ts
+  s_7c2a26ae7397db::t_791a2ac0087061 1,7-12,19,22-28,31
+  s_7c2a26ae7397db::t_5ee20e6fc20104 3-6,15-18
+packages/core/src/build/private-server-sourcemaps.ts
+  s_7c2a26ae7397db::t_2028825b48e671 2,12,16-18
+packages/core/src/server/router/schema-merge.ts
+  s_7c2a26ae7397db::t_73feed35f65581 9
+  s_7c2a26ae7397db::t_5ee20e6fc20104 42,44-45
+  s_7c2a26ae7397db::t_b5776fb60cb565 43
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_5ee20e6fc20104 162-164
+  s_7c2a26ae7397db::t_5e29b0440db585 154-156,168
+  s_7c2a26ae7397db::t_ca9c6d7ca9acb6 9,12,28
+  s_7c2a26ae7397db::t_67b9672ee8d8de 138-153,157-161,165-167,169-176
+packages/core/src/server/production-server.ts
+  s_7c2a26ae7397db::t_791a2ac0087061 77
+packages/core/tests/runtime/cache/redis-page-cache.test.ts
+  s_7c2a26ae7397db::t_69d03d82c19271 49-55,175-191
+  s_7c2a26ae7397db::t_cd28f562941673 192-193
+packages/core/src/server/cache/redis/scripts.ts
+  s_7c2a26ae7397db::t_cf77e5f4bad1e6 116-119,122,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "44a58e52d9963bc0969884a402fd4e31f0a3de6e",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

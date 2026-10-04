@@ -1,0 +1,118 @@
+apps/docs/src/pages/index.tsx
+  s_cb38721088475e::t_4eba45dd89d23a 58
+packages/core/tests/contract/define-route-conflicts.test.ts
+  s_cb38721088475e::t_34460b874673bb 12
+packages/core/tests/fixtures/routes-v2/colliding-paths/foo-bar.ts
+  s_cb38721088475e::t_060600313341c5 1-5
+packages/core/src/adapter/bun.ts
+  s_cb38721088475e::t_278f051d1d50f7 44
+packages/core/src/server/devtools/instrumentation.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 3,58
+packages/core/src/server/router/patterns.ts
+  s_cb38721088475e::t_b17e6c6ca7400d 45-52,76
+apps/docs/src/pages/docs/defer.tsx
+  s_cb38721088475e::t_4eba45dd89d23a 9
+apps/docs/src/content/docs/link-navigation.mdx
+  s_cb38721088475e::t_e03f176a42a2e6 210-211
+packages/core/tests/build/routes-plugin.test.ts
+  s_cb38721088475e::t_060600313341c5 15-52
+  s_5c00bf384dff4d::t_195ba308f26bb8 10,273-285
+  s_cb38721088475e::t_5db66380334c19 53-89,286
+  s_5c00bf384dff4d::t_a75768738254d2 288-299
+  s_cb38721088475e::t_4eba45dd89d23a 125
+packages/core/tests/fixtures/routes-v2/catch-all/docs/[...path].ts
+  s_cb38721088475e::t_5db66380334c19 1-8
+packages/core/tests/fixtures/routes-v2/colliding-paths/foo/bar.ts
+  s_cb38721088475e::t_060600313341c5 1-5
+packages/core/src/shared/route-map.ts
+  s_5c00bf384dff4d::t_e2f04df07d1b62 1-7,10-13,15-17,19-37
+  s_5c00bf384dff4d::t_68aea5416dc856 8-9,14,18
+packages/core/src/server/router/defined-route.ts
+  s_cb38721088475e::t_a1f10293e15041 46
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_cb38721088475e::t_29e2ecc989809b 116-117,142-146,149-156,183-191
+  s_cb38721088475e::t_8d9a8c04aeb2ba 4,147-148
+  s_cb38721088475e::t_9a0b6772cc3210 211
+  s_cb38721088475e::t_2eca45e1f0462f 193-210,212-235
+  s_cb38721088475e::t_67d8a89d6357c0 192
+apps/docs/src/pages/docs/error-handling.tsx
+  s_cb38721088475e::t_4eba45dd89d23a 9
+packages/core/src/server/devtools/instrumentation.production.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 2,72
+apps/docs/src/pages/docs/api-routes.tsx
+  s_cb38721088475e::t_4eba45dd89d23a 9
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  s_cb38721088475e::t_264550d4bcc7d8 11
+  s_cb38721088475e::t_064f15b463914a 8-10,12-17,19-20
+  s_cb38721088475e::t_ab16baece6eeec 7,18
+packages/core/src/server/devtools/plugin.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 18,131,258-260
+packages/core/tests/fixtures/routes-v2/root/_route.ts
+  s_cb38721088475e::t_4eba45dd89d23a 1-6
+packages/core/src/build/route-types.ts
+  s_5c00bf384dff4d::t_23fd75a36a8bf3 4,37
+  s_5c00bf384dff4d::t_84e0a02290491d 17-23
+packages/core/src/server/router/types.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 52-53
+packages/core/src/server/router/plugin.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 31,244,247,272-275
+  s_cb38721088475e::t_8d9a8c04aeb2ba 246,271
+apps/docs/src/content/docs/data-loading.mdx
+  s_cb38721088475e::t_4eba45dd89d23a 118-119,127-129
+packages/core/tests/fixtures/routes-v2/root/boards/_route.ts
+  s_cb38721088475e::t_4eba45dd89d23a 2
+packages/core/tests/contract/route-types.test.ts
+  s_5c00bf384dff4d::t_e8691e58595e0e 45
+  s_5c00bf384dff4d::t_729c9f18f07de7 44
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_cb38721088475e::t_ad699a2bf434de 10-32
+packages/core/src/furin.ts
+  s_cb38721088475e::t_f42f944fe0c2cb 583,632,686,688
+  s_cb38721088475e::t_9a0b6772cc3210 590,592
+  s_cb38721088475e::t_a2a79800d5120b 40-45,389,391-392,403-424
+packages/core/src/define-route.ts
+  s_cb38721088475e::t_423ffeaacfbc2e 260-263
+  s_cb38721088475e::t_9f2b432dfc8d0c 294
+  s_cb38721088475e::t_8d9a8c04aeb2ba 4
+packages/core/tests/contract/define-route.test.tsx
+  s_cb38721088475e::t_8d9a8c04aeb2ba 249
+  s_cb38721088475e::t_18845091378e33 233-248,250-258
+  s_cb38721088475e::t_4eba45dd89d23a 3,193-197,199
+  s_cb38721088475e::t_96ce5496f41246 200
+apps/docs/src/content/docs/rendering.mdx
+  s_cb38721088475e::t_4eba45dd89d23a 133-134,136
+packages/core/tests/contract/elysia-contract.test.ts
+  s_cb38721088475e::t_13d2c605d8d120 44
+packages/core/tests/fixtures/routes-v2/root/index.ts
+  s_cb38721088475e::t_4eba45dd89d23a 3,7
+packages/core/src/plugin/routes.ts
+  s_cb38721088475e::t_b17e6c6ca7400d 6,123,411-412
+  s_cb38721088475e::t_33571b7ed97c77 131-134
+  s_5c00bf384dff4d::t_2a625b52bf5cc7 1
+  s_cb38721088475e::t_e742897737ee59 676
+  s_cb38721088475e::t_f32e959d56cfe9 12,678,680-691,693
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "8a9d96344dc9317f939376ddf61c85ce460c1428",
+  "prompts": {},
+  "sessions": {
+    "s_5c00bf384dff4d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0567e-fe06-7070-9556-df16430f19db",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_cb38721088475e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a053e7-6c6f-7930-9519-ab9ef938591f",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

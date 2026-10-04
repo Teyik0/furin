@@ -1,0 +1,21 @@
+packages/core/src/render/loaders.ts
+  s_161cb79b75eeab::t_af6c4667d9edb8 312-316
+packages/core/tests/loaders.test.ts
+  s_161cb79b75eeab::t_e1ad3755cd2313 127-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ca27f6d359589f89d788ba1ef22203851b9b9075",
+  "prompts": {},
+  "sessions": {
+    "s_161cb79b75eeab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a96f0117-e59d-4d2b-b3d7-61e741c1515b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

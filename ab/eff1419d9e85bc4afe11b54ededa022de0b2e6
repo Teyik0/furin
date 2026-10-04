@@ -1,0 +1,21 @@
+packages/core/package.json
+  s_c4a1ae9cc2cd6c::t_263eb036e86837 165
+bun.lock
+  s_c4a1ae9cc2cd6c::t_ac4d45cd89717b 130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "abeff1419d9e85bc4afe11b54ededa022de0b2e6",
+  "prompts": {},
+  "sessions": {
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

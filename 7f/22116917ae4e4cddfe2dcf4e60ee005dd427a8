@@ -1,0 +1,55 @@
+packages/core/src/devtools/collector.ts
+  s_eb4334a35ae091::t_2007023a85a49e 2-3,11,294-297,299-342,367,383,385,391,396,412-414,465,468-476,482-495,498-499
+packages/core/src/devtools/dashboard.tsx
+  s_eb4334a35ae091::t_5f889a1da06ea8 13,97,101-103,158,163-166,169,171-173,177-180,208-211,215-217,219,222-235,252-254,259-267,269-271,276-279,282,299,322-323,432-434,446,476-484,508-513,517-522,531-534,541,596
+packages/core/src/devtools/event-history.ts
+  s_fdfc7b46fb89f9::t_496b413fe4e692 1-42
+packages/core/src/devtools/hmr-correlation.ts
+  s_eb4334a35ae091::t_fa01311e2fa3ec 1-122
+packages/core/src/devtools/protocol.ts
+  s_fdfc7b46fb89f9::t_85347ea94daf47 79,177,210,214,218,222,226,238,242-250,254-266,270,274,278,289,360,362-363,434,517,537-541
+packages/core/src/server/devtools/hub.ts
+  s_eb4334a35ae091::t_8bd855bd66423e 1,7,10-11,16,18,21-38,48,51,73,75,78-93,95,101
+packages/core/src/server/devtools/plugin.ts
+  s_fdfc7b46fb89f9::t_97b589d15a7658 277
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_eb4334a35ae091::t_13019773e569ed 94,323,367,383,388-394,414-657
+packages/core/tests/runtime/devtools/devtools-correlation.test.ts
+  s_eb4334a35ae091::t_aceafffdd19d1f 1-151
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_eb4334a35ae091::t_b94d23bea1c33f 5,29,92,109-111,128,141,149-214,216-222,224,226-294,296
+packages/core/tests/runtime/devtools/devtools-event-history.test.ts
+  s_eb4334a35ae091::t_f0778938a52d88 1-49
+packages/core/tests/runtime/devtools/devtools-hmr-trace.test.tsx
+  s_fdfc7b46fb89f9::t_dbb813c40cbf6b 1-291
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_fdfc7b46fb89f9::t_d68ddacf305bbb 3,71-82
+packages/core/tests/runtime/devtools/devtools-session.test.ts
+  s_fdfc7b46fb89f9::t_79ccfaa5304c6e 1-68
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_fdfc7b46fb89f9::t_d603d51b2fa505 482-483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7f22116917ae4e4cddfe2dcf4e60ee005dd427a8",
+  "prompts": {},
+  "sessions": {
+    "s_eb4334a35ae091": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1056c-31df-7681-a2ed-9da20a8f938c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fdfc7b46fb89f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1057a-ce6d-7fb3-997b-5ca33ae3bc7a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

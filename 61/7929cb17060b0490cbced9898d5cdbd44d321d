@@ -1,0 +1,16 @@
+packages/core/src/plugin/index.ts
+  h_a2cbd1b0e3ae6e 12,115-130
+packages/core/tests/build/hydrate/strip-plugin.test.ts
+  h_a2cbd1b0e3ae6e 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "617929cb17060b0490cbced9898d5cdbd44d321d",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

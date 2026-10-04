@@ -1,0 +1,112 @@
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_94f8881e2139f4::t_ed0f0a15c52333 48,414-416
+  s_94f8881e2139f4::t_09dae193814b85 417
+packages/core/src/server/render/isr.ts
+  s_94f8881e2139f4::t_44c105b736564d 664-673
+  s_94f8881e2139f4::t_0d76887d92fc8a 284,291-304,325
+  s_94f8881e2139f4::t_2752f624aecb8a 305-307,309-315,319-323
+  s_94f8881e2139f4::t_3a10f5cb579aa6 286
+  s_94f8881e2139f4::t_453edbd9177428 264-266,273,282-283,290,316,526-531,533
+  s_94f8881e2139f4::t_995368a196e99d 285
+packages/core/src/server/cache/redis/index.ts
+  s_94f8881e2139f4::t_f8e73529b8eda8 81,83-84,258,265-266
+  s_94f8881e2139f4::t_a652cc864bff48 159-163
+  s_94f8881e2139f4::t_d9439a9c2c04a8 17,20,82
+  s_94f8881e2139f4::t_ebae15366c37be 18-19,24,38-40,44-50,152,154,158,164-165,168-169,192,216-223,227-229,234,236,246-248,268,278,287
+packages/core/src/server/cache/redis/scripts.ts
+  s_94f8881e2139f4::t_083863810df48e 10,16,44-58,60-62,64,77-82,101-106,108-110,112-123,134-138,140-155
+packages/core/src/server/render/ppr-route.ts
+  s_94f8881e2139f4::t_9096444f79b920 341-342,358,372
+  s_94f8881e2139f4::t_4e54293f1997a5 226-242,303-306,309-312
+  s_94f8881e2139f4::t_05bb85bee5c050 243-275,287-296,307
+packages/core/src/adapter/vercel.ts
+  s_94f8881e2139f4::t_b752f78f68245d 723-724,726-729
+packages/core/src/plugin/route-config-autofix.ts
+  s_94f8881e2139f4::t_1c28f4ab477eb0 977-979
+packages/core/tests/runtime/cache/page-cache-adapter.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 52,71-95,114,116,126
+  s_94f8881e2139f4::t_8c27e14841c03a 96-113,115,117-125
+  s_94f8881e2139f4::t_f2a537ea8fba43 127
+packages/core/tests/client/sync/sync.test.ts
+  s_94f8881e2139f4::t_dbbbd1e29229d2 9-11,160-171,180-191
+  s_94f8881e2139f4::t_75bd0957a73923 172-179
+  s_94f8881e2139f4::t_8a969f07db11e2 192-196
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_94f8881e2139f4::t_1952339407143c 15,18-22,237-262
+  s_94f8881e2139f4::t_65422876cb7c65 263-264
+CHANGELOG.md
+  s_94f8881e2139f4::t_86ffe69fb3be0d 42-43,46
+packages/core/src/server/render/loaders.ts
+  s_94f8881e2139f4::t_cc95c0d2f3fe7d 66,68,75-76
+package.json
+  s_94f8881e2139f4::t_54f1831c20fba6 21-22
+packages/core/src/server/render/ssg.ts
+  s_94f8881e2139f4::t_7569bdbebd7897 285-292
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_94f8881e2139f4::t_a8ce89a50c58a5 286,418-471
+  s_94f8881e2139f4::t_abc7cf23297f1a 25,228-241,243-285
+  s_94f8881e2139f4::t_d4c11de7bacba8 242
+  s_94f8881e2139f4::t_f20cea4db3434c 287
+apps/docs/src/content/docs/caching.mdx
+  s_94f8881e2139f4::t_064a7cba1068fe 115-116
+packages/core/src/define-route.ts
+  s_94f8881e2139f4::t_cc95c0d2f3fe7d 30,32,38-40
+packages/core/src/server/sync/plugin.ts
+  s_94f8881e2139f4::t_4df1fe25305315 9,217
+  s_94f8881e2139f4::t_19ce603f1e4898 222
+  s_94f8881e2139f4::t_12fbdd700c87fe 219-221,223-225
+packages/core/tests/runtime/cache/page-cache-ssg.test.ts
+  s_94f8881e2139f4::t_6992f579dc12aa 15,191-212,217-241
+  s_94f8881e2139f4::t_d9439a9c2c04a8 213-216
+  s_94f8881e2139f4::t_39d3dacdb13444 242
+packages/core/tests/runtime/cache/redis-page-cache.test.ts
+  s_94f8881e2139f4::t_ad5f176f62a2c4 140-165
+  s_94f8881e2139f4::t_a652cc864bff48 14-21
+  s_94f8881e2139f4::t_f8e73529b8eda8 40-43,119-139
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 95-98
+apps/docs/src/content/docs/comparison.mdx
+  s_94f8881e2139f4::t_54f1831c20fba6 88
+packages/core/src/server/cache/page-cache.ts
+  s_94f8881e2139f4::t_d9439a9c2c04a8 3-4,154,177,181-192,195-199,206,208
+  s_94f8881e2139f4::t_94d45b00430693 165-168,170-171
+  s_94f8881e2139f4::t_199de4390a94f8 153,155-156,164,169,178-180,193-194,200-205,207,209-213,218-219,223-225,238,255,259,261,263,265-266,276,280,296
+packages/core/src/server/cache/invalidation.ts
+  s_94f8881e2139f4::t_94d45b00430693 1
+  s_94f8881e2139f4::t_67bf0b96c72173 72-93,99,106,118-120,169
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 640-659
+packages/core/tests/contract/define-route-conflicts.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 104-106,108,118
+  s_94f8881e2139f4::t_d9439a9c2c04a8 107
+packages/core/tests/contract/page-cache-types.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 6
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_94f8881e2139f4::t_9af6818ee7d8ad 10,392-459,464
+  s_94f8881e2139f4::t_90a0b1a9edf44e 20,356-357,369-373,378-391,460-463
+  s_94f8881e2139f4::t_d9439a9c2c04a8 374-377
+  s_94f8881e2139f4::t_c012eca2f6f5a6 465
+packages/core/tests/client/sync/adapters/redis-sync.test.ts
+  s_94f8881e2139f4::t_f8e73529b8eda8 31-33
+  s_94f8881e2139f4::t_94d45b00430693 30
+packages/core/tests/contract/define-route-mode.test.ts
+  s_94f8881e2139f4::t_33aba91584df66 97-99,101-103
+bun.lock
+  s_94f8881e2139f4::t_67e78b77ef4e0a 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b96c627c13a2cb23256d929e0903a766b075e040",
+  "prompts": {},
+  "sessions": {
+    "s_94f8881e2139f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf45-d557-7fb3-aec4-fe66a3a21b6a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

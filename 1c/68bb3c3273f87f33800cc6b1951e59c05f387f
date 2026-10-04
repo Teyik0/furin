@@ -1,0 +1,218 @@
+packages/core/tests/link/scroll-restoration.test.tsx
+  1f986e8dd3c42db7 1-12,14-53,55-88,93,95-162,167-196,198-232,234-288
+  3711eb9689649109 13,54,163-166,197,233
+  98763c93bf9e7564 89-92,94
+packages/core/src/router-provider.tsx
+  98763c93bf9e7564 328,339-342,374,551-553,860-865,867-872,889,900,936,939,951,990,1022,1026,1056,1067,1072,1098,1109,1130,1142,1148,1154,1180,1217,1233,1312,1324,1342,1345,1359,1401,1408-1410
+  1f986e8dd3c42db7 895-899,901,1133,1171-1175,1184-1216,1218-1230,1232,1235-1236,1247-1280,1295-1297,1343-1344
+  bf44b0ae62b90a1d 1302-1308
+apps/docs/src/content/docs/cli.mdx
+  f746b3ed8ed922d0 123
+packages/core/src/link.tsx
+  bf44b0ae62b90a1d 87-88,197,264-265,273
+  e00756d1c50ba267 50-54,146-150
+CHANGELOG.md
+  f746b3ed8ed922d0 153-154
+packages/core/src/render/cache.ts
+  3711eb9689649109 216,220,243-245
+packages/core/src/build/hydrate.ts
+  98763c93bf9e7564 101,150,167
+apps/docs/src/components/docs-mobile-nav.tsx
+  bcb6b7386d6de688 47-49,51-58
+packages/core/tests/link/interactive.test.tsx
+  bf44b0ae62b90a1d 300-342
+packages/core/tests/hydrate-entry.test.ts
+  98763c93bf9e7564 62,64
+apps/docs/src/pages/docs/head-seo.tsx
+  ae74067d01921262 13,15
+  3711eb9689649109 16
+apps/docs/tests/mdx-link.test.tsx
+  bf44b0ae62b90a1d 47-74
+packages/core/src/render/dev-cache.ts
+  3711eb9689649109 312-313
+apps/docs/src/pages/docs/_route.tsx
+  8de9bea4881b0534 28
+  bcb6b7386d6de688 38-40,42-49
+packages/core/tests/link/router-provider-intercept.test.tsx
+  bf44b0ae62b90a1d 1-164
+packages/core/tests/link.test.tsx
+  98763c93bf9e7564 413-414,463-464
+packages/core/tests/request-scope-integration.test.ts
+  3711eb9689649109 46,63,104,121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1c68bb3c3273f87f33800cc6b1951e59c05f387f",
+  "prompts": {
+    "1f986e8dd3c42db7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21ce0fce0ffeGFyaMtkrgusfPk",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 521,
+      "total_deletions": 183,
+      "accepted_lines": 376,
+      "overriden_lines": 0
+    },
+    "3711eb9689649109": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21caad854ffeRAR06ysze9W00N",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 32,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "46c49f23437d309f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de3a0-8ccc-7933-8e2b-f8b9be4c3a9e",
+        "model": "unknown"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "53ff89752e234495": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21d5b6a7dffeUiCWuJBFSFwlFY",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "8de9bea4881b0534": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21cd25b93ffev4i8evpVwO26YG",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 1,
+      "overriden_lines": 1
+    },
+    "98763c93bf9e7564": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21caa39d3ffeKEBGI06Jy5zeUO",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 73,
+      "total_deletions": 53,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    },
+    "9f1359669d1dce53": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21cb66cb4ffeEQ4EBNrAKN5Kqn",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "ae74067d01921262": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21ca9b3b4ffeNDu38iavsfGKu2",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "bcb6b7386d6de688": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21c050c41ffecz3AYEEdVIcBBO",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 51,
+      "total_deletions": 37,
+      "accepted_lines": 23,
+      "overriden_lines": 2
+    },
+    "bf44b0ae62b90a1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21cb7a4e3ffeq2m0cU0QsyA0mP",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 271,
+      "total_deletions": 22,
+      "accepted_lines": 250,
+      "overriden_lines": 0
+    },
+    "c8f6347f45d2478d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "554bc391-a169-4baf-85b5-bdfba7d55d29",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "e00756d1c50ba267": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21ca9e55dfferb5h8RWpo9Fg5b",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 3,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "f746b3ed8ed922d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21cab2af8ffeML1NOdXgX3n1a1",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 1
+    }
+  }
+}

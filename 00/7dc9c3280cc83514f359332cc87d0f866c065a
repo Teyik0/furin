@@ -1,0 +1,26 @@
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_3039d9399e6378::t_525682c63c3625 100-104,188-200,273,289,313,339,353,363,382,403,456,483,500,513-550,556,573,606,648,689,713,747
+  s_3039d9399e6378::t_5ff16c0efbfeae 551
+packages/core/src/server/router/schemas.ts
+  s_3039d9399e6378::t_53e1f6043d2909 214-217
+  s_3039d9399e6378::t_e707bacb500951 133-136,181-213
+  s_3039d9399e6378::t_6909bf164d0b6d 218-219
+packages/core/src/server/router/plugin.ts
+  s_3039d9399e6378::t_f6b97e6a84de56 30,33-36,38,281-287,295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "007dc9c3280cc83514f359332cc87d0f866c065a",
+  "prompts": {},
+  "sessions": {
+    "s_3039d9399e6378": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f04-4db4-7ba1-a984-5f4fafc9d734",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_96675323854193::t_da5bdde20f0124 475
+  s_96675323854193::t_94582232479cfe 25
+  s_96675323854193::t_4af28ea9b98fa3 499-512,514-515,517-526,528-529,531-539
+  s_96675323854193::t_14587a3f2f3f41 4-9,11,399-401,403-404,406-415,419,421,423-428
+  s_96675323854193::t_5b24401109226b 554
+  s_96675323854193::t_0a68ef538e829c 12,24,466-468,470-474,476-482,484,486-492,494,496-498,550-553
+  s_96675323854193::t_baa251da623706 541-542,544-549
+  s_96675323854193::t_5718c78c48472a 402,405,416-418,420,422
+  s_96675323854193::t_5679e501d940ab 469,483,485,493,495,513,516,527,530,540,543
+  s_96675323854193::t_76225a255bbc4f 10
+  s_96675323854193::t_9674cb73383431 429
+packages/core/src/rsc/shared.tsx
+  s_96675323854193::t_a70cee41ba4938 91,166-167
+  s_96675323854193::t_5679e501d940ab 110-112
+  s_96675323854193::t_d9fb4cd58ff189 115-116
+  s_96675323854193::t_94582232479cfe 162
+  s_96675323854193::t_c76df535ad5cbd 113
+packages/core/src/build/production-instrumentation.ts
+  s_96675323854193::t_55f7eb9f382224 8,11,24-27
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_96675323854193::t_cbccfecf960ed5 9,34-38
+  s_96675323854193::t_25cbdbcc34991e 39
+packages/core/src/plugin/transform-client.ts
+  s_96675323854193::t_1f140904fa7621 630-633
+packages/core/tests/dev/hmr/dev-server-helper.integration.test.ts
+  s_96675323854193::t_d1987d70f29549 41
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_96675323854193::t_1ea6f614ad5095 198-215
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_96675323854193::t_f9e13a7f0ec49a 2598,2603-2605,2623-2624,2628,2639
+apps/docs/tests/landing-composite.test.tsx
+  s_96675323854193::t_af767212f4238f 36
+  s_96675323854193::t_a2543e9a4f096e 2,24
+  s_96675323854193::t_7f414727e73042 25,33-35
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_96675323854193::t_090c454dd4e6ec 585
+apps/docs/tests/docs-pages.test.ts
+  s_96675323854193::t_7f414727e73042 77-78,126-127,135-136,141
+  s_96675323854193::t_a2543e9a4f096e 2,107,140
+packages/core/src/furin.ts
+  s_96675323854193::t_e6b718c841a64e 887
+  s_96675323854193::t_4bf35842e72017 854,870-876,878-884,888-889,891-892,896
+  s_96675323854193::t_8914d22701b0a3 890
+packages/core/src/server/router/hmr.ts
+  s_96675323854193::t_d1987d70f29549 587
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d7b0ca5fd8d4a2ed5e624d549263e4e3e6e6ef42",
+  "prompts": {},
+  "sessions": {
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+packages/core/src/adapter/bun.ts
+  h_a2cbd1b0e3ae6e 74
+packages/core/src/adapter/package.ts
+  h_a2cbd1b0e3ae6e 75-76
+packages/core/src/adapter/runtime-build.ts
+  h_a2cbd1b0e3ae6e 2,82-83,122,128-132,139-154,240,273-274,324,340-347
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 710
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 615,637-654,702,704,708-712
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  h_a2cbd1b0e3ae6e 2,10-27,41,44,94,125-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aeb7bd51fac6afc70ec99a6ec3d8ec9a595e00cf",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

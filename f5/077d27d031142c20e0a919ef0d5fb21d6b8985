@@ -1,0 +1,16 @@
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 157-160,162,411-414,421,469
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 32,56,189,381,409,557-559,573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f5077d27d031142c20e0a919ef0d5fb21d6b8985",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

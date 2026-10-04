@@ -1,0 +1,73 @@
+packages/core/src/build/scan-server.ts
+  2c239cd1c2587cfa 10-14,16-19,32-44
+packages/core/src/adapter/bun.ts
+  42360277a29a7744 15-18
+packages/core/src/link.tsx
+  2c239cd1c2587cfa 6,56
+packages/core/build.ts
+  42360277a29a7744 7,35-45
+apps/scaffolder/package.json
+  42360277a29a7744 19-20
+packages/core/src/plugin/transform-client.ts
+  2c239cd1c2587cfa 284-286,353-355
+apps/scaffolder/src/pipeline/context.ts
+  2c239cd1c2587cfa 140
+packages/core/src/build/entry-template.ts
+  42360277a29a7744 1-3,6-13
+packages/core/src/router-provider.tsx
+  42360277a29a7744 433-434,436-439,441
+packages/core/package.json
+  42360277a29a7744 4-7,9-30,33-35,39,41,45,50,55,60,65,70,75,80-81
+packages/core/tests/link/normalize-href.test.ts
+  42360277a29a7744 24-31
+knip.config.ts
+  2c239cd1c2587cfa 12
+package.json
+  42360277a29a7744 3-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "990375ed1141ddfdc85e01205f07fa26051b7cbc",
+  "prompts": {
+    "2c239cd1c2587cfa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212244251ffetLZpaDn1h170vj",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 23,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "42360277a29a7744": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2122b29adffeogSqrvlZZnI4Ph",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 239,
+      "total_deletions": 181,
+      "accepted_lines": 97,
+      "overriden_lines": 0
+    },
+    "b6be23d583bf5616": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21257a25affeutkMR6wJh5qemP",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 6,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,152 @@
+examples/weather/furin.config.ts
+  e69bae6678577e4b 1-6
+examples/weather/src/server.ts
+  e69bae6678577e4b 1-4,6-10,12-14
+  915c387948ff3da4 5
+examples/weather/tsconfig.json
+  e69bae6678577e4b 1-25
+examples/weather/src/pages/index.tsx
+  e69bae6678577e4b 1-3,5-15,17,19,24-34,36,38,41,43-45,47-60,64-73,75-93,95-106,108-127,129,131-134,136-142
+  915c387948ff3da4 35,37,40,42,46,61-63,74,94,107,128,130,135
+  569bad89f1875a10 20-22
+examples/weather/src/api/weather.ts
+  e69bae6678577e4b 1-4,6-40,42,44-89,91,93-102
+  915c387948ff3da4 5,41,43,90,92
+examples/weather/src/lib/weather-codes.ts
+  915c387948ff3da4 3
+  e69bae6678577e4b 1-2,4-35
+examples/weather/src/pages/root.tsx
+  e69bae6678577e4b 3-5,9-12
+examples/weather/furin-env.d.ts
+  915c387948ff3da4 1,3-6,8-9
+  e69bae6678577e4b 2
+  2ac1997cd711cf51 7
+examples/weather/package.json
+  e69bae6678577e4b 1-26
+examples/weather/bunfig.toml
+  e69bae6678577e4b 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "4f5281802a19392d57df33083a0c5d45696e2a5f",
+  "prompts": {
+    "2ac1997cd711cf51": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2c4ebf4ecffeEkjAUWR3Y4eQYK",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "3aec30bb18305645": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d38d1b07-1b11-47ab-bbd3-710b67ab3947",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 1,
+      "accepted_lines": 218,
+      "overriden_lines": 0
+    },
+    "569bad89f1875a10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2a324db-47c3-4728-a97f-ac459e4c9011",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 231,
+      "total_deletions": 111,
+      "accepted_lines": 137,
+      "overriden_lines": 2
+    },
+    "57beae3b58ac1866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3351-f1b8-76a0-8ecd-f6d7be94da7b",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "794e10d95d0fe522": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75113785-7f97-4797-b323-7ffdc9d5c1c9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 2,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    },
+    "915c387948ff3da4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d38f9-0811-7ad3-8943-c91fd76b3783",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    },
+    "97dd4cbc9cbaf241": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d3118-4a71-7d90-bc0f-af756a276b1f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 134,
+      "overriden_lines": 0
+    },
+    "de491402b520c360": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2c4cf789bffemZJ6Mn820UBwyC",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 11,
+      "accepted_lines": 13,
+      "overriden_lines": 0
+    },
+    "e69bae6678577e4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b39dd4b-4f53-4def-8f6f-1dd565cd19e1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 331,
+      "overriden_lines": 4
+    }
+  }
+}

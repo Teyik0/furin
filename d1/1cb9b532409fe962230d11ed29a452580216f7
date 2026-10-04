@@ -1,0 +1,179 @@
+packages/core/src/server/sync/index.ts
+  s_08631d08df706f::t_c3a4cc9b0caf6f 1-10
+packages/core/src/client/router/types.ts
+  s_08631d08df706f::t_9bf6bcbe9a593c 212
+  s_08631d08df706f::t_9606a75842e2cc 208-211
+packages/core/src/server/render/isr.ts
+  s_08631d08df706f::t_3baf768816c3ca 11-16,78
+  s_08631d08df706f::t_d7129b9a26d9ba 10
+examples/task-manager/tests/boards-invalidation.test.ts
+  s_08631d08df706f::t_2ed4635b03b596 37-40,57-60
+examples/task-manager/src/pages/index.tsx
+  s_08631d08df706f::t_5f442eea514bcb 96,98
+packages/core/src/client/sync.ts
+  s_08631d08df706f::t_437cc15b37c4ca 28
+  s_f3b639884f9d23::t_fa4632413bfc55 37
+  s_f3b639884f9d23::t_0143a4f4037aab 38-39,63,68,95-96
+  s_f3b639884f9d23::t_9f4b8ea516f294 36
+  s_08631d08df706f::t_a0b9fbdbc238b6 1-15,17-27,29-35,40-62,64-67,69-94,97
+  s_08631d08df706f::t_6a6fe7a8a490d8 16
+examples/task-manager/src/api/modules/boards/index.ts
+  s_08631d08df706f::t_2ed4635b03b596 1,17,21,33
+apps/docs/src/content/docs/api-routes.mdx
+  s_08631d08df706f::t_e3a4e834da6d63 106-117,132
+  s_08631d08df706f::t_74adaa3037be3f 124
+  s_08631d08df706f::t_d287b6805cedf0 29,38,45,47,49,52,56,64,69-70,87,91-93,102-105,118-123,125-131
+  s_08631d08df706f::t_750d856636c12d 94-101
+  s_08631d08df706f::t_e619f84f76002a 133
+apps/docs/src/content/docs/caching.mdx
+  s_08631d08df706f::t_1f1baa9f92ac3b 138,142,148,153-157,181,191
+  s_08631d08df706f::t_04f15a73890446 192
+packages/core/src/client.ts
+  s_08631d08df706f::t_6a6fe7a8a490d8 27
+  s_08631d08df706f::t_a0b9fbdbc238b6 18-23,25-26,28
+  s_08631d08df706f::t_d9dcaca155df76 9-11
+  s_f3b639884f9d23::t_0143a4f4037aab 24
+  s_08631d08df706f::t_32e17d4c8d34fd 12
+examples/task-manager/src/components/board-card.tsx
+  s_08631d08df706f::t_921bb941af7424 1,25
+  s_f3b639884f9d23::t_16adf38e1793aa 29
+packages/core/tests/sync-client.test.tsx
+  s_08631d08df706f::t_a0b9fbdbc238b6 1-4,6-17,19-46,78,99-102,104,106-157
+  s_08631d08df706f::t_f5e18773b82d62 103
+  s_08631d08df706f::t_a30bcd5fb930d5 18
+  s_f3b639884f9d23::t_eda7ab10f86a29 81
+  s_08631d08df706f::t_437cc15b37c4ca 105
+  s_08631d08df706f::t_6a6fe7a8a490d8 5
+  s_f3b639884f9d23::t_5b8b8528bac1d3 47-77,79-80,82-98
+apps/docs/bunfig.toml
+  s_08631d08df706f::t_28bb37eba32042 2
+examples/task-manager/src/components/board-page-content.tsx
+  s_f3b639884f9d23::t_c6fc3a47e6f5ed 2,158-161,164-170,184,214
+packages/core/src/server/sync/stream.ts
+  s_08631d08df706f::t_724ee7cb4ea91f 43
+  s_08631d08df706f::t_ccc4978374725b 1-18,22-30,32-37,39-40,42,44,49-72
+  s_08631d08df706f::t_1295a4b1d00744 31,38,41,45-48
+  s_08631d08df706f::t_a2ebe1a9961ef6 19-21
+packages/core/tests/render.test.ts
+  s_08631d08df706f::t_90aab0c1a07420 40,639,654-664
+  s_08631d08df706f::t_f9cd0cc9713003 665-666
+examples/task-manager/src/server.ts
+  s_08631d08df706f::t_2ed4635b03b596 8
+packages/core/src/server/router/plugin.ts
+  s_08631d08df706f::t_43ba467ae23b53 8,66
+packages/core/src/server/sync/config.ts
+  s_08631d08df706f::t_301e23d8ebcdb0 1-27
+packages/core/src/client/router/link-utils.ts
+  s_08631d08df706f::t_7c525e2b8457f4 46-53
+apps/docs/src/content/docs/configuration.mdx
+  s_08631d08df706f::t_28bb37eba32042 179
+  s_08631d08df706f::t_5f442eea514bcb 184-208
+apps/docs/src/content/docs/comparison.mdx
+  s_08631d08df706f::t_bfa321585cafa8 129
+examples/task-manager/tests/board-card.test.tsx
+  s_08631d08df706f::t_6ff747b72f85df 3,33,50-51,59
+  s_08631d08df706f::t_aa678fe97ee4f9 1-2,4-5,10-32,34-46,48-49,52-58,60-62
+  s_08631d08df706f::t_b5c530f5db90ed 6-9
+  s_08631d08df706f::t_f0d1889be25c99 47
+packages/core/tests/sync.test.ts
+  s_08631d08df706f::t_d9e3fbf06f4aba 9
+  s_08631d08df706f::t_264922c4209862 1-4,8,10-25,27-55,59-62,68-81,83-90,94-106,118-119
+  s_08631d08df706f::t_bc4b4a7c205020 63-67,82
+  s_08631d08df706f::t_764e1c403be2e3 5-6,26,107-117
+  s_08631d08df706f::t_a2ebe1a9961ef6 7,56-58,91-93
+packages/core/src/furin.ts
+  s_08631d08df706f::t_a2ebe1a9961ef6 454
+  s_08631d08df706f::t_77b88fc29b6790 29-34,201,212-217,219-220,233,339,432
+packages/core/src/client/router/provider.tsx
+  s_08631d08df706f::t_8d427a49143373 15,73,708-747
+  s_08631d08df706f::t_9aef667c83a9a1 748
+apps/docs/src/content/docs/introduction.mdx
+  s_08631d08df706f::t_5f442eea514bcb 12
+packages/core/src/server/render/ssr.ts
+  s_08631d08df706f::t_0ccea840bc8362 27,526,547
+packages/core/src/build/hydrate.ts
+  s_08631d08df706f::t_cb8b49f7985cf8 119,146-148
+packages/core/src/server/sync/plugin.ts
+  s_08631d08df706f::t_ab5cb2c78e5f99 1-16,23-34,36-48,50-75
+  s_08631d08df706f::t_624fe33a26624a 17-22,35,49
+apps/docs/tests/dev-config.test.ts
+  s_08631d08df706f::t_d2dfb8bf810004 1-16
+examples/task-manager/src/api/modules/cards/index.ts
+  s_08631d08df706f::t_2ed4635b03b596 1,7,23,44,67,84
+examples/task-manager/tests/board-page-sync.test.tsx
+  s_f3b639884f9d23::t_c6fc3a47e6f5ed 47,60,74
+  s_f3b639884f9d23::t_9c04d13f530ef8 1-46,48-59,61-73,75-77
+packages/core/src/server/render/assemble.ts
+  s_08631d08df706f::t_0ea9ae23834872 2,126,129,131-132
+  s_08631d08df706f::t_da0f04f2de4186 157-159
+  s_08631d08df706f::t_a2afc82d517bd0 145-151,154-156,160
+  s_08631d08df706f::t_0ccea840bc8362 125,137-144,152-153
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_f3b639884f9d23::t_f62bb1efadba3a 136,138-142,144-151,178,180-182,184-185,222-223,308,310-312
+  s_f3b639884f9d23::t_4fed778ce93f30 20-25,105-107,207-209
+  s_f3b639884f9d23::t_58b45243fe3068 7
+  s_f3b639884f9d23::t_903cc402455917 52
+  s_f3b639884f9d23::t_c5058fc0835bbf 78
+  s_f3b639884f9d23::t_04d838043b6f30 121
+  s_f3b639884f9d23::t_d8e3a0be3c4bc1 1-5,9,13-18,26-33,35-40,49-51,53-56,90-94,96-102,104,108-111,113,115-116,118-119,122,129,131,133-135
+  s_f3b639884f9d23::t_1dfb885e9caa04 19,34,120
+  s_f3b639884f9d23::t_2899740ce2c041 217,224
+  s_f3b639884f9d23::t_d22ee8eb1d8da2 10-12,137,152,154-165,167-177,183,186-188,190-199,201-205,210,212-215,218,220,225
+  s_f3b639884f9d23::t_fe760732681fd1 77,79,88-89,114
+  s_f3b639884f9d23::t_c6fc3a47e6f5ed 95,103,112,117,132,143,153,166,179,189,200,206,211,216,227,238,252,268,279,292,309
+  s_f3b639884f9d23::t_7d59fe9586858b 124-127
+  s_f3b639884f9d23::t_48325c6fb8719f 130
+  s_f3b639884f9d23::t_63207a7405bfc6 81-86
+  s_f3b639884f9d23::t_f60bafd3f2881a 41-48,57-76,226,228-237,239-251,253-259,261,263-267,269-278,280-291,293-299,301,303-307
+  s_f3b639884f9d23::t_d575605f35393a 123,128,219,221,260,262,300,302
+  s_f3b639884f9d23::t_e19b94b939b9c2 80,87
+  s_f3b639884f9d23::t_5ffef090590898 6,8
+examples/task-manager/tests/create-board-form.test.tsx
+  s_f3b639884f9d23::t_093d153f690dee 1-70
+examples/task-manager/src/components/create-board-form.tsx
+  s_f3b639884f9d23::t_ad2162b73ce156 1,9,11,25
+apps/docs/src/content/docs/plugins.mdx
+  s_08631d08df706f::t_28bb37eba32042 28
+packages/core/src/server/auto-invalidate/runtime.ts
+  s_08631d08df706f::t_68e996f11e9afc 99,102,111
+examples/task-manager/src/components/ui/kanban.tsx
+  s_f3b639884f9d23::t_4fed778ce93f30 212
+  s_f3b639884f9d23::t_aad78b33e9b958 211,213-236,238-242,244-256,295,471-485,488-496,518
+  s_f3b639884f9d23::t_985825c4f41970 486-487
+  s_f3b639884f9d23::t_e5cdd94afda79c 560-586,588-590,599
+  s_08631d08df706f::t_e7e650b76c3ca3 600
+  s_f3b639884f9d23::t_1b8b41dae9b462 237,243
+  s_f3b639884f9d23::t_85d4adb64ce0f2 9,111-113
+  s_f3b639884f9d23::t_dae7975f0accb5 587
+  s_08631d08df706f::t_921bb941af7424 1,497
+  s_f3b639884f9d23::t_e19c0a61704670 114
+  s_f3b639884f9d23::t_fe9b45287f5082 117,121
+examples/task-manager/src/components/card-detail-page.tsx
+  s_08631d08df706f::t_e3a4e834da6d63 1,23,32
+  s_08631d08df706f::t_921bb941af7424 24
+  s_f3b639884f9d23::t_16adf38e1793aa 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d11cb9b532409fe962230d11ed29a452580216f7",
+  "prompts": {},
+  "sessions": {
+    "s_08631d08df706f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f0539-25a9-7d82-afd9-db4b1249ce90",
+        "model": "gpt-5.5"
+      },
+      "human_author": "tsamarasinghe <tsamarasinghearachchige@lunettespourtous.com>"
+    },
+    "s_f3b639884f9d23": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f05be-4591-7831-a461-ca09b6aa44b3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "tsamarasinghe <tsamarasinghearachchige@lunettespourtous.com>"
+    }
+  }
+}

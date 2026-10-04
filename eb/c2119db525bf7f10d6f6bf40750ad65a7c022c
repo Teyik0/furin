@@ -1,0 +1,21 @@
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_13b9bbaf2a91a1::t_c017ec1150d64e 12,29
+packages/core/tests/rendering/rsc/rsc-server-runtime.test.ts
+  s_13b9bbaf2a91a1::t_c017ec1150d64e 2,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ebc2119db525bf7f10d6f6bf40750ad65a7c022c",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

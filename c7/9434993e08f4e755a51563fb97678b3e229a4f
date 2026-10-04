@@ -1,0 +1,26 @@
+packages/core/src/client/router/types.ts
+  h_a2cbd1b0e3ae6e 219
+packages/core/src/plugin/transform-client.ts
+  h_a2cbd1b0e3ae6e 336-337,347,354-356,381,470
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 117,159
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 141
+packages/core/tests/build/hydrate/transform-client.test.ts
+  h_a2cbd1b0e3ae6e 162-193
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  h_a2cbd1b0e3ae6e 136-147,176,187
+packages/core/tests/rendering/errors/render-error.test.ts
+  h_a2cbd1b0e3ae6e 464-488
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c79434993e08f4e755a51563fb97678b3e229a4f",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

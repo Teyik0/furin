@@ -1,0 +1,38 @@
+packages/core/tests/render.test.ts
+  b974327c73be080e 107,115,123,134,148,157,171,184,212,232,254,288,306,512,525,535-536,559,571,582-583,587,590,595,603
+packages/core/tests/router/plugin.test.ts
+  b974327c73be080e 62-63,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.9",
+  "base_commit_sha": "ab59d0229f16b6dbd239ec7576f0befba8f67bbe",
+  "prompts": {
+    "35b6353baa618ae2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bc91a13-d567-45b7-a39a-59697f3b4a80",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 1,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "b974327c73be080e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2583a63-863e-4b42-9241-c7c1e891d9eb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 30,
+      "total_deletions": 117,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}

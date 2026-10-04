@@ -1,0 +1,121 @@
+packages/core/tests/rsc-build.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-49
+packages/core/src/rsc/server-codec.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-8
+packages/core/src/build/scan-server.ts
+  s_3d61c21275e7f4::t_97085285d5471a 2,6,31
+packages/core/scripts/benchmark-rsc-transport.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-21
+packages/core/src/rsc.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 1,3-11,13,15,18-23,26-43,46-60
+packages/core/src/server/render/ppr.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-68
+packages/core/src/build/types.ts
+  s_3d61c21275e7f4::t_97085285d5471a 49
+package.json
+  s_3d61c21275e7f4::t_97085285d5471a 43-44
+packages/core/tests/rsc.test.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 1-2,6-15,18-44,54-92,136-139
+packages/core/tests/types.test.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 25-45
+packages/core/src/client.ts
+  s_3d61c21275e7f4::t_97085285d5471a 51,84-103,111-113,115-121,129,200,211,220,223,231,235-237,245-250,252-258,277-284,288,296-298,300,307-308,318,333-338,340-359,363-366,368,373,384,392-393
+packages/core/src/adapter/static.ts
+  s_3d61c21275e7f4::t_97085285d5471a 246-261,269-270
+packages/core/src/client-only.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1
+packages/core/src/rsc/symbols.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-2
+apps/docs/src/content/docs/rendering.mdx
+  s_3d61c21275e7f4::t_97085285d5471a 5-62
+packages/core/src/server/render/assemble.ts
+  s_3d61c21275e7f4::t_97085285d5471a 2-3,124-129,143-145
+packages/core/src/plugin/transform-client.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-8,11,16-22,140,305,383
+packages/core/src/rsc/build/environment.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-28
+packages/core/src/server/render/loaders.ts
+  s_3d61c21275e7f4::t_97085285d5471a 2,161-202,268-272,274,332-334,379-393
+packages/core/src/server/render/ppr-route.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-208
+packages/core/tests/adapter-static.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 27,72-89
+packages/core/build.ts
+  s_3d61c21275e7f4::t_97085285d5471a 19-26,36-38,50-59
+packages/core/tests/deferred-endpoint.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 80,179
+packages/core/tests/ppr.test.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 1-110
+packages/core/src/rsc/version.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-46
+packages/core/tests/transform-client.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 25-34
+packages/core/src/server/lang-detect.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1
+packages/core/src/server/render/index.ts
+  s_3d61c21275e7f4::t_97085285d5471a 6-11
+packages/core/src/server-only.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1
+packages/core/src/build/hydrate.ts
+  s_3d61c21275e7f4::t_97085285d5471a 124,145,220-225
+packages/core/src/rsc-server.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 1-49
+packages/core/src/adapter/bun.ts
+  s_3d61c21275e7f4::t_97085285d5471a 12-13,271,303
+  s_3d61c21275e7f4::t_709299a6cd5aec 171,246-248
+packages/core/src/client/link.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 348
+packages/core/package.json
+  s_3d61c21275e7f4::t_97085285d5471a 56,99-107,111,119,121,123-124
+  s_3d61c21275e7f4::t_709299a6cd5aec 98
+packages/core/src/server/cache/invalidation.ts
+  s_3d61c21275e7f4::t_97085285d5471a 12,98,152
+packages/core/src/rsc/codec.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-69
+packages/core/src/server/router/plugin.ts
+  s_3d61c21275e7f4::t_97085285d5471a 4,6,13-14,20,38-96,173-176,304,314-350
+packages/core/src/shared/utils/ast-walk.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1
+packages/core/src/build/client.ts
+  s_3d61c21275e7f4::t_97085285d5471a 4,118-122
+packages/core/src/rsc/transport-benchmark.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-60
+packages/core/src/rsc-client.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-11
+packages/core/src/shared/deferred-ndjson.ts
+  s_3d61c21275e7f4::t_97085285d5471a 3,121-129
+packages/core/src/rsc/react-server-dom-webpack.d.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-20
+packages/core/src/shared/parser.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-40
+packages/core/src/rsc/shared.tsx
+  s_3d61c21275e7f4::t_97085285d5471a 1-112
+packages/core/tests/rsc-transport-benchmark.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-17
+packages/core/src/rsc/build/index.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-87
+packages/core/src/rsc/client-codec.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-11
+packages/core/src/shared/route-frame.ts
+  s_3d61c21275e7f4::t_97085285d5471a 1-269
+packages/core/tests/loaders.test.ts
+  s_3d61c21275e7f4::t_97085285d5471a 46-70
+packages/core/src/server/render/ssr.ts
+  s_3d61c21275e7f4::t_97085285d5471a 18,20,32,169-170,421-423,548-550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "f7ea033c70e206a9aec5076dd89871f84c05a49f",
+  "prompts": {},
+  "sessions": {
+    "s_3d61c21275e7f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55b8-84a9-7333-85c5-6c19607e3196",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

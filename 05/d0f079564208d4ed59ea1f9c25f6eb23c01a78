@@ -1,0 +1,27 @@
+packages/core/src/adapter/transform-client.ts
+  f7c44ea86e73fb34 164-168,172-174,179,181-198,207,247-252,254,258,261,282,284,287-288,329,333-334,336
+CLAUDE.md
+  f7c44ea86e73fb34 54
+packages/core/tests/render.test.ts
+  f7c44ea86e73fb34 602-603,605,607-610,624-625,629-632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "05d0f079564208d4ed59ea1f9c25f6eb23c01a78",
+  "prompts": {
+    "f7c44ea86e73fb34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0095aa56-8bae-4956-a983-7f4d3c1cb8ac",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 64,
+      "total_deletions": 23,
+      "accepted_lines": 60,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,33 @@
+packages/core/build.ts
+  44aace90491f2332 33-38
+packages/core/src/build/hydrate.ts
+  44aace90491f2332 88-90
+packages/core/src/build/entry-template.ts
+  44aace90491f2332 1,3-8
+packages/core/src/adapter/bun.ts
+  44aace90491f2332 2,12-14,16-21
+packages/core/src/build/shared.ts
+  44aace90491f2332 2,7-12
+packages/core/src/build/client.ts
+  44aace90491f2332 102-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "043e323cd2d8774efd48a41571b5f4dc577d8682",
+  "prompts": {
+    "44aace90491f2332": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bfbd8b1-cd10-4599-8155-525476a1b257",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 63,
+      "total_deletions": 37,
+      "accepted_lines": 41,
+      "overriden_lines": 2
+    }
+  }
+}

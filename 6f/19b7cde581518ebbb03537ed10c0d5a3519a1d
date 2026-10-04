@@ -1,0 +1,250 @@
+apps/docs/src/pages/docs/api-routes.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/caching.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/cli.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/comparison.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/configuration.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/data-loading.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/defer.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/deployment.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/dev-hmr.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/error-handling.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/getting-started.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/head-seo.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/index.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/layouts.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/link-navigation.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/logging.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/multi-instance.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/plugins.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/rendering.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/docs/routing.tsx
+  h_a2cbd1b0e3ae6e 9
+apps/docs/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 58
+apps/docs/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 2,5
+apps/scaffolder/templates/full/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-8
+apps/scaffolder/templates/simple/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-8
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  h_a2cbd1b0e3ae6e 11
+examples/task-manager/src/pages/board/[boardId]/card/_route.tsx
+  h_a2cbd1b0e3ae6e 8
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  h_a2cbd1b0e3ae6e 12
+examples/task-manager/src/pages/board/_route.tsx
+  h_a2cbd1b0e3ae6e 24-29
+examples/task-manager/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,4-6
+examples/weather/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 14
+examples/weather/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 3,5,7
+furin-env.d.ts
+  h_a2cbd1b0e3ae6e 6-32
+packages/core/src/client.ts
+  h_a2cbd1b0e3ae6e 6
+packages/core/src/client/define-route.ts
+  h_a2cbd1b0e3ae6e 44-48
+packages/core/src/client/link.tsx
+  h_a2cbd1b0e3ae6e 8-13,36,42-45,48,50-54,60,92,119,289
+packages/core/src/client/router/index.ts
+  h_a2cbd1b0e3ae6e 53
+packages/core/src/client/router/link-utils.ts
+  h_a2cbd1b0e3ae6e 71-95
+packages/core/src/client/router/types.ts
+  h_a2cbd1b0e3ae6e 3-7,41-63,85-90
+packages/core/src/define-route.ts
+  h_a2cbd1b0e3ae6e 767-772,775-776,783-784,797-798,811-812,823-824,854-930
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 1,56,526-531,534-553,558,607
+packages/core/src/plugin/route-config-autofix.ts
+  h_a2cbd1b0e3ae6e 1-431
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 1,421-463,469,492
+packages/core/src/plugin/transform-client.ts
+  h_a2cbd1b0e3ae6e 70-76
+packages/core/tests/build/hydrate/transform-client.test.ts
+  h_a2cbd1b0e3ae6e 47
+packages/core/tests/client/link/apply-link-params.test.ts
+  h_a2cbd1b0e3ae6e 1-30
+packages/core/tests/contract/define-route-conflicts.test.ts
+  h_a2cbd1b0e3ae6e 17,20-21,27,37,48,62-63
+packages/core/tests/contract/define-route-layout.test.ts
+  h_a2cbd1b0e3ae6e 13,17-18,24,36,50-51,62
+packages/core/tests/contract/define-route.test.tsx
+  h_a2cbd1b0e3ae6e 3-7,11,37,50,102,114,133-134,140,165-166,170,180,205-206,211-212
+packages/core/tests/contract/elysia-route-manifest-types.test.ts
+  h_a2cbd1b0e3ae6e 4,11,14-19,22-26,30-40,45,63-75,78
+packages/core/tests/contract/search-types.test.ts
+  h_a2cbd1b0e3ae6e 10,13-18,21-25,28-31
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  h_a2cbd1b0e3ae6e 35,37-39,48,50-51,61,63-65,74,76-78,125,127-129
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  h_a2cbd1b0e3ae6e 79,81-83,93,95-97,107,109-111,122,125,138,140-141,155,157-159,222,225,286,288-290,334,336-338,435,437-438,494,496-497
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  h_a2cbd1b0e3ae6e 39,41-43,55,57-59,73,75-77,86,88-89,142,144-146,175,177-179,223,225-227,281,283-285
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  h_a2cbd1b0e3ae6e 46,48-50,60,62-64,111,113-115
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/blog/[slug].tsx
+  h_a2cbd1b0e3ae6e 8
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,3-5
+packages/core/tests/fixtures/apps/cli-app/src/pages/blog/[slug].tsx
+  h_a2cbd1b0e3ae6e 8
+packages/core/tests/fixtures/apps/cli-app/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/apps/cli-app/src/pages/root.tsx
+  h_a2cbd1b0e3ae6e 1,3-5
+packages/core/tests/fixtures/pages/default/defer-page.tsx
+  h_a2cbd1b0e3ae6e 6
+packages/core/tests/fixtures/pages/default/dynamic-defer/[slug]/_route.tsx
+  h_a2cbd1b0e3ae6e 8
+packages/core/tests/fixtures/pages/default/dynamic-defer/[slug]/index.tsx
+  h_a2cbd1b0e3ae6e 6
+packages/core/tests/fixtures/pages/default/dynamic/[id]/_route.tsx
+  h_a2cbd1b0e3ae6e 8
+packages/core/tests/fixtures/pages/default/dynamic/[id]/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/dynamic/specific.tsx
+  h_a2cbd1b0e3ae6e 7
+packages/core/tests/fixtures/pages/default/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/inline-layout.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/isr-page.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/isr-query-page.tsx
+  h_a2cbd1b0e3ae6e 7
+packages/core/tests/fixtures/pages/default/nested/_route.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/nested/deep/_route.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/nested/deep/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/nested/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/query-default/_route.tsx
+  h_a2cbd1b0e3ae6e 11-12
+packages/core/tests/fixtures/pages/default/query-default/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/query-types/_route.tsx
+  h_a2cbd1b0e3ae6e 14-15
+packages/core/tests/fixtures/pages/default/query-types/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/root.tsx
+  h_a2cbd1b0e3ae6e 1-4
+packages/core/tests/fixtures/pages/default/schema-merge-parent/_route.tsx
+  h_a2cbd1b0e3ae6e 10-11
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/_route.tsx
+  h_a2cbd1b0e3ae6e 10-11
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/index.tsx
+  h_a2cbd1b0e3ae6e 7-8
+packages/core/tests/fixtures/pages/default/skip-layout.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/ssg-loader-page.tsx
+  h_a2cbd1b0e3ae6e 10
+packages/core/tests/fixtures/pages/default/ssg-page.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/ssr-page.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/suspense-page.tsx
+  h_a2cbd1b0e3ae6e 14
+packages/core/tests/fixtures/pages/default/sync-loader-error.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/sync-loader.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/with-loader/_route.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/default/with-loader/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-errors/blog/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-errors/blog/subpage/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-errors/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-errors/root.tsx
+  h_a2cbd1b0e3ae6e 1-4
+packages/core/tests/fixtures/pages/nested-not-found/blog/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-not-found/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/nested-not-found/root.tsx
+  h_a2cbd1b0e3ae6e 1-4
+packages/core/tests/fixtures/pages/not-found/index.tsx
+  h_a2cbd1b0e3ae6e 5
+packages/core/tests/fixtures/pages/not-found/root.tsx
+  h_a2cbd1b0e3ae6e 1-4
+packages/core/tests/fixtures/routes-v2/root/boards/[id].ts
+  h_a2cbd1b0e3ae6e 3,8
+packages/core/tests/fixtures/routes-v2/root/boards/_route.ts
+  h_a2cbd1b0e3ae6e 2,5
+packages/core/tests/fixtures/routes-v2/root/index.ts
+  h_a2cbd1b0e3ae6e 3,6
+packages/core/tests/fixtures/routes-v2/root/root.tsx
+  h_a2cbd1b0e3ae6e 1,3-5
+packages/core/tests/fixtures/routes-v2/underscore/index.ts
+  h_a2cbd1b0e3ae6e 2,5
+packages/core/tests/fixtures/routes-v2/underscore/root.ts
+  h_a2cbd1b0e3ae6e 1-5
+packages/core/tests/plugin/route-config-autofix.test.ts
+  h_a2cbd1b0e3ae6e 1-251
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  h_a2cbd1b0e3ae6e 6,32-34,38-39,47-48,59,95,104,118,126,135,144,153,164,364,389
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  h_a2cbd1b0e3ae6e 6,21-27,88,200,229,256,276
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  h_a2cbd1b0e3ae6e 3,16-22,64,98,127,152
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  h_a2cbd1b0e3ae6e 4,29-35,67,93,136,180,223
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  h_a2cbd1b0e3ae6e 10,15,38
+packages/core/tests/routing/discovery/scan-order.test.ts
+  h_a2cbd1b0e3ae6e 12-13,28
+packages/core/tests/routing/layouts/refresh-layout.test.ts
+  h_a2cbd1b0e3ae6e 3,20,45-46,68-70,91-93,157,192,220,225,249
+packages/core/tests/routing/validation/validation.test.ts
+  h_a2cbd1b0e3ae6e 143-144,170-171
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  h_a2cbd1b0e3ae6e 70,72-74,82,84-86,95,97,110,112-114,133,135-137,149,151-153
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  h_a2cbd1b0e3ae6e 125-128,146,148,179,181,192,194,224,226,312,314
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  h_a2cbd1b0e3ae6e 123-126,137-145
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  h_a2cbd1b0e3ae6e 45,47-49,61,63-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6f19b7cde581518ebbb03537ed10c0d5a3519a1d",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

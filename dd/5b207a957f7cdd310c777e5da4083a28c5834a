@@ -1,0 +1,59 @@
+packages/core/src/shared/search-params.ts
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 1-9,11
+packages/core/src/server/render/ssr.ts
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 13,284
+packages/core/package.json
+  s_84e494a15d9e1f::t_1e3a7ebd984e4a 103-104,108-111
+packages/core/src/server/router/schemas.ts
+  s_84e494a15d9e1f::t_b8213fc2632aa1 133-136,235-238
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 108-109,124-125,137-147,232-234,239,263
+packages/core/tests/route-types.test.ts
+  s_84e494a15d9e1f::t_989a3e630857bf 109-116
+  s_4e57ca4ee81180::t_e3a3950e72bc5a 182
+packages/core/src/client/link.tsx
+  s_4e57ca4ee81180::t_716fb88723a320 3,43
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 46
+packages/core/tests/router/schema-merge.test.ts
+  s_4e57ca4ee81180::t_716fb88723a320 29
+  s_84e494a15d9e1f::t_989a3e630857bf 111-148
+packages/core/tests/router/use-search.test.tsx
+  s_84e494a15d9e1f::t_989a3e630857bf 2,87,107,111-114,117,137,141-144,147,167,171-174
+  s_4e57ca4ee81180::t_7f4639d5750b14 108-110,138-140,168-170
+packages/core/src/client/router/provider.tsx
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 5,704
+packages/core/tsconfig.json
+  s_84e494a15d9e1f::t_a61f28ca7cc336 5,8
+apps/docs/src/content/docs/data-loading.mdx
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 122
+packages/core/src/client/router/types.ts
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 5,39,120
+packages/core/src/build/route-types.ts
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 42-45
+packages/core/src/client/router/search/index.ts
+  s_84e494a15d9e1f::t_f7ba65e7e76d39 3,53
+  s_4e57ca4ee81180::t_6d5f616556d0ad 1,7,9,11,13,15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "dd5b207a957f7cdd310c777e5da4083a28c5834a",
+  "prompts": {},
+  "sessions": {
+    "s_4e57ca4ee81180": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ec105-097e-78f1-b7fa-40913f617e2f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_84e494a15d9e1f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ec103-2e28-78a1-b9ec-a522a24b612d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

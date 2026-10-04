@@ -1,0 +1,26 @@
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_8571fa6e27cba9 177
+  s_3295c4a2d42648::t_d4ce9a6e384c00 131-133,149-151,174-176,178-179,185-187,363-381,385,390-394,399-403
+  s_3295c4a2d42648::t_e909254c4aefa7 382-384,395-398
+  s_3295c4a2d42648::t_94aa806232cf70 386-387,389
+  s_3295c4a2d42648::t_359b4e59e82ac3 388
+  s_3295c4a2d42648::t_13f9422569baa1 404-405
+packages/core/src/client/router/provider.tsx
+  s_3295c4a2d42648::t_8fc97454360bed 477,566-568,764-766
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "71b71f2a337ef84650534583097bdaa6c13628a4",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

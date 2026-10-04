@@ -1,0 +1,45 @@
+apps/docs/src/content/docs/logging.mdx
+  s_c9ee9f172aaab4::t_95a76017de163c 3,7,11,173-192
+examples/weather/package.json
+  s_c9ee9f172aaab4::t_95a76017de163c 11
+package.json
+  s_c9ee9f172aaab4::t_95a76017de163c 21
+apps/docs/src/content/docs/configuration.mdx
+  s_c9ee9f172aaab4::t_95a76017de163c 14,57-58,60-74
+  s_c9ee9f172aaab4::t_157dfe464cbdd8 59
+packages/core/tests/build-cli.test.ts
+  s_c9ee9f172aaab4::t_95a76017de163c 52-53,63-64,66-68
+  s_c9ee9f172aaab4::t_157dfe464cbdd8 69
+  s_c9ee9f172aaab4::t_c4c611e8fe2222 3-4,8,54-62,65
+scripts/measure-client-bundle.ts
+  s_c9ee9f172aaab4::t_95a76017de163c 3-4,6,12,15-16,23-24,28,30-31,34,37-38,45-46,53,59,68,74-75,78-79,116
+  s_923ecc83c5a0ac::t_86f4eab6920836 7-11,13-14,17-22,25-27,29,32-33,35-36,43-44,47-52,54-58,60-67,69-73,76-77,80-112,117
+  s_923ecc83c5a0ac::t_2da611a74056aa 1,5
+  s_923ecc83c5a0ac::t_5ca7b80b270a30 113-115,118-120
+  s_923ecc83c5a0ac::t_dec85f1937a26d 2
+  s_923ecc83c5a0ac::t_b0e00d77543725 39-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "79f27db855a7be2c25766f2fbcb84a1f8ee18730",
+  "prompts": {},
+  "sessions": {
+    "s_923ecc83c5a0ac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ead90-3207-78f0-97d9-79449b880aaf",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c9ee9f172aaab4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ead86-e300-7101-ad88-7453b7c0ccf4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

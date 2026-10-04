@@ -1,0 +1,22 @@
+apps/docs/src/components/docs-search-dialog.tsx
+  s_815d738d114937::t_d6e22707c1f832 184
+  s_815d738d114937::t_e5a42d41420226 337
+  s_815d738d114937::t_8168483796e508 258-259
+  s_815d738d114937::t_3b91f7c10f8dbf 179-183,185,193-194,196,200,204-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "5e03fd1a87bf65c65707cc646150115473c1d7ff",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

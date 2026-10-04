@@ -1,0 +1,36 @@
+packages/core/src/client/router/types.ts
+  h_a2cbd1b0e3ae6e 219
+packages/core/src/plugin/transform-client.ts
+  h_a2cbd1b0e3ae6e 13,255-263,270,272-288,293,308-390,395-411,464-470,472-478,488,519,521,525
+packages/core/src/server/render/element.tsx
+  h_a2cbd1b0e3ae6e 89-105,130
+packages/core/src/server/render/isr.ts
+  h_a2cbd1b0e3ae6e 106-115,117-119,131,134,152-156,159-160,250,252,259
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 40,93-94,132,136-143,211,219,223,226-227,230,232,236,239-240,243,296,303,309,314,317,381,387,396,398,401,406,447,470,472,484-488,770-776,793,795,801,805,812-814
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  h_a2cbd1b0e3ae6e 1024
+packages/core/tests/build/hydrate/transform-client.test.ts
+  h_a2cbd1b0e3ae6e 117-183
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  h_a2cbd1b0e3ae6e 136,165-169
+packages/core/tests/rendering/errors/render-error.test.ts
+  h_a2cbd1b0e3ae6e 461
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  h_a2cbd1b0e3ae6e 255,257-283,286-297,299
+packages/core/tests/support/hmr-proxy.test.ts
+  h_a2cbd1b0e3ae6e 44-65
+packages/core/tests/support/hmr-proxy.ts
+  h_a2cbd1b0e3ae6e 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f5cc273a22a64f6b933d3d6f6d4fc53b177d03fa",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

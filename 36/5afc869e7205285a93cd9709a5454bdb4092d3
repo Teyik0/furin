@@ -1,0 +1,16 @@
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 581-594,607-629,655,660-661,669-673,685
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  h_a2cbd1b0e3ae6e 113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "365afc869e7205285a93cd9709a5454bdb4092d3",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

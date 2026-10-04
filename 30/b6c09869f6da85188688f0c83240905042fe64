@@ -1,0 +1,14 @@
+packages/core/tests/client/sync/sync-client.test.tsx
+  h_a2cbd1b0e3ae6e 2,30,40,61,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "30b6c09869f6da85188688f0c83240905042fe64",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+packages/core/src/client.ts
+  44aace90491f2332 16-19,60,104-105,163,190,230
+packages/core/tests/types.test.tsx
+  44aace90491f2332 193,198,205,213-221,223-234,244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "2f542e5d62b61f0595e6c7bb876be0802be8cc76",
+  "prompts": {
+    "44aace90491f2332": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9bfbd8b1-cd10-4599-8155-525476a1b257",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 62,
+      "total_deletions": 57,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    }
+  }
+}

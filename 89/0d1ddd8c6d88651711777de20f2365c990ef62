@@ -1,0 +1,64 @@
+packages/core/tests/runtime/browser-events/browser-events-client.test.ts
+  s_2a4069bf188ef3::t_36d29e79f9b47c 105-132
+packages/core/tests/dev/hmr/dev-diagnostic-store.test.ts
+  s_2a4069bf188ef3::t_36d29e79f9b47c 2-7,91-108
+  s_2a4069bf188ef3::t_59b5198357941d 109-110
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_2a4069bf188ef3::t_36d29e79f9b47c 191-193,296
+  s_2a4069bf188ef3::t_11f8b092c6131a 276
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_2a4069bf188ef3::t_0030ccc5005b22 74-83,85-88
+  s_2a4069bf188ef3::t_11f8b092c6131a 84
+packages/core/tests/dev/hmr/rewrite-module-specifiers.test.ts
+  s_2a4069bf188ef3::t_78492e4b85d084 2,9,11-21,23-26,30-33,35-39,41-43
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  s_2a4069bf188ef3::t_bdf7c9ded2bfb4 86,93-98
+  s_2a4069bf188ef3::t_559b1414e44d5f 36,50-52,63-67,69,71-85,87-92
+  s_2a4069bf188ef3::t_c90d194368bf6f 99
+  s_2a4069bf188ef3::t_ae27e36aef327e 68,70
+packages/core/tests/runtime/browser-events/browser-events-plugin.test.ts
+  s_2a4069bf188ef3::t_78492e4b85d084 284-306
+packages/core/src/server/dev/plugin.ts
+  s_2a4069bf188ef3::t_559b1414e44d5f 74-75,100
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_2a4069bf188ef3::t_fb2198278dabc7 1680-1691
+  s_2a4069bf188ef3::t_c688c161e52015 1693-1695
+  s_2a4069bf188ef3::t_841ac511ea9dd8 74,79-84,651-652,686,689-691,697,699-703,707-718,1103,1110,1114,1116,2230
+  s_2a4069bf188ef3::t_586736a1af3c35 895-912,1696,1789
+packages/core/src/server/dev/runtime.production.ts
+  s_2a4069bf188ef3::t_559b1414e44d5f 3-7
+packages/core/src/client/browser-events-runtime.ts
+  s_2a4069bf188ef3::t_0030ccc5005b22 176-178
+packages/core/tests/dev/hmr/dev-browser-events.test.ts
+  s_2a4069bf188ef3::t_36d29e79f9b47c 19,30-33
+packages/core/src/server/dev/browser-events.ts
+  s_2a4069bf188ef3::t_0030ccc5005b22 3,34
+packages/core/src/furin.ts
+  s_2a4069bf188ef3::t_559b1414e44d5f 804-808
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_2a4069bf188ef3::t_78492e4b85d084 165-194
+packages/core/src/devtools/devtools-element.js
+  s_2a4069bf188ef3::t_0030ccc5005b22 825-829
+packages/core/src/server/dev/diagnostics.ts
+  s_2a4069bf188ef3::t_0030ccc5005b22 72-83,267-268,294
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_2a4069bf188ef3::t_7ff43280aab0f0 344,380
+packages/core/src/plugin/routes.ts
+  s_2a4069bf188ef3::t_0030ccc5005b22 329-338,340-342,373,430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "890d1ddd8c6d88651711777de20f2365c990ef62",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

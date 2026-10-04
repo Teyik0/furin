@@ -1,0 +1,31 @@
+apps/docs/src/content/docs/deployment.mdx
+  s_035d1b9503f515::t_7d32f8245c2f31 24
+apps/scaffolder/README.md
+  s_035d1b9503f515::t_7d32f8245c2f31 159
+.github/workflows/vercel-benchmark.yaml
+  s_035d1b9503f515::t_7d32f8245c2f31 124
+.github/workflows/ci.yaml
+  s_035d1b9503f515::t_7d32f8245c2f31 167
+package.json
+  s_035d1b9503f515::t_7d32f8245c2f31 46
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_035d1b9503f515::t_7d32f8245c2f31 228
+bun.lock
+  s_035d1b9503f515::t_9d1c5a58b54bac 165,1161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f4483cd07c892d79b178c9f8b8f5cd163d19841",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

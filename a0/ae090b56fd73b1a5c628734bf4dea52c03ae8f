@@ -1,0 +1,28 @@
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 145-168
+examples/weather/src/server.ts
+  h_a2cbd1b0e3ae6e 9-11
+packages/core/src/adapter/README.md
+  h_a2cbd1b0e3ae6e 30-35
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 1-9,14,31-32,36,72-89,315,337,343-347,389-454,498,500,505,507,511-512,521-532
+packages/core/src/build/production-instrumentation.ts
+  h_a2cbd1b0e3ae6e 5
+packages/core/src/build/types.ts
+  h_a2cbd1b0e3ae6e 101
+packages/core/src/cli/index.ts
+  h_a2cbd1b0e3ae6e 206
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 74,91,118-124,160,251,257-270,304,332-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0ae090b56fd73b1a5c628734bf4dea52c03ae8f",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

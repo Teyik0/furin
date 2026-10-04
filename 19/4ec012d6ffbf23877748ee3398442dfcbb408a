@@ -1,0 +1,29 @@
+packages/core/biome.jsonc
+  6ce0dc6c49256a86 2,6-7
+packages/core/src/build/hydrate.ts
+  6ce0dc6c49256a86 32-33,37-38,74,76,87
+packages/core/tsconfig.dts.json
+  6ce0dc6c49256a86 6
+packages/core/src/furin.ts
+  6ce0dc6c49256a86 163,172-173,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "194ec012d6ffbf23877748ee3398442dfcbb408a",
+  "prompts": {
+    "6ce0dc6c49256a86": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0421d0cb-c612-423a-ba81-666821fcaf75",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 60,
+      "total_deletions": 57,
+      "accepted_lines": 23,
+      "overriden_lines": 2
+    }
+  }
+}

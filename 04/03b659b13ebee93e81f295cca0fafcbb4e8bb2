@@ -1,0 +1,54 @@
+packages/core/src/server/instance.ts
+  s_3d61c21275e7f4::t_8f9ba24e0065f3 65
+packages/core/src/adapter/bun.ts
+  s_3d61c21275e7f4::t_8f9ba24e0065f3 102,212-239,265-271
+knip.config.ts
+  s_3d61c21275e7f4::t_8134ca5c956ac4 44-46
+packages/core/src/adapter/package.ts
+  s_3d61c21275e7f4::t_3ce58dc869d391 4,138
+packages/core/src/server/cache/store-view.ts
+  s_3d61c21275e7f4::t_8f9ba24e0065f3 5-11
+packages/core/src/server/render/ssr.ts
+  s_3d61c21275e7f4::t_031912147d2ecf 210
+  s_3d61c21275e7f4::t_a8d2d6a5cc02a5 564
+  s_3d61c21275e7f4::t_19416e360f87c0 268,292,299,301,371-372,529,577
+  s_3d61c21275e7f4::t_6efd54eab16ba4 303-308
+packages/core/tests/multi-instance.integration.test.ts
+  s_3d61c21275e7f4::t_3decb8249a3f00 247
+  s_3d61c21275e7f4::t_1db1eb8886dc15 295-297
+  s_3d61c21275e7f4::t_84c2b428e07802 235,239,275
+  s_3d61c21275e7f4::t_7308b5713b3428 7-18,21-23,27-30,34,37,47,49-54,64,75,93,109,114-115,133,149,165-172,191,194-195,205,215-216,219,230,242,251,266,276-290,292-294,298-301
+  s_3d61c21275e7f4::t_34418f52f3c6e2 33
+packages/core/package.json
+  s_3d61c21275e7f4::t_8134ca5c956ac4 120
+packages/core/tests/adapter-package.test.ts
+  s_3d61c21275e7f4::t_7197d2b2fb222d 1-4,7-17,20,34-41,43-52,54-67,69-85,87-93,95-100,102-103,105-112,114-115
+  s_3d61c21275e7f4::t_77cf491863622e 94
+packages/core/tests/auto-invalidate.test.ts
+  s_3d61c21275e7f4::t_c78d4c410dc31b 151
+  s_3d61c21275e7f4::t_a70f0ea40ad58e 28
+  s_3d61c21275e7f4::t_f17222d1ef7637 50,228-229,241-252,257-261
+  s_3d61c21275e7f4::t_38f30c7c94d7ef 51,230-240
+  s_3d61c21275e7f4::t_cc774ba2f9fb47 53,57,61,75,78,98,101,109,112,132,157,183
+packages/core/tests/adapter-bun-client.test.ts
+  s_3d61c21275e7f4::t_7b76203753b231 34-57
+  s_3d61c21275e7f4::t_750ffadc6f30dc 64,102
+bun.lock
+  s_3d61c21275e7f4::t_a747f7ea15b59b 111,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "0403b659b13ebee93e81f295cca0fafcbb4e8bb2",
+  "prompts": {},
+  "sessions": {
+    "s_3d61c21275e7f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f55b8-84a9-7333-85c5-6c19607e3196",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

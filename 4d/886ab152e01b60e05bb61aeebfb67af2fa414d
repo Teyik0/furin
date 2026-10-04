@@ -1,0 +1,82 @@
+packages/core/tests/link/scroll-restoration.test.tsx
+  5b0656c0a1ee8cff 279-281,289-291,297-299,304-306
+  646391d6b5bce9f2 48-63,227-229,235-237,256-258
+packages/core/tests/link/interactive.test.tsx
+  5b0656c0a1ee8cff 37-40,420-421,623-626,940-941,957-958,973-976
+  646391d6b5bce9f2 10,26,380,395,988
+packages/core/src/render/cache.ts
+  646391d6b5bce9f2 179-191,212-215
+apps/docs/src/lib/docs-server.ts
+  646391d6b5bce9f2 20
+packages/core/package.json
+  5b0656c0a1ee8cff 58
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  d9c84a74c7078860 1,38
+packages/core/src/link.tsx
+  962cecca576fc3cf 2,105,108
+packages/core/tests/link/router-provider-intercept.test.tsx
+  646391d6b5bce9f2 156-168
+packages/core/src/router-provider.tsx
+  646391d6b5bce9f2 552-558,1351
+packages/core/tests/link.test.tsx
+  646391d6b5bce9f2 33,49,59-60,66,68,72-73,163,173,184,209,219,880,896,904,914,920,931
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4d886ab152e01b60e05bb61aeebfb67af2fa414d",
+  "prompts": {
+    "5b0656c0a1ee8cff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2351bfe7-e1cb-4d09-9d3b-7b1f73cf5323",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 15,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "646391d6b5bce9f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212e7349fffeOe0hxspK6Rwp5B",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 256,
+      "total_deletions": 199,
+      "accepted_lines": 155,
+      "overriden_lines": 0
+    },
+    "962cecca576fc3cf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212ee64a1ffe2AkznrFPh1pXyr",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 12,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "d9c84a74c7078860": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212e9d799ffeGZkACKQkhyzeoz",
+        "model": "opencode/big-pickle"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 19,
+      "accepted_lines": 7,
+      "overriden_lines": 1
+    }
+  }
+}

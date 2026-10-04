@@ -1,0 +1,21 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_a9bbb765ef24b1::t_c8fff90d29d63f 186-187
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_a9bbb765ef24b1::t_d68d31f6c42c89 185-186,197-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "809ac15357e7f98de8f8db0afd8c6f1b229dd739",
+  "prompts": {},
+  "sessions": {
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+apps/docs/src/content/docs/defer.mdx
+  s_60a29d9fb49afc::t_2f95b23797a56c 33-34
+packages/core/src/server/render/not-found.ts
+  s_60a29d9fb49afc::t_16e4ba4cdfbd61 51-53,56,87-91
+packages/core/tests/rendering/ssr/head-context.test.tsx
+  s_60a29d9fb49afc::t_255924a6f2e77a 78,80,85,87,92,108,110
+  s_60a29d9fb49afc::t_733080f149b1e8 6,66-76
+  s_60a29d9fb49afc::t_1be49dfad635ef 10,29-62
+  s_60a29d9fb49afc::t_6018f17ed4e4e3 63
+  s_60a29d9fb49afc::t_86955f91d73fd5 7
+  s_60a29d9fb49afc::t_d61a6489ec9375 1-5,8-9,11-28,64-65,77,79,81-84,86,88-91,93-107,109,111-113
+apps/docs/src/content/docs/head-seo.mdx
+  s_60a29d9fb49afc::t_2f95b23797a56c 31
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  s_60a29d9fb49afc::t_cfe89b0b145ae5 7,22
+  s_60a29d9fb49afc::t_b3f6371af4d797 26,29,34
+  s_60a29d9fb49afc::t_8aec25ad32a03f 25,27-28,30-33,35-42
+  s_60a29d9fb49afc::t_ffeaad2e9f22c9 8-21,23-24
+  s_60a29d9fb49afc::t_55fdc9c13ce94f 48
+  s_60a29d9fb49afc::t_1625650f361dd5 63,72
+  s_60a29d9fb49afc::t_1c52633d3600e8 43-47,49-62
+  s_60a29d9fb49afc::t_21b9bb64bc13d3 73-75
+packages/core/tests/contract/define-route-client.test.tsx
+  s_60a29d9fb49afc::t_b8c15f566bc87a 38-46,48,50-54
+  s_60a29d9fb49afc::t_9f359f05fb72b9 20,26,28-30,32,34-36
+  s_60a29d9fb49afc::t_5acbec856c5ed6 37
+packages/core/src/client/define-route.ts
+  s_60a29d9fb49afc::t_b3f6371af4d797 12,20-21,28-29
+  s_60a29d9fb49afc::t_cd51302971a438 17,25
+packages/core/src/server/render/ssr.ts
+  s_60a29d9fb49afc::t_21b9bb64bc13d3 296,306,412
+  s_60a29d9fb49afc::t_86955f91d73fd5 380
+  s_60a29d9fb49afc::t_860b255fac82cd 371-373,379
+packages/core/src/server/router/defined-route.ts
+  s_60a29d9fb49afc::t_21b9bb64bc13d3 42,59-60,71
+  s_60a29d9fb49afc::t_1625650f361dd5 70
+  s_60a29d9fb49afc::t_4a447dc06a9946 45
+  s_60a29d9fb49afc::t_c53e46b0adc9b3 1
+packages/core/src/server/render/loaders.ts
+  s_60a29d9fb49afc::t_0c5233626dcdf8 530-532,536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "633620c6df53af17819c22f4113133050a135c2b",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

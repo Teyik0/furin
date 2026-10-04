@@ -1,0 +1,29 @@
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_ae21d3ff45f8f3 129-130,144-145,154-157,301-346
+  s_3295c4a2d42648::t_b89ea0fc33bbff 347
+packages/core/src/client/router/provider.tsx
+  s_3295c4a2d42648::t_4c635ad9d3b069 466,468,474
+  s_3295c4a2d42648::t_4dacf9a8d25670 53-56,467,475-476,489,531,533,536-539,543,741-743
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3295c4a2d42648::t_5ae6c3ddb690db 384,396-398
+  s_3295c4a2d42648::t_c01ca4eebbaaa2 379-380,393-394
+  s_3295c4a2d42648::t_fbf5b76bed71e2 395
+packages/core/src/furin.ts
+  s_3295c4a2d42648::t_c01ca4eebbaaa2 437-439,448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ae7d33fc0f6ab64121735a2fd221c580b943d997",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

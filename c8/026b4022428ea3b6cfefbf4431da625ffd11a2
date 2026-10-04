@@ -1,0 +1,33 @@
+apps/docs/src/components/docs-search-dialog.tsx
+  s_e33dd5ade3bcff::t_707e9e344911c0 252,254
+  s_e33dd5ade3bcff::t_660673413c6d1f 8,172,174,237-241,250-251,257,287,291-294,305-321
+packages/core/src/server/cache/invalidation.ts
+  s_e33dd5ade3bcff::t_6abaf6ab37d7a2 12,133
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_e33dd5ade3bcff::t_bfddb6b3aaaf3d 5,155-221
+  s_e33dd5ade3bcff::t_13d6e02834b2f6 222-223
+packages/core/src/server/render/ppr-route.ts
+  s_e33dd5ade3bcff::t_07017bd2098efc 4,6,18-22,25,35-39,41-77,100-102,107,132-142,147-152
+examples/task-manager/src/components/ui/kanban.tsx
+  s_e33dd5ade3bcff::t_8f8f9225b4fe17 123,127
+  s_e33dd5ade3bcff::t_9d6f5a61eb5509 10,118-122,124-126,128-131
+  s_e33dd5ade3bcff::t_7bfa97ad335cf4 32-36,113,116-117
+apps/docs/src/components/ui/dialog.tsx
+  s_e33dd5ade3bcff::t_a4e111a1dcb60a 14-17,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c8026b4022428ea3b6cfefbf4431da625ffd11a2",
+  "prompts": {},
+  "sessions": {
+    "s_e33dd5ade3bcff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5d0e-aac2-70d1-914e-e3674a11899d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

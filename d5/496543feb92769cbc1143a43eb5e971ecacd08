@@ -1,0 +1,25 @@
+packages/core/src/dev-page-plugin.ts
+  646391d6b5bce9f2 67-68,337-340
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  646391d6b5bce9f2 11,28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d5496543feb92769cbc1143a43eb5e971ecacd08",
+  "prompts": {
+    "646391d6b5bce9f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212e7349fffeOe0hxspK6Rwp5B",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 2,
+      "accepted_lines": 136,
+      "overriden_lines": 0
+    }
+  }
+}

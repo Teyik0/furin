@@ -1,0 +1,37 @@
+apps/docs/src/content/docs/sync.mdx
+  s_0f05a92f7615f8::t_0232f6fd88b2e3 166,181
+  s_0f05a92f7615f8::t_bfedcb5b33ae17 173-176,185
+  s_f3cd73098c98f4::t_a0134be718adc9 182
+packages/core/tests/client/sync/adapters/postgres-sync-notifier.test.ts
+  s_0f05a92f7615f8::t_ac4ea6f82654d9 136-139,141-144
+  s_0f05a92f7615f8::t_c9271c529466f0 98-102,180-184
+  s_0f05a92f7615f8::t_d1507b9c35931d 112,192
+  s_0f05a92f7615f8::t_103c6c8791addd 115-135,140,145-151
+  s_0f05a92f7615f8::t_6cbbe1bb61140f 113-114
+packages/core/src/server/sync/postgres/index.ts
+  s_0f05a92f7615f8::t_12c19058bb4653 23,393-394,398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a973deb1c28390c2ed8cacf0938a72819377fc8f",
+  "prompts": {},
+  "sessions": {
+    "s_0f05a92f7615f8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e2d3-b153-78c2-a677-a47d0e4f5bb7",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_f3cd73098c98f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e2a9-47a3-78d2-b200-9bb3f8fbe57f",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
