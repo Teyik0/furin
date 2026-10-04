@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 - **Bun asset caching** — disk-served browser assets use one immutable cache policy without conflicting `max-age` directives, while retaining ETags.
 - **Workers capability boundaries** — reject ISR anywhere in a route chain, including below an SSR document, and reject application mounts that would put unversioned public files inside the immutable browser-asset namespace.
+- **Workers response privacy and dependency resolution** — unmarked APIs and redirects default to `private, no-store`, explicit non-HTML cache policies and WebSocket upgrades remain intact, and renderer overrides apply only to Furin runtime imports.
+- **Target-scoped compilation defaults** — configured `bun.compile` applies only to Bun builds; Workers builds no longer inherit it, while an explicit unsupported compile request still fails.
 - **Workspace test scheduling** — run workspace suites sequentially while retaining each suite's file-level parallelism, preventing nested concurrency from starving integration tests.
 
 ## [0.7.0-alpha.2] — 2026-10-04

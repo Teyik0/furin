@@ -186,7 +186,10 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
   for (const target of requestedTargets) {
     switch (target) {
       case "bun":
-        manifest.targets.bun = await buildBunTarget(apps, rootDir, buildRoot, serverEntry, options);
+        manifest.targets.bun = await buildBunTarget(apps, rootDir, buildRoot, serverEntry, {
+          ...options,
+          compile: options.compile ?? options.bun?.compile,
+        });
         break;
       case "static":
         if (apps.length > 1) {

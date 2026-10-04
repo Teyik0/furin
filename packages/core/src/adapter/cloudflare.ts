@@ -1,5 +1,5 @@
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
 import { elysiaAot } from "../build/elysia-aot.ts";
@@ -15,6 +15,7 @@ import { hasRequestLoader } from "../server/render/loaders.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import {
   buildRuntimeAppsSequentially,
+  isFrameworkRuntimeImporter,
   mixedRuntimePlugin,
   pprRuntimePlugin,
   type RuntimeTargetApp,
@@ -36,7 +37,9 @@ function cloudflareRuntimePlugin(): Bun.BunPlugin {
   return {
     name: "furin-cloudflare-runtime",
     setup(build) {
-      build.onResolve({ filter: REACT_SERVER_IMPORT }, () => ({ path: reactServer }));
+      build.onResolve({ filter: REACT_SERVER_IMPORT }, ({ importer }) =>
+        isFrameworkRuntimeImporter(importer) ? { path: reactServer } : undefined
+      );
       build.onResolve({ filter: RSC_IMPORT }, () => {
         throw new Error("[furin] Cloudflare Workers does not support RSC or Furin Sync yet.");
       });
@@ -46,8 +49,7 @@ function cloudflareRuntimePlugin(): Bun.BunPlugin {
         path: Bun.resolveSync(path.replace(FURIN_ALIAS, "@teyik0/furin"), RUNTIME_ROOT),
       }));
       build.onResolve({ filter: STATIC_IMPORT }, ({ importer }) => {
-        const path = relative(RUNTIME_ROOT, importer);
-        if (path.startsWith("..")) {
+        if (!isFrameworkRuntimeImporter(importer)) {
           throw new Error(
             "[furin] Cloudflare Workers does not support @elysia/static. Use public/ assets."
           );
@@ -184,8 +186,10 @@ app.compile();
 const dataPaths = ${JSON.stringify(apps.map((app) => `${app.prefix}/_furin/data`))};
 export default { async fetch(request) {
   const response = await app.handle(request);
+  if (response.status === 101) return response;
   if (response.headers.get("content-type")?.includes("text/html") ||
-      dataPaths.includes(new URL(request.url).pathname)) {
+      dataPaths.includes(new URL(request.url).pathname) ||
+      !response.headers.get("cache-control")) {
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });

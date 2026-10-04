@@ -47,7 +47,9 @@ ISR, PPR, RSC, Furin Sync, custom `pageCache` adapters, executable compilation, 
 
 `public/_headers` is preserved for static responses, with one reserved `/_client/*` cache rule and room for 99 custom rules. Do not supply `public/_client` or redefine that rule. Server-only file-loader outputs are rejected; move public files to `public/`. Elysia `file()`, filesystem APIs, and module-scope/prebuilt `Response` objects are unsupported application code, not generically detected by the compiler. Construct responses inside request handlers and set Worker response security headers there; static `_headers` rules do not apply to SSR/API responses.
 
-Generated configuration is overwritten on each build. For persistent Worker names, bindings, and secrets, maintain a root `wrangler.jsonc` with `main: ".furin/build/cloudflare/worker.js"` and `assets.directory: ".furin/build/cloudflare/assets"`, retaining the generated compatibility settings.
+Generated configuration is overwritten on each build. For persistent Worker names and bindings, maintain a root `wrangler.jsonc` with `main: ".furin/build/cloudflare/worker.js"` and `assets.directory: ".furin/build/cloudflare/assets"`, retaining the generated compatibility settings. Deploy with `bunx --bun wrangler deploy --config wrangler.jsonc`; the commands above select the generated config and do not merge the root file. Supply secrets through Cloudflare's secret store using the same Worker name.
+
+Unsupported `sync` and `pageCache` options must stay disabled at runtime too. An environment-gated option that was absent during the build is validated again when the Worker boots and will prevent startup if enabled there.
 
 Local runtime validation uses Miniflare/workerd, including real HTTP requests. Wrangler 4.100.0's local `dev` proxy hangs under Bun 1.4.2 even for a minimal hello-world Worker; its deployment dry-run works. Treat local Wrangler-on-Bun support as a tooling limitation, not a supported preview workflow.
 

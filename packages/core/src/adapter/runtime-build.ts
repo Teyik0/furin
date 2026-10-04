@@ -318,12 +318,13 @@ export function cacheMixedPublicLoader() { throw new Error("[furin] Mixed route 
   };
 }
 
-function isFrameworkRuntimeImporter(importer: string): boolean {
+export function isFrameworkRuntimeImporter(importer: string): boolean {
   if (importer === "") {
     return false;
   }
   const fromRuntimeRoot = relative(_pkgSrcDir, importer.split("?")[0] as string);
   return (
+    !isAbsolute(fromRuntimeRoot) &&
     fromRuntimeRoot !== ".." &&
     !fromRuntimeRoot.startsWith("../") &&
     !fromRuntimeRoot.startsWith("..\\")
