@@ -54,7 +54,7 @@ test("group error and not-found boundaries belong only to their descendants", as
   expectDefined(marketing);
 
   expect(admin.segmentBoundaries).toHaveLength(1);
-  expect(admin.segmentBoundaries[0]?.path).toBe(join(PAGES_DIR, "(admin)"));
+  expect(admin.segmentBoundaries[0]?.path).toBe(join(PAGES_DIR, "(admin)").replaceAll("\\", "/"));
   expect(admin.segmentBoundaries[0]?.error).toBe(admin.error);
   expect(admin.segmentBoundaries[0]?.notFound).toBe(admin.notFound);
   expect(admin.error).toBeDefined();
