@@ -16,7 +16,7 @@ test("live and snapshot phase replay retain only the corrected sample", async ()
     sessionId: "session",
     timestamp: 200,
     type: "hmr.client.phase",
-    version: 2,
+    version: 3,
   } satisfies DevtoolsServerEvent;
   const corrected = {
     ...provisional,
@@ -43,7 +43,7 @@ test("live and snapshot phase replay retain only the corrected sample", async ()
     },
     sessionId: "session",
     sync: { changesPath: null, enabled: false },
-    version: 2,
+    version: 3,
   } satisfies DevtoolsSnapshot;
   expect(mergeDevtoolsSnapshotEvents(current, snapshot)).toEqual([corrected]);
 });

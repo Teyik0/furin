@@ -19,7 +19,7 @@ const cycle = {
   status: "fulfilled",
   timestamp: 110,
   type: "hmr.server.finished",
-  version: 2,
+  version: 3,
 } satisfies DevtoolsServerEvent;
 
 function phase(
@@ -41,7 +41,7 @@ function phase(
     phase: name,
     timestamp: clientTimestamp,
     type: "hmr.client.phase",
-    version: 2,
+    version: 3,
   };
 }
 
@@ -63,7 +63,7 @@ async function withDashboard(
       memory: { heapBytes: 1024, rssBytes: 2048 },
     },
     sync: { changesPath: null, enabled: false },
-    version: 2,
+    version: 3,
   };
   window.fetch = (() => Promise.resolve(Response.json(snapshot))) as unknown as typeof fetch;
   Reflect.set(window, Symbol.for("furin.browser-events.runtime"), {
@@ -132,7 +132,7 @@ test.serial("late paint corrections preserve the latest browser's timings and st
         state: "connected",
         timestamp: 100,
         type: "hmr.connection.changed",
-        version: 2,
+        version: 3,
       },
       {
         ...session,
@@ -143,7 +143,7 @@ test.serial("late paint corrections preserve the latest browser's timings and st
         state: "disconnected",
         timestamp: 210,
         type: "hmr.connection.changed",
-        version: 2,
+        version: 3,
       },
       {
         ...session,
@@ -155,7 +155,7 @@ test.serial("late paint corrections preserve the latest browser's timings and st
         reason: "native-hmr-boundary-missing",
         timestamp: 220,
         type: "hmr.full-reload",
-        version: 2,
+        version: 3,
       },
       phase("browser-a", "paint", 10, 140, 20),
       phase("browser-b", "before-update", 11, 145, 0),
@@ -181,7 +181,31 @@ test.serial("late paint corrections preserve the latest browser's timings and st
   );
 });
 
-test.serial("phase fallback uses browser chronology and server ids only for ties", async () => {
+test.serial(
+  "browser clock skew does not affect server-observed paint selection or totals",
+  async () => {
+    await withDashboard(
+      [
+        cycle,
+        { ...phase("browser-a", "before-update", 2, 60_000, 0), timestamp: 120 },
+        { ...phase("browser-a", "after-update", 3, 60_010, 10), timestamp: 130 },
+        { ...phase("browser-b", "before-update", 4, 120, 0), timestamp: 150 },
+        { ...phase("browser-b", "after-update", 5, 150, 30), timestamp: 180 },
+        { ...phase("browser-b", "paint", 6, 170, 50), timestamp: 200 },
+        { ...phase("browser-a", "paint", 10, 60_020, 20), timestamp: 140 },
+      ],
+      (element) => {
+        expect(element.querySelector(".cycle-heading")?.textContent).toContain("browser-b");
+        const rows = Array.from(element.querySelectorAll(".waterfall-row"));
+        expect(rows[3]?.querySelector("strong")?.textContent).toBe("30.0 ms");
+        expect(rows[4]?.querySelector("strong")?.textContent).toBe("20.0 ms");
+        expect(element.querySelector(".cycle-heading")?.textContent).toContain("100.0 ms");
+      }
+    );
+  }
+);
+
+test.serial("phase fallback uses server observations and stable browser ties", async () => {
   await withDashboard(
     [
       cycle,
@@ -223,7 +247,7 @@ test.serial(
           state: "connected",
           timestamp: 100,
           type: "hmr.connection.changed",
-          version: 2,
+          version: 3,
         },
         {
           ...session,
@@ -234,7 +258,7 @@ test.serial(
           state: "disconnected",
           timestamp: 150,
           type: "hmr.connection.changed",
-          version: 2,
+          version: 3,
         },
         {
           ...session,
@@ -246,7 +270,7 @@ test.serial(
           reason: "native-hmr-boundary-missing",
           timestamp: 160,
           type: "hmr.full-reload",
-          version: 2,
+          version: 3,
         },
       ],
       (element) => {
@@ -277,7 +301,7 @@ test.serial(
           reason: "native-hmr-boundary-missing",
           timestamp: 150,
           type: "hmr.full-reload",
-          version: 2,
+          version: 3,
         },
       ],
       (element) => {

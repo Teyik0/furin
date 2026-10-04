@@ -18,7 +18,7 @@ test("late phase corrections replace provisional samples without accepting older
       type: "hmr.client.phase" as const,
     };
     appendDevtoolsEvent(sample);
-    const corrected = { ...sample, correlationRevision: 1, cycleId: "late-cycle" };
+    const corrected = { ...sample, correlationRevision: 1, cycleId: "late-cycle", timestamp: 900 };
     appendDevtoolsEvent(corrected);
     appendDevtoolsEvent(sample);
     const retained = devtoolsEventsSnapshot().events;
@@ -29,6 +29,7 @@ test("late phase corrections replace provisional samples without accepting older
       correlationRevision: 1,
       cycleId: "late-cycle",
       durationMs: 10,
+      timestamp: 200,
     });
   });
 });
@@ -71,8 +72,10 @@ test("phase revision watermarks outlive unrelated display events", () => {
       ...sample,
       correlationRevision: 2,
       cycleId: "new-cycle",
+      timestamp: 5000,
     });
     expect(corrected.id).toBe(before.lastEventId + 1);
+    expect(corrected.timestamp).toBe(accepted.timestamp);
     expect(devtoolsEventsSnapshot().events).toContainEqual(corrected);
   });
 });

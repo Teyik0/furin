@@ -462,7 +462,7 @@ The application only receives a compact HMR status launcher. Clicking it opens t
 
 The dashboard includes:
 
-- HMR cycles with the invalidating source, server rebuilds, client modules observed by Bun's public plugin hooks, and watcher → build → socket → apply → next-paint timings
+- HMR cycles with the invalidating source, server rebuilds, client modules observed by Bun's public plugin hooks, server-observed watcher → build → browser-report timings, and browser-local apply → next-paint durations
 - native Bun HMR connection state per application tab and retained full-reload reasons
 - server RSS, JavaScript heap usage, and Furin dependency-graph node/edge counts
 - completed requests, loader activity, cache hit rate, and transferred bytes
@@ -480,6 +480,8 @@ Press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>.</kbd> from the 
 Bun does not expose its private incremental module graph or attach module/build identifiers to the public HMR events. Furin therefore reports client modules as **observed** plugin loads and uses its own watcher-backed cycle identifiers. Server rebuild and Furin graph measurements are exact; “next paint” is the next browser paint opportunity after the update, not a GPU compositor measurement.
 
 Browser phases are associated with watcher cycles by observed timing and order, not a private Bun build ID. Late events can correct retained provisional samples without changing their original timings; coalesced or ambiguous saves remain explicitly uncorrelated. A waterfall always uses one browser's phases and labels that browser, rather than mixing foreground and background tabs. A new server telemetry session replaces the previous timeline even when the application's logical identity is unchanged.
+
+Browser selection and cross-process elapsed times use the server's first receipt of each phase report, preserved across corrections. These observed totals include the telemetry return trip; they are not an exact native HMR socket or compositor latency. The dashboard compares client timestamps only within a single browser, so clock skew between tabs cannot select another trace or inflate its reported total. DevTools events and snapshots use protocol v3 for session-aware consumers; the shared browser transport keeps its independent protocol v1.
 
 The internal snapshot, browser-event ingest, and assets live under `/_furin/devtools/*` (or the mounted app prefix). Server events share the versioned `/_furin/events` WebSocket with diagnostics and sync. These are development-only implementation details. Production builds resolve the instrumentation boundary to an empty implementation before Bun traverses the server graph, so the routes, event hub, request context, client assets, and their marker strings are absent from application bundles and compiled binaries.
 

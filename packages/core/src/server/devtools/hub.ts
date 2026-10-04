@@ -81,6 +81,8 @@ export function appendDevtoolsEvent(event: DevtoolsServerEventInput): DevtoolsSe
     if (previous && (previous.correlationRevision ?? 0) >= (complete.correlationRevision ?? 0)) {
       return previous;
     }
+    // Corrections change attribution, not when this browser sample was first observed.
+    complete.timestamp = previous?.timestamp ?? complete.timestamp;
     hub.phaseSamples.delete(sampleKey);
     hub.phaseSamples.set(sampleKey, complete);
     if (hub.phaseSamples.size > PHASE_SAMPLE_LIMIT) {

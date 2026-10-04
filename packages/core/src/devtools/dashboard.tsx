@@ -367,10 +367,10 @@ function HmrWaterfall({
   const detect = Math.max(0, (clientBuild?.startedAt ?? cycle.startedAt) - cycle.detectedAt);
   const clientBuildDuration =
     clientBuild?.durationMs ??
-    Math.max(0, (before?.clientTimestamp ?? cycle.timestamp) - cycle.detectedAt - detect);
-  const socket = Math.max(
+    Math.max(0, (before?.timestamp ?? cycle.timestamp) - cycle.detectedAt - detect);
+  const browserReport = Math.max(
     0,
-    (before?.clientTimestamp ?? (clientBuild?.startedAt ?? cycle.startedAt) + clientBuildDuration) -
+    (before?.timestamp ?? (clientBuild?.startedAt ?? cycle.startedAt) + clientBuildDuration) -
       ((clientBuild?.startedAt ?? cycle.startedAt) + clientBuildDuration)
   );
   const apply = Math.max(0, after?.durationMs ?? 0);
@@ -379,9 +379,9 @@ function HmrWaterfall({
     { duration: detect, label: "Watcher → build" },
     {
       duration: clientBuildDuration,
-      label: clientBuild ? "Client build" : "Build + socket",
+      label: clientBuild ? "Client build" : "Build + report",
     },
-    { duration: socket, label: "Socket" },
+    { duration: browserReport, label: "Browser report" },
     { duration: apply, label: "Apply" },
     { duration: nextPaint, label: "Next paint" },
   ];
@@ -477,15 +477,19 @@ function clientEventsForCycle(
   if (!cycle) {
     return [];
   }
-  const phases = events
-    .filter(
-      (event): event is ClientPhaseEvent =>
-        event.type === "hmr.client.phase" && event.cycleId === cycle.cycleId
-    )
-    .sort((a, b) => a.clientTimestamp - b.clientTimestamp || a.id - b.id);
+  const phases = events.filter(
+    (event): event is ClientPhaseEvent =>
+      event.type === "hmr.client.phase" && event.cycleId === cycle.cycleId
+  );
+  // Server observation time is shared; client ID keeps same-millisecond ties stable after replay.
+  const observed = phases.toSorted(
+    (a, b) => a.timestamp - b.timestamp || a.clientId.localeCompare(b.clientId)
+  );
   const clientId =
-    phases.findLast((event) => event.phase === "paint")?.clientId ?? phases.at(-1)?.clientId;
-  return phases.filter((event) => event.clientId === clientId);
+    observed.findLast((event) => event.phase === "paint")?.clientId ?? observed.at(-1)?.clientId;
+  return phases
+    .filter((event) => event.clientId === clientId)
+    .sort((a, b) => a.clientTimestamp - b.clientTimestamp || a.id - b.id);
 }
 
 function HmrPanel({
@@ -530,7 +534,7 @@ function HmrPanel({
       ? null
       : Math.max(
           selected.durationMs,
-          (paint?.clientTimestamp ?? selected.timestamp) - selected.detectedAt
+          (paint?.timestamp ?? selected.timestamp) - selected.detectedAt
         );
   const connection = events.findLast(
     (event): event is Extract<DevtoolsServerEvent, { type: "hmr.connection.changed" }> =>
@@ -553,7 +557,7 @@ function HmrPanel({
         />
         <Metric
           detail={selected ? basename(selected.changedModules[0] ?? "unknown") : "no build yet"}
-          label="Last cycle"
+          label="Last cycle · paint report"
           value={formatDuration(total)}
         />
         <Metric

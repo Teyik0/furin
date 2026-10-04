@@ -28,7 +28,7 @@ function validSnapshot(): DevtoolsSnapshot {
     },
     sessionId: "dashboard-session",
     sync: { changesPath: null, enabled: false },
-    version: 2,
+    version: 3,
   };
 }
 
@@ -92,7 +92,7 @@ test.serial(
         sessionId: "dashboard-session",
         timestamp: 1,
         type: "dev.ready",
-        version: 2,
+        version: 3,
       } satisfies DevtoolsServerEvent;
       const liveEvent = {
         ...serverEvent,
@@ -128,7 +128,7 @@ test.serial("snapshot refresh keeps only the newest resources for each browser",
       sessionId: "dashboard-session",
       timestamp: 1,
       type: "browser.resources",
-      version: 2,
+      version: 3,
     } satisfies DevtoolsServerEvent;
     const snapshot = {
       ...validSnapshot(),
@@ -159,7 +159,7 @@ test.serial(
         sessionId: "old-session",
         timestamp: 1,
         type: "dev.ready",
-        version: 2,
+        version: 3,
       } satisfies DevtoolsServerEvent;
       const newEvent = {
         ...oldEvent,
@@ -212,7 +212,7 @@ test.serial(
       status: 200,
       timestamp: id,
       type: "request.finished",
-      version: 2,
+      version: 3,
     });
     const original = {
       ...validSnapshot(),
@@ -345,7 +345,7 @@ test.serial("a failed snapshot refresh does not strand same-session live events"
           status: 200,
           timestamp: 1,
           type: "request.finished",
-          version: 2,
+          version: 3,
         },
         version: 1,
       });

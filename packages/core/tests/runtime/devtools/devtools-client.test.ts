@@ -93,7 +93,7 @@ function snapshot(): DevtoolsSnapshot {
     },
     sessionId: "test-session",
     sync: { changesPath: null, enabled: false },
-    version: 2,
+    version: 3,
   };
 }
 
@@ -367,7 +367,7 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
       sessionId: "test-session",
       timestamp: Date.now(),
       type: "hmr.cycle.started",
-      version: 2,
+      version: 3,
     });
   };
 
@@ -458,7 +458,7 @@ test.serial(
         sessionId: "test-session",
         timestamp: Date.now(),
         type: "hmr.cycle.started",
-        version: 2,
+        version: 3,
       });
     };
 
@@ -540,7 +540,7 @@ test.serial(
         sessionId: "restarted-session",
         timestamp: Date.now(),
         type: "hmr.cycle.started",
-        version: 2,
+        version: 3,
       });
       window.dispatchEvent(
         new CustomEvent("furin:hmr", {
@@ -619,7 +619,7 @@ test.serial(
         sessionId: "restarted-session",
         timestamp: Date.now(),
         type: "hmr.cycle.started" as const,
-        version: 2 as const,
+        version: 3 as const,
       };
       phase("before-update");
       phase("after-update");
