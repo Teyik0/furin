@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 - **Route groups** — directories such as `(admin)` organize pages without adding a URL segment, while preserving nested layouts, loaders, and error boundaries. Groups can be nested; conflicting public route patterns are rejected.
-- **Cloudflare Workers target** — `furin build --target cloudflare` emits a native SSR/SSG Worker, Wrangler configuration, and content-hashed CDN assets. Worker responses stay private, custom static headers are preserved, and unsupported ISR, PPR, RSC, Sync, page-cache adapters, executable compilation, and private server maps fail explicitly.
+- **Cloudflare Workers target** — `furin build --target cloudflare` emits a native SSR/SSG Worker, Wrangler configuration, and content-hashed CDN assets. Worker responses are private by default; explicit non-HTML cache policies, including public policies, and custom static headers are preserved. Unsupported ISR, PPR, RSC, Sync, page-cache adapters, executable compilation, and private server maps fail explicitly.
 - **Production hosting guides** — Railway, Fly.io, Render, and Docker/self-hosted Coolify deployments use the non-compiled Bun bundle with readiness checks, graceful shutdown, and safe asset-only CDN policies.
 
 ### Fixed
