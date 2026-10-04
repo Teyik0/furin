@@ -82,11 +82,18 @@ export function restoreRscSource(kind: RscSourceKind, bytes: Uint8Array): unknow
   return kind === "renderable" ? createRenderableSource(state) : { [RSC_SOURCE]: state };
 }
 
+function isLazyNode(value: object): boolean {
+  return "$$typeof" in value && value.$$typeof === Symbol.for("react.lazy");
+}
+
 function containsSlot(value: unknown, visited: WeakSet<object>): value is object {
   if (value === null || typeof value !== "object" || visited.has(value)) {
     return false;
   }
   visited.add(value);
+  if (isLazyNode(value)) {
+    return true;
+  }
   if (isValidElement(value)) {
     return value.type === SLOT_MARKER || containsSlot(value.props, visited);
   }
@@ -109,6 +116,11 @@ function resolveSlotArgument(
   }
   if (visited.has(value)) {
     return visited.get(value);
+  }
+  if (isLazyNode(value)) {
+    const result = createElement(LazySlots, { node: value as ReactNode, slots });
+    visited.set(value, result);
+    return result;
   }
   if (isValidElement(value)) {
     const resolved = resolveSlotElement(value, slots);
@@ -172,6 +184,11 @@ function resolveSlots(node: ReactNode, slots: object): ReactNode {
   return Children.map(node, (child) =>
     isValidElement(child) ? resolveSlotElement(child, slots) : child
   );
+}
+
+function LazySlots({ node, slots }: { node: ReactNode; slots: object }): ReactNode {
+  // React unwraps Flight's lazy nodes here, inside their nearest Suspense boundary.
+  return resolveSlots(node, slots);
 }
 
 export function CompositeComponent<TProps extends object>(
