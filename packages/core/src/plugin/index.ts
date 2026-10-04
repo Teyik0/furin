@@ -1,5 +1,9 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
+import {
+  nextDevtoolsBuildId,
+  publishDevtoolsClientBuild,
+} from "../server/devtools/build-observer.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
@@ -7,6 +11,45 @@ const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
 const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
+const DELETED_CLIENT_FINGERPRINT = "deleted";
+
+interface ObservedBuild {
+  changedModules: Set<string>;
+  cycleId: string;
+  detectedAt: number;
+  rebuiltModules: Set<string>;
+  startedAt: number;
+}
+
+function observeClientFingerprint(
+  path: string,
+  fingerprint: string,
+  detectedAt: number,
+  fingerprints: Map<string, string>,
+  build: ObservedBuild | undefined
+): void {
+  const previous = fingerprints.get(path);
+  fingerprints.set(path, fingerprint);
+  if (previous === fingerprint) {
+    build?.changedModules.delete(path);
+  } else if (previous !== undefined && build) {
+    build.changedModules.add(path);
+    build.detectedAt = Math.min(build.detectedAt, detectedAt);
+  }
+}
+
+function collectTopologyPaths(path: string, source: string, topologyPaths: Set<string>): void {
+  const normalizedPath = path.replaceAll("\\", "/");
+  if (!(normalizedPath.includes("/.furin/") && normalizedPath.endsWith("/_hydrate.tsx"))) {
+    return;
+  }
+  const transpiler = new Bun.Transpiler({ loader: "tsx" });
+  for (const imported of transpiler.scanImports(source)) {
+    if (isAbsolute(imported.path) || imported.path.startsWith(".")) {
+      topologyPaths.add(resolve(dirname(path), imported.path));
+    }
+  }
+}
 
 // Minimal browser stub for elysia — `t` is only used for schema definitions
 // in params/query, which the client never validates at runtime.
@@ -44,6 +87,41 @@ const plugin: Bun.BunPlugin = {
       string,
       { contents: string; loader: Bun.Loader; isRouteModule: boolean }
     >();
+    let activeBuild: ObservedBuild | undefined;
+    let completedInitialBuild = false;
+    const sourceFingerprints = new Map<string, string>();
+
+    build.onStart(() => {
+      activeBuild = {
+        changedModules: new Set(),
+        cycleId: nextDevtoolsBuildId(),
+        detectedAt: Number.POSITIVE_INFINITY,
+        rebuiltModules: new Set(),
+        startedAt: Date.now(),
+      };
+    });
+    build.onEnd((result) => {
+      const observed = activeBuild;
+      activeBuild = undefined;
+      if (!observed) {
+        return;
+      }
+      if (completedInitialBuild) {
+        publishDevtoolsClientBuild({
+          changedModules: [...observed.changedModules],
+          cycleId: observed.cycleId,
+          detectedAt: Number.isFinite(observed.detectedAt)
+            ? observed.detectedAt
+            : observed.startedAt,
+          durationMs: Math.max(0, Date.now() - observed.startedAt),
+          rebuiltModules: [...observed.rebuiltModules],
+          startedAt: observed.startedAt,
+          status: result.success ? "fulfilled" : "rejected",
+        });
+      }
+      completedInitialBuild = true;
+    });
+
     // ── browser stubs ───────────────────────────────────────────────────────
     build.onResolve({ filter: ELYSIA_FILTER }, () => ({
       namespace: "furin-stubs",
@@ -66,10 +144,25 @@ const plugin: Bun.BunPlugin = {
         return;
       }
 
+      const previousFingerprint = sourceFingerprints.get(args.path);
+      activeBuild?.rebuiltModules.add(args.path);
+      if (previousFingerprint !== undefined) {
+        activeBuild?.changedModules.add(args.path);
+      }
+      const sourceFile = Bun.file(args.path);
       let source: string;
       try {
-        source = await Bun.file(args.path).text();
+        source = await sourceFile.text();
       } catch (error) {
+        if (error instanceof Error && Reflect.get(error, "code") === "ENOENT") {
+          observeClientFingerprint(
+            args.path,
+            DELETED_CLIENT_FINGERPRINT,
+            Date.now(),
+            sourceFingerprints,
+            activeBuild
+          );
+        }
         const loaded = loadedSources.get(args.path);
         // Bun can revisit its previous client graph before topology changes remove
         // a deleted route from the hydration entry. Keep that graph loadable.
@@ -83,16 +176,15 @@ const plugin: Bun.BunPlugin = {
         }
         throw error;
       }
+      observeClientFingerprint(
+        args.path,
+        Bun.hash(source).toString(16),
+        sourceFile.lastModified,
+        sourceFingerprints,
+        activeBuild
+      );
 
-      const normalizedPath = args.path.replaceAll("\\", "/");
-      if (normalizedPath.includes("/.furin/") && normalizedPath.endsWith("/_hydrate.tsx")) {
-        const transpiler = new Bun.Transpiler({ loader: "tsx" });
-        for (const imported of transpiler.scanImports(source)) {
-          if (isAbsolute(imported.path) || imported.path.startsWith(".")) {
-            topologyPaths.add(resolve(dirname(args.path), imported.path));
-          }
-        }
-      }
+      collectTopologyPaths(args.path, source, topologyPaths);
       const result = transformForClient(source, args.path);
       // Output is TS/TSX (yuku parses directly, no pre-transpile). Bun's
       // bundler picks the loader from the file extension and applies the

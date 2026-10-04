@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **HMR development control room** — a dedicated `/_furin/devtools` dashboard traces invalidating modules, builds, browser update phases, reload reasons, connection state, memory, and graph size. `furin dev` prints local URLs and opens the dashboard only with `--open-devtools`; the application retains a compact launcher.
+
 ## [0.7.0-alpha.1] — 2026-09-27
 
 ### Breaking

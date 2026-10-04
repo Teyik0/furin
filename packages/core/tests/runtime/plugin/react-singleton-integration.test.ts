@@ -5,6 +5,7 @@
  * Regression test for: "dispatcher is null" hook crash on HMR.
  */
 import { describe, expect, test } from "bun:test";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
@@ -54,6 +55,15 @@ describe("furin-dev-page React singleton", () => {
         expect(renderToString(firstTree)).toBe("<output>a<!-- -->:<!-- -->First</output>");
       }
     ));
+  test("a deleted virtual page becomes a tombstone without crashing the plugin loader", () =>
+    withTmpPage(TMP_DIR, "export const route = { component: () => null };", async (pagePath) => {
+      const loaded = await import(`${pagePath}?furin-server&t=${Date.now()}`);
+      expect(loaded.route).toBeDefined();
+      rmSync(pagePath);
+
+      const deleted = await import(`${pagePath}?furin-server&t=${Date.now() + 1}`);
+      expect(deleted.route).toBeUndefined();
+    }));
 
   test("useState from virtual namespace is the same reference as the main process useState", () =>
     withTmpPage(
