@@ -1,0 +1,178 @@
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  h_a2cbd1b0e3ae6e 8,58-64,66
+  s_eb4334a35ae091::t_a7b466145a925a 65
+packages/core/src/server/devtools/plugin.ts
+  h_a2cbd1b0e3ae6e 23,108-111,116-119,129,134,146,182,197,209,243
+  s_2a4069bf188ef3::t_cc1589eade559f 128,130-133,186
+  s_2a4069bf188ef3::t_e69e541d8a016c 1-2,6,10,19,25-28,31-32,76-107,115,120-127,135-145,147-175,181,183-185,187-196,198-208,210-225,231-242,244-248,267-268,280-290
+packages/core/src/devtools/protocol.ts
+  s_2a4069bf188ef3::t_9a268c992a750d 4-7,9-11,43-87,89,96-97,105-106,113-114,123-124,131-132,138-231,248-250,252,254-263,271,275-359,361-509,511-540
+  s_2a4069bf188ef3::t_12c9f695fe1c61 8,360
+  h_a2cbd1b0e3ae6e 510
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 8,15-16,110-177,910,912,1052-1069,1074,1077,1087,1098,1115,1119
+  s_2a4069bf188ef3::t_02333cdec96f33 866-868,1037-1043,1045-1046,1048-1051,1070-1073,1075-1076,1078-1086,1088-1097,1099-1103,1113-1114,1116-1118,1120-1127,1140-1141,1154,1160,1169-1170
+  s_2a4069bf188ef3::t_626570d93b1308 1036,1044,1047,1104-1112
+  s_eb4334a35ae091::t_589fa623af2f88 2
+packages/core/src/devtools/collector.ts
+  s_2a4069bf188ef3::t_d387ccac5eb3d3 2-16,18-52,55-60,63,70-71,74-78,80-82,87-89,92-93,96-98,100,103-106,108-109,112-117,120-133,137,139,147-149,158-159,161-162,166-169,171-172,175-177,180-197,200,202-209,236-237,240-259,262-270,272,276-278,282-284,296,305,310-312,314-317,320-323,325-334,336-360,362-365,367-371,373-375,378-380,383-392,394-396,399-402,409-442,459,467-469,473-486
+  s_2a4069bf188ef3::t_832ea933515608 273-275
+  s_2a4069bf188ef3::t_84695f3feb71c7 318-319
+  s_2a4069bf188ef3::t_97f5a3e903a5a5 297-299,302-304
+  s_2a4069bf188ef3::t_8c9e0f80269183 271
+  h_a2cbd1b0e3ae6e 1,201,213-215,217-231,233-235,289-295,300-301,443-451,453-455,457-458,461-466,470-472
+  s_2a4069bf188ef3::t_fe444a14e7eaa4 72-73,79,83
+  s_2a4069bf188ef3::t_677c6f93f0b597 210
+  s_2a4069bf188ef3::t_7f2172c76b78ba 281
+  s_2a4069bf188ef3::t_6e91966b67cb55 286
+  s_2a4069bf188ef3::t_3dfc4e2a9c0aaf 279
+  s_2a4069bf188ef3::t_4e7cc176b8d36d 306-309
+packages/core/src/devtools/dashboard.tsx
+  h_a2cbd1b0e3ae6e 2-10,12,154-155,157-159,162-164,179-191,203,205-207,209,211-213,219-261,264-265,267,272,291-292,300
+  s_2a4069bf188ef3::t_9c5592de4001b9 152-153,156,999-1000
+  s_2a4069bf188ef3::t_b265e10f4c0f92 1,11,13-151,178,192-202,204,208,210,214-218,262-263,266,268-271,273-290,293-299,301-998,1001-1003
+  s_2a4069bf188ef3::t_10777ae5145e55 160-161,165-177
+packages/core/src/client/browser-events.ts
+  h_a2cbd1b0e3ae6e 5-6,12,26-32
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_2a4069bf188ef3::t_62c0d47648488a 30-36,362,373,460
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_2a4069bf188ef3::t_2fbbed697b9b50 55-71,73,84-93,95-98,112,116,127-129,131-132,134,138,144,147-148,151-153,155,159-160,232,236-238,241,244-245,253,256-258,261-263,270-274,288,291-297,299-304,306,310-311,314,316,319-354,356-358,368-370,372-385,387-396,399-400
+  s_2a4069bf188ef3::t_3b403c934e112d 72,180,182-190,197-205,211-214,223-230,259-260,264-269,275-287,298,307,386
+  s_2a4069bf188ef3::t_4f142fc1d02d28 74
+  h_a2cbd1b0e3ae6e 2,83,94,118,120-123,179,181,191,193,196,206-210,215-222,233-235,255,318,359-367
+  s_2a4069bf188ef3::t_b38966d91ffcac 231
+packages/core/src/server/dev/graph.ts
+  s_8b7160ea230673::t_1f3a2a98c59bcf 52,56,157-164,166,170
+doctor.config.ts
+  s_2a4069bf188ef3::t_fb44268663853b 73,83-84,87-93
+  h_a2cbd1b0e3ae6e 77-79
+  s_2a4069bf188ef3::t_6b6d039d4b2032 85-86
+  s_2a4069bf188ef3::t_2e83715e73489c 74-76,80-82
+packages/core/src/cli/index.ts
+  s_2a4069bf188ef3::t_c17d007021b713 6,170-171,175-177,188
+  s_2a4069bf188ef3::t_6eca86e8fbdd35 24-83,135-161,172-174,178-187,189-207,334,338-342
+  s_2a4069bf188ef3::t_3a7ec25033a474 162-169
+apps/docs/src/server.ts
+  h_a2cbd1b0e3ae6e 80-82
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  h_a2cbd1b0e3ae6e 64-65
+packages/core/src/build/hydrate.ts
+  s_2a4069bf188ef3::t_82495c541fc98d 483-495,512,515,520-522
+  s_ed2db40261a6c0::t_8d11e107dd30fc 166-175,177-228,231-238,242-256,258,260-267,516-519,523-526
+packages/core/tests/runtime/devtools/devtools-build.test.ts
+  s_2a4069bf188ef3::t_e25b32babd0e7e 1-3
+  s_2a4069bf188ef3::t_36ec09909d7216 4-22
+packages/core/src/client/dev-error-overlay.ts
+  h_a2cbd1b0e3ae6e 65-78,143
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_2a4069bf188ef3::t_4d736e6b3bc5f8 24-27,145-152
+  h_a2cbd1b0e3ae6e 140
+  s_2a4069bf188ef3::t_c3bd0d32339a48 23
+  s_2a4069bf188ef3::t_96abef5e265471 130,132-134,137-139,141-144,153-243
+packages/core/src/plugin/index.ts
+  h_a2cbd1b0e3ae6e 14-15,50-52,152,165
+  s_2a4069bf188ef3::t_0681ad8065d6da 147-151
+  s_2a4069bf188ef3::t_d4f3601e3daca2 3-6,16-23,39,90-124
+  s_eb4334a35ae091::t_335930bcc4bc46 24-38,40-49,155,157-164,179-185,187
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  h_a2cbd1b0e3ae6e 82
+  s_2a4069bf188ef3::t_c73484a995efab 21-38
+packages/core/tests/runtime/devtools/build-observer.test.ts
+  s_2a4069bf188ef3::t_258b35a9815c4d 1-21
+knip.config.ts
+  h_a2cbd1b0e3ae6e 38-39
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  h_a2cbd1b0e3ae6e 42-55,202-203,226-229,268-270,285-286,301-303,334-335,374-375,402-404,427-428,451-453,476-477,502-503,530-531,566-567
+apps/docs/src/content/docs/cli.mdx
+  h_a2cbd1b0e3ae6e 33,124-126,131
+  s_2a4069bf188ef3::t_8c6291cefe6753 3-29,118-123
+packages/core/tests/build/dev-command.test.ts
+  s_2a4069bf188ef3::t_b42e164ed71b4d 55
+  s_2a4069bf188ef3::t_3e553d6d983970 68
+  s_2a4069bf188ef3::t_6a5d8adecf308c 56-67,69-88
+  s_2a4069bf188ef3::t_58e7ceb6440b23 2,11-16,27-39,41-44,46-54,90,98
+  s_2a4069bf188ef3::t_ead9690a45e03b 1,3-10,17-26,40,45,89,91-97,99-115
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_2a4069bf188ef3::t_b885bf5c717b19 529
+  s_2a4069bf188ef3::t_5369d98d026074 518-528,530
+packages/core/src/server/devtools/hub.ts
+  s_2a4069bf188ef3::t_ee8f1b62dc3a69 57-65
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  h_a2cbd1b0e3ae6e 256,258,265-270,275-276,293-297,302-304
+  s_2a4069bf188ef3::t_356cf0cc6ac289 16
+  s_2a4069bf188ef3::t_7b01a8e6a83d1b 197-198
+  s_2a4069bf188ef3::t_8c8c5a177b145d 301,306,311,323-324
+packages/core/src/server/devtools/build-observer.ts
+  h_a2cbd1b0e3ae6e 1-77
+apps/docs/src/content/docs/dev-hmr.mdx
+  h_a2cbd1b0e3ae6e 469-477,481-484
+  s_2a4069bf188ef3::t_08973896ed9c5a 459-468,478-480
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  h_a2cbd1b0e3ae6e 105,109
+packages/core/tests/build/hydrate/strip-plugin.test.ts
+  h_a2cbd1b0e3ae6e 6-9,14,45,49,63
+  h_a2cbd1b0e3ae6e 2,11-13,15-18,20-26,29,31-44,46-48,50-53,55-56,58-62,64-90,92
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_ed2db40261a6c0::t_35820385eaed56 217-222
+packages/core/src/devtools/dashboard.css
+  s_ed2db40261a6c0::t_b821419a1d4492 1-906
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  h_a2cbd1b0e3ae6e 7-14,28,56,80-113,115-117,126-142,147-176
+  s_2a4069bf188ef3::t_df05e73dcf41bd 4,33-45,69,79,118-125
+  s_ed2db40261a6c0::t_cf0506bf12e9c9 1-3,5-6,15-16,18-27,29-32,46-55,57-68,70-78,114,143-146
+  s_2a4069bf188ef3::t_97018da3ea444d 17
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 64,71,377,384,394,456,512,518
+  s_2a4069bf188ef3::t_6c1bf3a2c8afcb 361-364,395,651,1023
+  s_ed2db40261a6c0::t_b61e76feccdaa9 63,65-68,70,72-74,80,87,453,455,457,515,540,547
+CHANGELOG.md
+  s_eb4334a35ae091::t_972527728c915c 9-11
+packages/core/tests/build/preview.test.ts
+  s_eb4334a35ae091::t_d3ba6310fd80f7 6,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eeebdbf72f82f4cd6d49b5dce3cd1795f29aa1f0",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  },
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_8b7160ea230673": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07d71-646e-7393-b1e0-5c21e69fe3a7",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_eb4334a35ae091": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1056c-31df-7681-a2ed-9da20a8f938c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ed2db40261a6c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08d20-171e-77b0-9c39-8b30f9aefcfb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
