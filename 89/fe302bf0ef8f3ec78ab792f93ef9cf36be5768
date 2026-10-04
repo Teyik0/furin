@@ -1,0 +1,14 @@
+examples/task-manager/e2e/task-manager.e2e.ts
+  h_a2cbd1b0e3ae6e 144-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "89fe302bf0ef8f3ec78ab792f93ef9cf36be5768",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+packages/core/src/server/render/document.tsx
+  s_21d14c46149a99::t_554d8e6a737338 8,28-31,34,36
+packages/core/src/build/index.ts
+  s_21d14c46149a99::t_f50371a49c8fb3 85-98
+packages/core/src/build/hydrate.ts
+  s_21d14c46149a99::t_554d8e6a737338 209,235
+packages/core/src/client/document.tsx
+  s_21d14c46149a99::t_554d8e6a737338 133-139
+  s_21d14c46149a99::t_c64b6edb639bba 17
+  s_21d14c46149a99::t_45516c2a9c47b9 140-141
+packages/core/tests/rendering/rsc/rsc.test.tsx
+  s_21d14c46149a99::t_bcdb60f034a698 29
+packages/core/tests/rendering/rsc/rsc-vercel-build.test.ts
+  s_21d14c46149a99::t_25069b9bf240a5 57
+  s_21d14c46149a99::t_271e56628fcdb3 1-18,20,22-26,28-40,44-46,55-56,58-68
+  s_21d14c46149a99::t_5c68db25f986f5 19,21,27
+  s_21d14c46149a99::t_ca619b2ad8f43f 41-43,47-54
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_21d14c46149a99::t_ec5b4c1eac991e 344,347,356,359
+  s_21d14c46149a99::t_ee3ab2dd266067 345-346,348,357-358,360
+  s_21d14c46149a99::t_5c68db25f986f5 336-339,350-351
+  s_21d14c46149a99::t_96a6c14d88b54e 85-88,362-364,377
+  s_21d14c46149a99::t_adb033456baa07 340-343,349,352-355,361,369,382
+  s_21d14c46149a99::t_473fbc9e6e87bc 8,335,365-368,370-376,378-381,383
+  s_21d14c46149a99::t_222cfd06ca3867 384
+packages/core/src/rsc/codec.ts
+  s_21d14c46149a99::t_f50371a49c8fb3 57-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d353de9142b790f2895a95dbe2876bd664a29a5",
+  "prompts": {},
+  "sessions": {
+    "s_21d14c46149a99": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0d7f6-0910-7150-96f2-acc22cb59f69",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

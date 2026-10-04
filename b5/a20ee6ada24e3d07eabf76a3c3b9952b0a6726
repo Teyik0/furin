@@ -1,0 +1,36 @@
+apps/docs/tests/landing-font.test.tsx
+  s_3374b237594169::t_d41943fed31832 1-34
+apps/docs/src/pages/globals.css
+  s_3374b237594169::t_30ca9a67783e0f 355-361,588-590,592
+  s_3374b237594169::t_61bf54eab21c07 591,593
+apps/docs/src/components/landing/chime-scene.ts
+  s_3374b237594169::t_aaaf31e3e9f72d 280,356-364,383-384,387,798,802
+  s_3374b237594169::t_c60b689c7f378f 799-801,803-806
+  s_3374b237594169::t_87b3b045d74f7d 376-379
+apps/docs/src/components/landing/chime-canvas.tsx
+  s_3374b237594169::t_2c225436d406b7 6-12,57-74,76-83,86-91,93-95,97-103,106-113,115-129,131-147
+  s_3374b237594169::t_9cf25aaea72325 84-85
+  s_3374b237594169::t_4cf4b02b194b4f 151
+apps/docs/src/pages/index.tsx
+  s_3374b237594169::t_30ca9a67783e0f 170
+  s_3374b237594169::t_e8870605e1eb8b 17,157
+apps/docs/src/components/landing/landing-font.tsx
+  s_3374b237594169::t_bbad8d3cda7af8 1-18,20-23
+  s_3374b237594169::t_a91d9c119e6051 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5a20ee6ada24e3d07eabf76a3c3b9952b0a6726",
+  "prompts": {},
+  "sessions": {
+    "s_3374b237594169": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a5dd1ac-8c1b-417b-88f1-7a887407992b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

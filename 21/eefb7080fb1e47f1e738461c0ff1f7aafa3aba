@@ -1,0 +1,21 @@
+.github/workflows/distributed-sync-validation.yaml
+  s_cef9e2f8108a55::t_5323ac99f2aff9 58-62
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_cef9e2f8108a55::t_b5ff49dab7c7bd 138-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21eefb7080fb1e47f1e738461c0ff1f7aafa3aba",
+  "prompts": {},
+  "sessions": {
+    "s_cef9e2f8108a55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f0ff-6af6-7551-83ec-5241ee0de4c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

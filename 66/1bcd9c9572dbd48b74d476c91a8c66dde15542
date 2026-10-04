@@ -1,0 +1,70 @@
+examples/task-manager/src/components/ui/kanban.tsx
+  s_4dfcc3d6c2e018::t_3469eafa1c1afb 388
+package.json
+  s_36e4817f63d05c::t_507563cd3b270a 46
+apps/scaffolder/src/generated/package-catalog.json
+  s_36e4817f63d05c::t_507563cd3b270a 6
+.github/workflows/vercel-benchmark.yaml
+  s_36e4817f63d05c::t_507563cd3b270a 124
+examples/task-manager/tests/create-board-form.test.tsx
+  s_4dfcc3d6c2e018::t_bab15407f300a4 49-97
+  s_4dfcc3d6c2e018::t_6c8a52191a0d3b 98,100
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_4dfcc3d6c2e018::t_03b3f8782e4ae5 280,348
+  s_4dfcc3d6c2e018::t_e5f23b269e6293 76
+packages/core/tests/client/sync/mutation-client.test.tsx
+  s_4dfcc3d6c2e018::t_1a935b46bb745a 116-121,163-178,182-198
+  s_4dfcc3d6c2e018::t_813b7634e22953 129,161,199-200
+  s_4dfcc3d6c2e018::t_2d5e3d38fa47ad 122-128,130-160,162
+  s_4dfcc3d6c2e018::t_5df920c8ce48de 179-181
+packages/core/tests/contract/mutation-types.type.test.ts
+  s_4dfcc3d6c2e018::t_94626199b21bca 22,26-27,35-36,58-79
+  s_4dfcc3d6c2e018::t_5f2c49ea42c72e 80-86
+.github/workflows/ci.yaml
+  s_36e4817f63d05c::t_507563cd3b270a 167
+apps/docs/src/content/docs/deployment.mdx
+  s_36e4817f63d05c::t_507563cd3b270a 24
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_4dfcc3d6c2e018::t_3469eafa1c1afb 237-241,323,347,359
+  s_4dfcc3d6c2e018::t_03b3f8782e4ae5 242
+  s_4dfcc3d6c2e018::t_5df920c8ce48de 243-266,268
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_4dfcc3d6c2e018::t_03b3f8782e4ae5 194,210
+CHANGELOG.md
+  s_36e4817f63d05c::t_f8695b12abf0dd 27,35
+apps/docs/src/content/docs/sync.mdx
+  s_4dfcc3d6c2e018::t_bab15407f300a4 284,286-288,293,299
+packages/core/src/client/mutation.ts
+  s_4dfcc3d6c2e018::t_2d5e3d38fa47ad 42
+  s_4dfcc3d6c2e018::t_c5f9cfc49e4481 11-22,24,43-56
+apps/scaffolder/README.md
+  s_36e4817f63d05c::t_507563cd3b270a 159
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_36e4817f63d05c::t_6bf4f59fa40e9a 228
+bun.lock
+  s_36e4817f63d05c::t_5fdbda039d8cd1 164,1146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "661bcd9c9572dbd48b74d476c91a8c66dde15542",
+  "prompts": {},
+  "sessions": {
+    "s_36e4817f63d05c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10289-2f57-78b1-b950-3b078add2312",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4dfcc3d6c2e018": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fb42-8647-7710-a1f9-47b90f2adc21",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

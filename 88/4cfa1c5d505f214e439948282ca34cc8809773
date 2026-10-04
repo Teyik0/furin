@@ -1,0 +1,96 @@
+packages/core/tests/build/preload-manifest.test.ts
+  s_3374b237594169::t_fed88e6673e219 8,42,48-51,132-164
+  s_3374b237594169::t_3da8b880e3fc2d 114-116
+  s_3374b237594169::t_a0272e83162494 1-7,9-41,43-47,52-64,78-82,84-90,92-110,112-113,117-118,173-174
+  s_3374b237594169::t_e89a8fc2ebcb40 119-121,123-131
+  s_3374b237594169::t_48daaf27953ebf 83,91,111,122,165-172
+  s_3374b237594169::t_3c2380a825595a 65-77
+packages/core/tests/build/hydrate/client-module.test.ts
+  s_3374b237594169::t_a638ea62d5e2e0 47-63
+  s_3374b237594169::t_f9452e2555c8c5 5-6
+  s_3374b237594169::t_d8734aa366dd60 1-4,7-46
+packages/core/src/server/internal.ts
+  s_3374b237594169::t_439626323e0a00 2,48-49
+packages/core/src/plugin/transform-client-module.ts
+  s_3374b237594169::t_f83280fd5a0631 60,106
+  s_3374b237594169::t_8639ccda6043ff 1-59,61-105,107-115
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_3374b237594169::t_4a8776bd709941 1-121
+packages/core/src/config.ts
+  s_3374b237594169::t_b98a5eb01f3620 102-105
+  s_3374b237594169::t_887ea543639551 101
+packages/core/src/adapter/runtime-build.ts
+  s_3374b237594169::t_b98a5eb01f3620 321
+  s_3374b237594169::t_86b7e5ed26e6ed 19-22,310,343,369
+packages/core/src/adapter/package.ts
+  s_3374b237594169::t_b98a5eb01f3620 67
+  s_3374b237594169::t_77b1d74ca2aa16 18-21,59,104,150
+packages/core/src/adapter/static.ts
+  s_3374b237594169::t_b98a5eb01f3620 481
+  s_3374b237594169::t_1c7ca98ee529b7 14-17,473,499
+packages/core/src/cli/index.ts
+  s_3374b237594169::t_b98a5eb01f3620 184
+packages/core/src/build/client.ts
+  s_3374b237594169::t_b98a5eb01f3620 59,221
+  s_3374b237594169::t_d1f484c196da38 10,33-34,148-149,183-185,217-220,222-223,226
+packages/core/src/server/render/ssr.ts
+  s_3374b237594169::t_4d32e96dd03bb9 59,347-351,397
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_3374b237594169::t_9947af97273590 158
+packages/core/src/build/types.ts
+  s_3374b237594169::t_b98a5eb01f3620 29-30,117-118
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_3374b237594169::t_08182d5cd19bb1 1-80
+  s_3374b237594169::t_6499e33023ac36 81-88
+packages/core/src/plugin/transform-isomorphic.ts
+  s_3374b237594169::t_89c433884ba356 13,16-18,408,414,416-417,431
+  s_3374b237594169::t_4d4209ed11e8a9 458-459
+packages/core/src/client.ts
+  s_3374b237594169::t_840c68bfc3339d 6-10
+packages/core/src/client/client-module.ts
+  s_3374b237594169::t_f116ffed66d854 36
+  s_3374b237594169::t_b3979a0844ed33 1-35,37-50
+packages/core/src/server/render/template.ts
+  s_3374b237594169::t_f116ffed66d854 229
+  s_3374b237594169::t_4d32e96dd03bb9 4-5,23,33,213-228,230,240
+packages/core/src/build/preload-manifest.ts
+  s_3374b237594169::t_06382b7c8cf3f0 1-100
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_3374b237594169::t_34587dea296421 21
+  s_3374b237594169::t_2992c747e3557e 299-322
+packages/core/src/client/document.tsx
+  s_3374b237594169::t_4d32e96dd03bb9 2,11-12,76-77
+  s_3374b237594169::t_a6f1763e5c980b 78
+apps/docs/src/content/docs/configuration.mdx
+  s_3374b237594169::t_2cbf52b516c436 36
+apps/docs/src/content/docs/link-navigation.mdx
+  s_3374b237594169::t_b002a6adf8c808 65-95
+packages/core/src/build/entry-template.ts
+  s_3374b237594169::t_c297bbe755e732 5,36-37,171-173,195
+packages/core/src/furin.ts
+  s_035d1b9503f515::t_299ac60e2960ce 40,264-266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "884cfa1c5d505f214e439948282ca34cc8809773",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3374b237594169": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a5dd1ac-8c1b-417b-88f1-7a887407992b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

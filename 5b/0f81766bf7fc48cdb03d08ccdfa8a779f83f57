@@ -1,0 +1,68 @@
+packages/core/tests/client/link/link-boundaries.test.tsx
+  s_f42af20f018982::t_7cea3cc9682460 45-46,88-90
+  s_f42af20f018982::t_2ad01d1a310931 16,18-19,113-119,121-122,130-133
+  s_f42af20f018982::t_79351e7c2da411 87,91-95,123-129
+  s_f42af20f018982::t_8afb04d6b0fdf6 120
+packages/core/src/client/route-api.tsx
+  s_f42af20f018982::t_d61557aedb40f2 11-17,19-20
+  s_f42af20f018982::t_61b0edf7742a72 49,51
+  s_f42af20f018982::t_dc8ed25dbbe31b 18,50
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_f42af20f018982::t_56a7046f23c83b 81-89
+packages/core/src/client/router/search/index.ts
+  s_f42af20f018982::t_f007023bb4c610 10,44,46,61,66,93
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_f42af20f018982::t_7cea3cc9682460 240-249
+  s_f42af20f018982::t_066988bf2a6b8b 31,83-90,179,237-239,250-264
+  s_f42af20f018982::t_26850d1b0a40e0 265
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_f42af20f018982::t_a41fd34b23972e 98-105,108-112
+  s_f42af20f018982::t_08421dc70f67b3 2,5,21,29-36,42-55,68-90,92-97,106-107,113-120
+  s_f42af20f018982::t_7cea3cc9682460 56-67
+  s_f42af20f018982::t_b7f3dcceeb9092 91
+  s_f42af20f018982::t_53ad30b16b0d22 121
+examples/task-manager/tests/board-card.test.tsx
+  s_f42af20f018982::t_d06c855b2ad1f7 22,34-39,49,52-62,64-101
+  s_f42af20f018982::t_e929c9879c1695 63,102-103
+examples/task-manager/src/components/create-board-form.tsx
+  s_f42af20f018982::t_332228d999048a 13-15,17-21
+  s_f42af20f018982::t_ef8cbbb192958e 16
+packages/core/src/client/router/provider.tsx
+  s_f42af20f018982::t_e71ecd9c086fd2 1304
+examples/task-manager/tests/create-board-form.test.tsx
+  s_f42af20f018982::t_f8199aa029a148 22,31-36,46,52-53,60-96
+  s_f42af20f018982::t_05ec4c5dcbb4ee 49-51,54-59
+  s_f42af20f018982::t_a1433213f75e3f 97-98
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_f42af20f018982::t_9e7e75b98e4af4 83-98,100-107,112-127
+examples/task-manager/src/components/ui/kanban.tsx
+  s_f42af20f018982::t_630a74217e3069 388-411,414-418
+packages/core/tests/client/navigation/route-api.test.tsx
+  s_f42af20f018982::t_6997e9869afb36 74,83,85-86
+  s_f42af20f018982::t_29470951ad21c6 82,84,88-89
+  s_f42af20f018982::t_baf289b691539f 156,175
+  s_f42af20f018982::t_7cea3cc9682460 87
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_f42af20f018982::t_dcd5203cc8d783 34-36
+examples/task-manager/src/components/board-card.tsx
+  s_f42af20f018982::t_ef8cbbb192958e 28
+  s_f42af20f018982::t_0002c45a18009e 25-27,29-32
+bun.lock
+  s_f42af20f018982::t_c81ffdeea13ca1 115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5b0f81766bf7fc48cdb03d08ccdfa8a779f83f57",
+  "prompts": {},
+  "sessions": {
+    "s_f42af20f018982": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f91d-a136-7922-87b0-7a7f15734867",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

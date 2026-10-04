@@ -1,0 +1,24 @@
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_cef9e2f8108a55::t_666ff12b83c18b 388
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_cef9e2f8108a55::t_f79771e3b72e9d 4-10,13,20-23,47,62-63,86,102-103,137,152-153,173
+  s_cef9e2f8108a55::t_02f91784f93d97 11-12,14-19
+packages/core/tests/client/sync/atomic-postgres-sync.test.ts
+  s_cef9e2f8108a55::t_666ff12b83c18b 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f576fb206211627d6a2e88107768c9d52827772a",
+  "prompts": {},
+  "sessions": {
+    "s_cef9e2f8108a55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f0ff-6af6-7551-83ec-5241ee0de4c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

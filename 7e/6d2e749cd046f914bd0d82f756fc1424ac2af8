@@ -1,0 +1,221 @@
+packages/core/tests/build/hydrate/client-module.test.ts
+  s_96675323854193::t_32500570666480 78-79,82-95
+  s_96675323854193::t_48ecdcb0754bd4 8,80-81
+  s_19624855ad92f6::t_78c13c826dc7c4 6,32-43
+  s_19624855ad92f6::t_ca6b15573ce6d5 44
+packages/core/src/server/render/ppr-route.ts
+  s_96675323854193::t_243a3937c4f4d8 392
+  s_96675323854193::t_041228095c83d2 393-395,397-402,409-410
+  s_96675323854193::t_c31ecfceb8eadd 396,403-407
+packages/core/src/server/cache/isr.ts
+  s_96675323854193::t_fccd744700a463 4,12,18,20,45,49
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_19624855ad92f6::t_ef3fd26f638fec 17-20,22-24,27-31,33-38
+  s_19624855ad92f6::t_1a91745787e6e0 21,25-26,32
+  s_19624855ad92f6::t_a5628b424479b4 87
+packages/core/src/server/dev-page-plugin.ts
+  s_19624855ad92f6::t_dfe26b420c578d 268
+packages/core/src/server/sync/mutation-handler.ts
+  s_96675323854193::t_4050bbadc70508 1,3-5,7-8,10-11,18-25,31-69
+  s_96675323854193::t_e6bcf90c1e1427 2,6,12-17,26-30
+  s_96675323854193::t_827dcd6f234f81 9
+packages/core/src/server/sync/validation.ts
+  s_96675323854193::t_4050bbadc70508 3,10
+packages/core/tests/build/hydrate/strip-plugin.test.ts
+  s_96675323854193::t_c33ebfcfe9eea2 1-28
+packages/core/src/plugin/transform-client.ts
+  s_19624855ad92f6::t_0f61bf49ac9ae9 231-233,266-272,308-323,325,327-411,1071-1078,1081-1083
+  s_19624855ad92f6::t_af9b87305b6e6c 236,298-299,324,326
+  s_96675323854193::t_bd93d593364914 185,207-208,215-219,223-227,1070
+  s_96675323854193::t_1da80b07a7a114 169-184,187-189,197-198
+  s_96675323854193::t_75f87b1f8a2fb5 164-168,190-196,199-203,209-214,220-222
+  s_96675323854193::t_7ff44ba661ab8e 186,204-206
+  s_19624855ad92f6::t_47ca7798313ac5 265,291-297,300-307
+  s_19624855ad92f6::t_31384c9210ed32 412
+packages/core/tests/client/sync/sync.test.ts
+  s_96675323854193::t_1e6179263c99b9 591,625,628,630
+packages/core/src/client/hmr.ts
+  s_19624855ad92f6::t_bb419136f07368 60-61
+packages/core/tests/client/sync/query-sync.test.ts
+  s_96675323854193::t_1e6179263c99b9 57-58,137-138
+packages/core/tests/runtime/cache/local-page-cache.test.tsx
+  s_96675323854193::t_d0d0e534025667 3,118-130
+  s_96675323854193::t_e20e4f0ea8a996 1-2,4-70
+  s_96675323854193::t_59cc8eb03e3ee0 97-98,100-103,106-117,131
+  s_96675323854193::t_243a3937c4f4d8 99,104-105
+  s_96675323854193::t_952e722721b674 71-96
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_96675323854193::t_943b764defa45b 95,98,122,125,165
+  s_96675323854193::t_772e1e41cc6e64 116-121,123,126-130,137-151,153-162
+  s_96675323854193::t_c82a0965f5ce5a 1,3,5-8,10-38,44-58,64-94,96,99-115
+  s_96675323854193::t_86de777b1c9ccb 2,163-164,166-190
+  s_96675323854193::t_03ba9e7dab29bc 4,9,39-42,59-63,131-136
+  s_96675323854193::t_220ca2a085e2af 43,97,124,152
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_96675323854193::t_a5210562395703 2,46-87
+packages/core/src/plugin/transform-client-module.ts
+  s_19624855ad92f6::t_1d1340645bbd37 106-114
+packages/core/src/server/router/plugin.ts
+  s_96675323854193::t_a39e74cf1ffb34 358-359,364
+  s_96675323854193::t_e22e3d0ff65dc0 6,113-116,170,172-182,187,192
+  s_96675323854193::t_c31ecfceb8eadd 372-375
+  s_96675323854193::t_243a3937c4f4d8 171
+packages/core/tests/client/link/scroll-restoration.test.tsx
+  s_96675323854193::t_abf5fff0acc830 333-364
+packages/core/src/adapter/package.ts
+  s_96675323854193::t_833f70d11809bc 16-17,180-181
+packages/core/src/client/router/provider.tsx
+  s_96675323854193::t_4ef373087568d5 267,758,764,917-919,1000,1022
+  s_96675323854193::t_ef1171e67c5fa0 545,547-551
+  s_96675323854193::t_7909148647f1b8 174,178
+  s_96675323854193::t_5fca18353cfbf9 1104
+packages/core/src/server/sync/redis/scripts.ts
+  s_96675323854193::t_911b209667c1ce 51
+packages/core/tests/client/sync/mutation-client.test.tsx
+  s_19624855ad92f6::t_be4c52edbf58f4 20-21,27-30,34,40,71
+packages/core/src/server/sync/redis/index.ts
+  s_96675323854193::t_911b209667c1ce 44,95-98,104-105
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_96675323854193::t_3f1d3e7465305a 174-192,221-224
+  s_96675323854193::t_8ee3e0a2a63af0 153
+  s_96675323854193::t_64236c165507db 17-18,193-220
+packages/core/src/server/sync/plugin.ts
+  s_96675323854193::t_213bd5695c858a 2,374
+  s_96675323854193::t_4050bbadc70508 28,340,412
+  s_96675323854193::t_27252f7bbde21e 341-344
+  s_96675323854193::t_e6bcf90c1e1427 345-346
+  s_96675323854193::t_f0664b611ca339 347
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_96675323854193::t_633fbcda29ed1d 11,251-297
+  s_19624855ad92f6::t_469684103c572e 298-299
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_19624855ad92f6::t_1e14ba7b15def5 35-37
+packages/core/src/shared/sync-query.ts
+  s_96675323854193::t_213bd5695c858a 26-31
+  s_19624855ad92f6::t_0fa04a3e73aefd 32
+packages/core/src/build/client.ts
+  s_96675323854193::t_b8371447084f2d 179-183
+  s_96675323854193::t_cd24c46b177918 141
+packages/core/tests/rendering/document/document-script.test.tsx
+  s_19624855ad92f6::t_d3340b86bd5db4 19-22,24,41
+  s_96675323854193::t_bda1f76fdb5ea2 23
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_96675323854193::t_52923903cf3073 185-225
+  s_96675323854193::t_e3d08a718d7750 118,127-140,181-184
+  s_96675323854193::t_b1fab867b9f61a 119-121,161-180
+  s_96675323854193::t_2b09d218f54b8a 3,69
+  s_96675323854193::t_f3b862a83a9f0a 1-2,4-5,7-38
+  s_96675323854193::t_3ff5eb73279cb4 39-41,43-58,114-117
+  s_96675323854193::t_1e447f9464edb4 42,85,100
+  s_96675323854193::t_27252f7bbde21e 122-126,141-160
+  s_96675323854193::t_3da702a5ba075e 6,59-68,70-84,86-99,101-113
+packages/core/src/client/mutation.ts
+  s_19624855ad92f6::t_7b489b53633df6 40-41,94-97,100
+  s_19624855ad92f6::t_abf285a0754a36 98-99
+packages/core/src/server/sync/stream.ts
+  s_96675323854193::t_2b09d218f54b8a 154-155,161-167,169-172
+  s_96675323854193::t_911b209667c1ce 3
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_96675323854193::t_cb703ad708907f 123-124,126-135,137-138
+  s_96675323854193::t_c2aa6bf5dbb5d9 139-157
+  s_96675323854193::t_b8296f68c9d247 125
+  s_96675323854193::t_d221ccab656fbc 136
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_19624855ad92f6::t_0933ca8513a3a2 369
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_96675323854193::t_a5210562395703 208
+packages/core/tests/runtime/plugin/data-endpoint-cache.test.tsx
+  s_96675323854193::t_3cfaf2feb63959 59-87
+packages/core/src/client/client-module.ts
+  s_19624855ad92f6::t_e9cf8793ca168a 12-17,53,55
+packages/core/src/server/sync/queries.ts
+  s_96675323854193::t_213bd5695c858a 72
+  s_19624855ad92f6::t_3719f5db30428e 8
+packages/core/src/shared/page-key.ts
+  s_19624855ad92f6::t_0485362131d7a2 29-30,35
+  s_19624855ad92f6::t_d3340b86bd5db4 8-11,21,31-34
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_96675323854193::t_3e0705790434d5 5,195-220
+  s_96675323854193::t_06c0c48b911ec0 221-222
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_19624855ad92f6::t_fc63cf01b3f22e 37,56-58,97,111,123-135
+  s_19624855ad92f6::t_f6b80897e4ad1b 136
+packages/core/src/server/render/react-stream.ts
+  s_19624855ad92f6::t_e9cf8793ca168a 1-12,17
+  s_19624855ad92f6::t_a5628b424479b4 13-16
+packages/core/src/server/render/ssg.ts
+  s_96675323854193::t_a39e74cf1ffb34 84,150
+  s_96675323854193::t_dc19d5855d1eb6 102-103,107
+  s_96675323854193::t_c31ecfceb8eadd 104-106
+  s_96675323854193::t_243a3937c4f4d8 243
+  s_96675323854193::t_c30befb4f2372c 11,54,61,67,77,80-83,85-90,92,94-101,227
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_19624855ad92f6::t_8ac189a15b7bc3 9-26
+  s_19624855ad92f6::t_b8fcdbd4daaa5a 27-52
+  s_96675323854193::t_6fcf773121d490 60-66
+  s_96675323854193::t_c003589e337e48 53-59
+  s_96675323854193::t_c8f051793e5659 67-73
+packages/core/src/adapter/runtime-build.ts
+  s_96675323854193::t_07d23d0e6fa83f 46,82,117,122-132,134-139,141-143,145-146,148-151,162-169
+  s_96675323854193::t_5017ef7fbcdcfc 1,118-121,187-188,197
+  s_96675323854193::t_34309299cd7492 133,140,144,147
+packages/core/src/server/cache/route-cache.ts
+  s_96675323854193::t_24544d4b64d1d3 8-11,13,22,63,66-72,84,95-104,106-108,140-143,152-158
+  s_96675323854193::t_fccd744700a463 135
+packages/core/tests/rendering/document/document-head.test.tsx
+  s_19624855ad92f6::t_d3340b86bd5db4 67-70
+packages/core/src/client.ts
+  s_19624855ad92f6::t_a5628b424479b4 55-59
+packages/core/src/server/render/ssr.ts
+  s_96675323854193::t_d6fe0e9423b4d3 527-533
+  s_96675323854193::t_6cd56a32fe8830 534-556,598
+  s_96675323854193::t_b64e7fa0d6cf54 22-23,597,599
+  s_19624855ad92f6::t_b6a8528547abd4 55,600
+packages/core/tests/runtime/security/csp.test.tsx
+  s_19624855ad92f6::t_2a96a81e4496c2 4,52-54,77-80,91-95,99-100
+  s_19624855ad92f6::t_a5628b424479b4 96-98
+packages/core/src/server/sync/fingerprint.ts
+  s_96675323854193::t_7036aecbc2ea07 35-36
+packages/core/tests/client/hmr-component.test.ts
+  s_19624855ad92f6::t_eeb1656d72926c 1,10-26
+  s_19624855ad92f6::t_acd9b7f87920cc 27
+packages/core/tests/rendering/ssr/page-identity.test.tsx
+  s_19624855ad92f6::t_abf285a0754a36 24-25,29,68,70-74,98-99,101,110
+  s_96675323854193::t_1d00a5335eed58 69,100
+  s_19624855ad92f6::t_edb231aa0180b7 21,30,97,102-104
+packages/core/src/plugin/index.ts
+  s_96675323854193::t_087b2daba9d0fe 102
+  s_96675323854193::t_63589e74a51ccf 41
+  s_96675323854193::t_a5cc0a093e5465 43-46,76-81
+  s_19624855ad92f6::t_20d3a5ad847607 1,42,87-95
+  s_96675323854193::t_a9f1bff905ea7b 2
+packages/core/tests/client/sync/adapters/redis-sync.test.ts
+  s_96675323854193::t_62cc40ec65f896 3-4,44-62
+  s_19624855ad92f6::t_9905524f49afda 63
+packages/core/src/server/render/not-found.ts
+  s_19624855ad92f6::t_ad166f7e5e5b61 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7e6d2e749cd046f914bd0d82f756fc1424ac2af8",
+  "prompts": {},
+  "sessions": {
+    "s_19624855ad92f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102b1-f879-7d63-87d5-f4c5bd751615",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

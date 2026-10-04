@@ -1,0 +1,21 @@
+packages/core/tests/routing/cache/dev-loader-cache-primitives.test.ts
+  s_13b9bbaf2a91a1::t_0239f1d53b3635 224-228,244-247
+  s_13b9bbaf2a91a1::t_8c3842b5f829d0 248-249
+  s_13b9bbaf2a91a1::t_f8e44a6831e844 250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c36b1036bf1e2b8d2699d19375725b7d3f5b1a25",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

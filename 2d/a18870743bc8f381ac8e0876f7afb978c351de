@@ -1,0 +1,24 @@
+packages/core/tests/contract/define-route.test.tsx
+  s_1b22c438b33a80::t_69c676a3e4f4fa 188,198,200,202,204
+packages/core/src/server/render/loaders.ts
+  s_1b22c438b33a80::t_a980e35ee6d141 124-126,134,158-160,613-614
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_1b22c438b33a80::t_4eab07c3fb7850 79-111,113-123
+  s_1b22c438b33a80::t_6d5b459b04b112 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2da18870743bc8f381ac8e0876f7afb978c351de",
+  "prompts": {},
+  "sessions": {
+    "s_1b22c438b33a80": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e91d-f151-7cd0-96b1-45c8b5befdcb",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

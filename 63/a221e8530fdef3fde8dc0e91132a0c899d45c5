@@ -1,0 +1,23 @@
+packages/core/src/rsc/shared.tsx
+  s_96675323854193::t_88c141f91cb924 115-117
+  s_96675323854193::t_ff334538685342 110-111
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_96675323854193::t_b9bb9bc52bb9dd 430-431,440,443-444,446-452,456,460-466,468
+  s_96675323854193::t_21edd2493de60c 432-439,441-442,445,453-455,457-459,467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "63a221e8530fdef3fde8dc0e91132a0c899d45c5",
+  "prompts": {},
+  "sessions": {
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

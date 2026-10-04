@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  s_60a29d9fb49afc::t_31f485ec685ce7 270-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ebd558fbe964d440a52b9586fb06e6c8ad779302",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

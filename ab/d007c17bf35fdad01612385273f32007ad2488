@@ -1,0 +1,104 @@
+apps/docs/src/components/hero-section.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 3,6-11,13,16,18-22,25-30,33,41-83,98-99,102-103
+apps/docs/tests/landing-font.test.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-34
+packages/core/src/build/preload-manifest.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-100
+packages/core/src/furin.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 40,265-267
+apps/docs/src/components/landing/chime-canvas.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-184
+apps/docs/src/components/landing/stack-reveal.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-137
+packages/core/src/build/entry-template.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 5,36-37,171-173,195
+packages/core/tests/build/preload-manifest.test.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-174
+apps/docs/src/content/docs/link-navigation.mdx
+  s_360822fb70d6ce::t_4c4724fe5538a1 65-95
+packages/core/src/plugin/transform-isomorphic.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 13,16-18,408,414,416-417,431,458-459
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-121
+packages/core/tests/build/hydrate/client-module.test.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-63
+apps/docs/tests/sync-demo.test.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-14
+packages/core/src/client/document.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 2,11-12,76-77
+  s_360822fb70d6ce::t_f31c0c0f89bf7c 78
+packages/core/src/adapter/static.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 14-17,473,481,499
+packages/core/src/cli/index.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 184
+packages/core/src/config.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 102-105
+  s_360822fb70d6ce::t_79dd7b56da74a0 101
+apps/docs/src/components/landing/landing-font.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-23
+apps/docs/src/pages/index.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 3,16-23,34,36-37,82-166,177-186,190-197,199-205,207-212,214-222,224-229,231,234,236-241,245-269,271,273-284,286-340
+packages/core/src/adapter/runtime-build.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 19-22,310,321,343,369
+apps/docs/public/fonts/Geist-OFL.txt
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-93
+apps/docs/src/components/landing/modes-grid.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-74
+packages/core/src/client/client-module.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-50
+apps/docs/src/components/landing/sync-section.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-125
+packages/core/src/adapter/package.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 18-21,59,67,104,150
+apps/docs/src/components/landing/chime-scene.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-1284
+packages/core/src/build/client.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 10,33-34,59,148-149,183-185,217-223,226
+packages/core/src/client.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 6-10
+packages/core/src/build/types.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 29-30,117-118
+packages/core/src/server/render/ssr.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 60,349-353,399
+apps/docs/src/components/landing/copy-command.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-48
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 202
+apps/docs/src/components/landing/ship-section.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-67
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-88
+packages/core/src/server/internal.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 2,48-49
+apps/docs/src/content/docs/configuration.mdx
+  s_360822fb70d6ce::t_4c4724fe5538a1 36
+apps/docs/src/components/landing/sync-demo.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-157
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 21,299-320
+  s_360822fb70d6ce::t_7ce36a670a0d7e 321-322
+packages/core/src/plugin/transform-client-module.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-115
+packages/core/src/server/render/template.ts
+  s_360822fb70d6ce::t_4c4724fe5538a1 4-5,23,33,213-230,240
+apps/docs/src/pages/globals.css
+  s_360822fb70d6ce::t_4c4724fe5538a1 141-761
+apps/docs/src/components/landing/reveal.tsx
+  s_360822fb70d6ce::t_4c4724fe5538a1 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "abd007c17bf35fdad01612385273f32007ad2488",
+  "prompts": {},
+  "sessions": {
+    "s_360822fb70d6ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fb41-da49-7ca1-ae7e-5268ef053913",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+.github/workflows/vercel-benchmark.yaml
+  h_a2cbd1b0e3ae6e 4-5,18,21-22,26,30-31,33-43,46,56,65,72,78,82,89,97,100-101,109,116,119,128-131,147-148,157-158,173
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  h_a2cbd1b0e3ae6e 8-14,17,23-27,29-30,61,76,118-145,162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e3fc12f45b031f448b5da67c08e4e79029a7f0ef",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
