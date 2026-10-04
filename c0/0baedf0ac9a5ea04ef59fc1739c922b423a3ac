@@ -1,0 +1,33 @@
+.github/workflows/ci.yaml
+  s_9f7f06cf3ad0c4::t_bcbc98b8b8963c 236-248
+packages/core/src/build/elysia-aot-worker.ts
+  s_f87a4dd9e4ccb8::t_2753e80a2bb851 21-26,29,56,58-62
+packages/core/src/build/elysia-aot.ts
+  s_f87a4dd9e4ccb8::t_2ee391de36094c 90-95
+packages/core/tests/build/elysia-aot-worker-errors.test.ts
+  s_f87a4dd9e4ccb8::t_68f3de528684f3 1-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c00baedf0ac9a5ea04ef59fc1739c922b423a3ac",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_f87a4dd9e4ccb8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a107a8-f5f9-7872-bdd1-2eb9b387d98d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+apps/docs/src/content/docs/deployment.mdx
+  s_fdfc7b46fb89f9::t_71ddf36d753203 312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7f78b73f07863c9022db9fbd7fcef95fcfed97f1",
+  "prompts": {},
+  "sessions": {
+    "s_fdfc7b46fb89f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1057a-ce6d-7fb3-997b-5ca33ae3bc7a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
