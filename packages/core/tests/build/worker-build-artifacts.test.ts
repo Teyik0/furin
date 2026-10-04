@@ -19,11 +19,16 @@ test("Worker manifest paths resolve after relocating an application", async () =
     for (const path of [target.targetDir, target.clientDir, target.serverEntry, target.serverPath]) {
       expect(path).not.toBeNull();
       expect(isAbsolute(path as string)).toBe(false);
+      expect(path as string).not.toContain("\\");
       expect(existsSync(join(relocated.path, path as string))).toBe(true);
     }
     const config = await Bun.file(join(relocated.path, target.targetDir, "wrangler.jsonc")).json();
-    expect(join(target.targetDir, config.main as string)).toBe(target.serverPath as string);
-    expect(join(target.targetDir, config.assets.directory as string)).toBe(target.clientDir as string);
+    expect(join(relocated.path, target.targetDir, config.main as string)).toBe(
+      join(relocated.path, target.serverPath as string)
+    );
+    expect(join(relocated.path, target.targetDir, config.assets.directory as string)).toBe(
+      join(relocated.path, target.clientDir as string)
+    );
     expect(target.templatePath).toBeNull();
     expect(existsSync(join(app.path, ".furin/build/analysis"))).toBe(false);
   } finally {
