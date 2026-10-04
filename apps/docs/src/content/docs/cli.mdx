@@ -23,7 +23,7 @@ furin build [options]
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
 | `--compile` | `server` or `embed` | No executable; inherits `bun.compile` when configured | Produce a Bun executable |
-| `--analyze` | Boolean flag | `false` | Write client Bun metafiles under `.furin/build/analysis` |
+| `--analyze` | Boolean flag | `false` | Write Bun metafiles under `.furin/build/analysis` |
 
 `--compile` without a value means `server`; `--compile=embed` is also accepted.
 
@@ -66,7 +66,7 @@ Every successful build writes `.furin/build/manifest.json`. It records route mod
 
 ### Analyze Output
 
-`--analyze` writes Bun metafiles for client builds. They describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
+`--analyze` writes Bun metafiles for client builds and the Bun, Vercel, and Cloudflare server builds. Cloudflare emits both `cloudflare-client.json` and `cloudflare-server.json`. Analysis stays outside the public asset directory. These graphs describe emitted byte sizes and import contributions, but do not measure startup latency, request throughput, memory, or edit-to-paint time.
 
 ## `furin preview`
 

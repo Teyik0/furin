@@ -5,7 +5,7 @@ import { runBunBuild } from "../build/bun-build.ts";
 import { elysiaAot } from "../build/elysia-aot.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
-import { ensureDir, toPosixPath } from "../build/shared.ts";
+import { buildTargetManifest, ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, TargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
@@ -116,6 +116,23 @@ function readAssetHeaders(publicDir: string): string {
   return `${publicHeaders}\n/_client/*\n  ! Cache-Control\n  Cache-Control: public, max-age=31536000, immutable\n`;
 }
 
+function writeServerMetafile(
+  build: Bun.BuildOutput,
+  analyze: boolean | undefined,
+  buildRoot: string
+): void {
+  if (!analyze) {
+    return;
+  }
+  if (build.metafile === undefined) {
+    throw new Error("[furin] Cloudflare server build did not produce the requested metafile.");
+  }
+  const metafilePath = join(buildRoot, "analysis", "cloudflare-server.json");
+  ensureDir(dirname(metafilePath));
+  writeFileSync(metafilePath, `${JSON.stringify(build.metafile, null, 2)}\n`);
+  console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
+}
+
 export async function buildCloudflareTarget(
   apps: RuntimeTargetApp[],
   rootDir: string,
@@ -188,10 +205,11 @@ export async function buildCloudflareTarget(
     `import app from ${JSON.stringify(toPosixPath(appEntry))};
 app.compile();
 const dataPaths = ${JSON.stringify(apps.map((app) => `${app.prefix}/_furin/data`))};
+const htmlMediaType = /^\\s*text\\/html(?:\\s*;|$)/i;
 export default { async fetch(request) {
   const response = await app.handle(request);
   if (response.status === 101) return response;
-  if (response.headers.get("content-type")?.includes("text/html") ||
+  if (htmlMediaType.test(response.headers.get("content-type") ?? "") ||
       dataPaths.includes(new URL(request.url).pathname) ||
       !response.headers.get("cache-control")) {
     const headers = new Headers(response.headers);
@@ -209,6 +227,7 @@ export default { async fetch(request) {
     entrypoints: [entry.entrypoint],
     files: entry.files,
     format: "esm",
+    metafile: options.analyze,
     minify: true,
     naming: { entry: "worker.[ext]" },
     outdir: targetDir,
@@ -236,6 +255,7 @@ export default { async fetch(request) {
       );
     }
   }
+  writeServerMetafile(serverBuild, options.analyze, buildRoot);
   writeFileSync(
     join(targetDir, "wrangler.jsonc"),
     `${JSON.stringify(
@@ -254,13 +274,12 @@ export default { async fetch(request) {
       2
     )}\n`
   );
+  const manifest = buildTargetManifest(rootDir, buildRoot, "cloudflare", serverEntry);
   return {
+    ...manifest,
     buildId: headlineBuildId,
-    clientDir: assetsDir,
-    generatedAt: new Date().toISOString(),
-    serverEntry,
-    serverPath: join(targetDir, "worker.js"),
-    targetDir,
+    clientDir: `${manifest.targetDir}/assets`,
+    serverPath: `${manifest.targetDir}/worker.js`,
     templatePath: null,
   };
 }

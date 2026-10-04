@@ -13,8 +13,17 @@ import Elysia from "elysia";
 export default new Elysia()
   .get("/private/plain", ({ request }) => new Response(request.headers.get("cookie")))
   .get("/private/json", ({ request }) => ({ user: request.headers.get("cookie") }))
+  .get("/private/mixed-html", ({ request }) => new Response(request.headers.get("cookie"), {
+    headers: { "content-type": "Text/HTML; Charset=UTF-8", "cache-control": "public, max-age=60" },
+  }))
+  .get("/private/upper-html", ({ request }) => new Response(request.headers.get("cookie"), {
+    headers: { "content-type": "TEXT/HTML", "cache-control": "public, max-age=60" },
+  }))
   .get("/redirect", () => Response.redirect("https://example.com/", 302))
   .get("/public/data", () => new Response("public", { headers: { "cache-control": "public, max-age=60" } }))
+  .get("/public/non-html", () => new Response("not HTML", {
+    headers: { "content-type": "text/htmlish", "cache-control": "public, max-age=60" },
+  }))
   .get("/upgrade", () => {
     const pair = new WebSocketPair();
     pair[1].accept();
@@ -30,7 +39,7 @@ export default new Elysia()
       compatibilityFlags: ["nodejs_compat"],
     });
     const origin = await runtime.ready;
-    for (const path of ["/private/plain", "/private/json"]) {
+    for (const path of ["/private/plain", "/private/json", "/private/mixed-html", "/private/upper-html"]) {
       for (const user of ["alice", "bob"]) {
         const response = await fetch(new URL(path, origin), {
           headers: { cookie: `session=${user}` },
@@ -55,6 +64,12 @@ export default new Elysia()
     expect(publicData.status).toBe(200);
     expect(publicData.headers.get("cache-control")).toBe("public, max-age=60");
     expect(await publicData.text()).toBe("public");
+    const nonHtml = await fetch(new URL("/public/non-html", origin), {
+      signal: AbortSignal.timeout(5000),
+    });
+    expect(nonHtml.status).toBe(200);
+    expect(nonHtml.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(await nonHtml.text()).toBe("not HTML");
     const upgrade = await runtime.dispatchFetch("http://localhost/upgrade", {
       headers: { upgrade: "websocket" },
     });
