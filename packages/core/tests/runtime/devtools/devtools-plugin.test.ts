@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
+import { isDevtoolsSnapshot } from "../../../src/devtools/protocol.ts";
 import {
   autoInvalidateRegistry,
   revalidateTag,
@@ -65,6 +66,18 @@ describe("native DevTools plugin", () => {
     const response = await app.handle(new Request("http://localhost/_furin/devtools/events"));
 
     expect(response.status).toBe(404);
+  });
+
+  test("snapshots carry the hub session and reject missing or mixed session metadata", async () => {
+    appendDevtoolsEvent({ revision: 1, timestamp: 1, type: "dev.ready" });
+    const app = new Elysia().use(createDevtoolsPlugin([], undefined));
+    const response = await app.handle(new Request("http://localhost/_furin/devtools/snapshot"));
+    const snapshot = await response.json();
+
+    expect(snapshot.sessionId).toBe(devtoolsEventsSnapshot().sessionId);
+    expect(isDevtoolsSnapshot(snapshot)).toBe(true);
+    expect(isDevtoolsSnapshot({ ...snapshot, sessionId: undefined })).toBe(false);
+    expect(isDevtoolsSnapshot({ ...snapshot, sessionId: "another-session" })).toBe(false);
   });
 
   test("exposes a strict route snapshot without loader values or absolute paths", async () => {

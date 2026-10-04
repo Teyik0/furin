@@ -274,6 +274,7 @@ export function createDevtoolsPlugin(
           prefix: instance.prefix,
         },
         lastEventId: eventSnapshot.lastEventId,
+        sessionId: eventSnapshot.sessionId,
         routes: (typeof routesSource === "function" ? routesSource() : routesSource).map(
           routeSnapshot
         ),

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { subscribeBrowserEvent, subscribeBrowserEventStatus } from "../client/browser-events.ts";
+import { devtoolsSampleKey, retainDevtoolsEvent } from "./event-history.ts";
 import {
   type DevtoolsCacheEntry,
   type DevtoolsRoute,
@@ -93,9 +94,12 @@ function cycleState(status: "fulfilled" | "rejected", reloaded: boolean): "bad" 
   return reloaded ? "warn" : "live";
 }
 
-function cycleResult(reloaded: boolean, painted: boolean): string {
+function cycleResult(reloaded: boolean, painted: boolean, hasClientPhases: boolean): string {
   if (reloaded) {
     return "Full reload";
+  }
+  if (!hasClientPhases) {
+    return "Awaiting correlation";
   }
   return painted ? "Painted" : "Applying";
 }
@@ -151,29 +155,29 @@ function PageHeader({
 
 export function mergeDevtoolsSnapshotEvents(
   current: DevtoolsServerEvent[],
-  snapshot: DevtoolsSnapshot,
-  currentInstanceId: string | null
+  snapshot: DevtoolsSnapshot
 ): DevtoolsServerEvent[] {
-  if (currentInstanceId !== null && currentInstanceId !== snapshot.instance.id) {
-    return snapshot.events.slice(-MAX_EVENTS);
-  }
   const merged = [
     ...snapshot.events,
     ...current.filter(
-      (event) => event.instanceId === snapshot.instance.id && event.id > snapshot.lastEventId
+      (event) =>
+        event.instanceId === snapshot.instance.id &&
+        event.sessionId === snapshot.sessionId &&
+        event.id > snapshot.lastEventId
     ),
   ];
-  const latestResourceIds = new Map<string, number>();
+  const latestSampleIds = new Map<string, number>();
   for (const event of merged) {
-    if (event.type === "browser.resources") {
-      latestResourceIds.set(event.clientId, event.id);
+    const key = devtoolsSampleKey(event);
+    if (key !== null) {
+      latestSampleIds.set(key, Math.max(latestSampleIds.get(key) ?? 0, event.id));
     }
   }
   return merged
-    .filter(
-      (event) =>
-        event.type !== "browser.resources" || latestResourceIds.get(event.clientId) === event.id
-    )
+    .filter((event) => {
+      const key = devtoolsSampleKey(event);
+      return key === null || latestSampleIds.get(key) === event.id;
+    })
     .slice(-MAX_EVENTS);
 }
 
@@ -201,15 +205,34 @@ function useDevtools(): {
   const [connected, setConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const snapshotInstanceId = useRef<string | null>(null);
+  const snapshotSessionId = useRef<string | null>(null);
+  const snapshotRequest = useRef(0);
+  const snapshotPending = useRef<boolean>(false);
+  const pendingEvents = useRef<DevtoolsServerEvent[]>([]);
 
   const applySnapshot = useCallback((candidate: DevtoolsSnapshot): void => {
-    const currentInstanceId = snapshotInstanceId.current;
     snapshotInstanceId.current = candidate.instance.id;
+    snapshotSessionId.current = candidate.sessionId;
+    const buffered = pendingEvents.current;
+    pendingEvents.current = [];
     setSnapshot(candidate);
-    setEvents((current) => mergeDevtoolsSnapshotEvents(current, candidate, currentInstanceId));
+    setEvents((current) => mergeDevtoolsSnapshotEvents([...current, ...buffered], candidate));
   }, []);
   const refresh = useCallback(async (): Promise<void> => {
-    applySnapshot(await requestDevtoolsSnapshot());
+    snapshotRequest.current += 1;
+    const request = snapshotRequest.current;
+    snapshotPending.current = true;
+    try {
+      const candidate = await requestDevtoolsSnapshot();
+      if (request === snapshotRequest.current) {
+        applySnapshot(candidate);
+        setConnectionError(null);
+      }
+    } finally {
+      if (request === snapshotRequest.current) {
+        snapshotPending.current = false;
+      }
+    }
   }, [applySnapshot]);
 
   useEffect(() => {
@@ -226,28 +249,41 @@ function useDevtools(): {
         subscribeBrowserEventStatus((status) => {
           if (!disposed) {
             setConnected(status === "connected");
+            if (status === "connected" && snapshotSessionId.current !== null) {
+              refresh().catch(() => undefined);
+            }
           }
         }) ?? null;
       unsubscribeEvents =
         subscribeBrowserEvent("devtools", ({ data: next }) => {
+          if (disposed || !isDevtoolsServerEvent(next)) {
+            return;
+          }
           if (
-            disposed ||
-            !isDevtoolsServerEvent(next) ||
-            (snapshotInstanceId.current !== null && next.instanceId !== snapshotInstanceId.current)
+            snapshotPending.current &&
+            (next.instanceId !== snapshotInstanceId.current ||
+              next.sessionId !== snapshotSessionId.current)
+          ) {
+            pendingEvents.current = retainDevtoolsEvent(pendingEvents.current, next).slice(
+              -MAX_EVENTS
+            );
+            return;
+          }
+          if (
+            (snapshotInstanceId.current !== null &&
+              next.instanceId !== snapshotInstanceId.current) ||
+            (snapshotSessionId.current !== null && next.sessionId !== snapshotSessionId.current)
           ) {
             return;
           }
           setEvents((current) => {
-            if (current.some((item) => item.id === next.id)) {
+            if (
+              snapshotSessionId.current !== null &&
+              next.sessionId !== snapshotSessionId.current
+            ) {
               return current;
             }
-            const retained =
-              next.type === "browser.resources"
-                ? current.filter(
-                    (item) => item.type !== "browser.resources" || item.clientId !== next.clientId
-                  )
-                : current;
-            return [...retained, next].slice(-MAX_EVENTS);
+            return retainDevtoolsEvent(current, next).slice(-MAX_EVENTS);
           });
         }) ?? null;
       if (unsubscribeEvents !== null && unsubscribeStatus !== null) {
@@ -264,12 +300,11 @@ function useDevtools(): {
         if (!subscribe()) {
           throw new Error("The development event transport is not ready.");
         }
-        const candidate = await requestDevtoolsSnapshot();
+        await refresh();
         if (disposed) {
           return;
         }
         setConnectionError(null);
-        applySnapshot(candidate);
         refreshTimer = setInterval(() => {
           if (document.visibilityState === "visible") {
             refresh().catch(() => undefined);
@@ -288,6 +323,8 @@ function useDevtools(): {
     connect().catch(() => undefined);
     return () => {
       disposed = true;
+      snapshotRequest.current += 1;
+      pendingEvents.current = [];
       unsubscribeEvents?.();
       unsubscribeStatus?.();
       if (refreshTimer !== null) {
@@ -396,6 +433,9 @@ function HmrCycleList({
         const cycleReload = events.some(
           (event) => event.type === "hmr.full-reload" && event.cycleId === build.cycleId
         );
+        const hasClientPhases = events.some(
+          (event) => event.type === "hmr.client.phase" && event.cycleId === build.cycleId
+        );
         return (
           <button
             className={build.cycleId === selectedCycleId ? "cycle active" : "cycle"}
@@ -407,7 +447,7 @@ function HmrCycleList({
             <StatusDot state={cycleState(build.status, cycleReload)} />
             <span>
               <strong>{basename(build.changedModules[0] ?? "Observed update")}</strong>
-              <small>{cycleResult(cycleReload, cyclePaint !== undefined)}</small>
+              <small>{cycleResult(cycleReload, cyclePaint !== undefined, hasClientPhases)}</small>
             </span>
             <time>{formatTime(build.timestamp)}</time>
           </button>
@@ -437,10 +477,15 @@ function clientEventsForCycle(
   if (!cycle) {
     return [];
   }
-  return events.filter(
-    (event): event is ClientPhaseEvent =>
-      event.type === "hmr.client.phase" && event.cycleId === cycle.cycleId
-  );
+  const phases = events
+    .filter(
+      (event): event is ClientPhaseEvent =>
+        event.type === "hmr.client.phase" && event.cycleId === cycle.cycleId
+    )
+    .sort((a, b) => a.clientTimestamp - b.clientTimestamp || a.id - b.id);
+  const clientId =
+    phases.findLast((event) => event.phase === "paint")?.clientId ?? phases.at(-1)?.clientId;
+  return phases.filter((event) => event.clientId === clientId);
 }
 
 function HmrPanel({
@@ -464,16 +509,21 @@ function HmrPanel({
   const selected =
     builds.find((build) => build.cycleId === selectedCycleId) ?? builds.at(0) ?? null;
   const clientEvents = clientEventsForCycle(selected, events);
+  const clientId =
+    clientEvents.at(-1)?.clientId ??
+    events.findLast(
+      (event): event is FullReloadEvent =>
+        event.type === "hmr.full-reload" && event.cycleId === selected?.cycleId
+    )?.clientId;
   const before = clientEvents.findLast((event) => event.phase === "before-update");
   const after = clientEvents.findLast((event) => event.phase === "after-update");
   const paint = clientEvents.findLast((event) => event.phase === "paint");
-  const reload =
-    selected === null
-      ? undefined
-      : events.findLast(
-          (event): event is FullReloadEvent =>
-            event.type === "hmr.full-reload" && event.cycleId === selected.cycleId
-        );
+  const reload = events.findLast(
+    (event): event is FullReloadEvent =>
+      event.type === "hmr.full-reload" &&
+      event.cycleId === selected?.cycleId &&
+      event.clientId === clientId
+  );
   const clientBuild = selected === null ? undefined : findClientBuild(selected, events);
   const total =
     selected === null
@@ -482,14 +532,17 @@ function HmrPanel({
           selected.durationMs,
           (paint?.clientTimestamp ?? selected.timestamp) - selected.detectedAt
         );
-  const connection = events.findLast((event) => event.type === "hmr.connection.changed");
+  const connection = events.findLast(
+    (event): event is Extract<DevtoolsServerEvent, { type: "hmr.connection.changed" }> =>
+      event.type === "hmr.connection.changed" && event.clientId === clientId
+  );
   const unresolvedError = unresolvedDevError(events);
 
   return (
     <>
       <PageHeader
         count={builds.length}
-        description="Every source change traced from detection through Bun, transport, application and the next paint opportunity."
+        description="Observed changes traced through Bun and one browser's next paint. Ambiguous updates remain uncorrelated."
         title="Hot module replacement"
       />
       <section className="metrics-grid">
@@ -544,6 +597,7 @@ function HmrPanel({
             <div className="cycle-heading">
               <div>
                 <p className="eyebrow">Cycle {selected.cycleId}</p>
+                <p className="eyebrow">Browser {clientId ?? "pending"}</p>
                 <h2>{selected.changedModules[0] ?? "Observed client update"}</h2>
               </div>
               <strong>{formatDuration(total)}</strong>

@@ -1,4 +1,6 @@
 import { subscribeBrowserEvent, subscribeBrowserEventStatus } from "../client/browser-events.ts";
+import { retainDevtoolsEvent } from "./event-history.ts";
+import { type HmrPhaseSample, HmrUpdateCorrelation } from "./hmr-correlation.ts";
 import {
   type DevtoolsBrowserEventInput,
   type DevtoolsBrowserEventPayload,
@@ -6,6 +8,7 @@ import {
   type DevtoolsFullReloadReason,
   type DevtoolsHmrClientPhase,
   type DevtoolsResource,
+  type DevtoolsServerEvent,
   type DevtoolsSnapshot,
   type DevtoolsSyncSnapshot,
   isDevtoolsServerEvent,
@@ -288,18 +291,55 @@ async function start(): Promise<void> {
 
   runtime.cleanup?.();
   cleanups.push(installSyncObserver(snapshot.sync, send));
-  const pendingCycles: Array<{ cycleId: string; detectedAt: number }> = [];
-  let pendingBeforeUpdate:
-    | {
-        detail: HmrRuntimeEvent;
-        timer: ReturnType<typeof setTimeout>;
-      }
-    | undefined;
-  let currentCycleId: string | null = null;
-  let lastCompletedAt = 0;
-  let updateInProgress = false;
+  const sendPhase = ({ clientTimestamp, ...payload }: HmrPhaseSample): void => {
+    send(payload, false, clientTimestamp);
+  };
+  const correlation = new HmrUpdateCorrelation(sendPhase);
   let updateStartedAt: number | null = null;
-  let updateStartedEpoch = 0;
+  let disposed = false;
+  let snapshotRequest = 0;
+  let connected = true;
+  let reconnectSince: number | null = null;
+  let retryDelay = 250;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingEvents: DevtoolsServerEvent[] = [];
+  const refreshCollectorSnapshot = async (): Promise<void> => {
+    snapshotRequest += 1;
+    const request = snapshotRequest;
+    try {
+      const response = await nativeFetch.call(window, assetUrl("/_furin/devtools/snapshot"));
+      const candidate: unknown = response.ok ? await response.json() : null;
+      if (disposed || request !== snapshotRequest) {
+        return;
+      }
+      if (!isDevtoolsSnapshot(candidate)) {
+        throw new Error("Invalid collector snapshot");
+      }
+      if (candidate.sessionId !== snapshot.sessionId && reconnectSince !== null) {
+        correlation.resetSession(reconnectSince);
+      }
+      const cycles = [...candidate.events, ...pendingEvents].filter(
+        (event): event is Extract<DevtoolsServerEvent, { type: "hmr.cycle.started" }> =>
+          event.type === "hmr.cycle.started" &&
+          event.sessionId === candidate.sessionId &&
+          event.instanceId === candidate.instance.id
+      );
+      for (const event of cycles) {
+        correlation.observe(event.cycleId, event.detectedAt);
+      }
+      snapshot = candidate;
+      pendingEvents = [];
+      reconnectSince = null;
+      retryDelay = 250;
+    } catch {
+      if (!disposed && request === snapshotRequest && connected) {
+        retryTimer = setTimeout(() => {
+          refreshCollectorSnapshot().catch(() => undefined);
+        }, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 5000);
+      }
+    }
+  };
   if (!customElements.get(ELEMENT_NAME)) {
     customElements.define(ELEMENT_NAME, FurinDevtoolsLauncher);
   }
@@ -322,10 +362,9 @@ async function start(): Promise<void> {
     } else if (detail.reason === "development-error-recovered") {
       reason = "development-error-recovered";
     }
-    currentCycleId ??= pendingCycles.shift()?.cycleId ?? null;
     send(
       {
-        cycleId: currentCycleId,
+        cycleId: correlation.currentCycleId(),
         reason,
         type: "hmr.full-reload",
       },
@@ -341,33 +380,21 @@ async function start(): Promise<void> {
     const durationMs =
       detail.durationMs ??
       (updateStartedAt === null ? null : Math.max(0, performance.now() - updateStartedAt));
-    send(
+    correlation.record(
       {
-        cycleId: currentCycleId,
+        cycleId: null,
         durationMs,
         module: detail.module,
         phase,
         type: "hmr.client.phase",
       },
-      false,
-      clientTimestamp
+      clientTimestamp ?? performance.timeOrigin + performance.now()
     );
     if (phase === "paint") {
       updateLauncher("connected", durationMs);
-      lastCompletedAt = performance.timeOrigin + performance.now();
-      updateInProgress = false;
       updateStartedAt = null;
-      currentCycleId = null;
+      correlation.complete();
     }
-  };
-  const flushBeforeUpdate = (): void => {
-    if (!pendingBeforeUpdate) {
-      return;
-    }
-    clearTimeout(pendingBeforeUpdate.timer);
-    const { detail } = pendingBeforeUpdate;
-    pendingBeforeUpdate = undefined;
-    sendClientPhase("before-update", detail, updateStartedEpoch);
   };
 
   const hmrListener = (event: Event): void => {
@@ -382,23 +409,17 @@ async function start(): Promise<void> {
     }
     if (detail.phase === "before-update") {
       updateStartedAt = performance.now();
-      updateStartedEpoch = performance.timeOrigin + updateStartedAt;
-      updateInProgress = true;
-      currentCycleId = pendingCycles.shift()?.cycleId ?? null;
-      pendingBeforeUpdate = {
-        detail,
-        timer: setTimeout(flushBeforeUpdate, 20),
-      };
+      const startedAt = performance.timeOrigin + updateStartedAt;
+      correlation.begin(startedAt);
+      sendClientPhase("before-update", detail, startedAt);
       return;
     }
     if (detail.phase === "full-reload" || detail.phase === "before-full-reload") {
-      flushBeforeUpdate();
       sendFullReload(detail);
       return;
     }
     const phase = detail.phase === "module" ? "after-update" : detail.phase;
     if (phase === "after-update" || phase === "paint") {
-      flushBeforeUpdate();
       sendClientPhase(phase, detail);
     }
   };
@@ -441,40 +462,41 @@ async function start(): Promise<void> {
     }
 
     const unsubscribeDevtools = subscribeBrowserEvent("devtools", ({ data: payload }) => {
-      if (
-        !isDevtoolsServerEvent(payload) ||
-        payload.instanceId !== snapshot.instance.id ||
-        payload.id <= snapshot.lastEventId
-      ) {
+      if (!isDevtoolsServerEvent(payload) || payload.instanceId !== snapshot.instance.id) {
         return;
       }
-      if (payload.type === "hmr.cycle.started" && payload.detectedAt > lastCompletedAt) {
-        if (
-          updateInProgress &&
-          currentCycleId === null &&
-          payload.detectedAt <= updateStartedEpoch + 10
-        ) {
-          currentCycleId = payload.cycleId;
-          flushBeforeUpdate();
-          return;
-        }
-        pendingCycles.push({
-          cycleId: payload.cycleId,
-          detectedAt: payload.detectedAt,
-        });
-        if (pendingCycles.length > 50) {
-          pendingCycles.shift();
-        }
+      if (reconnectSince !== null) {
+        pendingEvents = retainDevtoolsEvent(pendingEvents, payload).slice(-1000);
+        return;
+      }
+      if (payload.sessionId !== snapshot.sessionId || payload.id <= snapshot.lastEventId) {
+        return;
+      }
+      if (payload.type === "hmr.cycle.started") {
+        correlation.observe(payload.cycleId, payload.detectedAt);
       }
     });
     if (unsubscribeDevtools) {
       cleanups.push(unsubscribeDevtools);
     }
+    const unsubscribeStatus = subscribeBrowserEventStatus((state) => {
+      connected = state === "connected";
+      if (state !== "connected") {
+        reconnectSince ??= performance.timeOrigin + performance.now();
+        snapshotRequest += 1;
+        clearTimeout(retryTimer);
+      } else if (reconnectSince !== null) {
+        clearTimeout(retryTimer);
+        refreshCollectorSnapshot().catch(() => undefined);
+      }
+    });
+    if (unsubscribeStatus) {
+      cleanups.push(unsubscribeStatus);
+    }
 
     runtime.cleanup = () => {
-      if (pendingBeforeUpdate) {
-        clearTimeout(pendingBeforeUpdate.timer);
-      }
+      disposed = true;
+      clearTimeout(retryTimer);
       for (const dispose of cleanups.reverse()) {
         dispose();
       }

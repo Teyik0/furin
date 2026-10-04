@@ -76,6 +76,7 @@ export interface DevtoolsError {
 interface DevtoolsEventBase {
   id: number;
   instanceId: string;
+  sessionId: string;
   timestamp: number;
   version: typeof DEVTOOLS_PROTOCOL_VERSION;
 }
@@ -173,6 +174,7 @@ export type DevtoolsServerEvent =
     })
   | (DevtoolsBrowserEventBase &
       DevtoolsEventBase & {
+        correlationRevision?: number;
         cycleId: string | null;
         durationMs: number | null;
         module: string | null;
@@ -205,23 +207,23 @@ export type DevtoolsServerEvent =
 export type DevtoolsBrowserEventInput =
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.client.phase" }>,
-      "id" | "instanceId" | "timestamp" | "version"
+      "id" | "instanceId" | "sessionId" | "timestamp" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.connection.changed" }>,
-      "id" | "instanceId" | "timestamp" | "version"
+      "id" | "instanceId" | "sessionId" | "timestamp" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.full-reload" }>,
-      "id" | "instanceId" | "timestamp" | "version"
+      "id" | "instanceId" | "sessionId" | "timestamp" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "browser.resources" }>,
-      "id" | "instanceId" | "timestamp" | "version"
+      "id" | "instanceId" | "sessionId" | "timestamp" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "sync.connection.changed" }>,
-      "id" | "instanceId" | "timestamp" | "version"
+      "id" | "instanceId" | "sessionId" | "timestamp" | "version"
     >;
 
 type WithoutBrowserMetadata<Event> = Event extends DevtoolsBrowserEventInput
@@ -233,32 +235,47 @@ export type DevtoolsBrowserEventPayload = WithoutBrowserMetadata<DevtoolsBrowser
 export type DevtoolsServerEventInput =
   | Omit<
       Extract<DevtoolsServerEvent, { type: "payload.serialized" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "cache.invalidated" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
-  | Omit<Extract<DevtoolsServerEvent, { type: "cache.access" }>, "id" | "instanceId" | "version">
-  | Omit<Extract<DevtoolsServerEvent, { type: "loader.finished" }>, "id" | "instanceId" | "version">
+  | Omit<
+      Extract<DevtoolsServerEvent, { type: "cache.access" }>,
+      "id" | "instanceId" | "sessionId" | "version"
+    >
+  | Omit<
+      Extract<DevtoolsServerEvent, { type: "loader.finished" }>,
+      "id" | "instanceId" | "sessionId" | "version"
+    >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "request.finished" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
-  | Omit<Extract<DevtoolsServerEvent, { type: "request.started" }>, "id" | "instanceId" | "version">
-  | Omit<Extract<DevtoolsServerEvent, { type: "dev.error" }>, "id" | "instanceId" | "version">
-  | Omit<Extract<DevtoolsServerEvent, { type: "dev.ready" }>, "id" | "instanceId" | "version">
+  | Omit<
+      Extract<DevtoolsServerEvent, { type: "request.started" }>,
+      "id" | "instanceId" | "sessionId" | "version"
+    >
+  | Omit<
+      Extract<DevtoolsServerEvent, { type: "dev.error" }>,
+      "id" | "instanceId" | "sessionId" | "version"
+    >
+  | Omit<
+      Extract<DevtoolsServerEvent, { type: "dev.ready" }>,
+      "id" | "instanceId" | "sessionId" | "version"
+    >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.cycle.started" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.build.finished" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
   | Omit<
       Extract<DevtoolsServerEvent, { type: "hmr.server.finished" }>,
-      "id" | "instanceId" | "version"
+      "id" | "instanceId" | "sessionId" | "version"
     >
   | (DevtoolsBrowserEventInput & { timestamp: number });
 
@@ -269,6 +286,7 @@ export interface DevtoolsSnapshot {
   lastEventId: number;
   routes: DevtoolsRoute[];
   runtime: DevtoolsRuntimeSnapshot;
+  sessionId: string;
   sync: DevtoolsSyncSnapshot;
   version: typeof DEVTOOLS_PROTOCOL_VERSION;
 }
@@ -339,7 +357,10 @@ export function isDevtoolsBrowserEventInput(value: unknown): value is DevtoolsBr
   }
   const type = property(value, "type");
   if (type === "hmr.client.phase") {
+    const correlationRevision = property(value, "correlationRevision");
     return (
+      (correlationRevision === undefined ||
+        (isSafeInteger(correlationRevision) && correlationRevision >= 0)) &&
       isNullableString(property(value, "cycleId")) &&
       (property(value, "durationMs") === null || isFiniteNumber(property(value, "durationMs"))) &&
       isNullableString(property(value, "module")) &&
@@ -410,6 +431,7 @@ export function isDevtoolsServerEvent(value: unknown): value is DevtoolsServerEv
   if (
     !(isObject(value) && isSafeInteger(property(value, "id"))) ||
     typeof property(value, "instanceId") !== "string" ||
+    typeof property(value, "sessionId") !== "string" ||
     !isFiniteNumber(property(value, "timestamp")) ||
     property(value, "version") !== DEVTOOLS_PROTOCOL_VERSION
   ) {
@@ -492,6 +514,7 @@ export function isDevtoolsSnapshot(value: unknown): value is DevtoolsSnapshot {
   if (
     !isObject(value) ||
     property(value, "version") !== DEVTOOLS_PROTOCOL_VERSION ||
+    typeof property(value, "sessionId") !== "string" ||
     !isSafeInteger(property(value, "lastEventId"))
   ) {
     return false;
@@ -511,6 +534,11 @@ export function isDevtoolsSnapshot(value: unknown): value is DevtoolsSnapshot {
     isRuntimeSnapshot(property(value, "runtime")) &&
     Array.isArray(events) &&
     events.every(isDevtoolsServerEvent) &&
+    events.every(
+      (event) =>
+        event.sessionId === property(value, "sessionId") &&
+        event.instanceId === property(instance, "id")
+    ) &&
     Array.isArray(routes) &&
     routes.every(
       (route) =>

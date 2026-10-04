@@ -91,6 +91,7 @@ function snapshot(): DevtoolsSnapshot {
       graph: { edges: 0, modules: 0, revision: 0 },
       memory: { heapBytes: 1024, rssBytes: 2048 },
     },
+    sessionId: "test-session",
     sync: { changesPath: null, enabled: false },
     version: 2,
   };
@@ -319,6 +320,7 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
   const originalEntries = performance.getEntriesByType.bind(performance);
   const originalSendBeacon = navigator.sendBeacon;
   const browserEvents: Array<{
+    clientTimestamp?: number;
     cycleId?: string | null;
     phase?: string;
     type: string;
@@ -362,6 +364,7 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
       detectedAt,
       id,
       instanceId: "test-instance",
+      sessionId: "test-session",
       timestamp: Date.now(),
       type: "hmr.cycle.started",
       version: 2,
@@ -377,11 +380,18 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
     dispatchCycle("cycle-b", Date.now() + 100, 2);
     dispatchHmr("after-update", null);
     dispatchHmr("paint", null);
+    await Bun.sleep(110);
     dispatchHmr("before-update", null);
     dispatchHmr("after-update", null);
     dispatchHmr("full-reload", "development-error-recovered");
 
-    const phases = browserEvents.filter((event) => event.type === "hmr.client.phase");
+    const phases = [
+      ...new Map(
+        browserEvents
+          .filter((event) => event.type === "hmr.client.phase")
+          .map((event) => [`${event.phase}:${event.clientTimestamp}`, event])
+      ).values(),
+    ];
     expect(phases.map((event) => [event.phase, event.cycleId])).toEqual([
       ["before-update", "cycle-a"],
       ["after-update", "cycle-a"],
@@ -401,3 +411,247 @@ test.serial("DevTools freezes watcher cycle IDs for each native update", async (
     await uninstallDom();
   }
 });
+
+test.serial(
+  "DevTools reconciles delayed watcher cycles after two updates have painted",
+  async () => {
+    installDom();
+    const sharedEvents = installBrowserEventRuntime();
+    const samples: Array<{
+      clientTimestamp: number;
+      cycleId: string | null;
+      durationMs: number | null;
+      phase: string;
+      type: string;
+    }> = [];
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (typeof init?.body === "string") {
+        samples.push(JSON.parse(init.body));
+      }
+      return Promise.resolve(
+        String(input).includes("/snapshot")
+          ? Response.json(snapshot())
+          : new Response(null, { status: 204 })
+      );
+    }) as typeof fetch;
+    performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+    const phase = (value: string): void => {
+      window.dispatchEvent(
+        new CustomEvent("furin:hmr", {
+          detail: {
+            durationMs: null,
+            module: null,
+            phase: value,
+            reason: null,
+            state: null,
+          },
+        })
+      );
+    };
+    const cycle = (cycleId: string, detectedAt: number, id: number): void => {
+      sharedEvents.emit({
+        changedModule: "src/pages/index.tsx",
+        cycleId,
+        detectedAt,
+        id,
+        instanceId: "test-instance",
+        sessionId: "test-session",
+        timestamp: Date.now(),
+        type: "hmr.cycle.started",
+        version: 2,
+      });
+    };
+
+    try {
+      await import(`../../../src/devtools/collector.ts?late-cycles=${Date.now()}`);
+      await waitForDom(() => document.querySelector("furin-devtools-launcher") !== null, undefined);
+      const firstDetectedAt = Date.now() - 1;
+      phase("before-update");
+      await Bun.sleep(30);
+      phase("after-update");
+      phase("paint");
+      await Bun.sleep(30);
+      const secondDetectedAt = Date.now() - 1;
+      phase("before-update");
+      phase("after-update");
+      phase("paint");
+      const provisional = samples.filter((event) => event.type === "hmr.client.phase");
+      expect(provisional).toHaveLength(6);
+      cycle("late-second", secondDetectedAt, 2);
+      cycle("late-first", firstDetectedAt, 1);
+      const corrected = samples
+        .filter((event) => event.type === "hmr.client.phase" && event.cycleId !== null)
+        .toSorted((left, right) => left.clientTimestamp - right.clientTimestamp);
+
+      expect(corrected.map((event) => [event.phase, event.cycleId])).toEqual([
+        ["before-update", "late-first"],
+        ["after-update", "late-first"],
+        ["paint", "late-first"],
+        ["before-update", "late-second"],
+        ["after-update", "late-second"],
+        ["paint", "late-second"],
+      ]);
+      expect(corrected.map((event) => event.clientTimestamp)).toEqual(
+        provisional.map((event) => event.clientTimestamp)
+      );
+      expect(corrected.map((event) => event.durationMs)).toEqual(
+        provisional.map((event) => event.durationMs)
+      );
+    } finally {
+      cleanupDevtoolsRuntime();
+      await uninstallDom();
+    }
+  }
+);
+
+test.serial(
+  "DevTools collector accepts reset event IDs after a telemetry-session reconnect",
+  async () => {
+    installDom();
+    const sharedEvents = installBrowserEventRuntime();
+    let requests = 0;
+    let currentSnapshot = { ...snapshot(), lastEventId: 99 };
+    const samples: Array<{ cycleId?: string | null; phase?: string; type: string }> = [];
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/snapshot")) {
+        requests += 1;
+        return Promise.resolve(Response.json(currentSnapshot));
+      }
+      if (typeof init?.body === "string") {
+        samples.push(JSON.parse(init.body));
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }) as typeof fetch;
+    performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+    try {
+      await import(`../../../src/devtools/collector.ts?restart=${Date.now()}`);
+      await waitForDom(() => document.querySelector("furin-devtools-launcher") !== null, undefined);
+      sharedEvents.updateStatus("reconnecting");
+      currentSnapshot = { ...snapshot(), sessionId: "restarted-session" };
+      sharedEvents.updateStatus("connected");
+      await waitForDom(() => requests === 2, undefined);
+      await Bun.sleep(0);
+      sharedEvents.emit({
+        changedModule: "src/pages/index.tsx",
+        cycleId: "restart-cycle",
+        detectedAt: Date.now(),
+        id: 1,
+        instanceId: "test-instance",
+        sessionId: "restarted-session",
+        timestamp: Date.now(),
+        type: "hmr.cycle.started",
+        version: 2,
+      });
+      window.dispatchEvent(
+        new CustomEvent("furin:hmr", {
+          detail: {
+            durationMs: null,
+            module: null,
+            phase: "before-update",
+            reason: null,
+            state: null,
+          },
+        })
+      );
+      expect(samples.at(-1)).toMatchObject({
+        cycleId: "restart-cycle",
+        phase: "before-update",
+        type: "hmr.client.phase",
+      });
+    } finally {
+      cleanupDevtoolsRuntime();
+      await uninstallDom();
+    }
+  }
+);
+
+test.serial(
+  "collector retries reconnect and reconciles snapshot plus in-flight cycles",
+  async () => {
+    installDom();
+    const sharedEvents = installBrowserEventRuntime();
+    let requests = 0;
+    let resolveSnapshot: ((response: Response) => void) | undefined;
+    const pendingSnapshot = new Promise<Response>((resolve) => {
+      resolveSnapshot = resolve;
+    });
+    const samples: Array<{
+      clientTimestamp: number;
+      cycleId: string | null;
+      phase: string;
+      type: string;
+    }> = [];
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/snapshot")) {
+        requests += 1;
+        if (requests === 1) {
+          return Promise.resolve(Response.json({ ...snapshot(), lastEventId: 99 }));
+        }
+        return requests === 2
+          ? Promise.resolve(new Response(null, { status: 503 }))
+          : pendingSnapshot;
+      }
+      if (typeof init?.body === "string") {
+        samples.push(JSON.parse(init.body));
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }) as typeof fetch;
+    performance.getEntriesByType = (() => []) as typeof performance.getEntriesByType;
+    const phase = (value: string): void => {
+      window.dispatchEvent(
+        new CustomEvent("furin:hmr", {
+          detail: { durationMs: null, module: null, phase: value, reason: null, state: null },
+        })
+      );
+    };
+    try {
+      await import(`../../../src/devtools/collector.ts?handoff=${Date.now()}`);
+      await waitForDom(() => document.querySelector("furin-devtools-launcher") !== null, undefined);
+      sharedEvents.updateStatus("reconnecting");
+      sharedEvents.updateStatus("connected");
+      await waitForDom(() => requests >= 3, undefined);
+      const cycle = {
+        changedModule: "src/pages/index.tsx",
+        cycleId: "snapshot-cycle",
+        detectedAt: Date.now(),
+        id: 1,
+        instanceId: "test-instance",
+        sessionId: "restarted-session",
+        timestamp: Date.now(),
+        type: "hmr.cycle.started" as const,
+        version: 2 as const,
+      };
+      phase("before-update");
+      phase("after-update");
+      phase("paint");
+      await Bun.sleep(30);
+      const liveCycle = { ...cycle, cycleId: "in-flight-cycle", detectedAt: Date.now(), id: 2 };
+      phase("before-update");
+      phase("after-update");
+      phase("paint");
+      sharedEvents.emit(liveCycle);
+      resolveSnapshot?.(
+        Response.json({
+          ...snapshot(),
+          events: [cycle],
+          lastEventId: 1,
+          sessionId: "restarted-session",
+        })
+      );
+      await waitForDom(
+        () =>
+          samples.filter((event) => event.type === "hmr.client.phase" && event.cycleId !== null)
+            .length === 6,
+        undefined
+      );
+      expect(
+        samples
+          .filter((event) => event.phase === "paint" && event.cycleId !== null)
+          .map((event) => event.cycleId)
+      ).toEqual(["snapshot-cycle", "in-flight-cycle"]);
+    } finally {
+      cleanupDevtoolsRuntime();
+      await uninstallDom();
+    }
+  }
+);
