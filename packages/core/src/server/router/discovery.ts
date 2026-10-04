@@ -13,7 +13,7 @@ import {
 import { type CompileContext, getCompileContext } from "../internal.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
-import { filePathToPattern, resolveMode } from "./patterns.ts";
+import { filePathToPattern, resolveMode, routePatternKey } from "./patterns.ts";
 import { routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout, SegmentBoundary } from "./types.ts";
 
@@ -248,12 +248,6 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
 
 const CONVENTION_FILE_NAMES = ["not-found", "error"] as const;
 const SOURCE_MODULE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"] as const;
-const DYNAMIC_ROUTE_SEGMENT_RE = /(^|\/):[^/]+/g;
-
-function routePatternKey(pattern: string): string {
-  return pattern.replace(DYNAMIC_ROUTE_SEGMENT_RE, "$1:param");
-}
-
 function isConventionFileName(name: string): boolean {
   return (CONVENTION_FILE_NAMES as readonly string[]).includes(name);
 }
@@ -346,7 +340,10 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root, pagesDir);
       devRoute.notFound = notFound;
       devRoute.error = errorComponent;
-      devRoute.segmentBoundaries = segmentBoundaries;
+      devRoute.segmentBoundaries = alignSegmentBoundaryDepths(
+        segmentBoundaries,
+        devRoute.routeChain
+      );
       routes.push(devRoute);
       continue;
     }
@@ -372,7 +369,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       path: absolutePath,
       pattern,
       routeChain,
-      segmentBoundaries,
+      segmentBoundaries: alignSegmentBoundaryDepths(segmentBoundaries, routeChain),
       tags: collectRouteTags(routeChain, page),
     });
   }
@@ -425,6 +422,25 @@ async function resolveDefinedLayoutParent(
   }
 
   return parent;
+}
+
+function alignSegmentBoundaryDepths(
+  boundaries: SegmentBoundary[],
+  routeChain: RuntimeRoute[]
+): SegmentBoundary[] {
+  return boundaries.map((boundary) => {
+    let depth = 0;
+    for (const [index, entry] of routeChain.entries()) {
+      if (!entry.sourcePath) {
+        continue;
+      }
+      const directory = entry.sourcePath.slice(0, entry.sourcePath.lastIndexOf("/"));
+      if (boundary.path === directory || boundary.path.startsWith(`${directory}/`)) {
+        depth = index;
+      }
+    }
+    return { ...boundary, depth };
+  });
 }
 
 /**

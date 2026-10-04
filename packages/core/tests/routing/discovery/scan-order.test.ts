@@ -65,6 +65,16 @@ describe("scanPages: route order is deterministic", () => {
     expect(patterns).toEqual(["/aaa", "/mmm", "/zzz"]);
   });
 
+  test("route groups organize pages without adding URL segments", async () => {
+    mkdirSync(join(tempDir, "(marketing)", "(public)"), { recursive: true });
+    writePage(join(tempDir, "(marketing)", "(public)", "index.tsx"));
+    writePage(join(tempDir, "(marketing)", "about.tsx"));
+
+    const { routes } = await scanPages(tempDir);
+
+    expect(routes.map((route) => route.pattern).toSorted()).toEqual(["/", "/about"]);
+  });
+
   test("nested pages are returned in alphabetical pattern order", async () => {
     // Create subdirectories — readdir may return them in any order
     mkdirSync(join(tempDir, "zebra"));
@@ -112,6 +122,17 @@ describe("scanPages: route order is deterministic", () => {
 
     await expect(scanPages(tempDir)).rejects.toThrow(
       '[furin] Duplicate route pattern "/users/:param" from "users/[id].tsx" and "users/[slug].tsx".'
+    );
+  });
+
+  test("rejects pages in different groups that resolve to the same URL", async () => {
+    mkdirSync(join(tempDir, "(admin)"));
+    mkdirSync(join(tempDir, "(marketing)"));
+    writePage(join(tempDir, "(admin)", "about.tsx"));
+    writePage(join(tempDir, "(marketing)", "about.tsx"));
+
+    await expect(scanPages(tempDir)).rejects.toThrow(
+      '[furin] Duplicate route pattern "/about" from "(admin)/about.tsx" and "(marketing)/about.tsx".'
     );
   });
 

@@ -12,7 +12,7 @@ import type { NotFoundComponent } from "../../shared/not-found.ts";
  * exact nesting level where the user authored them (Next.js app-router model).
  */
 export interface SegmentBoundary {
-  /** 0 = `pagesDir`; increments with each nested subdirectory. */
+  /** Index of the enclosing layout in routeChain; 0 = the root layout. */
   depth: number;
   error?: ErrorComponent;
   /**

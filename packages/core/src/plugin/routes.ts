@@ -12,7 +12,13 @@ import { pathToFileURL } from "node:url";
 import { type AnyElysia, Elysia } from "elysia";
 import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.ts";
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
-import { parseDynamicRouteSegment, routeSegmentToPattern } from "../server/router/patterns.ts";
+import {
+  filePathToPattern,
+  isRouteGroup,
+  parseDynamicRouteSegment,
+  routePatternKey,
+  routeSegmentToPattern,
+} from "../server/router/patterns.ts";
 import { routeModuleSourceVersion } from "../server/router/source-version.ts";
 
 const ROUTES_NAMESPACE_PREFIX = "furin-routes";
@@ -118,7 +124,10 @@ function scanRouteFiles(
   directorySegments: string[],
   files: ScannedRouteFile[]
 ): void {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) =>
+    left.name.localeCompare(right.name)
+  );
+  for (const entry of entries) {
     if (entry.isDirectory()) {
       // Underscore-prefixed directories are co-located private folders
       // (components, libs) — never route segments.
@@ -157,10 +166,6 @@ function segmentPath(segment: string): string {
   return routeSegmentToPattern(segment);
 }
 
-function routePath(segments: string[]): string {
-  return segments.length === 0 ? "/" : `/${segments.map(segmentPath).join("/")}`;
-}
-
 function routeId(instanceId: string, path: string): string {
   const encodedPath = Array.from(new TextEncoder().encode(path), (byte) =>
     byte.toString(16).padStart(2, "0")
@@ -193,18 +198,25 @@ function buildRouteTree(pagesDir: string, instanceId: string): RouteTreeNode {
     return node;
   };
   const root = ensureNode([]);
+  const seenPatterns = new Map<string, string>();
 
   for (const file of scannedFiles) {
     const node = ensureNode(file.directorySegments);
     if (file.base === "_route") {
-      const path = `${routePath(file.directorySegments)}#layout`;
+      const path = `/${file.directorySegments.map(segmentPath).join("/")}#layout`;
       node.layout = { id: routeId(instanceId, path), path: "", sourcePath: file.sourcePath };
       continue;
     }
-    const path =
-      file.base === "index"
-        ? routePath(file.directorySegments)
-        : routePath([...file.directorySegments, file.base]);
+    const path = filePathToPattern(relative(pagesDir, file.sourcePath));
+    const patternKey = routePatternKey(path);
+    const relativePath = relative(pagesDir, file.sourcePath).replaceAll("\\", "/");
+    const previousPath = seenPatterns.get(patternKey);
+    if (previousPath !== undefined) {
+      throw new Error(
+        `[furin] Duplicate route pattern "${patternKey}" from "${previousPath}" and "${relativePath}".`
+      );
+    }
+    seenPatterns.set(patternKey, relativePath);
     const route = { id: routeId(instanceId, path), path, sourcePath: file.sourcePath };
     if (file.base === "index") {
       node.indexRoute = route;
@@ -547,7 +559,7 @@ function emitRouteNode(
   includeRootCatchAll: boolean
 ): string {
   const childIndentation = `${indentation}  `;
-  const prefix = node.name ? `/${segmentPath(node.name)}` : "";
+  const prefix = node.name && !isRouteGroup(node.name) ? `/${segmentPath(node.name)}` : "";
   const head = `new Elysia({ prefix: ${JSON.stringify(prefix)} })`;
   const content: string[] = [];
   if (node.indexRoute) {
@@ -905,7 +917,7 @@ async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | un
 }
 
 async function composeRuntimeNode(node: RouteTreeNode): Promise<DevRoutesApps> {
-  const prefix = node.name ? `/${segmentPath(node.name)}` : "";
+  const prefix = node.name && !isRouteGroup(node.name) ? `/${segmentPath(node.name)}` : "";
   const { fileRoutes } = node;
   const [layoutApps, indexRouteApps, fileRouteApps, childApps] = await Promise.all([
     node.layout ? composableRouteApps(node.layout) : undefined,

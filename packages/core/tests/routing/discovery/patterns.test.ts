@@ -47,6 +47,17 @@ describe("filePathToPattern", () => {
     expect(filePathToPattern("blog/[category]/[slug].tsx")).toBe("/blog/:category/:slug");
   });
 
+  test("omits group directories around dynamic and catch-all segments", () => {
+    expect(filePathToPattern("(admin)/users/(details)/[id].tsx")).toBe("/users/:id");
+    expect(filePathToPattern("docs/(guides)/[...path].tsx")).toBe("/docs/*");
+    expect(filePathToPattern("(admin)\\users\\[id].tsx")).toBe("/users/:id");
+  });
+
+  test("keeps parentheses in filenames and ordinary directory names", () => {
+    expect(filePathToPattern("(admin).tsx")).toBe("/(admin)");
+    expect(filePathToPattern("release(beta)/index.tsx")).toBe("/release(beta)");
+  });
+
   test("handles nested dynamic routes", () => {
     expect(filePathToPattern("users/[userId]/posts/[postId].tsx")).toBe(
       "/users/:userId/posts/:postId"
