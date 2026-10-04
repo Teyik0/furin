@@ -571,7 +571,7 @@ const handler = (await import(${JSON.stringify(pathToFileURL(join(functionsDir, 
 const results = [];
 for (const [index, url] of ${JSON.stringify(requests)}.entries()) {
   const response = await handler.fetch(new Request(url));
-  if (response.status >= 400 && ${JSON.stringify(jobs.map(({ spec }) => spec.config.chain !== undefined))}[index]) throw new Error("PPR build failed for " + url + ": HTTP " + response.status);
+  if (response.status >= 500 || (response.status >= 400 && ${JSON.stringify(jobs.map(({ spec }) => spec.config.chain !== undefined))}[index])) throw new Error("Production prerender failed for " + url + ": HTTP " + response.status);
   results.push({ body: await response.text(), headers: Object.fromEntries(response.headers), status: response.status });
 }
 await Bun.write(${JSON.stringify(resultPath)}, JSON.stringify(results));

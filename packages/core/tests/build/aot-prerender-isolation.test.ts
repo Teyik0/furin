@@ -40,6 +40,64 @@ export default api.use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
   return app;
 }
 
+test.each(["ssg", "isr"] as const)(
+  "Vercel rejects a failed production %s prerender instead of caching its error page",
+  async (mode) => {
+    const app = createApiPrerenderApp(mode);
+    try {
+      writeAppFile(
+        app.path,
+        "src/api.ts",
+        `import Elysia from "elysia";
+export const api = new Elysia().get("/api/message", () => {
+  throw new Error("prerender regression");
+});`
+      );
+      const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
+      expect(build.exitCode).toBe(1);
+      expect(build.stderr).toContain("Production prerender failed");
+      expect(build.stderr).toContain("HTTP 500");
+      expect(
+        await Bun.file(
+          join(app.path, `.vercel/output/functions/index-${mode}.prerender-fallback.html`)
+        ).exists()
+      ).toBe(false);
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
+
+test.each(["ssg", "isr"] as const)(
+  "Vercel preserves a %s prerender's legitimate 404 response",
+  async (mode) => {
+    const app = createApiPrerenderApp(mode);
+    try {
+      writeAppFile(
+        app.path,
+        "src/server.ts",
+        `import { furin } from "@teyik0/furin";
+import { api } from "./api";
+export default api
+  .beforeHandle(({ path, status }) => {
+    if (path === "/") return status(404, "not found");
+  })
+  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+      );
+      const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
+      expect(build.exitCode, build.stderr).toBe(0);
+      const config = await Bun.file(
+        join(app.path, `.vercel/output/functions/index-${mode}.prerender-config.json`)
+      ).json();
+      expect(config.initialStatus).toBe(404);
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
+
 test.each(["use", "setup"] as const)(
   "Vercel builds an API extended with .%s() after an in-memory ISR loader request",
   async (method) => {
@@ -70,6 +128,74 @@ export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir +
       const pageResponse = await handler.fetch(new Request("http://localhost/"));
       expect(pageResponse.status).toBe(200);
       expect(await pageResponse.text()).toContain("In-memory API");
+    } finally {
+      app.cleanup();
+    }
+  },
+  30_000
+);
+
+test.each(["", "/api"])(
+  "Vercel's precompiled production Sync app preserves GET and POST mounts at %s",
+  async (prefix) => {
+    const app = createApiPrerenderApp("isr");
+    try {
+      writeAppFile(
+        app.path,
+        "src/server.ts",
+        `import { furin } from "@teyik0/furin";
+import { SqliteSyncAdapter, migrateSqliteSync } from "@teyik0/furin/sync/sqlite";
+import { Database } from "bun:sqlite";
+import { Elysia } from "elysia";
+import { api } from "./api";
+const database = new Database(import.meta.dir + "/sync.db");
+migrateSqliteSync(database);
+const sync = {
+  adapter: new SqliteSyncAdapter({ database, namespace: "production-mount" }),
+  principal: () => { throw new Error("Mounted handlers own authentication"); },
+};
+export default api
+  .use(new Elysia({ prefix: ${JSON.stringify(prefix)} }).mount(async (request) =>
+    Response.json({
+      environment: process.env.NODE_ENV,
+      method: request.method,
+      path: new URL(request.url).pathname,
+      body: await request.text(),
+    }, { headers: { "set-cookie": "session=mounted; HttpOnly" } })
+  ))
+  .use(await furin({ pagesDir: import.meta.dir + "/pages", sync }))
+  .compile();`
+      );
+      const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
+      expect(build.exitCode, build.stderr).toBe(0);
+      const handlerPath = join(app.path, ".vercel/output/functions/__server.func/index.js");
+      const script = `
+const handler = (await import(process.argv[1])).default;
+await Promise.all(["GET", "POST"].map(async (method) => {
+  const body = method === "POST" ? "sign-in" : "";
+  const response = await handler.fetch(new Request(${JSON.stringify(`http://localhost${prefix}/auth/get-session`)}, {
+    method, body: body || undefined,
+  }));
+  if (response.status !== 200) throw new Error("Mounted " + method + " returned HTTP " + response.status);
+  if (response.headers.get("set-cookie") !== "session=mounted; HttpOnly") throw new Error("Mount cookie lost");
+  const expected = { environment: "production", method, path: "/auth/get-session", body };
+  const actual = await response.json();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("Mount forwarding mismatch: " + JSON.stringify(actual));
+}));
+process.exit(0);`;
+      // Exit the production worker before cleanup so its SQLite handle cannot lock files on Windows.
+      const child = Bun.spawn([process.execPath, "-e", script, handlerPath], {
+        cwd: app.path,
+        env: { ...process.env, NODE_ENV: "production" },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(exitCode, `${stderr}\n${stdout}`).toBe(0);
     } finally {
       app.cleanup();
     }
