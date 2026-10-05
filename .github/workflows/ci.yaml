@@ -228,6 +228,7 @@ jobs:
           cd apps/furin
           bun pm pkg set \
             "dependencies.@teyik0/furin=$furin_tarball" \
+            "dependencies.elysia=$base_elysia_version" \
             "dependencies.react=$react_version" \
             "dependencies.react-dom=$react_version" \
             "devDependencies.@types/react=$react_types_version" \

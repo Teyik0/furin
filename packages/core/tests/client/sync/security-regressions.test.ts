@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { type Context, Elysia } from "elysia";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
@@ -125,14 +125,21 @@ test("change catch-up authorizes requests and keeps other users' resources priva
   }
 });
 
-test.each([false, true])(
-  "mutation replays run route authorization after access is revoked (precompiled: %s)",
-  async (precompiled) => {
+test.each([
+  ["POST", false],
+  ["POST", true],
+  ["*", false],
+  ["*", true],
+] as const)(
+  "%s mutations authorize before reservation and replay (precompiled: %s)",
+  async (method, precompiled) => {
     const { database, options } = testSync();
-    let authorized = true;
+    const reservations = spyOn(options.adapter, "beginMutation");
+    let authorized = false;
     let authorizationCalls = 0;
     let executions = 0;
-    const app = new Elysia().use(furinSync(options)).post(
+    const app = new Elysia().use(furinSync(options)).method(
+      method,
       "/private",
       {
         beforeHandle({ status }) {
@@ -158,13 +165,20 @@ test.each([false, true])(
         })
       );
     try {
+      expect((await send()).status).toBe(403);
+      expect(reservations).not.toHaveBeenCalled();
+      expect(executions).toBe(0);
+      authorized = true;
       expect((await send()).status).toBe(200);
       expect((await send()).status).toBe(200);
+      expect(reservations).toHaveBeenCalledTimes(2);
       expect(executions).toBe(1);
       authorized = false;
       expect((await send()).status).toBe(403);
-      expect(authorizationCalls).toBe(3);
+      expect(reservations).toHaveBeenCalledTimes(2);
+      expect(authorizationCalls).toBe(4);
     } finally {
+      reservations.mockRestore();
       database.close();
     }
   }

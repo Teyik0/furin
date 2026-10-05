@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.7.0-alpha.3] — 2026-10-04
+
+### Added
+- **Route groups** — directories such as `(admin)` organize pages without adding a URL segment, while preserving nested layouts, loaders, and error boundaries. Groups can be nested; conflicting public route patterns are rejected.
+
+### Fixed
+- **Sync with Elysia mounts** — preserve native `.mount()` compilation and request forwarding for root and prefixed handlers, including Better Auth GET and POST endpoints. Ordinary `.all()` mutations retain authorization before reservation/replay, idempotency, and atomic transactions.
+- **Vercel production prerenders** — generate SSG/ISR fallbacks through the compiled production handler, preserving mounted browser event scripts, custom sync paths, and production-compatible React Server Component payloads.
+
+## [0.7.0-alpha.2] — 2026-10-04
+
+### Fixed
+- **Isolated Elysia AOT evaluation** — Vercel and Bun builds evaluate the server entry in a disposable Bun worker, preventing in-memory API requests during ISR/SSG prerendering from sealing the instance later extended with `.use()` or `.setup()`. The existing `api.use(await furin(...))` API and AOT compilation remain supported.
+
 ## [0.7.0-alpha.1] — 2026-09-27
 
 ### Breaking
@@ -469,7 +483,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.1...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.3...HEAD
+[0.7.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.2...v0.7.0-alpha.3
+[0.7.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.1...v0.7.0-alpha.2
 [0.7.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.1...v0.7.0-alpha.1
 [0.4.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.4.0-alpha.1...v0.4.0-alpha.2
 [0.4.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.3.0-alpha.1...v0.4.0-alpha.1

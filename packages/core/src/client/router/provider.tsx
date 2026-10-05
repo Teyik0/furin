@@ -281,14 +281,14 @@ export function RouterProvider({
   const resolvedSearch = (state.data.query as SearchParamsInput | undefined) ?? EMPTY_SEARCH;
 
   /**
-   * Depth-0 boundary (pagesDir root level) for the "no client route matched" 404
+   * Root-owned boundary for the "no client route matched" 404
    * path. When an unknown URL is navigated to, the server's `renderRootNotFound`
    * handles it — the root `not-found.tsx` (depth 0) is the correct component to
    * render inline instead of doing a full-page reload.
    */
   const rootBoundaries = useMemo<ClientSegmentBoundary[] | undefined>(() => {
     for (const route of routes) {
-      const depth0 = route.segmentBoundaries?.find((b) => b.depth === 0);
+      const depth0 = route.segmentBoundaries?.find((b) => b.depth === 0 && b.isRoot !== false);
       if (depth0) {
         return [depth0];
       }

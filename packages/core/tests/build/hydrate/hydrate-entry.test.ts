@@ -327,7 +327,7 @@ function makeRouteWithBoundaries(
       errorPath: b.errorPath,
       notFound: b.notFoundPath ? () => null : undefined,
       notFoundPath: b.notFoundPath,
-      path: "/unused",
+      path: (b.errorPath ?? b.notFoundPath ?? filePath).split("/").slice(0, -1).join("/"),
     })),
   } as ResolvedRoute;
 }
@@ -364,6 +364,15 @@ describe("generateHydrateEntry — boundary chain emission", () => {
 
     // The route entry carries `segmentBoundaries` referencing that identifier.
     expect(code).toMatch(ERROR_BOUNDARY_DEPTH0_RE);
+    expect(code).not.toContain("isRoot: false");
+  });
+
+  test("a group boundary at root chain depth does not own the root fallback", () => {
+    const route = makeRouteWithBoundaries("/page", "/app/src/pages/(outer)/page.tsx", [
+      { depth: 0, errorPath: "/app/src/pages/(outer)/error.tsx" },
+    ]);
+    const code = generateHydrateEntry([route], ROOT, "", false);
+    expect(code).toContain("isRoot: false");
   });
 
   test("route with notFound boundary at middle depth → lazy import + field", () => {

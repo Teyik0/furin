@@ -48,7 +48,8 @@ describe("segmentBoundaries — chain population", () => {
     expect(root?.notFound).toBeUndefined();
 
     expect(blogSegment?.path).toBe(`${ERROR_NESTED_POSIX_DIR}/blog`);
-    expect(blogSegment?.depth).toBe(1);
+    // The blog directory has no layout, so both boundaries wrap inside root.
+    expect(blogSegment?.depth).toBe(0);
     expect(blogSegment?.error).toBeDefined();
     expect(blogSegment?.notFound).toBeUndefined();
 
@@ -70,7 +71,7 @@ describe("segmentBoundaries — chain population", () => {
     expect(root?.notFound).toBeDefined();
     expect(root?.error).toBeUndefined();
 
-    expect(blogSegment?.depth).toBe(1);
+    expect(blogSegment?.depth).toBe(0);
     expect(blogSegment?.notFound).toBeDefined();
     expect(blogSegment?.error).toBeUndefined();
 
@@ -83,7 +84,7 @@ describe("segmentBoundaries — chain population", () => {
       for (let i = 1; i < r.segmentBoundaries.length; i += 1) {
         const prev = r.segmentBoundaries[i - 1];
         const curr = r.segmentBoundaries[i];
-        expect(curr?.depth).toBeGreaterThan(prev?.depth ?? -1);
+        expect(curr?.depth).toBeGreaterThanOrEqual(prev?.depth ?? -1);
       }
     }
   });

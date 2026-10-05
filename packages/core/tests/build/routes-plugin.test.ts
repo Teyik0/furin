@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   composableRouteModuleSpecifier,
   createRoutesPlugin,
+  materializedRouteModuleSource,
   routeModuleSpecifier,
   type RouteInstanceSpec,
 } from "../../src/plugin/routes.ts";
@@ -12,6 +13,81 @@ import { routeMapDeclaration } from "../../src/shared/route-map.ts";
 const FIXTURES = join(import.meta.dir, "../fixtures/routes-v2");
 
 describe("furin/routes server plugin", () => {
+  test("rejects conflicting dynamic URLs across route groups", async () => {
+    const pagesDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-group-conflict-"));
+    try {
+      for (const [group, parameter] of [["(admin)", "id"], ["(marketing)", "slug"]] as const) {
+        const directory = join(pagesDir, group, "users");
+        mkdirSync(directory, { recursive: true });
+        writeFileSync(join(directory, `[${parameter}].ts`), "export const route = {};");
+      }
+
+      await expect(materializedRouteModuleSource({ pagesDir, prefix: "" })).rejects.toThrow(
+        '[furin] Duplicate route pattern "/users/:param" from "(admin)/users/[id].ts" and "(marketing)/users/[slug].ts".'
+      );
+    } finally {
+      rmSync(pagesDir, { force: true, recursive: true });
+    }
+  });
+
+  test("serves grouped routes with isolated layouts and nested groups", async () => {
+    const instance = { pagesDir: join(FIXTURES, "../pages/route-groups"), prefix: "" };
+    const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-groups-"));
+
+    try {
+      const entryPath = join(tempDir, "entry.ts");
+      writeFileSync(
+        entryPath,
+        `export { furinApp } from ${JSON.stringify(routeModuleSpecifier(instance))};\n`
+      );
+      const result = await Bun.build({
+        entrypoints: [entryPath],
+        naming: "built.js",
+        outdir: tempDir,
+        plugins: [createRoutesPlugin({ instances: [instance], target: "server" })],
+        target: "bun",
+      });
+      expect(result.success).toBe(true);
+      const output = result.outputs.find((artifact) => artifact.kind === "entry-point");
+      if (!output) {
+        throw new Error("Expected a bundled entry point");
+      }
+      const built = (await import(`${output.path}?t=${Date.now()}`)) as {
+        furinApp: { handle(request: Request): Promise<Response> };
+      };
+
+      const admin = await built.furinApp.handle(new Request("http://localhost/users/42"));
+      expect(admin.status).toBe(200);
+      expect(await admin.json()).toEqual({ group: "admin", id: "42" });
+      const marketing = await built.furinApp.handle(new Request("http://localhost/"));
+      expect(marketing.status).toBe(200);
+      expect(await marketing.json()).toEqual({ group: "marketing" });
+      expect(
+        (await built.furinApp.handle(new Request("http://localhost/(admin)/users/42"))).status
+      ).toBe(404);
+
+      const clientEntry = join(tempDir, "client.ts");
+      writeFileSync(clientEntry, 'export { routes } from "furin/routes";\n');
+      const clientBuild = await Bun.build({
+        entrypoints: [clientEntry],
+        outdir: join(tempDir, "client"),
+        plugins: [createRoutesPlugin({ instances: [instance], target: "client" })],
+        target: "browser",
+      });
+      expect(clientBuild.success).toBe(true);
+      const clientOutput = clientBuild.outputs.find((artifact) => artifact.kind === "entry-point");
+      if (!clientOutput) {
+        throw new Error("Expected a bundled client entry point");
+      }
+      const client = (await import(`${clientOutput.path}?t=${Date.now()}`)) as {
+        routes: Array<{ pattern: string }>;
+      };
+      expect(client.routes.map((route) => route.pattern)).toEqual(["/", "/users/:id"]);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
   test("keeps generated route bindings unique for separator-like paths", async () => {
     const instance = { pagesDir: join(FIXTURES, "colliding-paths"), prefix: "" };
     const tempDir = mkdtempSync(join(import.meta.dir, ".tmp-routes-bindings-"));

@@ -108,6 +108,18 @@ export function routeSegmentToPattern(segment: string): string {
   return dynamic.catchAll ? "*" : `:${dynamic.name}`;
 }
 
+const ROUTE_GROUP_RE = /^\([^()]+\)$/;
+
+export function isRouteGroup(segment: string): boolean {
+  return ROUTE_GROUP_RE.test(segment);
+}
+
+const DYNAMIC_ROUTE_SEGMENT_RE = /(^|\/):[^/]+/g;
+
+export function routePatternKey(pattern: string): string {
+  return pattern.replace(DYNAMIC_ROUTE_SEGMENT_RE, "$1:param");
+}
+
 export function filePathToPattern(path: string): string {
   const parts = path.replaceAll("\\", "/").split("/");
   const segments: string[] = [];
@@ -124,6 +136,10 @@ export function filePathToPattern(path: string): string {
     // `v1.0` — are not truncated into `v1` by `parse().ext` handling.
     const isFile = idx === lastIndex;
     const name = isFile ? parse(part).name : part;
+
+    if (!isFile && isRouteGroup(name)) {
+      continue;
+    }
 
     // `index` collapses to its parent ONLY as a leaf filename. A directory
     // literally named `index` is a real route segment and must be preserved.

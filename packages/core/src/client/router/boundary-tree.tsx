@@ -70,12 +70,8 @@ export function buildPageElement(
       });
 
   // Reconstruct the FULL route chain (shallow→deep, index 0 = root) by walking
-  // parents. We keep every route — not only the ones declaring a layout — so a
-  // route's chain index equals its directory depth. This mirrors the server's
-  // `buildElement` exactly, which is what guarantees the per-segment boundaries
-  // and layouts attach at the same depths on both sides (hydration parity).
-  // Compacting to layouts-only (the previous approach) misaligned boundaries
-  // and dropped the first nested layout whenever an ancestor lacked a layout.
+  // parents. Boundary depths refer to these indices, including routes without
+  // layouts, so server and client attach boundaries at the same positions.
   const chain: RuntimeRoute[] = [];
   let current: RuntimeRoute | undefined = match.pageRoute;
   while (current) {
@@ -85,9 +81,11 @@ export function buildPageElement(
 
   // Index boundaries by depth for O(1) lookup. A boundary's `depth` maps 1:1 to
   // the route-chain index (depth 0 = root layout, handled separately below).
-  const byDepth = new Map<number, ClientSegmentBoundary>();
+  const byDepth = new Map<number, ClientSegmentBoundary[]>();
   for (const segment of match.segmentBoundaries ?? []) {
-    byDepth.set(segment.depth, segment);
+    const boundaries = byDepth.get(segment.depth) ?? [];
+    boundaries.unshift(segment);
+    byDepth.set(segment.depth, boundaries);
   }
 
   // When a root route is present it occupies chain index 0 and is wrapped
@@ -101,7 +99,9 @@ export function buildPageElement(
   // boundary (so the boundary sits INSIDE the layout), then wrap with the
   // layout itself when this route declares one.
   for (let i = chain.length - 1; i >= rootOffset; i -= 1) {
-    element = wrapSegmentBoundaries(element, byDepth.get(i), options);
+    for (const segment of byDepth.get(i) ?? []) {
+      element = wrapSegmentBoundaries(element, segment, options);
+    }
     const Layout = chain[i]?.layout;
     if (Layout) {
       element = createElement(Layout as ElementType, data, element);
@@ -110,7 +110,9 @@ export function buildPageElement(
 
   if (root) {
     // Depth 0 boundary wraps EVERYTHING below the root layout.
-    element = wrapSegmentBoundaries(element, byDepth.get(0), options);
+    for (const segment of byDepth.get(0) ?? []) {
+      element = wrapSegmentBoundaries(element, segment, options);
+    }
     if (root.layout) {
       element = createElement(root.layout as ElementType, data, element);
     }

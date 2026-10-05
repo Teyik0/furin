@@ -391,7 +391,7 @@ export async function buildRuntimeApp(
   let prerenders: RoutePrerender[] = [];
   if (serverEntry) {
     if (targetName === "vercel") {
-      prerenders = await buildRoutePrerenders(routes, root, "http://localhost", prefix);
+      prerenders = await buildRoutePrerenders(routes, root, "http://localhost", prefix, true);
     } else {
       ssgCache = await buildSSGCacheSnapshot(routes, root, "http://localhost", prefix);
     }

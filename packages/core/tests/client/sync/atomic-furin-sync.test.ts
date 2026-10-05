@@ -13,6 +13,61 @@ import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync } from "../../../src/server/sync/sqlite/index.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
 
+test.serial.each(["", "/api"])(
+  "furin({ sync }) preserves GET and POST handlers mounted on a plugin at %s",
+  async (prefix) => {
+    const fixture = createTmpApp("cli-app");
+    const cwd = process.cwd();
+    const originalDevMode = IS_DEV;
+    const sqlite = new Database(":memory:");
+    migrateSqliteSync(sqlite);
+    const sync = {
+      adapter: drizzleSyncAdapter({ db: drizzle(sqlite), namespace: "furin-mount" }),
+      principal: () => {
+        throw new Error("Mounted handlers own their authentication and mutation semantics");
+      },
+    };
+    try {
+      __setDevMode(true);
+      __resetCompileContext();
+      resetFurinLoggerForTests();
+      process.chdir(fixture.path);
+      const app = new Elysia()
+        .use(
+          new Elysia({ prefix }).mount((request) =>
+            Response.json(
+              { method: request.method, path: new URL(request.url).pathname },
+              { headers: { "set-cookie": "session=mounted; HttpOnly" } }
+            )
+          )
+        )
+        .use(await furin({ pagesDir: join(fixture.path, "src/pages"), sync }));
+      const responses = await Promise.all(
+        ["GET", "POST"].map((method) =>
+          app.handle(new Request(`http://localhost${prefix}/auth/get-session`, { method }))
+        )
+      );
+      await Promise.all(
+        responses.map(async (response, index) => {
+          expect(response.status).toBe(200);
+          expect(response.headers.getSetCookie()).toEqual(["session=mounted; HttpOnly"]);
+          expect(await response.json()).toEqual({
+            method: index === 0 ? "GET" : "POST",
+            path: "/auth/get-session",
+          });
+        })
+      );
+    } finally {
+      sqlite.close();
+      process.chdir(cwd);
+      __setDevMode(originalDevMode);
+      __resetCompileContext();
+      resetFurinLoggerForTests();
+      fixture.cleanup();
+    }
+  }
+);
+
 test.serial(
   "Furin binds parent guards and models to mounted transactional API routes",
   async () => {

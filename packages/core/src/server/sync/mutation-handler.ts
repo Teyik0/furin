@@ -45,7 +45,12 @@ export function installMutationHandlers(app: Elysia): void {
             table.macroScope?.get(index),
           ] as NonNullable<typeof route>)
         : app["~routes"][index]);
-    if (!nativeRoute || ["GET", "HEAD", "OPTIONS", "WS"].includes(nativeRoute[0])) {
+    if (
+      !nativeRoute ||
+      ["GET", "HEAD", "OPTIONS", "WS"].includes(nativeRoute[0]) ||
+      // Elysia resolves mount placeholders and rewrites their Request paths during compilation.
+      (typeof nativeRoute[2] === "function" && "~mount" in nativeRoute[2])
+    ) {
       return compileHandler(index, immediate, route, aliases, table);
     }
     const [method, path, handle, owner, hooks, chain, inherited, macroScope] = nativeRoute;

@@ -31,6 +31,7 @@ export function generateHydrateEntry(
   basePath: string,
   clientLogging: boolean
 ): string {
+  const rootDirectory = rootLayout.replaceAll("\\", "/").split("/").slice(0, -1).join("/");
   const getBoundaryIdent = (idents: Map<string, string>, filePath: string | undefined) => {
     if (!filePath) {
       return;
@@ -84,6 +85,9 @@ export function generateHydrateEntry(
       }
       if (notFoundIdent) {
         parts.push(`notFound: ${notFoundIdent}.default`);
+      }
+      if (seg.depth === 0 && seg.path.replaceAll("\\", "/") !== rootDirectory) {
+        parts.push("isRoot: false");
       }
       boundaryLiterals.push(`{ ${parts.join(", ")} }`);
     }

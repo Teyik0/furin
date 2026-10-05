@@ -12,7 +12,7 @@ export type SSGCacheSnapshot = Record<string, SsgCacheEntry>;
 
 export interface RoutePrerender {
   path: string;
-  /** PPR targets are materialized later by the exact production bundle. */
+  /** Deferred targets are materialized later by the exact production bundle. */
   result?: SsgCacheEntry | Response;
   route: ResolvedRoute;
 }
@@ -31,12 +31,14 @@ function hasRequestDependentInput(route: ResolvedRoute, root: RootLayout): boole
  * known; dynamic routes contribute the values returned by staticParams(). ISR
  * routes with query schemas stay on-demand. PPR paths are collected here, then
  * rendered by the production bundle so React's postponed tree matches at runtime.
+ * Vercel defers all rendering to preserve the final application's runtime configuration.
  */
 export async function buildRoutePrerenders(
   routes: ResolvedRoute[],
   root: RootLayout,
   origin: string,
-  basePath: string
+  basePath: string,
+  deferRendering?: boolean
 ): Promise<RoutePrerender[]> {
   const prerenders: RoutePrerender[] = [];
   const searchRoutes = createSearchRouteMetadata(routes);
@@ -65,7 +67,7 @@ export async function buildRoutePrerenders(
       if (matchRoute(path)?.route !== route) {
         continue;
       }
-      if (root.route.requestLoader !== undefined || hasRequestLoader(route)) {
+      if (deferRendering || root.route.requestLoader !== undefined || hasRequestLoader(route)) {
         prerenders.push({ path, route });
         continue;
       }
