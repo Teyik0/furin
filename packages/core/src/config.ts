@@ -83,6 +83,7 @@ export const configSchema = t.Object({
   bun: t.Optional(
     t.Object({
       compile: t.Optional(compileTargetSchema),
+      output: t.Optional(t.Union([t.Literal("app"), t.Literal("server")])),
     })
   ),
   /**

@@ -65,6 +65,26 @@
         "picocolors": "^1.1.1",
       },
     },
+    "examples/electrobun-todo": {
+      "name": "@teyik0/furin-example-electrobun-todo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@fontsource-variable/manrope": "5.2.8",
+        "@fontsource/ibm-plex-mono": "5.2.7",
+        "@teyik0/furin": "workspace:*",
+        "drizzle-orm": "^0.45.3",
+        "elysia": "catalog:",
+        "evlog": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@teyik0/furin-electrobun": "workspace:*",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+      },
+    },
     "examples/task-manager": {
       "name": "@teyik0/furin-example-task-manager",
       "version": "0.1.0",
@@ -151,6 +171,23 @@
       "optionalPeers": [
         "drizzle-orm",
       ],
+    },
+    "packages/electrobun": {
+      "name": "@teyik0/furin-electrobun",
+      "version": "0.7.0-alpha.1",
+      "bin": {
+        "furin-electrobun": "./src/cli.ts",
+      },
+      "devDependencies": {
+        "elysia": "catalog:",
+      },
+      "optionalDependencies": {
+        "electrobun": "2.0.2",
+      },
+      "peerDependencies": {
+        "@teyik0/furin": ">=0.7.0-alpha.1 <0.8.0",
+        "elysia": "catalog:",
+      },
     },
   },
   "overrides": {
@@ -364,6 +401,10 @@
     "@floating-ui/react-dom": ["@floating-ui/react-dom@2.1.9", "", { "dependencies": { "@floating-ui/dom": "^1.8.0" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@fontsource-variable/manrope": ["@fontsource-variable/manrope@5.2.8", "", {}, "sha512-nc9lOuCRz73UHnovDE2bwXUdghE2SEOc7Aii0qGe3CLyE03W1a7VnY5Z6euRiapiKbCkGS+eXbY3s/kvWeGeSw=="],
+
+    "@fontsource/ibm-plex-mono": ["@fontsource/ibm-plex-mono@5.2.7", "", {}, "sha512-MKAb8qV+CaiMQn2B0dIi1OV3565NYzp3WN5b4oT6LTkk+F0jR6j0ZN+5BKJiIhffDC3rtBULsYZE65+0018z9w=="],
 
     "@happy-dom/global-registrator": ["@happy-dom/global-registrator@20.14.5", "", { "dependencies": { "@types/node": ">=20.0.0", "happy-dom": "^20.14.5" } }, "sha512-B05ID9DhSwLs6mlm1fzlkAtTIvB3duCvjJjfr19LBrlTK7VZtRjDqoTRIVv13GuYuNdhByu8LSZgThwV3Rkj7g=="],
 
@@ -750,6 +791,10 @@
     "@teyik0/furin": ["@teyik0/furin@workspace:packages/core"],
 
     "@teyik0/furin-docs": ["@teyik0/furin-docs@workspace:apps/docs"],
+
+    "@teyik0/furin-electrobun": ["@teyik0/furin-electrobun@workspace:packages/electrobun"],
+
+    "@teyik0/furin-example-electrobun-todo": ["@teyik0/furin-example-electrobun-todo@workspace:examples/electrobun-todo"],
 
     "@teyik0/furin-example-task-manager": ["@teyik0/furin-example-task-manager@workspace:examples/task-manager"],
 
@@ -1138,6 +1183,8 @@
     "effect": ["effect@3.20.0", "", { "dependencies": { "@standard-schema/spec": "^1.0.0", "fast-check": "^3.23.1" } }, "sha512-qMLfDJscrNG8p/aw+IkT9W7fgj50Z4wG5bLBy0Txsxz8iUHjDIkOgO3SV0WZfnQbNG2VJYb0b+rDLMrhM4+Krw=="],
 
     "ejs": ["ejs@6.0.1", "", { "bin": { "ejs": "bin/cli.js" } }, "sha512-UaaM14yby8U3k02ihS1Bmj5Kz2d7CCQM1scxpgs4Mhkq8F1wR2gl3+Ts4h5Ne4Mnt7M9m4Dw7jsuMr3+xO4vZA=="],
+
+    "electrobun": ["electrobun@2.0.2", "", { "bin": { "electrobun": "bin/electrobun.cjs" } }, "sha512-UDs2iTNs6qYCzdWiFch/0DtxrsijNDr1WFDQfRmSA3Iouv0iEzyCF5mh4uDxkwNnAbuwFyow36EiVTYP4DRzig=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.393", "", {}, "sha512-kiDJdIUawuEIcp9XoICKp1iTYDEbgguIPq526N1Q7jIQDeQ3CqoMx71025PI/7E48Ddtw2HuWsVjY7afEgNxmg=="],
 

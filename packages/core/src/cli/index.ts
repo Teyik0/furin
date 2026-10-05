@@ -120,6 +120,7 @@ if (command === "preview") {
       options: {
         analyze: { type: "boolean" },
         config: { type: "string" },
+        output: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
         target: { type: "string" },
@@ -132,6 +133,7 @@ if (command === "preview") {
 
   const values = rawValues as {
     analyze?: boolean;
+    output?: string;
     target?: string;
     pagesDir?: string;
     prefix?: string;
@@ -145,6 +147,14 @@ if (command === "preview") {
   }
 
   const config = await loadCliConfig(process.cwd(), values.config);
+
+  const output = values.output ?? config.bun?.output;
+  if (output !== undefined && output !== "app" && output !== "server") {
+    bail(`Invalid Bun output "${output}". Valid: app, server`);
+  }
+  if (output !== undefined && target !== "bun") {
+    bail("--output requires --target bun");
+  }
 
   const isServerlessTarget = target === "static" || target === "package";
 
@@ -163,6 +173,7 @@ if (command === "preview") {
 
   const result = await buildApp({
     analyze: values.analyze,
+    bun: output === undefined ? undefined : { output },
     // --pagesDir/--prefix build a single explicit app; otherwise fall back to
     // the config's `apps` list (then to server.ts scanning inside buildApp).
     // normalizePrefix here so a bad --prefix fails before buildApp starts
@@ -208,6 +219,7 @@ BUILD OPTIONS
   --prefix    Mount prefix for the built app (e.g. /admin) — pairs with --pagesDir
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
+  --output    app | server  Bun only: inert app.js or listening server.js (default: server)
   --analyze   Write complete bundle metafiles to .furin/build/analysis
 
 PREVIEW OPTIONS

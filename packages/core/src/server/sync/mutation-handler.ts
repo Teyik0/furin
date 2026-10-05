@@ -49,6 +49,10 @@ export function installMutationHandlers(app: Elysia): void {
       return compileHandler(index, immediate, route, aliases, table);
     }
     const [method, path, handle, owner, hooks, chain, inherited, macroScope] = nativeRoute;
+    // Opaque Request/Response mounts need Elysia's original compiler metadata.
+    if (typeof handle === "function" && "~mount" in handle) {
+      return compileHandler(index, immediate, nativeRoute, aliases, table);
+    }
     const wrapped = async (context: Context) => {
       const begin = mutationBeginnings.get(context.request);
       mutationBeginnings.delete(context.request);

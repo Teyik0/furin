@@ -1,0 +1,47 @@
+{
+  "name": "@teyik0/furin-electrobun",
+  "version": "0.7.0-alpha.1",
+  "description": "Official system-WebView desktop packaging for Furin.",
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/config.d.ts",
+      "bun": "./src/config.ts",
+      "import": "./dist/config.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "bun": "./src/server.ts",
+      "import": "./dist/server.js"
+    }
+  },
+  "bin": {
+    "furin-electrobun": "./src/cli.ts"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "fix": "ultracite fix",
+    "test": "bun test tests",
+    "tscheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "elysia": "catalog:"
+  },
+  "peerDependencies": {
+    "@teyik0/furin": ">=0.7.0-alpha.1 <0.8.0",
+    "elysia": "catalog:"
+  },
+  "optionalDependencies": {
+    "electrobun": "2.0.2"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  }
+}

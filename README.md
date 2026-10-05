@@ -39,6 +39,8 @@ Full API reference, rendering modes, routing, and deployment guides at **[teyik0
 | [`apps/docs`](apps/docs) | Documentation site |
 | [`examples/task-manager`](examples/task-manager) | Example: task manager app |
 | [`examples/weather`](examples/weather) | Example: weather app |
+| [`packages/electrobun`](packages/electrobun) | Optional Electrobun desktop integration — `@teyik0/furin-electrobun` |
+| [`examples/electrobun-todo`](examples/electrobun-todo) | Example: Relay todo app with the same web and Electrobun UI |
 
 ## Workspace Commands
 

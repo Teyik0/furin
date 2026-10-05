@@ -33,6 +33,16 @@ const config: KnipConfig = {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
       project: ["src/**/*.{ts,tsx,css}"],
     },
+    "examples/electrobun-todo": {
+      entry: ["src/server.ts", "furin.desktop.config.ts", "src/pages/**/*.{ts,tsx}"],
+      // Font packages are loaded by CSS @import, which Knip does not compile.
+      ignoreDependencies: ["@fontsource-variable/manrope", "@fontsource/ibm-plex-mono"],
+      project: ["src/**/*.{ts,tsx}"],
+    },
+    "packages/electrobun": {
+      // Copied into the SDK fixture and launched by path, rather than imported.
+      entry: ["src/dev-server.ts"],
+    },
     "packages/core": {
       entry: [
         "src/server/sync/postgres/migrate.ts",
