@@ -1,0 +1,24 @@
+packages/core/tests/render-element-boundaries.test.tsx
+  s_815d738d114937::t_dc3d348026cd3a 24,28-29
+  s_815d738d114937::t_56d6b79b8310f8 265-308
+packages/core/src/server/render/element.tsx
+  s_815d738d114937::t_f650cf5a1fd074 103-108,110
+  s_815d738d114937::t_adf437fbfeac2c 8
+  s_815d738d114937::t_a12912f1583857 74-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7829e61b44f6c8e7c0cfc7666523fe63a855be2f",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

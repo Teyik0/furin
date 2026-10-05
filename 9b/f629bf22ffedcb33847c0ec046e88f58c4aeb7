@@ -1,0 +1,19 @@
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_3295c4a2d42648::t_7cf0a8b3f37e59 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9bf629bf22ffedcb33847c0ec046e88f58c4aeb7",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

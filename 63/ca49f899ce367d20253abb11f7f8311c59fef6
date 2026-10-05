@@ -1,0 +1,14 @@
+packages/core/tests/bench/params-validation.bench.ts
+  h_a2cbd1b0e3ae6e 1-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "63ca49f899ce367d20253abb11f7f8311c59fef6",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

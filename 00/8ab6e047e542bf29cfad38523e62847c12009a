@@ -1,0 +1,20 @@
+CHANGELOG.md
+  s_12b392977c20f6::t_ee86156591df4e 9
+  s_12b392977c20f6::t_cea089e376d239 10-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "008ab6e047e542bf29cfad38523e62847c12009a",
+  "prompts": {},
+  "sessions": {
+    "s_12b392977c20f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f9c41d86dffeI1j7MKSPmpROkr",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

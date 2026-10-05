@@ -1,0 +1,373 @@
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/blog/[slug].tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-6
+packages/core/tests/dev/hmr/dev-hmr-cache-invalidation.integration.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3,5-177
+  s_d3d25a4bf87b5d::t_60b9f99f38030f 4
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-239
+packages/core/tests/fixtures/apps/cli-app-ssr/src/server.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-14
+packages/core/tests/fixtures/pages/default/query-default/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-9
+packages/core/tests/client/link/build-data-endpoint.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-96
+packages/core/tests/rendering/deferred/deferred-render.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,7-100
+  s_d3d25a4bf87b5d::t_60b9f99f38030f 3-6
+packages/core/tests/routing/cache/route-cache.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-56
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-155
+packages/core/tests/support/http.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-43
+packages/core/tests/README.md
+  s_d3d25a4bf87b5d::t_c259fcb1057efb 1-89
+packages/core/tests/client/sync/sync-client.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-211
+packages/core/tests/support/utils.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-7
+packages/core/tests/client/link/interactive.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-1055
+packages/core/tests/support/app-fixtures.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3,5-51
+  s_d3d25a4bf87b5d::t_f85277cb8ae472 4
+packages/core/scripts/test.sh
+  s_d3d25a4bf87b5d::t_f85277cb8ae472 14,22,28-42
+packages/core/tests/client/link/link-boundaries.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-325
+packages/core/tests/contract/search-types.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-35
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-117,119-126
+  s_d3d25a4bf87b5d::t_5dc8b78086998f 118
+apps/docs/package.json
+  s_d3d25a4bf87b5d::t_f85277cb8ae472 8-9
+packages/core/tests/client/link/scroll-restoration.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-307
+packages/core/tests/client/link/link.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-1081
+packages/core/tests/fixtures/pages/default/dynamic/[id]/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-10
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-13
+packages/core/tests/fixtures/pages/nested-errors/blog/subpage/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/fixtures/apps/cli-app/src/pages/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-23,25-540
+  s_d3d25a4bf87b5d::t_c0065985261904 24
+packages/core/tests/support/process.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-121
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-316
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-121
+packages/core/tests/routing/conventions/route-plugin.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-124
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_d3d25a4bf87b5d::t_c0065985261904 50
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-49,51-116,119-131
+  s_d3d25a4bf87b5d::t_db3ad77ff0c678 117-118
+packages/core/tests/setup/global.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/fixtures/pages/nested-errors/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/fixtures/pages/default/dynamic/[id]/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,5-116,119-131
+  s_d3d25a4bf87b5d::t_7ab17b89c0b674 3-4,117-118
+packages/core/tests/fixtures/pages/default/schema-merge-parent/child/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-14
+packages/core/tests/rendering/ssr/stream-to-string.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-43
+packages/core/tests/build/hydrate/hydration-order.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-93
+packages/core/tests/fixtures/apps/cli-app/src/pages/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/routing/layouts/refresh-layout.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-254
+packages/core/tests/routing/validation/validation.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-166
+packages/core/tests/runtime/invalidation/isr-uselogger-bg-revalidation.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-79
+packages/core/tests/rendering/deferred/deferred-rejection.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-90
+packages/core/tests/fixtures/pages/nested-not-found/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/rendering/rsc/rsc.test.tsx
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-215
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-227
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/apps/cli-app/furin-env.d.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-10
+packages/core/tests/client/sync/sync.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,5-319,322-334
+  s_d3d25a4bf87b5d::t_7ab17b89c0b674 3-4,320-321
+packages/core/tests/support/build-lock.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-46
+examples/task-manager/tests/board-page-sync.test.tsx
+  s_d3d25a4bf87b5d::t_0186f69e54b969 6
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-55
+packages/core/tests/client/link/route-matching-trailing-slash.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-33
+packages/core/tests/routing/conventions/prefix.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-35
+packages/core/tests/fixtures/pages/not-found/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+examples/task-manager/tests/board-card.test.tsx
+  s_d3d25a4bf87b5d::t_0186f69e54b969 6
+examples/task-manager/tests/create-board-form.test.tsx
+  s_d3d25a4bf87b5d::t_0186f69e54b969 6
+packages/core/tests/fixtures/pages/default/nested/deep/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-205
+packages/core/tests/client/sync/sync-fingerprint.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-27
+packages/core/tests/fixtures/pages/default/dynamic-defer/[slug]/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-11
+packages/core/tests/fixtures/pages/nested-not-found/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/fixtures/pages/default/nested/deep/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-7
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_d3d25a4bf87b5d::t_43e3e2f1c607a7 264-265
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-263,266-278
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-123
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/pages/not-found/not-found.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/rendering/deferred/deferred-abort.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-186
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-606
+packages/core/tests/rendering/errors/render-digest.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-53
+packages/core/tests/client/sync/memory-sync-adapter.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-34
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-25,27-253
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 26
+packages/core/tests/rendering/errors/render-error.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-488
+packages/core/tests/build/measurement/measure-client-bundle.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5,7-46
+  s_d3d25a4bf87b5d::t_940956afa8cfc7 6
+packages/core/tests/dev/hmr/dev-route-rebuild.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-109
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/pages/nested-errors/blog/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/runtime/instance/instance.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-132
+packages/core/tests/client/link/should-intercept-click.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-130
+packages/core/tests/routing/errors/not-found-scan.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-4,7-37
+  s_d3d25a4bf87b5d::t_c0065985261904 5-6
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_d3d25a4bf87b5d::t_60b9f99f38030f 4
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3,5-315
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-95
+packages/core/tests/fixtures/pages/default/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/rendering/deferred/deferred-hydration-race.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,7-217
+  s_d3d25a4bf87b5d::t_60b9f99f38030f 3-6
+packages/core/tests/rendering/errors/render-element-boundaries.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-327
+packages/core/tests/runtime/plugin/data-endpoint-logging.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-83
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/pages/default/with-loader/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-13
+packages/core/tests/routing/cache/dev-isr-loader-cache.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-217
+packages/core/tests/fixtures/pages/default/with-loader/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-21
+packages/core/tests/routing/layouts/e2e-inline-layout.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-79
+packages/core/tests/rendering/deferred/deferred-loaders.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-352
+packages/core/tests/routing/cache/dev-loader-cache-primitives.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-236
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/pages/default/nested/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-7
+packages/core/tests/routing/layouts/route-chain-layouts.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-227
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 9
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8,10-302
+packages/core/tests/fixtures/pages/default/defer-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-16
+packages/core/tests/routing/errors/not-found.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-32
+packages/core/tests/build/config/cli-config.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-89
+packages/core/tests/fixtures/pages/default/ssr-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-11
+packages/core/tests/fixtures/pages/default/query-types/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+packages/core/tests/fixtures/pages/nested-not-found/not-found.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-109
+packages/core/tests/fixtures/pages/default/skip-layout.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_d3d25a4bf87b5d::t_0186f69e54b969 6
+packages/core/tests/rendering/templates/render-template.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-93
+packages/core/tests/rendering/ssr/shell.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-314
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-389
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/fixtures/pages/not-found/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-206
+packages/core/tests/support/with-build-stub.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-99
+packages/core/tests/fixtures/pages/default/ssg-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-15
+packages/core/tests/fixtures/pages/default/query-types/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-13
+packages/core/tests/client/link/normalize-href.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-32
+packages/core/tests/routing/discovery/scan-server.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-234
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-424
+packages/core/tests/rendering/rsc/rsc-transport-benchmark.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-14
+packages/core/tests/contract/route-types.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-341
+packages/core/tests/fixtures/pages/default/inline-layout.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-11
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-401
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-97
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-204
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-353
+packages/core/tests/fixtures/pages/nested-errors/root.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+packages/core/bunfig.toml
+  s_d3d25a4bf87b5d::t_f475817da8ed2b 6
+packages/core/tests/fixtures/pages/default/ssg-loader-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-21
+packages/core/tests/fixtures/apps/cli-app/src/server.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-14
+packages/core/tests/fixtures/pages/default/isr-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-17
+packages/core/tests/rendering/deferred/defer.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-69
+packages/core/tests/routing/discovery/segment-boundaries.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-14,16,19-115
+  s_d3d25a4bf87b5d::t_c0065985261904 15,17-18
+packages/core/tests/fixtures/pages/nested-errors/blog/error.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/fixtures/pages/default/suspense-page.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-26
+packages/core/tests/rendering/errors/render-not-found.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-173
+packages/core/tests/support/dom.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-174
+packages/core/tests/fixtures/pages/default/dynamic/specific.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-11
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-137
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3,5-587
+  s_d3d25a4bf87b5d::t_60b9f99f38030f 4
+packages/core/tests/support/hmr.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-42
+packages/core/tests/contract/types.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-824
+packages/core/tests/fixtures/pages/default/nested/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/rendering/rsc/rsc-client.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-63
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-120
+packages/core/tests/fixtures/pages/default/dynamic-defer/[slug]/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+packages/core/tests/build/embed/build-embed.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-237
+packages/core/tests/fixtures/pages/default/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+packages/core/tests/fixtures/pages/nested-errors/error.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-26,28-59,62-74
+  s_d3d25a4bf87b5d::t_5bda5fe2d34126 60-61
+  s_d3d25a4bf87b5d::t_c0065985261904 27
+packages/core/tests/fixtures/pages/nested-not-found/blog/not-found.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-3
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-108,110-117
+  s_d3d25a4bf87b5d::t_5dc8b78086998f 109
+packages/core/tests/architecture/ast-walk.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-78
+packages/core/tests/fixtures/pages/default/schema-merge-parent/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-13
+packages/core/tests/routing/conventions/plugin.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-85
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/apps/cli-app-ssr/src/pages/dashboard.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-8
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-16,19-201
+  s_d3d25a4bf87b5d::t_8f65abf7e2317f 17-18
+packages/core/tests/client/boundaries/await.test.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-185
+packages/core/tests/fixtures/pages/default/query-default/_route.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-10
+packages/core/tests/routing/errors/error-scan.test.ts
+  s_d3d25a4bf87b5d::t_c0065985261904 5
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-4,6-34
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-2,4-133
+  s_d3d25a4bf87b5d::t_00ffc1d3c4d66a 3
+packages/core/tests/fixtures/apps/cli-app/src/pages/blog/[slug].tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-6
+packages/core/tests/rendering/deferred/deferred-client.test.ts
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-122
+packages/core/tests/fixtures/pages/nested-not-found/blog/index.tsx
+  s_d3d25a4bf87b5d::t_a8bcc171e92afd 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b3cc0107770158cb5485ce231acbdf9ff4cbe1ca",
+  "prompts": {},
+  "sessions": {
+    "s_d3d25a4bf87b5d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5703-52a5-7cf0-a6e2-702e51af942e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

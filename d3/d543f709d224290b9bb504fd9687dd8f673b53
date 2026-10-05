@@ -1,0 +1,23 @@
+packages/core/src/client/boundaries.tsx
+  s_c4a1ae9cc2cd6c::t_2af354792e61ae 122
+packages/core/tests/client/boundaries/render-boundaries.test.tsx
+  s_c4a1ae9cc2cd6c::t_084eb9fc16bf69 221,231
+CHANGELOG.md
+  s_c4a1ae9cc2cd6c::t_ae32922a3dd8c7 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d3d543f709d224290b9bb504fd9687dd8f673b53",
+  "prompts": {},
+  "sessions": {
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

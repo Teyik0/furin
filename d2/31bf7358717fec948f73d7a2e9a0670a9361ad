@@ -1,0 +1,25 @@
+doctor.config.ts
+  s_815d738d114937::t_9d0846fc0d74c1 8-16,24-25
+  s_815d738d114937::t_eb3a46093c0840 21-23,28-41,44-50,73
+  s_815d738d114937::t_c3bccb50c0d937 77
+  s_815d738d114937::t_5df8c7dcffda00 42-43
+  s_815d738d114937::t_2f5c991c14813c 62
+knip.config.ts
+  s_815d738d114937::t_7643c01cd938b3 6-9,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d231bf7358717fec948f73d7a2e9a0670a9361ad",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

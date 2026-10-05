@@ -1,0 +1,18 @@
+packages/core/src/plugin/routes.ts
+  h_a2cbd1b0e3ae6e 387
+packages/core/src/server/devtools/plugin.ts
+  h_a2cbd1b0e3ae6e 108-111,116-119
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  h_a2cbd1b0e3ae6e 2,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9b605de9e88100fc940c862280dae6c0d3d3f5e3",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

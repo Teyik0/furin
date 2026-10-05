@@ -1,0 +1,23 @@
+packages/core/src/adapter/bun.ts
+  4621203fcd109643 137,140-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "5701a9875750c0c110e8a861bfcbe6f5e5bd486c",
+  "prompts": {
+    "4621203fcd109643": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d503c210-6664-4fbd-8e89-3fbd5f55c45d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1313,
+      "total_deletions": 38,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  }
+}

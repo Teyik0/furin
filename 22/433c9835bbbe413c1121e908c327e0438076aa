@@ -1,0 +1,24 @@
+packages/core/src/plugin/routes.ts
+  s_02d46857ef0d54::t_8424264d933bcf 45,57,293,312-321,323-331,347,363,375
+  s_02d46857ef0d54::t_724dda4793c164 322
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_02d46857ef0d54::t_28a4259dda67c9 98-128
+packages/core/src/furin.ts
+  s_02d46857ef0d54::t_11c37c3fafecf9 733-738
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "22433c9835bbbe413c1121e908c327e0438076aa",
+  "prompts": {},
+  "sessions": {
+    "s_02d46857ef0d54": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087db-43c3-70a0-9d27-fdd1e0c812ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

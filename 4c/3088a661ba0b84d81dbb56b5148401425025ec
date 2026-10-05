@@ -1,0 +1,27 @@
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  0d463d84f21e2371 633-676
+packages/core/tests/dev-hmr-parent-child.integration.test.ts
+  0d463d84f21e2371 463-467,474-475
+packages/core/src/router.ts
+  0d463d84f21e2371 787-795,797,800-804
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "4c3088a661ba0b84d81dbb56b5148401425025ec",
+  "prompts": {
+    "0d463d84f21e2371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "812debb7-e3fd-4db3-b981-cdd1df7901b3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 66,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+.github/workflows/hmr-soak.yaml
+  s_3e84fe076e2ee0::t_0fdba4cfbdd413 19,22
+.github/workflows/ci.yaml
+  s_3e84fe076e2ee0::t_0fdba4cfbdd413 87,92
+.github/workflows/distributed-sync-validation.yaml
+  s_3e84fe076e2ee0::t_0fdba4cfbdd413 42,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "690340b2274f2fa9a184fe2ea6cdf3826b61c400",
+  "prompts": {},
+  "sessions": {
+    "s_3e84fe076e2ee0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cf0-0bef-7270-8707-441e23d25194",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

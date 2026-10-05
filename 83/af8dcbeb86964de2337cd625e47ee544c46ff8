@@ -1,0 +1,19 @@
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_057584fd87eb17 102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "83af8dcbeb86964de2337cd625e47ee544c46ff8",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

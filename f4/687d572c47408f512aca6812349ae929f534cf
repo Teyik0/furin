@@ -1,0 +1,62 @@
+packages/core/src/dev-cache-invalidator.ts
+  72340867595ecae4 1-123
+packages/core/src/dev-page-plugin.ts
+  72340867595ecae4 56,368-373
+packages/core/src/furin.ts
+  72340867595ecae4 240-242
+packages/core/src/render/index.ts
+  72340867595ecae4 278,289,680,713
+packages/core/tests/router/dev-mode-caching.test.ts
+  72340867595ecae4 1-276,344
+  ddeffb55308f4529 277-283,285-343
+packages/core/src/router.ts
+  72340867595ecae4 7,12,660-711,713-720,722-767,872-874,879-883
+  ddeffb55308f4529 23,26-29,204,210-213,229,590,595,597,601,606-608,610,612,614-618,712,721
+  c2d879ff99ccc281 30,248-250,490-508,510-521,523-542,544-572,588-589,591-592,605,613
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "f4687d572c47408f512aca6812349ae929f534cf",
+  "prompts": {
+    "72340867595ecae4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1556e2b6-7325-48aa-b199-f9247dba6c9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 2035,
+      "total_deletions": 1518,
+      "accepted_lines": 530,
+      "overriden_lines": 0
+    },
+    "c2d879ff99ccc281": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbdd8-875b-74b1-b66b-45b70f0d906f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 37,
+      "accepted_lines": 90,
+      "overriden_lines": 3
+    },
+    "ddeffb55308f4529": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dbd8b-5c6d-7b03-81e8-7b6345b84149",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 33,
+      "accepted_lines": 94,
+      "overriden_lines": 1
+    }
+  }
+}

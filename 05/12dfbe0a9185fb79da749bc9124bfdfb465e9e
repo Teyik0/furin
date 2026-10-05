@@ -1,0 +1,50 @@
+packages/core/src/furin.ts
+  s_3295c4a2d42648::t_9d72197217f945 46-50,475-479,481-485
+packages/core/src/server/router/plugin.ts
+  s_3295c4a2d42648::t_86f0864d60c347 152-181
+packages/core/src/server/render/loaders.ts
+  s_3295c4a2d42648::t_775580b373638a 207-220
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3295c4a2d42648::t_78138e404d6c06 333-335,340-342
+  s_3295c4a2d42648::t_acbf86105764a7 330-332
+  s_95bed43ecce966::t_d80f3776abcea4 343
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  s_3295c4a2d42648::t_20f2d87a0af72f 21-29,33-37
+  s_3295c4a2d42648::t_acc9a94f5ba9cc 30-32
+  s_3295c4a2d42648::t_1aa50749f5520e 2
+.github/workflows/ci.yaml
+  s_3295c4a2d42648::t_775580b373638a 377-381
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_01ca48e092c281 126,139,148,150,159,237-238,260,268-269
+packages/core/src/server/dev/graph.ts
+  s_3295c4a2d42648::t_775580b373638a 80-81,83
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_3295c4a2d42648::t_970fb166e8ac11 225,231
+packages/core/src/client/router/provider.tsx
+  s_3295c4a2d42648::t_d81c88b60aaf98 330
+  s_3295c4a2d42648::t_85d7c75ad37247 321-329,331-339,389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0512dfbe0a9185fb79da749bc9124bfdfb465e9e",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_95bed43ecce966": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfd2-0c40-7fe1-b889-5449ace6eb8d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/core/package.json
+  545eb951e90ba0da 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7282c53d240f751ab0db75baf486edc62557bf3b",
+  "prompts": {
+    "545eb951e90ba0da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d63cc-a2ce-7510-bec3-f00014b77e12",
+        "model": "unknown"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

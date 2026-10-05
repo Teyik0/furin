@@ -1,0 +1,30 @@
+packages/core/src/server/production-server.ts
+  s_7c2a26ae7397db::t_1f96e62f6191af 35
+  s_7c2a26ae7397db::t_84d79c44997e38 27,72-90,97
+apps/docs/src/content/docs/deployment.mdx
+  s_7c2a26ae7397db::t_9dec03d68418e4 302-303
+  s_7c2a26ae7397db::t_49ad05a5d41a02 325
+packages/core/src/server/evlog.ts
+  s_7c2a26ae7397db::t_f572add6b8e68f 38,42-44,89-95
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_17696d6b1524c3 56-57,64
+  s_7c2a26ae7397db::t_d9e9dadae2fa96 11-17,35,75-106,108-137
+  s_7c2a26ae7397db::t_eb46a2050bc454 107
+  s_7c2a26ae7397db::t_38836fe80e86c6 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "03bca8eade043a79af60ec58f19df4fe41268242",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

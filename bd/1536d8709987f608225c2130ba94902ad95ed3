@@ -1,0 +1,21 @@
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_6d1ef8c2ed76af 86,89,92,95,97
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_13b9bbaf2a91a1::t_e921cc97e36c89 193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bd1536d8709987f608225c2130ba94902ad95ed3",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/core/tests/render.test.ts
+  e393f88b9e16eb4e 995-996,1002,1009-1036
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "0330c35c8728938cb2dcfe13ba2545c01fb324fe",
+  "prompts": {
+    "e393f88b9e16eb4e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_24e3229a3ffeJhpL5GPXwua7QR",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 1487,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    }
+  }
+}

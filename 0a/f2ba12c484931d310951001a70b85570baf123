@@ -1,0 +1,60 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 98
+.github/workflows/vercel-benchmark.yaml
+  h_a2cbd1b0e3ae6e 81
+apps/docs/src/content/docs/comparison.mdx
+  h_a2cbd1b0e3ae6e 88
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 126,128,134-140
+packages/core/src/adapter/README.md
+  h_a2cbd1b0e3ae6e 20,23,40-44
+packages/core/src/adapter/bun.ts
+  h_a2cbd1b0e3ae6e 15-19,113,156
+packages/core/src/adapter/runtime-build.ts
+  h_a2cbd1b0e3ae6e 2,17,37-40,52,166-207
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 11,25,28,58,62,227,229,241-243,265,310-311,317,326-330,349,370-371,379-387,417,429-435,514-525,539-619,729-730,734,750,771,812
+packages/core/src/build/ssg-cache.ts
+  h_a2cbd1b0e3ae6e 5,14-15,24,31-32,72-75,105
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 948
+packages/core/src/react-dom-edge.d.ts
+  h_a2cbd1b0e3ae6e 1-6
+packages/core/src/server/auto-invalidate/runtime.ts
+  h_a2cbd1b0e3ae6e 2,148,151
+packages/core/src/server/cache/invalidation.ts
+  h_a2cbd1b0e3ae6e 83,85,160-161
+packages/core/src/server/internal.ts
+  h_a2cbd1b0e3ae6e 14,85-86
+packages/core/src/server/render/ppr-document.ts
+  h_a2cbd1b0e3ae6e 1-239
+packages/core/src/server/render/ppr-request.ts
+  h_a2cbd1b0e3ae6e 1-104
+packages/core/src/server/render/ppr-route.ts
+  h_a2cbd1b0e3ae6e 2,5,10,15-25,28,95-110,114-157,160-163,169-174,176-182,186-195,197,200-220,230-241
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 584,696,745
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 33-38,73-78,84,314-317,321,356,422-424
+packages/core/src/shared/prefix.ts
+  h_a2cbd1b0e3ae6e 13-20
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 301,306,310-313,464-467,498-502,529-543,545-550,604-611
+packages/core/tests/rendering/ssr/ppr-document.test.tsx
+  h_a2cbd1b0e3ae6e 1-118
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  h_a2cbd1b0e3ae6e 75
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  h_a2cbd1b0e3ae6e 167-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0af2ba12c484931d310951001a70b85570baf123",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_96675323854193::t_c71af5ddaa1660 7,31-32,37-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3b9c8adb17822d72026cdee5dd11b548732c3488",
+  "prompts": {},
+  "sessions": {
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

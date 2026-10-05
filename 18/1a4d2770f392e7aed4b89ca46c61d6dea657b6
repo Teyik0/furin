@@ -1,0 +1,18 @@
+packages/core/src/client/router/provider.tsx
+  h_a2cbd1b0e3ae6e 198-199,220-226,381,400,411,426,541,545-549,570,598
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 734-741
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 36-38,288-289
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "181a4d2770f392e7aed4b89ca46c61d6dea657b6",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

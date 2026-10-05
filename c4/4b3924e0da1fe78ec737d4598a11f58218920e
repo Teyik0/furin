@@ -1,0 +1,19 @@
+packages/core/tests/contract/route-types.test.ts
+  s_13b9bbaf2a91a1::t_fb5edc267ab306 3,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c44b3924e0da1fe78ec737d4598a11f58218920e",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

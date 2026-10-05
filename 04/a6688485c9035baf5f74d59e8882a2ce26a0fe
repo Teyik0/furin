@@ -1,0 +1,75 @@
+apps/docs/src/components/landing/copy-command.tsx
+  s_96675323854193::t_7c7805137d52e3 2,10,12-19,24-26,28
+apps/docs/src/components/landing/chime-scene.ts
+  s_96675323854193::t_7c7805137d52e3 3,424-432,436-447,1005-1010,1129,1138-1139,1170,1259
+examples/task-manager/src/components/board-card.tsx
+  s_96675323854193::t_7c7805137d52e3 22
+apps/docs/src/components/landing/reveal.tsx
+  s_96675323854193::t_7c7805137d52e3 16,46
+apps/docs/src/lib/rehype-highlight.ts
+  s_96675323854193::t_7c7805137d52e3 36-38
+examples/task-manager/tests/create-board-form.test.tsx
+  s_96675323854193::t_7c7805137d52e3 110-129
+apps/docs/src/components/hero-section.tsx
+  s_96675323854193::t_7c7805137d52e3 8-14,25,28,44,47-50,60,64-65
+apps/docs/tests/copy-command.test.tsx
+  s_19624855ad92f6::t_886349189232f5 31,33,36,38
+  s_19624855ad92f6::t_2c372ce3d3b8ec 1-30,32,34,37,39,41-48
+  s_19624855ad92f6::t_1d90ea33b4a57f 35,40
+apps/docs/src/components/landing/landing-server.tsx
+  s_96675323854193::t_7c7805137d52e3 36,148,228,304
+apps/docs/src/pages/index.tsx
+  s_96675323854193::t_7c7805137d52e3 120-122,127-128
+apps/docs/tests/highlight.test.tsx
+  s_96675323854193::t_7c7805137d52e3 6,15-34
+  s_96675323854193::t_08339f09143bb8 35
+apps/docs/src/content/docs/routing.mdx
+  s_96675323854193::t_7c7805137d52e3 103
+apps/docs/src/content/docs/layouts.mdx
+  s_96675323854193::t_7c7805137d52e3 103-104
+examples/task-manager/src/components/create-board-form.tsx
+  s_96675323854193::t_7c7805137d52e3 13-15,23
+apps/docs/src/components/landing/chime-canvas.tsx
+  s_96675323854193::t_7c7805137d52e3 39,43,149
+examples/task-manager/tests/board-card.test.tsx
+  s_96675323854193::t_7c7805137d52e3 1,3-4,8,10,14,18-20,22-23,43-46
+  s_19624855ad92f6::t_b6b734f82d0afe 2,5-6,11-13,15-17,21,25-36,38,41-42
+  s_19624855ad92f6::t_af9b87305b6e6c 7,9
+  s_4dfcc3d6c2e018::t_bcf0ed5448c69f 24,37,39-40
+apps/docs/src/components/landing/modes-grid.tsx
+  s_96675323854193::t_7c7805137d52e3 15-16
+apps/docs/src/content/docs/link-navigation.mdx
+  s_96675323854193::t_7c7805137d52e3 76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "04a6688485c9035baf5f74d59e8882a2ce26a0fe",
+  "prompts": {},
+  "sessions": {
+    "s_19624855ad92f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102b1-f879-7d63-87d5-f4c5bd751615",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4dfcc3d6c2e018": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0fb42-8647-7710-a1f9-47b90f2adc21",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

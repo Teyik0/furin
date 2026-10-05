@@ -1,0 +1,19 @@
+packages/core/tests/build/dev-command.test.ts
+  s_2a4069bf188ef3::t_58e7ceb6440b23 2,11-16,27-39,41-44,46-54,57,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "08adb70b1951451d1163db22ffca05f931a082bb",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

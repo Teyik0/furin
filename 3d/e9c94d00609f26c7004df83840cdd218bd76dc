@@ -1,0 +1,97 @@
+packages/core/package.json
+  s_d08a8495311633::t_0a4d56e216675a 3,144,147-149
+packages/core/src/server/router/plugin.ts
+  s_9d4bccb36b0235::t_a28679ee916e36 101,130-147,284-290
+packages/core/src/client/router/provider.tsx
+  s_9d4bccb36b0235::t_f59fa8838ef20d 99
+  s_9d4bccb36b0235::t_8c2c9cae6a3ff9 96-98,100-101
+packages/core/src/client/router/types.ts
+  s_9d4bccb36b0235::t_b7d61c40d55371 219
+apps/docs/package.json
+  s_d08a8495311633::t_0a4d56e216675a 32
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_9d4bccb36b0235::t_f59fa8838ef20d 176
+  s_9d4bccb36b0235::t_21a615fee79096 4-8,10-11,44-47,78-79,135-145,147-164,166-175,177
+  s_9d4bccb36b0235::t_b7d61c40d55371 165
+  s_9d4bccb36b0235::t_1c39860def85d9 9
+  s_9d4bccb36b0235::t_bc6b2c5417a2f0 14-15,146
+  s_9d4bccb36b0235::t_d9557aad2a0591 178
+packages/core/tests/support/hmr-proxy.test.ts
+  s_9d4bccb36b0235::t_3331c9ffd2ca6a 1,3-22,26-43
+  s_9d4bccb36b0235::t_8f439af84df4e8 23-25
+  s_9d4bccb36b0235::t_1c39860def85d9 2
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_9d4bccb36b0235::t_bc6b2c5417a2f0 196
+  s_9d4bccb36b0235::t_a4b599325b6227 194-195,197-198,200-212
+  s_9d4bccb36b0235::t_1c39860def85d9 199
+examples/task-manager/package.json
+  s_d08a8495311633::t_0a4d56e216675a 28
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_9d4bccb36b0235::t_729e7dcc6a5593 18-21,1215,1311
+  s_9d4bccb36b0235::t_c683f0c0ccacc9 156-170,172-184,1005-1007,1018-1033
+  s_9d4bccb36b0235::t_1c39860def85d9 171,1008-1017
+  s_9d4bccb36b0235::t_25cb0e58d87acd 1034-1037
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_9d4bccb36b0235::t_25a745a48df8df 1,8,235-258,271-277,279-283,285-296
+  s_9d4bccb36b0235::t_9b54c544c3ab9e 200-226,229-234,297-298
+  s_9d4bccb36b0235::t_6f6cebb08b30d7 262-269
+  s_9d4bccb36b0235::t_1c39860def85d9 227-228,284
+  s_9d4bccb36b0235::t_ee2fe6565a30d3 259-261,270,278
+packages/core/src/furin.ts
+  s_9d4bccb36b0235::t_eb4d4e1a66ea68 733
+apps/scaffolder/package.json
+  s_d08a8495311633::t_0a4d56e216675a 26
+.github/workflows/hmr-soak.yaml
+  s_9d4bccb36b0235::t_ce37a99909b868 15
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_9d4bccb36b0235::t_f269c6bb4ae09b 104-110,115-116
+  s_9d4bccb36b0235::t_c178e53552e818 112
+  s_9d4bccb36b0235::t_430b51bcaf9da7 117-129
+  s_9d4bccb36b0235::t_92b738ac5acbb7 49-67,69-71
+  s_9d4bccb36b0235::t_23509dcd2a8f58 45,68
+  s_9d4bccb36b0235::t_ec3602eecff793 72-102
+  s_9d4bccb36b0235::t_5d6298f8f78c2a 103,111,113-114
+packages/core/src/plugin/transform-client.ts
+  s_9d4bccb36b0235::t_142fe3e96eda96 410
+  s_9d4bccb36b0235::t_30b40ac283957e 352-354,405
+  s_9d4bccb36b0235::t_4cb7e685e00a66 342-344,355-358
+  s_9d4bccb36b0235::t_0c6ab865fad6dd 321,346-347,369-370,413
+  s_9d4bccb36b0235::t_c178e53552e818 401
+  s_9d4bccb36b0235::t_5d6298f8f78c2a 282-298,331,345,359-368,393,397-400,402-404
+  s_9d4bccb36b0235::t_1c39860def85d9 236-239,333-335,348-351,406-408
+  s_9d4bccb36b0235::t_b47a65006e02ac 299-320,324-326,328-330
+  s_9d4bccb36b0235::t_b6514b027f5504 213-235,240-255,257-281,323,332
+  s_9d4bccb36b0235::t_3956e089635c7e 392,394,396
+  s_9d4bccb36b0235::t_1ad8676daf770b 395
+  s_9d4bccb36b0235::t_081f56d4b9466e 322
+packages/core/tests/support/hmr-proxy.ts
+  s_9d4bccb36b0235::t_e8afc18765eaa1 29,44
+package.json
+  s_d08a8495311633::t_0a4d56e216675a 33-34
+bun.lock
+  s_d08a8495311633::t_782e70289dc7ee 12-13,36,62,79,111,119,122-124,213,215,431,433,435,437,439,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,727,839,841,843,845,847,849,851,853,855,857,859,861,863,919,1245,1307,1467,1587,1673,1749,1751,1753,1787-1788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "3de9c94d00609f26c7004df83840cdd218bd76dc",
+  "prompts": {},
+  "sessions": {
+    "s_9d4bccb36b0235": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087a7-c520-75c0-8f1b-0497dd325197",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d08a8495311633": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07fa7-7c92-7b70-b987-d1afa978e4bb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

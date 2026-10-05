@@ -1,0 +1,86 @@
+apps/scaffolder/package.json
+  3cb295175fd49f6e 16-17
+packages/core/src/link.tsx
+  bcb6b7386d6de688 105,108,135-137,139-142,144-146
+apps/docs/package.json
+  3cb295175fd49f6e 8-9
+packages/core/src/router-provider.tsx
+  bcb6b7386d6de688 247,249
+apps/docs/scripts/generate-docs-content.ts
+  0679582f42636238 12,16
+packages/core/bunfig.toml
+  3cb295175fd49f6e 6
+tests/setup.ts
+  bcb6b7386d6de688 1,16-26,52-58
+package.json
+  3cb295175fd49f6e 13
+packages/core/tests/link/interactive.test.tsx
+  bcb6b7386d6de688 114,157-159,174,189,340,350-351,356-363,369-371,480-482,484,486-498,512,523-525,536-538,549-551,562-564,578-580,594-596,607-609,621,636,650,664,769-772,780,782-787,978
+packages/core/tests/link.test.tsx
+  bcb6b7386d6de688 230,261,266,274,281
+apps/docs/tests/mdx-link.test.tsx
+  bcb6b7386d6de688 20,73
+apps/docs/src/lib/docs-server.ts
+  0679582f42636238 23-31
+packages/core/package.json
+  3cb295175fd49f6e 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "71412a7214feac24c93fec5781b7a50c4e21734a",
+  "prompts": {
+    "0679582f42636238": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2132676feffekfTYQArKIS1po5",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 15,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "3cb295175fd49f6e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21c09b733ffep3DH6f87sPM0gQ",
+        "model": "opencode/big-pickle"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 12,
+      "accepted_lines": 8,
+      "overriden_lines": 1
+    },
+    "af43f8d5cab5d31a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2130e2f0cffeW8rLUsGut7IX99",
+        "model": "opencode/big-pickle"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "bcb6b7386d6de688": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21c050c41ffecz3AYEEdVIcBBO",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 498,
+      "total_deletions": 220,
+      "accepted_lines": 171,
+      "overriden_lines": 5
+    }
+  }
+}

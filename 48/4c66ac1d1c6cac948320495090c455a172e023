@@ -1,0 +1,32 @@
+packages/core/tests/contract/define-route-mode.test.ts
+  s_c4a1ae9cc2cd6c::t_4a994345c7b572 168-183
+  s_c4a1ae9cc2cd6c::t_c11a62e508125a 290
+packages/core/tests/client/sync/adapters/postgres-sync-notifier.test.ts
+  s_c4a1ae9cc2cd6c::t_7962919d247090 154-191
+packages/core/src/server/sync/postgres/index.ts
+  s_c4a1ae9cc2cd6c::t_050476cc1f3f6d 393-397
+packages/core/src/server/render/loaders.ts
+  s_c4a1ae9cc2cd6c::t_59227347ab4a1a 563,611
+packages/core/src/define-route.ts
+  s_c4a1ae9cc2cd6c::t_220c810d97aa3c 107
+apps/docs/src/content/docs/rendering.mdx
+  s_c4a1ae9cc2cd6c::t_81cf1054ecc63f 11
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_c4a1ae9cc2cd6c::t_5c56fe7374e1ae 437
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "484c66ac1d1c6cac948320495090c455a172e023",
+  "prompts": {},
+  "sessions": {
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

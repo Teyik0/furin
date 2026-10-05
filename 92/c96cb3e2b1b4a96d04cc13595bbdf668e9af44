@@ -1,0 +1,35 @@
+packages/core/src/link.tsx
+  0a5c07464dcc80ec 46,431-439,486-538,876,949-953,1097-1100,1197-1199,1273-1295
+apps/docs/tests/mdx-link.test.tsx
+  0a5c07464dcc80ec 1-40,44-46
+packages/core/tests/link/should-intercept-click.test.ts
+  0a5c07464dcc80ec 1-20,22-100
+apps/docs/src/components/doc-page.tsx
+  0a5c07464dcc80ec 1,7-12,14-16,18-26
+packages/core/tests/hydrate-entry.test.ts
+  0a5c07464dcc80ec 83-94
+packages/core/tests/link/route-matching-trailing-slash.test.ts
+  0a5c07464dcc80ec 1-33
+packages/core/src/build/hydrate.ts
+  0a5c07464dcc80ec 89-90,92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "92c96cb3e2b1b4a96d04cc13595bbdf668e9af44",
+  "prompts": {
+    "0a5c07464dcc80ec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2205303fdffeZyOXbjLjR3Qgyg",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 344,
+      "total_deletions": 51,
+      "accepted_lines": 308,
+      "overriden_lines": 4
+    }
+  }
+}

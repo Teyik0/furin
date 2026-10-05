@@ -1,0 +1,70 @@
+packages/core/tests/routing/discovery/route-groups.test.ts
+  s_9f7f06cf3ad0c4::t_455a8ed87df524 29,31
+  s_9f7f06cf3ad0c4::t_a9a02bad4598f0 30
+  s_9f7f06cf3ad0c4::t_555feb506e372f 24-26,36-38
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 1-4,6-22,27-28,32-35,39-82
+  s_9f7f06cf3ad0c4::t_6cbda4d3343e30 5,23
+packages/core/tests/runtime/plugin/dev-routes-plugin.integration.test.ts
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 20-37
+packages/core/tests/fixtures/pages/route-groups/(marketing)/index.tsx
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 1-7
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_9f7f06cf3ad0c4::t_3e95d0d2fe230a 68-77
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 128-138
+packages/core/tests/fixtures/pages/route-groups/root.tsx
+  s_9f7f06cf3ad0c4::t_a9a02bad4598f0 1,5-6,14-15
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 2-4
+  s_9f7f06cf3ad0c4::t_555feb506e372f 7-13
+packages/core/tests/fixtures/pages/route-groups/(admin)/(settings)/users/[id].tsx
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 1-7
+  s_9f7f06cf3ad0c4::t_555feb506e372f 8-12
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 50-60
+apps/docs/src/content/docs/routing.mdx
+  s_9f7f06cf3ad0c4::t_bbc963f214283b 3,13-14
+  s_9f7f06cf3ad0c4::t_afaa44195853c5 131-154
+  s_9f7f06cf3ad0c4::t_9b7f369aeb5599 155
+packages/core/src/plugin/routes.ts
+  s_9f7f06cf3ad0c4::t_1c509f8e7cc2a4 127-130
+  s_9f7f06cf3ad0c4::t_52d17cd41e0673 19,201,211-219
+  s_9f7f06cf3ad0c4::t_080ce2f4c39661 15-18,20-21,206,210,562,920
+packages/core/tests/fixtures/pages/route-groups/(marketing)/_route.tsx
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 1-7
+packages/core/tests/fixtures/pages/route-groups/(admin)/(settings)/_route.tsx
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 1-6
+packages/core/tests/build/routes-plugin.test.ts
+  s_9f7f06cf3ad0c4::t_c1e9495951ed16 2,7,16-18,20-32
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 33-67,86-90
+  s_9f7f06cf3ad0c4::t_52d17cd41e0673 19
+  s_9f7f06cf3ad0c4::t_bbc963f214283b 68-85
+packages/core/tests/fixtures/pages/route-groups/(admin)/_route.tsx
+  s_9f7f06cf3ad0c4::t_d91ef81e309d2a 1-7
+packages/core/tests/fixtures/pages/route-groups/(admin)/error.tsx
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 2,4-5
+  s_9f7f06cf3ad0c4::t_33c9c4e066ed30 1,3
+packages/core/tests/fixtures/pages/route-groups/(admin)/not-found.tsx
+  s_9f7f06cf3ad0c4::t_333398ee4bfd26 1-3
+packages/core/src/server/router/discovery.ts
+  s_9f7f06cf3ad0c4::t_52d17cd41e0673 16
+packages/core/src/server/router/patterns.ts
+  s_9f7f06cf3ad0c4::t_52d17cd41e0673 117-122
+  s_9f7f06cf3ad0c4::t_1b74c742947b80 113,115-116,140-142
+  s_9f7f06cf3ad0c4::t_ea0001be1c18cf 111-112,114
+  s_9f7f06cf3ad0c4::t_7645bbd20a56a1 143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7be368c6a3b625d46e5b752c413b50c9ce60dca3",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

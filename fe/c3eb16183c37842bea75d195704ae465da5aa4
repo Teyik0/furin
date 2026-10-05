@@ -1,0 +1,21 @@
+CHANGELOG.md
+  s_6770418990b4b7::t_51dea1bf05c80f 11-25
+packages/core/package.json
+  s_6770418990b4b7::t_b181cb5c179e48 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fec3eb16183c37842bea75d195704ae465da5aa4",
+  "prompts": {},
+  "sessions": {
+    "s_6770418990b4b7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc3-9f27-75a2-bfb7-c4a548cfcc2a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

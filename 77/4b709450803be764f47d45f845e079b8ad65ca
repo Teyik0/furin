@@ -1,0 +1,86 @@
+packages/core/src/build/route-types.ts
+  s_c1eb12ed13490a::t_fdde1e68710c78 100-105,118-121
+  s_c1eb12ed13490a::t_4184422c79da80 129-134,136-142,156-160,162-163
+  s_c1eb12ed13490a::t_5f916a96682e13 106-117,122-128,146
+  s_c1eb12ed13490a::t_ea8d365d8c80b3 3-4
+  s_c1eb12ed13490a::t_69d14d03575ebc 154
+  s_c1eb12ed13490a::t_48e1dddf88f00b 135,147-153,155,161
+  s_c1eb12ed13490a::t_4c40f155be1d71 143-145
+packages/core/tests/route-types.test.ts
+  s_c1eb12ed13490a::t_d0dfec4fb2e158 6
+  s_c1eb12ed13490a::t_88ed278a35bffc 7,285
+  s_c1eb12ed13490a::t_f3debe8ba798dc 248-258,260-268
+  s_c1eb12ed13490a::t_3696a3ff29ef7d 238,259
+  s_c1eb12ed13490a::t_cdb612f0219abc 269-275,277-279,281-284,286-287
+  s_c1eb12ed13490a::t_05f61bb1061856 276
+  s_c1eb12ed13490a::t_1a42b104da759a 280
+packages/core/src/server/router/plugin.ts
+  s_c1eb12ed13490a::t_56ab71cf0d39da 130,132,134-144,146-192,194-243,250-260,293-295,299
+  s_c1eb12ed13490a::t_88ed278a35bffc 2
+  s_c1eb12ed13490a::t_5acea3764c02db 244-249,285-287,290-292
+  s_c1eb12ed13490a::t_e3f02687503aeb 193
+  s_c1eb12ed13490a::t_c48dd2bf94fafd 145
+  s_71818baed60430::t_d4c35945e89b7a 75-82,84
+  s_c1eb12ed13490a::t_401ac67e9cdcbf 133
+packages/core/src/build/hydrate.ts
+  s_c1eb12ed13490a::t_d40e64f3fcf578 7
+packages/core/tests/router/schema-merge.test.ts
+  s_c1eb12ed13490a::t_0a8da7ffcfdc24 238-263,265-268
+  s_71818baed60430::t_06af84706284b8 227,229
+  s_c1eb12ed13490a::t_6f2bdbd8e003cd 264
+  s_c1eb12ed13490a::t_a3aaffc542b5d6 234
+  s_71818baed60430::t_5c4124da66d003 381
+  s_71818baed60430::t_1495b55a6f171e 384,386,388,392,396,415-416,419-423
+  s_c1eb12ed13490a::t_4fc736c5f1157f 212
+  s_71818baed60430::t_c793b8df20530a 191,193
+  s_c1eb12ed13490a::t_21b6db6d1219d6 434
+  s_71818baed60430::t_90f7e3b5384d39 344-370,372-380,382
+  s_c1eb12ed13490a::t_c76cdbd5cfe17c 116
+  s_c1eb12ed13490a::t_6521c67e951100 192,198
+  s_c1eb12ed13490a::t_4584b25d97249a 105
+  s_c1eb12ed13490a::t_81691b07ad3764 228
+  s_71818baed60430::t_c83fe108b7ce87 163-190,194-197,199-202
+  s_c1eb12ed13490a::t_8484faad796b9d 29
+  s_c1eb12ed13490a::t_3d29c465074d8b 474
+  s_71818baed60430::t_a91b2c900281ee 130-162,203-211,213-226,230-233,235-237
+  s_c1eb12ed13490a::t_e2a88ecbda693c 470
+  s_71818baed60430::t_e8001b4d4ca63b 78-104,106-115,117-127
+  s_71818baed60430::t_f6048ea600d046 383,385,387,389-391,393-395,397-410,412-414,417-418
+package.json
+  s_87e0e7fbf53e33::t_1df7d930510c6f 36-38
+packages/core/src/server/router/schemas.ts
+  s_71818baed60430::t_f3878978ca27f2 136
+  s_71818baed60430::t_895120ae8a3a28 177-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "774b709450803be764f47d45f845e079b8ad65ca",
+  "prompts": {},
+  "sessions": {
+    "s_71818baed60430": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_13b19485dffeJYw4AD4CkEixc7",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_87e0e7fbf53e33": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_13aba9098ffeZaJuj6tTZMIgpS",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c1eb12ed13490a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_139f4d18effe2UOo3G7EuOofoW",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+apps/docs/scripts/preview-static.ts
+  s_02d46857ef0d54::t_9eec087e15f39f 20-21,23,25,32-40,43,45,48-50,54,62-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6d6bb4cb91bae7cbf515de1246280dfcfb438bb5",
+  "prompts": {},
+  "sessions": {
+    "s_02d46857ef0d54": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087db-43c3-70a0-9d27-fdd1e0c812ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

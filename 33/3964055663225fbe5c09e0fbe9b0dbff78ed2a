@@ -1,0 +1,85 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_a9bbb765ef24b1::t_28405df27fba5c 172-180
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_90816852fbafe9::t_979dc551f3aeea 98-100,106,108
+  s_90816852fbafe9::t_0c794be9a66f03 97,101,104,110,116-118
+  s_90816852fbafe9::t_468e83c3c41dfe 4-10,102-103,105,107,109,111-112
+packages/core/src/client/router/navigation.ts
+  s_90816852fbafe9::t_417205c1ffd6ac 8
+  s_90816852fbafe9::t_eb1c9c1884f5d9 7,10-20,24,26,28,36,38,42
+  s_90816852fbafe9::t_979dc551f3aeea 40
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_19f8520fd45bd8::t_983b6556f48c38 92-124
+packages/core/src/plugin/hmr-dependencies.ts
+  s_a9bbb765ef24b1::t_3942c4b27a0bda 51-53
+  s_a9bbb765ef24b1::t_2e3bbebe4298c3 9-10,12,20,23-26,29,37-39,42,46-48
+  s_a9bbb765ef24b1::t_35dbe22b801dc6 28
+  s_a9bbb765ef24b1::t_c86748c3beb5ee 1-8,11,13-19,21-22,27,30-36,40-41,43-45,49-50,54
+  s_a9bbb765ef24b1::t_593e2a9bff990e 55-58
+apps/docs/src/content/docs/link-navigation.mdx
+  s_90816852fbafe9::t_61ddae785c1785 90-96
+  s_90816852fbafe9::t_ec3002f0dd9ea5 89
+packages/core/src/server/render/loaders.ts
+  s_19f8520fd45bd8::t_75ba37df95b95a 41
+  s_19f8520fd45bd8::t_7f5294c7d63a1b 46-47
+  s_19f8520fd45bd8::t_9f8c383a9ad607 516-529,536-537
+  s_19f8520fd45bd8::t_bc8efd8618023c 530-535
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_a9bbb765ef24b1::t_816464a7e63c29 203-220
+  s_a9bbb765ef24b1::t_35dbe22b801dc6 221-237
+  s_a9bbb765ef24b1::t_4be29d47b72201 3,6,173-202,238
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_a9bbb765ef24b1::t_f51d13927d6db5 2331-2332
+  s_a9bbb765ef24b1::t_506afa2cd6932c 2300-2305,2310-2330,2333-2335,2345-2348
+  s_a9bbb765ef24b1::t_a4360352888e02 2306-2309
+  s_a9bbb765ef24b1::t_4be29d47b72201 2336-2344
+  s_a9bbb765ef24b1::t_31749611623097 2299
+packages/core/src/shared/error.ts
+  s_19f8520fd45bd8::t_75ba37df95b95a 16,18
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_19f8520fd45bd8::t_d09845f7f3cf29 132-168
+packages/core/src/plugin/transform-client.ts
+  s_a9bbb765ef24b1::t_c86748c3beb5ee 9,18,261,264,270,404,425-427,456-461,465,511-514,524-531,889-890,898-902,924-925
+  s_a9bbb765ef24b1::t_4be29d47b72201 918-919
+apps/docs/src/content/docs/error-handling.mdx
+  s_19f8520fd45bd8::t_7f5294c7d63a1b 52
+  s_19f8520fd45bd8::t_75ba37df95b95a 55-63
+CHANGELOG.md
+  s_a9bbb765ef24b1::t_35dbe22b801dc6 9-13
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_90816852fbafe9::t_61ddae785c1785 158,164,175
+  s_90816852fbafe9::t_468e83c3c41dfe 159-163,165-168,170-174,176-180
+  s_90816852fbafe9::t_979dc551f3aeea 169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "333964055663225fbe5c09e0fbe9b0dbff78ed2a",
+  "prompts": {},
+  "sessions": {
+    "s_19f8520fd45bd8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e438-6f9c-7b73-9f81-f736e59c5e3e",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_90816852fbafe9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e17c-01e0-7190-8dae-139d2666b1b1",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

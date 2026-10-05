@@ -1,0 +1,63 @@
+packages/core/src/client/router/provider.tsx
+  s_544e28374a6ea9::t_f40a264c062718 476-484,487,489
+packages/core/src/server/router/schemas.ts
+  s_544e28374a6ea9::t_842e4a55c8dfc5 6-10,129,144,155,157,172
+packages/core/src/client/router/navigation.ts
+  s_544e28374a6ea9::t_c680f53108b0b6 2-5,8,12-13,21-23,25-28,46-49
+  s_544e28374a6ea9::t_d53f6ff9646d00 19,36-39,50-54
+packages/core/src/server/router/plugin.ts
+  s_544e28374a6ea9::t_43109daa14ced3 28-32,185,203,222
+  s_544e28374a6ea9::t_5c3a9686f212ee 5,38-39,42,110,115,220
+packages/core/src/server/render/isr.ts
+  s_544e28374a6ea9::t_2e07edb0073c6d 46,52,168-178
+  s_544e28374a6ea9::t_e84ee85a73b061 182
+  s_544e28374a6ea9::t_8200023f37ec7d 4,159,235,253-261
+  s_544e28374a6ea9::t_9d30ad51bd5160 47,160,236
+packages/core/src/build/ssg-cache.ts
+  s_544e28374a6ea9::t_9683db3094d828 3,14,23
+packages/core/tests/router/use-search.test.tsx
+  s_544e28374a6ea9::t_6009098b804b73 188-213,247-274
+packages/core/tests/router/schema-merge.test.ts
+  s_544e28374a6ea9::t_e0b9573c29275f 131-145
+packages/core/tests/link.test.tsx
+  s_544e28374a6ea9::t_dd5b6f9dbfabd9 33-34,190,193
+  s_544e28374a6ea9::t_4f1e1fa3fb8a2e 30,186-189,191-192,194-200,341-357
+packages/core/src/server/render/ssr.ts
+  s_544e28374a6ea9::t_2f14faba86076c 335
+  s_544e28374a6ea9::t_b84a02af15088e 336
+  s_544e28374a6ea9::t_2617eea2ca3cdd 353-361
+apps/docs/src/content/docs/link-navigation.mdx
+  s_544e28374a6ea9::t_712354a61bbef5 100,116-118
+packages/core/src/shared/search-params.ts
+  s_544e28374a6ea9::t_e18a1deca3893e 20-50,157-165,168-181
+packages/core/src/server/render/ssg.ts
+  s_544e28374a6ea9::t_e84ee85a73b061 1
+  s_544e28374a6ea9::t_ce6798318c711b 15
+  s_544e28374a6ea9::t_275d06cec541ec 16,79
+  s_544e28374a6ea9::t_22753ce05273f9 30-38,78,129
+packages/core/src/client/router/search/index.ts
+  s_544e28374a6ea9::t_a79e85fcc39b88 3-6,35-43,85,91,93
+packages/core/src/furin.ts
+  s_544e28374a6ea9::t_02dfe3aa01cb79 376
+packages/core/src/client/link.tsx
+  s_544e28374a6ea9::t_72043748521927 4-6,46
+packages/core/src/adapter/static.ts
+  s_544e28374a6ea9::t_e84ee85a73b061 71-78
+  s_544e28374a6ea9::t_a9106f4a8d034b 11-16,63-64,154-155,217-218,312,364-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "509208d47a77e6a530e6d9bca8c3f9eaf3060b87",
+  "prompts": {},
+  "sessions": {
+    "s_544e28374a6ea9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ec21a-12e6-74e2-92f9-751ccae65140",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

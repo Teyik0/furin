@@ -1,0 +1,89 @@
+examples/task-manager/tests/boards-invalidation.test.ts
+  ba8f769c54b67f55 1-59
+packages/core/src/render/route-cache.ts
+  ba8f769c54b67f55 1-124
+examples/task-manager/src/api/modules/boards/index.ts
+  ba8f769c54b67f55 12,23
+packages/core/tests/route-cache.test.ts
+  ba8f769c54b67f55 1-56
+packages/core/src/render/dev-cache.ts
+  43cd52771553c245 153-165,168-202
+  ba8f769c54b67f55 20-21,50,78-100,131-152,166-167,203-207
+packages/core/tests/cache.test.ts
+  ba8f769c54b67f55 50-51,548-570
+  43cd52771553c245 45-49,52-54,57-68,81,475-547,571-572
+packages/core/src/render/cache.ts
+  ba8f769c54b67f55 1-6,24-31,33-34,42,50,55,60,164-193,220,226-229,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9ad2dea0e29e5200b3cd95d6cea038a7e7a8a7ad",
+  "prompts": {
+    "0a5c07464dcc80ec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2205303fdffeZyOXbjLjR3Qgyg",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 177,
+      "total_deletions": 152,
+      "accepted_lines": 99,
+      "overriden_lines": 8
+    },
+    "43cd52771553c245": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "75d5852f-837b-4b2b-a945-615fb1119fdf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 699,
+      "total_deletions": 203,
+      "accepted_lines": 147,
+      "overriden_lines": 0
+    },
+    "7cdf6ea10e910d65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21dec4207ffeQ1FEN5BlACD45b",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3129,
+      "total_deletions": 1922,
+      "accepted_lines": 2311,
+      "overriden_lines": 0
+    },
+    "92bb1bdb544bd3bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21fe6975effexjDBIXTOJO5TD2",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 3,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    },
+    "ba8f769c54b67f55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019de285-df81-7540-89cb-307139901c19",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 543,
+      "total_deletions": 229,
+      "accepted_lines": 408,
+      "overriden_lines": 0
+    }
+  }
+}

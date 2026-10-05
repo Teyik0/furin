@@ -1,0 +1,53 @@
+apps/scaffolder/tests/templates.test.ts
+  4b58eff01c1421dc 7,11-13,15-16,19
+apps/scaffolder/src/generated/package-catalog.json
+  4b58eff01c1421dc 2,8,16
+apps/scaffolder/src/package-catalog.ts
+  4b58eff01c1421dc 1-2,24-32,34-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "9f72e792f6a9d56121ee5e5b5c36de7f2c6ee804",
+  "prompts": {
+    "4b58eff01c1421dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2ba88d681ffejxmPhtfwb2IrZF",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 75,
+      "total_deletions": 52,
+      "accepted_lines": 50,
+      "overriden_lines": 0
+    },
+    "af39498ba022cf6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d773a36f-d20b-43c7-b320-5f2a613fe008",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "de14f9939d0bd88d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af51c9fb-4b7b-4b3f-a91f-71f793c7a313",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

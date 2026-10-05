@@ -1,0 +1,25 @@
+scripts/measure-dev-startup.ts
+  s_19624855ad92f6::t_0476bdccfe1374 9,19,22,36,97,100-101,178-184
+scripts/compare-dev-startup.ts
+  s_19624855ad92f6::t_0476bdccfe1374 72
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_19624855ad92f6::t_6456375b8e5322 182,235
+packages/core/tests/build/measurement/measure-dev-startup.test.ts
+  s_19624855ad92f6::t_8027dab7f080f5 7,17,19-20,31-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6f3304dad2ebfbea1092bcc2fe6aab8b51f8172c",
+  "prompts": {},
+  "sessions": {
+    "s_19624855ad92f6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102b1-f879-7d63-87d5-f4c5bd751615",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

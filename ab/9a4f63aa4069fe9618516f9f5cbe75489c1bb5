@@ -1,0 +1,22 @@
+packages/core/tests/router/dev-route-rebuild.test.ts
+  s_525f445b34a89f::t_05fa63cd9c29b5 43-101
+  s_525f445b34a89f::t_c52edf37627db3 1-2,4-42,102
+packages/core/src/router.ts
+  s_525f445b34a89f::t_02d650c1acfe06 643-670,717
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "ab9a4f63aa4069fe9618516f9f5cbe75489c1bb5",
+  "prompts": {},
+  "sessions": {
+    "s_525f445b34a89f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f85e5a3-2139-4969-999f-2de30173cf9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

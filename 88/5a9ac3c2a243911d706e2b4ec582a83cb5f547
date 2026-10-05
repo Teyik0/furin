@@ -1,0 +1,19 @@
+.github/workflows/ci.yaml
+  s_9f7f06cf3ad0c4::t_77f8bcca9e5ee6 231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "885a9ac3c2a243911d706e2b4ec582a83cb5f547",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

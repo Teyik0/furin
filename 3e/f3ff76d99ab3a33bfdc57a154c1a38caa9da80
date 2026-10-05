@@ -1,0 +1,65 @@
+apps/docs/src/content/docs/comparison.mdx
+  s_eb4334a35ae091::t_bcb454cb2c93be 85,88-90,115
+apps/docs/src/content/docs/deployment.mdx
+  s_fdfc7b46fb89f9::t_31ea6a0d2d9149 3,10,17-19,45,58-240,255-344
+apps/docs/tests/docs-pages.test.ts
+  s_fdfc7b46fb89f9::t_4b70c5e907c143 132-146
+bun.lock
+  s_fdfc7b46fb89f9::t_90e8459c5d823d 141,235-244,283-284,395-444,633-638,807-808,811-812,1139-1140,1237-1238,1669-1670,1875-1876,1965-1966,2019-2020,2023,2047-2050,2071-2072,2077-2080,2123-2124,2169-2170
+packages/core/README.md
+  s_fdfc7b46fb89f9::t_81152a741c76a3 34-53
+packages/core/package.json
+  s_fdfc7b46fb89f9::t_9ea42b1cf2f1c3 189
+packages/core/src/adapter/README.md
+  s_fdfc7b46fb89f9::t_3a900ce1452ac4 16-23
+packages/core/src/adapter/cloudflare.ts
+  s_fdfc7b46fb89f9::t_bff44cb33f1812 1-249
+packages/core/src/adapter/runtime-build.ts
+  s_fdfc7b46fb89f9::t_df33f5dd8b52da 334,349,356,368,406,411,438,464
+packages/core/src/build/client.ts
+  s_fdfc7b46fb89f9::t_3ce56fe0792d96 33-34,234-241
+packages/core/src/build/elysia-aot.ts
+  s_fdfc7b46fb89f9::t_e15bf0c20b99a5 43,45
+packages/core/src/build/entry-template.ts
+  s_fdfc7b46fb89f9::t_f6aa5eb4ba9b10 24-25,29,182
+packages/core/src/build/index.ts
+  s_fdfc7b46fb89f9::t_fda96e04b86e62 5,37,240-247
+packages/core/src/config.ts
+  s_fdfc7b46fb89f9::t_c3221cbdca6615 5
+packages/core/src/furin.ts
+  s_fdfc7b46fb89f9::t_6cfc353bf3ab28 72,77-79,718-720
+packages/core/src/server/assets/production.ts
+  s_eb4334a35ae091::t_652bcb2d0148d1 93-94
+packages/core/src/server/internal.ts
+  s_fdfc7b46fb89f9::t_c879033f1a77fe 41
+packages/core/tests/build/cloudflare.test.ts
+  s_fdfc7b46fb89f9::t_d0254ec9422e12 1-349
+packages/core/tests/build/config/cli-config.test.ts
+  s_fdfc7b46fb89f9::t_d43b2bb9dea100 22
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_eb4334a35ae091::t_23f29e7b5a9d78 114-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3ef3ff76d99ab3a33bfdc57a154c1a38caa9da80",
+  "prompts": {},
+  "sessions": {
+    "s_eb4334a35ae091": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1056c-31df-7681-a2ed-9da20a8f938c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fdfc7b46fb89f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1057a-ce6d-7fb3-997b-5ca33ae3bc7a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

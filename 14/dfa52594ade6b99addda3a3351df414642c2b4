@@ -1,0 +1,80 @@
+packages/core/src/server/dev/plugin.ts
+  s_f2862c3e456ecb::t_57eed511461b9b 20
+packages/core/src/server/router/hmr.production.ts
+  s_f2862c3e456ecb::t_57eed511461b9b 5-8
+  s_f2862c3e456ecb::t_eaf1f2a9237900 12-13
+  s_f2862c3e456ecb::t_348c6ca5057d2f 9
+  s_f2862c3e456ecb::t_aab482709572a9 10-11
+packages/core/tests/rendering/rsc/rsc-vercel-build.test.ts
+  s_f2862c3e456ecb::t_c7271ba6af5c05 5,7,32-37
+  s_f2862c3e456ecb::t_348c6ca5057d2f 14-18
+packages/core/src/shared/production-build.ts
+  s_f2862c3e456ecb::t_0d0896d3274345 1-11
+packages/core/src/rsc/codec.ts
+  s_f2862c3e456ecb::t_0d0896d3274345 5,13,35-38,41,50,60,79-80
+packages/core/src/server/render/ssr.ts
+  s_f2862c3e456ecb::t_80bf88f73ae0dc 17,919
+packages/core/src/build/entry-template.ts
+  s_f2862c3e456ecb::t_25bc046843c75f 227
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_f2862c3e456ecb::t_307257e65b86f4 452-457,459-466,468-486
+packages/core/tests/dev/hmr/dev-error-overlay.test.ts
+  s_f2862c3e456ecb::t_348c6ca5057d2f 11-13,15-16
+  s_f2862c3e456ecb::t_02a59ca0d85fcd 6,10,14,17-26
+  s_f2862c3e456ecb::t_35811ea64ee9db 27
+packages/core/src/config.ts
+  s_f2862c3e456ecb::t_57eed511461b9b 17
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_f2862c3e456ecb::t_67539067dd6157 141-143
+  s_f2862c3e456ecb::t_b670c1be6bec4e 155
+  s_f2862c3e456ecb::t_d06c6db3279582 6,144-154,156-172
+packages/core/src/build/index.ts
+  s_f2862c3e456ecb::t_0d0896d3274345 14,86
+packages/core/src/rsc/render-error.ts
+  s_f2862c3e456ecb::t_80bf88f73ae0dc 1-2,58
+packages/core/tests/support/app-fixtures.ts
+  s_f2862c3e456ecb::t_0e1214f83adb88 36
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_f2862c3e456ecb::t_02a59ca0d85fcd 212,220-226
+  s_f2862c3e456ecb::t_ff404bd4fff6c4 209-211
+  s_f2862c3e456ecb::t_936eb2431257b6 213-215,217-219
+  s_f2862c3e456ecb::t_797474cb2df79a 207-208,216
+packages/core/tests/runtime/production-server.test.ts
+  s_f2862c3e456ecb::t_f9ce5585e82672 353-362,365,372,406-409,412
+  s_f2862c3e456ecb::t_ae9e6aee68f748 80,351-352,363-364,366-371,373-405,410-411,413
+  s_f2862c3e456ecb::t_7df2ad60db1863 414-416
+packages/core/src/furin.ts
+  s_f2862c3e456ecb::t_b670c1be6bec4e 442
+  s_f2862c3e456ecb::t_3dcdf2d06021e9 743,818-819
+  s_f2862c3e456ecb::t_62e106bd6aa6ab 441
+  s_f2862c3e456ecb::t_879a45e9a1d5b0 435,437-440,443-444,449-455,888,962
+  s_f2862c3e456ecb::t_0f55089c9aa78c 445-448
+packages/core/src/server/router/hmr.ts
+  s_f2862c3e456ecb::t_eaf1f2a9237900 93-101
+packages/core/tests/contract/vercel-regions.test.ts
+  s_f2862c3e456ecb::t_02a59ca0d85fcd 21
+packages/core/src/server/router/plugin.ts
+  s_f2862c3e456ecb::t_31899ba94a6030 49-51,216-230,394,441-443
+  s_f2862c3e456ecb::t_57eed511461b9b 444,503
+  s_f2862c3e456ecb::t_e6815af4abcaae 231-242,422-424
+  s_f2862c3e456ecb::t_2ba2c9e0c3f4c7 243-257,445-451
+  s_f2862c3e456ecb::t_eaf1f2a9237900 30
+packages/core/src/server/production-server.ts
+  s_f2862c3e456ecb::t_6e1887e2653a3e 10,104-105,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "14dfa52594ade6b99addda3a3351df414642c2b4",
+  "prompts": {},
+  "sessions": {
+    "s_f2862c3e456ecb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dd0f-1cf2-7881-9b23-d41e62163c83",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

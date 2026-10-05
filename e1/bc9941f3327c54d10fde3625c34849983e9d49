@@ -1,0 +1,19 @@
+packages/core/tests/contract/define-route.test.tsx
+  s_1b22c438b33a80::t_53edb579f52466 196,198,202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e1bc9941f3327c54d10fde3625c34849983e9d49",
+  "prompts": {},
+  "sessions": {
+    "s_1b22c438b33a80": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e91d-f151-7cd0-96b1-45c8b5befdcb",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

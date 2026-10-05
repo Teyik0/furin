@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-diagnostic-store.test.ts
+  s_13b9bbaf2a91a1::t_195cf16a213ba5 2-3,114,118,123-124,129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f9c0c90526abcef66ee1918b1fce6702664394fd",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

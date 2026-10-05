@@ -1,0 +1,20 @@
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 373,407,414
+packages/core/src/server/external-prerender.ts
+  h_a2cbd1b0e3ae6e 1,4-9
+packages/core/src/server/internal.ts
+  h_a2cbd1b0e3ae6e 7,67-68
+packages/core/tests/runtime/invalidation/external-prerender.test.ts
+  h_a2cbd1b0e3ae6e 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59f41d26db4738cbfe83b02f09bcc5fd22d32d0e",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

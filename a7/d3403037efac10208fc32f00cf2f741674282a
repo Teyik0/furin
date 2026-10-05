@@ -1,0 +1,19 @@
+packages/core/tests/routing/discovery/route-groups.test.ts
+  s_9f7f06cf3ad0c4::t_2c5a1eb447e510 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7d3403037efac10208fc32f00cf2f741674282a",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

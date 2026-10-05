@@ -1,0 +1,59 @@
+apps/scaffolder/src/package-catalog.ts
+  4b58eff01c1421dc 23
+apps/scaffolder/src/scaffold.ts
+  4b58eff01c1421dc 9,23-26
+apps/scaffolder/src/args.ts
+  4b58eff01c1421dc 5,12-20,24,38-39,43-44
+apps/scaffolder/src/generated/package-catalog.json
+  4b58eff01c1421dc 2
+apps/scaffolder/tests/templates.test.ts
+  4b58eff01c1421dc 8,14
+apps/scaffolder/src/cli.ts
+  4b58eff01c1421dc 29,68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "30854167365eada31555c02c259b2d0b9a3df617",
+  "prompts": {
+    "4b58eff01c1421dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2ba88d681ffejxmPhtfwb2IrZF",
+        "model": "opencode/mimo-v2-pro-free"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 170,
+      "total_deletions": 162,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "af39498ba022cf6a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d773a36f-d20b-43c7-b320-5f2a613fe008",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "de14f9939d0bd88d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "af51c9fb-4b7b-4b3f-a91f-71f793c7a313",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

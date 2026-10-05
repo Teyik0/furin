@@ -1,0 +1,19 @@
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_a9bbb765ef24b1::t_08d30cfb26d8a9 2302-2318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91d400c885e117f56c010bae4396dfe9833a6f4e",
+  "prompts": {},
+  "sessions": {
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
