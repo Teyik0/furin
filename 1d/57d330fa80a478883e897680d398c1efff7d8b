@@ -1,0 +1,27 @@
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_016156fc96cbd9 340
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_fa3ba074f76831::t_790fc305d25d66 17
+  s_fa3ba074f76831::t_8d737b676d710a 29-30,77-78,82-83,112-113,117-118,167-168,172-173,270-271,275-276,317-318,322-323,361-362,366-367,413-414,418-419,505-506
+  s_fa3ba074f76831::t_99e4fb325a72ad 100,107,345,355,440-443,452,455-456,488,490,493,496-501
+  s_fa3ba074f76831::t_ae2c9dd64d5b05 2,6-16,18-27
+  s_fa3ba074f76831::t_94af10534dd6e3 383-394,397,403
+  s_fa3ba074f76831::t_c5bbdc038e1a4c 481
+  s_fa3ba074f76831::t_56fc46bc921275 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d57d330fa80a478883e897680d398c1efff7d8b",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
