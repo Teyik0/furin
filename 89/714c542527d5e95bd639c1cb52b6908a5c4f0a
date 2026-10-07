@@ -1,0 +1,26 @@
+packages/core/src/client/request-id.ts
+  s_fa3ba074f76831::t_fd6149fabdc30b 1-10
+packages/core/src/client/query-store.ts
+  s_fa3ba074f76831::t_fd6149fabdc30b 8,114
+packages/core/src/client/sync.ts
+  s_fa3ba074f76831::t_fd6149fabdc30b 23,250
+packages/core/tests/client/sync/query-store.test.ts
+  s_fa3ba074f76831::t_e18911920b76a7 16-40
+  s_fa3ba074f76831::t_791dd3a847ebf8 41-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89714c542527d5e95bd639c1cb52b6908a5c4f0a",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
