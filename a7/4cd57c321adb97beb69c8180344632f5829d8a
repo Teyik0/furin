@@ -1,0 +1,51 @@
+examples/electrobun-todo/tests/child.test.ts
+  s_fa3ba074f76831::t_cc2bbb73b0aeae 1-35
+examples/electrobun-todo/tests/child.ts
+  s_3f691299908d2a::t_c68ecbfc829fc7 1-17
+examples/electrobun-todo/tests/routes.test.ts
+  s_3f691299908d2a::t_0ed41a71e4dfb8 6,59,63-71,73-77
+examples/electrobun-todo/tests/todo-backend.test.ts
+  s_3f691299908d2a::t_8d7f65063d2fa3 8,127-128,136,157-199,202
+packages/electrobun/src/cli.ts
+  s_fa3ba074f76831::t_b77444b7af5c45 190-191,246-247
+packages/electrobun/tests/dev.test.ts
+  s_fa3ba074f76831::t_61ac96e460cb18 9-43,45-47,49-77,80,82-83,88-98,112-167,169-170,172-184,186-187
+packages/electrobun/tests/supervisor-stop.test.ts
+  s_fa3ba074f76831::t_826a4483c5d95b 1,27-53,81,85,93-101,179-189,230-243,270
+packages/electrobun/tests/dev-lifecycle.test.ts
+  s_a90567b58e4d8e::t_ae141c45848ae2 9-12,15,22,28,61-66,73-75,79-80,93
+packages/electrobun/tests/ready-publication.test.ts
+  s_a90567b58e4d8e::t_8c7aeb3a4b3927 22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a74cd57c321adb97beb69c8180344632f5829d8a",
+  "prompts": {},
+  "sessions": {
+    "s_3f691299908d2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114fc-8806-7523-8a94-1f44bb9fc711",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a90567b58e4d8e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11508-ea9e-71d0-9629-bc10a3cf41a3",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
