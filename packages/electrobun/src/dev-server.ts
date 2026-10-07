@@ -1,9 +1,22 @@
-import { writeFile } from "node:fs/promises";
+import { rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { DesktopConfig } from "./config";
-import { type DesktopAppModule, startDesktopBackend } from "./runtime";
+import { type DesktopAppModule, startDesktopBackend, withShutdownDeadline } from "./runtime";
+
+export async function publishDevReady(
+  path: string,
+  ready: { origin: string; bootstrapOrigin: string; url: string }
+): Promise<void> {
+  const temporary = `${path}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(ready), { flag: "wx", mode: 0o600 });
+    await rename(temporary, path);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
 
 if (import.meta.main) {
   const settings: { config: DesktopConfig; serverEntry: string } = await Bun.file(
@@ -24,32 +37,42 @@ if (import.meta.main) {
     "dev"
   );
   const control = join(import.meta.dir, "control");
+  let closing: Promise<void> | undefined;
+  const shutdown = (): Promise<void> => {
+    closing ??= (async () => {
+      clearInterval(timer);
+      let code = 0;
+      try {
+        await withShutdownDeadline(backend.stop());
+      } catch (error) {
+        console.error("[furin-electrobun] Dev shutdown failed:", error);
+        code = 1;
+      } finally {
+        process.exit(code);
+      }
+    })();
+    return closing;
+  };
+  process.on("SIGINT", () => {
+    shutdown().catch(console.error);
+  });
+  process.on("SIGTERM", () => {
+    shutdown().catch(console.error);
+  });
   const timer = setInterval(() => {
     Bun.file(control)
       .text()
-      .then(async (command) => {
+      .then((command) => {
         if (command) {
-          clearInterval(timer);
-          try {
-            await backend.stop();
-          } catch (error) {
-            console.error("[furin-electrobun] Dev shutdown failed:", error);
-            process.exitCode = 1;
-          } finally {
-            process.exit();
-          }
+          return shutdown();
         }
       })
       .catch(console.error);
   }, 200);
-  await writeFile(
-    join(import.meta.dir, "ready.json"),
-    JSON.stringify({
-      origin: backend.origin,
-      bootstrapOrigin: backend.bootstrapOrigin,
-      url: backend.url,
-    }),
-    { mode: 0o600 }
-  );
+  await publishDevReady(join(import.meta.dir, "ready.json"), {
+    origin: backend.origin,
+    bootstrapOrigin: backend.bootstrapOrigin,
+    url: backend.url,
+  });
   console.log("[furin-electrobun] dev", backend.origin, "data:", dataDir);
 }

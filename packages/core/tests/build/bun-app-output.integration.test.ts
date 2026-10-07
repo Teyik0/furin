@@ -3,7 +3,9 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type Elysia from "elysia";
+import { buildApp } from "../../src/build/index.ts";
 import { createTmpApp } from "../support/app-fixtures.ts";
+import { withBuildTestLock } from "../support/build-lock.ts";
 import { runCli } from "../support/process.ts";
 
 test("CLI app output is inert, relocatable and serves the composed application in the host", async () => {
@@ -70,13 +72,102 @@ test("CLI rejects Bun output for other targets and compiled applications", async
   const fixture = createTmpApp("cli-app");
   try {
     for (const target of ["static", "package", "vercel", "all"]) {
-      const result = await runCli(["build", "--target", target, "--output", "app"], { cwd: fixture.path });
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stderr).toContain("--output requires --target bun");
+      for (const output of ["app", "server"]) {
+        const result = await runCli(["build", "--target", target, "--output", output], { cwd: fixture.path });
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain("--output requires --target bun");
+      }
     }
     const result = await runCli(["build", "--output", "app", "--compile", "server"], { cwd: fixture.path });
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("cannot be combined with compile");
+  } finally {
+    fixture.cleanup();
+  }
+}, 30_000);
+
+test("static builds ignore configured Bun app output", async () => {
+  const fixture = createTmpApp("cli-app");
+  try {
+    writeFileSync(join(fixture.path, "furin.config.ts"), 'export default { bun: { output: "app" } };\n');
+    const result = await runCli(["build", "--target", "static"], { cwd: fixture.path });
+    expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+    expect(existsSync(join(fixture.path, "dist/index.html"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun"))).toBe(false);
+  } finally {
+    fixture.cleanup();
+  }
+}, 30_000);
+
+test("all applies configured app output only to the Bun artifact", async () => {
+  const fixture = createTmpApp("cli-app");
+  try {
+    writeFileSync(join(fixture.path, "furin.config.ts"), 'export default { bun: { output: "app" } };\n');
+    const result = await runCli(["build", "--target", "all"], { cwd: fixture.path });
+    expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/server.js"))).toBe(false);
+    expect(existsSync(join(fixture.path, "dist/index.html"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".vercel/output/functions/__server.func/handler.js"))).toBe(true);
+  } finally {
+    fixture.cleanup();
+  }
+}, 30_000);
+
+test("configured app and compile conflict only when building Bun", async () => {
+  const fixture = createTmpApp("cli-app");
+  try {
+    writeFileSync(join(fixture.path, "furin.config.ts"), 'export default { bun: { output: "app", compile: "server" } };\n');
+    for (const target of ["static", "vercel"]) {
+      const result = await runCli(["build", "--target", target], { cwd: fixture.path });
+      expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+    }
+    expect(existsSync(join(fixture.path, "dist/index.html"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".vercel/output/functions/__server.func/handler.js"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun"))).toBe(false);
+    for (const target of ["bun", "all"]) {
+      const result = await runCli(["build", "--target", target], { cwd: fixture.path });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("cannot be combined with compile");
+    }
+    const overridden = await runCli(["build", "--output", "server"], { cwd: fixture.path });
+    expect(overridden.exitCode, overridden.stderr + overridden.stdout).toBe(0);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/server"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(false);
+  } finally {
+    fixture.cleanup();
+  }
+}, 30_000);
+
+test("Bun defaults retain listening and compiled server outputs", async () => {
+  const fixture = createTmpApp("cli-app");
+  try {
+    const defaultBuild = await runCli(["build"], { cwd: fixture.path });
+    expect(defaultBuild.exitCode, defaultBuild.stderr + defaultBuild.stdout).toBe(0);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/server.js"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(false);
+    writeFileSync(join(fixture.path, "furin.config.ts"), 'export default { bun: { compile: "server" } };\n');
+    const compiled = await runCli(["build"], { cwd: fixture.path });
+    expect(compiled.exitCode, compiled.stderr + compiled.stdout).toBe(0);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/server"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(false);
+  } finally {
+    fixture.cleanup();
+  }
+}, 30_000);
+
+test("buildApp ignores nested Bun output and compile for static artifacts", async () => {
+  const fixture = createTmpApp("cli-app");
+  try {
+    const result = await withBuildTestLock(() => buildApp({
+      bun: { output: "app" },
+      compile: "server",
+      rootDir: fixture.path,
+      target: "static",
+    }));
+    expect(Object.keys(result.targets)).toEqual(["static"]);
+    expect(existsSync(join(fixture.path, "dist/index.html"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun"))).toBe(false);
   } finally {
     fixture.cleanup();
   }

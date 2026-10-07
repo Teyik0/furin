@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { isPackageName } from "./package-name";
 
 interface DependencyManifest {
   dependencies?: { [name: string]: string };
@@ -10,6 +11,9 @@ interface DependencyManifest {
 }
 
 function findPackage(from: string, name: string): string | undefined {
+  if (!isPackageName(name)) {
+    throw new Error(`Invalid external package name: "${name}".`);
+  }
   let current: string | undefined = from;
   while (current) {
     const candidate = join(current, "node_modules", name);
@@ -73,17 +77,55 @@ export async function copyExternalPackages(
   output: string,
   names: string[]
 ): Promise<void> {
+  // Validate the entire runtime closure before creating or overwriting output.
+  const checked = new Set<string>();
+  const importNames = new Set(names);
+  const preflight = async (source: string): Promise<void> => {
+    if (checked.has(source)) {
+      return;
+    }
+    checked.add(source);
+    const manifest: DependencyManifest = JSON.parse(
+      await readFile(join(source, "package.json"), "utf8")
+    );
+    await Promise.all(
+      Object.keys({
+        ...manifest.dependencies,
+        ...manifest.optionalDependencies,
+        ...manifest.peerDependencies,
+      }).map(async (name) => {
+        importNames.add(name);
+        const resolved = findPackage(source, name);
+        if (resolved) {
+          await preflight(resolved);
+        }
+      })
+    );
+  };
+  await Promise.all(
+    names.map(async (name) => {
+      const source = findPackage(root, name);
+      if (source) {
+        await preflight(source);
+      }
+    })
+  );
   const installed = new Map<string, string>();
   const active = new Set<string>();
   const visit = async (source: string, target: string, importName: string): Promise<void> => {
-    const identity = `${source}\0${importName}`;
+    installed.set(target, source);
+    // Repeating a source is finite when a different ancestor environment resolves its closure.
+    const identity = JSON.stringify([
+      source,
+      importName,
+      [...importNames].map((name) => findInstalled(installed, target, name) ?? null),
+    ]);
     if (active.has(identity)) {
       throw new Error(
         `Cannot materialize external dependency cycle for "${importName}": conflicting package versions shadow its ancestor.`
       );
     }
     active.add(identity);
-    installed.set(target, source);
     await mkdir(dirname(target), { recursive: true });
     await copyPackage(source, target, source, new Set());
     const manifest: DependencyManifest = JSON.parse(

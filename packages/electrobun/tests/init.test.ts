@@ -83,8 +83,10 @@ test("init preserves manifest permissions and removes transaction staging files"
     await writeFile(manifest, '{"name":"relay","version":"1.2.3"}');
     await chmod(manifest, 0o640);
     await initDesktop(root);
-    // biome-ignore lint/suspicious/noBitwiseOperators: File-type bits are not part of permission preservation.
-    expect((await stat(manifest)).mode & 0o777).toBe(0o640);
+    if (process.platform !== "win32") {
+      // biome-ignore lint/suspicious/noBitwiseOperators: File-type bits are not part of permission preservation.
+      expect((await stat(manifest)).mode & 0o777).toBe(0o640);
+    }
     expect((await readdir(root)).sort()).toEqual(["furin.desktop.config.ts", "package.json"]);
   } finally {
     await rm(root, { recursive: true, force: true });

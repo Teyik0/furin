@@ -10,6 +10,7 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const hookPaths: string[] = [];
   const wrapPaths: string[] = [];
+  let bodyCalls = 0;
   const app = createDesktopApp()
     .request(({ request }) => {
       hookPaths.push(new URL(request.url).pathname);
@@ -18,7 +19,10 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
       wrapPaths.push(new URL(request.url).pathname);
       return next(request);
     })
-    .get("/", () => "app");
+    .get("/", () => {
+      bodyCalls += 1;
+      return "app";
+    });
   const backend = await startDesktopBackend(() => Promise.resolve({ default: app }), data, "build");
   try {
     const bootstrap = await fetch(backend.url, { redirect: "manual" });
@@ -32,9 +36,33 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
     expect(new URL(backend.url).pathname).not.toContain(cookie.slice(cookie.indexOf("=") + 1));
     expect(hookPaths).toEqual([]);
     expect(wrapPaths).toEqual([]);
+    expect(bootstrap.headers.get("referrer-policy")).toBe("origin");
+    const navigation = {
+      cookie,
+      referer: `${backend.bootstrapOrigin}/`,
+      "sec-fetch-site": "same-site",
+      "sec-fetch-mode": "navigate",
+      "sec-fetch-dest": "document",
+    };
+    const denied: { [key: string]: string }[] = [
+      { cookie, referer: "http://127.0.0.1:1/page" },
+      { cookie, "sec-fetch-site": "same-site" },
+      { ...navigation, referer: backend.url },
+    ];
+    const responses = await Promise.all(
+      denied.map((headers) => fetch(backend.origin, { headers }))
+    );
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+    }
+    expect((await fetch(`${backend.origin}/api`, { headers: navigation })).status).toBe(403);
+    expect(hookPaths).toEqual([]);
+    expect(wrapPaths).toEqual([]);
+    expect(bodyCalls).toBe(0);
     expect(await (await fetch(`${backend.origin}/`, { headers: { cookie } })).text()).toBe("app");
     expect(hookPaths).toEqual(["/"]);
     expect(wrapPaths).toEqual(["/"]);
+    expect(await (await fetch(backend.origin, { headers: navigation })).text()).toBe("app");
     expect((await fetch(backend.url, { redirect: "manual" })).status).toBe(410);
     expect((await fetch(new URL("/", backend.url))).status).toBe(410);
     expect((await fetch(`${backend.origin}/`)).status).toBe(403);
@@ -52,23 +80,25 @@ test("bootstrap credentials never pass through prior application hooks or wrappe
 test("instance cookies coexist on loopback without authenticating another backend or cross-site requests", async () => {
   const data = await mkdtemp(join(tmpdir(), "furin-auth-pair-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
-  const first = await startDesktopBackend(
-    () =>
-      Promise.resolve({
-        default: createDesktopApp().get("/", () => "first"),
-      }),
-    join(data, "first"),
-    "build"
-  );
-  const second = await startDesktopBackend(
-    () =>
-      Promise.resolve({
-        default: createDesktopApp().get("/", () => "second"),
-      }),
-    join(data, "second"),
-    "build"
-  );
+  let first: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
+  let second: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
+    first = await startDesktopBackend(
+      () =>
+        Promise.resolve({
+          default: createDesktopApp().get("/", () => "first"),
+        }),
+      join(data, "first"),
+      "build"
+    );
+    second = await startDesktopBackend(
+      () =>
+        Promise.resolve({
+          default: createDesktopApp().get("/", () => "second"),
+        }),
+      join(data, "second"),
+      "build"
+    );
     expect(
       (await fetch(first.url, { headers: { origin: "https://evil.example" }, redirect: "manual" }))
         .status
@@ -101,13 +131,16 @@ test("instance cookies coexist on loopback without authenticating another backen
         .status
     ).toBe(403);
   } finally {
-    await Promise.all([first.stop(), second.stop()]);
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
+    try {
+      await Promise.all([first?.stop(), second?.stop()]);
+    } finally {
+      if (previousData === undefined) {
+        delete process.env.FURIN_APP_DATA_DIR;
+      } else {
+        process.env.FURIN_APP_DATA_DIR = previousData;
+      }
+      await rm(data, { recursive: true, force: true });
     }
-    await rm(data, { recursive: true, force: true });
   }
 });
 

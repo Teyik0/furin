@@ -1,7 +1,8 @@
-import { chmod } from "node:fs/promises";
+import { chmod, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 const root = import.meta.dir;
+await rm(join(root, "dist"), { recursive: true, force: true });
 const declarations = Bun.spawn(
   [process.execPath, "x", "--no-install", "tsc", "-p", "tsconfig.dts.json"],
   { cwd: root, stdout: "inherit", stderr: "inherit" }

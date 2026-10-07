@@ -9,6 +9,7 @@
     "dev": "bun --hot src/server.ts",
     "dev:desktop": "furin-electrobun dev",
     "fix": "ultracite fix",
+    "start": "PORT=3004 bun .furin/build/bun/server.js",
     "test": "bun test --isolate --bail tests",
     "tscheck": "tsc --noEmit -p tsconfig.json"
   },

@@ -138,14 +138,25 @@ test("queued unauthenticated traffic cannot receive a late native HTML bundle be
   );
   try {
     await entered.promise;
-    const url = `http://127.0.0.1:${app.server?.port}/private-html`;
+    const { server } = app;
+    expect(server).toBeDefined();
+    if (!server) {
+      throw new Error("Setup must run with an actual listening server.");
+    }
+    expect(server.port).toBeGreaterThan(0);
+    const url = `http://127.0.0.1:${server.port}/private-html`;
     const traffic = Array.from({ length: 16 }, () =>
       fetch(url).then(
         (response) => response.text(),
         () => "connection closed"
       )
     );
-    await Bun.sleep(20);
+    const deadline = Date.now() + 3000;
+    while (server.pendingRequests < traffic.length && Date.now() < deadline) {
+      // biome-ignore lint/performance/noAwaitInLoops: observe the public listener accepting traffic
+      await Bun.sleep(1);
+    }
+    expect(server.pendingRequests).toBe(traffic.length);
     release.resolve();
     expect(await startup).toContain('"/private-html"');
     const responses = await Promise.all(traffic);

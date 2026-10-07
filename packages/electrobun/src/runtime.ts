@@ -30,15 +30,42 @@ export interface DesktopSession {
   value: string;
 }
 
-export function createSessionGuard(session: DesktopSession, origin: () => string) {
+export function createSessionGuard(
+  session: DesktopSession,
+  origin: () => string,
+  bootstrapOrigin?: () => string | undefined
+) {
   return (request: Request): Response | undefined => {
     const url = new URL(request.url);
     const expected = origin();
     const requestOrigin = request.headers.get("origin");
+    const site = request.headers.get("sec-fetch-site");
+    const referer = request.headers.get("referer");
+    let refererOrigin: string | undefined;
+    if (referer) {
+      try {
+        refererOrigin = new URL(referer).origin;
+      } catch {
+        return new Response("Forbidden", { status: 403 });
+      }
+    }
+    // Only the private listener's initial document redirect may cross ports.
+    const bootstrapNavigation =
+      request.method === "GET" &&
+      url.pathname === "/" &&
+      url.search === "" &&
+      request.headers.get("sec-fetch-mode") === "navigate" &&
+      request.headers.get("sec-fetch-dest") === "document" &&
+      site === "same-site" &&
+      refererOrigin !== undefined &&
+      referer === `${refererOrigin}/` &&
+      refererOrigin === bootstrapOrigin?.();
     if (
       url.origin !== expected ||
       (requestOrigin && requestOrigin !== expected) ||
-      request.headers.get("sec-fetch-site") === "cross-site"
+      site === "cross-site" ||
+      (refererOrigin !== undefined && refererOrigin !== expected && !bootstrapNavigation) ||
+      (site === "same-site" && !requestOrigin && !bootstrapNavigation)
     ) {
       return new Response("Forbidden", { status: 403 });
     }
@@ -82,6 +109,7 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
           location: `${appOrigin}/`,
           "set-cookie": `${session.name}=${session.value}; HttpOnly; SameSite=Strict; Path=/`,
           "cache-control": "no-store",
+          "referrer-policy": "origin",
         },
       });
     },
@@ -165,7 +193,11 @@ export async function startDesktopBackend(
     value: crypto.randomUUID(),
   };
   let origin = "";
-  const guard = createSessionGuard(session, () => origin);
+  const guard = createSessionGuard(
+    session,
+    () => origin,
+    () => bootstrap?.origin
+  );
   let canceled = false;
   try {
     await withDeadline(

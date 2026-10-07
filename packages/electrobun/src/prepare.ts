@@ -42,15 +42,24 @@ import { getExternalUrl, startDesktopBackend, withShutdownDeadline, type Desktop
 const config = ${JSON.stringify(config)};
 ${backend}
 const localOrigins = [backend.origin, backend.bootstrapOrigin];
-const window = new BrowserWindow({
-  title: config.app.name,
-  frame: config.window,
-  url: backend.url,
-  renderer: "native",
-  sandbox: true,
-  allowedProtocols: { views: false, appData: false },
-  navigationRules: JSON.stringify(["^*", ...localOrigins.map((origin) => origin + "/*")]),
-});
+let window: BrowserWindow;
+try {
+  window = new BrowserWindow({
+    title: config.app.name,
+    frame: config.window,
+    url: backend.url,
+    renderer: "native",
+    sandbox: true,
+    allowedProtocols: { views: false, appData: false },
+    navigationRules: JSON.stringify(["^*", ...localOrigins.map((origin) => origin + "/*")]),
+  });
+} catch (error) {
+  console.error("[furin-electrobun] Window startup failed:", error);
+  try { await withShutdownDeadline(backend.stop()); }
+  catch (error) { console.error("[furin-electrobun] Shutdown failed:", error); }
+  finally { quit(1); }
+  throw error;
+}
 let cleaned = false;
 let closing: Promise<void> | undefined;
 const shutdown = (): Promise<void> => {

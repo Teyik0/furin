@@ -17,8 +17,9 @@ bunx --bun @teyik0/furin-electrobun init
 
 `init` adds `furin.desktop.config.ts` and the two package scripts. It refuses
 an existing config or either existing desktop script before writing anything.
-It preserves other scripts and package fields; it does not rewrite server code,
-install a replacement frontend, or overwrite your files.
+It atomically rewrites `package.json` to add those scripts, preserving other
+scripts and package fields. It does not rewrite server code, install a
+replacement frontend, or replace an existing desktop configuration.
 
 Update the server constructor as described below, then run:
 
@@ -48,6 +49,10 @@ installation omitted optional dependencies, run `bun add -d electrobun@2.0.2`.
 The CLI runs its CJS entry through the current Bun executable, not Node or npm.
 Hutch prepares the matching SDK projection automatically. First preparation
 requires network access; subsequent builds reuse the toolchain cache.
+
+Hutch is Electrobun's toolchain manager. Its SDK projection is the generated
+API and native toolchain under `.furin/electrobun/.hutch/devkit`, not another
+application framework or a directory developers maintain by hand.
 
 ## Server contract
 

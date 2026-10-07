@@ -194,8 +194,19 @@ test("guard is already active for requests queued during async setup", async () 
   try {
     await entered.promise;
     expect(ready).toBe(false);
-    const queued = fetch(`http://127.0.0.1:${app.server?.port}/early`);
-    await Bun.sleep(20);
+    const { server } = app;
+    expect(server).toBeDefined();
+    if (!server) {
+      throw new Error("Setup must run with an actual listening server.");
+    }
+    expect(server.port).toBeGreaterThan(0);
+    const queued = fetch(`http://127.0.0.1:${server.port}/early`);
+    const deadline = Date.now() + 3000;
+    while (server.pendingRequests < 1 && Date.now() < deadline) {
+      // biome-ignore lint/performance/noAwaitInLoops: observe the public listener accepting traffic
+      await Bun.sleep(1);
+    }
+    expect(server.pendingRequests).toBe(1);
     release.resolve();
     const backend = await startup;
     expect((await queued).status).toBe(403);

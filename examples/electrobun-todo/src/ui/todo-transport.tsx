@@ -25,7 +25,8 @@ export function useTodoTransport() {
     version.current += 1;
     const pending = version.current;
     retry.current = false;
-    setStatus("connecting");
+    // A post-write refresh does not invalidate an already connected transport.
+    setStatus((current) => (current === "connected" ? current : "connecting"));
     try {
       await router.refresh();
       if (active.current && pending === version.current) {

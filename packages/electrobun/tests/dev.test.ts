@@ -6,6 +6,162 @@ import { join } from "node:path";
 import { desktopCommand } from "../src/cli";
 import { prepareDesktop } from "../src/prepare";
 
+test("dev supervisor reloads sibling backend imports but leaves frontend and owned output alone", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-dev-watch-"));
+  interface Ready {
+    checkpoint: boolean;
+    origin: string;
+    url: string;
+  }
+  const events: Ready[] = [];
+  let notify: (() => void) | undefined;
+  let firstRun = true;
+  const receiver = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      events.push((await request.json()) as Ready);
+      notify?.();
+      if (firstRun) {
+        firstRun = false;
+        return new Response("observe");
+      }
+      return new Response("ok");
+    },
+  });
+  const nextEvent = async (): Promise<Ready> => {
+    if (!events.length) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          notify = resolve;
+          timer = setTimeout(() => reject(new Error("Missing SDK event")), 5000);
+        });
+      } finally {
+        clearTimeout(timer);
+        notify = undefined;
+      }
+    }
+    const event = events.shift();
+    if (!event) {
+      throw new Error("Missing SDK event");
+    }
+    return event;
+  };
+  const sessions = new Map<string, string>();
+  const response = async (ready: Ready): Promise<{ value: string; pid: number }> => {
+    let cookie = sessions.get(ready.origin);
+    if (!cookie) {
+      const bootstrap = await fetch(ready.url, { redirect: "manual" });
+      cookie = bootstrap.headers.get("set-cookie")?.split(";")[0];
+    }
+    if (!cookie) {
+      throw new Error("Missing dev session");
+    }
+    sessions.set(ready.origin, cookie);
+    return (await fetch(ready.origin, { headers: { cookie } })).json() as Promise<{
+      value: string;
+      pid: number;
+    }>;
+  };
+  let dev: Promise<void> | undefined;
+  try {
+    await mkdir(join(root, "src/server"), { recursive: true });
+    await writeFile(join(root, "package.json"), '{"name":"fixture","version":"1.0.0"}');
+    await writeFile(
+      join(root, "furin.config.ts"),
+      'export default { serverEntry: "src/server/index.tsx" };'
+    );
+    await writeFile(
+      join(root, "furin.desktop.config.ts"),
+      `export default {
+        app: { name: "Fixture", identifier: "local.furin.fixture" },
+        window: { width: 800, height: 600 },
+        dataDir: ${JSON.stringify(join(root, "storage/database"))}
+      };`
+    );
+    const entry = `
+      import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
+      import { value } from "../database";
+      export default createDesktopApp().get("/", () => ({ value, pid: process.pid }));
+    `;
+    await writeFile(join(root, "src/server/index.tsx"), entry);
+    await writeFile(join(root, "src/database.ts"), 'export const value = "first";');
+    const sdk = join(root, "node_modules/electrobun");
+    await mkdir(join(sdk, "bin"), { recursive: true });
+    await writeFile(
+      join(sdk, "package.json"),
+      '{"name":"electrobun","version":"2.0.2","exports":{"./package.json":"./package.json"}}'
+    );
+    await writeFile(
+      join(sdk, "bin/electrobun.cjs"),
+      `
+      if (process.argv[2] !== "run") process.exit(0);
+      const { watch } = require("node:fs");
+      const ready = await Bun.file("ready.json").json();
+      const send = (checkpoint) => fetch(${JSON.stringify(receiver.url.href)}, {
+        method: "POST", body: JSON.stringify({ ...ready, checkpoint })
+      });
+      const watcher = watch("control", async () => {
+        if (await Bun.file("control").text()) process.exit(0);
+      });
+      if (await (await send(false)).text() === "observe") {
+        setTimeout(() => send(true), 700);
+      }
+    `
+    );
+    const directories = [
+      "src/frontend",
+      ".furin/output",
+      ".git",
+      "node_modules/cache",
+      ".hutch",
+      "dist",
+      "build",
+      "storage/database",
+    ];
+    for (const directory of directories) {
+      await mkdir(join(root, directory), { recursive: true });
+    }
+    dev = desktopCommand("dev", root);
+    const first = await nextEvent();
+    const original = await response(first);
+    expect(original.value).toBe("first");
+    for (const directory of directories) {
+      await writeFile(
+        join(root, directory, directory === "src/frontend" ? "page.tsx" : "write.ts"),
+        "export {};"
+      );
+    }
+    await writeFile(join(root, "src/frontend/page.jsx"), "export {};");
+    await writeFile(join(root, "src/frontend/page.css"), "body {}");
+    await writeFile(join(root, "src/server/component.tsx"), "export {};");
+    const checkpoint = await nextEvent();
+    expect(checkpoint.checkpoint).toBe(true);
+    expect(await response(checkpoint)).toEqual(original);
+    await writeFile(join(root, "src/database.ts"), 'export const value = "second";');
+    const second = await nextEvent();
+    expect(second.checkpoint).toBe(false);
+    const updated = await response(second);
+    expect(updated.value).toBe("second");
+    expect(updated.pid).not.toBe(original.pid);
+    expect(() => process.kill(original.pid, 0)).toThrow();
+    await writeFile(
+      join(root, "src/server/index.tsx"),
+      entry.replace("{ value, pid:", '{ value: "entry", pid:')
+    );
+    const third = await nextEvent();
+    expect(third.checkpoint).toBe(false);
+    expect((await response(third)).value).toBe("entry");
+  } finally {
+    if (dev) {
+      process.emit("SIGTERM");
+      await dev;
+    }
+    receiver.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 15_000);
+
 test("dev helper keeps consuming CWD and drains through the control file without SDK signals", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-dev-"));
   const entry = join(root, "server.ts");
@@ -48,8 +204,10 @@ test("dev helper keeps consuming CWD and drains through the control file without
     const ready: { origin: string; bootstrapOrigin: string; url: string } =
       await Bun.file(readyPath).json();
     expect(ready.bootstrapOrigin).toBe(new URL(ready.url).origin);
-    // biome-ignore lint/suspicious/noBitwiseOperators: Credentials must have owner-only permissions.
-    expect((await stat(readyPath)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      // biome-ignore lint/suspicious/noBitwiseOperators: Credentials must have owner-only permissions.
+      expect((await stat(readyPath)).mode & 0o777).toBe(0o600);
+    }
     const response = await fetch(ready.url, { redirect: "manual" });
     const cookie = response.headers.get("set-cookie")?.split(";")[0];
     if (!cookie) {

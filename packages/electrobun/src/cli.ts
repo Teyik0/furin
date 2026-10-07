@@ -2,7 +2,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
 import { watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
@@ -85,14 +85,56 @@ export async function desktopCommand(command: string, cwd: string): Promise<void
     console.log(`Desktop build: ${join(generated, "build")}`);
     return;
   }
-  await runDesktopDev(project.root, project.serverEntry, generated, sdk, env);
+  await runDesktopDev(project.root, project.serverEntry, config.dataDir, generated, sdk, env);
 }
 
-async function stopOwnedDevWorker(backend: Bun.Subprocess, control: string): Promise<void> {
+function stoppedByUser(child: Bun.Subprocess, stopping: boolean): boolean {
+  return stopping && (child.signalCode === "SIGINT" || child.signalCode === "SIGTERM");
+}
+
+async function terminateOwnedWindow(window: Bun.Subprocess): Promise<void> {
+  if (process.platform === "win32") {
+    // Windows has no POSIX process groups. taskkill follows the live bootstrap's
+    // descendants, not orphans whose bootstrap already exited. POSIX groups
+    // likewise cannot own descendants that deliberately start a new session.
+    if (window.exitCode === null) {
+      const killer = Bun.spawn(["taskkill", "/PID", String(window.pid), "/T", "/F"], {
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      try {
+        const status = await withShutdownDeadline(killer.exited);
+        if (status !== 0 && window.exitCode === null) {
+          throw new Error(`Desktop window tree termination failed (${status}).`);
+        }
+      } finally {
+        if (killer.exitCode === null) {
+          killer.kill("SIGKILL");
+        }
+        await killer.exited;
+      }
+    }
+  } else {
+    try {
+      process.kill(-window.pid, "SIGKILL");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+        throw error;
+      }
+    }
+  }
+  await window.exited;
+}
+
+async function stopOwnedDevWorker(
+  backend: Bun.Subprocess,
+  control: string,
+  isStopping: () => boolean
+): Promise<void> {
   try {
     await writeFile(control, crypto.randomUUID());
     const status = await withShutdownDeadline(backend.exited);
-    if (status !== 0) {
+    if (status !== 0 && !stoppedByUser(backend, isStopping())) {
       throw new Error(`Desktop dev backend shutdown failed (${status}).`);
     }
   } catch (error) {
@@ -104,9 +146,31 @@ async function stopOwnedDevWorker(backend: Bun.Subprocess, control: string): Pro
   }
 }
 
+async function waitForDevReady(
+  backend: Bun.Subprocess,
+  ready: string,
+  isStopping: () => boolean
+): Promise<boolean> {
+  const deadline = Date.now() + 30_000;
+  while (!(await Bun.file(ready).exists())) {
+    if (isStopping()) {
+      return false;
+    }
+    if (backend.exitCode !== null) {
+      throw new Error(`Desktop dev backend exited (${backend.exitCode}) before listening.`);
+    }
+    if (Date.now() > deadline) {
+      throw new Error("Desktop dev backend did not become ready.");
+    }
+    await Bun.sleep(50);
+  }
+  return !isStopping();
+}
+
 async function runDesktopDev(
   root: string,
   serverEntry: string,
+  dataDir: string | undefined,
   generated: string,
   sdk: string,
   env: NodeJS.ProcessEnv
@@ -115,17 +179,28 @@ async function runDesktopDev(
   // A file command asks the running window to use the public close/quit APIs.
   let stopping = false;
   let restart = false;
+  let backend: Bun.Subprocess | undefined;
+  let listening = false;
+  const { promise: stopped, resolve: signalStop } = Promise.withResolvers<void>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const control = join(generated, "control");
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const watcher = watch(dirname(serverEntry), { recursive: true }, (_event, filename) => {
+  const ownedData = dataDir ? resolve(dataDir) : undefined;
+  // Backend imports can live anywhere in the project. Frontend HMR owns JSX/TSX/CSS;
+  // hidden/generated directories and runtime-owned data must not restart the worker.
+  const watcher = watch(root, { recursive: true }, (_event, filename) => {
+    if (!filename) {
+      return;
+    }
+    const path = join(root, filename);
     if (
-      !filename ||
-      filename.startsWith(".") ||
-      filename.includes("node_modules") ||
-      (filename !== basename(serverEntry) && FRONTEND_FILE.test(filename))
+      filename
+        .split(sep)
+        .some((part) => part.startsWith(".") || ["node_modules", "dist", "build"].includes(part)) ||
+      (ownedData && (path === ownedData || path.startsWith(`${ownedData}${sep}`))) ||
+      (path !== serverEntry && FRONTEND_FILE.test(filename))
     ) {
       return;
     }
@@ -137,47 +212,60 @@ async function runDesktopDev(
   });
   const stop = () => {
     stopping = true;
+    signalStop();
     requestStop().catch(console.error);
+    // Before readiness the helper cannot read control yet. SIGTERM cancels
+    // startup; ready workers continue to drain through the public control path.
+    if (backend && !listening && backend.exitCode === null) {
+      backend.kill("SIGTERM");
+    }
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
   try {
     do {
+      if (stopping) {
+        return;
+      }
       restart = false;
+      listening = false;
       await writeFile(control, "");
       const ready = join(generated, "ready.json");
       await rm(ready, { force: true });
-      const backend = Bun.spawn([process.execPath, join(generated, "dev-server.ts")], {
+      if (stopping) {
+        return;
+      }
+      backend = Bun.spawn([process.execPath, join(generated, "dev-server.ts")], {
         cwd: root,
         env,
         stdout: "inherit",
         stderr: "inherit",
       });
       try {
-        const deadline = Date.now() + 30_000;
-        while (!(await Bun.file(ready).exists())) {
-          if (backend.exitCode !== null) {
-            throw new Error(`Desktop dev backend exited (${backend.exitCode}) before listening.`);
-          }
-          if (Date.now() > deadline || stopping) {
-            throw new Error("Desktop dev backend did not become ready.");
-          }
-          await Bun.sleep(50);
+        if (!(await waitForDevReady(backend, ready, () => stopping))) {
+          return;
         }
+        listening = true;
         const window = Bun.spawn([process.execPath, sdk, "run", "--env=dev"], {
           cwd: generated,
           env,
           stdout: "inherit",
           stderr: "inherit",
+          detached: process.platform !== "win32",
         });
-        await Promise.race([window.exited, backend.exited]);
-        await requestStop();
-        const windowStatus = await window.exited;
-        if (windowStatus !== 0) {
-          throw new Error(`Desktop window exited (${windowStatus}).`);
+        try {
+          await Promise.race([window.exited, backend.exited, stopped]);
+          await requestStop();
+          const windowStatus = await withShutdownDeadline(window.exited);
+          if (windowStatus !== 0 && !stoppedByUser(window, stopping)) {
+            throw new Error(`Desktop window exited (${windowStatus}).`);
+          }
+        } finally {
+          await terminateOwnedWindow(window);
         }
       } finally {
-        await stopOwnedDevWorker(backend, control);
+        await stopOwnedDevWorker(backend, control, () => stopping);
+        backend = undefined;
       }
     } while (restart && !stopping);
   } finally {

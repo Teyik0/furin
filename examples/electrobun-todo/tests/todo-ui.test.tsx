@@ -51,130 +51,175 @@ async function eventually(predicate: () => boolean): Promise<void> {
 
 async function mountTodos(seedTitles: string[]) {
   resetDomState();
-  const backend = createTodoBackend(":memory:");
-  const app = new Elysia().use(furinSync(backend.sync)).use(backend.api);
+  let backend: ReturnType<typeof createTodoBackend> | undefined;
+  let server: ReturnType<typeof Bun.serve> | undefined;
+  let root: ReturnType<typeof createRoot> | undefined;
+  const previousRuntime = runtimeGlobal[eventsKey];
+  const container = document.createElement("div");
+  const gates: ReturnType<typeof Promise.withResolvers<void>>[] = [];
+  let closed = false;
   let held:
     | {
-        method: "POST" | "PATCH";
+        method: "GET" | "POST" | "PATCH";
         entered: ReturnType<typeof Promise.withResolvers<void>>;
         release: ReturnType<typeof Promise.withResolvers<void>>;
       }
     | undefined;
   let writes = 0;
   const requests = new Set<Promise<Response>>();
-  const server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch(request) {
-      const response = (async () => {
-        if (request.method === "POST" || request.method === "PATCH") {
-          writes += 1;
-          const gate = held;
-          if (gate?.method === request.method) {
-            held = undefined;
-            gate.entered.resolve();
-            await gate.release.promise;
-          }
-        }
-        return app.handle(request);
-      })();
-      requests.add(response);
-      response.finally(() => requests.delete(response));
-      return response;
-    },
-  });
-  const { origin } = server.url;
-  const browser = window as typeof window & { happyDOM: { setURL: (url: string) => void } };
-  browser.happyDOM.setURL(`${origin}/`);
-  const list = async (): Promise<Todo[]> => {
-    const response = await fetch(`${origin}/api/todos`);
-    expect(response.status).toBe(200);
-    return response.json();
-  };
-  for (const title of seedTitles) {
-    // biome-ignore lint/performance/noAwaitInLoops: seed through the public API before mounting
-    const response = await fetch(`${origin}/api/todos`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
-      body: JSON.stringify({ title }),
-    });
-    expect(response.status).toBe(200);
-  }
-  writes = 0;
-  let todos = await list();
-  const previousRuntime = runtimeGlobal[eventsKey];
-  runtimeGlobal[eventsKey] = {
-    subscribeStatus(listener) {
-      listener("connected");
-      return () => true;
-    },
-  };
-  let projectionFailure: Error | undefined;
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  const refresh = async () => {
-    if (projectionFailure) {
-      throw projectionFailure;
+  const close = async () => {
+    if (closed) {
+      return;
     }
-    todos = await list();
-    render();
-  };
-  const render = () =>
-    root.render(
-      createElement(
-        RouterContext.Provider,
-        { value: { ...CLIENT_FALLBACK_ROUTER, refresh } },
-        createElement(TodoScreen, { todos })
-      )
-    );
-  await act(render);
-  await eventually(
-    () => container.querySelector('[data-testid="sync-status"]')?.textContent === "À jour"
-  );
-  const control = <T extends HTMLElement>(id: string): T => {
-    const element = container.querySelector<T>(`[data-testid="${id}"]`);
-    expect(element).not.toBeNull();
-    return element as T;
-  };
-  const gates: ReturnType<typeof Promise.withResolvers<void>>[] = [];
-  return {
-    container,
-    control,
-    list,
-    get writes() {
-      return writes;
-    },
-    failProjection(error: Error | undefined) {
-      projectionFailure = error;
-    },
-    hold(method: "POST" | "PATCH") {
-      const entered = Promise.withResolvers<void>();
-      const release = Promise.withResolvers<void>();
-      gates.push(release);
-      held = { method, entered, release };
-      return { entered: entered.promise, release: () => release.resolve() };
-    },
-    async close() {
-      for (const gate of gates) {
-        gate.resolve();
-      }
+    closed = true;
+    for (const gate of gates) {
+      gate.resolve();
+    }
+    try {
       await act(async () => {
-        await Promise.all(requests);
-        await Bun.sleep(20);
-        root.unmount();
+        await Promise.allSettled(requests);
+        root?.unmount();
       });
+    } finally {
       container.remove();
       if (previousRuntime) {
         runtimeGlobal[eventsKey] = previousRuntime;
       } else {
         delete runtimeGlobal[eventsKey];
       }
-      await server.stop(true);
-      backend.close();
-    },
+      try {
+        await server?.stop(true);
+      } finally {
+        backend?.close();
+      }
+    }
   };
+  try {
+    backend = createTodoBackend(":memory:");
+    const app = new Elysia().use(furinSync(backend.sync)).use(backend.api);
+    server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        const response = (async () => {
+          if (request.method === "POST" || request.method === "PATCH") {
+            writes += 1;
+          }
+          const gate = held;
+          if (gate?.method === request.method) {
+            held = undefined;
+            gate.entered.resolve();
+            await gate.release.promise;
+          }
+          return app.handle(request);
+        })();
+        requests.add(response);
+        response.then(
+          () => requests.delete(response),
+          () => requests.delete(response)
+        );
+        return response;
+      },
+    });
+    const { origin } = server.url;
+    const browser = window as typeof window & { happyDOM: { setURL: (url: string) => void } };
+    browser.happyDOM.setURL(`${origin}/`);
+    const list = async (): Promise<Todo[]> => {
+      const response = await fetch(`${origin}/api/todos`);
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    for (const title of seedTitles) {
+      // biome-ignore lint/performance/noAwaitInLoops: seed through the public API before mounting
+      const response = await fetch(`${origin}/api/todos`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({ title }),
+      });
+      expect(response.status).toBe(200);
+    }
+    writes = 0;
+    let todos = await list();
+    runtimeGlobal[eventsKey] = {
+      subscribeStatus(listener) {
+        listener("connected");
+        return () => true;
+      },
+    };
+    let projectionFailure: Error | undefined;
+    document.body.appendChild(container);
+    const mountedRoot = createRoot(container);
+    root = mountedRoot;
+    const refresh = async () => {
+      if (projectionFailure) {
+        throw projectionFailure;
+      }
+      todos = await list();
+      render();
+    };
+    const render = () =>
+      mountedRoot.render(
+        createElement(
+          RouterContext.Provider,
+          { value: { ...CLIENT_FALLBACK_ROUTER, refresh } },
+          createElement(TodoScreen, { todos })
+        )
+      );
+    await act(render);
+    await eventually(
+      () => container.querySelector('[data-testid="sync-status"]')?.textContent === "À jour"
+    );
+    const control = <T extends HTMLElement>(id: string): T => {
+      const element = container.querySelector<T>(`[data-testid="${id}"]`);
+      expect(element).not.toBeNull();
+      return element as T;
+    };
+    return {
+      container,
+      control,
+      list,
+      get writes() {
+        return writes;
+      },
+      failProjection(error: Error | undefined) {
+        projectionFailure = error;
+      },
+      hold(method: "GET" | "POST" | "PATCH") {
+        const entered = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<void>();
+        gates.push(release);
+        held = { method, entered, release };
+        return { entered: entered.promise, release: () => release.resolve() };
+      },
+      close,
+    };
+  } catch (error) {
+    await close().catch(() => {
+      // Preserve the setup failure even if disposing an acquired resource fails.
+    });
+    throw error;
+  }
 }
+
+test("a post-write refresh keeps an already ready transport connected", async () => {
+  const ui = await mountTodos([]);
+  const refresh = ui.hold("GET");
+  try {
+    await act(() => setInputValue(ui.control<HTMLInputElement>("todo-title"), "Silent refresh"));
+    await act(async () => {
+      ui.control<HTMLButtonElement>("add-todo").click();
+      await refresh.entered;
+    });
+    expect(ui.control<HTMLElement>("sync-status").textContent).toBe("À jour");
+    refresh.release();
+    await eventually(
+      () => ui.container.querySelector(".todo-row-title")?.textContent === "Silent refresh"
+    );
+  } finally {
+    refresh.release();
+    await ui.close();
+  }
+});
 
 test("a committed create preserves a newer draft typed while its HTTP request is pending", async () => {
   const ui = await mountTodos([]);

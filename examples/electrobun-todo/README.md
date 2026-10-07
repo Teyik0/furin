@@ -27,6 +27,16 @@ bun run dev:desktop
 
 Desktop settings live in `furin.desktop.config.ts`. The first command prepares the pinned Electrobun SDK automatically; developers do not write a native entrypoint or an asset-copy script.
 
+## Web production
+
+```sh
+bun run build
+bun run start
+```
+
+The production web script uses port `3004`, keeping this example separate from
+the other workspace apps.
+
 ## Desktop production
 
 ```sh
@@ -37,15 +47,25 @@ The package builds an inert application, copies its resources and loads it in El
 
 Development uses an ordinary Bun helper to preserve plugins and Furin Fast Refresh. JSX and CSS updates were verified in a real WKWebView without losing the draft or reloading the document. Backend edits restart the backend and reopen the window; a separate native test verified old-process termination, a new document, sync readiness and persisted tasks. Unsaved React state is not preserved across a backend restart.
 
+The ordinary web `bun --hot` command preserves the backend singleton across
+reloads. Restart `bun run dev` after changing API implementation, database schema
+or backend configuration; frontend Fast Refresh still works normally.
+
 ## Data
 
-- Web: `.furin/todos.sqlite`, or `FURIN_TODO_DATABASE`.
-- Desktop: `todos.sqlite` in `FURIN_APP_DATA_DIR`, set by the integration before importing the backend.
+- Web default: `.furin/todos.sqlite`.
+- Desktop default: `todos.sqlite` in `FURIN_APP_DATA_DIR`, set by the integration before importing the backend.
+- `FURIN_TODO_DATABASE`, when set, overrides the filename in **both** modes. It can intentionally point them at the same database; it is not a web-only setting.
 - Desktop startup does not automatically migrate an existing web database.
 
 Creation, editing, deletion, validation and idempotent replay use the same Elysia/Drizzle/SQLite API. The Furin journal triggers page refreshes. Drafts typed while a request is pending are not overwritten by its response.
 
 Web and desktop defaults use separate storage locations. This example does not synchronize two different databases; clients must use the same backend to share a library.
+
+This small example has a fixed schema: its startup SQL creates an absent table,
+while Drizzle describes typed queries against that table. Schema changes must
+update both definitions and provide a migration for existing data; changing the
+Drizzle declaration alone does not migrate a user's database.
 
 ## Verify
 

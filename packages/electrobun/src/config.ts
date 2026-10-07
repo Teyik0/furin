@@ -1,8 +1,8 @@
 import { isAbsolute } from "node:path";
+import { isPackageName } from "./package-name";
 
 const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)+$/;
-const VERSION = /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/;
-const PACKAGE_NAME = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/;
+const VERSION = /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/;
 
 export interface DesktopConfig {
   app: { name: string; identifier: string; version?: string };
@@ -47,8 +47,7 @@ export function validateDesktopConfig(value: unknown): asserts value is DesktopC
   }
   if (
     value.external !== undefined &&
-    (!Array.isArray(value.external) ||
-      value.external.some((name: unknown) => typeof name !== "string" || !PACKAGE_NAME.test(name)))
+    (!Array.isArray(value.external) || value.external.some((name: unknown) => !isPackageName(name)))
   ) {
     throw new Error("external must contain package names, not paths.");
   }

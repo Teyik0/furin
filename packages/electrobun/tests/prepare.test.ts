@@ -23,6 +23,8 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
     );
     expect(await readFile(join(generated, "furin/client/nested/chunk.js"), "utf8")).toBe("client");
     expect(await readFile(join(generated, "furin/public/logo.svg"), "utf8")).toBe("public");
+    const sdkConfig = await import(join(generated, "electrobun.config.ts"));
+    expect(sdkConfig.default.build.copy).toEqual({ furin: "furin" });
     const main = await readFile(join(generated, "main.ts"), "utf8");
     expect(main).toContain("pathToFileURL");
     expect(main).toContain("../furin/app.js");

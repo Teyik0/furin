@@ -152,7 +152,7 @@ if (command === "preview") {
   if (output !== undefined && output !== "app" && output !== "server") {
     bail(`Invalid Bun output "${output}". Valid: app, server`);
   }
-  if (output !== undefined && target !== "bun") {
+  if (values.output !== undefined && target !== "bun") {
     bail("--output requires --target bun");
   }
 

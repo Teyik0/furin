@@ -14,20 +14,21 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
   const app = createDesktopApp()
     .get("/", () => "SSR")
     .get("/api/resource", () => ({ resource: "unchanged" }));
-  const backend = await startDesktopBackend(
-    () => {
-      importedData = process.env.FURIN_APP_DATA_DIR;
-      return Promise.resolve({
-        default: app,
-        onShutdown: () => {
-          shutdowns += 1;
-        },
-      });
-    },
-    data,
-    "build"
-  );
+  let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
+    backend = await startDesktopBackend(
+      () => {
+        importedData = process.env.FURIN_APP_DATA_DIR;
+        return Promise.resolve({
+          default: app,
+          onShutdown: () => {
+            shutdowns += 1;
+          },
+        });
+      },
+      data,
+      "build"
+    );
     expect(importedData).toBe(data);
     expect(app.server?.port).toBeGreaterThan(0);
     expect(backend.origin).toStartWith("http://127.0.0.1:");
@@ -45,13 +46,16 @@ test("in-process Elysia owns one ephemeral listener, session and shutdown", asyn
     expect(shutdowns).toBe(1);
     expect(app.server).toBeUndefined();
   } finally {
-    await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
+    try {
+      await backend?.stop();
+    } finally {
+      if (previousData === undefined) {
+        delete process.env.FURIN_APP_DATA_DIR;
+      } else {
+        process.env.FURIN_APP_DATA_DIR = previousData;
+      }
+      await rm(data, { recursive: true, force: true });
     }
-    await rm(data, { recursive: true, force: true });
   }
 });
 
@@ -95,21 +99,21 @@ test("shutdown rejects after five seconds when a resource cleanup hangs", async 
     /* Keep a resource handle alive during the hung cleanup. */
   }, 1000);
   let shutdowns = 0;
-  const backend = await startDesktopBackend(
-    () =>
-      Promise.resolve({
-        default: app,
-        onShutdown: () => {
-          shutdowns += 1;
-          return new Promise<void>(() => {
-            /* Deliberately never settles. */
-          });
-        },
-      }),
-    data,
-    "build"
-  );
   try {
+    const backend = await startDesktopBackend(
+      () =>
+        Promise.resolve({
+          default: app,
+          onShutdown: () => {
+            shutdowns += 1;
+            return new Promise<void>(() => {
+              /* Deliberately never settles. */
+            });
+          },
+        }),
+      data,
+      "build"
+    );
     const stopped = backend.stop();
     const outcome = await Promise.race([
       stopped.then(

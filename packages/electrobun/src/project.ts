@@ -89,9 +89,9 @@ export async function loadFurinProject(cwd: string) {
     .find(existsSync);
   // Core validates the full config when building. Only its existing root/server
   // conventions are needed to point the desktop dev host at the source app.
-  const config: { rootDir?: string; serverEntry?: string } = configPath
-    ? (await import(pathToFileURL(configPath).href)).default
-    : {};
+  const imported = configPath ? await import(pathToFileURL(configPath).href) : {};
+  // Match core's CLI loader: default configuration or named configuration fields.
+  const config: { rootDir?: string; serverEntry?: string } = imported.default ?? imported;
   const root = resolve(cwd, config.rootDir ?? ".");
   return { root, serverEntry: resolve(root, config.serverEntry ?? "src/server.ts") };
 }
