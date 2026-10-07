@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_fa3ba074f76831::t_3d206b970c8a74 11
+packages/core/tests/runtime/dependency-security.test.ts
+  s_fa3ba074f76831::t_4fde8f542f3b2d 8
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_3d206b970c8a74 33,349,355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fea541a779763c16a1024c2f2de2a167e506837",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
