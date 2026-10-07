@@ -1,0 +1,55 @@
+packages/core/src/client/query-store.ts
+  s_fa3ba074f76831::t_47df0b6c40e443 168-171
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_fa3ba074f76831::t_8554d4b223c902 134-138,168-172
+  s_fa3ba074f76831::t_edd1df0628fb38 160-161
+packages/core/src/furin.ts
+  s_fa3ba074f76831::t_8579b22383a5d3 920-932,937-938,961
+  s_fa3ba074f76831::t_b7096750e8bc66 933-936
+  s_fa3ba074f76831::t_ded4d0d73d8529 908-910
+packages/core/src/server/render/asset-path.ts
+  s_fa3ba074f76831::t_a1bf9c7daaaeaa 5-6,15
+  s_fa3ba074f76831::t_b3e5f0e4181a05 11,16-19,21
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_fa3ba074f76831::t_7051763dde50f4 6-9,22,571,587
+  s_fa3ba074f76831::t_42692462acdcac 12,34-35,82-84,90-91,120-122,128-129,162-164,170-171,206-208,214-215,264-266,272-273,370-372,378-379,420-422,428-429,467-469,475-476,522-524,530-531,543,618-620
+packages/core/tests/client/sync/query-client.test.tsx
+  s_fa3ba074f76831::t_8d6d60a72052ec 160,166
+  s_fa3ba074f76831::t_87329b7ddcb9d1 159,175
+  s_fa3ba074f76831::t_fa5dbea3af4ef2 149,151-154,158,165,174,179-180
+  s_fa3ba074f76831::t_08d13e85b81500 150,155-157,167-173,176-178
+  s_fa3ba074f76831::t_bf37d205640060 161-164
+  s_fa3ba074f76831::t_4c4a4d84a744f4 181-182
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_90fe0131a0e544 343-344
+  s_fa3ba074f76831::t_147e2ef080e518 345
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_fa3ba074f76831::t_a5fe3286241c79 338
+  s_fa3ba074f76831::t_62ae22f420922b 364-366,369-374
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_fa3ba074f76831::t_594672172262e8 300-320,330-364
+  s_fa3ba074f76831::t_85a7cf963e7033 321-324,326-329
+  s_fa3ba074f76831::t_91a14f9247bf86 325
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_fa3ba074f76831::t_aa525d853c408f 807
+  s_fa3ba074f76831::t_11a94aef7b9ab3 765-776
+  s_fa3ba074f76831::t_315dbddb728872 761-764,777-787,803-806,808-815,825-832
+  s_fa3ba074f76831::t_b7096750e8bc66 788-802,816-824
+  s_fa3ba074f76831::t_a679a99d343c4c 760
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f6e483fb1d2476f9dc47b71b0960e668d9585f4",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
