@@ -423,7 +423,7 @@ function collectChainHeads(program: Program, bindings: BuilderBindings): ChainHe
         heads.push({
           binding: callee.name,
           builderEnd: calleeEnd,
-          chainEnd: typeof chain?.end === "number" ? chain.end : callEnd,
+          chainEnd: typeof chain.end === "number" ? chain.end : callEnd,
           end: callEnd,
           exportedAsRoute,
           isRoot: bindings.rootBindings.has(factory),

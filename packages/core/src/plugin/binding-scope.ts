@@ -60,12 +60,15 @@ interface FactoryAlias {
 
 /** Import identities stay module-local; aliases resolve at their lexical declaration. */
 export class FactoryBindings extends Set<string> {
-  private readonly aliases: FactoryAlias[] = [];
+  private readonly aliases = new Map<string, FactoryAlias[]>();
   private readonly namespaces: Set<string>;
 
   constructor(program: Program, named: Set<string>, namespaces: Set<string>) {
     super(named);
     this.namespaces = namespaces;
+    if (!this.hasImports) {
+      return;
+    }
     walk(program, {
       VariableDeclarator: (node, context) => {
         const ancestors = context.ancestors() as AstNode[];
@@ -73,24 +76,32 @@ export class FactoryBindings extends Set<string> {
         const scope =
           declaration?.kind === "var" ? varBindingScope(ancestors) : lexicalBindingScope(ancestors);
         if (node.id.type === "Identifier" && node.init && scope) {
-          this.aliases.push({
+          const aliases = this.aliases.get(node.id.name) ?? [];
+          aliases.push({
             ancestors,
             immutable: declaration?.kind === "const",
             initializer: node.init as AstNode,
             name: node.id.name,
             scope,
           });
+          this.aliases.set(node.id.name, aliases);
         }
       },
     });
   }
 
+  get hasImports(): boolean {
+    return this.size > 0 || this.namespaces.size > 0;
+  }
+
   factoryName(expression: AstNode, ancestors: AstNode[]): string | undefined {
-    return this.resolve(expression, ancestors, this, new Set());
+    return this.size === 0 ? undefined : this.resolve(expression, ancestors, this, new Set());
   }
 
   namespaceName(expression: AstNode, ancestors: AstNode[]): string | undefined {
-    return this.resolve(expression, ancestors, this.namespaces, new Set());
+    return this.namespaces.size === 0
+      ? undefined
+      : this.resolve(expression, ancestors, this.namespaces, new Set());
   }
 
   private resolve(
@@ -108,9 +119,13 @@ export class FactoryBindings extends Set<string> {
     }
     let match: FactoryAlias | undefined;
     let scopeIndex = -1;
-    for (const alias of this.aliases) {
+    const aliases = this.aliases.get(node.name);
+    if (!aliases) {
+      return undefined;
+    }
+    for (const alias of aliases) {
       const index = ancestors.lastIndexOf(alias.scope);
-      if (alias.name === node.name && index > scopeIndex) {
+      if (index > scopeIndex) {
         match = alias;
         scopeIndex = index;
       }

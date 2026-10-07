@@ -32,6 +32,7 @@ export interface IsomorphicTransformResult {
 
 interface IsomorphicBindings {
   constants: ConstantBinding[];
+  constantsByName: Map<string, ConstantBinding[]>;
   named: Set<string>;
   namespaces: Set<string>;
 }
@@ -96,6 +97,7 @@ function addImportSpecifier(specifier: AstNode, bindings: IsomorphicBindings): v
 function collectBindings(program: Program): IsomorphicBindings {
   const bindings = {
     constants: [] as ConstantBinding[],
+    constantsByName: new Map<string, ConstantBinding[]>(),
     named: new Set<string>(),
     namespaces: new Set<string>(),
   };
@@ -113,6 +115,9 @@ function collectBindings(program: Program): IsomorphicBindings {
     }
   }
 
+  if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
+    return bindings;
+  }
   walk(program, {
     VariableDeclarator(node, context) {
       const ancestors = context.ancestors() as AstNode[];
@@ -127,13 +132,17 @@ function collectBindings(program: Program): IsomorphicBindings {
       ) {
         return;
       }
-      bindings.constants.push({
+      const binding = {
         ancestors,
         declaration: node as unknown as AstNode,
         initializer: node.init as AstNode,
         name: node.id.name,
         scope,
-      });
+      };
+      bindings.constants.push(binding);
+      const constants = bindings.constantsByName.get(binding.name) ?? [];
+      constants.push(binding);
+      bindings.constantsByName.set(binding.name, constants);
     },
   });
 
@@ -147,9 +156,13 @@ function resolveConstant(
 ): ConstantBinding | undefined {
   let match: ConstantBinding | undefined;
   let scopeIndex = -1;
-  for (const binding of bindings.constants) {
+  const constants = bindings.constantsByName.get(name);
+  if (!constants) {
+    return undefined;
+  }
+  for (const binding of constants) {
     const index = ancestors.lastIndexOf(binding.scope);
-    if (binding.name === name && index > scopeIndex) {
+    if (index > scopeIndex) {
       match = binding;
       scopeIndex = index;
     }
@@ -641,6 +654,9 @@ export function transformIsomorphicFunctions(
   }
 
   const bindings = collectBindings(program);
+  if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
+    return { code: source, map: null, transformed: clientModulesTransformed };
+  }
   assertResolvedFactoryUses(program, bindings, filename);
   const builders = collectBuilderBindings(program, bindings);
   assertStaticEnvironmentMethods(source, filename, program, bindings, builders);

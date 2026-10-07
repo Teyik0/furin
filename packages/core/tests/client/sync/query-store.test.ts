@@ -3,6 +3,7 @@ import { QueryStore } from "../../../src/client/query-store.ts";
 
 const url = "http://localhost/cards";
 const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
+const SECURE_REQUEST_KEY = /#furin-query:[a-f0-9]{32}:1$/;
 function result(data: unknown, session: string) {
   return {
     data,
@@ -16,12 +17,14 @@ function result(data: unknown, session: string) {
 test("request-scoped seeds stay isolated when browser UUID APIs are unavailable", () => {
   const uuid = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
   const random = Object.getOwnPropertyDescriptor(globalThis.crypto, "getRandomValues");
+  const originalUuid = globalThis.crypto.randomUUID;
+  const originalRandom = globalThis.crypto.getRandomValues;
   try {
     Object.defineProperty(globalThis.crypto, "randomUUID", {
       configurable: true,
       value: undefined,
     });
-    for (const secureRandom of [random?.value, undefined]) {
+    for (const secureRandom of [originalRandom, undefined]) {
       Object.defineProperty(globalThis.crypto, "getRandomValues", {
         configurable: true,
         value: secureRandom,
@@ -30,6 +33,9 @@ test("request-scoped seeds stay isolated when browser UUID APIs are unavailable"
       const reference = { client: server, url, load: async () => result("Alice", "alice") };
       const options = { headers: { Authorization: "private-alice" } };
       const serverKey = server.readKey(reference, options);
+      if (secureRandom) {
+        expect(serverKey).toMatch(SECURE_REQUEST_KEY);
+      }
       server.observe(serverKey, result("Alice", "alice"), server.generation());
       const browser = new QueryStore(undefined);
       browser.hydrate(server.dehydrate());
@@ -41,11 +47,17 @@ test("request-scoped seeds stay isolated when browser UUID APIs are unavailable"
   } finally {
     if (uuid) {
       Object.defineProperty(globalThis.crypto, "randomUUID", uuid);
+    } else {
+      Reflect.deleteProperty(globalThis.crypto, "randomUUID");
     }
     if (random) {
       Object.defineProperty(globalThis.crypto, "getRandomValues", random);
+    } else {
+      Reflect.deleteProperty(globalThis.crypto, "getRandomValues");
     }
   }
+  expect(globalThis.crypto.randomUUID).toBe(originalUuid);
+  expect(globalThis.crypto.getRandomValues).toBe(originalRandom);
 });
 
 test("request-specific seeds retain isolated identities without serializing credentials", () => {

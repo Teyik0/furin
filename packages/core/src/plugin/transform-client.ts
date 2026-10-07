@@ -188,6 +188,9 @@ function assertCompleteRouteChains(
   bindings: FactoryBindings,
   filename: string
 ): void {
+  if (!bindings.hasImports) {
+    return;
+  }
   walk(program, {
     CallExpression(call, context) {
       const callee = asAstNode(call.callee);
