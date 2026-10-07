@@ -7,8 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Changed
-- **Elysia beta update** — pin `2.0.0-beta.23` across the workspace, generated projects, documentation and benchmark workflows while preserving the public API and TypeScript inference.
-- **Dependency security** — update compatible transitive dependencies and apply tested Bun patches for recursive braces/deepmerge inputs and selector-parser complexity without changing their existing APIs.
+- **Elysia beta update** — pin `2.0.0-beta.25` across the workspace, generated projects, documentation and benchmark workflows while preserving the public API and TypeScript inference.
+- **Dependency security** — update compatible transitive dependencies, use the official selector-parser `7.1.6` fix and retain tested Bun patches for recursive braces/deepmerge inputs without changing their existing APIs.
 
 ### Fixed
 - **Application isolation and composition** — isolate page caches, queries, sync principals, logging, development graphs and watchers across independent applications, reused plugins and nested Elysia prefixes. Keep compiled SSG snapshots while adapting their document URLs to the physical mount.

@@ -156,7 +156,6 @@
   "patchedDependencies": {
     "deepmerge-ts@7.1.5": "patches/deepmerge-ts@7.1.5.patch",
     "braces@3.0.3": "patches/braces@3.0.3.patch",
-    "postcss-selector-parser@6.0.10": "patches/postcss-selector-parser@6.0.10.patch",
   },
   "overrides": {
     "@esbuild-kit/core-utils": {
@@ -169,13 +168,14 @@
     "js-yaml": "^4.3.2",
     "minimatch": "^10.2.5",
     "mysql2": "^3.24.5",
+    "postcss-selector-parser": "7.1.6",
     "smol-toml": "^1.9.0",
     "source-map-js": "^1.2.2",
   },
   "catalog": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "elysia": "2.0.0-beta.23",
+    "elysia": "2.0.0-beta.25",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
     "react": "19.3.0",
@@ -1155,7 +1155,7 @@
 
     "elkjs": ["elkjs@0.11.1", "", {}, "sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg=="],
 
-    "elysia": ["elysia@2.0.0-beta.23", "", { "dependencies": { "deuri": "^3.0.0", "memoirist": "1.2.3" }, "peerDependencies": { "@types/bun": ">= 1.3.0", "exact-mirror": ">= 1.2.6", "openapi-types": ">= 12.0.0", "typebox": ">= 1.3.0", "typescript": ">= 5.7.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-8t/Jz2+TKI0InVKK9ezRp0AILfD6de6Khb23Saesr34DndUrYoG9uIxsUrcv7BsQaB2n+HkuYsfM3BcIMddbwQ=="],
+    "elysia": ["elysia@2.0.0-beta.25", "", { "dependencies": { "deuri": "^3.0.0", "memoirist": "1.2.3" }, "peerDependencies": { "@types/bun": ">= 1.3.0", "exact-mirror": ">= 1.2.6", "openapi-types": ">= 12.0.0", "typebox": ">= 1.3.0", "typescript": ">= 5.7.0" }, "optionalPeers": ["@types/bun", "typescript"] }, "sha512-XWCysDYaF+1lh3+sdfhuZpe466s/witO4GYcp6B+6BYUy56Bf746ILZaSsUs2T8xlRnY0UdPL2IfWJYBE+MUDg=="],
 
     "emoji-regex": ["emoji-regex@10.6.0", "", {}, "sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A=="],
 
@@ -1693,7 +1693,7 @@
 
     "playwright-core": ["playwright-core@1.62.1", "", { "bin": { "playwright-core": "cli.js" } }, "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw=="],
 
-    "postcss-selector-parser": ["postcss-selector-parser@6.0.10", "", { "dependencies": { "cssesc": "^3.0.0", "util-deprecate": "^1.0.2" } }, "sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w=="],
+    "postcss-selector-parser": ["postcss-selector-parser@7.1.6", "", { "dependencies": { "cssesc": "^3.0.0", "util-deprecate": "^1.0.2" } }, "sha512-7qASPzhKF2l2KLboRZux8CCTRMdGiV08vWmyKzPz22qZ7ZjQBOeY7rNzNoCLSUiftJ7HUq0GERHmxw/t0dCdMw=="],
 
     "postgres": ["postgres@3.4.7", "", {}, "sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw=="],
 

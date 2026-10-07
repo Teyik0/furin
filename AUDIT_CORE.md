@@ -346,6 +346,14 @@ La [PR #164](https://github.com/Teyik0/furin/pull/164) fait l’objet d’une no
 
 Plusieurs signalements supposaient le comportement de Node ou d’anciennes versions d’Elysia. Sous Bun, les `require` sans extension TypeScript participent déjà au fingerprint ; Elysia beta.23 accepte `handle(string)` et renvoie la promesse d’arrêt native. Les tests de compatibilité gardent ces comportements. Drizzle Kit charge sa configuration TypeScript et génère une migration avec la version esbuild résolue. Les assets désignés dans `public/`, y compris les liens explicites vers des dossiers d’assets externes, restent publiables ; imposer une nouvelle restriction de racine aurait modifié cette DX.
 
+## Mise à jour après revue des patches
+
+Le registre confirme désormais `next = 2.0.0-beta.25`. Le catalog, le lockfile, les instructions de déploiement et les deux workflows de benchmark suivent cette version ; les résultats beta.23 ci-dessous restent les validations historiques de l’audit initial.
+
+Les patches concernent des dépendances transitives, pas Elysia. Le patch selector-parser est remplacé par la version officielle `7.1.6`, via un override de la version exacte demandée par Tailwind Typography. Les APIs utilisées par Typography restent disponibles ; ses parcours manipulent des copies des collections, sans dépendre de l’ancien comportement d’insertion pendant l’itération. Les tests existants de sélecteurs et de coût linéaire ainsi que le vrai build des docs passent. Recommandation : utiliser ce correctif officiel ; conserver le backport sur 6.0.10 aurait demandé de maintenir du code tiers supplémentaire.
+
+Les deux patches restants conservent leur justification : aucune version corrigée de braces n’est publiée, et deepmerge-ts v8 change notamment la fusion des valeurs Map et des types. Une substitution forcée de cette majeure modifierait le comportement de la dépendance Prisma ; les tests existants protègent les sémantiques v7. `bun audit` conserve donc deux avis par version ; les mitigations ne masquent pas ces avis et restent temporaires en attendant une migration compatible.
+
 ## Validation initiale des corrections
 
 Après le dernier correctif SSG :
