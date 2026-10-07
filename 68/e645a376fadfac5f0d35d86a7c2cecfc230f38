@@ -1,0 +1,23 @@
+apps/scaffolder/tests/index.test.ts
+  s_fa3ba074f76831::t_9bec4acd52e198 18-26
+  s_fa3ba074f76831::t_a55fc1490cca19 2-3,11-17,28-48
+  s_fa3ba074f76831::t_45849ac9d932ea 27
+apps/scaffolder/src/generated/package-catalog.json
+  s_fa3ba074f76831::t_52d581ba6374ef 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "68e645a376fadfac5f0d35d86a7c2cecfc230f38",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
