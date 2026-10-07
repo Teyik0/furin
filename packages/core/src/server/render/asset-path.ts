@@ -2,18 +2,23 @@ import type { HeadOptions } from "../../client.ts";
 import type { FurinInstance } from "../instance.ts";
 import { safeJson } from "./shell.ts";
 
+const URL_SUFFIX_RE = /[?#]/;
+
 export function rebaseAssetHref(href: string, instance: FurinInstance): string {
   if (
     instance.prefix === instance.declaredPrefix ||
     !href.startsWith("/") ||
-    href.startsWith("//") ||
-    href === instance.prefix ||
-    href.startsWith(`${instance.prefix}/`)
+    href.startsWith("//")
   ) {
     return href;
   }
+  const suffixStart = href.search(URL_SUFFIX_RE);
+  const pathname = suffixStart === -1 ? href : href.slice(0, suffixStart);
+  if (pathname === instance.prefix || pathname.startsWith(`${instance.prefix}/`)) {
+    return href;
+  }
   const local = instance.declaredPrefix;
-  return local === "" || href === local || href.startsWith(`${local}/`)
+  return local === "" || pathname === local || pathname.startsWith(`${local}/`)
     ? instance.prefix + href.slice(local.length)
     : href;
 }

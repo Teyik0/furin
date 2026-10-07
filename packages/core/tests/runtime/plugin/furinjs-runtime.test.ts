@@ -335,7 +335,7 @@ test.serial(
           cachedAt: 123,
           status: 200,
           ndjson: "{}\n",
-          html: '<html><head><meta name="furin-base-path" content="/admin"><link rel="stylesheet" href="/admin/_client/style.css"><script src="/admin/_client/head.js"></script><link rel="icon" href="/admin/custom.ico"><link rel="modulepreload" href="/admin/custom-module.js"></head><body>prebuilt<script id="__FURIN_DATA__" type="application/json">{"snapshot":"/admin/_client/private-value.js"}</script><script id="__FURIN_HEAD__" type="application/json">{"links":[{"rel":"stylesheet","href":"/admin/_client/style.css"}],"scripts":[{"src":"/admin/_client/head.js"},{"children":"window.snapshot=\\"/admin/_client/private-value.js\\";"}],"meta":[{"name":"furin-base-path","content":"/admin"},{"title":"Snapshot title"}]}</script><script id="__FURIN_SYNC__" type="application/json">{"path":"/sync"}</script><script>window.authorValue="/admin/_client/private-value.js";</script><script src="/admin/author.js"></script><script type="module" src="/admin/_client/entry.js"></script></body></html>',
+          html: '<html><head><meta name="furin-base-path" content="/admin"><link rel="stylesheet" href="/admin/_client/style.css"><script src="/admin/_client/head.js"></script><link rel="icon" href="/admin/custom.ico"><link rel="modulepreload" href="/admin/custom-module.js"><link rel="alternate" href="/admin?mode=x#tab"><link rel="alternate" href="/admin#fragment"><link rel="alternate" href="https://example.org/admin?mode=x"></head><body>prebuilt<script id="__FURIN_DATA__" type="application/json">{"snapshot":"/admin/_client/private-value.js"}</script><script id="__FURIN_HEAD__" type="application/json">{"links":[{"rel":"stylesheet","href":"/admin/_client/style.css"},{"rel":"alternate","href":"/admin?mode=x#tab"},{"rel":"alternate","href":"/admin#fragment"},{"rel":"alternate","href":"https://example.org/admin?mode=x"}],"scripts":[{"src":"/admin/_client/head.js"},{"children":"window.snapshot=\\"/admin/_client/private-value.js\\";"}],"meta":[{"name":"furin-base-path","content":"/admin"},{"title":"Snapshot title"}]}</script><script id="__FURIN_SYNC__" type="application/json">{"path":"/sync"}</script><script>window.authorValue="/admin/_client/private-value.js";</script><script src="/admin/author.js"></script><script type="module" src="/admin/_client/entry.js"></script></body></html>',
         },
       },
     });
@@ -361,9 +361,17 @@ test.serial(
     expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
     expect(html).toContain('href="/outer/inner/admin/custom.ico"');
     expect(html).toContain('href="/outer/inner/admin/custom-module.js"');
+    expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
+    expect(html).toContain('href="/outer/inner/admin#fragment"');
+    expect(html).toContain('href="https://example.org/admin?mode=x"');
     const serializedHead = html.match(HEAD_JSON_RE)?.[1];
     expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
-      links: [{ rel: "stylesheet", href: "/outer/inner/admin/_client/style.css" }],
+      links: [
+        { rel: "stylesheet", href: "/outer/inner/admin/_client/style.css" },
+        { rel: "alternate", href: "/outer/inner/admin?mode=x#tab" },
+        { rel: "alternate", href: "/outer/inner/admin#fragment" },
+        { rel: "alternate", href: "https://example.org/admin?mode=x" },
+      ],
       scripts: [
         { src: "/outer/inner/admin/_client/head.js" },
         { children: 'window.snapshot="/admin/_client/private-value.js";' },

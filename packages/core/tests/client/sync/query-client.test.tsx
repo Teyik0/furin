@@ -146,6 +146,40 @@ test("changing query credentials fetches the new principal's result", async () =
   expect(reads).toBe(2);
 });
 
+test("equivalent Headers and object credentials share one Eden query request", async () => {
+  let reads = 0;
+  const app = new Elysia().get("/header", ({ headers }) => {
+    reads += 1;
+    return { received: headers.authorization };
+  });
+  const api = createClient<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+  });
+  const object = { Authorization: "Alice" };
+  const literalHeaders = new Headers(object);
+  // Eden accepts Headers at runtime; its per-route type infers only a header object.
+  const get = api.header.get as typeof api.header.get &
+    ((options: {
+      headers: Headers | { Authorization: string };
+    }) => ReturnType<typeof api.header.get>);
+  function View({ value }: { value: Headers | { Authorization: string } }) {
+    return <span>{useQuery(get, { headers: value }).data?.received}</span>;
+  }
+  const container = document.createElement("div");
+  const viewRoot = createRoot(container);
+  root = viewRoot;
+  await act(async () =>
+    viewRoot.render(
+      <>
+        <View value={object} />
+        <View value={literalHeaders} />
+      </>
+    )
+  );
+  expect(container.textContent).toBe("AliceAlice");
+  expect(reads).toBe(1);
+});
+
 test.each([
   { name: "Date", value: () => new Date("2026-01-01T00:00:00Z"), supported: true },
   { name: "BigInt", value: () => 1n, supported: false },

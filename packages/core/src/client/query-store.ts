@@ -165,7 +165,10 @@ export class QueryStore {
   }
 
   private headerValue(value: unknown): unknown {
-    if (value instanceof Headers || typeof value === "function") {
+    if (value instanceof Headers) {
+      return Object.fromEntries(value.entries());
+    }
+    if (typeof value === "function") {
       return value;
     }
     if (Array.isArray(value)) {

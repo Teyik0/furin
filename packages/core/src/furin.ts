@@ -905,7 +905,9 @@ function matchesNativeRoute(
   context: Parameters<FurinRouteDispatcher>[0],
   prefix: string,
   pattern: string
-): context is Parameters<FurinRouteDispatcher>[0] & { params: object } {
+): context is Parameters<FurinRouteDispatcher>[0] & {
+  params: { [key: string]: unknown };
+} {
   return (
     context.params !== null &&
     typeof context.params === "object" &&
@@ -913,6 +915,25 @@ function matchesNativeRoute(
     context.route.replace(TRAILING_SLASH_RE, "") ===
       physicalPath(prefix, pattern).replace(TRAILING_SLASH_RE, "")
   );
+}
+
+function parseRendererParams(
+  context: Parameters<FurinRouteDispatcher>[0],
+  prefix: string,
+  route: ResolvedRoute,
+  matchedParams: { [key: string]: string }
+) {
+  const nativeParams = matchesNativeRoute(context, prefix, route.pattern)
+    ? context.params
+    : undefined;
+  // Dev's schema-free route shell must validate against the current snapshot.
+  // Production's native route has already validated and decoded its schema.
+  return !IS_DEV && nativeParams
+    ? Promise.resolve({ ok: true as const, params: nativeParams })
+    : parseRouteParams(
+        nativeParams ?? matchedParams,
+        mergeRouteSchemas(route.routeChain, "params")
+      );
 }
 
 function createNativeRouteRenderer(
@@ -937,12 +958,7 @@ function createNativeRouteRenderer(
         ?.origin;
       return renderRootNotFound(root, request, listenerOrigin);
     }
-    const parsedParams = matchesNativeRoute(context, prefix, matched.route.pattern)
-      ? { ok: true as const, params: context.params }
-      : await parseRouteParams(
-          matched.params,
-          mergeRouteSchemas(matched.route.routeChain, "params")
-        );
+    const parsedParams = await parseRendererParams(context, prefix, matched.route, matched.params);
     if (!parsedParams.ok) {
       return problem(422, { detail: "Invalid params", errors: parsedParams.errors });
     }

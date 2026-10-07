@@ -131,6 +131,11 @@ describe("module preloading", () => {
           links: [
             { rel: "stylesheet", href: "/admin/_client/head.css" },
             { rel: "alternate", href: "https://example.org/alternate" },
+            { rel: "alternate", href: "/admin?mode=x#tab" },
+            { rel: "alternate", href: "/admin#fragment" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=physical" },
+            { rel: "alternate", href: "//example.org/admin?mode=x" },
+            { rel: "alternate", href: "/administrator?mode=x" },
           ],
           scripts: [
             { src: "/admin/_client/head.js" },
@@ -152,12 +157,19 @@ describe("module preloading", () => {
         expect(html).toContain('href="/outer/inner/admin/favicon.ico"');
         expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
         expect(html).toContain('href="/outer/inner/admin/_client/head.css"');
+        expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
+        expect(html).toContain('href="/outer/inner/admin#fragment"');
         expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
         const serializedHead = html.match(HEAD_JSON_RE)?.[1];
         expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
           links: [
             { rel: "stylesheet", href: "/outer/inner/admin/_client/head.css" },
             { rel: "alternate", href: "https://example.org/alternate" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=x#tab" },
+            { rel: "alternate", href: "/outer/inner/admin#fragment" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=physical" },
+            { rel: "alternate", href: "//example.org/admin?mode=x" },
+            { rel: "alternate", href: "/administrator?mode=x" },
           ],
           scripts: [
             { src: "/outer/inner/admin/_client/head.js" },

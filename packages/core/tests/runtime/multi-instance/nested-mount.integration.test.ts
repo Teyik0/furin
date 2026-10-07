@@ -3,9 +3,13 @@ import { startProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
-async function runFixtureScript(source: string): Promise<{ exitCode: number; stderr: string }> {
+async function runFixtureScript(
+  source: string,
+  timeoutMs: number
+): Promise<{ exitCode: number; stderr: string }> {
   const proc = startProcess([process.execPath, "-e", source], {
     cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
+    env: { FURIN_TEST_FIXTURE_DEADLINE: String(Date.now() + timeoutMs - 500) },
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -15,7 +19,7 @@ async function runFixtureScript(source: string): Promise<{ exitCode: number; std
         timer = setTimeout(() => {
           proc.kill();
           reject(new Error(`Fixture process timed out.\n${proc.getStdout()}\n${proc.getStderr()}`));
-        }, 8000);
+        }, timeoutMs);
       }),
     ]);
     return { exitCode, stderr: proc.getStderr() };
@@ -27,7 +31,8 @@ async function runFixtureScript(source: string): Promise<{ exitCode: number; std
 }
 
 test("nested Elysia prefixes preserve Furin rendering and navigation", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -74,13 +79,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("a failed async Elysia plugin prevents Furin dispatch", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -109,13 +117,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).toContain("plugin initialization failed");
   expect(proc.exitCode).toBe(0);
 });
 
 test("fetch waits for async plugins and continues serving after they settle and compile", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -148,13 +159,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("reading fetch observes failed reused-container preparation and preserves its rejection", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { renameSync } from "node:fs";
 import { join } from "node:path";
@@ -189,13 +203,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("reusing a Furin plugin initializes independent loader caches and devtools streams", async () => {
-  const proc = await runFixtureScript(String.raw`
+  const proc = await runFixtureScript(
+    String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -244,13 +261,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("reusing an Elysia container preserves independent Furin runtimes and child guards", async () => {
-  const proc = await runFixtureScript(String.raw`
+  const proc = await runFixtureScript(
+    String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -347,13 +367,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("sibling Furin mounts emit once through their own logging drain", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -394,13 +417,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("one final Elysia app can mount a reused container at two nested prefixes", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -438,13 +464,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("unreferenced applications release their Furin runtime and development graph", async () => {
-  const proc = await runFixtureScript(`
+  const proc = await runFixtureScript(
+    `
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -490,13 +519,16 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    8000
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
 test("reused containers keep independent browser streams and watchers when one server stops", async () => {
-  const proc = await runFixtureScript(String.raw`
+  const proc = await runFixtureScript(
+    String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -508,6 +540,7 @@ const fixture = createTmpApp("cli-app");
 const originalCwd = process.cwd();
 const apps = [];
 const sockets = [];
+const fixtureDeadline = Number(process.env.FURIN_TEST_FIXTURE_DEADLINE);
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
@@ -535,7 +568,7 @@ try {
     const response = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", apps[index].server.url));
     await response.text();
   }
-  const eventDeadline = Date.now() + 2000;
+  const eventDeadline = Math.min(fixtureDeadline, Date.now() + 2000);
   while (Date.now() < eventDeadline && messages.some(inbox => !inbox.some(event => JSON.stringify(event).includes("/admin")))) await Bun.sleep(10);
   for (const [index, prefix, sibling] of [[0, "/one/admin", "/two/admin"], [1, "/two/admin", "/one/admin"]]) {
     expect(JSON.stringify(messages[index])).toContain(prefix);
@@ -551,7 +584,7 @@ try {
   }
   async function waitForPage(app, prefix, name) {
     const url = new URL(prefix + "/admin/_furin/data?path=%2F" + name, app.server.url);
-    const deadline = Date.now() + 4000;
+    const deadline = Math.min(fixtureDeadline, Date.now() + 4000);
     while (Date.now() < deadline) {
       const response = await fetch(url);
       if (response.status === 200) {
@@ -582,7 +615,9 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`);
+`,
+    9500
+  );
   expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 }, 10_000);
