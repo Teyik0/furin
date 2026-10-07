@@ -6,22 +6,26 @@ import { join } from "node:path";
 import { prepareDesktop } from "../src/prepare";
 
 for (const scenario of [
-  { signal: "SIGINT", failure: "", code: 0, diagnostic: "" },
-  { signal: "SIGTERM", failure: "", code: 0, diagnostic: "" },
+  { signal: "SIGINT", control: false, failure: "", code: 0, diagnostic: "" },
+  { signal: "SIGTERM", control: false, failure: "", code: 0, diagnostic: "" },
+  { signal: "SIGINT", control: true, failure: "", code: 0, diagnostic: "" },
+  { signal: "SIGTERM", control: true, failure: "", code: 0, diagnostic: "" },
   {
     signal: "SIGTERM",
+    control: false,
     failure: 'throw new Error("cleanup failed");',
     code: 1,
     diagnostic: "cleanup failed",
   },
   {
     signal: "SIGINT",
+    control: false,
     failure: "setInterval(() => {}, 1000); await new Promise(() => {});",
     code: 1,
     diagnostic: "5 seconds",
   },
 ] as const) {
-  test(`dev helper drains once on ${scenario.signal}: ${scenario.diagnostic || "success"}`, async () => {
+  test(`dev helper drains once on ${scenario.signal}${scenario.control ? " racing control" : " alone"}: ${scenario.diagnostic || "success"}`, async () => {
     const root = await mkdtemp(join(tmpdir(), "furin-dev-signal-"));
     let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
     try {
@@ -54,17 +58,26 @@ export async function onShutdown() {
       const readyPath = join(generated, "ready.json");
       const deadline = Date.now() + 3000;
       while (!(await Bun.file(readyPath).exists())) {
-        if (child.exitCode !== null || Date.now() > deadline) {
+        if (child.exitCode !== null) {
+          throw new Error(
+            `Dev helper exited with ${child.exitCode}: ${await new Response(child.stderr).text()}`
+          );
+        }
+        if (Date.now() > deadline) {
           throw new Error("Dev helper failed to become ready.");
         }
         await Bun.sleep(10);
       }
       const ready: { url: string } = await Bun.file(readyPath).json();
       child.kill(scenario.signal);
-      await writeFile(join(generated, "control"), "stop");
+      if (scenario.control) {
+        await writeFile(join(generated, "control"), "stop");
+      }
       expect(await Promise.race([child.exited, Bun.sleep(6500).then(() => "hung")])).toBe(
         scenario.code
       );
+      expect(child.exitCode).toBe(scenario.code);
+      expect(child.signalCode).toBeNull();
       expect(await Bun.file(join(root, "stopped")).text()).toBe("stop\n");
       expect(await new Response(child.stdout).text()).not.toContain(ready.url);
       const diagnostic = await new Response(child.stderr).text();
@@ -77,7 +90,7 @@ export async function onShutdown() {
     } finally {
       if (child?.exitCode === null) {
         child.kill("SIGKILL");
-        await child.exited;
+        await Promise.race([child.exited, Bun.sleep(1000)]);
       }
       await rm(root, { recursive: true, force: true });
     }

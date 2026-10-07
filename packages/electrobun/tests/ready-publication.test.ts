@@ -19,8 +19,10 @@ test("ready publication replaces the old inode with complete owner-only JSON", a
     await publishDevReady(path, ready);
     expect(await Bun.file(path).json()).toEqual(ready);
     expect(await Bun.file(join(root, "previous")).text()).toBe("previous");
-    // biome-ignore lint/suspicious/noBitwiseOperators: Read owner-only credential permission bits.
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") {
+      // biome-ignore lint/suspicious/noBitwiseOperators: Read owner-only credential permission bits.
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+    }
     expect((await readdir(root)).sort()).toEqual(["previous", "ready.json"]);
   } finally {
     await rm(root, { recursive: true, force: true });

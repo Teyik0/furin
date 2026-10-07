@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseDeferredNdjson } from "@teyik0/furin/link";
+import { waitForChild } from "./child";
 
 async function checkTodoRequests(filename: string) {
   const previousDatabase = process.env.FURIN_TODO_DATABASE;
@@ -55,23 +56,26 @@ test("SSR and client loader requests read the same persisted todo", async () => 
     return;
   }
   const dir = await mkdtemp(join(tmpdir(), "furin-todo-route-"));
+  let child: ReturnType<typeof Bun.spawn> | undefined;
   // Source imports and dev runtime state belong to the child. Reap it before
   // deleting the directory: closing SQLite alone does not release every handle.
-  const child = Bun.spawn(
-    [process.execPath, "test", "--isolate", "--timeout", "10000", import.meta.path],
-    {
-      env: { ...process.env, FURIN_TODO_ROUTE_TEST_DATABASE: join(dir, "todos.sqlite") },
-      stdout: "inherit",
-      stderr: "inherit",
-    }
-  );
   try {
-    expect(await child.exited).toBe(0);
+    child = Bun.spawn(
+      [process.execPath, "test", "--isolate", "--timeout", "10000", import.meta.path],
+      {
+        env: { ...process.env, FURIN_TODO_ROUTE_TEST_DATABASE: join(dir, "todos.sqlite") },
+        stdout: "inherit",
+        stderr: "inherit",
+      }
+    );
+    expect(await waitForChild(child, 12_000)).toBe(0);
   } finally {
-    if (child.exitCode === null) {
-      child.kill();
+    if (child) {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+      }
+      await child.exited;
     }
-    await child.exited;
     await rm(dir, { recursive: true, force: true });
   }
 }, 15_000);

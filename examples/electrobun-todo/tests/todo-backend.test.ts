@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createSyncChangesPlugin, furinSync } from "@teyik0/furin/sync";
 import { Elysia } from "elysia";
 import { createTodoBackend } from "../src/todo-backend";
+import { waitForChild } from "./child";
 
 test("creates a trimmed todo and lists it through the API", async () => {
   const backend = createTodoBackend(":memory:");
@@ -123,10 +124,8 @@ test("patches only supplied fields and deletes with journal and page invalidatio
   }
 }, 5000);
 
-test("persists todos and replays an idempotent creation after reopening SQLite", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "native-todos-"));
-  const filename = join(directory, "todos.sqlite");
-  let backend = createTodoBackend(filename);
+async function checkTodoPersistence(filename: string) {
+  let backend: ReturnType<typeof createTodoBackend> | undefined;
   const request = () =>
     new Request("http://localhost/api/todos", {
       method: "POST",
@@ -134,6 +133,7 @@ test("persists todos and replays an idempotent creation after reopening SQLite",
       body: JSON.stringify({ title: "Persistent" }),
     });
   try {
+    backend = createTodoBackend(filename);
     const first = await backend.api.handle(request());
     expect(first.status).toBe(200);
     const todo = await first.json();
@@ -154,7 +154,49 @@ test("persists todos and replays an idempotent creation after reopening SQLite",
     expect(await backend.sync.adapter.currentCursor()).toBe(cursor);
     expect(backend.list()).toEqual([todo]);
   } finally {
-    backend.close();
+    backend?.close();
+  }
+}
+
+test("persists todos and replays an idempotent creation after reopening SQLite", async () => {
+  const childDatabase = process.env.FURIN_TODO_BACKEND_TEST_DATABASE;
+  if (childDatabase) {
+    await checkTodoPersistence(childDatabase);
+    return;
+  }
+  const directory = await mkdtemp(join(tmpdir(), "native-todos-"));
+  let child: ReturnType<typeof Bun.spawn> | undefined;
+  try {
+    // The child owns SQLite and its prepared statements. Reap it before deleting
+    // the directory, even if backend construction or a persistence assertion fails.
+    child = Bun.spawn(
+      [
+        process.execPath,
+        "test",
+        "--isolate",
+        "--timeout",
+        "10000",
+        import.meta.path,
+        "-t",
+        "persists todos and replays an idempotent creation after reopening SQLite",
+      ],
+      {
+        env: {
+          ...process.env,
+          FURIN_TODO_BACKEND_TEST_DATABASE: join(directory, "todos.sqlite"),
+        },
+        stdout: "inherit",
+        stderr: "inherit",
+      }
+    );
+    expect(await waitForChild(child, 12_000)).toBe(0);
+  } finally {
+    if (child) {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+      }
+      await child.exited;
+    }
     await rm(directory, { recursive: true, force: true });
   }
-}, 5000);
+}, 15_000);

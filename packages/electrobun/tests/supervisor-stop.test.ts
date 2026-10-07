@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Process exit polling must be bounded and sequential.
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,7 +24,33 @@ async function bounded<T>(pending: Promise<T>): Promise<T> {
   }
 }
 
-async function fixture(mode: "early" | "signal" | "backend-signal" | "hung" | "failed") {
+async function expectExited(pid: number): Promise<void> {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") {
+        return;
+      }
+      throw error;
+    }
+    if (process.platform !== "win32") {
+      const status = Bun.spawn(["ps", "-o", "stat=", "-p", String(pid)], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const state = (await new Response(status.stdout).text()).trim();
+      if ((await status.exited) === 0 && state.startsWith("Z")) {
+        return; // Exited orphan awaiting reaping, not a live descendant leak.
+      }
+    }
+    await Bun.sleep(25);
+  }
+  throw new Error(`Owned process ${pid} is still live.`);
+}
+
+async function fixture(mode: "early" | "crash" | "signal" | "backend-signal" | "hung" | "failed") {
   const root = await mkdtemp(join(tmpdir(), "furin-supervisor-stop-"));
   let observed: Started | undefined;
   const { promise: started, resolve: receive } = Promise.withResolvers<Started>();
@@ -51,10 +78,11 @@ async function fixture(mode: "early" | "signal" | "backend-signal" | "hung" | "f
     import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
     await Bun.write(${JSON.stringify(join(root, ".backend.pid"))}, String(process.pid));
     ${
-      mode === "early"
+      mode === "early" || mode === "crash"
         ? `await fetch(${JSON.stringify(receiver.url.href)}, {
         method: "POST", body: JSON.stringify({ pid: process.pid })
       });
+      ${mode === "crash" ? "process.exit(7);" : ""}
       setInterval(() => {}, 1000);
       await new Promise(() => {});`
         : ""
@@ -62,6 +90,15 @@ async function fixture(mode: "early" | "signal" | "backend-signal" | "hung" | "f
     export default createDesktopApp().get("/", () => "ready");
     export async function onShutdown() {
       await Bun.write(${JSON.stringify(join(root, ".cleanup"))}, "closed");
+      ${
+        mode === "backend-signal"
+          ? `
+      process.removeAllListeners("SIGINT");
+      process.kill(process.pid, "SIGINT");
+      await new Promise(() => {});
+      `
+          : ""
+      }
       ${mode === "failed" ? 'throw new Error("fixture cleanup failed");' : ""}
     }
   `
@@ -139,6 +176,17 @@ async function fixture(mode: "early" | "signal" | "backend-signal" | "hung" | "f
   };
 }
 
+test("an unexpected backend exit before readiness remains a failure", async () => {
+  const dev = await fixture("crash");
+  try {
+    await dev.started;
+    expect(await bounded(dev.supervisor.exited)).toBe(1);
+    expect(await new Response(dev.supervisor.stderr).text()).toContain("(7)");
+  } finally {
+    await dev.close();
+  }
+}, 12_000);
+
 test("Ctrl-C before readiness is an intentional stop, not a startup failure", async () => {
   const dev = await fixture("early");
   try {
@@ -179,6 +227,20 @@ test("user cancellation also accepts an interrupted owned backend", async () => 
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
     expect(await new Response(dev.supervisor.stderr).text()).toBe("");
+    // Independently prove the same backend fixture exits by signal, not exit(0).
+    const worker = Bun.spawn(
+      [process.execPath, join(dev.root, ".furin/electrobun/dev-server.ts")],
+      { cwd: dev.root, stdout: "ignore", stderr: "ignore" }
+    );
+    try {
+      expect(await bounded(worker.exited)).not.toBe(0);
+      expect(worker.signalCode).toBe("SIGINT");
+    } finally {
+      if (worker.exitCode === null) {
+        worker.kill("SIGKILL");
+        await worker.exited;
+      }
+    }
   } finally {
     await dev.close();
   }
@@ -205,7 +267,7 @@ test("a hung SDK window is bounded and its owned process group is terminated", a
     expect(await new Response(dev.supervisor.stderr).text()).toContain("5 seconds");
     expect(() => process.kill(window.pid, 0)).toThrow();
     expect(window.childPid).toBeDefined();
-    expect(() => process.kill(window.childPid as number, 0)).toThrow();
+    await expectExited(window.childPid as number);
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
   } finally {

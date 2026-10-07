@@ -187,7 +187,8 @@ async function runDesktopDev(
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const ownedData = dataDir ? resolve(dataDir) : undefined;
+  const resolvedData = dataDir ? resolve(dataDir) : undefined;
+  const ownedData = resolvedData?.startsWith(`${root}${sep}`) ? resolvedData : undefined;
   // Backend imports can live anywhere in the project. Frontend HMR owns JSX/TSX/CSS;
   // hidden/generated directories and runtime-owned data must not restart the worker.
   const watcher = watch(root, { recursive: true }, (_event, filename) => {
@@ -242,8 +243,8 @@ async function runDesktopDev(
         stderr: "inherit",
       });
       try {
-        if (!(await waitForDevReady(backend, ready, () => stopping))) {
-          return;
+        if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
+          continue;
         }
         listening = true;
         const window = Bun.spawn([process.execPath, sdk, "run", "--env=dev"], {
