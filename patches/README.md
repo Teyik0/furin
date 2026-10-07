@@ -1,8 +1,0 @@
-These Bun patches retain the existing dependency APIs until upstream publishes compatible fixes. `bun install --frozen-lockfile` applies them automatically. Run `bun test packages/core/tests/runtime/dependency-security.test.ts` to verify the mitigations and compatibility.
-
-- `braces@3.0.3`: limits parser and AST walker nesting to 128, following the mitigation recommended in [upstream issue #70](https://github.com/micromatch/braces/issues/70). Ordinary glob expansion is unchanged. Excessive nesting raises `SyntaxError` before exhausting the call stack.
-- `deepmerge-ts@7.1.5`: rejects recursive record merges when the same input object is already active in a multi-record merge, in both merge pipelines. This guards the recursive merge paths covered by the advisory; it does not reject every circular value, including values returned unchanged without a recursive merge. This preserves version 7's Map behavior and public types; [version 8](https://github.com/RebeccaStevens/deepmerge-ts/releases/tag/v8.0.0) changes both. Custom merge functions and shared acyclic graphs remain supported.
-
-The selector-parser patch has been replaced by the official [7.1.6 release](https://github.com/postcss/postcss-selector-parser/releases/tag/7.1.6). A workspace override replaces Tailwind Typography's exact 6.0.10 dependency. The existing selector compatibility and linear-cost tests, plus the real documentation build, validate this integration.
-
-`bun audit` checks package versions, so it still reports the two remaining advisories despite the patches. The patched versions are intentionally unchanged; this is not an advisory suppression or a claim of an upstream release.

@@ -153,10 +153,6 @@
       ],
     },
   },
-  "patchedDependencies": {
-    "deepmerge-ts@7.1.5": "patches/deepmerge-ts@7.1.5.patch",
-    "braces@3.0.3": "patches/braces@3.0.3.patch",
-  },
   "overrides": {
     "@esbuild-kit/core-utils": {
       "esbuild": "0.25.12",

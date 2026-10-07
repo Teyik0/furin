@@ -30,7 +30,7 @@ Les observations concernent le code local et les API publiques lorsque possible.
 
 Les conventions `_private` sont alignées entre discovery et build. Les recherches ambiguës de contexte compilé renvoient null plutôt que les assets d’une autre application. Le cache mémoire est borné à 1 000 valeurs avec éviction LRU et libération des namespaces vides, sans scan à chaque insertion.
 
-Les dépendances ont reçu les mises à jour compatibles et trois patches Bun documentés dans [patches/README.md](patches/README.md). Le contrôle par versions passe de 26 à 3 avis : ces trois versions restent signalées, mais leurs chemins vulnérables sont corrigés et vérifiés par des tests de sécurité. Les patches s’appliquent automatiquement avec le lockfile actuel ; ils ne suppriment pas les avis d’audit.
+Les dépendances ont reçu les mises à jour compatibles, dont le correctif officiel selector-parser `7.1.6`. Le contrôle par versions passe de 26 à 2 avis. Tous les patches locaux sont supprimés à la demande de l’utilisateur ; les avis braces et deepmerge-ts restent signalés sans mitigation locale.
 
 Les cas de régression utilisent les API publiques, le vrai serveur Bun ou le vrai bundler lorsqu’ils sont nécessaires. La première consolidation a aussi révélé des régressions de seeds privés PPR et de revalidation avant montage, corrigées sans modifier les attentes des tests existants.
 
@@ -346,13 +346,13 @@ La [PR #164](https://github.com/Teyik0/furin/pull/164) fait l’objet d’une no
 
 Plusieurs signalements supposaient le comportement de Node ou d’anciennes versions d’Elysia. Sous Bun, les `require` sans extension TypeScript participent déjà au fingerprint ; Elysia beta.23 accepte `handle(string)` et renvoie la promesse d’arrêt native. Les tests de compatibilité gardent ces comportements. Drizzle Kit charge sa configuration TypeScript et génère une migration avec la version esbuild résolue. Les assets désignés dans `public/`, y compris les liens explicites vers des dossiers d’assets externes, restent publiables ; imposer une nouvelle restriction de racine aurait modifié cette DX.
 
-## Mise à jour après revue des patches
+## Mise à jour après revue des dépendances
 
 Le registre confirme désormais `next = 2.0.0-beta.25`. Le catalog, le lockfile, les instructions de déploiement et les deux workflows de benchmark suivent cette version ; les résultats beta.23 ci-dessous restent les validations historiques de l’audit initial.
 
 Les patches concernent des dépendances transitives, pas Elysia. Le patch selector-parser est remplacé par la version officielle `7.1.6`, via un override de la version exacte demandée par Tailwind Typography. Les APIs utilisées par Typography restent disponibles ; ses parcours manipulent des copies des collections, sans dépendre de l’ancien comportement d’insertion pendant l’itération. Les tests existants de sélecteurs et de coût linéaire ainsi que le vrai build des docs passent. Recommandation : utiliser ce correctif officiel ; conserver le backport sur 6.0.10 aurait demandé de maintenir du code tiers supplémentaire.
 
-Les deux patches restants conservent leur justification : aucune version corrigée de braces n’est publiée, et deepmerge-ts v8 change notamment la fusion des valeurs Map et des types. Une substitution forcée de cette majeure modifierait le comportement de la dépendance Prisma ; les tests existants protègent les sémantiques v7. `bun audit` conserve donc deux avis par version ; les mitigations ne masquent pas ces avis et restent temporaires en attendant une migration compatible.
+À la demande de l’utilisateur, les deux patches restants sont supprimés avec leurs déclarations Bun, leurs fichiers et les tests propres à ces mitigations. Les dépendances retrouvent les distributions officielles sans modification locale. `bun audit` conserve les deux avis braces et deepmerge-ts ; ces avis ne sont ni masqués ni corrigés par cette suppression. Elysia beta.25 et le correctif officiel selector-parser restent installés.
 
 ## Validation initiale des corrections
 
