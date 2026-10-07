@@ -1,0 +1,19 @@
+examples/electrobun-todo/tests/routes.test.ts
+  s_fa3ba074f76831::t_fd676c3ffdaef4 7,9,11-39,48-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f8a5f001e108bf2c727483bae97d3c8dd65477a3",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
