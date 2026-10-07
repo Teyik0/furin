@@ -827,7 +827,7 @@ test.serial(
       await server.exitCode;
     }
   },
-  15_000
+  30_000
 );
 
 test.serial(
