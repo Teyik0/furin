@@ -37,6 +37,7 @@ const WHITESPACE_RE = /\s/;
 
 /** Live instances; owning applications retain their runtime buckets. */
 const _instances = new WeakRegistry<FurinInstance>();
+const _prepared = new WeakRegistry<FurinInstance>();
 const _tracked = new WeakRegistry<FurinInstance>();
 const _defaultRegistry = new Map<string, FurinInstance>();
 
@@ -116,6 +117,7 @@ export function assertPrefixAvailable(
 /** Include prepared runtime state in resets without registering a mount. */
 export function trackInstance(instance: FurinInstance): void {
   _tracked.add(instance);
+  _prepared.add(instance);
 }
 
 /** Registers an instance under its prefix (see assertPrefixAvailable). */
@@ -128,6 +130,8 @@ export function registerInstance(
   const mounted = target.get(instance.prefix) ?? instance;
   target.set(instance.prefix, mounted);
   _instances.add(mounted);
+  _prepared.delete(instance);
+  _prepared.delete(mounted);
   _tracked.add(mounted);
   return mounted;
 }
@@ -142,6 +146,12 @@ export function unregisterInstance(
     }
   }
   _instances.delete(instance);
+  _prepared.delete(instance);
+}
+
+function availableInstances(): FurinInstance[] {
+  const mounted = [..._instances.values()];
+  return mounted.length > 0 ? mounted : [..._prepared.values()];
 }
 
 /**
@@ -178,7 +188,8 @@ export function resolveInstanceByPath(
 
 /**
  * The instance the current code runs for. Resolution order:
- * 1. request/render ALS scope, 2. sole registered instance, 3. default bucket.
+ * 1. request/render ALS scope, 2. sole mounted instance (or sole prepared
+ * instance before any mount), 3. default bucket.
  * With ≥2 instances and no scope, state access is ambiguous — the default
  * bucket keeps out-of-request writes (e.g. build-time template setup)
  * self-consistent instead of leaking into an arbitrary app.
@@ -188,7 +199,7 @@ export function currentInstance(): FurinInstance {
   if (scope) {
     return scope.instance;
   }
-  const instances = [..._instances.values()];
+  const instances = availableInstances();
   const only = instances.length === 1 ? instances[0] : undefined;
   if (only) {
     return only;
@@ -196,13 +207,13 @@ export function currentInstance(): FurinInstance {
   return defaultInstance();
 }
 
-/** All registered instances (used by cross-instance ops like revalidateTag). */
+/** Mounted instances, or prepared instances before mounting, for invalidation. */
 export function allInstances(): FurinInstance[] {
   const scoped = _requestScope.getStore()?.instances;
   if (scoped) {
     return [...scoped.values()];
   }
-  const instances = [..._instances.values()];
+  const instances = availableInstances();
   if (instances.length === 0) {
     return [defaultInstance()];
   }
@@ -230,6 +241,7 @@ export function allStateBuckets(): FurinInstance[] {
  */
 export function __clearInstanceRegistry(): void {
   _instances.clear();
+  _prepared.clear();
   _tracked.clear();
   _defaultRegistry.clear();
 }

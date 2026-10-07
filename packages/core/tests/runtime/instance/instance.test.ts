@@ -10,10 +10,12 @@ import {
   createInstance,
   currentInstance,
   defaultInstanceBucket,
+  type FurinInstance,
   normalizePrefix,
   registerInstance,
   resolveInstanceByPath,
   trackInstance,
+  unregisterInstance,
 } from "../../../src/server/instance.ts";
 import {
   __resetCompileContext,
@@ -57,6 +59,13 @@ describe("normalizePrefix", () => {
 });
 
 describe("resolveInstanceByPath", () => {
+  test("a prepared runtime supplies state before its first mount", () => {
+    const prepared = createInstance("/admin", "/apps/admin");
+    trackInstance(prepared);
+    expect(currentInstance()).toBe(prepared);
+    expect(allInstances()).toEqual([prepared]);
+    expect(resolveInstanceByPath("/admin")).toBe(defaultInstanceBucket());
+  });
   test("an unmounted runtime does not replace the sole registered instance", () => {
     const mounted = registerInstance(createInstance("/admin", "/apps/admin"));
     const pending = createInstance("/pending", "/apps/pending");
@@ -65,6 +74,37 @@ describe("resolveInstanceByPath", () => {
     expect(allInstances()).toEqual([mounted]);
     expect(resolveInstanceByPath("/pending")).toBe(defaultInstanceBucket());
     expect(allStateBuckets()).toContain(pending);
+  });
+  test("stopped mounts are excluded when prepared state becomes the fallback", () => {
+    const registry = new Map<string, FurinInstance>();
+    const mounted = createInstance("/admin", "/apps/admin");
+    trackInstance(mounted);
+    registerInstance(mounted, registry);
+    const pending = createInstance("/pending", "/apps/pending");
+    trackInstance(pending);
+
+    expect(currentInstance()).toBe(mounted);
+    expect(allInstances()).toEqual([mounted]);
+    unregisterInstance(mounted, registry);
+    expect(currentInstance()).toBe(pending);
+    expect(allInstances()).toEqual([pending]);
+    expect(resolveInstanceByPath("/admin")).toBe(defaultInstanceBucket());
+    expect(resolveInstanceByPath("/pending")).toBe(defaultInstanceBucket());
+
+    registerInstance(pending, registry);
+    unregisterInstance(pending, registry);
+    expect(currentInstance()).toBe(defaultInstanceBucket());
+    expect(allInstances()).toEqual([defaultInstanceBucket()]);
+    expect(allStateBuckets()).toContain(mounted);
+    expect(allStateBuckets()).toContain(pending);
+  });
+  test("multiple prepared runtimes preserve ambiguous state access before mounting", () => {
+    const first = createInstance("/one", "/apps/one");
+    const second = createInstance("/two", "/apps/two");
+    trackInstance(first);
+    trackInstance(second);
+    expect(currentInstance()).toBe(defaultInstanceBucket());
+    expect(allInstances()).toEqual([first, second]);
   });
   test("longest boundary-aware prefix wins", () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
