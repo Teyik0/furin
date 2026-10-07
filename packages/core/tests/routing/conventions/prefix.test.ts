@@ -15,6 +15,14 @@ describe("clientDirNameForPrefix / prefixSlug", () => {
     expect(prefixSlug("/admin/v2")).toBe("admin-v2");
     expect(clientDirNameForPrefix("/admin/v2")).toBe("client-admin-v2");
   });
+
+  test("preserves percent escapes for Unicode and reserved characters", () => {
+    for (const segment of ["café", "東京", "a:b", "[id]", "a\\b", "a;b", "%41", "A*"]) {
+      expect(decodeURIComponent(prefixSlug(`/${segment}`))).toBe(segment);
+    }
+    expect(prefixSlug("/café")).toBe("caf%C3%A9");
+    expect(prefixSlug("/a:b")).toBe("a%3Ab");
+  });
 });
 
 describe("assertNoPrefixSlugCollisions", () => {

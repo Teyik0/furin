@@ -74,6 +74,12 @@ export function startProductionServer(options: ProductionServerOptions): {
   }
 
   let shutdownPromise: Promise<void> | undefined;
+  const drainSync = (): Promise<void> => {
+    syncDrainsReached.add(shutdown);
+    return syncDrainsReached.size === activeShutdowns.size
+      ? closeSyncCursorStates()
+      : waitForSyncCursorUnsubscriptions();
+  };
   const shutdown = (): Promise<void> => {
     if (shutdownPromise) {
       return shutdownPromise;
@@ -87,14 +93,18 @@ export function startProductionServer(options: ProductionServerOptions): {
       try {
         await Bun.sleep(delayMs);
         rejecting = true;
-        const deadline = new Promise<void>((resolve) => {
+        const deadline = new Promise<void>((resolve, reject) => {
           timeout = setTimeout(() => {
             forced = true;
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
+            const stopped = server.stop(true);
             Promise.resolve(app.stop(true)).catch((error: unknown) => {
               console.error("[furin] Forced server stop failed", error);
             });
-            resolve();
+            drainSync().catch((error: unknown) => {
+              console.error("[furin] Forced Sync cursor cleanup failed", error);
+            });
+            stopped.then(resolve, reject);
           }, timeoutMs);
         });
         const drain = async (): Promise<void> => {
@@ -106,12 +116,7 @@ export function startProductionServer(options: ProductionServerOptions): {
             },
             waitForPendingISRRevalidations,
             () => Promise.allSettled([...pendingEmissions]),
-            () => {
-              syncDrainsReached.add(shutdown);
-              return syncDrainsReached.size === activeShutdowns.size
-                ? closeSyncCursorStates()
-                : waitForSyncCursorUnsubscriptions();
-            },
+            drainSync,
             () => app.stop(),
             () => options.onShutdown?.(),
           ];

@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { Elysia } from "elysia";
@@ -9,6 +10,7 @@ import {
 import { createFurinEvlog } from "../../src/server/evlog.ts";
 import { startProductionServer } from "../../src/server/production-server.ts";
 import type { SyncAdapter } from "../../src/server/sync/adapter.ts";
+import { migrateSqliteSync, sqliteSyncAdapter } from "../../src/server/sync/sqlite/index.ts";
 import { subscribeSyncCursor } from "../../src/server/sync/stream.ts";
 
 test.each([
@@ -480,5 +482,82 @@ test("concurrent server shutdowns close shared Sync cursor subscriptions", async
     release();
     subscription.unsubscribe();
     await Promise.all([first.shutdown(), second.shutdown()]);
+  }
+});
+
+test("a forced shutdown closes shared Sync state after its peer has stopped", async () => {
+  const first = startProductionServer({
+    app: new Elysia(),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+  });
+  const second = startProductionServer({
+    app: new Elysia(),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 1000,
+  });
+  const close = () => undefined;
+  registerBrowserEventConnection(first.server, close);
+  const database = new Database(":memory:");
+  migrateSqliteSync(database);
+  let unsubscribed = false;
+  const subscription = await subscribeSyncCursor(
+    {
+      adapter: sqliteSyncAdapter({ database, namespace: "forced-shutdown" }),
+      notifier: {
+        publish: () => Promise.resolve(),
+        subscribe: () =>
+          Promise.resolve({
+            unsubscribe: () => {
+              unsubscribed = true;
+              return Promise.resolve();
+            },
+          }),
+      },
+      principal: () => "test",
+    },
+    () => undefined
+  );
+  try {
+    await Promise.all([first.shutdown(), second.shutdown()]);
+    expect(unsubscribed).toBe(true);
+    expect(first.server.pendingRequests).toBe(0);
+  } finally {
+    subscription.unsubscribe();
+    unregisterBrowserEventConnection(first.server, close);
+    await Promise.all([first.shutdown(), second.shutdown()]);
+    database.close();
+  }
+});
+
+test("forcing transport shutdown keeps pending Elysia cleanup bounded", async () => {
+  const { promise: release, resolve } = Promise.withResolvers<void>();
+  let cleanupStarted = false;
+  const app = new Elysia().cleanup(() => {
+    cleanupStarted = true;
+    return release;
+  });
+  const lifecycle = startProductionServer({
+    app,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+  });
+  try {
+    expect(
+      await Promise.race([
+        lifecycle.shutdown().then(() => "stopped"),
+        Bun.sleep(500).then(() => "timeout"),
+      ])
+    ).toBe("stopped");
+    expect(cleanupStarted).toBe(true);
+    expect(app.server).toBeUndefined();
+    expect(lifecycle.server.pendingRequests).toBe(0);
+  } finally {
+    resolve();
+    await app.stop(true);
+    await lifecycle.shutdown();
   }
 });

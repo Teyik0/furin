@@ -299,6 +299,15 @@ function assertCompleteRouteChains(
   });
 }
 
+function memberAccessStart(source: string, object: AstNode, property: AstNode): number {
+  // Parser expression ranges exclude parentheses around a fluent receiver.
+  const accessGap = source.slice(object.end, property.start);
+  const separator = accessGap
+    .replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, (comment) => " ".repeat(comment.length))
+    .lastIndexOf(".");
+  return object.end + separator - (accessGap[separator - 1] === "?" ? 1 : 0);
+}
+
 function removeChainedServerCalls(
   source: MagicString,
   program: Program,
@@ -333,13 +342,7 @@ function removeChainedServerCalls(
       if (!object) {
         return;
       }
-      // Parser expression ranges exclude parentheses around a fluent receiver.
-      const accessGap = source.original.slice(object.end, property.start);
-      const accessStart =
-        object.end +
-        accessGap
-          .replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, (comment) => " ".repeat(comment.length))
-          .lastIndexOf(".");
+      const accessStart = memberAccessStart(source.original, object, property);
       if (property.name === "config" && Array.isArray(call.arguments)) {
         const config = asAstNode(call.arguments[0]);
         if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {

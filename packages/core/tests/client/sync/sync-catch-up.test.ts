@@ -1,7 +1,10 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
-import { applyRevalidateEntries } from "../../../src/client/router/link-utils.ts";
+import {
+  applyRevalidateEntries,
+  shouldAutoRefreshPath,
+} from "../../../src/client/router/link-utils.ts";
 import {
   createInvalidationRefresh,
   createSyncCatchUp,
@@ -11,6 +14,30 @@ import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
 
 describe("createSyncCatchUp", () => {
+  test("legacy journal paths preserve encoded slashes through the recovery transport", async () => {
+    const app = new Elysia().get("/changes", () => ({
+      changes: [{ cursor: "1", invalidations: ["/a%2Fb:layout", "/東京/%25"] }],
+      cursor: "1",
+      hasMore: false,
+      reset: false,
+    }));
+    const paths: { path: string; type: "page" | "layout" }[] = [];
+    const sync = createSyncCatchUp({
+      fetchPage: async () => {
+        const response = await app.handle(new Request("http://localhost/changes"));
+        return response.json();
+      },
+      onInvalidations: (entries) =>
+        applyRevalidateEntries(entries, (path, type) => paths.push({ path, type: type ?? "page" })),
+    });
+    await sync.catchUp();
+    expect(paths).toEqual([
+      { path: "/a%2Fb", type: "layout" },
+      { path: "/東京/%25", type: "page" },
+    ]);
+    expect(shouldAutoRefreshPath("/a%2Fb/child", paths)).toBe(true);
+    expect(shouldAutoRefreshPath("/a/b/child", paths)).toBe(false);
+  });
   test("applies the typed path records returned by the real changes endpoint", async () => {
     const database = new Database(":memory:");
     migrateSqliteSync(database);

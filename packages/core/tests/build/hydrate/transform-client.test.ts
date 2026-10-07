@@ -7,6 +7,33 @@ import strip from "../../../src/plugin/index.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
+  test.each([
+    "defineRoute()?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
+    "(defineRoute())?.loader?.(() => 'PRIVATE_OPTIONAL_STAGE').page(() => null)",
+    "defineRoute()?.config({ remountDeps: () => ['PUBLIC_REMOUNT'], privateValue: 'PRIVATE_OPTIONAL_STAGE' })?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
+  ])(
+    "browser builds strip optional server stages without damaging the fluent chain: %s",
+    async (chain) => {
+      const app = createTmpApp("cli-app");
+      try {
+        const entry = join(app.path, "entry.ts");
+        writeAppFile(
+          app.path,
+          "entry.ts",
+          `import { defineRoute } from "@teyik0/furin"; export const route = ${chain}; console.log(route.component);`
+        );
+        const build = await Bun.build({ entrypoints: [entry], target: "browser", plugins: [strip] });
+        expect(build.success).toBe(true);
+        const browser = (await Promise.all(build.outputs.map((output) => output.text()))).join("\n");
+        expect(browser).not.toContain("PRIVATE_OPTIONAL_STAGE");
+        if (chain.includes("remountDeps")) {
+          expect(browser).toContain("PUBLIC_REMOUNT");
+        }
+      } finally {
+        app.cleanup();
+      }
+    }
+  );
   test("browser imports with a query suffix strip their route loader from the physical source file", async () => {
     const app = createTmpApp("cli-app");
     try {

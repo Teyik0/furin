@@ -114,6 +114,86 @@ try {
   expect(proc.exitCode).toBe(0);
 });
 
+test("fetch waits for async plugins and continues serving after they settle and compile", async () => {
+  const proc = await runFixtureScript(`
+import { expect } from "bun:test";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "./src/furin.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+import { createTmpApp } from "./tests/support/app-fixtures.ts";
+const fixture = createTmpApp("cli-app");
+const originalCwd = process.cwd();
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  let resolvePlugin;
+  const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages"), logger: { drain: () => undefined } }))
+    .use(new Promise(resolve => { resolvePlugin = resolve; }));
+  const fetch = app.fetch;
+  let served = false;
+  const pending = fetch(new Request("http://localhost/async")).then(response => { served = true; return response; });
+  await Bun.sleep(0);
+  expect(served).toBe(false);
+  resolvePlugin(new Elysia().get("/async", () => "settled"));
+  expect(await (await pending).text()).toBe("settled");
+  await app.modules;
+  app.compile();
+  for (const path of ["/async", "/", "/async", "/"]) {
+    const response = await fetch(new Request("http://localhost" + path));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(path === "/async" ? "settled" : "Home page");
+  }
+} finally {
+  process.chdir(originalCwd);
+  fixture.cleanup();
+}
+`);
+  expect(proc.stderr).not.toContain("error:");
+  expect(proc.exitCode).toBe(0);
+});
+
+test("reading fetch observes failed reused-container preparation and preserves its rejection", async () => {
+  const proc = await runFixtureScript(`
+import { expect } from "bun:test";
+import { renameSync } from "node:fs";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "./src/furin.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+import { createTmpApp } from "./tests/support/app-fixtures.ts";
+const fixture = createTmpApp("cli-app");
+const originalCwd = process.cwd();
+const unhandled = [];
+const onUnhandled = error => unhandled.push(error);
+process.on("unhandledRejection", onUnhandled);
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  const pagesDir = join(fixture.path, "src/pages");
+  const child = new Elysia().use(await furin({ pagesDir, prefix: "/admin", logger: { drain: () => undefined } }));
+  const first = new Elysia({ prefix: "/one" }).use(child);
+  const response = await first.handle("/one/admin");
+  expect(response.status).toBe(200);
+  await response.text();
+  const second = new Elysia({ prefix: "/two" }).use(child);
+  await second.modules;
+  renameSync(pagesDir, pagesDir + ".missing");
+  const fetch = second.fetch;
+  await Bun.sleep(25);
+  expect(unhandled).toEqual([]);
+  renameSync(pagesDir + ".missing", pagesDir);
+  await expect(fetch(new Request("http://localhost/two/admin"))).rejects.toThrow("ENOENT");
+} finally {
+  process.off("unhandledRejection", onUnhandled);
+  process.chdir(originalCwd);
+  fixture.cleanup();
+}
+`);
+  expect(proc.stderr).not.toContain("error:");
+  expect(proc.exitCode).toBe(0);
+});
+
 test("reusing a Furin plugin initializes independent loader caches and devtools streams", async () => {
   const proc = await runFixtureScript(String.raw`
 import { expect } from "bun:test";

@@ -2,7 +2,7 @@
 // pipeline (adapter/bun.ts) — both must agree on where a mounted app's
 // client assets live on disk.
 
-const FILESYSTEM_DISTINCTIONS_RE = /[-.*A-Z]/g;
+const FILESYSTEM_DISTINCTIONS_RE = /%[\dA-F]{2}|[-.*A-Z]/g;
 
 /**
  * On-disk client dir name for a mounted app: the root instance keeps the
@@ -26,9 +26,10 @@ export function prefixSlug(prefix: string): string {
     .slice(1)
     .split("/")
     .map((segment) =>
-      encodeURIComponent(segment).replace(
-        FILESYSTEM_DISTINCTIONS_RE,
-        (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+      encodeURIComponent(segment).replace(FILESYSTEM_DISTINCTIONS_RE, (character) =>
+        character.startsWith("%")
+          ? character
+          : `%${character.charCodeAt(0).toString(16).toUpperCase()}`
       )
     )
     .join("-");

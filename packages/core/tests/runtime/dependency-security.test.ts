@@ -8,11 +8,12 @@ const workspace = resolve(import.meta.dir, "../../../..");
 test("Drizzle Kit loads its TypeScript config and generates migrations with the patched esbuild", async () => {
   const appDir = join(workspace, "examples/task-manager");
   const outDir = mkdtempSync(join(tmpdir(), "furin-drizzle-compat-"));
-  const config = join(appDir, ".furin", `drizzle-review-${crypto.randomUUID()}.ts`);
+  const configDir = join(appDir, ".furin", `drizzle-review-${crypto.randomUUID()}`);
+  const config = join(configDir, "config.ts");
   try {
     await Bun.write(
       config,
-      `import config from "../drizzle.config.ts"; export default {...config, out: ${JSON.stringify(outDir)}};`
+      `import config from "../../drizzle.config.ts"; export default {...config, out: ${JSON.stringify(outDir)}};`
     );
     const child = Bun.spawn(
       [process.execPath, "--bun", "run", "drizzle-kit", "generate", "--config", config],
@@ -37,7 +38,7 @@ test("Drizzle Kit loads its TypeScript config and generates migrations with the 
     }
     expect(await Bun.file(join(outDir, migration)).text()).toContain("CREATE TABLE");
   } finally {
-    rmSync(config, { force: true });
+    rmSync(configDir, { recursive: true, force: true });
     rmSync(outDir, { recursive: true, force: true });
   }
 });

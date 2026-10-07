@@ -75,6 +75,12 @@ test("concurrent workers upgrade one legacy SQLite journal without startup error
     expect(outcomes).toEqual(Array.from({ length: count }, () => ({ type: "completed" })));
     const reopened = new Database(file);
     try {
+      expect(
+        reopened
+          .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
+          .all()
+          .some((column) => column.name === "principal_hash")
+      ).toBe(true);
       expect(() => migrateSqliteSync(reopened)).not.toThrow();
     } finally {
       reopened.close();

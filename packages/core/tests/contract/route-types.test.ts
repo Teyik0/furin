@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { writeRouteTypes } from "../../src/build/route-types.ts";
 import type { ResolvedRoute } from "../../src/server/router/types.ts";
 import { routeMapDeclaration } from "../../src/shared/route-map.ts";
+import { startProcess } from "../support/process.ts";
 
 function route(pattern: string, path: string, tags?: string[]): ResolvedRoute {
   return {
@@ -34,7 +35,7 @@ describe("writeRouteTypes", () => {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   });
 
-  test("dynamic and catch-all sibling routes retain both types in a valid TypeScript contract", () => {
+  test("dynamic and catch-all sibling routes retain both types in a valid TypeScript contract", async () => {
     const directory = join(temporaryDirectory, "overlap");
     mkdirSync(directory);
     writeFileSync(join(directory, "one.ts"), 'export const route = { kind: "dynamic" } as const;');
@@ -68,14 +69,37 @@ describe("writeRouteTypes", () => {
         files: ["routes.d.ts", "consumer.ts"],
       })
     );
-    const result = Bun.spawnSync([
-      process.execPath,
-      join(import.meta.dir, "../../node_modules/typescript/lib/tsc.js"),
-      "--project",
-      config,
-    ]);
-    expect(result.stdout.toString() + result.stderr.toString()).toBe("");
-    expect(result.exitCode).toBe(0);
+    const compiler = startProcess(
+      [
+        process.execPath,
+        join(import.meta.dir, "../../node_modules/typescript/lib/tsc.js"),
+        "--project",
+        config,
+      ],
+      { cwd: directory }
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const exitCode = await Promise.race([
+        compiler.exitCode,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            compiler.kill();
+            reject(
+              new Error(
+                `TypeScript contract check timed out.\n${compiler.getStdout()}\n${compiler.getStderr()}`
+              )
+            );
+          }, 12_000);
+        }),
+      ]);
+      expect(compiler.getStdout() + compiler.getStderr()).toBe("");
+      expect(exitCode).toBe(0);
+    } finally {
+      clearTimeout(timer);
+      compiler.kill();
+      await compiler.exitCode;
+    }
   });
 
   test("emits only the Elysia-derived RouteMap contract", () => {

@@ -70,7 +70,7 @@ const plugin: Bun.BunPlugin = {
       try {
         source = await Bun.file(filePath).text();
       } catch (error) {
-        const loaded = loadedSources.get(args.path);
+        const loaded = loadedSources.get(filePath);
         // Bun can revisit its previous client graph before topology changes remove
         // a deleted route from the hydration entry. Keep that graph loadable.
         if (
@@ -102,7 +102,7 @@ const plugin: Bun.BunPlugin = {
         isRouteModule: topologyPaths.has(filePath),
         loader: detectLoaderFromPath(filePath),
       };
-      loadedSources.set(args.path, loaded);
+      loadedSources.set(filePath, loaded);
       return loaded;
     });
   },

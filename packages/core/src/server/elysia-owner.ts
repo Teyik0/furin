@@ -60,6 +60,8 @@ function ownedFetch(
 ): AnyElysia["fetch"] {
   const failed = Reflect.get(app, "_error") !== undefined;
   const pending = Reflect.get(app, "ready") || failed ? undefined : prepareOwner(app, bindings);
+  // A getter cannot await preparation; requests still await the original promise.
+  pending?.catch(() => undefined);
   if (!(pending || failed)) {
     original();
   }
@@ -73,7 +75,7 @@ function ownedFetch(
         const preparing = prepareOwner(app, bindings);
         return preparing ? preparing.then(run) : original()(request, ...rest);
       };
-      return run();
+      return pending ? pending.then(run) : run();
     };
     bindings.preparedFetches.set(app, fetch);
   }

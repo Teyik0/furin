@@ -462,7 +462,7 @@ The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter`
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
-Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin clears cached queries and invalidates all prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. The public adapter interface stays unchanged.
+Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. The public adapter interface stays unchanged.
 
 The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 

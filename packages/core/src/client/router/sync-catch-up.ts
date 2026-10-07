@@ -23,6 +23,8 @@ interface SyncCatchUpOptions {
   onReset?: () => void;
 }
 
+const LAYOUT_SUFFIX_RE = /:layout$/;
+
 function changeInvalidations(change: SyncChangePayload): {
   paths: string[];
   queries: QueryIdentity[];
@@ -31,7 +33,10 @@ function changeInvalidations(change: SyncChangePayload): {
   const queries = [...(change.queries ?? [])];
   for (const entry of change.invalidations) {
     if (typeof entry === "string") {
-      paths.push(entry);
+      const trimmed = entry.trim();
+      const type = trimmed.endsWith(":layout") ? "layout" : "page";
+      const path = trimmed.replace(LAYOUT_SUFFIX_RE, "");
+      paths.push(encodeInvalidationEntry(path, type));
     } else if (entry.kind === "path") {
       paths.push(encodeInvalidationEntry(entry.path, entry.type));
     } else {
