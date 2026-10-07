@@ -1,13 +1,33 @@
 import { expect, test } from "bun:test";
+import { startProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
-test("nested Elysia prefixes preserve Furin rendering and navigation", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+async function runFixtureScript(source: string): Promise<{ exitCode: number; stderr: string }> {
+  const proc = startProcess([process.execPath, "-e", source], {
+    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const exitCode = await Promise.race([
+      proc.exitCode,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          proc.kill();
+          reject(new Error(`Fixture process timed out.\n${proc.getStdout()}\n${proc.getStderr()}`));
+        }, 8000);
+      }),
+    ]);
+    return { exitCode, stderr: proc.getStderr() };
+  } finally {
+    clearTimeout(timer);
+    proc.kill();
+    await proc.exitCode;
+  }
+}
+
+test("nested Elysia prefixes preserve Furin rendering and navigation", async () => {
+  const proc = await runFixtureScript(`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -54,22 +74,13 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("a failed async Elysia plugin prevents Furin dispatch", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("a failed async Elysia plugin prevents Furin dispatch", async () => {
+  const proc = await runFixtureScript(`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -86,32 +97,25 @@ try {
   const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages") }))
     .get("/probe", () => { dispatched++; return "unexpected"; })
     .use(new Promise((resolve, reject) => { rejectPlugin = reject; }));
+  console.log("[fixture] awaiting plugin rejection");
   const pending = app.handle("/probe");
   rejectPlugin(new Error("plugin initialization failed"));
   await expect(pending).rejects.toThrow("plugin initialization failed");
   await expect(app.handle("/probe")).rejects.toThrow("plugin initialization failed");
   await expect(app.fetch(new Request("http://localhost/probe"))).rejects.toThrow("plugin initialization failed");
   expect(dispatched).toBe(0);
+  console.log("[fixture] all dispatches rejected");
 } finally {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).toContain("plugin initialization failed");
+`);
+  expect(proc.stderr).toContain("plugin initialization failed");
   expect(proc.exitCode).toBe(0);
 });
 
-test("reusing a Furin plugin initializes independent loader caches and devtools streams", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      String.raw`
+test("reusing a Furin plugin initializes independent loader caches and devtools streams", async () => {
+  const proc = await runFixtureScript(String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -160,22 +164,13 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("reusing an Elysia container preserves independent Furin runtimes and child guards", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      String.raw`
+test("reusing an Elysia container preserves independent Furin runtimes and child guards", async () => {
+  const proc = await runFixtureScript(String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -272,22 +267,13 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("sibling Furin mounts emit once through their own logging drain", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("sibling Furin mounts emit once through their own logging drain", async () => {
+  const proc = await runFixtureScript(`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -328,22 +314,13 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("one final Elysia app can mount a reused container at two nested prefixes", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("one final Elysia app can mount a reused container at two nested prefixes", async () => {
+  const proc = await runFixtureScript(`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -365,6 +342,7 @@ try {
   expect(app.handle).toBe(detached);
   const detachedFetch = app.fetch;
   expect(app.fetch).toBe(detachedFetch);
+  console.log("[fixture] nested mounts composed");
   for (const prefix of ["/outer/left/admin", "/outer/right/admin"]) {
     const response = await detached(prefix);
     expect(response.status).toBe(200);
@@ -374,27 +352,19 @@ try {
     const data = await app.fetch(new Request("http://localhost" + prefix + "/_furin/data?path=%2F"));
     expect(data.status).toBe(200);
     expect(await data.text()).toContain(prefix);
+    console.log("[fixture] SSR and SPA rendered for " + prefix);
   }
 } finally {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("unreferenced applications release their Furin runtime and development graph", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      `
+test("unreferenced applications release their Furin runtime and development graph", async () => {
+  const proc = await runFixtureScript(`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -410,17 +380,27 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   const pagesDir = join(fixture.path, "src/pages").replaceAll("\\\\", "/");
+  async function collected(references, timeout) {
+    const deadline = performance.now() + timeout;
+    while (performance.now() < deadline) {
+      await Bun.sleep(10);
+      Bun.gc(true);
+      if (references.every(reference => reference.deref() === undefined)) return true;
+    }
+    return false;
+  }
+  const held = new Elysia();
+  expect(await collected([new WeakRef(held)], 50)).toBe(false);
+  expect(held).toBeDefined();
   async function releaseApp() {
     const app = new Elysia().use(await furin({ pagesDir }));
+    await app.modules;
     const instance = allInstances().find(instance => instance.pagesDir === pagesDir);
     expect(instance).toBeDefined();
     return { app: new WeakRef(app), instance: new WeakRef(instance), graph: new WeakRef(devGraph(instance)) };
   }
   const released = await releaseApp();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await Bun.sleep(0);
-    Bun.gc(true);
-  }
+  expect(await collected([released.app, released.instance, released.graph], 2000)).toBe(true);
   expect(released.app.deref() === undefined).toBe(true);
   expect(released.instance.deref() === undefined).toBe(true);
   expect(released.graph.deref() === undefined).toBe(true);
@@ -430,22 +410,13 @@ try {
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
-test("reused containers keep independent browser streams and watchers when one server stops", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
-      "bun",
-      "-e",
-      String.raw`
+test("reused containers keep independent browser streams and watchers when one server stops", async () => {
+  const proc = await runFixtureScript(String.raw`
 import { expect } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
@@ -466,7 +437,10 @@ try {
   for (const prefix of ["/one", "/two"]) {
     const app = new Elysia({ prefix }).use(child).listen({ hostname: "127.0.0.1", port: 0 });
     apps.push(app);
-    expect((await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", app.server.url))).status).toBe(200);
+    const initial = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", app.server.url));
+    expect(initial.status).toBe(200);
+    await initial.text();
+    console.log("[fixture] server rendered " + prefix);
     const socket = new WebSocket("ws://127.0.0.1:" + app.server.port + prefix + "/admin/_furin/events");
     const inbox = messages[apps.length - 1];
     socket.addEventListener("message", event => inbox.push(JSON.parse(event.data)));
@@ -475,9 +449,11 @@ try {
       socket.addEventListener("open", resolve, { once: true });
       socket.addEventListener("error", reject, { once: true });
     });
+    console.log("[fixture] browser stream opened " + prefix);
   }
   for (const [index, prefix] of [[0, "/one"], [1, "/two"]]) {
-    await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", apps[index].server.url));
+    const response = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", apps[index].server.url));
+    await response.text();
   }
   const eventDeadline = Date.now() + 2000;
   while (Date.now() < eventDeadline && messages.some(inbox => !inbox.some(event => JSON.stringify(event).includes("/admin")))) await Bun.sleep(10);
@@ -502,27 +478,31 @@ try {
         expect(await response.text()).toContain('"added":true');
         return;
       }
+      await response.body?.cancel();
       await Bun.sleep(25);
     }
     throw new Error("Topology did not update for " + prefix + "/" + name);
   }
   addPage("added");
   await Promise.all([waitForPage(apps[0], "/one", "added"), waitForPage(apps[1], "/two", "added")]);
+  console.log("[fixture] both watchers updated");
   await apps.pop().stop(true);
+  console.log("[fixture] second server stopped");
   addPage("after-stop");
   await waitForPage(apps[0], "/one", "after-stop");
+  console.log("[fixture] first watcher updated after sibling stopped");
 } finally {
-  for (const socket of sockets) socket.close();
   for (const app of apps) await app.stop(true);
+  await Promise.all(sockets.map(socket => new Promise(resolve => {
+    if (socket.readyState === WebSocket.CLOSED) return resolve();
+    socket.addEventListener("close", resolve, { once: true });
+    socket.close();
+  })));
+  console.log("[fixture] all servers and sockets closed");
   process.chdir(originalCwd);
   fixture.cleanup();
 }
-`,
-    ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+`);
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 }, 10_000);
