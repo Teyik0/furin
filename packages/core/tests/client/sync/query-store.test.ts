@@ -13,6 +13,41 @@ function result(data: unknown, session: string) {
   };
 }
 
+test("request-scoped seeds stay isolated when browser UUID APIs are unavailable", () => {
+  const uuid = Object.getOwnPropertyDescriptor(globalThis.crypto, "randomUUID");
+  const random = Object.getOwnPropertyDescriptor(globalThis.crypto, "getRandomValues");
+  try {
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+    for (const secureRandom of [random?.value, undefined]) {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", {
+        configurable: true,
+        value: secureRandom,
+      });
+      const server = new QueryStore(undefined);
+      const reference = { client: server, url, load: async () => result("Alice", "alice") };
+      const options = { headers: { Authorization: "private-alice" } };
+      const serverKey = server.readKey(reference, options);
+      server.observe(serverKey, result("Alice", "alice"), server.generation());
+      const browser = new QueryStore(undefined);
+      browser.hydrate(server.dehydrate());
+      const browserKey = browser.readKey({ ...reference, client: browser }, options);
+      expect(browserKey).not.toBe(serverKey);
+      expect(browser.snapshot(browserKey).data).toBeUndefined();
+      expect(browser.snapshot(url).data).toBeUndefined();
+    }
+  } finally {
+    if (uuid) {
+      Object.defineProperty(globalThis.crypto, "randomUUID", uuid);
+    }
+    if (random) {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", random);
+    }
+  }
+});
+
 test("request-specific seeds retain isolated identities without serializing credentials", () => {
   const store = new QueryStore(undefined);
   const reference = { client: store, url, load: async () => result("Alice", "alice") };

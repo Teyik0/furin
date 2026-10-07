@@ -20,6 +20,7 @@ import {
   type ReadResult,
   readReference,
 } from "./query-store.ts";
+import { createRequestId } from "./request-id.ts";
 import {
   findOptimisticRuntime,
   type OptimisticRuntime,
@@ -126,13 +127,6 @@ type HeaderSource =
   | HeaderSource[];
 type Callable = (...args: unknown[]) => unknown;
 const MUTATIONS = new Set(["post", "put", "patch", "delete"]);
-
-function createIdempotencyKey(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random()}`;
-}
 
 const plugin: TreatyPlugin<SyncPluginType> = {
   name: "furin-sync",
@@ -253,7 +247,7 @@ async function runMutation(
       fetchHeaders.get("Idempotency-Key") ??
       resolved.get("Idempotency-Key") ??
       new Headers(init.headers).get("Idempotency-Key") ??
-      createIdempotencyKey();
+      createRequestId();
     resolved.set("Idempotency-Key", key);
     if (supplied?.fetch?.headers) {
       fetchHeaders.set("Idempotency-Key", key);

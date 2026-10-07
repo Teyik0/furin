@@ -5,6 +5,7 @@ import {
   queryTag,
   queryUrl,
 } from "../shared/sync-query.ts";
+import { createRequestId } from "./request-id.ts";
 
 export const QUERY_REFERENCE = Symbol.for("furin.query.reference.v1");
 
@@ -110,7 +111,7 @@ export class QueryStore {
   private readonly entries = new Map<string, QueryEntry>();
   private requests: { client: QueryStore; options: string; url: string; key: string }[] = [];
   private readonly optionObjects = new WeakMap<object, number>();
-  private readonly requestScope = crypto.randomUUID();
+  private readonly requestScope = createRequestId();
   private nextRequest = 0;
   private nextOptionObject = 0;
   private readonly listeners = new Set<() => void>();
