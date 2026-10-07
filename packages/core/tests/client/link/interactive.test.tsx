@@ -402,6 +402,30 @@ describe("prefetch cache helpers", () => {
 // ── LinkInteractive (client) ──────────────────────────────────────────────────
 
 describe("LinkInteractive — client-side behaviour", () => {
+  test("download links retain native navigation", () => {
+    const navigate = mock(() => Promise.resolve());
+    const view = renderLink(
+      createElement(Link, { to: "/asset", download: "asset.txt" }, "Download"),
+      makeRouterContext({ navigate })
+    );
+    dispatchReactEvent(view.anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(navigate).not.toHaveBeenCalled();
+    view.cleanup();
+  });
+
+  test("same-origin absolute links navigate using the logical mount path", () => {
+    const navigate = mock(() => Promise.resolve());
+    const view = renderLink(
+      createElement(Link, { to: `${window.location.origin}/furin/about?q=1#part` }, "About"),
+      makeRouterContext({ basePath: "/furin", navigate })
+    );
+    dispatchReactEvent(view.anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(navigate).toHaveBeenCalledWith("/about?q=1#part", {
+      replace: undefined,
+      resetScroll: true,
+    });
+    view.cleanup();
+  });
   let originalOpen: typeof window.open | undefined;
   let originalHrefDescriptor: PropertyDescriptor | undefined;
 

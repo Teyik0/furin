@@ -16,6 +16,66 @@ afterEach(async () => {
   await uninstallDom();
 });
 
+test("changing query credentials fetches the new principal's result", async () => {
+  let reads = 0;
+  const app = new Elysia().get("/me", ({ headers, set }) => {
+    reads += 1;
+    set.headers["x-furin-query"] = JSON.stringify({
+      id: "me",
+      scope: {},
+      session: headers.authorization,
+    });
+    return { name: headers.authorization };
+  });
+  const api = createClient<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+  });
+  function View({ token }: { token: string }) {
+    return <span>{useQuery(api.me.get, { headers: { authorization: token } }).data?.name}</span>;
+  }
+  const container = document.createElement("div");
+  const viewRoot = createRoot(container);
+  root = viewRoot;
+  await act(async () => viewRoot.render(<View token="Alice" />));
+  expect(container.textContent).toBe("Alice");
+  await act(async () => viewRoot.render(<View token="Bob" />));
+  expect(container.textContent).toBe("Bob");
+  expect(reads).toBe(2);
+});
+
+test("simultaneous query principals keep separate results and share equivalent reads", async () => {
+  let reads = 0;
+  const app = new Elysia().get("/me", ({ headers, set }) => {
+    reads += 1;
+    set.headers["x-furin-query"] = JSON.stringify({
+      id: "me",
+      scope: {},
+      session: headers.authorization,
+    });
+    return { name: headers.authorization };
+  });
+  const api = createClient<typeof app>(window.location.origin, {
+    fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+  });
+  function View({ token }: { token: string }) {
+    return <span>{useQuery(api.me.get, { headers: { authorization: token } }).data?.name}</span>;
+  }
+  const container = document.createElement("div");
+  const viewRoot = createRoot(container);
+  root = viewRoot;
+  await act(async () =>
+    viewRoot.render(
+      <>
+        <View token="Alice" />
+        <View token="Bob" />
+        <View token="Alice" />
+      </>
+    )
+  );
+  expect(container.textContent).toBe("AliceBobAlice");
+  expect(reads).toBe(2);
+});
+
 test("two Eden query consumers share a fetch and an optimistic projection", async () => {
   let reads = 0;
   let title = "Before";

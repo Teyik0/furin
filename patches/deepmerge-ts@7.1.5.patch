@@ -1,0 +1,92 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 8c05cc7b6c296a989be9af5be432616beb870e35..fface4287c342a937be6b35abed94e34a596f590 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -281,6 +281,20 @@ function getUtils(options, customizedDeepmerge) {
+  * @param values - The values.
+  */
+ function mergeUnknowns(values, utils, meta) {
++    const records = values.filter((value) => getObjectType(value) === 1);
++    const active = utils.activeRecords ??= new WeakSet();
++    if (records.length > 1 && records.every((record) => active.has(record))) {
++        throw new Error("Cannot merge circular object graphs.");
++    }
++    const entered = records.filter((record) => !active.has(record));
++    for (const record of entered) active.add(record);
++    try {
++        return mergeUnknownsUnchecked(values, utils, meta);
++    } finally {
++        for (const record of entered) active.delete(record);
++    }
++}
++function mergeUnknownsUnchecked(values, utils, meta) {
+     const filteredValues = utils.filterValues?.(values, meta) ?? values;
+     if (filteredValues.length === 0) {
+         return undefined;
+@@ -515,6 +529,20 @@ function getIntoUtils(options, customizedDeepmergeInto) {
+  * @param values - The values.
+  */
+ function mergeUnknownsInto(mut_target, values, utils, meta) {
++    const records = values.filter((value) => getObjectType(value) === 1);
++    const active = utils.activeRecords ??= new WeakSet();
++    if (records.length > 1 && records.every((record) => active.has(record))) {
++        throw new Error("Cannot merge circular object graphs.");
++    }
++    const entered = records.filter((record) => !active.has(record));
++    for (const record of entered) active.add(record);
++    try {
++        return mergeUnknownsIntoUnchecked(mut_target, values, utils, meta);
++    } finally {
++        for (const record of entered) active.delete(record);
++    }
++}
++function mergeUnknownsIntoUnchecked(mut_target, values, utils, meta) {
+     const filteredValues = utils.filterValues?.(values, meta) ?? values;
+     if (filteredValues.length === 0) {
+         return;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c34694ce85e6b0d4b275d8d0f3ef8ca842d5bc79..c6e7c9f40b0aadb64191e9f310b36a91651c97bd 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -279,6 +279,20 @@ function getUtils(options, customizedDeepmerge) {
+  * @param values - The values.
+  */
+ function mergeUnknowns(values, utils, meta) {
++    const records = values.filter((value) => getObjectType(value) === 1);
++    const active = utils.activeRecords ??= new WeakSet();
++    if (records.length > 1 && records.every((record) => active.has(record))) {
++        throw new Error("Cannot merge circular object graphs.");
++    }
++    const entered = records.filter((record) => !active.has(record));
++    for (const record of entered) active.add(record);
++    try {
++        return mergeUnknownsUnchecked(values, utils, meta);
++    } finally {
++        for (const record of entered) active.delete(record);
++    }
++}
++function mergeUnknownsUnchecked(values, utils, meta) {
+     const filteredValues = utils.filterValues?.(values, meta) ?? values;
+     if (filteredValues.length === 0) {
+         return undefined;
+@@ -513,6 +527,20 @@ function getIntoUtils(options, customizedDeepmergeInto) {
+  * @param values - The values.
+  */
+ function mergeUnknownsInto(mut_target, values, utils, meta) {
++    const records = values.filter((value) => getObjectType(value) === 1);
++    const active = utils.activeRecords ??= new WeakSet();
++    if (records.length > 1 && records.every((record) => active.has(record))) {
++        throw new Error("Cannot merge circular object graphs.");
++    }
++    const entered = records.filter((record) => !active.has(record));
++    for (const record of entered) active.add(record);
++    try {
++        return mergeUnknownsIntoUnchecked(mut_target, values, utils, meta);
++    } finally {
++        for (const record of entered) active.delete(record);
++    }
++}
++function mergeUnknownsIntoUnchecked(mut_target, values, utils, meta) {
+     const filteredValues = utils.filterValues?.(values, meta) ?? values;
+     if (filteredValues.length === 0) {
+         return;

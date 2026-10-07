@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { integer, sqliteTable } from "drizzle-orm/sqlite-core";
-import { Elysia, t } from "elysia";
+import { type Context, Elysia, t } from "elysia";
 import { furin } from "../../../src/furin.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { resetFurinLoggerForTests } from "../../../src/server/logger.ts";
@@ -128,3 +128,78 @@ test.serial(
     }
   }
 );
+
+test.serial("independent Furin mounts select their transactional Sync runtime", async () => {
+  const fixture = createTmpApp("cli-app");
+  const cwd = process.cwd();
+  const originalDevMode = IS_DEV;
+  const sqlite = new Database(":memory:");
+  migrateSqliteSync(sqlite);
+  const counter = sqliteTable("counter", { value: integer().notNull() });
+  sqlite.run("CREATE TABLE counter (value INTEGER NOT NULL)");
+  const db = drizzle(sqlite);
+  let authorized = false;
+  let firstCalls = 0;
+  let secondCalls = 0;
+  const first = {
+    adapter: drizzleSyncAdapter({ db, namespace: "first-mount" }),
+    principal: () => {
+      firstCalls += 1;
+      return "public";
+    },
+  };
+  const second = {
+    adapter: drizzleSyncAdapter({ db, namespace: "second-mount" }),
+    principal: ({ status }: Context) => {
+      secondCalls += 1;
+      if (!authorized) {
+        throw status(401);
+      }
+      return "private";
+    },
+  };
+  try {
+    __setDevMode(true);
+    __resetCompileContext();
+    resetFurinLoggerForTests();
+    process.chdir(fixture.path);
+    const mount = new Elysia({ prefix: "/second/api" })
+      .use(furinSync(second))
+      .post("/counter", ({ mutation }) =>
+        mutation((tx) => {
+          tx.insert(counter).values({ value: 1 }).run();
+          return { saved: true };
+        })
+      );
+    const app = new Elysia()
+      .use(
+        await furin({ prefix: "/first", pagesDir: join(fixture.path, "src/pages"), sync: first })
+      )
+      .use(
+        await furin({ prefix: "/second", pagesDir: join(fixture.path, "src/pages"), sync: second })
+      )
+      .use(mount)
+      .get("/counter", () => db.select().from(counter).all());
+    const request = () =>
+      new Request("http://localhost/second/api/counter", {
+        method: "POST",
+        headers: { "idempotency-key": "independent" },
+      });
+    expect((await app.handle(request())).status).toBe(401);
+    authorized = true;
+    expect((await app.handle(request())).status).toBe(200);
+    expect((await app.handle(request())).status).toBe(200);
+    expect(firstCalls).toBe(0);
+    expect(secondCalls).toBe(3);
+    expect(await (await app.handle(new Request("http://localhost/counter"))).json()).toEqual([
+      { value: 1 },
+    ]);
+  } finally {
+    sqlite.close();
+    process.chdir(cwd);
+    __setDevMode(originalDevMode);
+    __resetCompileContext();
+    resetFurinLoggerForTests();
+    fixture.cleanup();
+  }
+});

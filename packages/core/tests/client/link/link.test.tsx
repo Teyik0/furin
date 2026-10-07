@@ -676,6 +676,28 @@ describe("prefetch cache LRU eviction", () => {
 // ── applyRevalidateHeader ──────────────────────────────────────────────────────
 
 describe("applyRevalidateHeader", () => {
+  test("decodes Unicode, commas and percent signs without splitting a path", () => {
+    const paths: [string, "page" | "layout" | undefined][] = [];
+    applyRevalidateHeader(
+      new Headers({
+        "x-furin-revalidate": "/%E6%9D%B1%E4%BA%AC,/items/a%2Cb:layout,/literal%2520",
+      }),
+      (path, type) => paths.push([path, type])
+    );
+    expect(paths).toEqual([
+      ["/東京", "page"],
+      ["/items/a,b", "layout"],
+      ["/literal%20", "page"],
+    ]);
+  });
+
+  test("preserves malformed percent escapes from older header producers", () => {
+    const paths: string[] = [];
+    applyRevalidateHeader(new Headers({ "x-furin-revalidate": "/legacy%invalid" }), (path) =>
+      paths.push(path)
+    );
+    expect(paths).toEqual(["/legacy%invalid"]);
+  });
   // ── Bullet 13: parses page entries ─────────────────────────────────────────
 
   test("parses multiple page entries from header", () => {

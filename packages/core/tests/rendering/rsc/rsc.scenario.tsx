@@ -200,6 +200,21 @@ try {
   expect(await renderHtml(bufferedContent.article)).toBe("<h1>Buffered Flight article</h1>");
   expect(await parsedNdjson.deferredPromises.slow).toBe("done");
 
+  const userDescriptor = { __furinRsc: "rsc-0" };
+  payload = await serializeLoaderDataNdjson(
+    { article, userDescriptor },
+    { later: Promise.resolve({ article, userDescriptor }) }
+  );
+  parsedNdjson = await parseDeferredNdjson(responseBody(new Response(payload)), undefined);
+  expect(parsedNdjson.syncData.userDescriptor).toEqual(userDescriptor);
+  expect(await renderHtml(parsedNdjson.syncData.article)).toBe("<h1>Buffered Flight article</h1>");
+  const later = (await parsedNdjson.deferredPromises.later) as {
+    article: ReactNode;
+    userDescriptor: typeof userDescriptor;
+  };
+  expect(later.userDescriptor).toEqual(userDescriptor);
+  expect(await renderHtml(later.article)).toBe("<h1>Buffered Flight article</h1>");
+
   const firstLine = serializeRouteFrames({ title: "ready" }, undefined).trimEnd();
   let parsedFrames = await parseRouteFrameLines(firstLine, () =>
     Promise.reject(new Error("stream failed"))

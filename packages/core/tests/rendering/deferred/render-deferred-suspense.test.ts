@@ -44,6 +44,109 @@ async function getSsrFixtureRoute(): Promise<{ root: RootLayout; ssrRoute: Resol
 }
 
 describe.serial("renderSSR deferred Suspense scenarios", () => {
+  test.serial("cancelling the response stops its suspended React render", async () => {
+    __setDevMode(false);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const fixture = await getSsrFixtureRoute();
+    const slow = Promise.withResolvers<string>();
+    let resumed = 0;
+    const customRoute = asResolvedRoute({
+      ...fixture.ssrRoute,
+      page: {
+        ...fixture.ssrRoute.page,
+        loader: () => defer({ slow: slow.promise }),
+        component: () =>
+          createElement(
+            Suspense,
+            { fallback: "Loading" },
+            createElement(Await<string>, {
+              resolve: slow.promise,
+              // biome-ignore lint/correctness/noChildrenProp: Await exposes a render-prop child.
+              children: (value) => {
+                resumed += 1;
+                return createElement("span", null, value);
+              },
+            })
+          ),
+      },
+    });
+    const response = await renderSSR(
+      customRoute,
+      createMockLoaderContext({}),
+      fixture.root,
+      undefined
+    );
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("SSR response body missing");
+    }
+    await reader.read();
+    await reader.cancel();
+    slow.resolve("After disconnect");
+    await Bun.sleep(20);
+    expect(resumed).toBe(0);
+  });
+  test.serial(
+    "a fast deferred value reaches the client while another Suspense value is pending",
+    async () => {
+      __setDevMode(false);
+      setProductionTemplateContent(TEST_TEMPLATE);
+      const fixture = await getSsrFixtureRoute();
+      const fast = Promise.withResolvers<string>();
+      const slow = Promise.withResolvers<string>();
+      const customRoute = asResolvedRoute({
+        ...fixture.ssrRoute,
+        page: {
+          ...fixture.ssrRoute.page,
+          loader: () => defer({ fast: fast.promise, slow: slow.promise }),
+          component: () =>
+            createElement(
+              Suspense,
+              { fallback: "Loading" },
+              createElement(Await<string>, {
+                resolve: slow.promise,
+                // biome-ignore lint/correctness/noChildrenProp: Await exposes a render-prop child.
+                children: (value) => createElement("span", null, value),
+              })
+            ),
+        },
+      });
+      const response = await renderSSR(
+        customRoute,
+        createMockLoaderContext({}),
+        fixture.root,
+        undefined
+      );
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("SSR response body missing");
+      }
+      const flushed = Promise.withResolvers<void>();
+      let html = "";
+      const consume = (async () => {
+        for (;;) {
+          // biome-ignore lint/performance/noAwaitInLoops: observe sequential streaming deliveries.
+          const next = await reader.read();
+          if (next.done) {
+            break;
+          }
+          html += new TextDecoder().decode(next.value);
+          if (html.includes("fast-value")) {
+            flushed.resolve();
+          }
+        }
+      })();
+      fast.resolve("fast-value");
+      const arrived = await Promise.race([
+        flushed.promise.then(() => true),
+        Bun.sleep(100).then(() => false),
+      ]);
+      slow.resolve("slow-value");
+      await consume;
+      expect(arrived).toBe(true);
+      expect(html.endsWith("</html>")).toBe(true);
+    }
+  );
   test.serial("ordinary SSR keeps late Suspense resolution inside the document", async () => {
     __setDevMode(false);
     setProductionTemplateContent(TEST_TEMPLATE);

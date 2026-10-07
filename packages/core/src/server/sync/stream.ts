@@ -3,6 +3,7 @@ import { IS_DEV } from "../runtime-env.ts";
 import type { SyncAdapter, SyncSubscription } from "./adapter.ts";
 import type { FurinSyncOptions } from "./config.ts";
 import { syncRuntimeOptions } from "./config.ts";
+import { readPrincipalChanges } from "./principal-journal.ts";
 import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
 export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
@@ -162,15 +163,7 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
       if (principal.length === 0) {
         return new Response("Unauthorized", { status: 401 });
       }
-      const cursor = await runtime.adapter.currentCursor();
-      // The journal is shared across principals. Resource paths and query scopes
-      // are private; clients refresh their authorized reads when its cursor moves.
-      return {
-        changes: [],
-        cursor,
-        hasMore: false,
-        reset: query.after !== undefined && query.after !== cursor,
-      };
+      return readPrincipalChanges(runtime.adapter, query, principal);
     }
   );
 }

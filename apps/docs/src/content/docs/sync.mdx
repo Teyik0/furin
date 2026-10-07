@@ -462,6 +462,8 @@ The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter`
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
+Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin requests a full refresh instead of exposing journal scopes. The public adapter interface stays unchanged.
+
 The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
 Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume the `withSync()` client and the router contract rather than either internal endpoint directly.
@@ -481,6 +483,8 @@ Production rejects process-local adapters such as SQLite `:memory:`.
 ### PostgreSQL
 
 Apply the bundled idempotent schema bootstrap through the CLI or your migration system:
+
+Run it when upgrading an existing database too: the journal's nullable `principal_hash` column is added without changing existing entries. Those entries use the full-refresh recovery path.
 
 ```sh
 FURIN_SYNC_POSTGRES_URL=postgres://... \

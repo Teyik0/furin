@@ -1,4 +1,49 @@
+import type { Program } from "yuku-parser";
+import { unwrapTSExpression } from "../server/lang-detect.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
+
+function moduleFactoryAliases(program: Program): Array<{ name: string; target: string }> {
+  const aliases: Array<{ name: string; target: string }> = [];
+  for (const statement of program.body) {
+    const declaration = (statement.type === "ExportNamedDeclaration"
+      ? statement.declaration
+      : statement) as unknown as AstNode | null;
+    if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") {
+      continue;
+    }
+    for (const declarator of declaration.declarations as AstNode[]) {
+      const identifier = declarator.id as AstNode;
+      const initializer = declarator.init
+        ? unwrapTSExpression(declarator.init as AstNode)
+        : undefined;
+      if (
+        identifier.type === "Identifier" &&
+        typeof identifier.name === "string" &&
+        initializer?.type === "Identifier" &&
+        typeof initializer.name === "string"
+      ) {
+        aliases.push({ name: identifier.name, target: initializer.name });
+      }
+    }
+  }
+  return aliases;
+}
+
+/** Resolve module-local immutable aliases without confusing nested shadowed bindings. */
+export function addFactoryAliases(program: Program, bindings: Set<string>): void {
+  const aliases = moduleFactoryAliases(program);
+  for (;;) {
+    const { size } = bindings;
+    for (const alias of aliases) {
+      if (bindings.has(alias.target)) {
+        bindings.add(alias.name);
+      }
+    }
+    if (bindings.size === size) {
+      return;
+    }
+  }
+}
 
 function bindingPatternHasName(pattern: unknown, name: string): boolean {
   if (!(pattern && typeof pattern === "object")) {
@@ -105,7 +150,7 @@ function functionScopeHasName(scope: AstNode, name: string): boolean {
 
 function blockScopeHasName(scope: AstNode, name: string): boolean {
   return (
-    scope.type === "BlockStatement" &&
+    (scope.type === "BlockStatement" || scope.type === "StaticBlock") &&
     Array.isArray(scope.body) &&
     scope.body.some((statement) =>
       statement && typeof statement === "object"
@@ -150,6 +195,7 @@ export function hasShadowingDeclaration(name: string, ancestors: AstNode[]): boo
   return ancestors.some(
     (scope) =>
       functionScopeHasName(scope, name) ||
+      (scope.type === "ClassExpression" && bindingPatternHasName(scope.id, name)) ||
       (scope.type === "CatchClause" && bindingPatternHasName(scope.param, name)) ||
       blockScopeHasName(scope, name) ||
       loopScopeHasName(scope, name) ||

@@ -27,9 +27,11 @@ describe("assertNoPrefixSlugCollisions", () => {
     expect(() => assertNoPrefixSlugCollisions(["/admin", "/admin"])).not.toThrow();
   });
 
-  test("rejects distinct prefixes whose slugs collide (/a-b vs /a/b)", () => {
-    expect(() => assertNoPrefixSlugCollisions(["/a-b", "/a/b"])).toThrow(
-      '"/a-b" and "/a/b" both map to the client directory "client-a-b"'
-    );
+  test("encodes separators so distinct prefixes cannot overwrite artifacts", () => {
+    const prefixes = ["/a-b", "/a/b", "/a__b", "/a%2Db", "/.", "/.."];
+    expect(new Set(prefixes.map(prefixSlug)).size).toBe(prefixes.length);
+    expect(() => assertNoPrefixSlugCollisions(prefixes)).not.toThrow();
+    expect(prefixSlug("/.")).not.toBe(".");
+    expect(prefixSlug("/..")).not.toBe("..");
   });
 });

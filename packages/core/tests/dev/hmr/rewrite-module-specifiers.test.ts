@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rewriteModuleSpecifiers } from "../../../src/server/dev/rewrite-module-specifiers.ts";
 
-const MJS_IMPORT_RE = /import value from ".*\/helper\.mjs";/;
+const MJS_IMPORT_RE = /import value from ".*\/helper\.mjs\?furin-server&t=\d+";/;
 
 function withTempDirectory(run: (directory: string) => void): void {
   const directory = mkdtempSync(join(tmpdir(), "furin-rewrite-"));
@@ -26,7 +26,7 @@ test("rewrites specifiers after non-ASCII source without corrupting the module",
   });
 });
 
-test("does not stamp module extensions unsupported by the dev page loader", () => {
+test("versions module extensions supported by the dev page loader", () => {
   withTempDirectory((directory) => {
     const filePath = join(directory, "route.tsx");
     const helperPath = join(directory, "helper.mjs");
@@ -39,6 +39,6 @@ test("does not stamp module extensions unsupported by the dev page loader", () =
     });
 
     expect(rewritten).toMatch(MJS_IMPORT_RE);
-    expect(rewritten).not.toContain("furin-server");
+    expect(rewritten).toContain("furin-server");
   });
 });

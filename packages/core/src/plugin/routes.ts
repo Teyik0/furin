@@ -11,7 +11,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { pathToFileURL } from "node:url";
 import { type AnyElysia, Elysia } from "elysia";
 import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import {
   filePathToPattern,
   isRouteGroup,
@@ -335,12 +335,12 @@ function changedSignaturePaths(previous: string, next: string): string[] {
   );
 }
 
-function devRouteTopologyWatchers(): Map<string, DevRouteTopologyWatcherState> {
+function devRouteTopologyWatchers(): Map<RouteInstanceSpec, DevRouteTopologyWatcherState> {
   const existing = Reflect.get(globalThis, DEV_ROUTE_WATCHERS_SYMBOL);
   if (existing instanceof Map) {
-    return existing as Map<string, DevRouteTopologyWatcherState>;
+    return existing as Map<RouteInstanceSpec, DevRouteTopologyWatcherState>;
   }
-  const watchers = new Map<string, DevRouteTopologyWatcherState>();
+  const watchers = new Map<RouteInstanceSpec, DevRouteTopologyWatcherState>();
   Reflect.set(globalThis, DEV_ROUTE_WATCHERS_SYMBOL, watchers);
   return watchers;
 }
@@ -417,7 +417,7 @@ function reportChangedSourceError(
     return;
   }
   const sourcePath = resolve(directory, String(filename));
-  if (!(ROUTE_EXTENSION.test(sourcePath) && existsSync(sourcePath))) {
+  if (!(SCRIPT_FILE_FILTER.test(sourcePath) && existsSync(sourcePath))) {
     return;
   }
   try {
@@ -497,7 +497,7 @@ function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void
 export function registerDevRouteTopologyWatcher(
   options: DevRouteTopologyWatcherOptions
 ): DevRouteTopologyWatcher {
-  const watcherKey = instanceKey(options.instance);
+  const watcherKey = options.instance;
   const watchers = devRouteTopologyWatchers();
   const existing = watchers.get(watcherKey);
   if (existing) {
@@ -765,7 +765,7 @@ function isFurinPackageImport(specifier: string): boolean {
 }
 
 function resolveRouteModuleImports(dependencyPath: string, packageRoot: string): string[] {
-  if (!ROUTE_EXTENSION.test(extname(dependencyPath))) {
+  if (!SCRIPT_FILE_FILTER.test(dependencyPath)) {
     return [];
   }
   const source = readFileSync(dependencyPath, "utf8");

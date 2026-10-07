@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeRouteTypes } from "../../src/build/route-types.ts";
 import type { ResolvedRoute } from "../../src/server/router/types.ts";
+import { routeMapDeclaration } from "../../src/shared/route-map.ts";
 
 function route(pattern: string, path: string, tags?: string[]): ResolvedRoute {
   return {
@@ -31,6 +32,50 @@ describe("writeRouteTypes", () => {
 
   afterAll(() => {
     rmSync(temporaryDirectory, { force: true, recursive: true });
+  });
+
+  test("dynamic and catch-all sibling routes retain both types in a valid TypeScript contract", () => {
+    const directory = join(temporaryDirectory, "overlap");
+    mkdirSync(directory);
+    writeFileSync(join(directory, "one.ts"), 'export const route = { kind: "dynamic" } as const;');
+    writeFileSync(join(directory, "two.ts"), 'export const route = { kind: "catchall" } as const;');
+    writeFileSync(
+      join(directory, "routes.d.ts"),
+      routeMapDeclaration([
+        { pattern: "/blog/:id", importSpecifier: "./one" },
+        { pattern: "/blog/*", importSpecifier: "./two" },
+      ])
+    );
+    writeFileSync(
+      join(directory, "consumer.ts"),
+      `
+      import type { RouteMap } from "@teyik0/furin/routes";
+      const dynamic: RouteMap["/blog/example"]["kind"] = "dynamic";
+      const catchall: RouteMap["/blog/example"]["kind"] = "catchall";
+    `
+    );
+    const config = join(directory, "tsconfig.json");
+    writeFileSync(
+      config,
+      JSON.stringify({
+        compilerOptions: {
+          noEmit: true,
+          strict: true,
+          skipLibCheck: false,
+          types: [],
+          target: "ESNext",
+        },
+        files: ["routes.d.ts", "consumer.ts"],
+      })
+    );
+    const result = Bun.spawnSync([
+      process.execPath,
+      join(import.meta.dir, "../../node_modules/typescript/lib/tsc.js"),
+      "--project",
+      config,
+    ]);
+    expect(result.stdout.toString() + result.stderr.toString()).toBe("");
+    expect(result.exitCode).toBe(0);
   });
 
   test("emits only the Elysia-derived RouteMap contract", () => {

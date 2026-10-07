@@ -11,7 +11,7 @@ import {
 } from "../../client/router/search-store.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { HeadOptions } from "../../client.ts";
-import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
+import { isJsonObject, serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { isProductionBuild } from "../../shared/production-build.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
@@ -150,6 +150,32 @@ function serializedErrorPayload(
   return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
 }
 
+function renderPayload(
+  prepared: PreparedRender,
+  shellError: { digest: string; message: string } | undefined
+): { [key: string]: unknown } {
+  const payload: { [key: string]: unknown } = shellError ? {} : { ...prepared.syncData };
+  const status = shellError ? 500 : prepared.status;
+  const error = serializedErrorPayload(
+    shellError?.digest ?? prepared.errorDigest,
+    shellError?.message ?? prepared.errorMessage,
+    status
+  );
+  if (error) {
+    payload.__furinError = error;
+  }
+  if (status === 404 && !shellError) {
+    payload.__furinStatus = 404;
+    if (prepared.notFoundError) {
+      payload.__furinNotFound = prepared.notFoundError;
+    }
+  }
+  if (shellError) {
+    payload.__furinStatus = 500;
+  }
+  return payload;
+}
+
 function hasDocumentMarkers(html: string): boolean {
   return html.includes('data-furin-head=""') && html.includes('data-furin-scripts=""');
 }
@@ -160,11 +186,21 @@ async function requireDocumentStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   const buffered: Uint8Array[] = [];
+  const cancelReader = async (reason: unknown): Promise<void> => {
+    try {
+      await reader.cancel(reason);
+    } finally {
+      reader.releaseLock();
+    }
+  };
   let prefix = "";
   let done = false;
   while (!(done || hasDocumentMarkers(prefix))) {
     // biome-ignore lint/performance/noAwaitInLoops: stream chunks must be inspected in order.
-    const { done: streamDone, value } = await reader.read();
+    const { done: streamDone, value } = await reader.read().catch((error: unknown) => {
+      reader.releaseLock();
+      throw error;
+    });
     done = streamDone;
     if (value !== undefined) {
       buffered.push(value);
@@ -172,7 +208,7 @@ async function requireDocumentStream(
     }
   }
   if (!(prefix.startsWith("<!DOCTYPE html><html") && hasDocumentMarkers(prefix))) {
-    await reader.cancel();
+    await cancelReader(undefined);
     throw new Error(
       "[furin] The root layout must render an <html> document containing <HeadContent /> and <Scripts />."
     );
@@ -180,11 +216,15 @@ async function requireDocumentStream(
 
   const validated = new ReadableStream<Uint8Array>({
     async cancel(reason) {
-      await reader.cancel(reason);
+      await cancelReader(reason);
     },
     async pull(controller) {
-      const next = await reader.read();
+      const next = await reader.read().catch((error: unknown) => {
+        reader.releaseLock();
+        throw error;
+      });
       if (next.done) {
+        reader.releaseLock();
         controller.close();
       } else {
         controller.enqueue(next.value);
@@ -195,6 +235,7 @@ async function requireDocumentStream(
         controller.enqueue(chunk);
       }
       if (done) {
+        reader.releaseLock();
         controller.close();
       }
     },
@@ -218,13 +259,17 @@ export async function renderElementWithShellFallback(
   errorComponent: Parameters<typeof buildErrorElement>[0],
   ssrContext: RouterContextValue,
   wrapFallbackDocument: (element: ReactNode, digest: string, message: string) => ReactNode,
-  nonce?: string
+  nonce?: string,
+  signal?: AbortSignal
 ): Promise<ShellFallbackResult> {
-  const options = nonce === undefined ? undefined : { nonce };
+  const options = { nonce, signal };
   try {
     const stream = await renderToReadableStream(element, options);
     return { shellError: undefined, stream: await requireDocumentStream(stream) };
   } catch (error) {
+    if (signal?.aborted) {
+      throw error;
+    }
     if (IS_DEV) {
       throw error;
     }
@@ -485,8 +530,9 @@ async function renderBufferedResult(
   root: RootLayout
 ): Promise<RenderResult> {
   const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
+  const payload = renderPayload(prepared, undefined);
   const { shellError, stream } = await renderElementWithShellFallback(
-    withDocumentState(element, assets, headData, syncData),
+    withDocumentState(element, assets, headData, payload),
     route.error ?? root.error,
     prepared.ssrContext,
     (fallback, digest, message) =>
@@ -518,7 +564,7 @@ async function renderBufferedResult(
   return {
     headers,
     html,
-    ndjson: await serializeLoaderDataNdjson(syncData, deferredPromises),
+    ndjson: await serializeLoaderDataNdjson(payload, deferredPromises),
     queryTags: queryTagsFromData(syncData),
     status: prepared.status,
   };
@@ -666,59 +712,18 @@ function scriptsMarkerEnd(html: string): number | undefined {
   return closeIndex === -1 ? undefined : closeIndex + "</script>".length;
 }
 
-function orderDocumentTail(documentTail: string, beforeBodyClose: string): string {
-  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
-  if (htmlCloseEnd === -1) {
-    return beforeBodyClose + documentTail;
-  }
-  const closingEnd = htmlCloseEnd + "</html>".length;
-  const closingDocument = documentTail.slice(0, closingEnd);
-  const postDocumentChunks = documentTail.slice(closingEnd);
-  return postDocumentChunks + beforeBodyClose + closingDocument;
-}
-
-function documentBodyCloseIndex(
-  html: string,
-  scriptsEndIndex: number | undefined,
-  entryHandled: boolean
-): number {
-  if (!(entryHandled || scriptsEndIndex !== undefined)) {
-    return -1;
-  }
-  const candidate = html.toLowerCase().lastIndexOf("</body>");
-  return scriptsEndIndex === undefined || candidate > scriptsEndIndex ? candidate : -1;
-}
-
-async function flushDocumentPrefix(
-  pending: string,
-  writer: WritableStreamDefaultWriter<Uint8Array>,
-  encoder: TextEncoder,
-  enabled: boolean
-): Promise<string> {
-  if (!enabled || pending.length <= "</body>".length) {
-    return pending;
-  }
-  let flushEnd = pending.length - "</body>".length;
-  const preceding = pending.charCodeAt(flushEnd - 1);
-  if (preceding >= 0xd8_00 && preceding <= 0xdb_ff) {
-    flushEnd -= 1;
-  }
-  await writer.write(encoder.encode(pending.slice(0, flushEnd)));
-  return pending.slice(flushEnd);
-}
-
 async function pipeDocumentStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   writer: WritableStreamDefaultWriter<Uint8Array>,
   enc: TextEncoder,
   beforeEntry: string,
   hasEntryModule: boolean,
-  beforeBodyClose: () => Promise<string>
+  beforeBodyClose: () => Promise<void>
 ): Promise<void> {
   const decoder = new TextDecoder();
   let pending = "";
   let documentTail: string | undefined;
-  let entryHandled = false;
+  let deferredWrites: Promise<void> | undefined;
   for (;;) {
     // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
     const { done, value } = await reader.read();
@@ -733,43 +738,42 @@ async function pipeDocumentStream(
 
     pending += chunk;
     const scriptsEndIndex = scriptsMarkerEnd(pending);
-    const bodyCloseIndex = documentBodyCloseIndex(pending, scriptsEndIndex, entryHandled);
-    if (bodyCloseIndex !== -1) {
-      const beforeBody = pending.slice(0, bodyCloseIndex);
-      const shell = entryHandled
-        ? beforeBody
-        : (injectAfterEntry(beforeBody, beforeEntry, beforeBody.length, hasEntryModule) ??
-          beforeBody + beforeEntry);
-      await writer.write(enc.encode(shell));
-      documentTail = pending.slice(bodyCloseIndex);
-      pending = "";
-      continue;
-    }
-
     if (scriptsEndIndex !== undefined) {
-      const shell = injectAfterEntry(pending, beforeEntry, scriptsEndIndex, hasEntryModule);
+      const entryMarker = pending.indexOf('data-furin-entry=""');
+      const entryEnd = entryMarker === -1 ? -1 : pending.indexOf("</script>", entryMarker);
+      const shellEnd = entryEnd === -1 ? scriptsEndIndex : entryEnd + "</script>".length;
+      const shell = injectAfterEntry(
+        pending.slice(0, shellEnd),
+        beforeEntry,
+        shellEnd,
+        hasEntryModule
+      );
       if (shell === undefined) {
         continue;
       }
       await writer.write(enc.encode(shell));
-      entryHandled = true;
+      documentTail = pending.slice(shellEnd);
       pending = "";
-      continue;
+      deferredWrites = beforeBodyClose();
+      deferredWrites.catch(() => undefined);
     }
-    pending = await flushDocumentPrefix(pending, writer, enc, entryHandled);
   }
   const finalChunk = decoder.decode();
   if (documentTail === undefined) {
-    await writer.write(
-      enc.encode(
-        pending + finalChunk + (entryHandled ? "" : beforeEntry) + (await beforeBodyClose())
-      )
-    );
+    await writer.write(enc.encode(pending + finalChunk + beforeEntry));
+    await beforeBodyClose();
     return;
   }
 
   documentTail += finalChunk;
-  await writer.write(enc.encode(orderDocumentTail(documentTail, await beforeBodyClose())));
+  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
+  const closingEnd = htmlCloseEnd === -1 ? documentTail.length : htmlCloseEnd + "</html>".length;
+  const postDocumentChunks = documentTail.slice(closingEnd);
+  if (postDocumentChunks) {
+    await writer.write(enc.encode(postDocumentChunks));
+  }
+  await deferredWrites;
+  await writer.write(enc.encode(documentTail.slice(0, closingEnd)));
 }
 
 export function buildSsrTransportScripts(
@@ -779,7 +783,7 @@ export function buildSsrTransportScripts(
   shellErrored: boolean,
   nonce?: string
 ): SsrTransportScripts {
-  const usesRouteFrames = !shellErrored && (containsRscSource(dataPayload) || hasDeferred);
+  const usesRouteFrames = !shellErrored && (!isJsonObject(dataPayload) || hasDeferred);
   const deferredSetupScript =
     hasDeferred && !usesRouteFrames ? buildDeferredScript(deferredKeys, nonce) : "";
   const dataScript = usesRouteFrames
@@ -828,16 +832,52 @@ export async function writeDeferredSsrChunks(
   enc: TextEncoder,
   deferredPromises: Record<string, Promise<unknown>>,
   usesRouteFrames: boolean,
-  nonce?: string
+  nonce?: string,
+  signal?: AbortSignal
 ): Promise<void> {
   await Promise.all(
     Object.entries(deferredPromises).map(([key, promise], index) =>
-      writeDeferredSsrChunk(writer, enc, key, promise, index, usesRouteFrames, nonce)
+      writeDeferredSsrChunk(
+        writer,
+        enc,
+        key,
+        waitForDeferred(promise, signal),
+        index,
+        usesRouteFrames,
+        nonce
+      )
     )
   );
   if (usesRouteFrames) {
     await writer.write(enc.encode(buildRouteFrameCloseScript(nonce)));
   }
+}
+
+function waitForDeferred(
+  promise: Promise<unknown>,
+  signal: AbortSignal | undefined
+): Promise<unknown> {
+  if (signal === undefined) {
+    return promise;
+  }
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      }
+    );
+  });
 }
 
 /**
@@ -921,22 +961,17 @@ export async function renderSSR(
     },
   });
 
-  const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
+  const { assets, deferredPromises, element, headData, headers } = prepared;
 
-  const initialDataPayload: Record<string, unknown> = { ...syncData };
-  const initialError = serializedErrorPayload(
-    prepared.errorDigest,
-    prepared.errorMessage,
-    prepared.status
-  );
-  if (initialError) {
-    initialDataPayload.__furinError = initialError;
+  const initialDataPayload = renderPayload(prepared, undefined);
+  const requiresTransport = deferredPromises !== undefined || !isJsonObject(initialDataPayload);
+  const renderAbort = new AbortController();
+  const abortRequest = () => renderAbort.abort(ctx.request.signal.reason);
+  if (ctx.request.signal.aborted) {
+    abortRequest();
+  } else {
+    ctx.request.signal.addEventListener("abort", abortRequest, { once: true });
   }
-  if (prepared.status === 404 && prepared.notFoundError) {
-    initialDataPayload.__furinNotFound = prepared.notFoundError;
-    initialDataPayload.__furinStatus = 404;
-  }
-  const requiresTransport = deferredPromises !== undefined || containsRscSource(initialDataPayload);
 
   const { stream: reactStream, shellError } = await renderElementWithShellFallback(
     withDocumentState(
@@ -959,31 +994,23 @@ export async function renderSSR(
         },
         nonce
       ),
-    nonce
-  );
+    nonce,
+    renderAbort.signal
+  ).catch((error: unknown) => {
+    ctx.request.signal.removeEventListener("abort", abortRequest);
+    throw error;
+  });
   const shellErrored = shellError !== undefined;
   let { errorDigest: finalDigest, status } = prepared;
-  let finalMessage = prepared.errorMessage;
   if (shellError) {
     status = 500;
     finalDigest = shellError.digest;
-    finalMessage = shellError.message;
     getLogger().set({
       furin: { digest: finalDigest, phase: "shell", render: route.mode, route: route.pattern },
     });
   }
 
-  const dataPayload: Record<string, unknown> = shellErrored ? {} : { ...syncData };
-  const finalError = serializedErrorPayload(finalDigest, finalMessage, status);
-  if (finalError) {
-    dataPayload.__furinError = finalError;
-  }
-  if (status === 404 && !shellErrored) {
-    dataPayload.__furinStatus = 404;
-    if (prepared.notFoundError) {
-      dataPayload.__furinNotFound = prepared.notFoundError;
-    }
-  }
+  const dataPayload = renderPayload(prepared, shellError);
   if (
     !isProductionBuild() &&
     dataPayload.__furinError !== undefined &&
@@ -1008,32 +1035,50 @@ export async function renderSSR(
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const enc = new TextEncoder();
+  const reader = reactStream.getReader();
+  const abortOutput = () => {
+    writer.abort(renderAbort.signal.reason).catch(() => undefined);
+  };
+  renderAbort.signal.addEventListener("abort", abortOutput, { once: true });
+  if (renderAbort.signal.aborted) {
+    abortOutput();
+  }
+  writer.closed.catch((error: unknown) => {
+    renderAbort.abort(error);
+  });
 
   (async () => {
-    const reader = reactStream.getReader();
-    await pipeDocumentStream(
-      reader,
-      writer,
-      enc,
-      hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
-      assets.entryModule !== undefined,
-      async () => {
-        if (!hasDeferred) {
-          return "";
+    try {
+      await pipeDocumentStream(
+        reader,
+        writer,
+        enc,
+        hasDeferred || usesRouteFrames ? deferredSetupScript + runtimeScripts : "",
+        assets.entryModule !== undefined,
+        async () => {
+          if (!hasDeferred) {
+            return;
+          }
+          await writeDeferredSsrChunks(
+            writer,
+            enc,
+            deferredPromises,
+            usesRouteFrames,
+            nonce,
+            renderAbort.signal
+          );
         }
-        const { readable: chunkReadable, writable: chunkWritable } = new TransformStream<
-          Uint8Array,
-          Uint8Array
-        >();
-        const chunkWriter = chunkWritable.getWriter();
-        const chunkText = streamToString(chunkReadable);
-        await writeDeferredSsrChunks(chunkWriter, enc, deferredPromises, usesRouteFrames, nonce);
-        await chunkWriter.close();
-        return chunkText;
-      }
-    );
-    await writer.close();
-  })().catch((err) => writer.abort(err));
+      );
+      await writer.close();
+    } catch (error) {
+      renderAbort.abort(error);
+      await Promise.allSettled([reader.cancel(error), writer.abort(error)]);
+    } finally {
+      ctx.request.signal.removeEventListener("abort", abortRequest);
+      renderAbort.signal.removeEventListener("abort", abortOutput);
+      reader.releaseLock();
+    }
+  })().catch(() => undefined);
 
   const responseHeaders = new Headers(headers);
   responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");

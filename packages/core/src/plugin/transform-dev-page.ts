@@ -6,6 +6,7 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
+import { addFactoryAliases } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 
 interface SplitDevPage {
@@ -181,7 +182,9 @@ export function splitDevPage(
     return;
   }
   const { imports, localBindings, terminal } = inspectModule(statements);
-  const callback = inlinePage(terminal, defineRouteBindings(imports));
+  const factories = defineRouteBindings(imports);
+  addFactoryAliases(program, factories);
+  const callback = inlinePage(terminal, factories);
   if (!callback || hasLexicalCapture(callback, program)) {
     return;
   }

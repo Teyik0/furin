@@ -1,4 +1,5 @@
-import { type Context, type Elysia, ElysiaStatus, StatusMap, Validator } from "elysia";
+import { type Context, type Elysia, ElysiaStatus, Validator } from "elysia";
+import { serializeInvalidationPaths } from "../../shared/invalidation-header.ts";
 import {
   appendPendingInvalidationHeader,
   runInvalidationRules,
@@ -18,6 +19,8 @@ import {
   type SyncInvalidationSelector,
 } from "./queries.ts";
 import {
+  effectiveResponseHeaders,
+  effectiveResponseStatus,
   mergeStoredResponseHeaders,
   type StoreResponseResult,
   storeResponse,
@@ -47,19 +50,6 @@ interface Execution<Tx> {
   onCommit: (result: CommittedMutation) => void;
   resolvedInvalidate?: InvalidationInput;
   runtime: ResolvedSyncRuntime;
-}
-
-function responseStatus(context: Context, value: unknown): number {
-  if (value instanceof Response && value.status !== 200) {
-    return value.status;
-  }
-  if (value instanceof ElysiaStatus) {
-    return value.status;
-  }
-  if (typeof context.set.status === "string") {
-    return StatusMap[context.set.status];
-  }
-  return context.set.status ?? 200;
 }
 
 function withStatus(original: unknown, value: unknown): unknown {
@@ -113,7 +103,7 @@ function validateResult<Tx>(execution: Execution<Tx>, value: unknown): unknown {
       schema.response ? [schema.response] : []
     ),
   });
-  const validator = validators?.[responseStatus(context, value)];
+  const validator = validators?.get(effectiveResponseStatus(value, context.set));
   if (!validator) {
     return value;
   }
@@ -135,7 +125,7 @@ function validateResult<Tx>(execution: Execution<Tx>, value: unknown): unknown {
 
 function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown) {
   const { context } = execution;
-  const status = responseStatus(context, value);
+  const status = effectiveResponseStatus(value, context.set);
   if (status < 200 || status >= 400) {
     throw new RejectedMutation(original);
   }
@@ -153,7 +143,7 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
     .filter((entry): entry is Extract<SyncInvalidation, { kind: "path" }> => entry.kind === "path")
     .map((entry) => (entry.type === "layout" ? `${entry.path}:layout` : entry.path));
   if (paths.length > 0) {
-    context.set.headers["x-furin-revalidate"] = paths.join(",");
+    context.set.headers["x-furin-revalidate"] = serializeInvalidationPaths(paths);
   }
   const finish = (stored: StoreResponseResult) => {
     if (stored.kind === "unreplayable") {
@@ -161,12 +151,7 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
         "[furin] Atomic mutation responses must be bounded JSON, text or bodyless responses."
       );
     }
-    let { headers } = context.set;
-    if (value instanceof ElysiaStatus) {
-      headers = { ...headers, ...value.headers };
-    } else if (value instanceof Response) {
-      headers = { ...headers, ...Object.fromEntries(value.headers) };
-    }
+    const headers = effectiveResponseHeaders(value, context.set);
     return {
       invalidations,
       response: mergeStoredResponseHeaders({ ...stored.response, status }, headers),

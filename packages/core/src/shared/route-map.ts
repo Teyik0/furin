@@ -32,11 +32,15 @@ function compareRouteProperties(left: RouteMapEntry, right: RouteMapEntry): numb
 
 export function routeMapDeclaration(entries: RouteMapEntry[]): string {
   const sorted = entries.toSorted(compareRouteProperties);
-  const body = sorted
-    .map(
-      (entry) =>
-        `    ${routeTypeProperty(entry.pattern)}: typeof import(${JSON.stringify(entry.importSpecifier)}).route;`
-    )
+  const properties = new Map<string, Set<string>>();
+  for (const entry of sorted) {
+    const property = routeTypeProperty(entry.pattern);
+    const types = properties.get(property) ?? new Set<string>();
+    types.add(`typeof import(${JSON.stringify(entry.importSpecifier)}).route`);
+    properties.set(property, types);
+  }
+  const body = [...properties]
+    .map(([property, types]) => `    ${property}: ${[...types].join(" | ")};`)
     .join("\n");
   const patterns = sorted
     .map(

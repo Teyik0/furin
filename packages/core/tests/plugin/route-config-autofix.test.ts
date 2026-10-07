@@ -33,6 +33,56 @@ describe("layoutIdentifierFor", () => {
   });
 });
 
+test.each([
+  'import { t } from "./other";',
+  'import t from "./other";',
+  'import * as t from "./other";',
+  "const t = 1;",
+])("autofixed dynamic routes compile when t is already bound: %s", async (binding) => {
+  const pages = createPages({
+    "root.tsx":
+      'import { defineRootRoute } from "@teyik0/furin"; export const route = defineRootRoute().config({ mode: "ssg" }).layout(({ children }) => children);',
+    "other.ts":
+      'export const t = { marker: "original" }; export const marker = "original"; export default t;',
+    "[id].tsx": `import { defineRoute } from "@teyik0/furin";
+      ${binding}
+      export const route = defineRoute().page(() => <p>{typeof t === "number" ? t : t.marker}</p>);`,
+  });
+  try {
+    const file = join(pages.path, "[id].tsx");
+    const result = fixRouteConfigLayout(readFileSync(file, "utf8"), file, pages.path);
+    writeFileSync(file, result ?? readFileSync(file, "utf8"));
+    const build = await Bun.build({
+      entrypoints: [file],
+      external: ["@teyik0/furin"],
+      target: "bun",
+    });
+    expect(build.success).toBe(true);
+    const module = await import(file);
+    expect(module.route.schemas.params.properties.id.type).toBe("string");
+    expect(module.route.component({}).props.children).toBe(
+      binding.startsWith("const") ? 1 : "original"
+    );
+  } finally {
+    pages.cleanup();
+  }
+});
+
+test("autofix preserves an unrelated builder that shadows the route import", () => {
+  const source = `import { defineRoute } from "@teyik0/furin";
+    import { route as rootRoute } from "./root";
+    export const route = defineRoute().config({ layout: rootRoute, mode: "ssg" }).page(() => null);
+    export function helper(defineRoute) {
+      return defineRoute().config({ value: 1 }).loader(() => "local").page(() => null);
+    }`;
+  const pages = createPages({ "root.tsx": ROOT_LAYOUT, "index.tsx": source });
+  try {
+    expect(fixRouteConfigLayout(source, join(pages.path, "index.tsx"), pages.path)).toBeNull();
+  } finally {
+    pages.cleanup();
+  }
+});
+
 describe("expectedLayoutFor", () => {
   test("resolves the nearest _route walking up", () => {
     const pages = createPages({

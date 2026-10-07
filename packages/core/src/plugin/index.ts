@@ -1,12 +1,11 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
 const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
-const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
 // Minimal browser stub for elysia — `t` is only used for schema definitions
 // in params/query, which the client never validates at runtime.

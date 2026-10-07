@@ -1,3 +1,5 @@
+import { compareRouteSpecificity } from "./route-specificity.ts";
+
 export type SearchParamValue =
   | string
   | number
@@ -15,37 +17,6 @@ export interface SearchRouteMetadata {
   pattern: string;
   regex: RegExp;
   searchDefaults?: SearchParamsInput;
-}
-
-function routeSegmentSpecificity(segment: string): number {
-  if (segment === "*") {
-    return 1;
-  }
-  if (segment.startsWith(":")) {
-    return 2;
-  }
-  return 3;
-}
-
-function compareSearchRouteSpecificity(a: string, b: string): number {
-  const aSegments = a.split("/").filter((segment) => segment.length > 0);
-  const bSegments = b.split("/").filter((segment) => segment.length > 0);
-  const length = Math.max(aSegments.length, bSegments.length);
-  for (let i = 0; i < length; i += 1) {
-    const aSegment = aSegments[i];
-    const bSegment = bSegments[i];
-    if (aSegment === undefined) {
-      return -1;
-    }
-    if (bSegment === undefined) {
-      return 1;
-    }
-    const diff = routeSegmentSpecificity(aSegment) - routeSegmentSpecificity(bSegment);
-    if (diff !== 0) {
-      return diff;
-    }
-  }
-  return 0;
 }
 
 function isObject(value: unknown): value is { [key: string]: unknown } {
@@ -159,7 +130,7 @@ export function findSearchDefaults(
     if (!route.regex.test(pathname)) {
       continue;
     }
-    if (!match || compareSearchRouteSpecificity(route.pattern, match.pattern) > 0) {
+    if (!match || compareRouteSpecificity(route.pattern, match.pattern) > 0) {
       match = route;
     }
   }

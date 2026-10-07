@@ -61,7 +61,7 @@ async function executeAndReplay(app: SyncTestApp): Promise<Response> {
 test("furinSync replay preserves every configured header value", async () => {
   const response = await executeAndReplay(
     replayApp(
-      { "x-furin-tag": "stale" },
+      {},
       {
         "x-furin-tag": ["alpha", "beta"],
       }
@@ -69,6 +69,13 @@ test("furinSync replay preserves every configured header value", async () => {
   );
 
   expect(response.headers.get("x-furin-tag")).toBe("alpha, beta");
+});
+
+test("furinSync replay preserves returned Response headers over configured headers", async () => {
+  const response = await executeAndReplay(
+    replayApp({ "x-furin-tag": "returned" }, { "x-furin-tag": ["configured"] })
+  );
+  expect(response.headers.get("x-furin-tag")).toBe("returned");
 });
 
 test("furinSync replay discards configured cookies", async () => {

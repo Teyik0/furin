@@ -54,6 +54,7 @@ import {
   createSyncCatchUp,
   type SyncChangePagePayload,
 } from "./sync-catch-up.ts";
+import { trackDeferredTransport } from "./transport.ts";
 import type {
   CacheEntry,
   ClientSegmentBoundary,
@@ -243,6 +244,7 @@ export function RouterProvider({
   useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
   const snapshotVersions = useRef(new WeakMap<RouterState, number>());
   const prefetchCache = useRef(new Map<string, CacheEntry>());
+  const snapshotTransports = useRef(new WeakMap<RouterState, () => boolean>());
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
   /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
@@ -394,6 +396,11 @@ export function RouterProvider({
           return null;
         }
         const { syncData, deferredPromises } = parsed;
+        const reusable = trackDeferredTransport(deferredPromises, signal);
+        const ownedSnapshot = (snapshot: RouterState): RouterState => {
+          snapshotTransports.current.set(snapshot, reusable);
+          return snapshot;
+        };
 
         // Special fields injected by the server into syncData:
         //   __furinStatus   — 404 signal
@@ -465,13 +472,13 @@ export function RouterProvider({
 
         // Loader threw a non-redirect Response (or an Error).
         if (__furinError) {
-          return {
+          return ownedSnapshot({
             data,
             error: __furinError,
             head: __furinHead,
             match: loadedMatch,
             title,
-          };
+          });
         }
 
         // Non-2xx without sentinel and not 404 → opaque server error.
@@ -485,23 +492,23 @@ export function RouterProvider({
             __furinNotFound !== null && typeof __furinNotFound === "object"
               ? (__furinNotFound as { data?: unknown; message?: string })
               : {};
-          return {
+          return ownedSnapshot({
             data,
             head: __furinHead,
             match: loadedMatch,
             notFound,
             title,
-          };
+          });
         }
 
-        return {
+        return ownedSnapshot({
           data,
           head: __furinHead,
           match: loadedMatch,
           querySeeds: __furinQueries,
           hydrateQueries,
           title,
-        };
+        });
       } catch (err: unknown) {
         if (!isAbortError(err)) {
           log.error({
@@ -594,6 +601,7 @@ export function RouterProvider({
     if (
       useCached &&
       (isRedirectState(redirectState) ||
+        (redirectState && snapshotTransports.current.get(redirectState)?.() === false) ||
         (redirectState &&
           !optimisticRuntime.publishable(
             redirectLogical,
@@ -667,6 +675,7 @@ export function RouterProvider({
         const cachedRedirect =
           useCached &&
           (isRedirectState(newState) ||
+            (newState && snapshotTransports.current.get(newState)?.() === false) ||
             (newState &&
               !optimisticRuntime.publishable(
                 logicalHref,
@@ -937,6 +946,7 @@ export function RouterProvider({
           newState = await cached.promise;
           if (
             isRedirectState(newState) ||
+            (newState && snapshotTransports.current.get(newState)?.() === false) ||
             (newState &&
               !optimisticRuntime.publishable(
                 logicalHref,

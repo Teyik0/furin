@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { fromCrossJSON, toCrossJSON } from "seroval";
@@ -17,6 +17,12 @@ async function roundtrip(value: unknown): Promise<unknown> {
 }
 
 describe("serializeDeferredRejection — preserves rejection semantics over CrossJSON", () => {
+  let previousDevMode: boolean;
+  beforeEach(() => {
+    previousDevMode = IS_DEV;
+    __setDevMode(true);
+  });
+  afterEach(() => __setDevMode(previousDevMode));
   test("notFound(): brand preserved so isNotFoundError() is true on the client", async () => {
     let thrown: unknown;
     try {

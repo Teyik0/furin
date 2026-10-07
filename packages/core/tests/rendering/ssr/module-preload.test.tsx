@@ -6,6 +6,7 @@ import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { clientModule, preloadClientModule } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
+import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
 import { generateProdIndexHtml } from "../../../src/server/render/shell.ts";
 import { renderSSR } from "../../../src/server/render/ssr.ts";
@@ -82,6 +83,64 @@ afterEach(() => {
 });
 
 describe("module preloading", () => {
+  test("keeps assets already rooted at the physical mount of a root plugin", async () => {
+    const instance = createInstance("", "/pages");
+    instance.prefix = "/outer";
+    await withInstance(instance, async () => {
+      setProductionTemplateContent(
+        '<script data-furin-framework-module="" type="module" src="/outer/_furin/events/client.js"></script>' +
+          '<script type="module" src="/_client/entry.js"></script>'
+      );
+      setProductionPreloadManifest({
+        modules: { [SCENE_KEY]: ["/outer/_client/scene.js"] },
+        routes: { "/canvas": ["/_client/canvas.js"] },
+      });
+      const { root, route } = createCanvasRoute(true);
+      const { html } = await renderToHTML(route, createContext(), root);
+      expect(headPreloads(html).toSorted()).toEqual([
+        "/outer/_client/canvas.js",
+        "/outer/_client/scene.js",
+      ]);
+      expect(html).toContain('src="/outer/_client/entry.js"');
+      expect(html).toContain('src="/outer/_furin/events/client.js"');
+      expect(html).not.toContain("/outer/outer/");
+    });
+  });
+
+  test.each(["buffered", "streaming"])(
+    "rebases %s production assets and explicit client preloads under nested mounts",
+    async (mode) => {
+      const instance = createInstance("/admin", "/pages");
+      instance.prefix = "/outer/inner/admin";
+      await withInstance(instance, async () => {
+        setProductionTemplateContent(
+          '<link rel="stylesheet" href="/admin/_client/style.css"><link rel="icon" href="/admin/favicon.ico">' +
+            '<script data-furin-framework-module="" type="module" src="/admin/_furin/events/client.js"></script>' +
+            '<script type="module" src="/admin/_client/entry.js"></script>'
+        );
+        setProductionPreloadManifest({
+          modules: { [SCENE_KEY]: ["/admin/_client/scene.js", "/admin/_client/shared.js"] },
+          routes: { "/canvas": ["/admin/_client/canvas.js", "/admin/_client/shared.js"] },
+        });
+        const { root, route } = createCanvasRoute(true);
+        const html =
+          mode === "buffered"
+            ? (await renderToHTML(route, createContext(), root)).html
+            : await (await renderSSR(route, createContext(), root, undefined)).text();
+        expect(headPreloads(html).toSorted()).toEqual([
+          "/outer/inner/admin/_client/canvas.js",
+          "/outer/inner/admin/_client/scene.js",
+          "/outer/inner/admin/_client/shared.js",
+        ]);
+        expect(html).toContain('src="/outer/inner/admin/_client/entry.js"');
+        expect(html).toContain('src="/outer/inner/admin/_furin/events/client.js"');
+        expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
+        expect(html).toContain('href="/outer/inner/admin/favicon.ico"');
+        expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
+      });
+    }
+  );
+
   function installBuild(): void {
     setProductionTemplateContent(
       generateProdIndexHtml("/_client/entry.js", [], "build", undefined, false)

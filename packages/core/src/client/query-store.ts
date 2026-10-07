@@ -108,6 +108,10 @@ export function readUrl(reference: ReadReference, options: unknown): string {
 
 export class QueryStore {
   private readonly entries = new Map<string, QueryEntry>();
+  private requests: { client: QueryStore; options: string; url: string; key: string }[] = [];
+  private readonly optionObjects = new WeakMap<object, number>();
+  private nextRequest = 0;
+  private nextOptionObject = 0;
   private readonly listeners = new Set<() => void>();
   private revisionValue = 0;
   private readonly projections = new Set<QueryProjection>();
@@ -120,8 +124,69 @@ export class QueryStore {
   }
 
   private key(url: string): string {
-    const absolute = new URL(url, this.origin).href;
-    return queryUrl(absolute, undefined);
+    const absolute = new URL(url, this.origin);
+    return (
+      queryUrl(absolute.href, undefined) +
+      (absolute.hash.startsWith("#furin-query:") ? absolute.hash : "")
+    );
+  }
+
+  private optionValue(value: unknown): unknown {
+    if (value instanceof Headers) {
+      return [...value.entries()].sort(([left], [right]) => left.localeCompare(right));
+    }
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.optionValue(entry));
+    }
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+    ) {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([, entry]) => entry !== undefined)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, entry]) => [key, this.optionValue(entry)])
+      );
+    }
+    if ((value !== null && typeof value === "object") || typeof value === "function") {
+      let id = this.optionObjects.get(value);
+      if (id === undefined) {
+        this.nextOptionObject += 1;
+        id = this.nextOptionObject;
+        this.optionObjects.set(value, id);
+      }
+      return { object: id };
+    }
+    return value;
+  }
+
+  /** Options affect cache identity without exposing credentials in URLs or cache keys. */
+  readKey(reference: ReadReference, options: unknown): string {
+    const url = readUrl(reference, options);
+    const requestOptions = Object.fromEntries(
+      Object.entries(options ?? {}).filter(
+        ([option, value]) => option !== "query" && option !== "select" && value !== undefined
+      )
+    );
+    const signature = JSON.stringify(this.optionValue(requestOptions));
+    const existing = this.requests.find(
+      (request) =>
+        request.url === url && request.client === reference.client && request.options === signature
+    );
+    if (existing) {
+      return existing.key;
+    }
+    const useUrl =
+      signature === "{}" &&
+      !this.requests.some((request) => request.url === url && request.key === url);
+    if (!useUrl) {
+      this.nextRequest += 1;
+    }
+    const key = useUrl ? url : `${url}#furin-query:${this.nextRequest}`;
+    this.requests.push({ client: reference.client, options: signature, url, key });
+    return key;
   }
 
   private entry(url: string): QueryEntry {
@@ -178,7 +243,7 @@ export class QueryStore {
     const header = result.response?.headers.get("x-furin-query");
     const identity =
       result.identity ?? (header ? (JSON.parse(header) as QueryReadIdentity) : undefined);
-    if (identity) {
+    if (identity && !new URL(url, this.origin).hash.startsWith("#furin-query:")) {
       this.setSession(identity.session);
     }
     const entry = this.entry(url);
@@ -205,6 +270,7 @@ export class QueryStore {
       );
       if (oldest) {
         this.entries.delete(oldest[0]);
+        this.requests = this.requests.filter((request) => this.key(request.key) !== oldest[0]);
       }
     }
   }
@@ -370,11 +436,20 @@ export class QueryStore {
   }
 
   dehydrate(): QuerySeed[] {
-    return [...this.entries].flatMap(([url, entry]) =>
-      entry.identity && entry.base !== undefined
-        ? [{ url, data: entry.base, identity: entry.identity, local: entry.local }]
-        : []
-    );
+    const seeds = [...this.entries].flatMap(([key, entry]) => {
+      if (!entry.identity || entry.base === undefined) {
+        return [];
+      }
+      const url = new URL(key);
+      url.hash = "";
+      return [{ url: url.href, data: entry.base, identity: entry.identity, local: entry.local }];
+    });
+    // Request-local options stay on the server; ambiguous variants cannot seed a default read.
+    const counts = new Map<string, number>();
+    for (const seed of seeds) {
+      counts.set(seed.url, (counts.get(seed.url) ?? 0) + 1);
+    }
+    return seeds.filter((seed) => counts.get(seed.url) === 1);
   }
 
   private seedUrl(seed: QuerySeed, localOrigin: string | undefined): string {

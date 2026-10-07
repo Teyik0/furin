@@ -183,3 +183,89 @@ process.stdout.write("__RESULT__" + JSON.stringify({
     status: 500,
   });
 });
+
+test("request logging selects the owning instance's drain", async () => {
+  const result = await runFixture(`
+import { Elysia } from "elysia";
+import { createFurinEvlog, setFurinEvlogOptions } from "./src/server/evlog.ts";
+import { createInstance, runWithInstanceScope } from "./src/server/instance.ts";
+const a = createInstance("/a", "a");
+const b = createInstance("/b", "b");
+const events = { a: [], b: [] };
+const pending = [];
+const optionsA = { drain: ({ event }) => events.a.push(event), waitUntil: promise => pending.push(promise) };
+const optionsB = { drain: ({ event }) => events.b.push(event), waitUntil: promise => pending.push(promise) };
+setFurinEvlogOptions(a, optionsA);
+setFurinEvlogOptions(b, optionsB);
+const app = new Elysia().use(createFurinEvlog(optionsA)).get("/a", () => "a").get("/b", () => "b");
+await Promise.all([a, b].map(instance => runWithInstanceScope(instance, () => app.handle(new Request("http://localhost" + instance.prefix)))));
+await Promise.all(pending);
+process.stdout.write("__RESULT__" + JSON.stringify({ a: events.a.map(event => event.path), b: events.b.map(event => event.path) }));
+`);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const output = result.stdout;
+  expect(JSON.parse(output.slice(output.lastIndexOf("__RESULT__") + "__RESULT__".length))).toEqual({
+    a: ["/a"],
+    b: ["/b"],
+  });
+});
+
+test("synthetic rendering applies its instance's drain, redaction and enrichment", async () => {
+  const result = await runFixture(`
+import { setFurinEvlogOptions } from "./src/server/evlog.ts";
+import { createInstance, withInstance } from "./src/server/instance.ts";
+import { getLogger, runInSyntheticRenderScope } from "./src/server/context-logger.ts";
+const instance = createInstance("/admin", "admin");
+const events = [];
+setFurinEvlogOptions(instance, {
+  drain: ({ event }) => events.push(event),
+  redact: { paths: ["secret"] },
+  enrich: ({ event }) => { event.owner = "admin"; },
+});
+
+await withInstance(instance, () => runInSyntheticRenderScope(() => getLogger().set({ secret: "hidden", marker: "synthetic" }), { route: "/dashboard", render: "isr" }));
+process.stdout.write("__RESULT__" + JSON.stringify({ count: events.length, marker: events[0]?.marker, owner: events[0]?.owner, leaked: JSON.stringify(events).includes("hidden") }));
+`);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const output = result.stdout;
+  expect(JSON.parse(output.slice(output.lastIndexOf("__RESULT__") + "__RESULT__".length))).toEqual({
+    count: 1,
+    marker: "synthetic",
+    owner: "admin",
+    leaked: false,
+  });
+});
+
+test("composed Furin applications log to the owning mount once", async () => {
+  const result = await runFixture(`
+import { Elysia } from "elysia";
+import { join } from "node:path";
+import { furin } from "./src/furin.ts";
+import { createTmpApp } from "./tests/support/app-fixtures.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+const fixture = createTmpApp("cli-app");
+const cwd = process.cwd();
+const events = { a: [], b: [] };
+const pending = [];
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  const a = new Elysia().use(await furin({ prefix: "/a", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.a.push(event), waitUntil: promise => pending.push(promise) } }));
+  const b = new Elysia().use(await furin({ prefix: "/b", pagesDir: join(fixture.path, "src/pages"), logger: { drain: ({ event }) => events.b.push(event), waitUntil: promise => pending.push(promise) } }));
+  const app = new Elysia().use(a).use(b);
+  const responses = await Promise.all(["/a", "/b"].map(path => app.handle(new Request("http://localhost" + path))));
+  await Promise.all(pending);
+  process.stdout.write("__RESULT__" + JSON.stringify({ statuses: responses.map(response => response.status), a: events.a.map(event => event.path), b: events.b.map(event => event.path) }) + "__END__");
+} finally {
+  process.chdir(cwd);
+  fixture.cleanup();
+}
+`);
+  expect(result.exitCode, result.stderr).toBe(0);
+  const start = result.stdout.lastIndexOf("__RESULT__") + "__RESULT__".length;
+  expect(JSON.parse(result.stdout.slice(start, result.stdout.indexOf("__END__", start)))).toEqual({
+    statuses: [200, 200],
+    a: ["/a"],
+    b: ["/b"],
+  });
+});

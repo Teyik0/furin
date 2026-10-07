@@ -3,7 +3,7 @@ import MagicString from "magic-string";
 import { parseSource } from "../../shared/parser.ts";
 import type { AstNode } from "../../shared/utils/ast-walk.ts";
 import { walkAST } from "../../shared/utils/ast-walk.ts";
-import { detectLangFromPath } from "../lang-detect.ts";
+import { detectLangFromPath, SCRIPT_FILE_FILTER } from "../lang-detect.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
 
 interface RewriteModuleSpecifiersInput {
@@ -12,7 +12,6 @@ interface RewriteModuleSpecifiersInput {
   versioned: boolean;
 }
 
-const DEV_SOURCE_PATH_RE = /\.(?:jsx?|tsx?)$/;
 const MODULE_SPECIFIER_NODES = new Set([
   "ExportAllDeclaration",
   "ExportNamedDeclaration",
@@ -45,7 +44,7 @@ function relativeSpecifier(node: AstNode): AstNode | undefined {
 function resolvedSpecifier(specifier: string, directory: string, versioned: boolean): string {
   const path = versioned ? Bun.resolveSync(specifier, directory) : resolve(directory, specifier);
   const normalized = path.replaceAll("\\", "/");
-  return versioned && DEV_SOURCE_PATH_RE.test(normalized)
+  return versioned && SCRIPT_FILE_FILTER.test(normalized)
     ? `${normalized}?furin-server&t=${routeModuleSourceVersion(normalized)}`
     : normalized;
 }

@@ -129,4 +129,11 @@ describe("compile contexts keyed by (pagesDir, prefix)", () => {
     expect(getCompileContext()?.buildId).toBe("only");
     expect(getCompileContext("/elsewhere/src/pages", "/nope")?.buildId).toBe("only");
   });
+
+  test("does not guess between independent apps sharing a prefix after deployment", () => {
+    __setCompileContext(makeContext("/build/a/src/pages/root.tsx", "", "build-a"));
+    __setCompileContext(makeContext("/build/b/src/pages/root.tsx", "", "build-b"));
+    expect(getCompileContext("/deploy/cwd/src/pages", "")).toBeNull();
+    expect(getCompileContext("/build/b/src/pages", "")?.buildId).toBe("build-b");
+  });
 });

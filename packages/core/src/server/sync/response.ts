@@ -32,6 +32,28 @@ function statusCode(status: Context["set"]["status"]): number {
   return status === undefined ? 200 : StatusMap[status];
 }
 
+/** Match Elysia's effective status without interpreting application payload fields. */
+export function effectiveResponseStatus(value: unknown, set: Context["set"]): number {
+  if (value instanceof ElysiaStatus || (value instanceof Response && value.status !== 200)) {
+    return value.status;
+  }
+  const status = statusCode(set.status);
+  return value instanceof Error && status === 200 ? 500 : status;
+}
+
+export function effectiveResponseHeaders(
+  value: unknown,
+  set: Context["set"]
+): Context["set"]["headers"] {
+  if (value instanceof Response) {
+    return { ...set.headers, ...Object.fromEntries(value.headers) };
+  }
+  if (value instanceof ElysiaStatus) {
+    return { ...set.headers, ...value.headers };
+  }
+  return set.headers;
+}
+
 function unwrapStatusResponse(value: unknown): { status: number; value: unknown } | undefined {
   if (!(value instanceof ElysiaStatus)) {
     return;
@@ -168,7 +190,7 @@ export async function storeResponse(
         ([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())
       )
     );
-    return storedResponseResult(headers, body, clone.status);
+    return storedResponseResult(headers, body, effectiveResponseStatus(responseValue, set));
   }
 
   return storeResponseSync(responseValue, set);
@@ -189,21 +211,24 @@ export function storeResponseSync(
         )
       ),
       new Uint8Array(),
-      responseValue.status
+      effectiveResponseStatus(responseValue, set)
     );
   }
-  const headers = responseHeaders(set.headers);
+  const headers = responseHeaders(effectiveResponseHeaders(responseValue, set));
   const statusResponse = unwrapStatusResponse(responseValue);
-  const value = statusResponse?.value ?? responseValue;
+  const value = statusResponse ? statusResponse.value : responseValue;
   const responseStatus = statusResponse ? statusResponse.status : statusCode(set.status);
   let body: Uint8Array;
   if (value === undefined || value === null) {
     body = new Uint8Array();
-  } else if (typeof value === "string") {
-    headers.set("content-type", headers.get("content-type") ?? "text/plain;charset=utf-8");
-    body = new TextEncoder().encode(value);
+  } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const contentType = new Response(String(value)).headers.get("content-type");
+    if (!headers.has("content-type") && contentType !== null) {
+      headers.set("content-type", contentType);
+    }
+    body = new TextEncoder().encode(String(value));
   } else {
-    headers.set("content-type", headers.get("content-type") ?? "application/json");
+    headers.set("content-type", headers.get("content-type") ?? "application/json;charset=utf-8");
     body = new TextEncoder().encode(JSON.stringify(value));
   }
   return storedResponseResult(headers, body, responseStatus);

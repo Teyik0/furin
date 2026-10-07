@@ -1,12 +1,13 @@
 import "../../setup/global.ts";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { Elysia } from "elysia";
-import { act } from "react";
+import { act, Suspense } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
-import { createClient, useQuery } from "../../../src/client.ts";
+import { Await, createClient, useQuery } from "../../../src/client.ts";
+import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
@@ -76,6 +77,62 @@ function response(data: object): Response {
     headers: { "Content-Type": "application/x-ndjson" },
   });
 }
+
+test("returning to a page refetches its cancelled deferred transport", async () => {
+  let reads = 0;
+  function Home() {
+    router = useRouter();
+    return <main>Home</main>;
+  }
+  function Deferred({ slow }: { slow: Promise<string> }) {
+    router = useRouter();
+    return (
+      <Suspense fallback="Pending">
+        <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
+      </Suspense>
+    );
+  }
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    if (path === "/a") {
+      reads += 1;
+      if (reads === 1) {
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(serializeRouteFrames({}, ["slow"])));
+              },
+            }),
+            { headers: { "Content-Type": "application/x-ndjson" } }
+          )
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          serializeRouteFrames({}, ["slow"]) +
+            serializeRouteFrame({
+              type: "defer-resolve",
+              key: "slow",
+              value: toCrossJSON("Ready"),
+            }),
+          { headers: { "Content-Type": "application/x-ndjson" } }
+        )
+      );
+    }
+    return Promise.resolve(response({}));
+  }, originalFetch);
+  const container = await mount(
+    [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
+    {}
+  );
+  await act(() => router.navigate("/a"));
+  expect(container.textContent).toBe("Pending");
+  await act(() => router.navigate("/b"));
+  await act(() => router.navigate("/a"));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Ready");
+});
 
 test("a prefetched loader cannot overwrite a GET completed after that prefetch", async () => {
   const identity = { id: "counter", scope: {}, session: "test" };

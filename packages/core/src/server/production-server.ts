@@ -89,14 +89,14 @@ export function startProductionServer(options: ProductionServerOptions): {
         const deadline = new Promise<void>((resolve) => {
           timeout = setTimeout(() => {
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
-            server.stop(true).catch((error: unknown) => {
+            Promise.resolve(app.stop(true)).catch((error: unknown) => {
               console.error("[furin] Forced server stop failed", error);
             });
             resolve();
           }, timeoutMs);
         });
         const drain = async (): Promise<void> => {
-          closeBrowserEventConnections(server);
+          await closeBrowserEventConnections(server);
           server.closeIdleConnections();
           await server.stop();
           await waitForPendingISRRevalidations();
@@ -107,6 +107,7 @@ export function startProductionServer(options: ProductionServerOptions): {
           } else {
             await waitForSyncCursorUnsubscriptions();
           }
+          await app.stop();
           await options.onShutdown?.();
         };
         await Promise.race([drain(), deadline]);

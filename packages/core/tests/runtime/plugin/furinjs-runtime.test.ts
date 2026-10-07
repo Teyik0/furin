@@ -296,6 +296,71 @@ test.serial("furin() production hydrates embedded SSG cache", async () => {
   expect(getSSGCache("/")?.html).toBe("<html>prebuilt</html>");
 });
 
+test.serial(
+  "prebuilt SSG documents preserve physical URLs under nested parent mounts",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    __setDevMode(false);
+    const rootPath = join(app.path, "src/pages/root.tsx");
+    writeFileSync(
+      rootPath,
+      (await Bun.file(rootPath).text()).replace('mode: "ssr"', 'mode: "ssg"')
+    );
+    const indexPath = join(app.path, "src/pages/index.tsx");
+    writeFileSync(
+      indexPath,
+      `${(await Bun.file(indexPath).text()).replace(
+        ".page(",
+        '.loader(() => { runtimeLoaderReads += 1; throw new Error("Runtime loader forbidden"); }).page('
+      )}\nexport let runtimeLoaderReads = 0;\n`
+    );
+    const clientDir = join(app.path, "client");
+    mkdirSync(clientDir, { recursive: true });
+    writeFileSync(
+      join(clientDir, "index.html"),
+      generateProdIndexHtml(
+        "/admin/_client/entry.js",
+        ["/admin/_client/style.css"],
+        "build",
+        undefined,
+        false
+      )
+    );
+    __setCompileContext({
+      ...(await createCompileContext(app.path)),
+      prefix: "/admin",
+      ssgCache: {
+        "/": {
+          cachedAt: 123,
+          status: 200,
+          ndjson: "{}\n",
+          html: '<html><head><meta name="furin-base-path" content="/admin"><link rel="stylesheet" href="/admin/_client/style.css"></head><body>prebuilt<script id="__FURIN_DATA__" type="application/json">{"snapshot":"/admin/_client/private-value.js"}</script><script id="__FURIN_HEAD__" type="application/json">{"meta":[{"name":"furin-base-path","content":"/admin"},{"title":"Snapshot title"}]}</script><script id="__FURIN_SYNC__" type="application/json">{"path":"/sync"}</script><script>window.authorValue="/admin/_client/private-value.js";</script><script src="/admin/author.js"></script><script type="module" src="/admin/_client/entry.js"></script></body></html>',
+        },
+      },
+    });
+    const plugin = await furin({
+      prefix: "/admin",
+      pagesDir: join(app.path, "src/pages"),
+      clientDir,
+    });
+    const composed = new Elysia({ prefix: "/outer" }).use(
+      new Elysia({ prefix: "/inner" }).use(plugin)
+    );
+    const response = await composed.handle(new Request("http://localhost/outer/inner/admin/"));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
+    expect(html).toContain('src="/outer/inner/admin/_client/entry.js"');
+    expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
+    expect(html).toContain('{"snapshot":"/admin/_client/private-value.js"}');
+    expect(html).toContain('window.authorValue="/admin/_client/private-value.js";');
+    expect(html).toContain('src="/admin/author.js"');
+    expect(html).toContain('{"path":"/sync"}');
+    expect(html).toContain('"name":"furin-base-path","content":"/outer/inner/admin"');
+    expect((await import(indexPath)).runtimeLoaderReads).toBe(0);
+  }
+);
+
 test.serial("furin() production preloads route chunks from the compiled manifest", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(false);

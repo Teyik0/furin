@@ -9,19 +9,25 @@ import {
 } from "../rsc/shared.tsx";
 import { mergeQuerySeeds, type QuerySeed } from "./sync-query.ts";
 
-const FRAME_VERSION = 3;
+const FRAME_VERSION = 4;
 const MAX_FRAME_BYTES = 1024 * 1024;
 export const MAX_ROUTE_FRAME_STREAM_BYTES = 8 * 1024 * 1024;
 const RSC_DESCRIPTOR = "__furinRsc";
 
 interface RouteFrameEnvelope {
-  __furinRouteFrame: typeof FRAME_VERSION;
+  __furinRouteFrame: typeof FRAME_VERSION | 3;
   frame: RouteFrame;
 }
 
 export type RouteFrame =
-  | { type: "data"; deferredKeys: readonly string[]; value: SerovalNode }
-  | { type: "defer-resolve"; key: string; value: SerovalNode; queries?: SerovalNode }
+  | { type: "data"; deferredKeys: readonly string[]; value: SerovalNode; references?: true }
+  | {
+      type: "defer-resolve";
+      key: string;
+      value: SerovalNode;
+      queries?: SerovalNode;
+      references?: true;
+    }
   | { type: "defer-reject"; key: string; value: SerovalNode }
   | { type: "rsc-start"; id: string; kind: RscSourceKind }
   | { type: "rsc-chunk"; id: string; value: string }
@@ -30,6 +36,7 @@ export type RouteFrame =
 
 interface CollectedRscSource {
   bytes: Uint8Array;
+  descriptor: RscDescriptor;
   id: string;
   kind: RscSourceKind;
 }
@@ -55,8 +62,9 @@ function extractRscSources(
       return value;
     }
     const id = `${idPrefix}-${sources.length}`;
-    sources.push({ bytes: state.bytes, id, kind: state.kind });
-    return { [RSC_DESCRIPTOR]: id } satisfies RscDescriptor;
+    const descriptor = { [RSC_DESCRIPTOR]: id } satisfies RscDescriptor;
+    sources.push({ bytes: state.bytes, descriptor, id, kind: state.kind });
+    return descriptor;
   }
   if (value === null || typeof value !== "object") {
     return value;
@@ -146,6 +154,7 @@ export function serializeRouteFrameValue(
 ): {
   rscFrames: string;
   value: SerovalNode;
+  references?: true;
 } {
   const sources: CollectedRscSource[] = [];
   const serializable = extractRscSources(value, sources, new WeakMap(), idPrefix);
@@ -159,7 +168,16 @@ export function serializeRouteFrameValue(
     ])
     .join("");
 
-  return { rscFrames, value: toCrossJSON(serializable) };
+  return sources.length > 0
+    ? {
+        rscFrames,
+        references: true,
+        value: toCrossJSON({
+          value: serializable,
+          references: sources.map((source) => source.descriptor),
+        }),
+      }
+    : { rscFrames, value: toCrossJSON(serializable) };
 }
 
 export function containsRscSource(value: unknown): boolean {
@@ -197,6 +215,13 @@ export function serializeRouteFrames(
       deferredKeys: deferredKeys ?? [],
       type: "data",
       value: toCrossJSON(serializable),
+      ...(sources.length > 0 && {
+        references: true,
+        value: toCrossJSON({
+          value: serializable,
+          references: sources.map((source) => source.descriptor),
+        }),
+      }),
     }),
   ];
   for (const source of sources) {
@@ -218,7 +243,7 @@ export function serializeRouteFrames(
 export function isRouteFrameLine(line: string): boolean {
   try {
     const parsed = JSON.parse(line) as { __furinRouteFrame?: unknown };
-    return parsed.__furinRouteFrame === FRAME_VERSION;
+    return parsed.__furinRouteFrame === FRAME_VERSION || parsed.__furinRouteFrame === 3;
   } catch {
     return false;
   }
@@ -227,12 +252,13 @@ export function isRouteFrameLine(line: string): boolean {
 function hydrateRscDescriptors(
   value: unknown,
   sources: Map<string, unknown>,
-  seen = new WeakMap<object, unknown>()
+  references: Set<object> | undefined,
+  seen: WeakMap<object, unknown>
 ): unknown {
   if (value === null || typeof value !== "object") {
     return value;
   }
-  if (isPlainObject(value) && typeof (value as { __furinRsc?: unknown }).__furinRsc === "string") {
+  if (references === undefined ? isRscDescriptor(value) : references.has(value)) {
     const id = (value as RscDescriptor).__furinRsc;
     const source = sources.get(id);
     if (source === undefined) {
@@ -247,7 +273,7 @@ function hydrateRscDescriptors(
   if (Array.isArray(value)) {
     seen.set(value, value);
     for (let i = 0; i < value.length; i += 1) {
-      value[i] = hydrateRscDescriptors(value[i], sources, seen);
+      value[i] = hydrateRscDescriptors(value[i], sources, references, seen);
     }
     return value;
   }
@@ -256,7 +282,7 @@ function hydrateRscDescriptors(
   }
   seen.set(value, value);
   for (const [key, entry] of Object.entries(value)) {
-    Reflect.set(value, key, hydrateRscDescriptors(entry, sources, seen));
+    Reflect.set(value, key, hydrateRscDescriptors(entry, sources, references, seen));
   }
   return value;
 }
@@ -264,7 +290,8 @@ function hydrateRscDescriptors(
 function collectRscDescriptorIds(
   value: unknown,
   ids: Set<string>,
-  seen = new WeakSet<object>()
+  references: Set<object> | undefined,
+  seen: WeakSet<object>
 ): void {
   if (value === null || typeof value !== "object") {
     return;
@@ -273,13 +300,29 @@ function collectRscDescriptorIds(
     return;
   }
   seen.add(value);
-  if (isPlainObject(value) && typeof (value as { __furinRsc?: unknown }).__furinRsc === "string") {
+  if (references === undefined ? isRscDescriptor(value) : references.has(value)) {
     ids.add((value as RscDescriptor).__furinRsc);
     return;
   }
   for (const entry of Array.isArray(value) ? value : Object.values(value)) {
-    collectRscDescriptorIds(entry, ids, seen);
+    collectRscDescriptorIds(entry, ids, references, seen);
   }
+}
+
+function isRscDescriptor(value: object): boolean {
+  return isPlainObject(value) && typeof (value as { __furinRsc?: unknown }).__furinRsc === "string";
+}
+
+function decodeFrameValue(
+  frame: { value: SerovalNode; references?: true },
+  version: number
+): { value: unknown; references: Set<object> | undefined } {
+  const decoded = fromCrossJSON(frame.value, {});
+  if (frame.references) {
+    const packed = decoded as { value: unknown; references: object[] };
+    return { value: packed.value, references: new Set(packed.references) };
+  }
+  return { value: decoded, references: version === 3 ? undefined : new Set() };
 }
 
 export async function parseRouteFrameLines(
@@ -293,6 +336,7 @@ export async function parseRouteFrameLines(
 }> {
   let byteLength = 0;
   let dataValue: unknown;
+  let dataReferences: Set<object> | undefined;
   const pending = new Map<string, { chunks: Uint8Array[]; kind: RscSourceKind }>();
   const sources = new Map<string, unknown>();
   const deferredPromises: { [key: string]: Promise<unknown> } = {};
@@ -306,13 +350,20 @@ export async function parseRouteFrameLines(
     }
     resolvers.clear();
   };
-  const deferredRscValues = new Map<string, { ids: Set<string>; value: unknown }>();
+  const deferredRscValues = new Map<
+    string,
+    { ids: Set<string>; value: unknown; references: Set<object> | undefined }
+  >();
   const tryResolveDeferredRscValues = (): void => {
     for (const [key, deferred] of deferredRscValues) {
       if ([...deferred.ids].some((id) => !sources.has(id))) {
         continue;
       }
-      resolvers.get(key)?.resolve(hydrateRscDescriptors(deferred.value, sources));
+      resolvers
+        .get(key)
+        ?.resolve(
+          hydrateRscDescriptors(deferred.value, sources, deferred.references, new WeakMap())
+        );
       resolvers.delete(key);
       deferredRscValues.delete(key);
     }
@@ -326,12 +377,14 @@ export async function parseRouteFrameLines(
       );
     }
     const envelope = JSON.parse(line) as RouteFrameEnvelope;
-    if (envelope.__furinRouteFrame !== FRAME_VERSION) {
+    if (envelope.__furinRouteFrame !== FRAME_VERSION && envelope.__furinRouteFrame !== 3) {
       throw new Error("[furin] unsupported route frame version");
     }
     const { frame } = envelope;
     if (frame.type === "data") {
-      dataValue = fromCrossJSON(frame.value, {});
+      const decoded = decodeFrameValue(frame, envelope.__furinRouteFrame);
+      dataValue = decoded.value;
+      dataReferences = decoded.references;
       if (frame.deferredKeys.length > 0 && dataValue && typeof dataValue === "object") {
         const data = dataValue as { __furinQueries?: QuerySeed[] };
         data.__furinQueries ??= [];
@@ -375,13 +428,15 @@ export async function parseRouteFrameLines(
           fromCrossJSON(frame.queries, {}) as QuerySeed[]
         );
       }
-      const value = fromCrossJSON(frame.value, {});
+      const { value, references } = decodeFrameValue(frame, envelope.__furinRouteFrame);
       const ids = new Set<string>();
-      collectRscDescriptorIds(value, ids);
+      collectRscDescriptorIds(value, ids, references, new WeakSet());
       if ([...ids].some((id) => !sources.has(id))) {
-        deferredRscValues.set(frame.key, { ids, value });
+        deferredRscValues.set(frame.key, { ids, value, references });
       } else {
-        resolvers.get(frame.key)?.resolve(hydrateRscDescriptors(value, sources));
+        resolvers
+          .get(frame.key)
+          ?.resolve(hydrateRscDescriptors(value, sources, references, new WeakMap()));
         resolvers.delete(frame.key);
       }
     } else if (frame.type === "defer-reject") {
@@ -395,7 +450,7 @@ export async function parseRouteFrameLines(
     throw new Error("[furin] route frame stream has no data frame");
   }
   const expectedSources = new Set<string>();
-  collectRscDescriptorIds(dataValue, expectedSources);
+  collectRscDescriptorIds(dataValue, expectedSources, dataReferences, new WeakSet());
   while ([...expectedSources].some((id) => !sources.has(id))) {
     // react-doctor-disable-next-line react-doctor/async-await-in-loop
     const line = await readLine();
@@ -404,7 +459,7 @@ export async function parseRouteFrameLines(
     }
     processLine(line);
   }
-  const data = hydrateRscDescriptors(dataValue, sources);
+  const data = hydrateRscDescriptors(dataValue, sources, dataReferences, new WeakMap());
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("[furin] route data frame must decode to an object");
   }

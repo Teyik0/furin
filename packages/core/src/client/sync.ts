@@ -19,7 +19,6 @@ import {
   type ReadReference,
   type ReadResult,
   readReference,
-  readUrl,
 } from "./query-store.ts";
 import {
   findOptimisticRuntime,
@@ -102,7 +101,7 @@ function queryProjectionCache(
     ) {
       if (typeof destination === "function") {
         const reference = readReference(destination);
-        const url = readUrl(reference, queryOptions);
+        const url = queries.readKey(reference, queryOptions);
         queries.bind(url, () => reference.load(queryOptions), reference.client);
         queries.update(token, url, transform);
       } else {
@@ -429,7 +428,7 @@ function wrapClient(
           environment?.store ??
           findOptimisticRuntime(new URL(reference.url).origin)?.queries ??
           queries;
-        const url = readUrl(reference, args[0]);
+        const url = store.readKey(reference, args[0]);
         const epoch = store.generation();
         store.bind(url, () => reference.load(args[0]), reference.client);
         const version = store.version(url);

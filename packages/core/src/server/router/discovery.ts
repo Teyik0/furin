@@ -295,6 +295,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
 
   for (const absolutePath of await collectPageFilePaths(pagesDir)) {
     if (
+      absolutePath.endsWith(".d.ts") ||
       !(SOURCE_MODULE_EXTENSIONS as readonly string[]).some((ext) => absolutePath.endsWith(ext))
     ) {
       continue;
@@ -608,6 +609,9 @@ async function collectPageFilePaths(dir: string): Promise<string[]> {
   const resolved = await mapWithConcurrency(entries, DIR_SCAN_CONCURRENCY, async (entry) => {
     const absolutePath = toPosixPath(join(dir, entry.name));
     if (entry.isDirectory()) {
+      if (entry.name.startsWith("_")) {
+        return [];
+      }
       return await collectPageFilePaths(absolutePath);
     }
     if (entry.isFile()) {

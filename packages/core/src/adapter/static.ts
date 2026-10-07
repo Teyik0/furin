@@ -501,13 +501,13 @@ export async function buildStaticTarget(
   // ── 7. Copy public/ → outDir/ ─────────────────────────────────────────────
   const publicSrcDir = join(rootDir, "public");
   if (existsSync(publicSrcDir)) {
-    cpSync(publicSrcDir, outDir, { recursive: true });
+    cpSync(publicSrcDir, outDir, { recursive: true, dereference: true });
   }
 
   // ── 8. Copy _client/ chunks → outDir/_client/ ────────────────────────────
   const clientSrcDir = join(targetDir, "client");
   if (existsSync(clientSrcDir)) {
-    cpSync(clientSrcDir, join(outDir, "_client"), { recursive: true });
+    cpSync(clientSrcDir, join(outDir, "_client"), { recursive: true, dereference: true });
   }
 
   // ── 9. Pre-render SSG routes ──────────────────────────────────────────────

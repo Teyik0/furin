@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { WeakRegistry } from "./weak-registry.ts";
 
 // ── Furin instance model ─────────────────────────────────────────────────────
 // Each `furin({ pagesDir, prefix })` call registers one instance. All
@@ -6,18 +7,18 @@ import { AsyncLocalStorage } from "node:async_hooks";
 // hangs off the instance via `instanceSlot()` so several furin apps can be
 // mounted in one Elysia process without stomping each other.
 //
-// This module is a dependency LEAF: it only imports node:async_hooks. State
+// This module is a dependency leaf with no imports from state modules. State
 // modules (cache/ssg.ts, render/template.ts, …) import it to declare their
 // per-instance slots — never the other way around.
 
 export interface FurinInstance {
   buildId: string;
+  /** Prefix declared by the plugin, before composition with a parent. */
+  readonly declaredPrefix: string;
   /** Absolute pagesDir — also the compile-context key. */
   readonly pagesDir: string;
   /** Mount prefix, `""` for the root app or `/admin`-style (no trailing slash). */
-  readonly prefix: string;
-  /** @internal Traffic epoch at registration time (see registerInstance). */
-  registrationEpoch: number;
+  prefix: string;
   /** Generic per-instance state bag backing `instanceSlot()`. */
   readonly state: Map<symbol, unknown>;
   /** Logical durable sync path (unprefixed) injected into HTML, or undefined. */
@@ -26,6 +27,7 @@ export interface FurinInstance {
 
 interface RequestScope {
   instance: FurinInstance;
+  instances: ReadonlyMap<string, FurinInstance> | undefined;
   pending: Set<string>;
 }
 
@@ -33,8 +35,9 @@ const _requestScope = new AsyncLocalStorage<RequestScope>();
 
 const WHITESPACE_RE = /\s/;
 
-/** Registered instances, keyed by prefix. */
-const _instances = new Map<string, FurinInstance>();
+/** Live instances; owning applications retain their runtime buckets. */
+const _instances = new WeakRegistry<FurinInstance>();
+const _defaultRegistry = new Map<string, FurinInstance>();
 
 /**
  * Fallback bucket used when no instance was ever registered (unit tests
@@ -48,21 +51,10 @@ export function createInstance(prefix: string, pagesDir: string): FurinInstance 
     buildId: "",
     pagesDir,
     prefix,
-    registrationEpoch: 0,
+    declaredPrefix: prefix,
     state: new Map(),
     syncPath: undefined,
   };
-}
-
-// Bumped on every served request. Lets registerInstance tell a REAL prefix
-// collision (two apps composed in one startup, no traffic in between) from a
-// stale registration left behind by a previous test/server in this process
-// (traffic flowed since — the old mount is dead, replace it).
-let _trafficEpoch = 0;
-
-/** @internal Called by the request wrap for every served request. */
-export function markTraffic(): void {
-  _trafficEpoch += 1;
 }
 
 function defaultInstance(): FurinInstance {
@@ -103,17 +95,16 @@ export function normalizePrefix(prefix: string | undefined): string {
 }
 
 /**
- * Throws when mounting `pagesDir` under `prefix` would collide with a LIVE
- * registration. Rules:
- * - same pagesDir → idempotent re-mount (mirrors Elysia's name-based dedup);
- * - different pagesDir, NO traffic since the existing registration → two apps
- *   composed into one server are claiming the same prefix: hard error;
- * - different pagesDir, traffic flowed since → the existing registration is a
- *   leftover from a torn-down server (tests): replacement is allowed.
+ * Rejects conflicting mounts in the same application. Independent servers
+ * can use the same prefix without sharing runtime state.
  */
-export function assertPrefixAvailable(prefix: string, pagesDir: string): void {
-  const existing = _instances.get(prefix);
-  if (existing && existing.pagesDir !== pagesDir && existing.registrationEpoch === _trafficEpoch) {
+export function assertPrefixAvailable(
+  prefix: string,
+  pagesDir: string,
+  registry?: ReadonlyMap<string, FurinInstance>
+): void {
+  const existing = (registry ?? _defaultRegistry).get(prefix);
+  if (existing && existing.pagesDir !== pagesDir) {
     throw new Error(
       `[furin] prefix "${prefix || "/"}" is already mounted by pagesDir "${existing.pagesDir}" ` +
         `(attempted to mount "${pagesDir}"). Give each furin() instance a unique prefix.`
@@ -121,12 +112,34 @@ export function assertPrefixAvailable(prefix: string, pagesDir: string): void {
   }
 }
 
+/** Keep out-of-request cache operations working before the plugin is mounted. */
+export function trackInstance(instance: FurinInstance): void {
+  _instances.add(instance);
+}
+
 /** Registers an instance under its prefix (see assertPrefixAvailable). */
-export function registerInstance(instance: FurinInstance): FurinInstance {
-  assertPrefixAvailable(instance.prefix, instance.pagesDir);
-  instance.registrationEpoch = _trafficEpoch;
-  _instances.set(instance.prefix, instance);
-  return instance;
+export function registerInstance(
+  instance: FurinInstance,
+  registry?: Map<string, FurinInstance>
+): FurinInstance {
+  const target = registry ?? _defaultRegistry;
+  assertPrefixAvailable(instance.prefix, instance.pagesDir, target);
+  const mounted = target.get(instance.prefix) ?? instance;
+  target.set(instance.prefix, mounted);
+  _instances.add(mounted);
+  return mounted;
+}
+
+export function unregisterInstance(
+  instance: FurinInstance,
+  registry: Map<string, FurinInstance>
+): void {
+  for (const [prefix, mounted] of registry) {
+    if (mounted === instance) {
+      registry.delete(prefix);
+    }
+  }
+  _instances.delete(instance);
 }
 
 /**
@@ -135,9 +148,14 @@ export function registerInstance(instance: FurinInstance): FurinInstance {
  * the default bucket — never an arbitrary prefixed sibling, whose template/
  * cache/build state would otherwise leak into parent-app routes.
  */
-export function resolveInstanceByPath(pathname: string): FurinInstance {
+export function resolveInstanceByPath(
+  pathname: string,
+  registry?: ReadonlyMap<string, FurinInstance>
+): FurinInstance {
   let best: FurinInstance | null = null;
-  for (const [prefix, instance] of _instances) {
+  const instances = registry ?? _requestScope.getStore()?.instances;
+  for (const instance of instances?.values() ?? _instances.values()) {
+    const { prefix } = instance;
     if (prefix === "") {
       best ??= instance;
       continue;
@@ -168,21 +186,25 @@ export function currentInstance(): FurinInstance {
   if (scope) {
     return scope.instance;
   }
-  if (_instances.size === 1) {
-    const only = _instances.values().next().value;
-    if (only) {
-      return only;
-    }
+  const instances = [..._instances.values()];
+  const only = instances.length === 1 ? instances[0] : undefined;
+  if (only) {
+    return only;
   }
   return defaultInstance();
 }
 
 /** All registered instances (used by cross-instance ops like revalidateTag). */
 export function allInstances(): FurinInstance[] {
-  if (_instances.size === 0) {
+  const scoped = _requestScope.getStore()?.instances;
+  if (scoped) {
+    return [...scoped.values()];
+  }
+  const instances = [..._instances.values()];
+  if (instances.length === 0) {
     return [defaultInstance()];
   }
-  return [..._instances.values()];
+  return instances;
 }
 
 /**
@@ -206,6 +228,7 @@ export function allStateBuckets(): FurinInstance[] {
  */
 export function __clearInstanceRegistry(): void {
   _instances.clear();
+  _defaultRegistry.clear();
 }
 
 export function hasRequestScope(): boolean {
@@ -218,8 +241,19 @@ export function requestPendingInvalidations(): Set<string> | undefined {
 }
 
 /** Runs `fn` inside a fresh request scope bound to `instance`. */
-export function runWithInstanceScope<T>(instance: FurinInstance, fn: () => T): T {
-  return _requestScope.run({ instance, pending: new Set<string>() }, fn);
+export function runWithInstanceScope<T>(
+  instance: FurinInstance,
+  fn: () => T,
+  instances?: ReadonlyMap<string, FurinInstance>
+): T {
+  return _requestScope.run(
+    {
+      instance,
+      instances: instances ?? _requestScope.getStore()?.instances,
+      pending: new Set<string>(),
+    },
+    fn
+  );
 }
 
 /**

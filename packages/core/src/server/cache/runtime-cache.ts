@@ -19,8 +19,12 @@ export interface RuntimeCacheProvider {
   getCache: (options: RuntimeCacheOptions | undefined) => RuntimeCache;
 }
 
+const MAX_MEMORY_ENTRIES = 1000;
+
 interface MemoryEntry {
   expiresAt: number | undefined;
+  key: string;
+  namespace: string;
   tags: Set<string>;
   value: unknown;
 }
@@ -34,57 +38,74 @@ const RUNTIME_CACHE_STATE = Symbol.for("@teyik0/furin/runtime-cache-state");
 
 function createMemoryProvider(): RuntimeCacheProvider {
   const namespaces = new Map<string, Map<string, MemoryEntry>>();
-  const deleteExpiredEntries = (entries: Map<string, MemoryEntry>): void => {
-    const now = Date.now();
-    for (const [key, entry] of entries) {
-      if (entry.expiresAt !== undefined && entry.expiresAt <= now) {
-        entries.delete(key);
-      }
+  const recent = new Map<MemoryEntry, undefined>();
+  const remove = (entry: MemoryEntry): void => {
+    recent.delete(entry);
+    const entries = namespaces.get(entry.namespace);
+    entries?.delete(entry.key);
+    if (entries?.size === 0) {
+      namespaces.delete(entry.namespace);
     }
   };
   return {
     getCache(options) {
       const namespace = options?.namespace ?? "";
-      let entries = namespaces.get(namespace);
-      if (entries === undefined) {
-        entries = new Map();
-        namespaces.set(namespace, entries);
-      }
       return {
         delete(key) {
-          entries.delete(key);
+          const entry = namespaces.get(namespace)?.get(key);
+          if (entry) {
+            remove(entry);
+          }
           return Promise.resolve();
         },
         expireTag(tag) {
           const tags = new Set(Array.isArray(tag) ? tag : [tag]);
-          for (const namespaceEntries of namespaces.values()) {
-            for (const [key, entry] of namespaceEntries) {
-              if (!entry.tags.isDisjointFrom(tags)) {
-                namespaceEntries.delete(key);
-              }
+          for (const entry of recent.keys()) {
+            if (!entry.tags.isDisjointFrom(tags)) {
+              remove(entry);
             }
           }
           return Promise.resolve();
         },
         get(key) {
-          const entry = entries.get(key);
+          const entry = namespaces.get(namespace)?.get(key);
           if (entry === undefined) {
             return Promise.resolve(null);
           }
           if (entry.expiresAt !== undefined && entry.expiresAt <= Date.now()) {
-            entries.delete(key);
+            remove(entry);
             return Promise.resolve(null);
           }
+          recent.delete(entry);
+          recent.set(entry, undefined);
           return Promise.resolve(entry.value);
         },
         set(key, value, setOptions) {
-          deleteExpiredEntries(entries);
-          entries.set(key, {
+          const previous = namespaces.get(namespace)?.get(key);
+          if (previous) {
+            remove(previous);
+          }
+          let entries = namespaces.get(namespace);
+          if (entries === undefined) {
+            entries = new Map();
+            namespaces.set(namespace, entries);
+          }
+          const entry: MemoryEntry = {
+            key,
+            namespace,
             expiresAt:
               setOptions?.ttl === undefined ? undefined : Date.now() + setOptions.ttl * 1000,
             tags: new Set(setOptions?.tags ?? []),
             value,
-          });
+          };
+          entries.set(key, entry);
+          recent.set(entry, undefined);
+          if (recent.size > MAX_MEMORY_ENTRIES) {
+            const oldest = recent.keys().next().value;
+            if (oldest) {
+              remove(oldest);
+            }
+          }
           return Promise.resolve();
         },
       };

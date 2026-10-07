@@ -4,7 +4,7 @@ import type { ImportDeclaration, Program } from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { addFactoryAliases, hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 import { hmrDependencySignature } from "./hmr-dependencies.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
@@ -90,6 +90,7 @@ function collectDefineRouteBindings(program: Program): Set<string> {
       }
     }
   }
+  addFactoryAliases(program, bindings);
   return bindings;
 }
 
@@ -212,6 +213,13 @@ function assertCompleteRouteChains(
           chainRootIsDefineRoute(initializer, bindings, context.ancestors() as AstNode[])
         )
       ) {
+        return;
+      }
+      if (initializer.type === "Identifier") {
+        const declaration = context.ancestors().at(-1) as AstNode;
+        if (declaration.kind !== "const") {
+          throw new Error(`[furin] ${filename}: route factory aliases must be immutable.`);
+        }
         return;
       }
       const callee = initializer.type === "CallExpression" ? asAstNode(initializer.callee) : null;

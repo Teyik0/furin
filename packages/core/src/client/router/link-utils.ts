@@ -160,7 +160,16 @@ export function applyRevalidateHeader(
   if (!headerValue) {
     return;
   }
-  applyRevalidateEntries(headerValue.split(","), invalidate);
+  applyRevalidateEntries(
+    headerValue.split(",").map((entry) => {
+      try {
+        return decodeURIComponent(entry.trim());
+      } catch {
+        return entry;
+      }
+    }),
+    invalidate
+  );
 }
 
 export function applyRevalidateEntries(

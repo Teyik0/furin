@@ -7,6 +7,27 @@ import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types
 const { createBuildFingerprint } = await import("../../../src/adapter/runtime-build.ts");
 
 describe("createBuildFingerprint", () => {
+  test("changes when an externalized package's transitive server code changes", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-package-"));
+    try {
+      const packageDir = join(appDir, "node_modules/server-only-service");
+      mkdirSync(packageDir, { recursive: true });
+      writeFileSync(join(packageDir, "package.json"), JSON.stringify({ name: "server-only-service", version: "1.0.0", main: "index.js" }));
+      writeFileSync(join(packageDir, "index.js"), 'module.exports = require("./data.js");');
+      writeFileSync(join(packageDir, "data.js"), 'module.exports = "Before";');
+      const rootPath = join(appDir, "root.tsx");
+      const serverPath = join(appDir, "server.ts");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(serverPath, 'import value from "server-only-service"; export default value;');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      writeFileSync(join(packageDir, "data.js"), 'module.exports = "After";');
+      const second = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
   test("is stable across checkout locations", async () => {
     const first = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-first-"));
     const second = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-second-"));
@@ -16,13 +37,64 @@ describe("createBuildFingerprint", () => {
         mkdirSync(join(appDir, "src/pages"), { recursive: true });
         writeFileSync(rootPath, 'export { value as default } from "../data";');
         writeFileSync(join(appDir, "src/data.ts"), 'export const value = "identical root";');
+        const packageDir = join(appDir, "node_modules/service");
+        mkdirSync(packageDir, { recursive: true });
+        writeFileSync(join(packageDir, "package.json"), '{"name":"service","main":"index.js"}');
+        writeFileSync(join(packageDir, "index.js"), 'module.exports = "same server dependency";');
+        writeFileSync(join(appDir, "server.ts"), 'import service from "service"; export default service;');
+        writeFileSync(join(appDir, "bun.lock"), "identical lockfile");
         const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
-        return createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+        return createBuildFingerprint("entry.js", [], [], root, join(appDir, "server.ts"), [], appDir);
       }));
       expect(fingerprints[0]).toBe(fingerprints[1]);
     } finally {
       rmSync(first, { force: true, recursive: true });
       rmSync(second, { force: true, recursive: true });
+    }
+  });
+
+  test("includes the nearest workspace Bun lockfile", async () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-lock-"));
+    try {
+      const appDir = join(workspace, "apps/site");
+      mkdirSync(appDir, { recursive: true });
+      const rootPath = join(appDir, "root.tsx");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(join(workspace, "bun.lock"), "lock before");
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      writeFileSync(join(workspace, "bun.lock"), "lock after");
+      const second = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+    } finally {
+      rmSync(workspace, { force: true, recursive: true });
+    }
+  });
+
+  test("follows the require export condition used by server CommonJS imports", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-require-"));
+    try {
+      const packageDir = join(appDir, "node_modules/conditional-service");
+      mkdirSync(packageDir, { recursive: true });
+      writeFileSync(join(packageDir, "package.json"), JSON.stringify({
+        name: "conditional-service",
+        exports: { import: "./esm.js", require: "./cjs.js" },
+      }));
+      writeFileSync(join(packageDir, "esm.js"), 'export default "ESM";');
+      writeFileSync(join(packageDir, "cjs.js"), 'module.exports = "Before";');
+      const rootPath = join(appDir, "root.tsx");
+      const serverPath = join(appDir, "server.cjs");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(serverPath, 'module.exports = require("conditional-service");');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      writeFileSync(join(packageDir, "cjs.js"), 'module.exports = "After";');
+      const second = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+      expect(second).toContain("dependency/conditional-service/cjs.js:");
+      expect(second).not.toContain("dependency/conditional-service/esm.js:");
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
     }
   });
 

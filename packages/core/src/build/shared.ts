@@ -44,7 +44,7 @@ export function collectFilesRecursive(dir: string): string[] {
 
 export function copyDirRecursive(sourceDir: string, targetDir: string): void {
   rmSync(targetDir, { force: true, recursive: true });
-  cpSync(sourceDir, targetDir, { recursive: true });
+  cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
 }
 
 export function toBuildRouteManifestEntry(

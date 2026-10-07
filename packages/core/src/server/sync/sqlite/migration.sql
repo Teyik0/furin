@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS furin_sync_changes (
   namespace TEXT NOT NULL,
   cursor INTEGER NOT NULL,
   invalidations TEXT NOT NULL,
+  principal_hash TEXT,
   created_at INTEGER NOT NULL,
   PRIMARY KEY (namespace, cursor)
 );

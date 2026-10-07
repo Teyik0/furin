@@ -10,6 +10,7 @@ import {
   buildHref,
   navigationHrefPolicy,
   normalizeHref,
+  shouldInterceptClick,
 } from "./router/link-utils.ts";
 import type { LinkBaseProps, LinkProps, RouterContextValue, RouteTo } from "./router/types.ts";
 
@@ -125,10 +126,22 @@ function LinkInteractive<To extends RouteTo>({
 
   const { prefetch } = router;
   const triggerPrefetch = useCallback(() => {
-    // prefetch() expects the logical href (no basePath prefix).
-    prefetch(logicalHref, { staleTime: effectiveStaleTime });
+    const anchor = anchorRef.current;
+    if (!anchor) {
+      return;
+    }
+    const target = shouldInterceptClick(
+      anchor,
+      { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+      router.basePath,
+      window.location.origin,
+      ""
+    );
+    if (target !== null) {
+      prefetch(target, { staleTime: effectiveStaleTime });
+    }
     // react-doctor-disable-next-line react-doctor/exhaustive-deps
-  }, [prefetch, logicalHref, effectiveStaleTime]);
+  }, [prefetch, logicalHref, effectiveStaleTime, router.basePath]);
 
   // "render": preload immediately on mount
   useEffect(() => {
@@ -178,20 +191,21 @@ function LinkInteractive<To extends RouteTo>({
       e.preventDefault();
       return;
     }
-    // Let browser handle modifier+click (new tab, etc.)
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-      return;
-    }
-    // Let browser handle non-self targets (e.g. target="_blank")
-    if (anchorProps.target && anchorProps.target !== "_self") {
+    if (e.button !== 0) {
       return;
     }
     if (navigationHrefPolicy(logicalHref, window.location.origin) === "blocked") {
       e.preventDefault();
       return;
     }
-    // Let browser handle external links
-    if (!isSameOriginUrl(href)) {
+    const target = shouldInterceptClick(
+      e.currentTarget,
+      e,
+      router.basePath,
+      window.location.origin,
+      window.location.pathname
+    );
+    if (target === null) {
       return;
     }
     e.preventDefault();
@@ -202,7 +216,7 @@ function LinkInteractive<To extends RouteTo>({
       return;
     }
     // navigate() expects the logical href (no basePath prefix).
-    router.navigate(logicalHref, { replace, resetScroll: resetScroll ?? true });
+    router.navigate(target, { replace, resetScroll: resetScroll ?? true });
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {

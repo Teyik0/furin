@@ -13,6 +13,21 @@ function result(data: unknown, session: string) {
   };
 }
 
+test("request-specific seeds keep canonical URLs and omit ambiguous principals and credentials", () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const aliceKey = store.readKey(reference, { headers: { Authorization: "Bearer private-alice" } });
+  store.observe(aliceKey, result("Alice", "alice"), store.generation());
+  expect(store.dehydrate()).toMatchObject([{ url, data: "Alice", identity }]);
+  expect(JSON.stringify(store.dehydrate())).not.toContain("private-alice");
+  expect(JSON.stringify(store.dehydrate())).not.toContain("furin-query");
+  const bobKey = store.readKey(reference, { headers: { Authorization: "Bearer private-bob" } });
+  store.observe(bobKey, result("Bob", "bob"), store.generation());
+  expect(store.snapshot(aliceKey).data).toBe("Alice");
+  expect(store.snapshot(bobKey).data).toBe("Bob");
+  expect(store.dehydrate()).toEqual([]);
+});
+
 test("a stale read cannot confirm an optimistic increment twice", async () => {
   const store = new QueryStore(undefined);
   store.observe(url, result(0, "alice"), store.generation());

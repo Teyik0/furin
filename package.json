@@ -23,9 +23,16 @@
     "tscheck": "bun run --parallel --filter '*' tscheck"
   },
   "overrides": {
-    "brace-expansion": "^5.0.6",
-    "fast-uri": "^3.1.2",
-    "minimatch": "^10.2.5"
+    "@esbuild-kit/core-utils>esbuild": "0.25.12",
+    "baseline-browser-mapping": "^2.11.27",
+    "brace-expansion": "^5.0.12",
+    "browserslist": "^4.29.3",
+    "fast-uri": "^3.1.8",
+    "js-yaml": "^4.3.2",
+    "minimatch": "^10.2.5",
+    "mysql2": "^3.24.5",
+    "smol-toml": "^1.9.0",
+    "source-map-js": "^1.2.2"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
@@ -35,15 +42,15 @@
     "@types/bun": "^1.4.2",
     "knip": "^6.38.0",
     "lefthook": "^2.1.14",
-    "react-doctor": "^0.9.14",
+    "react-doctor": "^0.9.17",
     "typescript": "^7.0.2",
-    "ultracite": "7.12.1"
+    "ultracite": "7.12.4"
   },
   "engines": {
     "bun": ">=1.4.0"
   },
   "catalog": {
-    "elysia": "2.0.0-beta.21",
+    "elysia": "2.0.0-beta.23",
     "evlog": "^2.29.0",
     "exact-mirror": "1.2.6",
     "@types/react": "^19.3.0",
@@ -51,5 +58,10 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "typebox": "1.3.34"
+  },
+  "patchedDependencies": {
+    "braces@3.0.3": "patches/braces@3.0.3.patch",
+    "deepmerge-ts@7.1.5": "patches/deepmerge-ts@7.1.5.patch",
+    "postcss-selector-parser@6.0.10": "patches/postcss-selector-parser@6.0.10.patch"
   }
 }

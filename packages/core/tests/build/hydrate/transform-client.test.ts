@@ -6,6 +6,14 @@ import { transformForClient } from "../../../src/plugin/transform-client";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
+  test("strips loaders reached through a constant route factory alias", () => {
+    const result = transformForClient(`import { defineRoute } from "furin";
+      const create = defineRoute;
+      export const route = create().config({ mode: "ssr" }).loader(() => ({ secret: "SERVER_SECRET" })).page(() => null);`, "route.tsx");
+    expect(result.code).not.toContain("SERVER_SECRET");
+    expect(result.code).not.toContain(".loader(");
+    expect(result.code).toContain("create().page(");
+  });
   test("preserves a spread remount policy without retaining server configuration", () => {
     const result = transformForClient(
       `import { defineRoute } from "furin";

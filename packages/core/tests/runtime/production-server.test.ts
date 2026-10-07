@@ -63,6 +63,31 @@ test.each([
 });
 
 describe("Bun production lifecycle", () => {
+  test("runs Elysia cleanup and releases the server before completing shutdown", async () => {
+    let cleanups = 0;
+    const app = new Elysia()
+      .get("/", () => "ok")
+      .cleanup(() => {
+        cleanups += 1;
+      });
+    const lifecycle = startProductionServer({
+      app,
+      port: 0,
+      preStopDelayMs: 0,
+      shutdownTimeoutMs: 1000,
+    });
+    try {
+      expect(await (await fetch(`http://localhost:${lifecycle.server.port}/`)).text()).toBe("ok");
+      await lifecycle.shutdown();
+      expect(cleanups).toBe(1);
+      expect(app.server).toBeUndefined();
+      await lifecycle.shutdown();
+      expect(cleanups).toBe(1);
+    } finally {
+      await app.stop(true);
+    }
+  });
+
   test("separates liveness and readiness while draining in-flight requests", async () => {
     const { promise: entered, resolve: markEntered } = Promise.withResolvers<void>();
     const { promise: release, resolve } = Promise.withResolvers<void>();
@@ -222,7 +247,10 @@ test("waits for deferred log drains before application resource cleanup", async 
         },
       })
     )
-    .get("/", () => "ok");
+    .get("/", () => "ok")
+    .cleanup(() => {
+      order.push("cleanup");
+    });
   const lifecycle = startProductionServer({
     app,
     onShutdown: () => {
@@ -244,7 +272,7 @@ test("waits for deferred log drains before application resource cleanup", async 
     expect(completed).toBe(false);
     resolveDrain();
     await shutdown;
-    expect(order).toEqual(["drain", "shutdown"]);
+    expect(order).toEqual(["drain", "cleanup", "shutdown"]);
   } finally {
     resolveDrain();
     await lifecycle.shutdown();

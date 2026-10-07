@@ -11,6 +11,24 @@ afterEach(() => {
 });
 
 describe("runtime cache", () => {
+  test("bounds memory across namespaces and preserves recently read values", async () => {
+    const first = getCache({ namespace: "bounded-first" });
+    await first.set("value", "kept", { tags: ["bounded"] });
+    for (let index = 0; index < 1000; index += 1) {
+      // biome-ignore lint/performance/noAwaitInLoops: verify insertion and access ordering.
+      await getCache({ namespace: `bounded-${index}` }).set("value", index);
+      if (index === 500) {
+        expect(await first.get("value")).toBe("kept");
+      }
+    }
+    expect(await first.get("value")).toBe("kept");
+    expect(await getCache({ namespace: "bounded-0" }).get("value")).toBeNull();
+    const recreated = getCache({ namespace: "bounded-0" });
+    await recreated.set("value", "replacement", { tags: ["bounded"] });
+    await first.expireTag("bounded");
+    expect(await first.get("value")).toBeNull();
+    expect(await recreated.get("value")).toBeNull();
+  });
   test("uses the provider installed after a cache handle was created", async () => {
     const cache = getCache({ namespace: "provider-switch" });
     const values = new Map<string, unknown>();

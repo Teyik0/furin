@@ -33,6 +33,7 @@ import {
   sqliteSyncAdapter,
 } from "./src/server/sync/sqlite/index.ts";
 import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { parseDeferredNdjson } from "./src/shared/deferred-ndjson.ts";
 
 const TEST_TEMPLATE = "<html><body><!--ssr-outlet--></body></html>";
 const ACTIVE_ADMIN_NAV_LINK_RE = new RegExp('href="/admin/nav"[^>]*data-status="active"');
@@ -180,6 +181,40 @@ async function runScenario(fn) {
 
 try {
   await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    writeAppFile(app.path, "src/pages/item/[id].tsx", [
+      'import { defineRoute } from "@teyik0/furin";',
+      'import { t } from "elysia";',
+      'import { route as rootRoute } from "../root";',
+      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", params: t.Object({ id: t.String() }) })',
+      '  .loader(({ params }) => ({ id: params.id })).page(({ id }) => <main>{id}</main>);',
+    ].join("\\n"));
+    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    for (const [path, expected] of [["caf%C3%A9", "café"], ["a%2Fb", "a/b"], ["name/", "name"]]) {
+      const html = await parent.handle(new Request("http://furin/item/" + path));
+      expect(html.status).toBe(200);
+      expect(await html.text()).toContain(expected);
+      const data = await parent.handle(new Request("http://furin/_furin/data?path=" + encodeURIComponent("/item/" + path)));
+      expect(data.status).toBe(200);
+      const parsed = await parseDeferredNdjson(data.body);
+      expect(parsed.syncData.id).toBe(expected);
+    }
+  });
+
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const first = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
+    const second = new Elysia().use(await furin({ pagesDir: adminPagesDir }));
+    expect(await (await second.handle(new Request("http://furin/"))).text()).toContain("Admin home");
+    expect(await (await first.handle(new Request("http://furin/"))).text()).toContain("Home page");
+  });
+
+  await runScenario(async () => {
     const { parent } = await mountBothApps();
 
     const frontHome = await parent.handle(new Request("http://furin/"));
@@ -223,13 +258,30 @@ try {
 
   await runScenario(async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
+    process.chdir(app.path);
+    const adminPagesDir = writeAdminPages(app.path);
+    setProductionTemplateContent(TEST_TEMPLATE);
+    const parent = new Elysia({ prefix: "/host" })
+      .use(await furin({ pagesDir: adminPagesDir, prefix: "/admin" }));
+    const html = await parent.handle(new Request("http://furin/host/admin"));
+    expect(html.status).toBe(200);
+    expect(await html.text()).toContain("Admin home");
+    const data = await parent.handle(new Request("http://furin/host/admin/_furin/data?path=%2Fusers"));
+    expect(data.status).toBe(200);
+    expect(data.headers.get("content-type")).toContain("application/x-ndjson");
+    expect(await data.text()).toContain("admin");
+  });
+
+  await runScenario(async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
     __setDevMode(true);
     process.chdir(app.path);
     const adminPagesDir = writeAdminPages(app.path);
     setProductionTemplateContent(TEST_TEMPLATE);
 
-    await furin({ pagesDir: join(app.path, "src/pages") });
-    await expect(furin({ pagesDir: adminPagesDir })).rejects.toThrow("already mounted");
+    const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));
+    const conflicting = await furin({ pagesDir: adminPagesDir });
+    expect(() => parent.use(conflicting)).toThrow("already mounted");
   });
 
   await runScenario(async () => {

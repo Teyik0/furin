@@ -53,6 +53,18 @@ describe("scanPages: route order is deterministic", () => {
     writeFileSync(absPath, pageModule(absPath, join(tempDir, "root.tsx")));
   }
 
+  test("ignores private directories and declaration files when discovering public pages", async () => {
+    mkdirSync(join(tempDir, "_private"));
+    writeFileSync(
+      join(tempDir, "_private", "component.tsx"),
+      'throw new Error("private module must not execute");'
+    );
+    writeFileSync(join(tempDir, "global.d.ts"), "declare const clientName: string;");
+    writePage(join(tempDir, "index.tsx"));
+    const { routes } = await scanPages(tempDir);
+    expect(routes.map((route) => route.pattern)).toEqual(["/"]);
+  });
+
   test("flat pages are returned in alphabetical pattern order", async () => {
     // Write pages in reverse-alphabetical order to surface non-sorted readdir
     writePage(join(tempDir, "zzz.tsx"));
