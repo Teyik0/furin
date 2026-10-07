@@ -1,0 +1,37 @@
+examples/electrobun-todo/README.md
+  s_2c6da3524f6cc1::t_34da412871c7ac 30-39,50-53,56-58,65-69
+packages/core/src/build/index.ts
+  s_2c6da3524f6cc1::t_a491ad00db6ce8 90-94
+packages/core/src/cli/index.ts
+  s_2c6da3524f6cc1::t_76b961bfe9a1bf 155
+packages/core/tests/build/bun-app-output.integration.test.ts
+  s_2c6da3524f6cc1::t_dea28a14db5495 6,8,75-79,89-175
+packages/electrobun/README.md
+  s_2c6da3524f6cc1::t_10c2b7d7994e2b 20-22,53-56
+packages/electrobun/tests/external.test.ts
+  s_61966568a362ec::t_81821401f55b70 17-65,90,140-141,188-254,278-279,284,287,293,310-312,360-363,372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fe55e55aec47ab56fad94f45e11b1c4ee65c920",
+  "prompts": {},
+  "sessions": {
+    "s_2c6da3524f6cc1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b65a19f-6050-4fa0-9d7e-8aad8535c4c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_61966568a362ec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef23b25deffeFJn9U49lgJkTBW",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
