@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import "../../setup/evlog-mock";
 
 import { Elysia } from "elysia";
+import { applyRevalidateHeader } from "../../../src/client/router/link-utils.ts";
 import {
   autoInvalidateRegistry,
   furinInvalidate,
@@ -34,6 +35,25 @@ afterEach(async () => {
   __resetDevLoaderCacheState();
   autoInvalidateRegistry.reset();
   await flushMicrotasks();
+});
+
+test("mutation invalidation headers preserve literal suffixes, percent paths and Unicode", async () => {
+  const rules = [
+    { path: "/foo:layout", type: "page" as const },
+    { path: "/東京", type: "layout" as const },
+    { path: "/users/a%name", type: "page" as const },
+    { path: "/bad\ud800", type: "page" as const },
+  ];
+  const app = new Elysia()
+    .use(furinInvalidate())
+    .post("/mutate", { invalidate: rules }, () => ({ ok: true }));
+  const response = await _runWithRequestInvalidationScope(() =>
+    app.handle(new Request("http://localhost/mutate", { method: "POST" }))
+  );
+  expect(response.status).toBe(200);
+  const received: { path: string; type: "page" | "layout" | undefined }[] = [];
+  applyRevalidateHeader(response.headers, (path, type) => received.push({ path, type }));
+  expect(received).toEqual(rules.map((rule) => ({ ...rule, path: rule.path.toWellFormed() })));
 });
 
 describe("revalidateTag", () => {

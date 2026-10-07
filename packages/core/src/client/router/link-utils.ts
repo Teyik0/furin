@@ -1,3 +1,4 @@
+import { decodeInvalidationEntry } from "../../shared/invalidation-header.ts";
 import {
   buildSearchParams,
   findSearchDefaultsForRouteTarget,
@@ -160,16 +161,7 @@ export function applyRevalidateHeader(
   if (!headerValue) {
     return;
   }
-  applyRevalidateEntries(
-    headerValue.split(",").map((entry) => {
-      try {
-        return decodeURIComponent(entry.trim());
-      } catch {
-        return entry;
-      }
-    }),
-    invalidate
-  );
+  applyRevalidateEntries(headerValue.split(","), invalidate);
 }
 
 export function applyRevalidateEntries(
@@ -177,15 +169,11 @@ export function applyRevalidateEntries(
   invalidate: (path: string, type: "page" | "layout" | undefined) => void
 ): void {
   for (const entry of entries) {
-    const trimmed = entry.trim();
-    if (!trimmed) {
+    const { path, type } = decodeInvalidationEntry(entry);
+    if (!path) {
       continue;
     }
-    if (trimmed.endsWith(":layout")) {
-      invalidate(trimmed.slice(0, -":layout".length), "layout");
-    } else {
-      invalidate(trimmed, "page");
-    }
+    invalidate(path, type);
   }
 }
 
@@ -198,13 +186,22 @@ export function shouldAutoRefreshPath(
   currentPath: string,
   invalidations: ReadonlyArray<{ path: string; type: "page" | "layout" }>
 ): boolean {
-  const normalizedCurrent = currentPath.split("?")[0] ?? currentPath;
+  const normalize = (path: string) =>
+    path
+      .split("/")
+      .map((segment) => encodeURIComponent(decodeHashFragment(segment).toWellFormed()))
+      .join("/");
+  const normalizedCurrent = normalize(currentPath.split("?")[0] ?? currentPath);
   return invalidations.some(({ path, type }) => {
+    const normalizedPath = normalize(path);
     if (type === "page") {
-      return path === normalizedCurrent;
+      return normalizedPath === normalizedCurrent;
     }
-    const prefix = path === "/" || path.endsWith("/") ? path : `${path}/`;
-    return normalizedCurrent === path || normalizedCurrent.startsWith(prefix);
+    const prefix =
+      normalizedPath === "/" || normalizedPath.endsWith("/")
+        ? normalizedPath
+        : `${normalizedPath}/`;
+    return normalizedCurrent === normalizedPath || normalizedCurrent.startsWith(prefix);
   });
 }
 

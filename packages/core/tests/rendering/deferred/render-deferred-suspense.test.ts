@@ -139,11 +139,75 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
       fast.resolve("fast-value");
       const arrived = await Promise.race([
         flushed.promise.then(() => true),
-        Bun.sleep(100).then(() => false),
+        Bun.sleep(1000).then(() => false),
       ]);
       slow.resolve("slow-value");
       await consume;
       expect(arrived).toBe(true);
+      expect(html.endsWith("</html>")).toBe(true);
+    }
+  );
+  test.serial(
+    "SSR flushes a ready Suspense boundary while another boundary remains pending",
+    async () => {
+      __setDevMode(false);
+      setProductionTemplateContent(TEST_TEMPLATE);
+      const fixture = await getSsrFixtureRoute();
+      const fast = Promise.withResolvers<string>();
+      const slow = Promise.withResolvers<string>();
+      const boundary = (promise: Promise<string>) =>
+        createElement(
+          Suspense,
+          { fallback: "Loading" },
+          createElement(Await<string>, {
+            resolve: promise,
+            // biome-ignore lint/correctness/noChildrenProp: Await exposes a render-prop child.
+            children: (value) => createElement("span", null, value),
+          })
+        );
+      const customRoute = asResolvedRoute({
+        ...fixture.ssrRoute,
+        page: {
+          ...fixture.ssrRoute.page,
+          loader: undefined,
+          component: () =>
+            createElement("main", null, boundary(fast.promise), boundary(slow.promise)),
+        },
+      });
+      const response = await renderSSR(
+        customRoute,
+        createMockLoaderContext({}),
+        fixture.root,
+        undefined
+      );
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("SSR response body missing");
+      }
+      const flushed = Promise.withResolvers<void>();
+      let html = "";
+      const consume = (async () => {
+        for (;;) {
+          // biome-ignore lint/performance/noAwaitInLoops: observe sequential streaming deliveries.
+          const next = await reader.read();
+          if (next.done) {
+            break;
+          }
+          html += new TextDecoder().decode(next.value);
+          if (html.includes("FIRST_SUSPENSE_REVEAL")) {
+            flushed.resolve();
+          }
+        }
+      })();
+      fast.resolve("FIRST_SUSPENSE_REVEAL");
+      const arrived = await Promise.race([
+        flushed.promise.then(() => true),
+        Bun.sleep(1000).then(() => false),
+      ]);
+      slow.resolve("SECOND_SUSPENSE_REVEAL");
+      await consume;
+      expect(arrived).toBe(true);
+      expect(html).toContain("SECOND_SUSPENSE_REVEAL");
       expect(html.endsWith("</html>")).toBe(true);
     }
   );

@@ -18,6 +18,24 @@ export function rebaseAssetHref(href: string, instance: FurinInstance): string {
     : href;
 }
 
+export function rebaseDocumentHead(
+  head: HeadOptions | undefined,
+  instance: FurinInstance
+): HeadOptions {
+  return {
+    ...head,
+    links: head?.links?.map((link) => ({ ...link, href: rebaseAssetHref(link.href, instance) })),
+    scripts: head?.scripts?.map((script) => ({
+      ...script,
+      src: script.src === undefined ? undefined : rebaseAssetHref(script.src, instance),
+    })),
+    meta: [
+      ...(head?.meta ?? []).filter((meta) => !("name" in meta && meta.name === "furin-base-path")),
+      { name: "furin-base-path", content: instance.prefix },
+    ],
+  };
+}
+
 /** Adapt a build-time document without executing its loaders or changing its data. */
 export function rebaseCachedDocument(html: string, instance: FurinInstance): string {
   if (instance.prefix === instance.declaredPrefix) {
@@ -44,6 +62,15 @@ export function rebaseCachedDocument(html: string, instance: FurinInstance): str
     .on('link[rel="stylesheet"],link[rel="modulepreload"],link[rel="icon"],script[src]', {
       element: asset,
     })
+    .on("head link[href],head script[src]", {
+      element(element) {
+        const attribute = element.tagName === "script" ? "src" : "href";
+        const href = element.getAttribute(attribute);
+        if (href !== null) {
+          element.setAttribute(attribute, rebaseAssetHref(href, instance));
+        }
+      },
+    })
     .on('meta[name="furin-base-path"]', {
       element: (element) => {
         element.setAttribute("content", instance.prefix);
@@ -54,16 +81,7 @@ export function rebaseCachedDocument(html: string, instance: FurinInstance): str
         headJson = "";
         element.onEndTag((end) => {
           const head = JSON.parse(headJson) as HeadOptions;
-          const meta = (head.meta ?? []).filter(
-            (entry) => !("name" in entry && entry.name === "furin-base-path")
-          );
-          end.before(
-            safeJson({
-              ...head,
-              meta: [...meta, { name: "furin-base-path", content: instance.prefix }],
-            }),
-            { html: true }
-          );
+          end.before(safeJson(rebaseDocumentHead(head, instance)), { html: true });
         });
       },
       text(text) {

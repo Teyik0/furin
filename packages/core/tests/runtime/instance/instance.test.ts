@@ -5,11 +5,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   __clearInstanceRegistry,
+  allInstances,
+  allStateBuckets,
   createInstance,
+  currentInstance,
   defaultInstanceBucket,
   normalizePrefix,
   registerInstance,
   resolveInstanceByPath,
+  trackInstance,
 } from "../../../src/server/instance.ts";
 import {
   __resetCompileContext,
@@ -53,6 +57,15 @@ describe("normalizePrefix", () => {
 });
 
 describe("resolveInstanceByPath", () => {
+  test("an unmounted runtime does not replace the sole registered instance", () => {
+    const mounted = registerInstance(createInstance("/admin", "/apps/admin"));
+    const pending = createInstance("/pending", "/apps/pending");
+    trackInstance(pending);
+    expect(currentInstance()).toBe(mounted);
+    expect(allInstances()).toEqual([mounted]);
+    expect(resolveInstanceByPath("/pending")).toBe(defaultInstanceBucket());
+    expect(allStateBuckets()).toContain(pending);
+  });
   test("longest boundary-aware prefix wins", () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const adminV2 = registerInstance(createInstance("/admin/v2", "/apps/admin-v2"));

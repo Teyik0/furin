@@ -83,11 +83,13 @@ export function startProductionServer(options: ProductionServerOptions): {
     const delayMs = options.preStopDelayMs ?? DEFAULT_PRE_STOP_DELAY_MS;
     shutdownPromise = (async () => {
       let timeout: ReturnType<typeof setTimeout> | undefined;
+      let forced = false;
       try {
         await Bun.sleep(delayMs);
         rejecting = true;
         const deadline = new Promise<void>((resolve) => {
           timeout = setTimeout(() => {
+            forced = true;
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
             Promise.resolve(app.stop(true)).catch((error: unknown) => {
               console.error("[furin] Forced server stop failed", error);
@@ -96,19 +98,30 @@ export function startProductionServer(options: ProductionServerOptions): {
           }, timeoutMs);
         });
         const drain = async (): Promise<void> => {
-          await closeBrowserEventConnections(server);
-          server.closeIdleConnections();
-          await server.stop();
-          await waitForPendingISRRevalidations();
-          await Promise.allSettled([...pendingEmissions]);
-          syncDrainsReached.add(shutdown);
-          if (syncDrainsReached.size === activeShutdowns.size) {
-            await closeSyncCursorStates();
-          } else {
-            await waitForSyncCursorUnsubscriptions();
+          const steps = [
+            () => closeBrowserEventConnections(server),
+            () => {
+              server.closeIdleConnections();
+              return server.stop();
+            },
+            waitForPendingISRRevalidations,
+            () => Promise.allSettled([...pendingEmissions]),
+            () => {
+              syncDrainsReached.add(shutdown);
+              return syncDrainsReached.size === activeShutdowns.size
+                ? closeSyncCursorStates()
+                : waitForSyncCursorUnsubscriptions();
+            },
+            () => app.stop(),
+            () => options.onShutdown?.(),
+          ];
+          for (const step of steps) {
+            if (forced) {
+              return;
+            }
+            // biome-ignore lint/performance/noAwaitInLoops: each shutdown stage depends on the preceding drain.
+            await step();
           }
-          await app.stop();
-          await options.onShutdown?.();
         };
         await Promise.race([drain(), deadline]);
       } finally {

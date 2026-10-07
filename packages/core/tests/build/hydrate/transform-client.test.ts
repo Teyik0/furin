@@ -3,9 +3,145 @@ import MagicString from "magic-string";
 import { join } from "node:path";
 import { deadCodeElimination } from "../../../src/plugin/dead-code-elimination";
 import { transformForClient } from "../../../src/plugin/transform-client";
+import strip from "../../../src/plugin/index.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
+  test("browser imports with a query suffix strip their route loader from the physical source file", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const entry = join(app.path, "entry.ts");
+      writeAppFile(app.path, "entry.ts", 'import { route } from "./route.ts?revision=1"; console.log(route.component);');
+      writeAppFile(app.path, "route.ts", 'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute().loader(() => "PRIVATE_QUERY_SUFFIX").page(() => null);');
+      const versionedRoute: Bun.BunPlugin = {
+        name: "versioned-route",
+        setup(build) {
+          build.onResolve({ filter: /route\.ts\?revision=1$/ }, () => ({ path: `${join(app.path, "route.ts")}?revision=1` }));
+        },
+      };
+      const build = await Bun.build({ entrypoints: [entry], target: "browser", plugins: [versionedRoute, strip] });
+      expect(build.success).toBe(true);
+      const browser = (await Promise.all(build.outputs.map((output) => output.text()))).join("\n");
+      expect(browser).not.toContain("PRIVATE_QUERY_SUFFIX");
+    } finally {
+      app.cleanup();
+    }
+  });
+  test("preserves a static-block DSL whose var binding is hoisted from nested control flow", () => {
+    const result = transformForClient(`import { defineRoute } from "furin";
+export const route = defineRoute().loader(() => "PRIVATE_REAL_ROUTE").page(() => null);
+export class Local {
+  static {
+    if (globalThis.localFactory) { var defineRoute = globalThis.localFactory; }
+    globalThis.customRoute = defineRoute().loader(() => "LOCAL_STATIC_DSL").page(() => null);
+  }
+}`, "route.ts");
+    expect(result.code).not.toContain("PRIVATE_REAL_ROUTE");
+    expect(result.code).toContain("LOCAL_STATIC_DSL");
+  });
+
+  test.each([
+    { body: "let create = defineRoute; return create().loader(() => 'PRIVATE_UNSAFE_ALIAS').page(() => null);", diagnostic: "immutable", imported: "{ defineRoute }" },
+    { body: "const create = Furin; return create.defineRoute().loader(() => 'PRIVATE_UNSAFE_ALIAS').page(() => null);", diagnostic: "named import", imported: "* as Furin" },
+  ])("browser builds reject unsafe factory aliases: $diagnostic", async ({ body, diagnostic, imported }) => {
+    const app = createTmpApp("cli-app");
+    try {
+      const entry = join(app.path, "entry.ts");
+      const source = `import ${imported} from "@teyik0/furin"; export const route = (() => { ${body} })(); console.log(route.component);`;
+      writeAppFile(app.path, "entry.ts", source);
+      expect(() => transformForClient(source, entry)).toThrow(diagnostic);
+      await expect(Bun.build({ entrypoints: [entry], plugins: [strip], target: "browser" })).rejects.toThrow();
+    } finally {
+      app.cleanup();
+    }
+  });
+  test("strips server stages through type-only wrapped constant factory aliases", () => {
+    const result = transformForClient(`import { defineRoute } from "furin";
+export const route = (() => {
+  const create = defineRoute as typeof defineRoute;
+  const local = create satisfies typeof defineRoute;
+  return (local!()).loader(() => "PRIVATE_TYPED_ALIAS").page(() => null);
+})();`, "route.ts");
+    expect(result.code).not.toContain("PRIVATE_TYPED_ALIAS");
+    expect(() => new Bun.Transpiler({ loader: "ts" }).transformSync(result.code)).not.toThrow();
+  });
+  test("a browser build strips server secrets through nested constant factory aliases", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const entry = join(app.path, "entry.ts");
+      writeAppFile(app.path, "entry.ts", `import { defineRoute } from "@teyik0/furin";
+export const route = (() => {
+  const create = defineRoute;
+  const local = create;
+  return local().loader(() => "PRIVATE_API_KEY_LOCAL_ALIAS_123").page(() => null);
+})();
+console.log(route.component);`);
+      const build = await Bun.build({ entrypoints: [entry], target: "browser", plugins: [strip] });
+      expect(build.success).toBe(true);
+      const browser = (await Promise.all(build.outputs.map((output) => output.text()))).join("\n");
+      expect(browser.includes("PRIVATE_API_KEY_LOCAL_ALIAS_123")).toBe(false);
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("rejects a conditional factory alias before a browser build can expose its loader", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const entry = join(app.path, "entry.ts");
+      writeAppFile(app.path, "entry.ts", `import { defineRoute } from "@teyik0/furin";
+export const route = (() => {
+  const create = Math.random() ? defineRoute : defineRoute;
+  return create().loader(() => "PRIVATE_AMBIGUOUS_FACTORY").page(() => null);
+})(); console.log(route.component);`);
+      await expect(Bun.build({ entrypoints: [entry], target: "browser", plugins: [strip] }))
+        .rejects.toThrow();
+      const source = await Bun.file(entry).text();
+      expect(() => transformForClient(source, entry)).toThrow("route factory");
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("rejects an escaping incomplete builder before exposing downstream server code", () => {
+    expect(() => transformForClient(`import { defineRoute } from "furin";
+function factory() { return defineRoute(); }
+export const route = factory().loader(() => "PRIVATE_ESCAPING_BUILDER").page(() => null);`, "route.ts"))
+      .toThrow("one fluent chain");
+  });
+
+  test("a browser build retains shadowed DSLs while stripping a complete helper route", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const entry = join(app.path, "entry.ts");
+      writeAppFile(app.path, "entry.ts", `import { defineRoute } from "@teyik0/furin";
+const create = defineRoute;
+export function makeRoute() {
+  const nested = create;
+  return nested().loader(() => "PRIVATE_HELPER_ROUTE").page(() => null);
+}
+function custom(create) { return create().loader(() => "LOCAL_DSL_REMAINS").page(() => null); }
+export const route = makeRoute();
+console.log(route.component, custom(globalThis.localFactory));`);
+      const build = await Bun.build({ entrypoints: [entry], target: "browser", plugins: [strip] });
+      expect(build.success).toBe(true);
+      const browser = (await Promise.all(build.outputs.map((output) => output.text()))).join("\n");
+      expect(browser.includes("PRIVATE_HELPER_ROUTE")).toBe(false);
+      expect(browser.includes("LOCAL_DSL_REMAINS")).toBe(true);
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("rejects a namespace factory hidden behind lexical aliases and a computed key", () => {
+    expect(() => transformForClient(`import * as Furin from "furin";
+export const route = (() => {
+  const namespace = Furin;
+  const key = "defineRoute";
+  return namespace[key]().loader(() => "PRIVATE_NAMESPACE_FACTORY").page(() => null);
+})();`, "route.ts")).toThrow("named import");
+  });
+
   test("strips loaders reached through a constant route factory alias", () => {
     const result = transformForClient(`import { defineRoute } from "furin";
       const create = defineRoute;
@@ -644,17 +780,14 @@ export const route = defineRoute().page(Page);`,
     expect(route.code).not.toContain('value: ["useEffect{}"]');
   });
 
-  test("does not inject route HMR code when a module only imports the route builder", () => {
-    const result = transformForClient(
+  test("rejects a helper returning a factory that could hide downstream server stages", () => {
+    expect(() => transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 export function helper() {
   return defineRoute;
 }`,
       "helper.ts"
-    );
-
-    expect(result.code).not.toContain("route.component");
-    expect(result.code).not.toContain("import.meta.hot.accept");
+    )).toThrow("cannot escape");
   });
 
   test.each(["furin", "@teyik0/furin"])("rewrites separate document imports from %s", (moduleName) => {

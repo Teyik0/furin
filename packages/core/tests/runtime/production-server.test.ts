@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../src/server/browser-events/plugin.ts";
+import {
+  registerBrowserEventConnection,
+  unregisterBrowserEventConnection,
+} from "../../src/server/browser-events/shutdown.ts";
 import { createFurinEvlog } from "../../src/server/evlog.ts";
 import { startProductionServer } from "../../src/server/production-server.ts";
 import type { SyncAdapter } from "../../src/server/sync/adapter.ts";
@@ -301,6 +305,42 @@ test("closes Furin browser-event WebSockets before stopping Bun", async () => {
     socket.close();
     await lifecycle.shutdown();
   }
+});
+
+test("the configured shutdown deadline bounds an unacknowledged browser-event close", async () => {
+  const { promise: stopped, resolve: markStopped } = Promise.withResolvers<void>();
+  const app = new Elysia().cleanup(() => markStopped());
+  let lateCleanup = false;
+  const lifecycle = startProductionServer({
+    app,
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 50,
+    onShutdown: () => {
+      lateCleanup = true;
+    },
+  });
+  let closeRequested = false;
+  const close = () => {
+    closeRequested = true;
+  };
+  registerBrowserEventConnection(lifecycle.server, close);
+  try {
+    await lifecycle.shutdown();
+    await stopped;
+    expect(closeRequested).toBe(true);
+    expect(lifecycle.server.pendingRequests).toBe(0);
+    expect(
+      await app
+        .handle(new Request("http://localhost/_furin/health/ready"))
+        .then((response) => response.status)
+    ).toBe(503);
+  } finally {
+    unregisterBrowserEventConnection(lifecycle.server, close);
+    await lifecycle.shutdown();
+  }
+  await Bun.sleep(0);
+  expect(lateCleanup).toBe(false);
 });
 
 test("shutting down one server leaves another server's browser-event sockets open", async () => {

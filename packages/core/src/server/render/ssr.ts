@@ -718,11 +718,12 @@ async function pipeDocumentStream(
   enc: TextEncoder,
   beforeEntry: string,
   hasEntryModule: boolean,
-  beforeBodyClose: () => Promise<void>
+  beforeBodyClose: () => Promise<void>,
+  documentFooter: () => string
 ): Promise<void> {
   const decoder = new TextDecoder();
   let pending = "";
-  let documentTail: string | undefined;
+  let entryHandled = false;
   let deferredWrites: Promise<void> | undefined;
   for (;;) {
     // biome-ignore lint/performance/noAwaitInLoops: ReadableStream chunks must be consumed in order.
@@ -731,8 +732,8 @@ async function pipeDocumentStream(
       break;
     }
     const chunk = decoder.decode(value, { stream: true });
-    if (documentTail !== undefined) {
-      documentTail += chunk;
+    if (entryHandled) {
+      await writer.write(enc.encode(chunk));
       continue;
     }
 
@@ -752,28 +753,27 @@ async function pipeDocumentStream(
         continue;
       }
       await writer.write(enc.encode(shell));
-      documentTail = pending.slice(shellEnd);
+      const tail = pending.slice(shellEnd);
       pending = "";
+      entryHandled = true;
       deferredWrites = beforeBodyClose();
       deferredWrites.catch(() => undefined);
+      await writer.write(enc.encode(tail));
     }
   }
   const finalChunk = decoder.decode();
-  if (documentTail === undefined) {
+  if (!entryHandled) {
     await writer.write(enc.encode(pending + finalChunk + beforeEntry));
     await beforeBodyClose();
+    await writer.write(enc.encode(documentFooter()));
     return;
   }
 
-  documentTail += finalChunk;
-  const htmlCloseEnd = documentTail.toLowerCase().lastIndexOf("</html>");
-  const closingEnd = htmlCloseEnd === -1 ? documentTail.length : htmlCloseEnd + "</html>".length;
-  const postDocumentChunks = documentTail.slice(closingEnd);
-  if (postDocumentChunks) {
-    await writer.write(enc.encode(postDocumentChunks));
+  if (finalChunk.length > 0) {
+    await writer.write(enc.encode(finalChunk));
   }
   await deferredWrites;
-  await writer.write(enc.encode(documentTail.slice(0, closingEnd)));
+  await writer.write(enc.encode(documentFooter()));
 }
 
 export function buildSsrTransportScripts(
@@ -781,9 +781,11 @@ export function buildSsrTransportScripts(
   deferredKeys: string[],
   hasDeferred: boolean,
   shellErrored: boolean,
-  nonce?: string
+  nonce?: string,
+  jsonCompatible?: boolean
 ): SsrTransportScripts {
-  const usesRouteFrames = !shellErrored && (!isJsonObject(dataPayload) || hasDeferred);
+  const usesRouteFrames =
+    !shellErrored && (hasDeferred || !(jsonCompatible ?? isJsonObject(dataPayload)));
   const deferredSetupScript =
     hasDeferred && !usesRouteFrames ? buildDeferredScript(deferredKeys, nonce) : "";
   const dataScript = usesRouteFrames
@@ -964,7 +966,8 @@ export async function renderSSR(
   const { assets, deferredPromises, element, headData, headers } = prepared;
 
   const initialDataPayload = renderPayload(prepared, undefined);
-  const requiresTransport = deferredPromises !== undefined || !isJsonObject(initialDataPayload);
+  const jsonCompatible = deferredPromises === undefined && isJsonObject(initialDataPayload);
+  const requiresTransport = !jsonCompatible;
   const renderAbort = new AbortController();
   const abortRequest = () => renderAbort.abort(ctx.request.signal.reason);
   if (ctx.request.signal.aborted) {
@@ -979,7 +982,8 @@ export async function renderSSR(
       assets,
       headData,
       requiresTransport ? undefined : initialDataPayload,
-      nonce
+      nonce,
+      jsonCompatible
     ),
     route.error ?? root.error,
     prepared.ssrContext,
@@ -992,7 +996,8 @@ export async function renderSSR(
           __furinError: { digest, message, status: 500 },
           __furinStatus: 500,
         },
-        nonce
+        nonce,
+        true
       ),
     nonce,
     renderAbort.signal
@@ -1029,13 +1034,26 @@ export async function renderSSR(
     deferredKeys,
     hasDeferred,
     shellErrored,
-    nonce
+    nonce,
+    jsonCompatible
   );
 
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
   const enc = new TextEncoder();
-  const reader = reactStream.getReader();
+  let documentFooter = "";
+  // biome-ignore lint/correctness/noUndeclaredVariables: HTMLRewriter is a Bun runtime global declared by bun-types.
+  const framedDocument = new HTMLRewriter()
+    .on("body,html", {
+      element(documentElement) {
+        documentElement.onEndTag((tag) => {
+          documentFooter += `</${tag.name}>`;
+          tag.remove();
+        });
+      },
+    })
+    .transform(new Response(reactStream));
+  const reader = (framedDocument.body as ReadableStream<Uint8Array>).getReader();
   const abortOutput = () => {
     writer.abort(renderAbort.signal.reason).catch(() => undefined);
   };
@@ -1067,7 +1085,8 @@ export async function renderSSR(
             nonce,
             renderAbort.signal
           );
-        }
+        },
+        () => documentFooter
       );
       await writer.close();
     } catch (error) {

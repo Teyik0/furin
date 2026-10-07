@@ -226,6 +226,12 @@ export async function parseDeferredNdjson(
     if (signal !== undefined) {
       if (signal.aborted) {
         rejectAllPending(makeAbortError(signal.reason));
+        cleanupAbortHandler();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released */
+        }
         return { deferredPromises, syncData };
       }
       cleanupAbortHandler();

@@ -13,19 +13,34 @@ function result(data: unknown, session: string) {
   };
 }
 
-test("request-specific seeds keep canonical URLs and omit ambiguous principals and credentials", () => {
+test("request-specific seeds retain isolated identities without serializing credentials", () => {
   const store = new QueryStore(undefined);
   const reference = { client: store, url, load: async () => result("Alice", "alice") };
   const aliceKey = store.readKey(reference, { headers: { Authorization: "Bearer private-alice" } });
   store.observe(aliceKey, result("Alice", "alice"), store.generation());
-  expect(store.dehydrate()).toMatchObject([{ url, data: "Alice", identity }]);
+  expect(store.dehydrate()).toMatchObject([{ url: aliceKey, data: "Alice", identity }]);
   expect(JSON.stringify(store.dehydrate())).not.toContain("private-alice");
-  expect(JSON.stringify(store.dehydrate())).not.toContain("furin-query");
   const bobKey = store.readKey(reference, { headers: { Authorization: "Bearer private-bob" } });
   store.observe(bobKey, result("Bob", "bob"), store.generation());
   expect(store.snapshot(aliceKey).data).toBe("Alice");
   expect(store.snapshot(bobKey).data).toBe("Bob");
-  expect(store.dehydrate()).toEqual([]);
+  expect(store.dehydrate()).toMatchObject([
+    { url: aliceKey, data: "Alice", identity },
+    { url: bobKey, data: "Bob", identity: { session: "bob" } },
+  ]);
+  expect(JSON.stringify(store.dehydrate())).not.toContain("private-bob");
+  const browser = new QueryStore(undefined);
+  browser.hydrate(store.dehydrate(), "https://browser.example");
+  expect(browser.snapshot("https://browser.example/cards").data).toBeUndefined();
+  const browserReference = {
+    ...reference,
+    client: browser,
+    url: "https://browser.example/cards",
+  };
+  const browserAlice = browser.readKey(browserReference, {
+    headers: { Authorization: "Bearer private-alice" },
+  });
+  expect(browser.snapshot(browserAlice).data).toBeUndefined();
 });
 
 test("a stale read cannot confirm an optimistic increment twice", async () => {

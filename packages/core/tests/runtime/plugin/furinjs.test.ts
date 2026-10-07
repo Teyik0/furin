@@ -285,6 +285,9 @@ test.serial("a failed route import keeps its tags while healthy route types upda
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
   try {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+      timeoutMs: 3000,
+    });
     await waitForFileContent(typesPath, "fragile: 'fragile';");
     writeAppFile(app.path, "src/pages/fragile.tsx", 'throw new Error("broken route");');
     writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("after"));

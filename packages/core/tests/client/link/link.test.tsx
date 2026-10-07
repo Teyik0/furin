@@ -26,6 +26,10 @@ import {
   shouldAutoRefreshPath,
   shouldRefetch,
 } from "../../../src/client/link.tsx";
+import {
+  encodeInvalidationEntry,
+  serializeInvalidationPaths,
+} from "../../../src/shared/invalidation-header.ts";
 import type { NotFoundComponent } from "../../../src/shared/not-found.ts";
 import { findSearchDefaults } from "../../../src/shared/search-params.ts";
 
@@ -676,6 +680,21 @@ describe("prefetch cache LRU eviction", () => {
 // ── applyRevalidateHeader ──────────────────────────────────────────────────────
 
 describe("applyRevalidateHeader", () => {
+  test("keeps literal layout suffixes distinct from the layout marker", () => {
+    const entries = [
+      encodeInvalidationEntry("/foo:layout", "page"),
+      encodeInvalidationEntry("/foo:layout", "layout"),
+    ];
+    const calls: [string, string | undefined][] = [];
+    applyRevalidateHeader(
+      new Headers({ "x-furin-revalidate": serializeInvalidationPaths(entries) }),
+      (path, type) => calls.push([path, type])
+    );
+    expect(calls).toEqual([
+      ["/foo:layout", "page"],
+      ["/foo:layout", "layout"],
+    ]);
+  });
   test("decodes Unicode, commas and percent signs without splitting a path", () => {
     const paths: [string, "page" | "layout" | undefined][] = [];
     applyRevalidateHeader(
@@ -790,6 +809,17 @@ describe("applyRevalidateHeader", () => {
 // ── shouldAutoRefreshPath ──────────────────────────────────────────────────────
 
 describe("shouldAutoRefreshPath", () => {
+  test("matches encoded browser paths against Unicode and reserved-character invalidations", () => {
+    const invalidations: { path: string; type: "page" | "layout" }[] = [];
+    applyRevalidateHeader(
+      new Headers({ "x-furin-revalidate": "/%E6%9D%B1%E4%BA%AC,/a%2Cb" }),
+      (path, type) => invalidations.push({ path, type: type ?? "page" })
+    );
+    expect(shouldAutoRefreshPath("/%E6%9D%B1%E4%BA%AC", invalidations)).toBe(true);
+    expect(shouldAutoRefreshPath("/a%2Cb", invalidations)).toBe(true);
+    expect(shouldAutoRefreshPath("/a,b", invalidations)).toBe(true);
+    expect(shouldAutoRefreshPath("/a/b", [{ path: "/a%2Fb", type: "page" }])).toBe(false);
+  });
   // ── page exact match ────────────────────────────────────────────────────────
 
   test("page: exact match on pathname → true", () => {

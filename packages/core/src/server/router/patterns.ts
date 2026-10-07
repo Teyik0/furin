@@ -244,7 +244,7 @@ export function buildRouteMatcher<TRoute extends RoutePatternLike>(
           try {
             params[name] = decodeURIComponent(match[i + 1] ?? "");
           } catch {
-            return null;
+            params[name] = match[i + 1] ?? "";
           }
         }
       }

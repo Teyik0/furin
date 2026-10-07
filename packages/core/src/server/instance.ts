@@ -37,6 +37,7 @@ const WHITESPACE_RE = /\s/;
 
 /** Live instances; owning applications retain their runtime buckets. */
 const _instances = new WeakRegistry<FurinInstance>();
+const _tracked = new WeakRegistry<FurinInstance>();
 const _defaultRegistry = new Map<string, FurinInstance>();
 
 /**
@@ -112,9 +113,9 @@ export function assertPrefixAvailable(
   }
 }
 
-/** Keep out-of-request cache operations working before the plugin is mounted. */
+/** Include prepared runtime state in resets without registering a mount. */
 export function trackInstance(instance: FurinInstance): void {
-  _instances.add(instance);
+  _tracked.add(instance);
 }
 
 /** Registers an instance under its prefix (see assertPrefixAvailable). */
@@ -127,6 +128,7 @@ export function registerInstance(
   const mounted = target.get(instance.prefix) ?? instance;
   target.set(instance.prefix, mounted);
   _instances.add(mounted);
+  _tracked.add(mounted);
   return mounted;
 }
 
@@ -208,12 +210,12 @@ export function allInstances(): FurinInstance[] {
 }
 
 /**
- * @internal Every live state bucket: registered instances plus the default
+ * @internal Every prepared state bucket: tracked instances plus the default
  * fallback bucket. Reset helpers iterate this so state written outside any
  * registration (tests, config-before-mount) is covered too.
  */
 export function allStateBuckets(): FurinInstance[] {
-  const buckets = [..._instances.values()];
+  const buckets = [..._tracked.values()];
   const fallback = defaultInstance();
   if (!buckets.includes(fallback)) {
     buckets.push(fallback);
@@ -228,6 +230,7 @@ export function allStateBuckets(): FurinInstance[] {
  */
 export function __clearInstanceRegistry(): void {
   _instances.clear();
+  _tracked.clear();
   _defaultRegistry.clear();
 }
 

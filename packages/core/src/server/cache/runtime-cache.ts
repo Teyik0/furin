@@ -22,11 +22,92 @@ export interface RuntimeCacheProvider {
 const MAX_MEMORY_ENTRIES = 1000;
 
 interface MemoryEntry {
+  expirationIndex?: number;
   expiresAt: number | undefined;
   key: string;
   namespace: string;
   tags: Set<string>;
   value: unknown;
+}
+
+interface ExpiringEntry extends MemoryEntry {
+  expiresAt: number;
+}
+
+class ExpirationHeap {
+  private readonly entries: ExpiringEntry[] = [];
+
+  takeExpired(now: number): ExpiringEntry | undefined {
+    const [entry] = this.entries;
+    if (entry === undefined || entry.expiresAt > now) {
+      return;
+    }
+    this.delete(entry);
+    return entry;
+  }
+
+  add(entry: MemoryEntry): void {
+    if (entry.expiresAt === undefined || !Number.isFinite(entry.expiresAt)) {
+      return;
+    }
+    entry.expirationIndex = this.entries.length;
+    this.entries.push(entry as ExpiringEntry);
+    this.repair(entry.expirationIndex);
+  }
+
+  delete(entry: MemoryEntry): void {
+    const index = entry.expirationIndex;
+    if (index === undefined) {
+      return;
+    }
+    const last = this.entries.pop() as ExpiringEntry;
+    entry.expirationIndex = undefined;
+    if (last !== entry) {
+      this.entries[index] = last;
+      last.expirationIndex = index;
+      this.repair(index);
+    }
+  }
+
+  private swap(left: number, right: number): void {
+    const first = this.entries[left] as ExpiringEntry;
+    const second = this.entries[right] as ExpiringEntry;
+    this.entries[left] = second;
+    this.entries[right] = first;
+    second.expirationIndex = left;
+    first.expirationIndex = right;
+  }
+
+  private repair(start: number): void {
+    let index = start;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (
+        (this.entries[parent] as ExpiringEntry).expiresAt <=
+        (this.entries[index] as ExpiringEntry).expiresAt
+      ) {
+        break;
+      }
+      this.swap(parent, index);
+      index = parent;
+    }
+    while (index * 2 + 1 < this.entries.length) {
+      const left = index * 2 + 1;
+      const right = this.entries[left + 1];
+      const child =
+        right && right.expiresAt < (this.entries[left] as ExpiringEntry).expiresAt
+          ? left + 1
+          : left;
+      if (
+        (this.entries[index] as ExpiringEntry).expiresAt <=
+        (this.entries[child] as ExpiringEntry).expiresAt
+      ) {
+        break;
+      }
+      this.swap(index, child);
+      index = child;
+    }
+  }
 }
 
 interface RuntimeCacheState {
@@ -39,7 +120,9 @@ const RUNTIME_CACHE_STATE = Symbol.for("@teyik0/furin/runtime-cache-state");
 function createMemoryProvider(): RuntimeCacheProvider {
   const namespaces = new Map<string, Map<string, MemoryEntry>>();
   const recent = new Map<MemoryEntry, undefined>();
+  const expirations = new ExpirationHeap();
   const remove = (entry: MemoryEntry): void => {
+    expirations.delete(entry);
     recent.delete(entry);
     const entries = namespaces.get(entry.namespace);
     entries?.delete(entry.key);
@@ -81,30 +164,36 @@ function createMemoryProvider(): RuntimeCacheProvider {
           return Promise.resolve(entry.value);
         },
         set(key, value, setOptions) {
+          const now = Date.now();
           const previous = namespaces.get(namespace)?.get(key);
           if (previous) {
             remove(previous);
           }
-          let entries = namespaces.get(namespace);
-          if (entries === undefined) {
-            entries = new Map();
-            namespaces.set(namespace, entries);
+          const expiresAt = setOptions?.ttl === undefined ? undefined : now + setOptions.ttl * 1000;
+          if (expiresAt !== undefined && expiresAt <= now) {
+            return Promise.resolve();
           }
+          const entries = namespaces.get(namespace) ?? new Map<string, MemoryEntry>();
+          namespaces.set(namespace, entries);
           const entry: MemoryEntry = {
             key,
             namespace,
-            expiresAt:
-              setOptions?.ttl === undefined ? undefined : Date.now() + setOptions.ttl * 1000,
+            expiresAt,
             tags: new Set(setOptions?.tags ?? []),
             value,
           };
           entries.set(key, entry);
           recent.set(entry, undefined);
+          expirations.add(entry);
+          for (
+            let expired = expirations.takeExpired(now);
+            expired;
+            expired = expirations.takeExpired(now)
+          ) {
+            remove(expired);
+          }
           if (recent.size > MAX_MEMORY_ENTRIES) {
-            const oldest = recent.keys().next().value;
-            if (oldest) {
-              remove(oldest);
-            }
+            remove(recent.keys().next().value as MemoryEntry);
           }
           return Promise.resolve();
         },

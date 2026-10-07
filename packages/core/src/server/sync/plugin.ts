@@ -300,19 +300,23 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     }
     const response = mergeStoredResponseHeaders(
       result.response,
-      effectiveResponseHeaders(ctx.responseValue, ctx.set)
+      result.kind === "unreplayable"
+        ? ctx.set.headers
+        : effectiveResponseHeaders(ctx.responseValue, ctx.set)
     );
     const semanticInvalidations = normalizedInvalidations(invalidate);
-    const invalidations = [...semanticInvalidations];
-    for (const manual of pendingPathInvalidations(manualPending)) {
-      const duplicated = semanticInvalidations.some(
-        (semantic) =>
-          semantic.kind === "path" && semantic.path === manual.path && semantic.type === manual.type
-      );
-      if (!duplicated) {
-        invalidations.push(manual);
-      }
-    }
+    const invalidations = [
+      ...semanticInvalidations,
+      ...pendingPathInvalidations(manualPending).filter(
+        (manual) =>
+          !semanticInvalidations.some(
+            (semantic) =>
+              semantic.kind === "path" &&
+              semantic.path === manual.path &&
+              semantic.type === manual.type
+          )
+      ),
+    ];
     const completion = await runtime.adapter.completeMutation({
       invalidations,
       lease: active.lease,

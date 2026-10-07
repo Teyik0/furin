@@ -24,6 +24,26 @@ const ROOT_LAYOUT = `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute().layout(({ children }) => children);
 `;
 
+test("autofix follows a nested constant factory chain and preserves a shadowed DSL", () => {
+  const source = `import { defineRoute } from "@teyik0/furin";
+function custom(create) { return create().config({ custom: true }).page(() => null); }
+export const route = (() => {
+  const create = defineRoute;
+  const local = create;
+  return local().loader(() => "PRIVATE_ALIAS_LOADER").page(() => null);
+})();`;
+  const pages = createPages({ "root.tsx": ROOT_LAYOUT, "index.tsx": source });
+  try {
+    const fixed = fixRouteConfigLayout(source, join(pages.path, "index.tsx"), pages.path);
+    expect(fixed).toContain("return local().config(");
+    expect(fixed).toContain("layout: rootRoute");
+    expect(fixed).toContain(".config({ custom: true })");
+    expect(fixRouteConfigLayout(fixed ?? "", join(pages.path, "index.tsx"), pages.path)).toBeNull();
+  } finally {
+    pages.cleanup();
+  }
+});
+
 describe("layoutIdentifierFor", () => {
   test("derives the binding from the layout directory", () => {
     expect(layoutIdentifierFor("/app/pages/root.tsx")).toBe("rootRoute");
@@ -38,7 +58,9 @@ test.each([
   'import t from "./other";',
   'import * as t from "./other";',
   "const t = 1;",
+  "const \\u0074 = 1;",
 ])("autofixed dynamic routes compile when t is already bound: %s", async (binding) => {
+  const reference = binding.includes("\\u0074") ? "\\u0074" : "t";
   const pages = createPages({
     "root.tsx":
       'import { defineRootRoute } from "@teyik0/furin"; export const route = defineRootRoute().config({ mode: "ssg" }).layout(({ children }) => children);',
@@ -46,7 +68,7 @@ test.each([
       'export const t = { marker: "original" }; export const marker = "original"; export default t;',
     "[id].tsx": `import { defineRoute } from "@teyik0/furin";
       ${binding}
-      export const route = defineRoute().page(() => <p>{typeof t === "number" ? t : t.marker}</p>);`,
+      export const route = defineRoute().page(() => <p>{typeof ${reference} === "number" ? ${reference} : ${reference}.marker}</p>);`,
   });
   try {
     const file = join(pages.path, "[id].tsx");

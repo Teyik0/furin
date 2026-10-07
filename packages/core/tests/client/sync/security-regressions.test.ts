@@ -45,6 +45,45 @@ test("successful JSON status and code fields do not disable mutation replay", as
   }
 });
 
+test("unreplayable response retries keep the JSON fallback's representation headers", async () => {
+  const { database, options } = testSync();
+  let executions = 0;
+  const app = new Elysia().use(furinSync(options)).post("/download", () => {
+    executions += 1;
+    return new Response("oversized", {
+      headers: {
+        "content-length": String(1024 * 1024 + 1),
+        "content-type": "application/octet-stream",
+        "content-encoding": "gzip",
+      },
+    });
+  });
+  const send = () =>
+    app.handle(
+      new Request("http://localhost/download", {
+        method: "POST",
+        headers: { "idempotency-key": "fallback" },
+      })
+    );
+  try {
+    const first = await send();
+    const replay = await send();
+    const payloads = await Promise.all([first, replay].map((response) => response.json()));
+    for (const response of [first, replay]) {
+      expect(response.status).toBe(500);
+      expect(response.headers.get("content-type")).toBe("application/json;charset=utf-8");
+      expect(response.headers.get("content-length")).toBeNull();
+      expect(response.headers.get("content-encoding")).toBeNull();
+    }
+    for (const payload of payloads) {
+      expect(payload).toMatchObject({ code: "FURIN_UNREPLAYABLE_SYNC_RESPONSE" });
+    }
+    expect(executions).toBe(1);
+  } finally {
+    database.close();
+  }
+});
+
 test.each([42, true, "plain text", { ok: true }, [1]] as const)(
   "mutation replay preserves its native HTTP content type: %s",
   async (value) => {
@@ -127,6 +166,10 @@ test("bodyless status responses replay without serializing the status wrapper", 
 test("mounted mutation uses its own Sync principal and adapter", async () => {
   const first = testSync();
   const second = testSync();
+  const parentReservations = spyOn(first.options.adapter, "beginMutation");
+  const parentCompletions = spyOn(first.options.adapter, "completeMutation");
+  const childReservations = spyOn(second.options.adapter, "beginMutation");
+  const childCompletions = spyOn(second.options.adapter, "completeMutation");
   let authorized = false;
   let executions = 0;
   const child = new Elysia({ prefix: "/child" })
@@ -156,11 +199,21 @@ test("mounted mutation uses its own Sync principal and adapter", async () => {
   try {
     expect((await send()).status).toBe(401);
     expect(executions).toBe(0);
+    expect(parentReservations).not.toHaveBeenCalled();
+    expect(childReservations).not.toHaveBeenCalled();
     authorized = true;
     expect((await send()).status).toBe(200);
     expect((await send()).status).toBe(200);
     expect(executions).toBe(1);
+    expect(childReservations).toHaveBeenCalledTimes(2);
+    expect(childCompletions).toHaveBeenCalledTimes(1);
+    expect(parentReservations).not.toHaveBeenCalled();
+    expect(parentCompletions).not.toHaveBeenCalled();
   } finally {
+    parentReservations.mockRestore();
+    parentCompletions.mockRestore();
+    childReservations.mockRestore();
+    childCompletions.mockRestore();
     first.database.close();
     second.database.close();
   }

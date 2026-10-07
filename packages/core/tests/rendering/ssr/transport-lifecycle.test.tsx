@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { Elysia } from "elysia";
+import { QueryStore } from "../../../src/client/query-store.ts";
 import { createClient } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { type RenderResult, renderToHTML } from "../../../src/server/render/ssr.ts";
@@ -8,6 +9,7 @@ import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 let previousDevMode: boolean;
@@ -84,6 +86,7 @@ test("buffered not-found documents carry the same status and payload as navigati
   expect(parsed.syncData.__furinNotFound).toEqual({ message: "Missing", data: { slug: "gone" } });
   const data = await documentData(result.html);
   expect(data.__furinStatus).toBe(404);
+  expect(data.__furinNotFound).toEqual({ message: "Missing", data: { slug: "gone" } });
 });
 
 test("SSR hydration preserves rich loader values and escapes document delimiters", async () => {
@@ -141,7 +144,50 @@ test("SSR hydration preserves rich loader values and escapes document delimiters
   expect(syncData.text).toBe("</template><script>alert(1)</script>");
 });
 
-test("SSR query seeds reach HTML without serializing credentials or cache keys", async () => {
+test("SSR document framing preserves raw script and comment closing-tag literals after Scripts", async () => {
+  const rawScript = 'window.marker="</html>";';
+  const rawComment = "<!--literal </body></html>-->";
+  const layout = defineRootRoute()
+    .config({ mode: "ssr" })
+    .layout(({ children }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Trusted fixture probes raw script framing. */}
+          <script dangerouslySetInnerHTML={{ __html: rawScript }} />
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Trusted fixture probes raw comment framing. */}
+          <span dangerouslySetInnerHTML={{ __html: rawComment }} />
+        </body>
+      </html>
+    ));
+  const definition = defineRoute()
+    .config({ layout, mode: "ssr" })
+    .loader(() => ({ rich: new Date("2026-01-01") }))
+    .page(() => <main>Ready</main>);
+  const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
+  const page = adaptDefinedPage(definition, root.route);
+  const route = {
+    mode: "ssr" as const,
+    page,
+    path: "/raw.tsx",
+    pattern: "/raw",
+    routeChain: collectRouteChainFromRoute(page._route),
+    segmentBoundaries: [],
+  };
+  const response = await new Elysia()
+    .use(createRoutePlugin(route, root, "test"))
+    .handle(new Request("http://localhost/raw"));
+  const html = await response.text();
+  expect(html).toContain(rawScript);
+  expect(html).toContain(rawComment);
+  expect(html.endsWith("</span></body></html>")).toBe(true);
+});
+
+test("SSR query seeds preserve opaque variants without exposing credentials or aliasing defaults", async () => {
   const api = createClient(
     new Elysia().get("/person", ({ set }) => {
       set.headers["x-furin-query"] = JSON.stringify({ id: "person", scope: {}, session: "alice" });
@@ -187,7 +233,6 @@ test("SSR query seeds reach HTML without serializing credentials or cache keys",
   const html = await response.text();
   expect(html).toContain("Alice");
   expect(html).not.toContain("confidential-test-token");
-  expect(html).not.toContain("furin-query:");
   const data = await documentData(html);
   expect(data.__furinQueries).toMatchObject([
     {
@@ -195,4 +240,11 @@ test("SSR query seeds reach HTML without serializing credentials or cache keys",
       data: { name: "Alice" },
     },
   ]);
+  const seeds = data.__furinQueries as QuerySeed[];
+  // Opaque identities preserve private bindings; credentials never enter these URLs.
+  expect(new URL(seeds[0]?.url as string).hash).toStartWith("#furin-query:");
+  const browserQueries = new QueryStore(undefined);
+  browserQueries.hydrate(seeds, "https://browser.example");
+  expect(browserQueries.snapshot("https://browser.example/person").data).toBeUndefined();
+  expect(browserQueries.dehydrate()[0]?.url).not.toContain("confidential-test-token");
 });

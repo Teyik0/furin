@@ -87,16 +87,25 @@ test.skipIf(process.env.FURIN_SYNC_POSTGRES_URL === undefined)(
   "PostgreSQL catch-up filters principal provenance through real HTTP",
   async () => {
     const sql = new SQL(process.env.FURIN_SYNC_POSTGRES_URL as string);
+    const namespace = crypto.randomUUID();
     try {
       await sql.file(
         fileURLToPath(new URL("../../../src/server/sync/postgres/migration.sql", import.meta.url))
       );
       await verifyPrincipalCatchUp({
-        adapter: postgresSyncAdapter({ sql, namespace: crypto.randomUUID() }),
+        adapter: postgresSyncAdapter({ sql, namespace }),
         initialCursor: "0",
       });
     } finally {
-      await sql.close();
+      try {
+        await sql.begin(async (transaction) => {
+          await transaction`DELETE FROM furin_sync.changes WHERE namespace = ${namespace}`;
+          await transaction`DELETE FROM furin_sync.mutations WHERE namespace = ${namespace}`;
+          await transaction`DELETE FROM furin_sync.streams WHERE namespace = ${namespace}`;
+        });
+      } finally {
+        await sql.close();
+      }
     }
   }
 );
@@ -105,13 +114,32 @@ test.skipIf(process.env.FURIN_SYNC_REDIS_URL === undefined)(
   "Redis catch-up filters principal provenance through real HTTP",
   async () => {
     const client = new RedisClient(process.env.FURIN_SYNC_REDIS_URL as string);
+    const namespace = crypto.randomUUID();
     try {
       await verifyPrincipalCatchUp({
-        adapter: redisSyncAdapter({ client, namespace: crypto.randomUUID() }),
+        adapter: redisSyncAdapter({ client, namespace }),
         initialCursor: "0-0",
       });
     } finally {
-      client.close();
+      try {
+        let cursor = "0";
+        do {
+          // biome-ignore lint/performance/noAwaitInLoops: Redis scan cursors are sequential.
+          const [next, keys] = (await client.send("SCAN", [
+            cursor,
+            "MATCH",
+            `furin:sync:{${encodeURIComponent(namespace)}}:*`,
+            "COUNT",
+            "100",
+          ])) as [string, string[]];
+          cursor = next;
+          if (keys.length > 0) {
+            await client.send("DEL", keys);
+          }
+        } while (cursor !== "0");
+      } finally {
+        client.close();
+      }
     }
   }
 );

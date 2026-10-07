@@ -408,9 +408,16 @@ describe("LinkInteractive — client-side behaviour", () => {
       createElement(Link, { to: "/asset", download: "asset.txt" }, "Download"),
       makeRouterContext({ navigate })
     );
-    dispatchReactEvent(view.anchor, new MouseEvent("click", { bubbles: true, cancelable: true }));
-    expect(navigate).not.toHaveBeenCalled();
-    view.cleanup();
+    document.removeEventListener("click", preventHappyDomAnchorNavigation);
+    try {
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      dispatchReactEvent(view.anchor, event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      document.addEventListener("click", preventHappyDomAnchorNavigation);
+      view.cleanup();
+    }
   });
 
   test("same-origin absolute links navigate using the logical mount path", () => {

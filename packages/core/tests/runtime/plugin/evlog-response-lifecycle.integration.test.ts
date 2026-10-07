@@ -210,6 +210,29 @@ process.stdout.write("__RESULT__" + JSON.stringify({ a: events.a.map(event => ev
   });
 });
 
+test("a failed synthetic log drain preserves render results and original errors", async () => {
+  const result = await runFixture(`
+import { setFurinEvlogOptions } from "./src/server/evlog.ts";
+import { createInstance, withInstance } from "./src/server/instance.ts";
+import { runInSyntheticRenderScope } from "./src/server/context-logger.ts";
+const instance = createInstance("/admin", "admin");
+let emissions = 0;
+setFurinEvlogOptions(instance, { drain: () => { emissions++; return Promise.reject(new Error("drain unavailable")); } });
+const rendered = await withInstance(instance, () => runInSyntheticRenderScope(() => "rendered", { route: "/" }));
+const original = new Error("loader failure");
+let retained = false;
+try {
+  await withInstance(instance, () => runInSyntheticRenderScope(() => { throw original; }, { route: "/" }));
+} catch (error) { retained = error === original; }
+process.stdout.write("__RESULT__" + JSON.stringify({ rendered, retained, emissions }));
+`);
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(result.stderr).toContain("[evlog] drain failed:");
+  expect(
+    JSON.parse(result.stdout.slice(result.stdout.lastIndexOf("__RESULT__") + "__RESULT__".length))
+  ).toEqual({ rendered: "rendered", retained: true, emissions: 2 });
+});
+
 test("synthetic rendering applies its instance's drain, redaction and enrichment", async () => {
   const result = await runFixture(`
 import { setFurinEvlogOptions } from "./src/server/evlog.ts";

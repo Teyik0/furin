@@ -118,6 +118,21 @@ describe("parseDeferredNdjson — error paths", () => {
 });
 
 describe("parseDeferredNdjson — AbortSignal", () => {
+  test("an abort between receiving the initial frame and attaching deferred readers releases the stream", async () => {
+    const abort = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          ndjsonLine(toCrossJSON({ __furinDeferredKeys: ["later"], title: "received" }))
+        );
+        queueMicrotask(() => abort.abort());
+      },
+    });
+    const result = await parseDeferredNdjson(stream, abort.signal);
+    expect(result.syncData.title).toBe("received");
+    await expect(result.deferredPromises.later).rejects.toThrow("aborted");
+    expect(stream.locked).toBe(false);
+  });
   test("abandoned deferred promises do not leak an unhandled AbortError", async () => {
     const initial = ndjsonLine(toCrossJSON({ __furinDeferredKeys: ["abandoned"], title: "x" }));
     const { stream } = makeControlledStream(initial);

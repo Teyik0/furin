@@ -7,7 +7,7 @@ import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { FactoryBindings, fluentChain } from "./binding-scope.ts";
 
 /**
  * Dev-time auto-fix for `config({ layout })`, mirroring how TanStack Router's
@@ -214,10 +214,7 @@ function belongsToBuilderChain(
   }
   const callee = asAstNode(expression.callee);
   if (callee?.type === "Identifier" && typeof callee.name === "string") {
-    return (
-      (bindings.rootBindings.has(callee.name) || bindings.routeBindings.has(callee.name)) &&
-      !hasShadowingDeclaration(callee.name, ancestors)
-    );
+    return bindings.factories.factoryName(callee, ancestors) !== undefined;
   }
   if (callee?.type !== "MemberExpression") {
     return false;
@@ -276,6 +273,7 @@ function builderChainHasMethod(
 
 interface BuilderBindings {
   documentBindings: Set<string>;
+  factories: FactoryBindings;
   rootBindings: Set<string>;
   routeBindings: Set<string>;
   routeSpecifiers: Map<string, { end: number; start: number }>;
@@ -340,6 +338,7 @@ function collectBindingsFromDeclaration(
 function collectBuilderBindings(program: Program): BuilderBindings {
   const bindings: BuilderBindings = {
     documentBindings: new Set(),
+    factories: new FactoryBindings(program, new Set(), new Set()),
     rootBindings: new Set(),
     routeBindings: new Set(),
     routeSpecifiers: new Map(),
@@ -349,6 +348,11 @@ function collectBuilderBindings(program: Program): BuilderBindings {
       collectBindingsFromDeclaration(statement as unknown as ImportDeclaration, bindings);
     }
   }
+  bindings.factories = new FactoryBindings(
+    program,
+    bindings.rootBindings.union(bindings.routeBindings),
+    new Set()
+  );
   return bindings;
 }
 
@@ -394,11 +398,11 @@ function collectChainHeads(program: Program, bindings: BuilderBindings): ChainHe
     CallExpression(call, context) {
       const callee = asAstNode(call.callee);
       const ancestors = context.ancestors() as AstNode[];
-      if (
-        callee?.type !== "Identifier" ||
-        typeof callee.name !== "string" ||
-        hasShadowingDeclaration(callee.name, ancestors)
-      ) {
+      if (callee?.type !== "Identifier" || typeof callee.name !== "string") {
+        return;
+      }
+      const factory = bindings.factories.factoryName(callee, ancestors);
+      if (factory === undefined) {
         return;
       }
       const callEnd = typeof call.end === "number" ? call.end : 0;
@@ -406,7 +410,7 @@ function collectChainHeads(program: Program, bindings: BuilderBindings): ChainHe
       const calleeEnd = typeof callee.end === "number" ? callee.end : 0;
       const declaration = ancestors.find((ancestor) => ancestor.type === "VariableDeclarator");
       const identifier = asAstNode(declaration?.id);
-      const chain = asAstNode(declaration?.init);
+      const chain = fluentChain(call as unknown as AstNode, ancestors);
       const variableDeclaration = ancestors.find(
         (ancestor) => ancestor.type === "VariableDeclaration"
       );
@@ -415,30 +419,16 @@ function collectChainHeads(program: Program, bindings: BuilderBindings): ChainHe
         identifier.name === "route" &&
         variableDeclaration?.kind === "const" &&
         ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration");
-      const terminal = terminalName(declaration?.init);
-      if (bindings.rootBindings.has(callee.name)) {
+      if (bindings.rootBindings.has(factory) || bindings.routeBindings.has(factory)) {
         heads.push({
           binding: callee.name,
           builderEnd: calleeEnd,
           chainEnd: typeof chain?.end === "number" ? chain.end : callEnd,
           end: callEnd,
           exportedAsRoute,
-          isRoot: true,
+          isRoot: bindings.rootBindings.has(factory),
           start: calleeStart,
-          terminal,
-        });
-        return;
-      }
-      if (bindings.routeBindings.has(callee.name)) {
-        heads.push({
-          binding: callee.name,
-          builderEnd: calleeEnd,
-          chainEnd: typeof chain?.end === "number" ? chain.end : callEnd,
-          end: callEnd,
-          exportedAsRoute,
-          isRoot: false,
-          start: calleeStart,
-          terminal,
+          terminal: terminalName(chain),
         });
       }
     },
@@ -455,6 +445,7 @@ interface FixContext {
   filePath: string;
   hasLoader: boolean;
   hasStaticParams: boolean;
+  identifiers: Set<string>;
   imports: LayoutImport[];
   isRootLayout: boolean;
   lastImportEnd: number;
@@ -573,7 +564,11 @@ function resolveBinding(ctx: FixContext, insertionOffset: number): string {
   const taken = new Set(ctx.imports.map((candidate) => candidate.binding));
   let binding = expected.identifier;
   let suffix = 2;
-  while (taken.has(binding) || wordBoundaryRe(binding).test(ctx.source)) {
+  while (
+    taken.has(binding) ||
+    ctx.identifiers.has(binding) ||
+    wordBoundaryRe(binding).test(ctx.source)
+  ) {
     binding = `${expected.identifier}${suffix}`;
     suffix += 1;
   }
@@ -786,7 +781,7 @@ function ensureTImport(ctx: FixContext): string {
   const offset = Math.max(ctx.lastImportEnd, 0);
   let binding = "t";
   let suffix = 2;
-  while (wordBoundaryRe(binding).test(ctx.source)) {
+  while (ctx.identifiers.has(binding) || wordBoundaryRe(binding).test(ctx.source)) {
     binding = `t${suffix}`;
     suffix += 1;
   }
@@ -1122,6 +1117,12 @@ export function fixRouteConfigLayout(
   let touched = rewriteRootBuilder(routeHead, bindings, convention.isRootLayout, magic);
   const configObjects = collectConfigObjects(parsed.program, bindings);
   const ancestorRequirements = ancestorRenderingRequirements(filePath, pagesDir, probe);
+  const identifiers = new Set<string>();
+  walk(parsed.program, {
+    Identifier(node) {
+      identifiers.add(node.name);
+    },
+  });
   const ctx: FixContext = {
     ancestorHasLoader: ancestorRequirements.hasLoader,
     ancestorHasQuery: ancestorRequirements.hasQuery,
@@ -1132,6 +1133,7 @@ export function fixRouteConfigLayout(
     hasLoader,
     hasStaticParams,
     imports,
+    identifiers,
     isRootLayout: convention.isRootLayout,
     lastImportEnd,
     magic,

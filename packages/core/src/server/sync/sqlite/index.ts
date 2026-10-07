@@ -68,13 +68,17 @@ function storedResponse(row: MutationRow): StoredResponse {
 }
 
 export function migrateSqliteSync(database: Database): void {
-  database.run(migrationSql);
-  const columns = database
-    .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
-    .all();
-  if (!columns.some((column) => column.name === "principal_hash")) {
-    database.run("ALTER TABLE furin_sync_changes ADD COLUMN principal_hash TEXT");
-  }
+  database
+    .transaction(() => {
+      database.run(migrationSql);
+      const columns = database
+        .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
+        .all();
+      if (!columns.some((column) => column.name === "principal_hash")) {
+        database.run("ALTER TABLE furin_sync_changes ADD COLUMN principal_hash TEXT");
+      }
+    })
+    .immediate();
 }
 
 export class SqliteSyncAdapter implements SyncAdapter {

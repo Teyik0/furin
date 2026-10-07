@@ -1,5 +1,9 @@
 import { type Context, type Elysia, ElysiaStatus, Validator } from "elysia";
-import { serializeInvalidationPaths } from "../../shared/invalidation-header.ts";
+import {
+  decodeInvalidationEntry,
+  encodeInvalidationEntry,
+  serializeInvalidationPaths,
+} from "../../shared/invalidation-header.ts";
 import {
   appendPendingInvalidationHeader,
   runInvalidationRules,
@@ -141,7 +145,7 @@ function prepare<Tx>(execution: Execution<Tx>, value: unknown, original: unknown
   }
   const paths = invalidations
     .filter((entry): entry is Extract<SyncInvalidation, { kind: "path" }> => entry.kind === "path")
-    .map((entry) => (entry.type === "layout" ? `${entry.path}:layout` : entry.path));
+    .map((entry) => encodeInvalidationEntry(entry.path, entry.type));
   if (paths.length > 0) {
     context.set.headers["x-furin-revalidate"] = serializeInvalidationPaths(paths);
   }
@@ -280,9 +284,5 @@ export function normalizedInvalidations(input: InvalidationInput | undefined): S
 export function pendingPathInvalidations(
   entries: readonly string[]
 ): Extract<SyncInvalidation, { kind: "path" }>[] {
-  return entries.map((entry) =>
-    entry.endsWith(":layout")
-      ? { kind: "path" as const, path: entry.slice(0, -":layout".length), type: "layout" }
-      : { kind: "path" as const, path: entry, type: "page" }
-  );
+  return entries.map((entry) => ({ kind: "path" as const, ...decodeInvalidationEntry(entry) }));
 }

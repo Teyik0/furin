@@ -77,7 +77,11 @@ function compareCodeUnits(a: string, b: string): number {
   return 0;
 }
 
-function nearestFingerprintFile(directory: string, names: string[]): string | undefined {
+function nearestFingerprintFile(
+  directory: string,
+  names: string[],
+  boundary: string | undefined
+): string | undefined {
   let current: string | undefined = directory;
   while (current !== undefined) {
     for (const name of names) {
@@ -87,7 +91,7 @@ function nearestFingerprintFile(directory: string, names: string[]): string | un
       }
     }
     const parent = dirname(current);
-    current = parent === current ? undefined : parent;
+    current = parent === current || current === boundary ? undefined : parent;
   }
   return undefined;
 }
@@ -106,13 +110,14 @@ export async function createBuildFingerprint(
   routeSources: string[],
   projectRoot: string
 ): Promise<string> {
+  const rootBoundary = existsSync(projectRoot) ? realpathSync(projectRoot) : projectRoot;
   const fingerprintPaths = new Set<string>([
     root.path,
     ...routes.map((route) => route.path),
     ...routeSources,
     ...BUILD_ID_INPUT_PATHS,
   ]);
-  const lockfile = nearestFingerprintFile(projectRoot, ["bun.lock", "bun.lockb"]);
+  const lockfile = nearestFingerprintFile(projectRoot, ["bun.lock", "bun.lockb"], undefined);
   if (lockfile) {
     fingerprintPaths.add(lockfile);
   }
@@ -152,7 +157,12 @@ export async function createBuildFingerprint(
     if (!isScript) {
       return;
     }
-    const manifest = nearestFingerprintFile(dirname(path), ["package.json"]);
+    const relativePath = toPosixPath(relative(rootBoundary, path));
+    const manifestBoundary =
+      relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
+        ? undefined
+        : rootBoundary;
+    const manifest = nearestFingerprintFile(dirname(path), ["package.json"], manifestBoundary);
     if (manifest) {
       fingerprintPaths.add(manifest);
       await visit(manifest);

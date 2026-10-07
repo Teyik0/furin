@@ -4,7 +4,7 @@ import "../../setup/evlog-mock";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
-import { clientModule, preloadClientModule } from "../../../src/client.ts";
+import { clientModule, type HeadOptions, preloadClientModule } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
@@ -21,6 +21,7 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const SCENE_KEY = "__FURIN_CLIENT_MODULE_scene__";
 const MODULE_PRELOAD_RE = /<link rel="modulepreload"[^>]*?href="([^"]+)"/g;
+const HEAD_JSON_RE = /id="__FURIN_HEAD__"[^>]*>([\s\S]*?)<\/script>/;
 
 function createContext(): Context {
   return {
@@ -35,7 +36,10 @@ function createContext(): Context {
   } as Context;
 }
 
-function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: ResolvedRoute } {
+function createCanvasRoute(
+  preloadScene: boolean,
+  head?: HeadOptions
+): { root: RootLayout; route: ResolvedRoute } {
   const scene = clientModule(() => Promise.resolve({}), SCENE_KEY);
   const rootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
@@ -53,6 +57,7 @@ function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: Re
   const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
   const terminal = defineRoute()
     .config({ layout: rootTerminal, mode: "ssr" })
+    .head(() => head ?? {})
     .page(() => {
       if (preloadScene) {
         preloadClientModule(scene);
@@ -122,7 +127,16 @@ describe("module preloading", () => {
           modules: { [SCENE_KEY]: ["/admin/_client/scene.js", "/admin/_client/shared.js"] },
           routes: { "/canvas": ["/admin/_client/canvas.js", "/admin/_client/shared.js"] },
         });
-        const { root, route } = createCanvasRoute(true);
+        const { root, route } = createCanvasRoute(true, {
+          links: [
+            { rel: "stylesheet", href: "/admin/_client/head.css" },
+            { rel: "alternate", href: "https://example.org/alternate" },
+          ],
+          scripts: [
+            { src: "/admin/_client/head.js" },
+            { children: 'window.marker="/admin/_client/user-data.js";' },
+          ],
+        });
         const html =
           mode === "buffered"
             ? (await renderToHTML(route, createContext(), root)).html
@@ -137,6 +151,19 @@ describe("module preloading", () => {
         expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
         expect(html).toContain('href="/outer/inner/admin/favicon.ico"');
         expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
+        expect(html).toContain('href="/outer/inner/admin/_client/head.css"');
+        expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
+        const serializedHead = html.match(HEAD_JSON_RE)?.[1];
+        expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
+          links: [
+            { rel: "stylesheet", href: "/outer/inner/admin/_client/head.css" },
+            { rel: "alternate", href: "https://example.org/alternate" },
+          ],
+          scripts: [
+            { src: "/outer/inner/admin/_client/head.js" },
+            { children: 'window.marker="/admin/_client/user-data.js";' },
+          ],
+        });
       });
     }
   );

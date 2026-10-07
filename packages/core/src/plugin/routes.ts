@@ -37,6 +37,7 @@ const ROUTE_EXTENSION = /\.(?:jsx?|tsx?)$/;
 const ROUTE_CONVENTIONS = new Set(["error", "not-found", "root"]);
 const DEV_ROUTES_APPS_SYMBOL = Symbol.for("@teyik0/furin/dev-routes-apps");
 const DEV_ROUTE_WATCHERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watchers");
+const DEV_ROUTE_WATCHER_OWNERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watcher-owners");
 const DEV_ROUTES_FILE_FILTER = /[\\/]routes\.ts\?instance=[^&]+$/;
 const DEV_ROUTE_RECONCILE_DELAY_MS = 25;
 const DEV_ROUTE_RETRY_DELAY_MS = 100;
@@ -69,6 +70,7 @@ export interface DevRouteTopologyWatcherOptions {
   onRouteFilesTouched?: (sourcePaths: readonly string[]) => Promise<void> | void;
   onSourceError?: (error: unknown, sourcePath: string) => void;
   onTopologyChange: (sourcePaths: readonly string[]) => Promise<void> | void;
+  owner?: { app: object; prefix: string };
 }
 
 interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
@@ -78,6 +80,7 @@ interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   pending: boolean;
   reconcileTimer: ReturnType<typeof setTimeout> | undefined;
   refreshPromise: Promise<void> | undefined;
+  registration: object;
   routeFilesSignature: string;
   source: string;
   watchers: FSWatcher[];
@@ -497,16 +500,38 @@ function refreshRouteTopology(state: DevRouteTopologyWatcherState): Promise<void
 export function registerDevRouteTopologyWatcher(
   options: DevRouteTopologyWatcherOptions
 ): DevRouteTopologyWatcher {
-  const watcherKey = options.instance;
+  let watcherKey = options.instance;
+  if (options.owner) {
+    let owners = Reflect.get(globalThis, DEV_ROUTE_WATCHER_OWNERS_SYMBOL) as
+      | WeakMap<object, Map<string, RouteInstanceSpec>>
+      | undefined;
+    if (!owners) {
+      owners = new WeakMap();
+      Reflect.set(globalThis, DEV_ROUTE_WATCHER_OWNERS_SYMBOL, owners);
+    }
+    let mounts = owners.get(options.owner.app);
+    if (!mounts) {
+      mounts = new Map();
+      owners.set(options.owner.app, mounts);
+    }
+    watcherKey = mounts.get(options.owner.prefix) ?? options.instance;
+    mounts.set(options.owner.prefix, watcherKey);
+  }
   const watchers = devRouteTopologyWatchers();
   const existing = watchers.get(watcherKey);
+  const registration = {};
   if (existing) {
     existing.instance = options.instance;
     existing.onRouteFilesTouched = options.onRouteFilesTouched;
     existing.onSourceError = options.onSourceError;
     existing.onTopologyChange = options.onTopologyChange;
+    existing.registration = registration;
+    replaceSourceWatchers(existing);
     return {
       close: () => {
+        if (existing.registration !== registration) {
+          return;
+        }
         existing.closed = true;
         if (existing.reconcileTimer !== undefined) {
           clearTimeout(existing.reconcileTimer);
@@ -530,6 +555,7 @@ export function registerDevRouteTopologyWatcher(
     pending: false,
     reconcileTimer: undefined,
     refreshPromise: undefined,
+    registration,
     routeFilesSignature: routeFilesSignatureValue,
     source,
     watchers: [],
@@ -540,6 +566,9 @@ export function registerDevRouteTopologyWatcher(
 
   return {
     close: () => {
+      if (state.registration !== registration) {
+        return;
+      }
       state.closed = true;
       if (state.reconcileTimer !== undefined) {
         clearTimeout(state.reconcileTimer);

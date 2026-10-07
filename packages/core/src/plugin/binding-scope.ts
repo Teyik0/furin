@@ -1,47 +1,133 @@
+import { walk } from "yuku-ast";
 import type { Program } from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
 
-function moduleFactoryAliases(program: Program): Array<{ name: string; target: string }> {
-  const aliases: Array<{ name: string; target: string }> = [];
-  for (const statement of program.body) {
-    const declaration = (statement.type === "ExportNamedDeclaration"
-      ? statement.declaration
-      : statement) as unknown as AstNode | null;
-    if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") {
+export function fluentChain(call: AstNode, ancestors: AstNode[]): AstNode {
+  let chain = call;
+  for (const parent of ancestors.toReversed()) {
+    if (parent === chain) {
       continue;
     }
-    for (const declarator of declaration.declarations as AstNode[]) {
-      const identifier = declarator.id as AstNode;
-      const initializer = declarator.init
-        ? unwrapTSExpression(declarator.init as AstNode)
-        : undefined;
-      if (
-        identifier.type === "Identifier" &&
-        typeof identifier.name === "string" &&
-        initializer?.type === "Identifier" &&
-        typeof initializer.name === "string"
-      ) {
-        aliases.push({ name: identifier.name, target: initializer.name });
-      }
+    if (
+      (parent.type === "MemberExpression" && parent.object === chain) ||
+      (parent.type === "CallExpression" && parent.callee === chain) ||
+      unwrapTSExpression(parent) === chain
+    ) {
+      chain = parent;
+    } else {
+      break;
     }
   }
-  return aliases;
+  return unwrapTSExpression(chain);
 }
 
-/** Resolve module-local immutable aliases without confusing nested shadowed bindings. */
-export function addFactoryAliases(program: Program, bindings: Set<string>): void {
-  const aliases = moduleFactoryAliases(program);
-  for (;;) {
-    const { size } = bindings;
-    for (const alias of aliases) {
-      if (bindings.has(alias.target)) {
-        bindings.add(alias.name);
+export function lexicalBindingScope(ancestors: AstNode[]): AstNode | undefined {
+  return ancestors.findLast((ancestor) =>
+    [
+      "Program",
+      "BlockStatement",
+      "SwitchStatement",
+      "ForStatement",
+      "ForInStatement",
+      "ForOfStatement",
+      "StaticBlock",
+    ].includes(ancestor.type)
+  );
+}
+
+export function varBindingScope(ancestors: AstNode[]): AstNode | undefined {
+  return ancestors.findLast((ancestor, index) => {
+    if (ancestor.type === "Program" || ancestor.type === "StaticBlock") {
+      return true;
+    }
+    const parent = ancestors[index - 1];
+    return (
+      ancestor.type === "BlockStatement" &&
+      !!parent &&
+      ["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"].includes(parent.type)
+    );
+  });
+}
+
+interface FactoryAlias {
+  ancestors: AstNode[];
+  immutable: boolean;
+  initializer: AstNode;
+  name: string;
+  scope: AstNode;
+}
+
+/** Import identities stay module-local; aliases resolve at their lexical declaration. */
+export class FactoryBindings extends Set<string> {
+  private readonly aliases: FactoryAlias[] = [];
+  private readonly namespaces: Set<string>;
+
+  constructor(program: Program, named: Set<string>, namespaces: Set<string>) {
+    super(named);
+    this.namespaces = namespaces;
+    walk(program, {
+      VariableDeclarator: (node, context) => {
+        const ancestors = context.ancestors() as AstNode[];
+        const declaration = ancestors.at(-1);
+        const scope =
+          declaration?.kind === "var" ? varBindingScope(ancestors) : lexicalBindingScope(ancestors);
+        if (node.id.type === "Identifier" && node.init && scope) {
+          this.aliases.push({
+            ancestors,
+            immutable: declaration?.kind === "const",
+            initializer: node.init as AstNode,
+            name: node.id.name,
+            scope,
+          });
+        }
+      },
+    });
+  }
+
+  factoryName(expression: AstNode, ancestors: AstNode[]): string | undefined {
+    return this.resolve(expression, ancestors, this, new Set());
+  }
+
+  namespaceName(expression: AstNode, ancestors: AstNode[]): string | undefined {
+    return this.resolve(expression, ancestors, this.namespaces, new Set());
+  }
+
+  private resolve(
+    expression: AstNode,
+    ancestors: AstNode[],
+    imports: Set<string>,
+    seen: Set<FactoryAlias>
+  ): string | undefined {
+    const node = unwrapTSExpression(expression);
+    if (node.type !== "Identifier" || typeof node.name !== "string") {
+      return undefined;
+    }
+    if (imports.has(node.name) && !hasShadowingDeclaration(node.name, ancestors)) {
+      return node.name;
+    }
+    let match: FactoryAlias | undefined;
+    let scopeIndex = -1;
+    for (const alias of this.aliases) {
+      const index = ancestors.lastIndexOf(alias.scope);
+      if (alias.name === node.name && index > scopeIndex) {
+        match = alias;
+        scopeIndex = index;
       }
     }
-    if (bindings.size === size) {
-      return;
+    if (
+      !match ||
+      seen.has(match) ||
+      hasShadowingDeclaration(node.name, ancestors.slice(scopeIndex + 1))
+    ) {
+      return undefined;
     }
+    seen.add(match);
+    const name = this.resolve(match.initializer, match.ancestors, imports, seen);
+    if (name && !match.immutable) {
+      throw new Error("[furin] Route factory aliases must be immutable.");
+    }
+    return name;
   }
 }
 
@@ -197,6 +283,7 @@ export function hasShadowingDeclaration(name: string, ancestors: AstNode[]): boo
       functionScopeHasName(scope, name) ||
       (scope.type === "ClassExpression" && bindingPatternHasName(scope.id, name)) ||
       (scope.type === "CatchClause" && bindingPatternHasName(scope.param, name)) ||
+      (scope.type === "StaticBlock" && functionBodyHasVarName(scope.body, name, true)) ||
       blockScopeHasName(scope, name) ||
       loopScopeHasName(scope, name) ||
       switchScopeHasName(scope, name)

@@ -18,7 +18,11 @@ import {
   runWithRequestInstrumentation,
   shouldInstrumentRequest,
 } from "./server/devtools/instrumentation.ts";
-import { registerRequestScopeWrapper, requestScopeOwner } from "./server/elysia-owner.ts";
+import {
+  registerRequestScopeWrapper,
+  replaceFurinMountRoutes,
+  requestScopeOwner,
+} from "./server/elysia-owner.ts";
 import { createFurinEvlog, type FurinEvlogOptions, setFurinEvlogOptions } from "./server/evlog.ts";
 import {
   createInstance,
@@ -455,14 +459,116 @@ const requestScopeRegistries = new WeakMap<RequestScopeWrapper, Map<string, Furi
 
 interface FurinMount {
   anchor: { handler: unknown; method: string; path: string };
+  app: AnyElysia;
+  cleanup: readonly ((app: AnyElysia) => unknown)[];
+  hoc: readonly RequestScopeWrapper[];
   instance: FurinInstance;
   logger: FurinEvlogOptions | undefined;
+  options: FurinOptions;
+  setup: readonly ((app: AnyElysia) => unknown)[];
 }
 
 const furinMountMarkers = new WeakMap<object, FurinMount>();
+const furinPluginMounts = new WeakMap<object, FurinMount>();
+const mountOwners = new WeakMap<FurinMount, { owner: WeakRef<AnyElysia>; prefix: string }>();
+const ownerMounts = new WeakMap<AnyElysia, Map<FurinMount, Map<string, FurinMount>>>();
+const preparingOwners = new WeakMap<AnyElysia, Promise<void>>();
+const preparedOwners = new WeakMap<AnyElysia, { routes: readonly unknown[]; length: number }>();
+const finalInstances = new WeakMap<AnyElysia, Map<string, FurinInstance>>();
+
+function composedMounts(app: AnyElysia): { mount: FurinMount; prefix: string }[] {
+  const mounts: { mount: FurinMount; prefix: string }[] = [];
+  for (const route of app.routes) {
+    const hooks = route.hooks?.beforeHandle;
+    if (!hooks) {
+      continue;
+    }
+    for (const hook of Array.isArray(hooks) ? hooks : [hooks]) {
+      const mount = furinMountMarkers.get(hook);
+      if (
+        mount &&
+        route.method === mount.anchor.method &&
+        route.handler === mount.anchor.handler &&
+        route.path.endsWith(mount.anchor.path)
+      ) {
+        mounts.push({
+          mount,
+          prefix: normalizePrefix(
+            `${route.path.slice(0, -mount.anchor.path.length)}${mount.instance.declaredPrefix}`
+          ),
+        });
+      }
+    }
+  }
+  return mounts;
+}
+
+function prepareFinalMounts(app: AnyElysia): Promise<void> | undefined {
+  const pending = preparingOwners.get(app);
+  if (pending) {
+    return pending;
+  }
+  const declared = Reflect.get(app, "declaredRoutes") as readonly unknown[] | undefined;
+  const prepared = preparedOwners.get(app);
+  if (declared && prepared?.routes === declared && prepared.length === declared.length) {
+    return;
+  }
+  let mounts = ownerMounts.get(app);
+  if (!mounts) {
+    mounts = new Map();
+    ownerMounts.set(app, mounts);
+  }
+  const initialize: { source: FurinMount; prefix: string; mounted: Map<string, FurinMount> }[] = [];
+  for (const { mount: source, prefix } of composedMounts(app)) {
+    let mounted = mounts.get(source);
+    if (!mounted) {
+      mounted = new Map();
+      mounts.set(source, mounted);
+    }
+    if (mounted.has(prefix)) {
+      continue;
+    }
+    const claimed = mountOwners.get(source);
+    if (!claimed || (claimed.owner.deref() === app && claimed.prefix === prefix)) {
+      mountOwners.set(source, { owner: new WeakRef(app), prefix });
+      source.instance.prefix = prefix;
+      mounted.set(prefix, source);
+    } else {
+      initialize.push({ source, prefix, mounted });
+    }
+  }
+  if (!initialize.length) {
+    const routes = Reflect.get(app, "declaredRoutes") as readonly unknown[];
+    preparedOwners.set(app, { routes, length: routes.length });
+    return;
+  }
+  const task = (async () => {
+    for (const { source, prefix, mounted } of initialize) {
+      // biome-ignore lint/performance/noAwaitInLoops: mounts write shared generated files; initialize them sequentially.
+      const plugin = await furin(source.options);
+      const fresh = furinPluginMounts.get(plugin);
+      if (!fresh) {
+        throw new Error("[furin] Runtime mount descriptor is missing.");
+      }
+      fresh.instance.prefix = prefix;
+      mountOwners.set(fresh, { owner: new WeakRef(app), prefix });
+      const parentPrefix = source.instance.declaredPrefix
+        ? prefix.slice(0, -source.instance.declaredPrefix.length)
+        : prefix;
+      replaceFurinMountRoutes(app, source.app, fresh.app, parentPrefix);
+      mounted.set(prefix, fresh);
+    }
+    const routes = Reflect.get(app, "declaredRoutes") as readonly unknown[];
+    preparedOwners.set(app, { routes, length: routes.length });
+  })();
+  preparingOwners.set(app, task);
+  return task.finally(() => preparingOwners.delete(app));
+}
 
 function finalMountRegistry(app: AnyElysia): Map<string, FurinInstance> {
-  const instances = new Map<string, FurinInstance>();
+  const instances = finalInstances.get(app) ?? new Map<string, FurinInstance>();
+  finalInstances.set(app, instances);
+  instances.clear();
   for (const route of app.routes) {
     const hooks = route.hooks?.beforeHandle;
     if (!hooks) {
@@ -594,7 +700,7 @@ function wrapWithRequestScope(app: AnyElysia, instances: Map<string, FurinInstan
           };
           const dataPath =
             pathname === `${instance.prefix}/_furin/data`
-              ? parseDataEndpointPath(new URL(request.url).searchParams.get("path") ?? "")
+              ? parseDataEndpointPath(new URL(request.url).searchParams.get("path") || "")
               : undefined;
           const refresh =
             pathname === `${instance.prefix}/_furin/data` &&
@@ -610,7 +716,7 @@ function wrapWithRequestScope(app: AnyElysia, instances: Map<string, FurinInstan
       );
     };
   };
-  registerRequestScopeWrapper(wrap);
+  registerRequestScopeWrapper(wrap, prepareFinalMounts);
   requestScopeRegistries.set(wrap, instances);
   return app.wrap(wrap);
 }
@@ -661,18 +767,102 @@ function createFurinPlugin(
   instance: FurinInstance,
   hmrPrefix: string | undefined,
   hasSync: boolean,
-  options: FurinOptions
+  options: FurinOptions,
+  loggerOptions: FurinEvlogOptions
 ) {
   // Reusing a plugin must initialize a complete runtime, including every
   // captured dev callback. Elysia resolves async plugins before serving.
   let used = false;
   const marker = () => undefined;
   const anchor = app.routes.find((route) => typeof route.handler === "function");
-  if (anchor) {
-    furinMountMarkers.set(marker, { anchor, instance, logger: options.logger });
+  const extension = Reflect.get(app, "~ext") as {
+    cleanup?: ((app: AnyElysia) => unknown)[];
+    hoc?: RequestScopeWrapper[];
+    setup?: ((app: AnyElysia) => unknown)[];
+  };
+  const mount: FurinMount | undefined = anchor
+    ? {
+        anchor,
+        app,
+        cleanup: extension.cleanup?.slice() ?? [],
+        hoc: extension.hoc?.slice() ?? [],
+        instance,
+        logger: loggerOptions,
+        options,
+        setup: extension.setup?.slice() ?? [],
+      }
+    : undefined;
+  if (mount) {
+    if (extension.hoc) {
+      extension.hoc = mount.hoc.map(
+        (original, index) =>
+          function (this: readonly RequestScopeWrapper[], fetch) {
+            const owner = requestScopeOwner(this);
+            const handlers = new WeakMap<FurinInstance, typeof fetch>();
+            return (request, ...rest) => {
+              const runtime = owner ? ownerMounts.get(owner)?.get(mount)?.values() : undefined;
+              const scopedInstance = currentInstance();
+              const selected =
+                [...(runtime ?? [])].find((candidate) => candidate.instance === scopedInstance) ??
+                mount;
+              let handler = handlers.get(selected.instance);
+              if (!handler) {
+                handler = (selected.hoc[index] ?? original)(fetch);
+                handlers.set(selected.instance, handler);
+              }
+              return handler(request, ...rest);
+            };
+          }
+      );
+    }
+    const lifecycle = (owner: AnyElysia, phase: "setup" | "cleanup") => {
+      const execute = () => {
+        let running: Promise<void> | undefined;
+        const invoke = (callback: () => unknown) => {
+          if (running) {
+            running = running.then(callback).then(() => undefined);
+          } else {
+            const result = callback();
+            if (result instanceof Promise) {
+              running = result.then(() => undefined);
+            }
+          }
+        };
+        for (const runtime of ownerMounts.get(owner)?.get(mount)?.values() ?? []) {
+          for (const callback of runtime[phase]) {
+            invoke(() => callback(owner));
+          }
+          if (phase === "cleanup") {
+            invoke(() => {
+              unregisterInstance(runtime.instance, finalInstances.get(owner) ?? new Map());
+              const initial = applicationInstances.get(owner);
+              if (initial) {
+                unregisterInstance(runtime.instance, initial);
+              }
+            });
+          }
+        }
+        return running;
+      };
+      const pending = prepareFinalMounts(owner);
+      return pending ? pending.then(execute) : execute();
+    };
+    app.setup((owner) => lifecycle(owner, "setup"));
+    app.cleanup((owner) => lifecycle(owner, "cleanup"));
+    const ownedExtension = Reflect.get(app, "~ext") as typeof extension;
+    ownedExtension.setup?.splice(0, mount.setup.length);
+    ownedExtension.cleanup?.splice(0, mount.cleanup.length);
+  }
+  if (anchor && mount) {
+    furinMountMarkers.set(marker, mount);
   }
   const markedApp = new Elysia().beforeHandle(marker).use(app);
-  return <ParentApp extends AnyElysia>(parentApp: ParentApp): FurinApplication<ParentApp> => {
+  if (mount) {
+    mount.app = markedApp;
+  }
+  const plugin = <ParentApp extends AnyElysia>(
+    parentApp: ParentApp
+  ): FurinApplication<ParentApp> => {
     // The mounted evlog plugin contributes only log; preserve the parent's
     // native route, schema and macro types instead of merging AnyElysia.
     const result: unknown = parentApp;
@@ -689,10 +879,7 @@ function createFurinPlugin(
     used = true;
     const parentConfig = Reflect.get(parentApp, "~config") as { prefix?: string } | undefined;
     instance.prefix = normalizePrefix(`${parentConfig?.prefix ?? ""}${instance.declaredPrefix}`);
-    const mountedInstance = registerInstance(instance, instances);
-    if (mountedInstance === instance) {
-      parentApp.cleanup(() => unregisterInstance(instance, instances));
-    }
+    registerInstance(instance, instances);
     if (hasSync) {
       bindSyncValidation(parentApp);
     }
@@ -703,6 +890,10 @@ function createFurinPlugin(
     }
     return result as FurinApplication<ParentApp>;
   };
+  if (mount) {
+    furinPluginMounts.set(plugin, mount);
+  }
+  return plugin;
 }
 
 async function loadDevelopmentRoutes(resolvedPagesDir: string) {
@@ -736,7 +927,7 @@ function createNativeRouteRenderer(
     const { request } = context;
     const requestUrl = new URL(request.url);
     const { pathname } = requestUrl;
-    const hasPrefix = prefix !== "" && (pathname === prefix || pathname.startsWith(`${prefix}/`));
+    const hasPrefix = pathname === prefix || pathname.startsWith(`${prefix}/`);
     const logicalPath = hasPrefix ? pathname.slice(prefix.length) : pathname;
     const matched = matchNativeRoute(logicalPath || "/");
     if (!matched || (IS_DEV && !existsSync(matched.route.path))) {
@@ -766,7 +957,7 @@ function createNativeRouteRenderer(
     context.query = parsedQuery.query;
     if (navigationDataRequests.has(request)) {
       getLogger().set({
-        path: logicalPath + requestUrl.search,
+        path: (logicalPath || "/") + requestUrl.search,
         routePattern: matched.route.pattern,
       });
       const current = IS_DEV
@@ -1133,9 +1324,10 @@ export async function furin({
       prefix: prefix || undefined,
       seed: resolvedPagesDir,
     })
-      .setup(() => {
+      .setup((owner) => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
+          owner: { app: owner.server ?? owner, prefix: instance.prefix },
           onRouteFilesTouched: async (sourcePaths) => {
             applyRouteConfigAutofix();
             await refreshDevelopmentRoutes(sourcePaths);
@@ -1226,7 +1418,14 @@ export async function furin({
           );
         })
       );
-    return createFurinPlugin(devApp, instance, prefix, Boolean(sync), mountOptions);
+    return createFurinPlugin(
+      devApp,
+      instance,
+      prefix,
+      Boolean(sync),
+      mountOptions,
+      elysiaLoggerOptions
+    );
   }
 
   // ── Production ──────────────────────────────────────────────────────────
@@ -1294,7 +1493,14 @@ export async function furin({
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));
-  return createFurinPlugin(prodApp, instance, undefined, Boolean(sync), mountOptions);
+  return createFurinPlugin(
+    prodApp,
+    instance,
+    undefined,
+    Boolean(sync),
+    mountOptions,
+    elysiaLoggerOptions
+  );
 }
 
 /**

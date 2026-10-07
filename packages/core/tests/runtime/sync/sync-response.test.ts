@@ -78,6 +78,16 @@ test("furinSync replay preserves returned Response headers over configured heade
   expect(response.headers.get("x-furin-tag")).toBe("returned");
 });
 
+test("furinSync replay merges returned headers without retaining differently cased aliases", async () => {
+  const response = await executeAndReplay(
+    replayApp(
+      { "x-furin-tag": "returned" },
+      { "x-furin-tag": ["configured"], "X-Furin-Tag": ["stale-alias"] }
+    )
+  );
+  expect(response.headers.get("x-furin-tag")).toBe("returned");
+});
+
 test("furinSync replay discards configured cookies", async () => {
   const response = await executeAndReplay(
     replayApp(

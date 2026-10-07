@@ -34,4 +34,16 @@ describe("assertNoPrefixSlugCollisions", () => {
     expect(prefixSlug("/.")).not.toBe(".");
     expect(prefixSlug("/..")).not.toBe("..");
   });
+
+  test("keeps case-distinct mounts separate on case-insensitive filesystems", () => {
+    const prefixes = ["/admin", "/Admin", "/ADMIN", "/%41dmin"];
+    expect(new Set(prefixes.map((prefix) => prefixSlug(prefix).toLowerCase())).size).toBe(
+      prefixes.length
+    );
+  });
+
+  test("encodes Windows wildcard characters in generated directories", () => {
+    expect(prefixSlug("/assets*")).not.toContain("*");
+    expect(prefixSlug("/assets*")).not.toBe(prefixSlug("/assets%2A"));
+  });
 });

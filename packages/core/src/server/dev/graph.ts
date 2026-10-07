@@ -468,6 +468,17 @@ function developmentGraphMap(): WeakRegistry<DevGraph<DevelopmentRouteSnapshot |
     return existing as WeakRegistry<DevGraph<DevelopmentRouteSnapshot | null>>;
   }
   const graphs = new WeakRegistry<DevGraph<DevelopmentRouteSnapshot | null>>();
+  const legacyKey = Symbol.for("@teyik0/furin/development-graphs");
+  const legacy = Reflect.get(globalThis, legacyKey) as
+    | Map<string, DevGraph<DevelopmentRouteSnapshot | null>>
+    | undefined;
+  if (legacy) {
+    for (const graph of legacy.values()) {
+      graphs.add(graph);
+    }
+    legacy.clear();
+    Reflect.deleteProperty(globalThis, legacyKey);
+  }
   Reflect.set(globalThis, DEVELOPMENT_GRAPHS, graphs);
   return graphs;
 }

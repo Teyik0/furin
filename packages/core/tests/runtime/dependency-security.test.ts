@@ -1,7 +1,46 @@
 import { expect, test } from "bun:test";
-import { dirname, resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
 const workspace = resolve(import.meta.dir, "../../../..");
+
+test("Drizzle Kit loads its TypeScript config and generates migrations with the patched esbuild", async () => {
+  const appDir = join(workspace, "examples/task-manager");
+  const outDir = mkdtempSync(join(tmpdir(), "furin-drizzle-compat-"));
+  const config = join(appDir, ".furin", `drizzle-review-${crypto.randomUUID()}.ts`);
+  try {
+    await Bun.write(
+      config,
+      `import config from "../drizzle.config.ts"; export default {...config, out: ${JSON.stringify(outDir)}};`
+    );
+    const child = Bun.spawn(
+      [process.execPath, "--bun", "run", "drizzle-kit", "generate", "--config", config],
+      {
+        cwd: appDir,
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout: 20_000,
+      }
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(exitCode, stdout + stderr).toBe(0);
+    const migrations = Array.from(new Bun.Glob("*.sql").scanSync(outDir));
+    expect(migrations).toHaveLength(1);
+    const [migration] = migrations;
+    if (migration === undefined) {
+      throw new Error("Drizzle Kit produced no migration");
+    }
+    expect(await Bun.file(join(outDir, migration)).text()).toContain("CREATE TABLE");
+  } finally {
+    rmSync(config, { force: true });
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
 
 function dependencyPath(from: string, names: readonly string[]): string {
   let path = from;

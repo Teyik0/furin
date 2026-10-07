@@ -98,6 +98,42 @@ describe("createBuildFingerprint", () => {
     }
   });
 
+  test("fingerprints extensionless TypeScript requires using Bun's resolver", async () => {
+    const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-ts-require-"));
+    try {
+      const rootPath = join(appDir, "root.tsx");
+      const serverPath = join(appDir, "server.ts");
+      const helperPath = join(appDir, "helper.ts");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(serverPath, 'const service = require("./helper");');
+      writeFileSync(helperPath, 'export const value = "before";');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      writeFileSync(helperPath, 'export const value = "after";');
+      const second = await createBuildFingerprint("entry.js", [], [], root, serverPath, [], appDir);
+      expect(Bun.hash(first)).not.toBe(Bun.hash(second));
+      expect(second).toContain('app/helper.ts:export const value = "after";');
+    } finally {
+      rmSync(appDir, { force: true, recursive: true });
+    }
+  });
+
+  test("does not fingerprint unrelated manifests above a standalone app", async () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-parent-"));
+    const appDir = join(workspace, "app");
+    try {
+      mkdirSync(appDir);
+      const rootPath = join(appDir, "root.tsx");
+      writeFileSync(rootPath, "export default null;");
+      writeFileSync(join(workspace, "package.json"), '{"name":"unrelated-before"}');
+      const root: RootLayout = { path: rootPath, route: { __type: "FURIN_ROUTE" } };
+      const first = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      writeFileSync(join(workspace, "package.json"), '{"name":"unrelated-after"}');
+      const second = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
+      expect(first).toBe(second);
+    } finally { rmSync(workspace, { recursive: true, force: true }); }
+  });
+
   test("includes the native routes plugin source", async () => {
     const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-routes-"));
 

@@ -13,6 +13,7 @@ jobs:
     env:
       FURIN_SYNC_POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
       FURIN_SYNC_REDIS_URL: redis://127.0.0.1:6379
+      FURIN_PAGE_CACHE_REDIS_URL: redis://127.0.0.1:6379
     # Digest update process: review both upstream releases, update both digests together,
     # and run this workflow through CI before merging.
     services:
@@ -63,3 +64,6 @@ jobs:
 
       - name: Test Redis adapter and notifier
         run: bun test packages/core/tests/client/sync/adapters/redis-sync.test.ts
+
+      - name: Test principal journal recovery and shared Redis page cache
+        run: bun test --isolate packages/core/tests/runtime/sync/principal-journal.integration.test.ts packages/core/tests/runtime/cache/redis-page-cache.test.ts

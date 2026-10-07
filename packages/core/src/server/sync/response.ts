@@ -45,13 +45,13 @@ export function effectiveResponseHeaders(
   value: unknown,
   set: Context["set"]
 ): Context["set"]["headers"] {
+  const entries = Object.entries(set.headers);
   if (value instanceof Response) {
-    return { ...set.headers, ...Object.fromEntries(value.headers) };
+    entries.push(...value.headers);
+  } else if (value instanceof ElysiaStatus) {
+    entries.push(...Object.entries(value.headers ?? {}));
   }
-  if (value instanceof ElysiaStatus) {
-    return { ...set.headers, ...value.headers };
-  }
-  return set.headers;
+  return Object.fromEntries(entries.map(([name, header]) => [name.toLowerCase(), header]));
 }
 
 function unwrapStatusResponse(value: unknown): { status: number; value: unknown } | undefined {

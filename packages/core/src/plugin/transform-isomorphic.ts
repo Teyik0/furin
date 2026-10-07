@@ -1,4 +1,10 @@
-import MagicString from "magic-string";
+import {
+  decodedMappings,
+  originalPositionFor,
+  type SourceMapSegment,
+  TraceMap,
+} from "@jridgewell/trace-mapping";
+import MagicString, { SourceMap } from "magic-string";
 import { walk } from "yuku-ast";
 import type { CallExpression, ImportDeclaration, Program } from "yuku-parser";
 import {
@@ -8,9 +14,9 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { hasShadowingDeclaration, lexicalBindingScope, varBindingScope } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
-import { transformClientModules } from "./transform-client-module.ts";
+import { transformClientModuleSource } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
 const SCRIPT_FILE_FILTER =
@@ -345,36 +351,6 @@ function sourcePosition(source: string, offset: number): string {
   return `${line}:${offset - lastNewline}`;
 }
 
-function lexicalBindingScope(ancestors: AstNode[]): AstNode | undefined {
-  return ancestors.findLast(
-    (ancestor) =>
-      ancestor.type === "Program" ||
-      ancestor.type === "BlockStatement" ||
-      ancestor.type === "SwitchStatement" ||
-      ancestor.type === "ForStatement" ||
-      ancestor.type === "ForInStatement" ||
-      ancestor.type === "ForOfStatement" ||
-      ancestor.type === "StaticBlock"
-  );
-}
-
-function varBindingScope(ancestors: AstNode[]): AstNode | undefined {
-  return ancestors.findLast((ancestor, index) => {
-    if (ancestor.type === "Program" || ancestor.type === "StaticBlock") {
-      return true;
-    }
-    if (ancestor.type !== "BlockStatement") {
-      return false;
-    }
-    const parent = ancestors[index - 1];
-    return (
-      parent?.type === "FunctionDeclaration" ||
-      parent?.type === "FunctionExpression" ||
-      parent?.type === "ArrowFunctionExpression"
-    );
-  });
-}
-
 function collectBuilderBindings(
   program: Program,
   bindings: IsomorphicBindings
@@ -545,7 +521,7 @@ function assertResolvedFactoryUses(
     if (
       owner?.type === "VariableDeclarator" &&
       owner.init === expression &&
-      (owner.id as AstNode)?.type === "Identifier" &&
+      (owner.id as AstNode).type === "Identifier" &&
       ancestors[index - 1]?.kind === "const"
     ) {
       return;
@@ -564,7 +540,7 @@ function assertResolvedFactoryUses(
   });
 }
 
-function pruneFactoryAliases(code: string, filename: string): string {
+function pruneFactoryAliases(code: string, filename: string, maps: SourceMap[]): string {
   const { program } = parseSource(code, detectLangFromPath(filename));
   const bindings = collectBindings(program);
   const aliases = bindings.constants.filter((binding) =>
@@ -592,11 +568,7 @@ function pruneFactoryAliases(code: string, filename: string): string {
     },
   });
   const unused = aliases.filter(
-    (binding) =>
-      !(
-        used.has(binding) ||
-        binding.ancestors.some((node) => node.type === "ExportNamedDeclaration")
-      )
+    (binding) => !(used.has(binding) || binding.ancestors.at(-2)?.type === "ExportNamedDeclaration")
   );
   if (unused.length === 0) {
     return code;
@@ -622,7 +594,31 @@ function pruneFactoryAliases(code: string, filename: string): string {
       );
     }
   }
-  return pruneFactoryAliases(pruned.toString(), filename);
+  maps.push(pruned.generateMap({ hires: true, source: filename }));
+  return pruneFactoryAliases(pruned.toString(), filename, maps);
+}
+
+function composeSourceMaps(maps: SourceMap[], source: string, filename: string): SourceMap {
+  const traces = maps.map((map) => new TraceMap({ ...map, version: 3 }));
+  const last = traces.pop() as TraceMap;
+  const previous = traces.toReversed();
+  const mappings = decodedMappings(last).map((line) =>
+    line.map((segment): SourceMapSegment => {
+      if (segment.length === 1) {
+        return [segment[0]];
+      }
+      let position = { line: segment[2] + 1, column: segment[3] };
+      for (const trace of previous) {
+        const original = originalPositionFor(trace, position);
+        if (original.line === null || original.column === null) {
+          return [segment[0]];
+        }
+        position = { line: original.line, column: original.column };
+      }
+      return [segment[0], 0, position.line - 1, position.column];
+    })
+  );
+  return new SourceMap({ mappings, names: [], sources: [filename], sourcesContent: [source] });
 }
 
 export function transformIsomorphicFunctions(
@@ -634,7 +630,8 @@ export function transformIsomorphicFunctions(
   if (lang === "dts") {
     return { code: input, map: null, transformed: false };
   }
-  const source = transformClientModules(input, filename, environment);
+  const clientModules = transformClientModuleSource(input, filename, environment);
+  const source = clientModules.toString();
   const clientModulesTransformed = source !== input;
 
   const { program, diagnostics } = parseSource(source, lang);
@@ -656,20 +653,32 @@ export function transformIsomorphicFunctions(
   const transformed = new MagicString(source);
   for (const candidate of candidates) {
     const implementation = candidate[environment];
-    transformed.overwrite(
-      candidate.start,
-      candidate.end,
-      implementation
-        ? `(${source.slice(implementation.start, implementation.end)})`
-        : "(() => undefined)"
-    );
+    if (implementation) {
+      transformed.remove(candidate.start, implementation.start);
+      transformed.remove(implementation.end, candidate.end);
+      transformed.appendLeft(implementation.start, "(");
+      transformed.appendLeft(implementation.end, ")");
+    } else {
+      transformed.overwrite(candidate.start, candidate.end, "(() => undefined)");
+    }
   }
 
-  const aliasesPruned = new MagicString(pruneFactoryAliases(transformed.toString(), filename));
+  const maps = [
+    clientModules.generateMap({ hires: true, source: filename }),
+    transformed.generateMap({ hires: true, source: filename }),
+  ];
+  const aliasesPruned = new MagicString(
+    pruneFactoryAliases(transformed.toString(), filename, maps)
+  );
   const pruned = deadCodeElimination(aliasesPruned, source, lang);
+  maps.push(pruned.generateMap({ hires: true, source: filename }));
+  const nested = transformIsomorphicFunctions(pruned.toString(), filename, environment);
+  if (nested.map) {
+    maps.push(nested.map);
+  }
   return {
-    code: pruned.toString(),
-    map: pruned.generateMap({ includeContent: true, source: filename }),
+    code: nested.code,
+    map: composeSourceMaps(maps, input, filename),
     transformed: true,
   };
 }

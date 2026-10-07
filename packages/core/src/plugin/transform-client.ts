@@ -4,7 +4,7 @@ import type { ImportDeclaration, Program } from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { addFactoryAliases, hasShadowingDeclaration } from "./binding-scope.ts";
+import { FactoryBindings, fluentChain, hasShadowingDeclaration } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 import { hmrDependencySignature } from "./hmr-dependencies.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
@@ -62,36 +62,43 @@ function localName(specifier: AstNode): string | null {
   return node.type === "Identifier" && typeof node.name === "string" ? node.name : null;
 }
 
-function collectDefineRouteBindings(program: Program): Set<string> {
+function collectFactorySpecifiers(
+  declaration: ImportDeclaration,
+  bindings: Set<string>,
+  namespaces: Set<string>
+): void {
+  for (const specifier of declaration.specifiers as unknown as AstNode[]) {
+    const namespace = localName(specifier);
+    if (specifier.type === "ImportNamespaceSpecifier" && namespace) {
+      namespaces.add(namespace);
+    }
+    if (specifier.type !== "ImportSpecifier" || specifier.importKind === "type") {
+      continue;
+    }
+    const imported = importedName(specifier);
+    if (imported !== "defineRoute" && imported !== "defineRootRoute") {
+      continue;
+    }
+    const local = localName(specifier);
+    if (local) {
+      bindings.add(local);
+    }
+  }
+}
+
+function collectDefineRouteBindings(program: Program): FactoryBindings {
   const bindings = new Set<string>();
+  const namespaces = new Set<string>();
   for (const statement of program.body) {
     if (statement.type !== "ImportDeclaration") {
       continue;
     }
     const declaration = statement as unknown as ImportDeclaration;
-    if (declaration.importKind === "type") {
-      continue;
-    }
-    const source = declaration.source.value;
-    if (!isFurinRouteModule(source)) {
-      continue;
-    }
-    for (const specifier of declaration.specifiers as unknown as AstNode[]) {
-      if (specifier.type !== "ImportSpecifier" || specifier.importKind === "type") {
-        continue;
-      }
-      const imported = importedName(specifier);
-      if (imported !== "defineRoute" && imported !== "defineRootRoute") {
-        continue;
-      }
-      const local = localName(specifier);
-      if (local) {
-        bindings.add(local);
-      }
+    if (declaration.importKind !== "type" && isFurinRouteModule(declaration.source.value)) {
+      collectFactorySpecifiers(declaration, bindings, namespaces);
     }
   }
-  addFactoryAliases(program, bindings);
-  return bindings;
+  return new FactoryBindings(program, bindings, namespaces);
 }
 
 function rewriteClientImports(
@@ -139,7 +146,7 @@ function asAstNode(node: unknown): AstNode | null {
 
 function chainRootIsDefineRoute(
   node: unknown,
-  bindings: Set<string>,
+  bindings: FactoryBindings,
   ancestors: AstNode[]
 ): boolean {
   let current = asAstNode(node);
@@ -155,45 +162,101 @@ function chainRootIsDefineRoute(
     return (
       current.type === "Identifier" &&
       typeof current.name === "string" &&
-      bindings.has(current.name) &&
-      !hasShadowingDeclaration(current.name, ancestors)
+      bindings.factoryName(current, ancestors) !== undefined
     );
   }
   return false;
 }
 
+function isLocalFactoryAlias(identifier: AstNode, ancestors: AstNode[], filename: string): boolean {
+  const parent = ancestors.at(-1);
+  if (
+    parent?.type !== "VariableDeclarator" ||
+    asAstNode(parent.id)?.type !== "Identifier" ||
+    asAstNode(parent.init) !== identifier
+  ) {
+    return false;
+  }
+  if (ancestors.at(-2)?.kind !== "const") {
+    throw new Error(`[furin] ${filename}: route factory aliases must be immutable.`);
+  }
+  return ancestors.at(-3)?.type !== "ExportNamedDeclaration";
+}
+
 function assertCompleteRouteChains(
   program: Program,
-  bindings: Set<string>,
+  bindings: FactoryBindings,
   filename: string
 ): void {
-  const namespaces = new Set<string>();
-  for (const statement of program.body) {
-    if (statement.type !== "ImportDeclaration") {
-      continue;
-    }
-    const declaration = statement as unknown as ImportDeclaration;
-    if (!isFurinRouteModule(declaration.source.value) || declaration.importKind === "type") {
-      continue;
-    }
-    for (const specifier of declaration.specifiers as unknown as AstNode[]) {
-      const name = localName(specifier);
-      if (name && specifier.type === "ImportNamespaceSpecifier") {
-        namespaces.add(name);
-      }
-    }
-  }
   walk(program, {
+    CallExpression(call, context) {
+      const callee = asAstNode(call.callee);
+      const ancestors = context.ancestors() as AstNode[];
+      if (!callee || bindings.factoryName(callee, ancestors) === undefined) {
+        return;
+      }
+      const chain = fluentChain(call as unknown as AstNode, ancestors);
+      const terminal = chain.type === "CallExpression" ? asAstNode(chain.callee) : null;
+      const method = terminal?.type === "MemberExpression" ? asAstNode(terminal.property) : null;
+      if (method?.type !== "Identifier" || (method.name !== "page" && method.name !== "layout")) {
+        throw new Error(
+          `[furin] ${filename}: route builders must use one fluent chain ending in .page() or .layout().`
+        );
+      }
+    },
+    Identifier(node, context) {
+      const ancestors = context.ancestors() as AstNode[];
+      const identifier = node as unknown as AstNode;
+      if (
+        ancestors.some((ancestor) => ancestor.type === "ImportDeclaration") ||
+        !isReferenceIdentifier(identifier, ancestors)
+      ) {
+        return;
+      }
+      const factory = bindings.factoryName(identifier, ancestors);
+      const namespace = bindings.namespaceName(identifier, ancestors);
+      if (factory === undefined && namespace === undefined) {
+        return;
+      }
+      let index = ancestors.length - 1;
+      while (index >= 0 && asAstNode(ancestors[index]) === identifier) {
+        index -= 1;
+      }
+      const parent = ancestors[index];
+      if (
+        namespace !== undefined &&
+        parent?.type === "MemberExpression" &&
+        asAstNode(parent.object) === identifier
+      ) {
+        return;
+      }
+      if (
+        factory !== undefined &&
+        parent?.type === "CallExpression" &&
+        asAstNode(parent.callee) === identifier
+      ) {
+        return;
+      }
+      if (isLocalFactoryAlias(identifier, ancestors.slice(0, index + 1), filename)) {
+        return;
+      }
+      if (namespace !== undefined) {
+        throw new Error(`[furin] ${filename}: route builders require a named import.`);
+      }
+      throw new Error(
+        `[furin] ${filename}: route factory aliases require static local bindings and cannot escape.`
+      );
+    },
     MemberExpression(node, context) {
       const object = asAstNode(node.object);
       const property = asAstNode(node.property);
       const method = property?.type === "Identifier" ? property.name : property?.value;
+      const dynamic = node.computed && property?.type !== "Literal";
       if (
         object?.type === "Identifier" &&
         typeof object.name === "string" &&
-        namespaces.has(object.name) &&
-        (method === "defineRoute" || method === "defineRootRoute") &&
-        !hasShadowingDeclaration(object.name, context.ancestors() as AstNode[])
+        bindings.namespaceName(object, context.ancestors() as AstNode[]) !== undefined &&
+        (dynamic || method === "defineRoute" || method === "defineRootRoute")
       ) {
         throw new Error(`[furin] ${filename}: route builders require a named import.`);
       }
@@ -236,7 +299,7 @@ function assertCompleteRouteChains(
 function removeChainedServerCalls(
   source: MagicString,
   program: Program,
-  bindings: Set<string>,
+  bindings: FactoryBindings,
   configBindings: Set<string>,
   filename: string
 ): boolean {
@@ -267,6 +330,13 @@ function removeChainedServerCalls(
       if (!object) {
         return;
       }
+      // Parser expression ranges exclude parentheses around a fluent receiver.
+      const accessGap = source.original.slice(object.end, property.start);
+      const accessStart =
+        object.end +
+        accessGap
+          .replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g, (comment) => " ".repeat(comment.length))
+          .lastIndexOf(".");
       if (property.name === "config" && Array.isArray(call.arguments)) {
         const config = asAstNode(call.arguments[0]);
         if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
@@ -280,7 +350,7 @@ function removeChainedServerCalls(
           );
           if (remount) {
             source.update(
-              object.end,
+              accessStart,
               call.end,
               `.config({ ${source.original.slice(remount.start, remount.end)} })`
             );
@@ -289,7 +359,7 @@ function removeChainedServerCalls(
           }
         }
       }
-      source.remove(object.end, call.end);
+      source.remove(accessStart, call.end);
       transformed = true;
     },
   });
@@ -690,7 +760,7 @@ function collectDependencies(
 function createHmrDataSignature(
   code: string,
   program: Program,
-  bindings: Set<string>,
+  bindings: FactoryBindings,
   filename: string
 ): string {
   const serverStages: Array<{ source: string; start: number }> = [];
@@ -802,7 +872,7 @@ function calledHookName(call: AstNode): string | null {
   return null;
 }
 
-function routeComponentExpression(program: Program, bindings: Set<string>): AstNode | null {
+function routeComponentExpression(program: Program, bindings: FactoryBindings): AstNode | null {
   let component: AstNode | null = null;
   walk(program, {
     CallExpression(call, context) {

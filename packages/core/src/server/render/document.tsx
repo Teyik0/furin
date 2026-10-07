@@ -12,7 +12,7 @@ import { serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { currentInstance } from "../instance.ts";
 import { getSyncPath } from "../sync/config.ts";
-import { rebaseAssetHref } from "./asset-path.ts";
+import { rebaseAssetHref, rebaseDocumentHead } from "./asset-path.ts";
 import { safeJson } from "./shell.ts";
 
 export function withDocumentState(
@@ -20,7 +20,8 @@ export function withDocumentState(
   assets: DocumentAssets,
   head: HeadOptions | undefined,
   data: object | undefined,
-  nonce?: string
+  nonce?: string,
+  jsonCompatible?: boolean
 ): ReactNode {
   const instance = currentInstance();
   const rebase = (href: string): string => rebaseAssetHref(href, instance);
@@ -45,19 +46,13 @@ export function withDocumentState(
           frameworkModules: [browserEventsClientPath, ...rebasedAssets.frameworkModules],
         };
   const routeFrames =
-    data !== undefined && !isJsonObject(data) ? serializeRouteFrames(data, undefined) : undefined;
+    data !== undefined && !(jsonCompatible ?? isJsonObject(data))
+      ? serializeRouteFrames(data, undefined)
+      : undefined;
   const state: DocumentState = {
     assets: resolvedAssets,
     dataJson: data === undefined || routeFrames !== undefined ? undefined : safeJson(data),
-    head: {
-      ...head,
-      meta: [
-        ...(head?.meta ?? []).filter(
-          (meta) => !("name" in meta && meta.name === "furin-base-path")
-        ),
-        { name: "furin-base-path", content: instance.prefix },
-      ],
-    },
+    head: rebaseDocumentHead(head, instance),
     nonce,
     routeFrames,
     syncJson: syncPath === undefined ? undefined : safeJson({ path: syncPath }),

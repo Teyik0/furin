@@ -6,7 +6,7 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
-import { addFactoryAliases } from "./binding-scope.ts";
+import { FactoryBindings } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 
 interface SplitDevPage {
@@ -98,7 +98,11 @@ function inspectModule(statements: AstNode[]) {
   return { imports, localBindings, terminal };
 }
 
-function inlinePage(terminal: AstNode | undefined, bindings: Set<string>): AstNode | undefined {
+function inlinePage(
+  terminal: AstNode | undefined,
+  bindings: FactoryBindings,
+  ancestors: AstNode[]
+): AstNode | undefined {
   const callee = node(terminal?.callee);
   const args = terminal?.arguments as AstNode[] | undefined;
   const callback = node(args?.[0]);
@@ -117,7 +121,7 @@ function inlinePage(terminal: AstNode | undefined, bindings: Set<string>): AstNo
   while (root?.type === "CallExpression" || root?.type === "MemberExpression") {
     root = node(root.type === "CallExpression" ? root.callee : root.object);
   }
-  if (typeof root?.name === "string" && bindings.has(root.name)) {
+  if (root && bindings.factoryName(root, ancestors) !== undefined) {
     return callback;
   }
 }
@@ -182,9 +186,8 @@ export function splitDevPage(
     return;
   }
   const { imports, localBindings, terminal } = inspectModule(statements);
-  const factories = defineRouteBindings(imports);
-  addFactoryAliases(program, factories);
-  const callback = inlinePage(terminal, factories);
+  const factories = new FactoryBindings(program, defineRouteBindings(imports), new Set());
+  const callback = inlinePage(terminal, factories, [program as unknown as AstNode]);
   if (!callback || hasLexicalCapture(callback, program)) {
     return;
   }

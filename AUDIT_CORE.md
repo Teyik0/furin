@@ -322,7 +322,24 @@ Le bridge de composition Elysia est désormais isolé et testé. Les usages inte
 
 Les deux points de performance ont été mesurés et corrigés : cache mémoire borné avec insertion sans scan ; invalidation Redis par lots ordonnés, filtrant les membres avant leur décodage. À 64 000 entrées, la comparaison alternée sur les mêmes données donne 119,13 → 33,08 ms. Redis conserve les indexes globaux et les garanties de rolling deploy, donc le parcours reste O(N). Un index page/layout éliminerait ce coût mais l’ancien protocole ne permet pas de conserver l’énumération bidirectionnelle des chemins entre anciennes et nouvelles replicas sans un fallback global.
 
-## Validation finale
+## Revue indépendante et corrections de la PR
+
+La [PR #164](https://github.com/Teyik0/furin/pull/164) fait l’objet d’une nouvelle revue indépendante, puis d’une boucle CI et Cubic. La première revue Cubic contient 45 signalements ; ils sont vérifiés par reproduction et ne constituent pas tous des défauts confirmés.
+
+- La réutilisation d’un conteneur Elysia préconstruit demande un runtime complet par application finale et montage physique, en conservant les guards des conteneurs. Une copie superficielle de buckets laisse les closures, watchers et renderers attachés au premier runtime.
+- Le compilateur résout maintenant les aliases locaux et transitifs dans leur scope lexical. Les factories opaques ou mutables sont refusées explicitement, les DSL shadowées sont conservées. Les tests passent par le vrai bundler browser et vérifient l’absence des secrets serveur.
+- Les seeds SSR avec options explicites conservent une identité opaque unique par store, sans sérialiser les options. Les bindings et métadonnées PPR restent disponibles ; un consommateur browser obtient sa propre variante, et une lecture sans options ne reçoit pas les données de cette variante. Les defaults du client restent liés à sa session. Supprimer tous ces seeds aurait perdu les métadonnées existantes.
+- Le streaming React conserve uniquement le suffixe nécessaire aux fermetures HTML et livre les reveals Suspense sans attendre toutes les boundaries. Les descriptions de head et le HTML des snapshots partagent le rebasing du montage.
+- Le codec d’invalidation échappe le chemin avant d’ajouter le marqueur layout. Les chemins Unicode, pourcentages et suffixes littéraux `:layout` restent distincts. Le client consomme réellement les objets typés du journal, récupère les identités de query depuis les tags et invalide les routes pour les tags sans identité connue.
+- Les noms d’assets distinguent les majuscules sur les systèmes de fichiers insensibles à la casse et échappent les caractères réservés Windows. Le fingerprint des sources de l’app ne remonte plus vers des manifests étrangers ; le lockfile du workspace reste pris en compte.
+- La migration SQLite vérifie et ajoute la provenance sous transaction immédiate, testée avec 24 Workers sur une ancienne base WAL. Le replay normalise les noms de headers ; le fallback d’une réponse non rejouable conserve ses propres headers de représentation.
+- Le timeout d’arrêt empêche un ancien drain de reprendre ses étapes et de fermer les subscriptions d’un autre serveur. Les erreurs de drain evlog ne remplacent déjà pas les résultats de rendu ; un test protège cette garantie.
+- Le cache mémoire retire les valeurs expirées avant d’évincer une valeur vivante, grâce à un index d’expiration borné avec un nœud par entrée. Les écritures sans TTL restent O(1), les TTL coûtent O(log N). Un scan global à chaque écriture aurait réintroduit le coût mesuré ; nettoyer seulement la tête LRU ne couvre pas les expirations récentes. Sur 64 000 écritures après warmup, le surcoût observé de l’index reste inférieur à 4 ms dans la mesure locale partagée ; ce chiffre n’est pas un budget de production.
+- Les aliases et branches isomorphes conservent des sourcemaps vers le fichier original. La sélection imbriquée de branches est compilée récursivement, et l’annulation pendant le premier frame libère aussi le verrou du reader. Les instances seulement créées restent suivies pour le cleanup sans influencer la sélection du seul runtime monté.
+
+Plusieurs signalements supposaient le comportement de Node ou d’anciennes versions d’Elysia. Sous Bun, les `require` sans extension TypeScript participent déjà au fingerprint ; Elysia beta.23 accepte `handle(string)` et renvoie la promesse d’arrêt native. Les tests de compatibilité gardent ces comportements. Drizzle Kit charge sa configuration TypeScript et génère une migration avec la version esbuild résolue. Les assets désignés dans `public/`, y compris les liens explicites vers des dossiers d’assets externes, restent publiables ; imposer une nouvelle restriction de racine aurait modifié cette DX.
+
+## Validation initiale des corrections
 
 Après le dernier correctif SSG :
 

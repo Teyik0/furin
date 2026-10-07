@@ -75,16 +75,24 @@ export function transformClientModules(
   filename: string,
   environment: IsomorphicEnvironment
 ): string {
+  return transformClientModuleSource(source, filename, environment).toString();
+}
+
+export function transformClientModuleSource(
+  source: string,
+  filename: string,
+  environment: IsomorphicEnvironment
+): MagicString {
+  const transformed = new MagicString(source);
   if (!source.includes("clientModule")) {
-    return source;
+    return transformed;
   }
   const { program } = parseSource(source, detectLangFromPath(filename));
   const bindings = collectClientModuleBindings(program);
   if (bindings.size === 0) {
-    return source;
+    return transformed;
   }
 
-  const transformed = new MagicString(source);
   walk(program, {
     CallExpression(node, context) {
       const call = node as unknown as CallExpression;
@@ -119,5 +127,5 @@ export function transformClientModules(
       }
     },
   });
-  return transformed.toString();
+  return transformed;
 }

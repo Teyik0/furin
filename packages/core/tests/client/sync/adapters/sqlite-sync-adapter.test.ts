@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../../src/server/sync/sqlite/index.ts";
 import { testSyncAdapterConformance } from "../../../helpers/sync-adapter-conformance.ts";
+import type { MigrationOutcome } from "./sqlite-migration.scenario.ts";
 
 const database = new Database(":memory:");
 migrateSqliteSync(database);
@@ -33,6 +34,56 @@ test("declares empty-filename databases as process-local", () => {
     );
   } finally {
     emptyDatabase.close();
+  }
+});
+
+test("concurrent workers upgrade one legacy SQLite journal without startup errors", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "furin-sqlite-upgrade-"));
+  const file = join(directory, "sync.sqlite");
+  const legacy = new Database(file);
+  legacy.run("PRAGMA journal_mode=WAL");
+  migrateSqliteSync(legacy);
+  legacy.run("ALTER TABLE furin_sync_changes DROP COLUMN principal_hash");
+  legacy.close();
+  const barrier = new SharedArrayBuffer(4);
+  const state = new Int32Array(barrier);
+  const workers: Worker[] = [];
+  let ready = 0;
+  const count = 24;
+  try {
+    const outcomes = await Promise.all(
+      Array.from({ length: count }, () => {
+        const worker = new Worker(new URL("./sqlite-migration.scenario.ts", import.meta.url));
+        workers.push(worker);
+        return new Promise<MigrationOutcome>((resolve, reject) => {
+          worker.onmessage = (event: MessageEvent<MigrationOutcome>) => {
+            if (event.data.type === "ready") {
+              ready += 1;
+              if (ready === count) {
+                Atomics.store(state, 0, 1);
+                Atomics.notify(state, 0, count);
+              }
+            } else {
+              resolve(event.data);
+            }
+          };
+          worker.onerror = (event) => reject(event.error ?? new Error(event.message));
+          worker.postMessage({ barrier, file });
+        });
+      })
+    );
+    expect(outcomes).toEqual(Array.from({ length: count }, () => ({ type: "completed" })));
+    const reopened = new Database(file);
+    try {
+      expect(() => migrateSqliteSync(reopened)).not.toThrow();
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    for (const worker of workers) {
+      worker.terminate();
+    }
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 

@@ -110,6 +110,7 @@ export class QueryStore {
   private readonly entries = new Map<string, QueryEntry>();
   private requests: { client: QueryStore; options: string; url: string; key: string }[] = [];
   private readonly optionObjects = new WeakMap<object, number>();
+  private readonly requestScope = crypto.randomUUID();
   private nextRequest = 0;
   private nextOptionObject = 0;
   private readonly listeners = new Set<() => void>();
@@ -162,13 +163,33 @@ export class QueryStore {
     return value;
   }
 
+  private headerValue(value: unknown): unknown {
+    if (value instanceof Headers || typeof value === "function") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 2 && typeof value[0] === "string") {
+        return [value[0].toLowerCase(), String(value[1])];
+      }
+      return value.map((source) => this.headerValue(source));
+    }
+    if (value !== null && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value).map(([name, header]) => [name.toLowerCase(), String(header)])
+      );
+    }
+    return value;
+  }
+
   /** Options affect cache identity without exposing credentials in URLs or cache keys. */
   readKey(reference: ReadReference, options: unknown): string {
     const url = readUrl(reference, options);
     const requestOptions = Object.fromEntries(
-      Object.entries(options ?? {}).filter(
-        ([option, value]) => option !== "query" && option !== "select" && value !== undefined
-      )
+      Object.entries(options ?? {})
+        .filter(
+          ([option, value]) => option !== "query" && option !== "select" && value !== undefined
+        )
+        .map(([option, value]) => [option, option === "headers" ? this.headerValue(value) : value])
     );
     const signature = JSON.stringify(this.optionValue(requestOptions));
     const existing = this.requests.find(
@@ -184,7 +205,7 @@ export class QueryStore {
     if (!useUrl) {
       this.nextRequest += 1;
     }
-    const key = useUrl ? url : `${url}#furin-query:${this.nextRequest}`;
+    const key = useUrl ? url : `${url}#furin-query:${this.requestScope}:${this.nextRequest}`;
     this.requests.push({ client: reference.client, options: signature, url, key });
     return key;
   }
@@ -436,26 +457,18 @@ export class QueryStore {
   }
 
   dehydrate(): QuerySeed[] {
-    const seeds = [...this.entries].flatMap(([key, entry]) => {
+    return [...this.entries].flatMap(([url, entry]) => {
       if (!entry.identity || entry.base === undefined) {
         return [];
       }
-      const url = new URL(key);
-      url.hash = "";
-      return [{ url: url.href, data: entry.base, identity: entry.identity, local: entry.local }];
+      return [{ url, data: entry.base, identity: entry.identity, local: entry.local }];
     });
-    // Request-local options stay on the server; ambiguous variants cannot seed a default read.
-    const counts = new Map<string, number>();
-    for (const seed of seeds) {
-      counts.set(seed.url, (counts.get(seed.url) ?? 0) + 1);
-    }
-    return seeds.filter((seed) => counts.get(seed.url) === 1);
   }
 
   private seedUrl(seed: QuerySeed, localOrigin: string | undefined): string {
     const original = new URL(seed.url, this.origin);
     return seed.local && localOrigin
-      ? new URL(original.pathname + original.search, localOrigin).href
+      ? new URL(original.pathname + original.search + original.hash, localOrigin).href
       : original.href;
   }
 

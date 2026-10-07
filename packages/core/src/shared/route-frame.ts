@@ -214,14 +214,15 @@ export function serializeRouteFrames(
     encodeFrame({
       deferredKeys: deferredKeys ?? [],
       type: "data",
-      value: toCrossJSON(serializable),
-      ...(sources.length > 0 && {
-        references: true,
-        value: toCrossJSON({
-          value: serializable,
-          references: sources.map((source) => source.descriptor),
-        }),
-      }),
+      value: toCrossJSON(
+        sources.length > 0
+          ? {
+              value: serializable,
+              references: sources.map((source) => source.descriptor),
+            }
+          : serializable
+      ),
+      ...(sources.length > 0 && { references: true }),
     }),
   ];
   for (const source of sources) {
