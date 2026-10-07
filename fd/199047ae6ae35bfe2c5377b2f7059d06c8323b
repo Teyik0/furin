@@ -1,0 +1,569 @@
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_fa3ba074f76831::t_f59bed274d8e08 9-16
+packages/core/src/server/render/template.ts
+  s_fa3ba074f76831::t_8a6b32e9d6fe6b 16,230-236
+packages/core/src/server/lang-detect.ts
+  s_fa3ba074f76831::t_74bd8595a3cb18 4-5,9,15
+  s_fa3ba074f76831::t_0082dff4b1149a 3,6,8,12,18
+packages/core/src/server/sync/mutation-handler.ts
+  s_fa3ba074f76831::t_3d66b446fc3dc7 74-76,78-79
+  s_fa3ba074f76831::t_a4f36136383328 77
+packages/core/tests/runtime/instance/instance.test.ts
+  s_fa3ba074f76831::t_51a3a46969f95c 132-138
+packages/core/src/server/dev/rewrite-module-specifiers.ts
+  s_fa3ba074f76831::t_81031a843e2c2d 6,47
+packages/core/src/server/sync/redis/index.ts
+  s_fa3ba074f76831::t_bc973b59698343 138,147,165,230
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 17,148-152,292-300
+packages/core/src/client/router/link-utils.ts
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 163-172
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_fa3ba074f76831::t_18911817ab8a9c 225-237,239-240
+  s_fa3ba074f76831::t_c42304607d4ae8 5,224
+  s_fa3ba074f76831::t_fa834b4b67fad6 238
+packages/core/src/server/dev-page-plugin.ts
+  s_fa3ba074f76831::t_5017556f8fa7e1 143-144,156,161
+  s_fa3ba074f76831::t_12b353181e474c 152
+  s_fa3ba074f76831::t_ce483905b58089 68,145-151,153-155,157-159
+  s_fa3ba074f76831::t_81031a843e2c2d 76,297
+packages/core/tests/build/adapters/static-symlink.integration.test.ts
+  s_fa3ba074f76831::t_ed251fa4fa82ef 15
+  s_fa3ba074f76831::t_2c8afd1ac75f1a 1-14,16-31
+packages/core/src/server/sync/response.ts
+  s_fa3ba074f76831::t_9af182dd92a862 224,229
+  s_fa3ba074f76831::t_12019f4fafb82a 225-228,231
+  s_fa3ba074f76831::t_5a04f37f3453a2 35-43
+  s_fa3ba074f76831::t_674f388ebc6bc2 48-56,193,214,217
+  s_fa3ba074f76831::t_f86e042b2c3d69 219
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 44-47
+packages/core/src/client/router/provider.tsx
+  s_fa3ba074f76831::t_62ab57c0be86ef 57
+  s_fa3ba074f76831::t_6150687e6d7054 247,399-403,475,481,495,501,504,511,604,678,949
+packages/core/src/plugin/transform-isomorphic.ts
+  s_fa3ba074f76831::t_680f0f3cd5e789 184-193,195-198,202-208,211-215
+  s_fa3ba074f76831::t_73a8586fe8d66c 515-516,559,562
+  s_fa3ba074f76831::t_74bd8595a3cb18 236-241
+  s_fa3ba074f76831::t_8a5f964d364d3b 28,33-34,36-40,92,110-114,122-123,131-133,137-150,154-172,233,257,463,483,499-500
+  s_fa3ba074f76831::t_0075842bcd6118 35,173,298,501,567-577,586-588,592-593,600,604,606-607,612-618,623-627,668-669
+  s_fa3ba074f76831::t_ce483905b58089 115-121,124-130,151-153,216-219,223-227,242,281-284,502,510-514,518-534,542-555,558,560-561,563,578-585,589-591,594-599,601-603,608-610,619-622
+  s_fa3ba074f76831::t_77a81e4212dcf1 605,611
+  s_fa3ba074f76831::t_957c21f1ff97ba 647
+  s_fa3ba074f76831::t_8da6261f73e5f7 517,535-541,556-557,564-566
+  s_fa3ba074f76831::t_12b353181e474c 270,272
+  s_fa3ba074f76831::t_6bf82cf4aef66f 285-297
+  s_fa3ba074f76831::t_8bc7be3b90a227 17
+  s_fa3ba074f76831::t_890e655461410e 174,299
+apps/docs/src/content/docs/caching.mdx
+  s_fa3ba074f76831::t_cb9a8d926706c1 85-86
+packages/core/src/server/render/asset-path.ts
+  s_fa3ba074f76831::t_8a6b32e9d6fe6b 4-8,12-18,75
+  s_fa3ba074f76831::t_79a415d5151881 1,3,19-41,47,51-56,67,72-74
+  s_fa3ba074f76831::t_ccac4e87599cc1 9-11
+  s_fa3ba074f76831::t_32796ceea3fc93 2,44-46,48-50,57-66,68-71
+  s_fa3ba074f76831::t_574e0740ca5507 42-43
+packages/core/tests/client/sync/atomic-furin-sync.test.ts
+  s_fa3ba074f76831::t_d7ba0a5a69872c 146-149,155-157,166-173,175-180,183-187,194-196
+  s_fa3ba074f76831::t_2a07fdd0173073 6,131-145,150-154,158-165,174,181-182,188-193,197-205
+packages/core/src/server/sync/atomic.ts
+  s_fa3ba074f76831::t_b535a12ada13a4 22-23
+  s_fa3ba074f76831::t_b4936fff587a40 2,146
+  s_fa3ba074f76831::t_674f388ebc6bc2 1,106,128,154
+packages/core/src/server/render/ppr-request.ts
+  s_fa3ba074f76831::t_b7ae9afe84020a 2-3,99
+packages/core/tests/client/link/interactive.test.tsx
+  s_fa3ba074f76831::t_62ab57c0be86ef 407-410,418-421,423-426
+  s_fa3ba074f76831::t_d82c32cb07d14d 405-406,411-417,422,427-428
+packages/core/src/adapter/runtime-build.ts
+  s_fa3ba074f76831::t_79ce5696fbb5a5 81-82,90,92,150,218
+  s_fa3ba074f76831::t_ccacfce978d9d7 151
+  s_fa3ba074f76831::t_c09f10bd52e2c4 165-168
+  s_fa3ba074f76831::t_afe09dcd96a83e 2,80,83-89,91,93-94,113,115-118,147,155-159,162,173,217,219-221
+  s_fa3ba074f76831::t_ab32068c7f2485 148-149,152
+packages/core/src/client/query-store.ts
+  s_fa3ba074f76831::t_1cf8630617ca70 181-183
+  s_fa3ba074f76831::t_556bb73108fc43 273
+  s_fa3ba074f76831::t_dfef65bac24d5a 156-157,170,184-187
+  s_fa3ba074f76831::t_c47e9a9c3ca682 439-452
+  s_fa3ba074f76831::t_2d0f166a7c81be 112-114,127,132-140,152-155,158-167,173,178-180,188-189,246
+  s_fa3ba074f76831::t_1afd6e5eadfbe8 111
+  s_fa3ba074f76831::t_62ab57c0be86ef 128-131,141-151,168-169,171-172,174-177
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_fa3ba074f76831::t_1add2f5d0afd47 179
+  s_fa3ba074f76831::t_7d5af18e547b78 14,16,23,25-27,40-46
+  s_fa3ba074f76831::t_42401745ebf2cc 211-213
+  s_fa3ba074f76831::t_7b692ff49e9738 116
+  s_fa3ba074f76831::t_11f0de3a42ed04 89,103
+  s_fa3ba074f76831::t_42be1b47c3538a 100,106
+  s_fa3ba074f76831::t_646e4afada7c31 107
+  s_fa3ba074f76831::t_11a2c671c2c903 130-178,180-200,202-210,214-228
+  s_fa3ba074f76831::t_52ff3efdcf6e7d 24
+  s_fa3ba074f76831::t_a220b9c0e7d693 66-88,91-92,94-95,97-99,101-102,104-105,108-112,114-115,117-129
+  s_fa3ba074f76831::t_889fa943307fca 229-294
+  s_fa3ba074f76831::t_780c73c5182f6b 1-9,11-13,15,17-22,28-39,47-65
+  s_fa3ba074f76831::t_b02b43035e0cab 93,96,113
+  s_fa3ba074f76831::t_2c223facee008c 201
+  s_fa3ba074f76831::t_557a844b9df328 90
+  s_fa3ba074f76831::t_fc8bdb403957d7 10
+packages/core/tests/rendering/deferred/deferred-abort.test.ts
+  s_fa3ba074f76831::t_62ab57c0be86ef 34-36,39-41,56-61
+  s_fa3ba074f76831::t_f6395adf63ca7b 4,32-33,37-38,42-52
+  s_fa3ba074f76831::t_2f1bcc83215e72 53-55,62-66
+packages/core/src/server/weak-registry.ts
+  s_fa3ba074f76831::t_bcb6e59867c19e 1-37
+packages/core/src/server/browser-events/shutdown.ts
+  s_fa3ba074f76831::t_bba7ec200937ba 1-6,14,17,27-29,32,37-38,41-42
+  s_fa3ba074f76831::t_8b980a8b91f197 18-19
+  s_fa3ba074f76831::t_0b05706264d53b 20
+packages/core/src/plugin/hmr-dependencies.ts
+  s_fa3ba074f76831::t_3da14f67dbee6f 3,36
+packages/core/tests/setup/evlog-mock.ts
+  s_fa3ba074f76831::t_d86139bf895078 89-90
+packages/core/src/server/render/ppr-document.ts
+  s_fa3ba074f76831::t_b7ae9afe84020a 14,231
+packages/core/src/server/sync/postgres/migration.sql
+  s_fa3ba074f76831::t_5b0cac99601032 67-68
+patches/deepmerge-ts@7.1.5.patch
+  s_fa3ba074f76831::t_e44350bffaeeb0 1-92
+packages/core/src/client/link.tsx
+  s_fa3ba074f76831::t_62ab57c0be86ef 133-139,201-207
+  s_fa3ba074f76831::t_10349ae41d3fe2 13,129-132,140-142,144,194,208,219
+packages/core/src/adapter/static.ts
+  s_fa3ba074f76831::t_495149cc5fff69 504,510
+packages/core/src/server/cache/redis/scripts.ts
+  s_fa3ba074f76831::t_23948cba02b286 131-133,135-138,141-142
+  s_fa3ba074f76831::t_f254e4f118d177 126-130,134,139-140,143-145,166
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_fa3ba074f76831::t_62ab57c0be86ef 91-94
+  s_fa3ba074f76831::t_cc2198d482c0a1 81-89,97-102
+  s_fa3ba074f76831::t_736b1038c23833 90,95-96
+packages/core/src/client/sync.ts
+  s_fa3ba074f76831::t_2d0f166a7c81be 104,431
+packages/core/src/shared/route-frame.ts
+  s_fa3ba074f76831::t_9b0dc3386b6ada 12,18,23,39,65-67,157,171,180,246,255-256,261,276,285,293-294,303,308,312-315,320-327,339,380,385-387,431,433,435,453,462
+  s_fa3ba074f76831::t_62ab57c0be86ef 24-30,172-179,218-224,316-319,353-356,362-366,437-439
+apps/scaffolder/README.md
+  s_fa3ba074f76831::t_a18e47d130905f 159
+packages/core/src/build/hydrate.ts
+  s_fa3ba074f76831::t_9a8931cc34d6e4 134,147,162
+  s_fa3ba074f76831::t_e684cf1b5e2c40 96-98,119,160
+  s_fa3ba074f76831::t_07d9f0c963fc34 129-131
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_fa3ba074f76831::t_bd471a4f608a66 201-207,216-223
+  s_fa3ba074f76831::t_786adc6c50c8df 21-24
+  s_fa3ba074f76831::t_2d5ed1a2af80ae 181-182,185-186,188-191
+  s_fa3ba074f76831::t_efdd35d2a22b98 192,208-215
+  s_fa3ba074f76831::t_35b065f4c36523 194-200
+  s_fa3ba074f76831::t_c477fa4c50423e 386-402
+  s_fa3ba074f76831::t_185c0b1fe54482 403,437
+  s_fa3ba074f76831::t_49caafddd7a472 193
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_fa3ba074f76831::t_341121bd5182dc 329-335
+  s_fa3ba074f76831::t_7fb7facd081523 35,37
+  s_fa3ba074f76831::t_ce483905b58089 18-34,36
+packages/core/src/server/sync/principal-journal.ts
+  s_fa3ba074f76831::t_b8413d7301e738 1-15,19-21,27-29,33-35,42
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 16-18,22-26,30-32,36-41
+packages/core/src/server/render/assemble.ts
+  s_fa3ba074f76831::t_79a415d5151881 3,5,176-178,183,186-188
+packages/core/src/server/elysia-owner.ts
+  s_fa3ba074f76831::t_8aa373d17653e4 1-5,7-12,43-54,60-61,63-68,72-85
+  s_fa3ba074f76831::t_3543d4f86ffe50 36
+  s_fa3ba074f76831::t_3dd1d576eb126b 6,13-35,37-42,55-59,69-71
+  s_fa3ba074f76831::t_040dd92cedc991 62
+packages/core/tests/routing/conventions/prefix.test.ts
+  s_fa3ba074f76831::t_0f3b78bdb80454 30-35
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_fa3ba074f76831::t_08fb96ba2a3515 56-57,63-67
+  s_fa3ba074f76831::t_ce483905b58089 58-62
+packages/core/src/shared/search-params.ts
+  s_fa3ba074f76831::t_daae63ecdea53a 1-2,133
+packages/core/tests/build/adapters/vercel-name-collision.integration.test.ts
+  s_fa3ba074f76831::t_0becf75ea24777 1-35
+packages/core/src/client/query.tsx
+  s_fa3ba074f76831::t_2d0f166a7c81be 41
+  s_fa3ba074f76831::t_62ab57c0be86ef 9
+packages/core/src/client/router/transport.ts
+  s_fa3ba074f76831::t_6150687e6d7054 1-23
+packages/core/src/server/dev/graph.ts
+  s_fa3ba074f76831::t_57f9b0e60ef1ab 495-496
+  s_fa3ba074f76831::t_f21bae0eecdb13 8
+  s_fa3ba074f76831::t_81031a843e2c2d 6,83,459
+  s_fa3ba074f76831::t_79b06f442e67aa 463,465,467-468,470,476,487,492,497-502
+  s_fa3ba074f76831::t_92856fa92dfca6 503
+packages/core/src/server/auto-invalidate/runtime.ts
+  s_fa3ba074f76831::t_b4936fff587a40 2,47-48
+  s_fa3ba074f76831::t_0671047782a34c 19,33-34
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_fa3ba074f76831::t_e154a7246b785d 203-214
+  s_fa3ba074f76831::t_0a18416942733d 215-217
+packages/core/tests/contract/furin-plugin-types.type.test.ts
+  s_fa3ba074f76831::t_ccacfce978d9d7 14-16,22-30,32-37,48-52,57-58
+  s_fa3ba074f76831::t_01231f32a9ce64 11-12,39,41,43
+  s_fa3ba074f76831::t_4fb06eeb90840d 1-10,13,17-21,31,38,40,42,44-47,53-56,59-67
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_fa3ba074f76831::t_0602f93560f048 212-221,223-224,271
+  s_fa3ba074f76831::t_f00c0996c910b3 186-206,211
+  s_fa3ba074f76831::t_4e89a9586676b8 225,239-265
+  s_fa3ba074f76831::t_cf5d855aba2e7f 222
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 207-210
+  s_fa3ba074f76831::t_97140db6e0f3ef 226-238
+  s_fa3ba074f76831::t_d7ba0a5a69872c 266-270
+packages/core/src/shared/compact-json.ts
+  s_fa3ba074f76831::t_3cbfcd7bdf79a3 50
+packages/core/src/server/render/document.tsx
+  s_fa3ba074f76831::t_3cbfcd7bdf79a3 10-11,25
+  s_fa3ba074f76831::t_8a6b32e9d6fe6b 15,26
+  s_fa3ba074f76831::t_dfef65bac24d5a 41-42,44-45
+  s_fa3ba074f76831::t_064d432f9f9fb7 27-37
+  s_fa3ba074f76831::t_62ab57c0be86ef 48,52-60
+packages/core/src/server/router/discovery.ts
+  s_fa3ba074f76831::t_ce483905b58089 612-614
+  s_fa3ba074f76831::t_7c63fb0be5bb3d 298
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_fa3ba074f76831::t_75d2bacb6370c6 40-45,47,56-99
+  s_fa3ba074f76831::t_c06392c0d5d99b 10-30
+  s_fa3ba074f76831::t_c23ebed6621d0a 100
+packages/core/src/shared/invalidation-header.ts
+  s_fa3ba074f76831::t_c6e745eb203b1a 1-4
+packages/core/src/server/render/route-frame-transport.ts
+  s_fa3ba074f76831::t_9b0dc3386b6ada 17,24
+packages/core/src/server/sync/stream.ts
+  s_fa3ba074f76831::t_b8413d7301e738 6,166
+packages/core/tests/rendering/deferred/deferred-rejection.test.ts
+  s_fa3ba074f76831::t_aaa6b56f618062 1,20-25
+packages/core/src/shared/route-specificity.ts
+  s_fa3ba074f76831::t_4bc9ac12cebba4 1,5-15,22,26-28
+  s_fa3ba074f76831::t_ce483905b58089 2-4,16-21,23-25
+packages/core/src/server/router/patterns.ts
+  s_fa3ba074f76831::t_fc3e576c2bd127 3,7-8,203-204,206,244-248
+  s_fa3ba074f76831::t_b79d0174ebaec7 6
+  s_fa3ba074f76831::t_434720b7873456 205
+packages/core/src/build/shared.ts
+  s_fa3ba074f76831::t_495149cc5fff69 47
+packages/core/src/server/sync/postgres/index.ts
+  s_fa3ba074f76831::t_5b0cac99601032 17,51,98,225,229-230,322
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 345-353
+package.json
+  s_fa3ba074f76831::t_9c62de1fbd60e1 28-31,33-34,45,47
+  s_fa3ba074f76831::t_8017f6a623d109 61-62
+  s_fa3ba074f76831::t_e44350bffaeeb0 63
+  s_fa3ba074f76831::t_a18e47d130905f 53
+  s_fa3ba074f76831::t_de2ab989a967d7 26-27,32,35,64-65
+apps/docs/src/content/docs/sync.mdx
+  s_fa3ba074f76831::t_cb9a8d926706c1 465-466,487
+  s_fa3ba074f76831::t_be3f8d3fae98e7 488
+patches/braces@3.0.3.patch
+  s_fa3ba074f76831::t_8017f6a623d109 1-89
+packages/core/src/server/production-server.ts
+  s_fa3ba074f76831::t_c87b5dc6719c9e 110
+  s_fa3ba074f76831::t_3b93182d111ab4 92
+  s_fa3ba074f76831::t_8b980a8b91f197 99
+apps/scaffolder/src/generated/package-catalog.json
+  s_fa3ba074f76831::t_a18e47d130905f 6
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_fa3ba074f76831::t_051c7a7690cb22 36-39,41-42,47-48,50-52,66-70
+  s_fa3ba074f76831::t_759c1a5bbfa61c 61
+  s_fa3ba074f76831::t_ce483905b58089 40,43-46,55-59,63-65
+  s_fa3ba074f76831::t_4b0aaf97e547e1 71-85
+  s_fa3ba074f76831::t_ec6cfe015d5b22 53,60
+  s_fa3ba074f76831::t_a157c0c68ce9a5 54
+  s_fa3ba074f76831::t_4d65e1b3b8cfbf 49,62
+packages/core/src/server/cache/runtime-cache.ts
+  s_fa3ba074f76831::t_1bf54f3c610536 22-23,26-27,41-45,55,63,71,76,79-80,84,88-95,100-104,108
+  s_fa3ba074f76831::t_85488b146c6a8a 46-47,56-58,64-65,85-87,105-107
+packages/core/src/plugin/transform-dev-page.ts
+  s_fa3ba074f76831::t_c99408002da9bb 9,185-187
+packages/core/src/adapter/vercel.ts
+  s_fa3ba074f76831::t_f6360e19a6f649 205-209,229-235,237-238,304-305,321,334,355,369
+packages/core/tests/runtime/sync/principal-journal.integration.test.ts
+  s_fa3ba074f76831::t_95e4f01c5f79db 21-23,27-54,58-62,64-68,71-76,86-100,102,104-115,117
+  s_fa3ba074f76831::t_6ec32c7143fa7a 1-20,24-26,55-57,63,69-70,77-85,101,103,116
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_fa3ba074f76831::t_81b540a3525b56 309-311,313-314,316,337,355-360
+  s_fa3ba074f76831::t_02336e201977ee 299-308,317-336,339-343,345-354,361-363
+  s_fa3ba074f76831::t_9f6db4eef133a0 312,315
+  s_fa3ba074f76831::t_842309edf1403a 338,344
+packages/core/src/server/evlog.ts
+  s_fa3ba074f76831::t_b09531b5c323d1 63-65
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 36-38
+  s_fa3ba074f76831::t_14c9e03064ce19 59-62,66-68,112
+  s_fa3ba074f76831::t_96558bdc83e1bd 9,40-46,82-83
+  s_fa3ba074f76831::t_c93af7b56572e0 39
+packages/core/src/plugin/routes.ts
+  s_fa3ba074f76831::t_342f7dee88ceae 338,341,343,500
+  s_fa3ba074f76831::t_3da14f67dbee6f 14,420,768
+apps/docs/src/content/docs/deployment.mdx
+  s_fa3ba074f76831::t_76531d9c69953f 24
+packages/core/tests/rendering/deferred/compact-loader-data.test.ts
+  s_fa3ba074f76831::t_a9be676d0c67bc 7-9,15-17
+  s_fa3ba074f76831::t_457b961db7b32b 10-14
+packages/core/tests/runtime/sync/sync-response.test.ts
+  s_fa3ba074f76831::t_d7ba0a5a69872c 75-77
+  s_fa3ba074f76831::t_5ca5ab2593aa4a 64,74,78
+  s_fa3ba074f76831::t_67119e60fc1ab3 79-80
+packages/core/tests/client/link/link.test.tsx
+  s_fa3ba074f76831::t_ae81e6f19cc36c 679-680,692-695,699-700
+  s_fa3ba074f76831::t_d7ba0a5a69872c 681-691,696-698
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_c529ab8ab069d4 287,300,323,341,353
+  s_fa3ba074f76831::t_23b3c8eb260ddf 59,71,77,81-86,97,109,112-113,115-118,125,234-239,241-258,319,343,346
+  s_fa3ba074f76831::t_69b80aa3af12fb 39-40
+  s_fa3ba074f76831::t_3e9cf49f12a7c8 1-4,6,36,43-58,60-70,72-76,78-80,87-96,98-108,110-111,114,119-124,126-233,240,259-286,288-290,292-295,297-299,305-307,310-311,313,316-317,322,324,342,344,348,350-352
+  s_fa3ba074f76831::t_71cc317305e7f4 25,291,301-304
+  s_fa3ba074f76831::t_25e84f712df337 5,7-24,26-35
+  s_fa3ba074f76831::t_3efe11f92d622b 308-309
+  s_fa3ba074f76831::t_64c01cf546b464 312,314-315,345,347,349
+  s_fa3ba074f76831::t_3edea15b722707 318,320-321
+  s_fa3ba074f76831::t_33eae7a4bd430a 325-340
+  s_fa3ba074f76831::t_81f045aeaf3151 296
+  s_fa3ba074f76831::t_7287ca169c4e1e 37-38,41-42
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_fa3ba074f76831::t_f3abccaaceacfa 10
+  s_fa3ba074f76831::t_62ab57c0be86ef 4,89-93,100-109,125-128
+  s_fa3ba074f76831::t_8ee433c932f816 95
+  s_fa3ba074f76831::t_132fe09f455569 111-121
+  s_fa3ba074f76831::t_121bc212c6ea1e 9,81-88,94,96-99,110,122-124,129-135
+  s_fa3ba074f76831::t_ad56a299cc1749 136
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_fa3ba074f76831::t_cc56bb6a52ffb7 140
+  s_fa3ba074f76831::t_0b096c549712c6 144,166-168
+  s_fa3ba074f76831::t_06563c8c29ebed 2,4,6-7,88-89,103-104,119-120,132-135,137-139,141,198
+  s_fa3ba074f76831::t_298771f6fb07a6 10,21,42,60-61,77,87
+  s_fa3ba074f76831::t_62ab57c0be86ef 5,9,11,43-45,47-59,62-69,71-76,90-92,94-102,105-118,121-131
+  s_fa3ba074f76831::t_8ee433c932f816 22
+  s_fa3ba074f76831::t_3c88ef1646f455 3,142-143,145-165,169-170,172-195,197
+  s_fa3ba074f76831::t_0aa72c0567cdff 8,12
+  s_fa3ba074f76831::t_457b961db7b32b 14-15,23-41,46,79-82,85,93,136
+  s_fa3ba074f76831::t_d430507108604f 1,13,16-20
+  s_fa3ba074f76831::t_793c249b3cae6e 70,78,83-84
+  s_fa3ba074f76831::t_8df94548535d11 86
+  s_fa3ba074f76831::t_8cb1db82aea99e 171,196
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_fa3ba074f76831::t_f9d339a35ef6b0 261-274
+  s_fa3ba074f76831::t_e8a30be765569e 206-216,260
+  s_fa3ba074f76831::t_26eba12f02bf03 282-284
+  s_fa3ba074f76831::t_b4cecd1e4ecc64 36,183-205,259
+packages/core/tests/client/sync/query-sync.test.ts
+  s_fa3ba074f76831::t_3b6db5b1638534 10,58-65,145-152
+  s_fa3ba074f76831::t_67b738aa717d9c 66,153
+packages/core/src/server/internal.ts
+  s_fa3ba074f76831::t_d8bb9f783b14cc 185,188-191,194
+packages/core/tests/dev/hmr/rewrite-module-specifiers.test.ts
+  s_fa3ba074f76831::t_3da14f67dbee6f 7,29,42
+packages/core/src/plugin/binding-scope.ts
+  s_fa3ba074f76831::t_77a81e4212dcf1 153,198
+  s_fa3ba074f76831::t_74bd8595a3cb18 1-2,6-7,14-15,25-28,35-37,44-46
+  s_fa3ba074f76831::t_5aa490ddf2eeb2 5,8-13,16-24,29-34,38-43
+  s_3f691299908d2a::t_97fcad51de3a7f 47
+packages/core/src/server/render/ssr.ts
+  s_fa3ba074f76831::t_3cbfcd7bdf79a3 14,786,967
+  s_fa3ba074f76831::t_77afb674300a4e 721,726,764,769-776
+  s_fa3ba074f76831::t_62ab57c0be86ef 153-156,159-163,745-750,840-848,856-859,871-878,1039-1041,1046-1048,1052-1069,1071-1072
+  s_fa3ba074f76831::t_f5625c4807af51 742-744,755,757-758
+  s_fa3ba074f76831::t_bd792ee364b45a 189-195,200-203,211,219,222-225,227,238,1043-1045
+  s_fa3ba074f76831::t_11032150f9d46f 262-263,265,270-272,835-836,860-870,879-880,968-973,997-1002,1038,1042,1051,1073-1074,1076-1081
+  s_fa3ba074f76831::t_cc56bb6a52ffb7 964
+  s_fa3ba074f76831::t_f383263fed31cb 157-158,164-178,533,535,567,881,966,1013
+  s_fa3ba074f76831::t_8ee433c932f816 763,1075
+  s_3f691299908d2a::t_f37bbabf9b4e63 882
+packages/core/src/server/sync/plugin.ts
+  s_fa3ba074f76831::t_2a10a49cded494 146
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 35-40,145,147-158,161-164,301-304,373-375,385-388,390-392,394-396,426-428,433-435
+  s_fa3ba074f76831::t_14c9e03064ce19 449-450
+  s_fa3ba074f76831::t_e5eae4e6c320b4 144,159-160,441
+  s_fa3ba074f76831::t_b396085cde19fc 82-88,371-372,378,447-448,451-456,461
+  s_fa3ba074f76831::t_b09531b5c323d1 389
+packages/core/src/client/router/search/index.ts
+  s_fa3ba074f76831::t_736b1038c23833 2,59-69
+  s_fa3ba074f76831::t_62ab57c0be86ef 71-78
+.github/workflows/ci.yaml
+  s_fa3ba074f76831::t_76531d9c69953f 167
+packages/core/tests/runtime/production-server.test.ts
+  s_fa3ba074f76831::t_8371415a0791fb 250-253,275
+  s_fa3ba074f76831::t_22165f4ab7dfe5 66-90
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_fa3ba074f76831::t_54df8a8f886611 86-91,93-100,103-109
+  s_fa3ba074f76831::t_42f0aa5d0e7225 9,140,143
+  s_fa3ba074f76831::t_ccacfce978d9d7 92,101-102,110-139,141-142
+packages/core/tests/runtime/dependency-security.test.ts
+  s_fa3ba074f76831::t_c24110587fa99a 1-7,11-15,17-23,32-37,41-43,48-53,55-56,64-69,76-84,90-96,103-114,123-127,135-137
+  s_fa3ba074f76831::t_9bd617c150b9af 8-10,16,24-31,38-40,44-47,54,57-63,70-75,85-89,97-102,115-122,128-134
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_fa3ba074f76831::t_df7149e7169e5e 103-104,115-126
+  s_fa3ba074f76831::t_b09531b5c323d1 92
+  s_fa3ba074f76831::t_6881cdef7e6510 48-67,69,105-114
+  s_fa3ba074f76831::t_d68679e0c63c3f 68,70
+  s_fa3ba074f76831::t_47e608b41fa67c 335-336,341-342,351,355-356,360-368,375,382-384,391-395
+  s_fa3ba074f76831::t_2a10a49cded494 176,340
+  s_fa3ba074f76831::t_85488b146c6a8a 372-374
+  s_fa3ba074f76831::t_1db7de1a5c1e8e 37,91,192
+  s_fa3ba074f76831::t_5c8c9ce9ea9baa 127-131,148,156-168
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 7,28-34,71-90,93-98,101,132-147,149-155,173-175,177-189,195-197,299-315,318-323,337-339,352-354,357-359,369-371,376-381,385-390
+  s_fa3ba074f76831::t_e677edee96dc4d 21-27,35-36,38-47
+  s_fa3ba074f76831::t_f0033264f26623 99-100,102
+  s_fa3ba074f76831::t_c6e745eb203b1a 169-172,190-191,193-194,198-204
+  s_fa3ba074f76831::t_49e073c60d0aea 343,350
+  s_fa3ba074f76831::t_11262b13af172d 297-298,316-317,324-326
+  s_fa3ba074f76831::t_8897943097d9f4 344-349
+packages/core/src/plugin/index.ts
+  s_fa3ba074f76831::t_0082dff4b1149a 3
+packages/core/src/server/sync/sqlite/migration.sql
+  s_fa3ba074f76831::t_b8413d7301e738 63
+packages/core/src/furin.ts
+  s_fa3ba074f76831::t_f4e3eb175b09d3 22,66-67,368,380-381
+  s_fa3ba074f76831::t_ce2c2ff62a7f6c 456-458,460-467,472-483,488-493,556-557,613,663-664,666-671,673-674,735,938-946,1229,1297
+  s_fa3ba074f76831::t_ccb2fce8acec8f 958,1167
+  s_fa3ba074f76831::t_ee8abf652f2153 6,646,675-678,687,704
+  s_fa3ba074f76831::t_703a058492b6f6 453-454,553-555,560-562,564,566,574,608-612,614-615
+  s_fa3ba074f76831::t_ed14286bc905c1 717
+  s_fa3ba074f76831::t_7d716245f219be 468-471,558-559,619,647-651,653-657,686,699,702
+  s_fa3ba074f76831::t_c1ac81aac59382 504,507
+  s_fa3ba074f76831::t_0995e0b12699a5 652
+  s_fa3ba074f76831::t_9707992a854e35 799,1011,1099
+  s_fa3ba074f76831::t_ee6d63adfc7339 719-720
+  s_fa3ba074f76831::t_a2953e2429ec49 685,688-691
+  s_fa3ba074f76831::t_d5bed8a9c8874e 931-937,952,1185,1273
+  s_fa3ba074f76831::t_b79d0174ebaec7 135,713-714,716,721-723,725-726
+  s_fa3ba074f76831::t_4fbfdd3332be3e 1149,1151
+  s_fa3ba074f76831::t_db5115cdf46fc5 25-26,34,552,565,567-572,618,658-662,665,679-684,692-695,809,1221
+  s_fa3ba074f76831::t_3b9eb572d0172b 344-350,369-370,373,379,459,484-487,576,672
+  s_fa3ba074f76831::t_7dc7131fbb845d 33,928
+  s_fa3ba074f76831::t_a72d49a14b29a0 620-645
+  s_fa3ba074f76831::t_5857c72718de23 749-754
+  s_fa3ba074f76831::t_1b3ee03d0ffa05 21
+  s_fa3ba074f76831::t_b1d69b759247ad 351-353,365-367
+  s_fa3ba074f76831::t_416ff1c6d083c8 455
+  s_fa3ba074f76831::t_c6abeaedfe0ee3 573
+  s_fa3ba074f76831::t_6e73ecb493849c 575
+  s_fa3ba074f76831::t_e1db25a928464a 577-579,605-607
+  s_fa3ba074f76831::t_a72ea51818ddcd 718
+  s_fa3ba074f76831::t_107507b4b124fd 724
+  s_fa3ba074f76831::t_02c24f2af708d0 727
+  s_3e2da54104461d::t_25c3c779ea6932 354-364,580-604,1242
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_fa3ba074f76831::t_7ddbc232e8bf22 228
+packages/core/tests/client/sync/query-client.test.tsx
+  s_fa3ba074f76831::t_74b571eb72a256 46-49,55-65,75-78
+  s_fa3ba074f76831::t_775c80ba1d4c50 19-23,27-45
+  s_fa3ba074f76831::t_62ab57c0be86ef 24-26,50-54,66-74
+packages/core/src/plugin/route-config-autofix.ts
+  s_fa3ba074f76831::t_74bd8595a3cb18 396
+  s_fa3ba074f76831::t_38c40bf967e47d 10,183,793-794
+  s_fa3ba074f76831::t_5aa490ddf2eeb2 397-401,789
+  s_fa3ba074f76831::t_96c89fcdf62c1e 1111
+  s_fa3ba074f76831::t_ce483905b58089 206-210,217-220,1055-1058
+  s_fa3ba074f76831::t_14a1dcddd07293 163,168,174
+  s_fa3ba074f76831::t_17cc89c4259dfd 225,231,240,259,268,1053
+patches/README.md
+  s_fa3ba074f76831::t_cbd8a3556cbded 2-7
+  s_fa3ba074f76831::t_c24110587fa99a 1
+packages/core/src/shared/deferred-ndjson.ts
+  s_fa3ba074f76831::t_c8cf4dd5b08b90 113,264-273
+  s_fa3ba074f76831::t_62ab57c0be86ef 114-122,125-138,140-152,154-157,162,164,167-168,170-178,180-188,191-196,199-203,206-212,216-218,220,223-229,232-236,238-263
+packages/core/src/shared/prefix.ts
+  s_fa3ba074f76831::t_f4e3eb175b09d3 23-27,31
+packages/core/src/server/instance.ts
+  s_fa3ba074f76831::t_26eba12f02bf03 249-252,254-256
+  s_fa3ba074f76831::t_c87b5dc6719c9e 115
+  s_fa3ba074f76831::t_f9175ca9f4f505 2,137-140,189,203-204,207
+  s_fa3ba074f76831::t_7dc7131fbb845d 116-119
+  s_fa3ba074f76831::t_0802ec68c04df8 10,190-192
+  s_fa3ba074f76831::t_a205c7b3e3aa45 21,30,40,54,98-99,101-107,121-136,141-142,151-154,156-158,199-202,231,244-248
+  s_fa3ba074f76831::t_9e97605a01f019 38
+  s_fa3ba074f76831::t_9f9b777246b99c 39
+  s_fa3ba074f76831::t_5e12f46268b63b 253
+  s_3e2da54104461d::t_b0b506ff4b3ee6 16-17
+packages/core/tests/runtime/cache/runtime-cache.test.ts
+  s_fa3ba074f76831::t_9ed3936105713f 14-31
+packages/core/tests/runtime/cache/redis-page-cache.test.ts
+  s_fa3ba074f76831::t_d39ede50dd3d05 369-373,375-378
+  s_fa3ba074f76831::t_2ddaa2efa3fef7 332-335,351-368,374,379-380
+  s_fa3ba074f76831::t_504c6ce8a91969 174-209
+  s_fa3ba074f76831::t_46b9b59d475131 336-350
+packages/core/tests/client/sync/query-store.test.ts
+  s_fa3ba074f76831::t_ba7b4fbdd527e2 16-30
+CHANGELOG.md
+  s_fa3ba074f76831::t_e51a9293cdfa99 9-19
+packages/core/src/server/sync/redis/scripts.ts
+  s_fa3ba074f76831::t_bc973b59698343 60
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_fa3ba074f76831::t_62ab57c0be86ef 53-63,65-78,89-107,109-119,124-127,129-149
+  s_fa3ba074f76831::t_348437458c0f03 47-52,83-88
+  s_fa3ba074f76831::t_8ee433c932f816 64,108
+  s_fa3ba074f76831::t_dfef65bac24d5a 79-82,120-123,128
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_fa3ba074f76831::t_ce483905b58089 26-37,44-49,52-54
+  s_fa3ba074f76831::t_dfc8cb3a2d4a96 42-43,50-51,55-56
+  s_fa3ba074f76831::t_9eaf6166aff74c 18,20,24-25,38-40
+  s_fa3ba074f76831::t_b7b2555fa14482 41
+.github/workflows/vercel-benchmark.yaml
+  s_fa3ba074f76831::t_76531d9c69953f 124
+packages/core/src/server/context-logger.ts
+  s_fa3ba074f76831::t_7f5e8bc25dbdf2 5-8,69-70,79,86,90
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 71-78,80-83
+packages/core/src/server/cache/redis/index.ts
+  s_fa3ba074f76831::t_cb99c603d005c4 278
+  s_fa3ba074f76831::t_b6719816fa778c 264-265,277,279
+packages/core/src/server/sync/sqlite/index.ts
+  s_fa3ba074f76831::t_cc4cf6de8f3a4a 72-74,329-337
+  s_fa3ba074f76831::t_b8413d7301e738 16,48,75-77,91,218-220,226-227,324
+packages/core/tests/dev/hmr/transform-dev-page.test.ts
+  s_fa3ba074f76831::t_7384fa35db4b68 4,7-8,17-20
+  s_fa3ba074f76831::t_96c89fcdf62c1e 5-6,9-12,14-16
+  s_fa3ba074f76831::t_c99408002da9bb 13
+packages/core/src/plugin/transform-client.ts
+  s_fa3ba074f76831::t_74bd8595a3cb18 7
+  s_fa3ba074f76831::t_b042059bda0742 218-222
+  s_fa3ba074f76831::t_cb29bca53b9c02 93
+  s_fa3ba074f76831::t_ebbd1377e40314 223-224
+packages/core/tests/contract/route-types.test.ts
+  s_fa3ba074f76831::t_a0cb7e6f1332b1 2
+  s_fa3ba074f76831::t_397ca3e677c3e9 7,37-41,52-54,57,77-78
+  s_fa3ba074f76831::t_ce483905b58089 42-51,55-56,58-76
+  s_fa3ba074f76831::t_029ab8ee19dffb 79-80
+packages/core/src/shared/route-map.ts
+  s_fa3ba074f76831::t_91c5708b688dcf 35-43
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_fa3ba074f76831::t_fce0140f5198b2 32-38,50,55,184,186-187,190,192
+  s_fa3ba074f76831::t_1738479243977d 13,48-49,51-52
+  s_fa3ba074f76831::t_0b5c444a519043 94,99-100,105-106,172-173,240-241,246-247
+  s_fa3ba074f76831::t_1a43474974b772 53-54,56
+  s_fa3ba074f76831::t_fe9be7c99b809f 203-206
+  s_fa3ba074f76831::t_47d965ebeaf6a8 57-63
+bun.lock
+  s_fa3ba074f76831::t_55ab5774c366be 2,15,17,156-160,162-169,171-173,178,1004,1010,1014,1030,1154,1158,1252,1386,1480,1518,1618,1626,1648,1732,1816,1820,1828,1890,1912
+patches/postcss-selector-parser@6.0.10.patch
+  s_fa3ba074f76831::t_c65d66f3bf8084 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd199047ae6ae35bfe2c5377b2f7059d06c8323b",
+  "prompts": {},
+  "sessions": {
+    "s_3e2da54104461d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11509-2e70-7652-9331-236f022f98f0",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3f691299908d2a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114fc-8806-7523-8a94-1f44bb9fc711",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
