@@ -1,0 +1,31 @@
+packages/core/package.json
+  s_a0a481a34b8480::t_682bba5d1d9607 3
+packages/electrobun/src/cli.ts
+  s_a0a481a34b8480::t_0fff5d26bbbd52 3,5,12-19,33,35,209,220,225,244-249,348
+  s_a0a481a34b8480::t_80d916a91986e9 10-11,20-32,34
+  s_a0a481a34b8480::t_fbe9d4bafdf773 385
+packages/electrobun/package.json
+  s_a0a481a34b8480::t_682bba5d1d9607 3
+packages/electrobun/README.md
+  s_a0a481a34b8480::t_682bba5d1d9607 111-112
+packages/electrobun/tests/custom-dev.test.ts
+  s_a0a481a34b8480::t_c0f93dfabfa33b 3,137-148
+bun.lock
+  s_a0a481a34b8480::t_9c8fb48b48f0ba 135,178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a480682c3afb6353f3d83b1b837507c0dda005c8",
+  "prompts": {},
+  "sessions": {
+    "s_a0a481a34b8480": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11830-66c0-7db0-b0af-3670e9f2f43e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
