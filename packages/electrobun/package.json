@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin-electrobun",
-  "version": "0.7.0-alpha.1",
+  "version": "0.7.0-alpha.2",
   "description": "Official system-WebView desktop packaging for Furin.",
   "license": "MIT",
   "sideEffects": false,
@@ -15,12 +15,18 @@
       "types": "./dist/server.d.ts",
       "bun": "./src/server.ts",
       "import": "./dist/server.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "bun": "./src/host.ts",
+      "import": "./dist/host.js"
     }
   },
   "bin": {
     "furin-electrobun": "./src/cli.ts"
   },
   "files": [
+    "LICENSE",
     "dist",
     "src",
     "README.md"

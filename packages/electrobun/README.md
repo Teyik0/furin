@@ -145,6 +145,11 @@ const databasePath = process.env.FURIN_APP_DATA_DIR
 No existing user data is moved. An absolute `dataDir` override is available for
 applications that already own a storage location.
 
+The inert app may export `onStartup(signal: AbortSignal)` to initialize resources
+before the private listener opens. Startup failure calls `onShutdown`; the signal
+is aborted on cancellation, so initialization must honor it and release any late
+resources. The hook must not call `listen()`.
+
 Window close and app quit stop the server and call named `onShutdown` once,
 then use the SDK's public window close and quit APIs. Startup diagnostics print
 the identifier, private origin and data path. SIGUSR-based reload is not used:
@@ -223,8 +228,58 @@ This guards application HTTP and WebSocket dispatch, not hostile code running
 inside the application's own Bun process. Do not replace native server handlers
 to bypass the factory. Loopback is not a substitute for application authorization.
 
-This MVP intentionally has no trays, menus, updater configuration, generic
-native adapter registry or custom renderer.
+## Application-owned native hosts
+
+Applications that already manage trays, menus, background windows or updates can
+set `hostEntry` to their own Bun entrypoint. Furin still builds and copies the
+inert app and its external dependency closure; the SDK bundles the custom host.
+The standard generated host remains the default.
+
+```ts
+export default defineDesktopConfig({
+  app: { name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1" },
+  window: { width: 1400, height: 940 },
+  hostEntry: "src/desktop-host.ts",
+  external: ["webtorrent", "parse-torrent"],
+  sdk: {
+    app: { urlSchemes: ["magnet", "tofu"] },
+    build: { mac: { icons: "assets/tofu.iconset", codesign: true } },
+    release: { baseUrl: "https://example.com/releases" },
+  },
+});
+```
+
+`sdk` accepts typed additions for schemes, file associations, platform icons,
+macOS signing, helper-file copies, Bun externals and the update feed. Source
+paths are resolved from the application's root. Copy destinations cannot replace
+Furin's `furin` artifact. Furin retains Bun entrypoint, renderer and runtime
+ownership in the generated SDK configuration.
+
+Custom entrypoints use `startDesktopBackend()` from
+`@teyik0/furin-electrobun/host` with the artifact at
+`join(import.meta.dir, "../furin/app.js")`, their existing data path and `"build"`.
+The returned backend provides `origin`, `bootstrapOrigin`, `stop()` and
+`createWindowUrl(destination?)`. Create a fresh bootstrap for each opened native
+window or OS browser; it is single-use and can target only the application origin.
+At most one unspent bootstrap is active, so minting another invalidates the prior
+one. Keep navigation sandboxed and restricted to these two origins, and call
+`stop()` when quitting. Closing only a window may leave the backend running.
+
+The native host owns menus, native events, updates and explicit test-script
+injection. It may use the private `cookie` for in-process requests or an owner-only
+native helper descriptor; never log or serialize it into browser data. SSR loaders
+that call the HTTP API must forward the incoming request cookie only to the same
+application origin. The default host never exposes the cookie.
+
+Custom hosts currently support `build` only. Continue using the application's web
+development workflow; the default host retains the supervised `dev` workflow.
+`furin-electrobun build --env=dev` packages a development identity; the build output
+is still production output with session protection. Omit the flag for stable SDK
+packaging. No stable package publication is implied.
+
+PR previews publish core and Electrobun together using Bun packing to resolve
+workspace/catalog references. Repository-qualified preview URLs avoid compact
+name ambiguity. Fresh consumers should verify a frozen installation of both.
 
 ## Architectural decision
 

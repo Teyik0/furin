@@ -1,5 +1,5 @@
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { DesktopConfig } from "./config";
 import { copyExternalPackages } from "./external";
 
@@ -161,17 +161,48 @@ export async function prepareDesktop(
     'export default { electrobun: { version: "2.0.2" } };\n'
   );
   const platform = { bundleCEF: false, bundleWGPU: false, defaultRenderer: "native" };
+  const additions = config.sdk;
+  const copy = Object.fromEntries(
+    Object.entries(additions?.build?.copy ?? {}).map(([source, destination]) => {
+      if (destination === "furin" || destination.startsWith("furin/")) {
+        throw new Error("SDK copy destinations cannot replace the Furin artifact.");
+      }
+      return [resolve(options.root, source), destination];
+    })
+  );
+  const mac = additions?.build?.mac;
+  const win = additions?.build?.win;
+  const linux = additions?.build?.linux;
   const sdkConfig = {
-    app: config.app,
+    app: {
+      ...config.app,
+      urlSchemes: additions?.app?.urlSchemes,
+      fileAssociations: additions?.app?.fileAssociations?.map((association) => ({
+        ...association,
+        ...(association.icon ? { icon: resolve(options.root, association.icon) } : {}),
+      })),
+    },
     build: {
       mainProcess: "bun",
-      bun: { entrypoint: "main.ts" },
-      copy: options.mode === "build" ? { furin: "furin" } : {},
-      mac: platform,
-      win: platform,
-      linux: platform,
+      bun: {
+        entrypoint: config.hostEntry ? resolve(options.root, config.hostEntry) : "main.ts",
+        external: additions?.build?.bun?.external,
+      },
+      copy: { ...(options.mode === "build" ? { furin: "furin" } : {}), ...copy },
+      mac: {
+        ...mac,
+        ...platform,
+        ...(mac?.icons ? { icons: resolve(options.root, mac.icons) } : {}),
+      },
+      win: { ...win, ...platform, ...(win?.icon ? { icon: resolve(options.root, win.icon) } : {}) },
+      linux: {
+        ...linux,
+        ...platform,
+        ...(linux?.icon ? { icon: resolve(options.root, linux.icon) } : {}),
+      },
     },
     runtime: { exitOnLastWindowClosed: false },
+    release: additions?.release,
   };
   await writeFile(
     join(generated, "electrobun.config.ts"),

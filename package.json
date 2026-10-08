@@ -17,6 +17,7 @@
     "performance:compare": "bun scripts/compare-performance-reports.ts",
     "performance:startup": "bun scripts/probe-server-startup.ts",
     "prepare": "lefthook install",
+    "preview:publish": "pkg-pr-new publish --bun --no-compact --packageManager=bun ./packages/core ./packages/electrobun",
     "start": "bun run --parallel --filter '*' --if-present start",
     "test": "bun run --parallel --filter '*' test",
     "test:dev": "bun run --parallel --filter '*' test:dev",
@@ -35,6 +36,7 @@
     "@types/bun": "^1.4.2",
     "knip": "^6.38.0",
     "lefthook": "^2.1.14",
+    "pkg-pr-new": "0.0.91",
     "react-doctor": "^0.9.14",
     "typescript": "^7.0.2",
     "ultracite": "7.12.1"

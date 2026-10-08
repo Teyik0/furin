@@ -15,7 +15,7 @@ test("CLI app output is inert, relocatable and serves the composed application i
     const sourcePath = join(fixture.path, "src/server.ts");
     writeFileSync(sourcePath, readFileSync(sourcePath, "utf8")
       .replace("const app = new Elysia().use(", 'const app = new Elysia().request(({ set }) => { set.headers["x-source-hook"] = "preserved"; }).get("/api/host", () => ({ host: true })).use(')
-      .replace("export default app;", 'export const onShutdown = () => "shutdown";\nexport const startServer = () => { throw new Error("must not start"); };\nexport default app;'));
+      .replace("export default app;", 'export const onStartup = () => "startup";\nexport const onShutdown = () => "shutdown";\nexport const startServer = () => { throw new Error("must not start"); };\nexport default app;'));
     writeFileSync(join(fixture.path, "public/portable.txt"), "portable asset");
     const pagePath = join(fixture.path, "src/pages/index.tsx");
     writeFileSync(pagePath, readFileSync(pagePath, "utf8").replace('mode: "ssg"', 'mode: "ssr"'));
@@ -29,7 +29,7 @@ test("CLI app output is inert, relocatable and serves the composed application i
     renameSync(join(fixture.path, "src"), join(fixture.path, "source-not-deployed"));
     renameSync(join(fixture.path, "public"), join(fixture.path, "public-not-deployed"));
     const originalServe = Bun.serve;
-    let imported: { default: Elysia; onShutdown: () => string };
+    let imported: { default: Elysia; onStartup: () => string; onShutdown: () => string };
     try {
       Bun.serve = (() => { throw new Error("import must not listen"); }) as typeof Bun.serve;
       imported = await import(pathToFileURL(join(relocated, "app.js")).href);
@@ -38,6 +38,7 @@ test("CLI app output is inert, relocatable and serves the composed application i
     }
     app = imported.default;
     expect(imported.onShutdown()).toBe("shutdown");
+    expect(imported.onStartup()).toBe("startup");
     expect(app.server).toBeUndefined();
     app.request(({ request }) => {
       if (new URL(request.url).pathname === "/host-denied") {

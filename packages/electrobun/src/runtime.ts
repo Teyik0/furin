@@ -33,7 +33,8 @@ export interface DesktopSession {
 export function createSessionGuard(
   session: DesktopSession,
   origin: () => string,
-  bootstrapOrigin?: () => string | undefined
+  bootstrapOrigin?: () => string | undefined,
+  bootstrapPath?: () => string | undefined
 ) {
   return (request: Request): Response | undefined => {
     const url = new URL(request.url);
@@ -52,8 +53,7 @@ export function createSessionGuard(
     // Only the private listener's initial document redirect may cross ports.
     const bootstrapNavigation =
       request.method === "GET" &&
-      url.pathname === "/" &&
-      url.search === "" &&
+      `${url.pathname}${url.search}` === (bootstrapPath?.() ?? "/") &&
       request.headers.get("sec-fetch-mode") === "navigate" &&
       request.headers.get("sec-fetch-dest") === "document" &&
       site === "same-site" &&
@@ -81,9 +81,11 @@ export function createSessionGuard(
 }
 
 function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
-  const path = `/${crypto.randomUUID()}`;
+  let path = `/${crypto.randomUUID()}`;
   let origin = "";
   let spent = false;
+  let stopped = false;
+  let destination = new URL("/", appOrigin);
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -106,7 +108,7 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
       return new Response(null, {
         status: 303,
         headers: {
-          location: `${appOrigin}/`,
+          location: destination.href,
           "set-cookie": `${session.name}=${session.value}; HttpOnly; SameSite=Strict; Path=/`,
           "cache-control": "no-store",
           "referrer-policy": "origin",
@@ -115,7 +117,28 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
     },
   });
   origin = `http://127.0.0.1:${server.port}`;
-  return { origin, url: `${origin}${path}`, stop: () => server.stop(true) };
+  return {
+    origin,
+    url: `${origin}${path}`,
+    destination: () => `${destination.pathname}${destination.search}`,
+    createWindowUrl(target?: string) {
+      if (stopped) {
+        throw new Error("Desktop backend is stopped.");
+      }
+      const next = new URL(target ?? "/", appOrigin);
+      if (next.origin !== appOrigin || next.username || next.password) {
+        throw new Error("Desktop bootstrap destination must use the app origin.");
+      }
+      destination = next;
+      path = `/${crypto.randomUUID()}`;
+      spent = false;
+      return `${origin}${path}`;
+    },
+    stop() {
+      stopped = true;
+      return server.stop(true);
+    },
+  };
 }
 
 export interface DesktopApp {
@@ -131,6 +154,17 @@ export interface DesktopApp {
 export interface DesktopAppModule {
   default: DesktopApp;
   onShutdown?: () => void | Promise<void>;
+  onStartup?: (signal: AbortSignal) => void | Promise<void>;
+}
+
+/** In-process host capabilities. Never expose the cookie to browser scripts or logs. */
+export interface DesktopBackend {
+  bootstrapOrigin: string;
+  cookie: string;
+  createWindowUrl: (destination?: string) => string;
+  origin: string;
+  stop: () => Promise<void>;
+  url: string;
 }
 
 async function withDeadline<T>(pending: Promise<T>, duration: number, message: string): Promise<T> {
@@ -160,7 +194,7 @@ export async function startDesktopBackend(
   load: () => Promise<DesktopAppModule>,
   dataDir: string,
   mode: DesktopMode
-) {
+): Promise<DesktopBackend> {
   await mkdir(dataDir, { recursive: true });
   process.env.FURIN_APP_DATA_DIR = dataDir;
   const module = await load();
@@ -196,15 +230,21 @@ export async function startDesktopBackend(
   const guard = createSessionGuard(
     session,
     () => origin,
-    () => bootstrap?.origin
+    () => bootstrap?.origin,
+    () => bootstrap?.destination()
   );
   let canceled = false;
+  const startup = new AbortController();
   try {
     await withDeadline(
       (async () => {
         const validate = await activateDesktopApp(app, guard, mode);
+        await module.onStartup?.(startup.signal);
         if (canceled) {
           throw new Error("Desktop startup was canceled.");
+        }
+        if (app.server) {
+          throw new Error("onStartup must not open a listener; the desktop host owns listening.");
         }
         await new Promise<void>((resolve, reject) => {
           app.cleanup(() => {
@@ -240,6 +280,7 @@ export async function startDesktopBackend(
     bootstrap = startSessionBootstrap(session, origin);
   } catch (error) {
     canceled = true;
+    startup.abort(error);
     try {
       await stop();
     } catch (cleanupError) {
@@ -252,5 +293,17 @@ export async function startDesktopBackend(
     }
     throw error;
   }
-  return { origin, bootstrapOrigin: bootstrap.origin, url: bootstrap.url, stop };
+  return {
+    origin,
+    bootstrapOrigin: bootstrap.origin,
+    url: bootstrap.url,
+    cookie: `${session.name}=${session.value}`,
+    createWindowUrl: (destination?: string) => {
+      if (stopped) {
+        throw new Error("Desktop backend is stopped.");
+      }
+      return bootstrap.createWindowUrl(destination);
+    },
+    stop,
+  };
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defineDesktopConfig } from "../src/config";
+import { defineDesktopConfig, validateDesktopConfig } from "../src/config";
 
 test("desktop versions accept prerelease and build metadata together", () => {
   const config = {
@@ -47,4 +47,21 @@ test("desktop config rejects invalid dimensions and identifiers", () => {
       window: { width: 0, height: 720 },
     })
   ).toThrow("width");
+});
+
+test("SDK additions reject malformed schemes, copy paths and signing flags", () => {
+  for (const sdk of [
+    { app: { urlSchemes: "tofu" } },
+    { build: { copy: { source: 123 } } },
+    { build: { mac: { codesign: "yes" } } },
+    { release: { baseUrl: "not-a-url" } },
+  ]) {
+    expect(() =>
+      validateDesktopConfig({
+        app: { name: "Tofu", identifier: "app.tofu.dev" },
+        window: { width: 1400, height: 940 },
+        sdk,
+      })
+    ).toThrow("sdk");
+  }
 });

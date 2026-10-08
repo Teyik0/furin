@@ -72,9 +72,8 @@ jobs:
         run: bunx react-doctor -y --scope changed --base main --annotations
 
       - name: Publish Preview
-        working-directory: packages/core
         if: github.event_name == 'pull_request'
-        run: bunx pkg-pr-new publish
+        run: bun run preview:publish
 
   windows:
     name: Windows compatibility

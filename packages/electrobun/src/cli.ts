@@ -50,7 +50,11 @@ async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Prom
   }
 }
 
-export async function desktopCommand(command: string, cwd: string): Promise<void> {
+export async function desktopCommand(
+  command: string,
+  cwd: string,
+  buildEnvironment?: "dev" | "stable"
+): Promise<void> {
   if (command === "init") {
     await initDesktop(cwd);
     console.log("Desktop config and dev:desktop / build:desktop scripts added.");
@@ -60,9 +64,15 @@ export async function desktopCommand(command: string, cwd: string): Promise<void
     throw new Error("Usage: furin-electrobun init | dev | build");
   }
   const config = await loadDesktopConfig(cwd);
+  if (command === "dev" && config.hostEntry) {
+    throw new Error(
+      "Custom hostEntry currently supports build only; use the application's web dev workflow."
+    );
+  }
   const project = await loadFurinProject(cwd);
   const sdk = sdkBootstrap(cwd);
   const env = { ...process.env, NODE_ENV: command === "build" ? "production" : "development" };
+  const channel = command === "build" ? (buildEnvironment ?? "stable") : "dev";
   if (command === "build") {
     await run(
       [process.execPath, await coreCli(cwd), "build", "--target", "bun", "--output", "app"],
@@ -71,16 +81,8 @@ export async function desktopCommand(command: string, cwd: string): Promise<void
     );
   }
   const generated = await prepareDesktop(cwd, config, { ...project, mode: command });
-  await run(
-    [process.execPath, sdk, "prepare", `--env=${command === "build" ? "stable" : "dev"}`],
-    generated,
-    env
-  );
-  await run(
-    [process.execPath, sdk, "build", `--env=${command === "build" ? "stable" : "dev"}`],
-    generated,
-    env
-  );
+  await run([process.execPath, sdk, "prepare", `--env=${channel}`], generated, env);
+  await run([process.execPath, sdk, "build", `--env=${channel}`], generated, env);
   if (command === "build") {
     console.log(`Desktop build: ${join(generated, "build")}`);
     return;
@@ -280,10 +282,16 @@ async function runDesktopDev(
 if (import.meta.main) {
   const [command, ...extra] = process.argv.slice(2);
   try {
-    if (!command || extra.length) {
-      throw new Error("Usage: furin-electrobun init | dev | build");
+    const [environment] = extra;
+    if (
+      !command ||
+      extra.length > 1 ||
+      (environment !== undefined &&
+        (command !== "build" || !["--env=dev", "--env=stable"].includes(environment)))
+    ) {
+      throw new Error("Usage: furin-electrobun init | dev | build [--env=dev|stable]");
     }
-    await desktopCommand(command, process.cwd());
+    await desktopCommand(command, process.cwd(), environment === "--env=dev" ? "dev" : undefined);
   } catch (error) {
     console.error(`[furin-electrobun] ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;

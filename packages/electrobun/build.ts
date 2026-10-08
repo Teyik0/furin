@@ -11,7 +11,11 @@ if ((await declarations.exited) !== 0) {
   throw new Error("Desktop declarations failed.");
 }
 const result = await Bun.build({
-  entrypoints: [join(root, "src/config.ts"), join(root, "src/server.ts")],
+  entrypoints: [
+    join(root, "src/config.ts"),
+    join(root, "src/server.ts"),
+    join(root, "src/host.ts"),
+  ],
   external: ["elysia", "elysia/*"],
   target: "bun",
   format: "esm",
