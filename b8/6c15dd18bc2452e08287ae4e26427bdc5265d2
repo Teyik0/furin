@@ -1,0 +1,19 @@
+packages/core/tests/build/bun-app-output.integration.test.ts
+  s_fa3ba074f76831::t_2c6bd204371eb7 136,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b86c15dd18bc2452e08287ae4e26427bdc5265d2",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
