@@ -108,6 +108,8 @@ SDK directories. There is no Vite process or replacement frontend.
 Frontend edits use Furin frontend HMR. The supervisor follows literal runtime
 imports from the server and custom host, including backend JSX/TSX and transitive
 imports; type-only imports and frontend-only TS helpers do not restart the backend.
+The graph uses a non-writing Bun build before each worker launch, so renaming an
+extensionless import target refreshes ownership without runtime resolver caches.
 Modules loaded through computed paths are outside this source graph.
 A real macOS WKWebView test
 verified both kinds of update while preserving a React-controlled draft,

@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Observe public process and HTTP readiness sequentially.
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { desktopCommand } from "../src/cli";
@@ -16,10 +16,14 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       if (failure) {
         throw failure;
       }
-      if (await Bun.file(readyPath).exists()) {
+      try {
         const value: { origin: string; url: string } = await Bun.file(readyPath).json();
         if (value.url !== previous) {
           return value;
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw error;
         }
       }
       await Bun.sleep(25);
@@ -134,6 +138,18 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     expect(
       await (await fetch(fourth.origin, { headers: { cookie: finalCookie } })).json()
     ).toHaveProperty("value", "fourth");
+    await rename(join(root, "src/nested.tsx"), join(root, "src/nested.ts"));
+    const renamed = await ready(fourth.url);
+    await writeFile(join(root, "src/nested.ts"), 'export const value = "fifth";');
+    const fifth = await ready(renamed.url);
+    const fifthBootstrap = await fetch(fifth.url, { redirect: "manual" });
+    const fifthCookie = fifthBootstrap.headers.get("set-cookie")?.split(";")[0];
+    if (!fifthCookie) {
+      throw new Error("Missing renamed dependency session");
+    }
+    expect(
+      await (await fetch(fifth.origin, { headers: { cookie: fifthCookie } })).json()
+    ).toHaveProperty("value", "fifth");
   } finally {
     if (dev) {
       process.emit("SIGTERM");

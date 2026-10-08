@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin-electrobun",
-  "version": "0.7.0-alpha.4",
+  "version": "0.7.0-alpha.5",
   "description": "Official system-WebView desktop packaging for Furin.",
   "license": "MIT",
   "sideEffects": false,
