@@ -1137,9 +1137,35 @@ async function createFurinRuntime({
     prefix,
     sync,
   };
+  const development = IS_DEV;
+  const app = new Elysia({
+    name: instanceName,
+    prefix: prefix || undefined,
+    seed: resolvedPagesDir,
+  });
+  let nativeRoutes: AnyElysia;
+  let notFoundHandling: Elysia;
+  let hmrPrefix: string | undefined;
+  const requestHooks = (getRoot: () => RootLayout) => (application: typeof app) =>
+    application
+      .use(loggerPlugin)
+      // Local scope keeps hooks isolated from sibling Furin mounts.
+      .error(NotFound, async ({ request, server }) =>
+        renderRootNotFound(getRoot(), request, server?.url.origin)
+      )
+      .afterHandle(({ set }) => {
+        const pending = consumePendingInvalidations();
+        if (pending.length > 0) {
+          set.headers["x-furin-revalidate"] = serializeInvalidationPaths(pending);
+        }
+        if (!development && instance.buildId) {
+          set.headers["x-furin-build-id"] = instance.buildId;
+        }
+      });
 
   // ── Dev: Bun native HMR ────────────────────────────────────────────────
-  if (IS_DEV) {
+  if (development) {
+    hmrPrefix = prefix;
     // Each instance gets its own generated-files dir so two mounted apps do
     // not overwrite each other's hydrate entry (root keeps plain `.furin`).
     const instanceSlug = prefix === "" ? "" : prefixSlug(prefix);
@@ -1201,6 +1227,7 @@ async function createFurinRuntime({
       const loaded = await loadDevelopmentRoutes(resolvedPagesDir);
       return { nativeRoutesApp: furinShell, ...loaded };
     });
+    nativeRoutes = nativeRoutesApp;
     const initialSnapshot = createDevelopmentRouteSnapshot(root, routes);
     const currentSnapshot = (): DevelopmentRouteSnapshot => graph.snapshot ?? initialSnapshot;
     nativeRouteRenderers.set(instance, (context) => currentSnapshot().render(context));
@@ -1321,11 +1348,7 @@ async function createFurinRuntime({
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
     // physical when this plugin is merged into the parent app (child prefixes
     // like staticPlugin's compose underneath).
-    const devApp = new Elysia({
-      name: instanceName,
-      prefix: prefix || undefined,
-      seed: resolvedPagesDir,
-    })
+    app
       .setup((owner) => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
@@ -1366,19 +1389,7 @@ async function createFurinRuntime({
       })
       .get("/_bun_hmr_entry/index.html", hmrEntry)
       .get("/_bun_hmr_entry", hmrEntry)
-      .use(loggerPlugin)
-      // Local scope (default) — a global hook would leak onto sibling furin
-      // instances mounted on the same parent app.
-      .error(NotFound, async ({ request, server }) =>
-        renderRootNotFound(currentSnapshot().root, request, server?.url.origin)
-      )
-      .afterHandle(({ set }) => {
-        // Forward pending revalidation paths so the client can bust its prefetch cache
-        const pending = consumePendingInvalidations();
-        if (pending.length > 0) {
-          set.headers["x-furin-revalidate"] = serializeInvalidationPaths(pending);
-        }
-      })
+      .use(requestHooks(() => currentSnapshot().root))
       .use(
         publicExists ? await staticPlugin({ assets: publicDir, prefix: "/public" }) : new Elysia()
       )
@@ -1399,106 +1410,74 @@ async function createFurinRuntime({
           await routeTopologyWatcher?.refresh();
         })
       )
-      .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath))
+      .use(createInstrumentationPlugin(() => currentSnapshot().routes, syncPath));
+    notFoundHandling = createNotFoundHandling(prefix, routes, root, async (notFoundContext) => {
+      // Dev topology: try the (watcher-refreshed) native renderer before
+      // the root not-found page, so hot-added routes are served without
+      // a restart. Instances outside this pathname's prefix are skipped.
+      if (!nativeRouteRenderers.has(currentInstance())) {
+        return;
+      }
+      return await dispatchNativeRoute(
+        notFoundContext as unknown as Parameters<FurinRouteDispatcher>[0]
+      );
+    });
+  } else {
+    // ── Production ──────────────────────────────────────────────────────────
+    if (!ctx) {
+      throw new Error("[furin] No pre-built assets found. Run `bunx furin build` first.");
+    }
+    const { root, routes } = loadProdRoutes(ctx);
+    const searchRoutes = createSearchRouteMetadata(routes);
+    const prodBuildId = ctx.buildId ?? "";
+    if (!ctx.nativeRoutes) {
+      throw new Error("[furin] Production build is missing the composed Elysia route app.");
+    }
+    const renderNativeRoute = createNativeRouteRenderer(routes, root, prodBuildId, searchRoutes);
+    nativeRouteRenderers.set(instance, renderNativeRoute);
+    const matchNavigationData = buildRouteMatcher(routes);
+    navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
+    instance.buildId = prodBuildId;
+    // Init-time writes target THIS instance explicitly — with several mounted
+    // apps there is no ambient request scope to resolve it from.
+    withInstance(instance, () => {
+      hydrateSSGCacheFromCompileContext(ctx);
+    });
+
+    const embedded = ctx?.embedded;
+    const clientDir =
+      embedded?.clientDir ?? explicitClientDir ?? ctx.clientDir ?? resolveClientDirFromArgv(prefix);
+    await setupCompiledTemplate(ctx, embedded, clientDir, instance);
+
+    app
+      .use(requestHooks(() => root))
+      .setup(async ({ server }) => {
+        if (ctx.ssgCache) {
+          return;
+        }
+        const origin = server?.url?.origin ?? "http://localhost:3000";
+        // Synthetic (non-request) renders — bind them to this instance so the
+        // render pipeline resolves its template/caches, not a sibling's.
+        await withInstance(instance, () => warmSSGCache(routes, root, origin, searchRoutes));
+      })
+      .use(await createProductionAssetsPlugin(ctx, embedded, clientDir))
+      .use(await createProductionBrowserEventsPlugin(sync, ctx?.deploymentTarget));
+    ({ nativeRoutes } = ctx);
+    notFoundHandling = createNotFoundHandling(prefix, routes, root);
+  }
+
+  return createFurinMount(
+    app
       .use(
         sync
           ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync)
           : new Elysia()
       )
       .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
-      .use(nativeRoutesApp)
-      .use(
-        createNotFoundHandling(prefix, routes, root, async (notFoundContext) => {
-          // Dev topology: try the (watcher-refreshed) native renderer before
-          // the root not-found page, so hot-added routes are served without
-          // a restart. Instances outside this pathname's prefix are skipped.
-          if (!nativeRouteRenderers.has(currentInstance())) {
-            return;
-          }
-          return await dispatchNativeRoute(
-            notFoundContext as unknown as Parameters<FurinRouteDispatcher>[0]
-          );
-        })
-      );
-    return createFurinMount(
-      devApp,
-      instance,
-      prefix,
-      Boolean(sync),
-      () => createFurinRuntime(mountOptions),
-      elysiaLoggerOptions
-    );
-  }
-
-  // ── Production ──────────────────────────────────────────────────────────
-  if (!ctx) {
-    throw new Error("[furin] No pre-built assets found. Run `bunx furin build` first.");
-  }
-  const { root, routes } = loadProdRoutes(ctx);
-  const searchRoutes = createSearchRouteMetadata(routes);
-  const prodBuildId = ctx.buildId ?? "";
-  if (!ctx.nativeRoutes) {
-    throw new Error("[furin] Production build is missing the composed Elysia route app.");
-  }
-  const renderNativeRoute = createNativeRouteRenderer(routes, root, prodBuildId, searchRoutes);
-  nativeRouteRenderers.set(instance, renderNativeRoute);
-  const matchNavigationData = buildRouteMatcher(routes);
-  navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
-  instance.buildId = prodBuildId;
-  // Init-time writes target THIS instance explicitly — with several mounted
-  // apps there is no ambient request scope to resolve it from.
-  withInstance(instance, () => {
-    hydrateSSGCacheFromCompileContext(ctx);
-  });
-
-  const embedded = ctx?.embedded;
-  const clientDir =
-    embedded?.clientDir ?? explicitClientDir ?? ctx.clientDir ?? resolveClientDirFromArgv(prefix);
-  await setupCompiledTemplate(ctx, embedded, clientDir, instance);
-
-  const prodApp = new Elysia({
-    name: instanceName,
-    prefix: prefix || undefined,
-    seed: resolvedPagesDir,
-  })
-    .use(loggerPlugin)
-    // Local scope (default) — a global hook would leak onto sibling furin
-    // instances mounted on the same parent app.
-    .error(NotFound, async ({ request, server }) =>
-      renderRootNotFound(root, request, server?.url.origin)
-    )
-    .afterHandle(({ set }) => {
-      // Forward pending revalidation paths so the client can bust its prefetch cache
-      const pending = consumePendingInvalidations();
-      if (pending.length > 0) {
-        set.headers["x-furin-revalidate"] = serializeInvalidationPaths(pending);
-      }
-      // Tell the client the current build ID so it can detect stale deploys
-      if (instance.buildId) {
-        set.headers["x-furin-build-id"] = instance.buildId;
-      }
-    })
-    .setup(async ({ server }) => {
-      if (ctx.ssgCache) {
-        return;
-      }
-      const origin = server?.url?.origin ?? "http://localhost:3000";
-      // Synthetic (non-request) renders — bind them to this instance so the
-      // render pipeline resolves its template/caches, not a sibling's.
-      await withInstance(instance, () => warmSSGCache(routes, root, origin, searchRoutes));
-    })
-    .use(await createProductionAssetsPlugin(ctx, embedded, clientDir))
-    .use(await createProductionBrowserEventsPlugin(sync, ctx?.deploymentTarget))
-    .use(
-      sync ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync) : new Elysia()
-    )
-    .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
-    .use(ctx.nativeRoutes)
-    .use(createNotFoundHandling(prefix, routes, root));
-  return createFurinMount(
-    prodApp,
+      .use(nativeRoutes)
+      .use(notFoundHandling),
     instance,
-    undefined,
+    hmrPrefix,
     Boolean(sync),
     () => createFurinRuntime(mountOptions),
     elysiaLoggerOptions
