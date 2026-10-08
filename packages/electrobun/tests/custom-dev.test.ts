@@ -18,7 +18,7 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       }
       if (await Bun.file(readyPath).exists()) {
         const value: { origin: string; url: string } = await Bun.file(readyPath).json();
-        if (value.origin !== previous) {
+        if (value.url !== previous) {
           return value;
         }
       }
@@ -107,7 +107,7 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     await Bun.sleep(500);
     expect(await (await fetch(first.origin, { headers: { cookie } })).json()).toEqual(original);
     await writeFile(join(root, "src/value.tsx"), 'export const value = "second";');
-    const second = await ready(first.origin);
+    const second = await ready(first.url);
     const secondBootstrap = await fetch(second.url, { redirect: "manual" });
     const nextCookie = secondBootstrap.headers.get("set-cookie")?.split(";")[0];
     if (!nextCookie) {
@@ -123,9 +123,9 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     expect((await fetch(second.origin, { headers: { cookie } })).status).toBe(403);
     await writeFile(join(root, "src/nested.tsx"), 'export const value = "third";');
     await writeFile(join(root, "src/value.tsx"), 'export { value } from "./nested";');
-    const third = await ready(second.origin);
+    const third = await ready(second.url);
     await writeFile(join(root, "src/nested.tsx"), 'export const value = "fourth";');
-    const fourth = await ready(third.origin);
+    const fourth = await ready(third.url);
     const finalBootstrap = await fetch(fourth.url, { redirect: "manual" });
     const finalCookie = finalBootstrap.headers.get("set-cookie")?.split(";")[0];
     if (!finalCookie) {

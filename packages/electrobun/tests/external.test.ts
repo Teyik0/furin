@@ -393,10 +393,11 @@ test("rejected external copies do not leave asset writes running", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-external-pending-"));
   const fixture = join(root, "node_modules/fixture");
   const output = join(root, "output");
+  const payload = new Uint8Array(4 * 1024 * 1024).fill(0xa5);
   try {
     await mkdir(fixture, { recursive: true });
     await writeFile(join(fixture, "package.json"), '{"name":"fixture"}');
-    await writeFile(join(fixture, "payload"), new Uint8Array(4 * 1024 * 1024));
+    await writeFile(join(fixture, "payload"), payload);
     await writeFile(join(root, "private"), "private");
     await symlink("../../private", join(fixture, "asset"), "file");
     await expect(copyExternalPackages(root, output, ["fixture"])).rejects.toThrow(
@@ -404,8 +405,10 @@ test("rejected external copies do not leave asset writes running", async () => {
     );
     const target = join(output, "node_modules/fixture");
     const settled = (await readdir(target)).sort();
+    expect(Bun.hash(await Bun.file(join(target, "payload")).bytes())).toBe(Bun.hash(payload));
     await Bun.sleep(100);
     expect((await readdir(target)).sort()).toEqual(settled);
+    expect(Bun.hash(await Bun.file(join(target, "payload")).bytes())).toBe(Bun.hash(payload));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
