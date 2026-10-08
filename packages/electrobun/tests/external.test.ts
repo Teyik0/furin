@@ -388,3 +388,25 @@ test("external assets cannot escape their package, copy source dependencies or c
     }
   }
 });
+
+test("rejected external copies do not leave asset writes running", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-external-pending-"));
+  const fixture = join(root, "node_modules/fixture");
+  const output = join(root, "output");
+  try {
+    await mkdir(fixture, { recursive: true });
+    await writeFile(join(fixture, "package.json"), '{"name":"fixture"}');
+    await writeFile(join(fixture, "payload"), new Uint8Array(4 * 1024 * 1024));
+    await writeFile(join(root, "private"), "private");
+    await symlink("../../private", join(fixture, "asset"), "file");
+    await expect(copyExternalPackages(root, output, ["fixture"])).rejects.toThrow(
+      "escapes its package"
+    );
+    const target = join(output, "node_modules/fixture");
+    const settled = (await readdir(target)).sort();
+    await Bun.sleep(100);
+    expect((await readdir(target)).sort()).toEqual(settled);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

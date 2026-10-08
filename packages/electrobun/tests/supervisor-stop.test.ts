@@ -97,6 +97,7 @@ async function fixture(
         mode === "backend-signal"
           ? `
       process.removeAllListeners("SIGINT");
+      if (process.platform === "win32") process.exit(130);
       process.kill(process.pid, "SIGINT");
       await new Promise(() => {});
       `
@@ -134,9 +135,11 @@ async function fixture(
         if (await Bun.file("control").text()) {
           ${
             mode === "backend-signal"
-              ? `process.kill(Number(await Bun.file(${JSON.stringify(join(root, ".backend.pid"))}).text()), "SIGINT");
+              ? `if (process.platform !== "win32") {
+            process.kill(Number(await Bun.file(${JSON.stringify(join(root, ".backend.pid"))}).text()), "SIGINT");
+          }
           process.exit(0);`
-              : 'process.kill(process.pid, "SIGINT");'
+              : 'if (process.platform === "win32") process.exit(130); else process.kill(process.pid, "SIGINT");'
           }
         }
       });`
@@ -268,7 +271,7 @@ test("user cancellation also accepts an interrupted owned backend", async () => 
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
     expect(diagnostic).toBe("");
-    // Independently prove the same backend fixture exits by signal, not exit(0).
+    // POSIX exits by signal; Windows models Bun's numeric interrupted-child status.
     const worker = Bun.spawn(
       [process.execPath, join(dev.root, ".furin/electrobun/dev-server.ts")],
       { cwd: dev.root, stdout: "ignore", stderr: "ignore" }

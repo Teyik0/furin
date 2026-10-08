@@ -61,11 +61,15 @@ async function copyPackage(
   if ((await stat(real)).isDirectory()) {
     await mkdir(target, { recursive: true });
     const next = new Set([...ancestors, real]);
-    await Promise.all(
+    const copied = await Promise.allSettled(
       (await readdir(real))
         .filter((name) => name !== "node_modules")
         .map((name) => copyPackage(join(real, name), join(target, name), packageRoot, next))
     );
+    const failed = copied.find((result) => result.status === "rejected");
+    if (failed) {
+      throw failed.reason;
+    }
   } else {
     await cp(real, target);
   }
