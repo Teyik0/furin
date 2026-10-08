@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Changed
-- **Elysia beta update** — pin `2.0.0-beta.25` across the workspace, generated projects, documentation and benchmark workflows while preserving the public API and TypeScript inference.
+- **Elysia beta update** — pin `2.0.0-beta.26` across the workspace, generated projects, documentation and benchmark workflows while preserving the public API and TypeScript inference.
 - **Dependency security** — update compatible transitive dependencies and use the official selector-parser `7.1.6` fix. Local dependency patches are removed.
 
 ### Fixed

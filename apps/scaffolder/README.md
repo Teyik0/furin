@@ -156,7 +156,7 @@ Edit `src/generated/package-catalog.json` — templates automatically pick up ne
 ```json
 {
   "@teyik0/furin": "0.1.0-alpha.4",
-  "elysia": "2.0.0-beta.25",
+  "elysia": "2.0.0-beta.26",
   "react": "^19.2.4"
 }
 ```
