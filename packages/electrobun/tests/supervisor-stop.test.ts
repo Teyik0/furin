@@ -227,14 +227,16 @@ test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains th
   try {
     const window = await dev.started;
     dev.interrupt();
-    expect(await bounded(dev.supervisor.exited)).toBe(0);
+    const status = await bounded(dev.supervisor.exited);
+    const diagnostic = await new Response(dev.supervisor.stderr).text();
+    expect(status, diagnostic).toBe(0);
     expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
     expect(() => process.kill(window.pid, 0)).toThrow();
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
     expect(window.url).toBeDefined();
     expect(await new Response(dev.supervisor.stdout).text()).not.toContain(window.url as string);
-    expect(await new Response(dev.supervisor.stderr).text()).toBe("");
+    expect(diagnostic).toBe("");
   } finally {
     await dev.close();
   }
@@ -245,9 +247,11 @@ test("IPC-delivered shutdown invokes the supervisor signal handler and drains th
   try {
     await dev.started;
     dev.interrupt();
-    expect(await bounded(dev.supervisor.exited)).toBe(0);
+    const status = await bounded(dev.supervisor.exited);
+    const diagnostic = await new Response(dev.supervisor.stderr).text();
+    expect(status, diagnostic).toBe(0);
     expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
-    expect(await new Response(dev.supervisor.stderr).text()).toBe("");
+    expect(diagnostic).toBe("");
   } finally {
     await dev.close();
   }
@@ -258,10 +262,12 @@ test("user cancellation also accepts an interrupted owned backend", async () => 
   try {
     await dev.started;
     dev.interrupt();
-    expect(await bounded(dev.supervisor.exited)).toBe(0);
+    const status = await bounded(dev.supervisor.exited);
+    const diagnostic = await new Response(dev.supervisor.stderr).text();
+    expect(status, diagnostic).toBe(0);
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
-    expect(await new Response(dev.supervisor.stderr).text()).toBe("");
+    expect(diagnostic).toBe("");
     // Independently prove the same backend fixture exits by signal, not exit(0).
     const worker = Bun.spawn(
       [process.execPath, join(dev.root, ".furin/electrobun/dev-server.ts")],

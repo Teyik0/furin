@@ -8,6 +8,7 @@ import {
   rename,
   rm,
   symlink,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -364,17 +365,26 @@ test("external assets cannot escape their package, copy source dependencies or c
   ] as const) {
     // biome-ignore lint/performance/noAwaitInLoops: Each isolated failure fixture is cleaned up before the next case.
     const root = await mkdtemp(join(tmpdir(), "furin-external-asset-"));
+    const asset = join(root, "node_modules/fixture/asset");
+    let linked = false;
     try {
       const fixture = join(root, "node_modules/fixture");
       await mkdir(join(fixture, "node_modules/private-dev"), { recursive: true });
       await writeFile(join(fixture, "package.json"), '{"name":"fixture"}');
       await writeFile(join(root, "private"), "must-not-be-copied");
-      await symlink(link, join(fixture, "asset"), type);
+      await symlink(link, asset, type);
+      linked = true;
       await expect(copyExternalPackages(root, join(root, "output"), ["fixture"])).rejects.toThrow(
         message
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      try {
+        if (linked) {
+          await unlink(asset);
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
     }
   }
 });

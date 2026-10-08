@@ -52,6 +52,11 @@ test("desktop config rejects invalid dimensions and identifiers", () => {
 test("SDK additions reject malformed schemes, copy paths and signing flags", () => {
   for (const sdk of [
     { app: { urlSchemes: "tofu" } },
+    { app: { fileAssociations: [null] } },
+    { app: { fileAssociations: [{ ext: "torrent", name: "Torrent" }] } },
+    { app: { fileAssociations: [{ ext: ["torrent"], name: 123 }] } },
+    { app: { fileAssociations: [{ ext: ["torrent"], name: "Torrent", icon: 123 }] } },
+    { app: { fileAssociations: [{ ext: ["torrent"], name: "Torrent", role: "invalid" }] } },
     { build: { copy: { source: 123 } } },
     { build: { mac: { codesign: "yes" } } },
     { release: { baseUrl: "not-a-url" } },

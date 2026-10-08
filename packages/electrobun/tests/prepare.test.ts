@@ -72,3 +72,34 @@ test("a custom native host preserves packaging ownership and platform integratio
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("SDK copy destinations cannot alias or escape the reserved artifact", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-copy-alias-"));
+  try {
+    for (const destination of [
+      "./furin",
+      "other/../furin",
+      "furin\\app.js",
+      "FURIN/app.js",
+      ".",
+      "../furin",
+      "/furin",
+      "C:\\furin",
+    ]) {
+      // biome-ignore lint/performance/noAwaitInLoops: Each case writes the same generated project.
+      await expect(
+        prepareDesktop(
+          root,
+          {
+            app: { name: "Fixture", identifier: "local.furin.fixture", version: "1.0.0" },
+            window: { width: 800, height: 600 },
+            sdk: { build: { copy: { asset: destination } } },
+          },
+          { mode: "dev", root, serverEntry: join(root, "server.ts") }
+        )
+      ).rejects.toThrow("SDK copy destinations");
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

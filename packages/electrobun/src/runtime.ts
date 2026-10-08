@@ -239,6 +239,9 @@ export async function startDesktopBackend(
     await withDeadline(
       (async () => {
         const validate = await activateDesktopApp(app, guard, mode);
+        if (canceled) {
+          throw new Error("Desktop startup was canceled.");
+        }
         await module.onStartup?.(startup.signal);
         if (canceled) {
           throw new Error("Desktop startup was canceled.");

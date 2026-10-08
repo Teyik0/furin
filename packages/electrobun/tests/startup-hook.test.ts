@@ -11,34 +11,38 @@ test("desktop initializes application resources before serving authenticated req
   let ready = false;
   const app = createDesktopApp().get("/", () => (ready ? "ready" : "starting"));
   let shutdowns = 0;
-  const backend = await startDesktopBackend(
-    () =>
-      Promise.resolve({
-        default: app,
-        onStartup: async () => {
-          expect(app.server).toBeUndefined();
-          await Bun.sleep(10);
-          ready = true;
-        },
-        onShutdown: () => {
-          shutdowns += 1;
-        },
-      }),
-    data,
-    "build"
-  );
+  let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
+    backend = await startDesktopBackend(
+      () =>
+        Promise.resolve({
+          default: app,
+          onStartup: async () => {
+            expect(app.server).toBeUndefined();
+            await Bun.sleep(10);
+            ready = true;
+          },
+          onShutdown: () => {
+            shutdowns += 1;
+          },
+        }),
+      data,
+      "build"
+    );
     const response = await fetch(backend.origin, { headers: { cookie: backend.cookie } });
     expect(await response.text()).toBe("ready");
     await backend.stop();
     expect(shutdowns).toBe(1);
   } finally {
-    await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
+    try {
+      await backend?.stop();
+    } finally {
+      if (previousData === undefined) {
+        delete process.env.FURIN_APP_DATA_DIR;
+      } else {
+        process.env.FURIN_APP_DATA_DIR = previousData;
+      }
+      await rm(data, { recursive: true, force: true });
     }
-    await rm(data, { recursive: true, force: true });
   }
 });

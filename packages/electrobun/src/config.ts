@@ -108,13 +108,36 @@ function validateSdkConfig(sdk: { [key: string]: unknown }) {
 }
 
 function validateSdkApp(app: unknown) {
+  if (!object(app)) {
+    return;
+  }
   if (
-    object(app) &&
     app.urlSchemes !== undefined &&
     (!Array.isArray(app.urlSchemes) ||
       app.urlSchemes.some((scheme: unknown) => typeof scheme !== "string" || !SCHEME.test(scheme)))
   ) {
     throw new Error("sdk.app.urlSchemes must contain URL schemes without colons.");
+  }
+  if (
+    app.fileAssociations !== undefined &&
+    (!Array.isArray(app.fileAssociations) ||
+      app.fileAssociations.some(
+        (association: unknown) =>
+          !(object(association) && Array.isArray(association.ext)) ||
+          association.ext.length === 0 ||
+          association.ext.some((ext: unknown) => typeof ext !== "string" || !ext.trim()) ||
+          typeof association.name !== "string" ||
+          !association.name.trim() ||
+          (association.icon !== undefined &&
+            (typeof association.icon !== "string" || !association.icon.trim())) ||
+          (association.role !== undefined &&
+            (typeof association.role !== "string" ||
+              !["Editor", "Viewer", "Shell", "None"].includes(association.role)))
+      ))
+  ) {
+    throw new Error(
+      "sdk.app.fileAssociations must contain valid extensions, names, roles and icons."
+    );
   }
 }
 

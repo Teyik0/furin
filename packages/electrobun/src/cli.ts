@@ -104,14 +104,14 @@ async function terminateOwnedWindow(window: Bun.Subprocess): Promise<void> {
     // Windows has no POSIX process groups. taskkill follows the live bootstrap's
     // descendants, not orphans whose bootstrap already exited. POSIX groups
     // likewise cannot own descendants that deliberately start a new session.
-    if (window.exitCode === null) {
+    if (window.exitCode === null && window.signalCode === null) {
       const killer = Bun.spawn(["taskkill", "/PID", String(window.pid), "/T", "/F"], {
         stdout: "ignore",
         stderr: "ignore",
       });
       try {
         const status = await withShutdownDeadline(killer.exited);
-        if (status !== 0 && window.exitCode === null) {
+        if (status !== 0 && window.exitCode === null && window.signalCode === null) {
           throw new Error(`Desktop window tree termination failed (${status}).`);
         }
       } finally {

@@ -9,8 +9,14 @@ test("a host can reopen an authenticated window without reusing a spent bootstra
   const data = await mkdtemp(join(tmpdir(), "furin-reopen-"));
   const previousData = process.env.FURIN_APP_DATA_DIR;
   const app = createDesktopApp().get("/", () => "ready");
-  const backend = await startDesktopBackend(() => Promise.resolve({ default: app }), data, "build");
+  let owned: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   try {
+    const backend = await startDesktopBackend(
+      () => Promise.resolve({ default: app }),
+      data,
+      "build"
+    );
+    owned = backend;
     const first = await fetch(backend.url, { redirect: "manual" });
     expect(first.status).toBe(303);
     expect((await fetch(backend.url, { redirect: "manual" })).status).toBe(410);
@@ -30,12 +36,15 @@ test("a host can reopen an authenticated window without reusing a spent bootstra
     await backend.stop();
     expect(() => backend.createWindowUrl()).toThrow("stopped");
   } finally {
-    await backend.stop();
-    if (previousData === undefined) {
-      delete process.env.FURIN_APP_DATA_DIR;
-    } else {
-      process.env.FURIN_APP_DATA_DIR = previousData;
+    try {
+      await owned?.stop();
+    } finally {
+      if (previousData === undefined) {
+        delete process.env.FURIN_APP_DATA_DIR;
+      } else {
+        process.env.FURIN_APP_DATA_DIR = previousData;
+      }
+      await rm(data, { recursive: true, force: true });
     }
-    await rm(data, { recursive: true, force: true });
   }
 });

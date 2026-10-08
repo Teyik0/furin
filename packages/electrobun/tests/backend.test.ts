@@ -196,12 +196,16 @@ test("one startup budget bounds async plugin activation and never listens after 
   const plugin = new Elysia().get("/late", () => "late");
   const pending = Promise.withResolvers<typeof plugin>();
   const app = createDesktopApp().use(pending.promise);
+  let startups = 0;
   let shutdowns = 0;
   let backend: Awaited<ReturnType<typeof startDesktopBackend>> | undefined;
   const startup = startDesktopBackend(
     () =>
       Promise.resolve({
         default: app,
+        onStartup: () => {
+          startups += 1;
+        },
         onShutdown: () => {
           shutdowns += 1;
         },
@@ -227,6 +231,7 @@ test("one startup budget bounds async plugin activation and never listens after 
     pending.resolve(plugin);
     await app.modules;
     await Bun.sleep(20);
+    expect(startups).toBe(0);
     expect(app.server).toBeUndefined();
     expect(shutdowns).toBe(1);
   } finally {

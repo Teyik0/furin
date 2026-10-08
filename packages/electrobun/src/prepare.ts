@@ -1,5 +1,5 @@
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import type { DesktopConfig } from "./config";
 import { copyExternalPackages } from "./external";
 
@@ -164,10 +164,20 @@ export async function prepareDesktop(
   const additions = config.sdk;
   const copy = Object.fromEntries(
     Object.entries(additions?.build?.copy ?? {}).map(([source, destination]) => {
-      if (destination === "furin" || destination.startsWith("furin/")) {
-        throw new Error("SDK copy destinations cannot replace the Furin artifact.");
+      const target = posix.normalize(destination.replaceAll("\\", "/"));
+      const reserved = target.toLowerCase();
+      if (
+        target === "." ||
+        target === ".." ||
+        target.startsWith("../") ||
+        posix.isAbsolute(target) ||
+        win32.isAbsolute(target) ||
+        reserved === "furin" ||
+        reserved.startsWith("furin/")
+      ) {
+        throw new Error("SDK copy destinations must stay outside the reserved Furin artifact.");
       }
-      return [resolve(options.root, source), destination];
+      return [resolve(options.root, source), target];
     })
   );
   const mac = additions?.build?.mac;
