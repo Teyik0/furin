@@ -150,7 +150,7 @@ export async function prepareDesktop(
     );
     await writeFile(
       join(generated, "dev.json"),
-      JSON.stringify({ config, serverEntry: options.serverEntry })
+      JSON.stringify({ config, root: options.root, serverEntry: options.serverEntry })
     );
   }
   await writeFile(join(generated, "main.ts"), renderRuntime(config, options, generated));

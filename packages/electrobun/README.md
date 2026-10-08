@@ -99,7 +99,7 @@ new final root too, as described in the
 
 ## Development
 
-Development intentionally uses two Bun processes: an ordinary Furin dev helper
+The default host uses two Bun processes during development: an ordinary Furin dev helper
 running from the consuming root, and the SDK window host. This preserves the
 original `bunfig.toml` `[serve.static]` plugins, public environment filtering,
 Tailwind and Furin's frontend Fast Refresh without copying configs or changing
@@ -271,8 +271,25 @@ native helper descriptor; never log or serialize it into browser data. SSR loade
 that call the HTTP API must forward the incoming request cookie only to the same
 application origin. The default host never exposes the cookie.
 
-Custom hosts currently support `build` only. Continue using the application's web
-development workflow; the default host retains the supervised `dev` workflow.
+Custom hosts also support `dev`. After importing the SDK, call
+`getDesktopDevelopment()` from `@teyik0/furin-electrobun/host`. When present,
+import its `serverEntry` instead of the packaged artifact and pass `"dev"` to
+`startDesktopBackend()`. Construct your native controller, then call
+`await development.ready(backend, shutdown)`, where `shutdown` drains the backend
+and quits through the SDK. The context restores the consuming root as CWD and
+handles supervisor control and readiness; it is absent in packaged builds.
+
+Custom development keeps the backend and native SDK in one managed Bun process,
+so native APIs share the application runtime without a new RPC transport. The
+supervisor starts it with the consuming `bunfig.toml`, preserving frontend
+plugins and public environment filtering. JSX/TSX/CSS edits retain the window
+and use Furin Fast Refresh. Backend or host edits drain the old host, rebuild the
+SDK entry and open a replacement window; durable state survives, while unsaved
+React state across a backend restart is not promised. The default host keeps
+its separate helper workflow. This follows the frontend/state distinction in
+[Next.js Fast Refresh](https://nextjs.org/docs/architecture/fast-refresh); using
+Bun server `--hot` alone would also replace native SDK module identities.
+
 `furin-electrobun build --env=dev` packages a development identity; the build output
 is still production output with session protection. Omit the flag for stable SDK
 packaging. No stable package publication is implied.
