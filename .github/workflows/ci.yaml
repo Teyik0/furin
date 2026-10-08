@@ -72,9 +72,31 @@ jobs:
         run: bunx react-doctor -y --scope changed --base main --annotations
 
       - name: Publish Preview
+        id: publish-preview
         working-directory: packages/core
         if: github.event_name == 'pull_request'
-        run: bunx pkg-pr-new publish
+        run: bun run pkg-pr-new publish --bun --packageManager=bun --no-compact
+
+      - name: Verify preview installation
+        if: github.event_name == 'pull_request'
+        env:
+          FURIN_PREVIEW_URL: ${{ steps.publish-preview.outputs.urls }}
+        run: |
+          consumer_dir="$(mktemp -d "$RUNNER_TEMP/furin-preview-XXXXXX")"
+          cd "$consumer_dir"
+          bun -e 'await Bun.write("package.json", JSON.stringify({ private: true, dependencies: { "@teyik0/furin": process.env.FURIN_PREVIEW_URL } }));'
+          bun install --production --ignore-scripts
+          bun -e '
+            import { furin } from "@teyik0/furin";
+            import { createClient, defineRoute, defer } from "@teyik0/furin/client";
+            const manifest = await Bun.file("node_modules/@teyik0/furin/package.json").json();
+            for (const field of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+              for (const version of Object.values(manifest[field] ?? {})) {
+                if (/^(catalog|workspace):/.test(version)) throw new Error(`Unresolved dependency: ${version}`);
+              }
+            }
+            if (![furin, createClient, defineRoute, defer].every(value => typeof value === "function")) throw new Error("Missing public export");
+          '
 
   windows:
     name: Windows compatibility
