@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { startDesktopBackend } from "../src/runtime";
 import { createDesktopApp } from "../src/server";
@@ -19,7 +19,7 @@ test("public source and bundled factory roots share the pure SDK controller regi
       "dir"
     );
     const sourceFactory = Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir);
-    expect(sourceFactory).toEndWith("/src/server.ts");
+    expect(sourceFactory).toEndWith(join(sep, "src", "server.ts"));
     const factory = await Bun.build({
       entrypoints: [sourceFactory],
       external: ["elysia", "elysia/*"],

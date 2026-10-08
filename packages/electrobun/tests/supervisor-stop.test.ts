@@ -50,7 +50,10 @@ async function expectExited(pid: number): Promise<void> {
   throw new Error(`Owned process ${pid} is still live.`);
 }
 
-async function fixture(mode: "early" | "crash" | "signal" | "backend-signal" | "hung" | "failed") {
+async function fixture(
+  mode: "early" | "crash" | "signal" | "backend-signal" | "hung" | "failed",
+  ipc?: boolean
+) {
   const root = await mkdtemp(join(tmpdir(), "furin-supervisor-stop-"));
   let observed: Started | undefined;
   const { promise: started, resolve: receive } = Promise.withResolvers<Started>();
@@ -143,15 +146,34 @@ async function fixture(mode: "early" | "crash" | "signal" | "backend-signal" | "
     });
   `
   );
-  const supervisor = Bun.spawn([process.execPath, join(import.meta.dir, "../src/cli.ts"), "dev"], {
+  const runner = join(root, ".supervisor.ts");
+  await writeFile(
+    runner,
+    `import { desktopCommand } from ${JSON.stringify(join(import.meta.dir, "../src/cli.ts"))};
+process.on("message", (signal) => {
+  if (signal === "SIGINT" || signal === "SIGTERM") process.emit(signal);
+});
+try { await desktopCommand("dev", process.cwd()); }
+catch (error) { console.error(error); process.exitCode = 1; }
+finally { process.disconnect(); }`
+  );
+  const supervisor = Bun.spawn([process.execPath, runner], {
     cwd: root,
     stdout: "pipe",
     stderr: "pipe",
+    ipc: () => undefined,
   });
   return {
     root,
     supervisor,
     started: bounded(started),
+    interrupt() {
+      if (ipc || process.platform === "win32") {
+        supervisor.send("SIGINT");
+      } else {
+        supervisor.kill("SIGINT");
+      }
+    },
     async close() {
       if (supervisor.exitCode === null) {
         supervisor.kill("SIGKILL");
@@ -191,7 +213,7 @@ test("Ctrl-C before readiness is an intentional stop, not a startup failure", as
   const dev = await fixture("early");
   try {
     const worker = await dev.started;
-    dev.supervisor.kill("SIGINT");
+    dev.interrupt();
     expect(await bounded(dev.supervisor.exited)).toBe(0);
     expect(() => process.kill(worker.pid, 0)).toThrow();
     expect(await new Response(dev.supervisor.stderr).text()).toBe("");
@@ -204,7 +226,7 @@ test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains th
   const dev = await fixture("signal");
   try {
     const window = await dev.started;
-    dev.supervisor.kill("SIGINT");
+    dev.interrupt();
     expect(await bounded(dev.supervisor.exited)).toBe(0);
     expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
     expect(() => process.kill(window.pid, 0)).toThrow();
@@ -218,11 +240,24 @@ test("Ctrl-C after readiness accepts a signal-terminated SDK and still drains th
   }
 }, 12_000);
 
+test("IPC-delivered shutdown invokes the supervisor signal handler and drains the backend", async () => {
+  const dev = await fixture("signal", true);
+  try {
+    await dev.started;
+    dev.interrupt();
+    expect(await bounded(dev.supervisor.exited)).toBe(0);
+    expect(await Bun.file(join(dev.root, ".cleanup")).text()).toBe("closed");
+    expect(await new Response(dev.supervisor.stderr).text()).toBe("");
+  } finally {
+    await dev.close();
+  }
+}, 12_000);
+
 test("user cancellation also accepts an interrupted owned backend", async () => {
   const dev = await fixture("backend-signal");
   try {
     await dev.started;
-    dev.supervisor.kill("SIGINT");
+    dev.interrupt();
     expect(await bounded(dev.supervisor.exited)).toBe(0);
     const workerPid = Number(await Bun.file(join(dev.root, ".backend.pid")).text());
     expect(() => process.kill(workerPid, 0)).toThrow();
@@ -234,7 +269,11 @@ test("user cancellation also accepts an interrupted owned backend", async () => 
     );
     try {
       expect(await bounded(worker.exited)).not.toBe(0);
-      expect(worker.signalCode).toBe("SIGINT");
+      if (process.platform === "win32") {
+        expect(worker.exitCode).toBe(130);
+      } else {
+        expect(worker.signalCode).toBe("SIGINT");
+      }
     } finally {
       if (worker.exitCode === null) {
         worker.kill("SIGKILL");
@@ -250,7 +289,7 @@ test("user cancellation still reports an actual backend cleanup failure", async 
   const dev = await fixture("failed");
   try {
     await dev.started;
-    dev.supervisor.kill("SIGINT");
+    dev.interrupt();
     expect(await bounded(dev.supervisor.exited)).toBe(1);
     expect(await new Response(dev.supervisor.stderr).text()).toContain("fixture cleanup failed");
   } finally {
@@ -262,7 +301,7 @@ test("a hung SDK window is bounded and its owned process group is terminated", a
   const dev = await fixture("hung");
   try {
     const window = await dev.started;
-    dev.supervisor.kill("SIGINT");
+    dev.interrupt();
     expect(await bounded(dev.supervisor.exited)).toBe(1);
     expect(await new Response(dev.supervisor.stderr).text()).toContain("5 seconds");
     expect(() => process.kill(window.pid, 0)).toThrow();

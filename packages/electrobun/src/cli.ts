@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { watch } from "node:fs";
+import { statSync, watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
@@ -91,7 +91,12 @@ export async function desktopCommand(
 }
 
 function stoppedByUser(child: Bun.Subprocess, stopping: boolean): boolean {
-  return stopping && (child.signalCode === "SIGINT" || child.signalCode === "SIGTERM");
+  return (
+    stopping &&
+    (child.signalCode === "SIGINT" ||
+      child.signalCode === "SIGTERM" ||
+      (process.platform === "win32" && (child.exitCode === 130 || child.exitCode === 143)))
+  );
 }
 
 async function terminateOwnedWindow(window: Bun.Subprocess): Promise<void> {
@@ -203,7 +208,8 @@ async function runDesktopDev(
         .split(sep)
         .some((part) => part.startsWith(".") || ["node_modules", "dist", "build"].includes(part)) ||
       (ownedData && (path === ownedData || path.startsWith(`${ownedData}${sep}`))) ||
-      (path !== serverEntry && FRONTEND_FILE.test(filename))
+      (path !== serverEntry && FRONTEND_FILE.test(filename)) ||
+      statSync(path, { throwIfNoEntry: false })?.isDirectory()
     ) {
       return;
     }
@@ -232,6 +238,7 @@ async function runDesktopDev(
       }
       restart = false;
       listening = false;
+      let canceledStartup = false;
       await writeFile(control, "");
       const ready = join(generated, "ready.json");
       await rm(ready, { force: true });
@@ -246,6 +253,10 @@ async function runDesktopDev(
       });
       try {
         if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
+          if (backend.exitCode === null) {
+            canceledStartup = true;
+            backend.kill("SIGTERM");
+          }
           continue;
         }
         listening = true;
@@ -267,7 +278,7 @@ async function runDesktopDev(
           await terminateOwnedWindow(window);
         }
       } finally {
-        await stopOwnedDevWorker(backend, control, () => stopping);
+        await stopOwnedDevWorker(backend, control, () => stopping || canceledStartup);
         backend = undefined;
       }
     } while (restart && !stopping);

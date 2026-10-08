@@ -127,6 +127,7 @@ for (const rootData of [false, true]) {
       const first = await nextEvent();
       const original = await response(first);
       expect(original.value).toBe("first");
+      await mkdir(join(root, "src/new-directory"));
       for (const directory of directories) {
         await writeFile(
           join(root, directory, directory === "src/frontend" ? "page.tsx" : "write.ts"),
@@ -151,7 +152,7 @@ for (const rootData of [false, true]) {
         join(root, "src/server/index.tsx"),
         `${entry}
       await Bun.write(${JSON.stringify(starting)}, "starting");
-      await Bun.sleep(1000);
+      if (value === "second") await Bun.sleep(30_000);
       `
       );
       const deadline = Date.now() + 5000;
@@ -237,10 +238,12 @@ test("dev helper keeps consuming CWD and drains through the control file without
     if (!cookie) {
       throw new Error("Missing dev session.");
     }
-    expect(await (await fetch(ready.origin, { headers: { cookie } })).json()).toEqual({
-      cwd: await realpath(root),
-      data: dataDir,
-    });
+    const actual = (await (await fetch(ready.origin, { headers: { cookie } })).json()) as {
+      cwd: string;
+      data: string;
+    };
+    expect(await realpath(actual.cwd)).toBe(await realpath(root));
+    expect(actual.data).toBe(dataDir);
     await writeFile(join(generated, "control"), "close");
     expect(await child.exited).toBe(0);
     expect(await new Response(child.stdout).text()).not.toContain(ready.url);
