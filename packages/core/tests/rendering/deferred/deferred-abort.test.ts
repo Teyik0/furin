@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { toCrossJSON } from "seroval";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 
 const enc = new TextEncoder();
 
@@ -82,6 +83,40 @@ describe("parseDeferredNdjson — error paths", () => {
 });
 
 describe("parseDeferredNdjson — AbortSignal", () => {
+  test("canceling a fetched route-frame stream preserves deferred rejection without an unhandled error", async () => {
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(enc.encode(serializeRouteFrames({ title: "ready" }, ["pending"])));
+            },
+          })
+        ),
+    });
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => unhandled.push(error);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const abort = new AbortController();
+      const response = await fetch(server.url, { signal: abort.signal });
+      if (!response.body) {
+        throw new Error("Missing route-frame stream");
+      }
+      const result = await parseDeferredNdjson(response.body, abort.signal);
+      expect(result.syncData.title).toBe("ready");
+      abort.abort();
+      await expect(result.deferredPromises.pending).rejects.toHaveProperty("name", "AbortError");
+      await Bun.sleep(20);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      await server.stop(true);
+    }
+  });
+
   test("abandoned deferred promises do not leak an unhandled AbortError", async () => {
     const initial = ndjsonLine(toCrossJSON({ __furinDeferredKeys: ["abandoned"], title: "x" }));
     const { stream } = makeControlledStream(initial);

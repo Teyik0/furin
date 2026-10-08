@@ -105,7 +105,11 @@ original `bunfig.toml` `[serve.static]` plugins, public environment filtering,
 Tailwind and Furin's frontend Fast Refresh without copying configs or changing
 SDK directories. There is no Vite process or replacement frontend.
 
-Page JSX/TSX and CSS edits use Furin frontend HMR. A real macOS WKWebView test
+Frontend edits use Furin frontend HMR. The supervisor follows literal runtime
+imports from the server and custom host, including backend JSX/TSX and transitive
+imports; type-only imports and frontend-only TS helpers do not restart the backend.
+Modules loaded through computed paths are outside this source graph.
+A real macOS WKWebView test
 verified both kinds of update while preserving a React-controlled draft,
 document identity and native-host PID.
 
@@ -282,8 +286,8 @@ handles supervisor control and readiness; it is absent in packaged builds.
 Custom development keeps the backend and native SDK in one managed Bun process,
 so native APIs share the application runtime without a new RPC transport. The
 supervisor starts it with the consuming `bunfig.toml`, preserving frontend
-plugins and public environment filtering. JSX/TSX/CSS edits retain the window
-and use Furin Fast Refresh. Backend or host edits drain the old host, rebuild the
+plugins and public environment filtering. Frontend-only edits retain the window
+and use Furin Fast Refresh. Backend or host dependency edits drain the old host, rebuild the
 SDK entry and open a replacement window; durable state survives, while unsaved
 React state across a backend restart is not promised. The default host keeps
 its separate helper workflow. This follows the frontend/state distinction in

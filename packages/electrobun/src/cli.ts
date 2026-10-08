@@ -1,13 +1,47 @@
 #!/usr/bin/env bun
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { statSync, watch } from "node:fs";
+import { readFileSync, realpathSync, statSync, watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
 
-const FRONTEND_FILE = /\.(tsx|jsx|css)$/;
+function backendDependencies(root: string, entries: string[]): Set<string> {
+  const files = new Set<string>();
+  const visit = (path: string) => {
+    if (
+      files.has(path) ||
+      !path.startsWith(`${root}${sep}`) ||
+      path.includes(`${sep}node_modules${sep}`)
+    ) {
+      return;
+    }
+    files.add(path);
+    const extension = extname(path);
+    if (![".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"].includes(extension)) {
+      return;
+    }
+    try {
+      const transpiler = new Bun.Transpiler({
+        loader: extension === ".tsx" || extension === ".jsx" ? "tsx" : "ts",
+      });
+      for (const imported of transpiler.scanImports(readFileSync(path, "utf8"))) {
+        try {
+          visit(Bun.resolveSync(imported.path, dirname(path)));
+        } catch {
+          // Native/builtin or temporarily missing imports are handled by the worker.
+        }
+      }
+    } catch {
+      // An incomplete save must still restart its already-owned source file.
+    }
+  };
+  for (const entry of entries) {
+    visit(entry);
+  }
+  return files;
+}
 
 async function coreCli(root: string): Promise<string> {
   let directory: string | undefined = dirname(Bun.resolveSync("@teyik0/furin", root));
@@ -186,25 +220,33 @@ function watchBackend(
   customHost: string | undefined,
   onChange: () => void
 ) {
+  const canonicalRoot = realpathSync(root);
+  const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
+    join(canonicalRoot, relative(root, path))
+  );
+  let dependencies = backendDependencies(canonicalRoot, entries);
   const resolvedData = dataDir ? resolve(dataDir) : undefined;
   const ownedData = resolvedData?.startsWith(`${root}${sep}`) ? resolvedData : undefined;
-  // Backend imports can live anywhere in the project. Frontend HMR owns JSX/TSX/CSS;
-  // hidden/generated directories and runtime-owned data must not restart the worker.
+  // Follow runtime ownership: JSX can belong to the backend and plain TS to
+  // the frontend. Bun's frontend server owns modules outside this import graph.
   return watch(root, { recursive: true }, (_event, filename) => {
     if (!filename) {
       return;
     }
-    const path = join(root, filename);
+    const path = join(canonicalRoot, filename);
     if (
       filename
         .split(sep)
         .some((part) => part.startsWith(".") || ["node_modules", "dist", "build"].includes(part)) ||
-      (ownedData && (path === ownedData || path.startsWith(`${ownedData}${sep}`))) ||
-      (path !== serverEntry && path !== customHost && FRONTEND_FILE.test(filename)) ||
+      (ownedData &&
+        (join(root, filename) === ownedData ||
+          join(root, filename).startsWith(`${ownedData}${sep}`))) ||
+      !dependencies.has(path) ||
       statSync(path, { throwIfNoEntry: false })?.isDirectory()
     ) {
       return;
     }
+    dependencies = backendDependencies(canonicalRoot, entries);
     onChange();
   });
 }

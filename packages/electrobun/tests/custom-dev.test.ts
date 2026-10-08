@@ -40,7 +40,12 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       dataDir: ${JSON.stringify(join(root, ".data"))}
     };`
     );
-    await writeFile(join(root, "src/value.ts"), 'export const value = "first";');
+    await writeFile(join(root, "src/value.tsx"), 'export const value = "first";');
+    await writeFile(join(root, "src/frontend.ts"), 'export const label = "Before";');
+    await writeFile(
+      join(root, "src/page.tsx"),
+      'import { label } from "./frontend"; export default () => <p>{label}</p>;'
+    );
     await writeFile(
       join(root, "src/server.ts"),
       `
@@ -97,10 +102,11 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     expect(original.args).toContain(`--config=${join(root, "bunfig.toml")}`);
     expect(await realpath(original.cwd)).toBe(await realpath(root));
     await writeFile(join(root, "src/page.tsx"), "export default () => <p>Updated</p>;");
+    await writeFile(join(root, "src/frontend.ts"), 'export const label = "After";');
     await writeFile(join(root, "src/style.css"), "body { color: red; }");
     await Bun.sleep(500);
     expect(await (await fetch(first.origin, { headers: { cookie } })).json()).toEqual(original);
-    await writeFile(join(root, "src/value.ts"), 'export const value = "second";');
+    await writeFile(join(root, "src/value.tsx"), 'export const value = "second";');
     const second = await ready(first.origin);
     const secondBootstrap = await fetch(second.url, { redirect: "manual" });
     const nextCookie = secondBootstrap.headers.get("set-cookie")?.split(";")[0];
@@ -115,6 +121,19 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     expect(await Bun.file(join(root, ".closed")).text()).toBe(String(original.pid));
     expect(() => process.kill(original.pid, 0)).toThrow();
     expect((await fetch(second.origin, { headers: { cookie } })).status).toBe(403);
+    await writeFile(join(root, "src/nested.tsx"), 'export const value = "third";');
+    await writeFile(join(root, "src/value.tsx"), 'export { value } from "./nested";');
+    const third = await ready(second.origin);
+    await writeFile(join(root, "src/nested.tsx"), 'export const value = "fourth";');
+    const fourth = await ready(third.origin);
+    const finalBootstrap = await fetch(fourth.url, { redirect: "manual" });
+    const finalCookie = finalBootstrap.headers.get("set-cookie")?.split(";")[0];
+    if (!finalCookie) {
+      throw new Error("Missing final session");
+    }
+    expect(
+      await (await fetch(fourth.origin, { headers: { cookie: finalCookie } })).json()
+    ).toHaveProperty("value", "fourth");
   } finally {
     if (dev) {
       process.emit("SIGTERM");
