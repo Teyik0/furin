@@ -1,0 +1,19 @@
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_fa3ba074f76831::t_16255993462486 830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fc0f254123a2701aa6915752cfde3ebe7f6b7cb",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

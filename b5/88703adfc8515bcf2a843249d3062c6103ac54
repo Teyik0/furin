@@ -1,0 +1,32 @@
+packages/core/src/plugin/transform-client.ts
+  s_fa3ba074f76831::t_2a803fd6d072b8 191-193
+packages/core/src/plugin/binding-scope.ts
+  s_fa3ba074f76831::t_d47501e153b155 102-104
+  s_fa3ba074f76831::t_2a803fd6d072b8 63,69-71,79-80,87,93-96,98,122-126,128
+packages/core/tests/client/sync/query-store.test.ts
+  s_fa3ba074f76831::t_84f31ca8734ec0 6,37
+  s_fa3ba074f76831::t_48afbb8d81eb57 20-21,59-60
+  s_fa3ba074f76831::t_b0e0b35a1ea848 27,36,38,50-51,55-56
+packages/core/src/plugin/route-config-autofix.ts
+  s_fa3ba074f76831::t_d89e058ae4d8de 426
+packages/core/src/plugin/transform-isomorphic.ts
+  s_fa3ba074f76831::t_2a803fd6d072b8 35,100,118-120,135,141-145,159-163,165,657-659
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_eac77b6759a011 331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b588703adfc8515bcf2a843249d3062c6103ac54",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
