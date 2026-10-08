@@ -1,0 +1,35 @@
+packages/electrobun/src/cli.ts
+  s_a0a481a34b8480::t_43c62bea7ab6f6 87-95,182,186-188,193,203,208-308,321,339-345,348-349
+  s_a0a481a34b8480::t_603c166b21c694 80-82,353-355,357,359
+packages/electrobun/src/development.ts
+  s_a0a481a34b8480::t_43c62bea7ab6f6 1-42
+  s_a0a481a34b8480::t_01bd33940e508a 43-46
+packages/electrobun/src/host.ts
+  s_a0a481a34b8480::t_43c62bea7ab6f6 2
+packages/electrobun/src/prepare.ts
+  s_a0a481a34b8480::t_43c62bea7ab6f6 153
+bun.lock
+  s_a0a481a34b8480::t_f5285ddcc6807d 178
+packages/electrobun/README.md
+  s_a0a481a34b8480::t_aa65820e02613d 102,274-292
+packages/electrobun/package.json
+  s_a0a481a34b8480::t_c81bcfd8c64b6a 3
+packages/electrobun/tests/custom-dev.test.ts
+  s_a0a481a34b8480::t_a8b506a8d5fc51 1-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44cc7afd042a2aa12e025208b594fd53f05d6166",
+  "prompts": {},
+  "sessions": {
+    "s_a0a481a34b8480": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11830-66c0-7db0-b0af-3670e9f2f43e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
