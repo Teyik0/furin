@@ -1,7 +1,5 @@
 import { AsyncResource } from "node:async_hooks";
 import type { Context } from "elysia";
-import { createElement } from "react";
-import { FurinDocumentFallback } from "../../client/document.tsx";
 import { isNotFoundError } from "../../shared/not-found.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { queryTagsFromData } from "../../shared/sync-query.ts";
@@ -36,13 +34,13 @@ import {
   resolvePath,
   streamToString,
 } from "./assemble.ts";
-import { withDocumentState } from "./document.tsx";
 import { hasMixedLoaderModes, runPublicLoaders, runSegmentPublicLoaders } from "./loaders.ts";
 import {
   type PreparedRender,
   prepareRender,
-  renderElementWithShellFallback,
   renderForPath,
+  renderPayload,
+  renderPreparedDocument,
 } from "./ssr.ts";
 
 /**
@@ -126,41 +124,17 @@ async function renderISRNon200(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
-  errorDigest: string | undefined,
   renderStart: number,
   buildId: string | undefined
 ): Promise<string> {
-  const {
-    assets,
-    componentProps,
-    element,
-    errorMessage,
-    headData,
-    headers,
-    status,
-    notFoundError,
-  } = prepared;
-  const fallbackProps: Record<string, unknown> = { ...componentProps };
-  if (errorDigest !== undefined && errorMessage !== undefined) {
-    fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
-  }
-  if (status === 404) {
-    fallbackProps.__furinStatus = 404;
-    if (notFoundError) {
-      fallbackProps.__furinNotFound = notFoundError;
-    }
-  }
-
-  const { stream: reactStream, shellError } = await renderElementWithShellFallback(
-    withDocumentState(element, assets, headData, fallbackProps),
-    route.error ?? root.error,
-    prepared.ssrContext,
-    (fallback, digest, message) =>
-      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        ...fallbackProps,
-        __furinError: { digest, message, status: 500 },
-        __furinStatus: 500,
-      })
+  const { errorDigest, headers, status } = prepared;
+  const fallbackProps = { ...prepared.componentProps, ...renderPayload(prepared, undefined) };
+  const { stream: reactStream, shellError } = await renderPreparedDocument(
+    prepared,
+    route,
+    root,
+    fallbackProps,
+    fallbackProps
   );
   let finalStatus = status;
   let finalDigest = errorDigest;
@@ -176,20 +150,10 @@ async function renderISRNon200(
         route: route.pattern,
       },
     });
-    fallbackProps.__furinError = {
-      digest: finalDigest,
-      message: shellError.message,
-      status: finalStatus,
-    };
-    fallbackProps.__furinStatus = 500;
-  }
-  if (!fallbackProps.__furinError && errorDigest !== undefined && errorMessage !== undefined) {
-    fallbackProps.__furinError = { digest: errorDigest, message: errorMessage, status };
   }
 
   await reactStream.allReady;
-  const reactHtml = await streamToString(reactStream);
-  const html = reactHtml;
+  const html = await streamToString(reactStream);
   const generatedAt = Date.now();
 
   const renderMs = generatedAt - renderStart;
@@ -405,28 +369,24 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
     if (prepared instanceof Response) {
       return prepared;
     }
-    const { assets, element, headData, headers, syncData, status, errorDigest } = prepared;
+    const { headers, syncData, status } = prepared;
     if (status !== 200) {
       return renderISRNon200(
         prepared,
         input.route,
         input.ctx,
         input.root,
-        errorDigest,
         renderStart,
         input.buildId
       );
     }
 
-    const { shellError, stream } = await renderElementWithShellFallback(
-      withDocumentState(element, assets, headData, syncData),
-      input.route.error ?? input.root.error,
-      prepared.ssrContext,
-      (fallback, digest, message) =>
-        withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-          __furinError: { digest, message, status: 500 },
-          __furinStatus: 500,
-        })
+    const { shellError, stream } = await renderPreparedDocument(
+      prepared,
+      input.route,
+      input.root,
+      syncData,
+      {}
     );
     if (shellError) {
       prepared.status = 500;
@@ -437,7 +397,6 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
         input.route,
         input.ctx,
         input.root,
-        shellError.digest,
         renderStart,
         input.buildId
       );

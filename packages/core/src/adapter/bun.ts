@@ -204,20 +204,33 @@ export async function buildBunTarget(
     targetDir
   );
 
-  if (options.compile && serverEntry && appEntry) {
-    const serverFilename = compiledServerFilename(process.platform);
-    const outfile = join(targetDir, serverFilename);
-
-    const entry = generateBootEntry(appEntry, targetDir, "_compile-entry.ts");
-    const embeddedAssets = collectEmbeddedAssets(entryApps, publicDir, options.compile);
+  if (serverEntry && appEntry) {
+    const serverFilename = options.compile ? compiledServerFilename(process.platform) : "server.js";
+    const entry = generateBootEntry(
+      appEntry,
+      targetDir,
+      options.compile ? "_compile-entry.ts" : "server.ts"
+    );
+    const outputOptions: Partial<Bun.BuildConfig> = options.compile
+      ? {
+          bytecode: true,
+          compile: {
+            assets: collectEmbeddedAssets(entryApps, publicDir, options.compile),
+            outfile: join(targetDir, serverFilename),
+          },
+          define: { "process.env.NODE_ENV": JSON.stringify("production") },
+          format: "esm",
+          splitting: true,
+        }
+      : {
+          naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
+          outdir: targetDir,
+        };
 
     const serverBuild = await runBunBuild({
-      bytecode: true,
-      compile: { assets: embeddedAssets, outfile },
-      define: { "process.env.NODE_ENV": JSON.stringify("production") },
+      ...outputOptions,
       entrypoints: [entry.entrypoint],
       files: entry.files,
-      format: "esm",
       metafile: options.analyze,
       minify: true,
       plugins: [
@@ -232,50 +245,18 @@ export async function buildBunTarget(
         elysiaAot(appEntry),
       ],
       sourcemap: serverSourcemapMode(options.serverSourceMaps),
-      splitting: true,
       target: "bun",
     });
     relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
     writeServerMetafile(serverBuild, options.analyze, buildRoot);
-
-    console.log(`[furin] Server binary: ${outfile}`);
 
     targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, serverFilename));
-
-    // Embed mode: assets are in the binary — clean up client dirs too.
-    finalizeEmbeddedAssets(options.compile, apps, targetDir, targetManifest);
-  } else if (serverEntry && appEntry) {
-    // Disk mode: generate server.ts then bundle it into self-contained server.js
-    const entry = generateBootEntry(appEntry, targetDir, "server.ts");
-
-    const serverBuild = await runBunBuild({
-      entrypoints: [entry.entrypoint],
-      files: entry.files,
-      metafile: options.analyze,
-      minify: true,
-      naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
-      outdir: targetDir,
-      plugins: [
-        entry.plugin,
-        productionInstrumentationPlugin(),
-        pprRuntimePlugin(apps),
-        mixedRuntimePlugin(apps),
-        ...(options.plugins ?? []),
-        createRoutesPlugin({ instances: apps, target: "server" }),
-        isomorphicTransformPlugin("server"),
-        environmentGuardPlugin("ssr"),
-        elysiaAot(appEntry),
-      ],
-      sourcemap: serverSourcemapMode(options.serverSourceMaps),
-      target: "bun",
-    });
-    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
-    writeServerMetafile(serverBuild, options.analyze, buildRoot);
-    console.log(
-      `[furin] Server bundle: ${toPosixPath(join(targetManifest.targetDir, "server.js"))}`
-    );
-
-    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server.js"));
+    if (options.compile) {
+      console.log(`[furin] Server binary: ${join(targetDir, serverFilename)}`);
+      finalizeEmbeddedAssets(options.compile, apps, targetDir, targetManifest);
+    } else {
+      console.log(`[furin] Server bundle: ${targetManifest.serverPath}`);
+    }
   }
 
   return targetManifest;

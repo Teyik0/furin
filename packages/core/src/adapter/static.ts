@@ -307,16 +307,6 @@ async function buildTaskQueue(
     if (result.paramSets === null) {
       continue;
     }
-    // Defend against staticParams() returning a non-array (e.g. a bare object
-    // or `null`-after-coercion). Without this guard, a single malformed route
-    // would throw out of `for...of` and abort the entire build.
-    if (!Array.isArray(result.paramSets)) {
-      console.error(
-        `[furin] static: staticParams() for "${pattern}" returned a non-array value; skipping route.`
-      );
-      skippedRoutes.push(pattern);
-      continue;
-    }
     for (const params of result.paramSets) {
       const urlPath = resolvePath(pattern, params);
       pathToOutputFile(urlPath, outDir, "index.html");
@@ -336,23 +326,6 @@ async function buildTaskQueue(
   }
 
   return tasks;
-}
-
-// ── Concurrency runner ────────────────────────────────────────────────────────
-
-async function runWithConcurrency(
-  tasks: Array<() => Promise<void>>,
-  concurrency: number
-): Promise<void> {
-  const queue = [...tasks];
-  const workerCount = Math.min(concurrency, Math.max(queue.length, 1));
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (queue.length > 0) {
-        await queue.shift()?.();
-      }
-    })
-  );
 }
 
 // ── Main adapter ──────────────────────────────────────────────────────────────
@@ -511,7 +484,7 @@ export async function buildStaticTarget(
   }
 
   // ── 9. Pre-render SSG routes ──────────────────────────────────────────────
-  await runWithConcurrency(tasks, STATIC_CONCURRENCY);
+  await mapWithConcurrency(tasks, STATIC_CONCURRENCY, (task) => task());
 
   // Fail the build when onSSR="error" and any prerender task was recorded as skipped.
   assertNoPrerenderSkips(onSSR, skippedRoutes, afterQueueCount);

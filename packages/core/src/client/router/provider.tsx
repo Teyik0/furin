@@ -582,37 +582,42 @@ export function RouterProvider({
     [fetchPageState, defaultPreloadStaleTime, prefetchCacheSize]
   );
 
-  /** Loads the RouterState for a redirect target, respecting the nav version. */
-  async function resolveRedirectState(
-    redirectLogical: string,
-    myVersion: number,
-    signal: AbortSignal | undefined
-  ): Promise<RouterState | null> {
-    const cached = prefetchCache.current.get(redirectLogical);
-    const useCached =
-      cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(redirectLogical);
-    let redirectState =
-      useCached && cached
-        ? await cached.promise
-        : await fetchConfirmedPageState(redirectLogical, signal, false);
-    if (navVersion.current !== myVersion) {
-      return null;
-    }
-    if (
-      useCached &&
-      (isRedirectState(redirectState) ||
-        (redirectState && snapshotTransports.current.get(redirectState)?.() === false) ||
-        (redirectState &&
-          !optimisticRuntime.publishable(
-            redirectLogical,
-            snapshotVersions.current.get(redirectState) ??
-              optimisticRuntime.revision(redirectLogical)
-          )))
-    ) {
-      redirectState = await fetchConfirmedPageState(redirectLogical, signal, false);
-    }
-    return navVersion.current === myVersion ? redirectState : null;
-  }
+  const readNavigationState = useCallback(
+    async (
+      href: string,
+      myVersion: number,
+      signal: AbortSignal | undefined,
+      hmrRefresh: boolean
+    ): Promise<{ state: RouterState | null; fetched: boolean }> => {
+      const cached = prefetchCache.current.get(href);
+      const useCached =
+        cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(href);
+      let nextState =
+        useCached && cached
+          ? await cached.promise
+          : await fetchConfirmedPageState(href, signal, hmrRefresh);
+      if (navVersion.current !== myVersion) {
+        return { state: null, fetched: false };
+      }
+      const revalidate =
+        useCached &&
+        (isRedirectState(nextState) ||
+          (nextState && snapshotTransports.current.get(nextState)?.() === false) ||
+          (nextState &&
+            !optimisticRuntime.publishable(
+              href,
+              snapshotVersions.current.get(nextState) ?? optimisticRuntime.revision(href)
+            )));
+      if (revalidate) {
+        nextState = await fetchConfirmedPageState(href, signal, hmrRefresh);
+      }
+      return {
+        state: navVersion.current === myVersion ? nextState : null,
+        fetched: !useCached || Boolean(revalidate),
+      };
+    },
+    [fetchConfirmedPageState, optimisticRuntime]
+  );
 
   async function followRedirects(
     initialState: RouterState,
@@ -630,13 +635,41 @@ export function RouterProvider({
       }
       visited.add(href);
       // biome-ignore lint/performance/noAwaitInLoops: each redirect target depends on the previous response.
-      const next = await resolveRedirectState(href, myVersion, signal);
+      const { state: next } = await readNavigationState(href, myVersion, signal, false);
       if (!next) {
         return null;
       }
       redirectState = next;
     }
     return { href, state: redirectState };
+  }
+
+  function publishPageState(
+    nextState: RouterState,
+    href: string,
+    beforePublish: (() => void) | undefined
+  ): boolean {
+    if (
+      !optimisticRuntime.publishable(
+        href,
+        snapshotVersions.current.get(nextState) ?? optimisticRuntime.revision(href)
+      )
+    ) {
+      return false;
+    }
+    if (!(nextState.error || nextState.notFound)) {
+      optimisticRuntime.commit(href);
+    }
+    beforePublish?.();
+    currentMatchRef.current = nextState.match;
+    if (!nextState.error) {
+      setBoundaryResetVersion((version) => version + 1);
+    }
+    setState(nextState);
+    if (nextState.title) {
+      document.title = nextState.title;
+    }
+    return true;
   }
 
   const navigate = useCallback(
@@ -665,33 +698,17 @@ export function RouterProvider({
       const navSignal = navAbort.signal;
       setIsNavigating(true);
       try {
-        const cached = prefetchCache.current.get(logicalHref);
-        const useCached =
-          cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(logicalHref);
-        let newState =
-          useCached && cached
-            ? await cached.promise
-            : await fetchConfirmedPageState(logicalHref, navSignal, opts?.hmrRefresh === true);
-        const cachedRedirect =
-          useCached &&
-          (isRedirectState(newState) ||
-            (newState && snapshotTransports.current.get(newState)?.() === false) ||
-            (newState &&
-              !optimisticRuntime.publishable(
-                logicalHref,
-                snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(logicalHref)
-              )));
-        if (cachedRedirect) {
-          newState = await fetchConfirmedPageState(
-            logicalHref,
-            navSignal,
-            opts?.hmrRefresh === true
-          );
-        }
+        const loaded = await readNavigationState(
+          logicalHref,
+          myVersion,
+          navSignal,
+          opts?.hmrRefresh === true
+        );
+        let newState = loaded.state;
         if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
-        if (newState && (!useCached || cachedRedirect)) {
+        if (newState && loaded.fetched) {
           setPrefetchCacheEntry(
             prefetchCache.current,
             logicalHref,
@@ -729,30 +746,17 @@ export function RouterProvider({
           return;
         }
         const publicationHref = newState.finalHref ?? resolved.href;
-        if (
-          !optimisticRuntime.publishable(
-            publicationHref,
-            snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(publicationHref)
-          )
-        ) {
-          return;
-        }
-        if (!(newState.error || newState.notFound)) {
-          optimisticRuntime.commit(publicationHref);
-        }
-        beforeCommit?.();
         const effectiveLogical = newState.finalHref ?? resolved.href;
         const physicalEffective = basePath + effectiveLogical;
-        if (opts?.resetScroll ?? true) {
-          pendingScrollRef.current = { href: physicalEffective, type: "reset" };
-        }
-        currentMatchRef.current = newState.match;
-        if (!newState.error) {
-          setBoundaryResetVersion((version) => version + 1);
-        }
-        setState(newState);
-        if (newState.title) {
-          document.title = newState.title;
+        if (
+          !publishPageState(newState, publicationHref, () => {
+            beforeCommit?.();
+            if (opts?.resetScroll ?? true) {
+              pendingScrollRef.current = { href: physicalEffective, type: "reset" };
+            }
+          })
+        ) {
+          return;
         }
         if (opts?.replace) {
           window.history.replaceState(
@@ -781,13 +785,7 @@ export function RouterProvider({
         }
       }
     },
-    [
-      basePath,
-      fetchConfirmedPageState,
-      defaultPreloadStaleTime,
-      prefetchCacheSize,
-      optimisticRuntime,
-    ]
+    [basePath, readNavigationState, defaultPreloadStaleTime, prefetchCacheSize, optimisticRuntime]
   );
 
   const [searchStore] = useState(() =>
@@ -940,24 +938,12 @@ export function RouterProvider({
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: popstate handler — cache check, redirect follow, and scroll restoration require this depth
     (async () => {
       try {
-        const cached = prefetchCache.current.get(logicalHref);
-        let newState: RouterState | null;
-        if (cached && !shouldRefetch(cached) && !optimisticRuntime.has(logicalHref)) {
-          newState = await cached.promise;
-          if (
-            isRedirectState(newState) ||
-            (newState && snapshotTransports.current.get(newState)?.() === false) ||
-            (newState &&
-              !optimisticRuntime.publishable(
-                logicalHref,
-                snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(logicalHref)
-              ))
-          ) {
-            newState = await fetchConfirmedPageState(logicalHref, navSignal, false);
-          }
-        } else {
-          newState = await fetchConfirmedPageState(logicalHref, navSignal, false);
-        }
+        let { state: newState } = await readNavigationState(
+          logicalHref,
+          myVersion,
+          navSignal,
+          false
+        );
         if (navVersion.current !== myVersion) {
           return;
         }
@@ -983,25 +969,8 @@ export function RouterProvider({
         }
         newState = resolved.state;
         const publicationHref = newState.finalHref ?? resolved.href;
-        if (
-          !optimisticRuntime.publishable(
-            publicationHref,
-            snapshotVersions.current.get(newState) ?? optimisticRuntime.revision(publicationHref)
-          )
-        ) {
+        if (!publishPageState(newState, publicationHref, undefined)) {
           return;
-        }
-        if (!(newState.error || newState.notFound)) {
-          optimisticRuntime.commit(publicationHref);
-        }
-
-        currentMatchRef.current = newState.match;
-        if (!newState.error) {
-          setBoundaryResetVersion((version) => version + 1);
-        }
-        setState(newState);
-        if (newState.title) {
-          document.title = newState.title;
         }
         const effectiveLogical = newState.finalHref ?? resolved.href;
         if (effectiveLogical !== logicalHref) {
@@ -1021,7 +990,7 @@ export function RouterProvider({
         }
       }
     })();
-  }, [fetchConfirmedPageState, basePath, optimisticRuntime]);
+  }, [readNavigationState, basePath, optimisticRuntime]);
 
   // Disable native scroll restoration and assign a key to the initial history entry.
   useEffect(() => {

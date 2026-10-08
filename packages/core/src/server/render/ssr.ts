@@ -150,7 +150,7 @@ function serializedErrorPayload(
   return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
 }
 
-function renderPayload(
+export function renderPayload(
   prepared: PreparedRender,
   shellError: { digest: string; message: string } | undefined
 ): { [key: string]: unknown } {
@@ -524,49 +524,46 @@ export async function prepareRender(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+export function renderPreparedDocument(
+  prepared: PreparedRender,
+  route: ResolvedRoute,
+  root: RootLayout,
+  data: object,
+  fallbackData: object
+): Promise<ShellFallbackResult> {
+  const { assets, element, headData } = prepared;
+  return renderElementWithShellFallback(
+    withDocumentState(element, assets, headData, data),
+    route.error ?? root.error,
+    prepared.ssrContext,
+    (fallback, digest, message) =>
+      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
+        ...fallbackData,
+        __furinError: { digest, message, status: 500 },
+        __furinStatus: 500,
+      })
+  );
+}
+
 async function renderBufferedResult(
   prepared: PreparedRender,
   route: ResolvedRoute,
   root: RootLayout
 ): Promise<RenderResult> {
-  const { assets, deferredPromises, element, headData, headers, syncData } = prepared;
+  const { deferredPromises, headers, syncData } = prepared;
   const payload = renderPayload(prepared, undefined);
-  const { shellError, stream } = await renderElementWithShellFallback(
-    withDocumentState(element, assets, headData, payload),
-    route.error ?? root.error,
-    prepared.ssrContext,
-    (fallback, digest, message) =>
-      withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
-        __furinError: { digest, message, status: 500 },
-        __furinStatus: 500,
-      })
-  );
+  const { shellError, stream } = await renderPreparedDocument(prepared, route, root, payload, {});
   await stream.allReady;
   const html = await streamToString(stream);
-  if (shellError) {
-    return {
-      headers,
-      html,
-      ndjson: await serializeLoaderDataNdjson(
-        {
-          __furinError: {
-            digest: shellError.digest,
-            message: shellError.message,
-            status: 500,
-          },
-          __furinStatus: 500,
-        },
-        undefined
-      ),
-      status: 500,
-    };
-  }
   return {
     headers,
     html,
-    ndjson: await serializeLoaderDataNdjson(payload, deferredPromises),
-    queryTags: queryTagsFromData(syncData),
-    status: prepared.status,
+    ndjson: await serializeLoaderDataNdjson(
+      shellError ? renderPayload(prepared, shellError) : payload,
+      shellError ? undefined : deferredPromises
+    ),
+    ...(shellError ? {} : { queryTags: queryTagsFromData(syncData) }),
+    status: shellError ? 500 : prepared.status,
   };
 }
 

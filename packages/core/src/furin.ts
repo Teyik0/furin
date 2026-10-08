@@ -458,18 +458,19 @@ type RequestScopeWrapper = Parameters<AnyElysia["wrap"]>[0];
 const requestScopeRegistries = new WeakMap<RequestScopeWrapper, Map<string, FurinInstance>>();
 
 interface FurinMount {
-  anchor: { handler: unknown; method: string; path: string };
+  anchor: { handler: unknown; method: string; path: string } | undefined;
   app: AnyElysia;
   cleanup: readonly ((app: AnyElysia) => unknown)[];
+  createRuntime: () => Promise<FurinMount>;
+  hasSync: boolean;
+  hmrPrefix: string | undefined;
   hoc: readonly RequestScopeWrapper[];
   instance: FurinInstance;
   logger: FurinEvlogOptions | undefined;
-  options: FurinOptions;
   setup: readonly ((app: AnyElysia) => unknown)[];
 }
 
 const furinMountMarkers = new WeakMap<object, FurinMount>();
-const furinPluginMounts = new WeakMap<object, FurinMount>();
 const mountOwners = new WeakMap<FurinMount, { owner: WeakRef<AnyElysia>; prefix: string }>();
 const ownerMounts = new WeakMap<AnyElysia, Map<FurinMount, Map<string, FurinMount>>>();
 const preparingOwners = new WeakMap<AnyElysia, Promise<void>>();
@@ -486,7 +487,7 @@ function composedMounts(app: AnyElysia): { mount: FurinMount; prefix: string }[]
     for (const hook of Array.isArray(hooks) ? hooks : [hooks]) {
       const mount = furinMountMarkers.get(hook);
       if (
-        mount &&
+        mount?.anchor &&
         route.method === mount.anchor.method &&
         route.handler === mount.anchor.handler &&
         route.path.endsWith(mount.anchor.path)
@@ -545,11 +546,7 @@ function prepareFinalMounts(app: AnyElysia): Promise<void> | undefined {
   const task = (async () => {
     for (const { source, prefix, mounted } of initialize) {
       // biome-ignore lint/performance/noAwaitInLoops: mounts write shared generated files; initialize them sequentially.
-      const plugin = await furin(source.options);
-      const fresh = furinPluginMounts.get(plugin);
-      if (!fresh) {
-        throw new Error("[furin] Runtime mount descriptor is missing.");
-      }
+      const fresh = await source.createRuntime();
       fresh.instance.prefix = prefix;
       mountOwners.set(fresh, { owner: new WeakRef(app), prefix });
       const parentPrefix = source.instance.declaredPrefix
@@ -569,31 +566,14 @@ function finalMountRegistry(app: AnyElysia): Map<string, FurinInstance> {
   const instances = finalInstances.get(app) ?? new Map<string, FurinInstance>();
   finalInstances.set(app, instances);
   instances.clear();
-  for (const route of app.routes) {
-    const hooks = route.hooks?.beforeHandle;
-    if (!hooks) {
-      continue;
-    }
-    for (const hook of Array.isArray(hooks) ? hooks : [hooks]) {
-      const mount = furinMountMarkers.get(hook);
-      if (
-        !mount ||
-        route.method !== mount.anchor.method ||
-        route.handler !== mount.anchor.handler ||
-        !route.path.endsWith(mount.anchor.path)
-      ) {
-        continue;
-      }
-      const { instance } = mount;
-      instance.prefix = normalizePrefix(
-        `${route.path.slice(0, -mount.anchor.path.length)}${instance.declaredPrefix}`
-      );
-      setFurinEvlogOptions(
-        instance,
-        createLoggerOptions(instance.prefix, instance.syncPath, mount.logger)
-      );
-      registerInstance(instance, instances);
-    }
+  for (const { mount, prefix } of composedMounts(app)) {
+    const { instance } = mount;
+    instance.prefix = prefix;
+    setFurinEvlogOptions(
+      instance,
+      createLoggerOptions(instance.prefix, instance.syncPath, mount.logger)
+    );
+    registerInstance(instance, instances);
   }
   return instances;
 }
@@ -762,17 +742,14 @@ function disableNativeHmrHooks(app: AnyElysia, entryPath: string): void {
   }
 }
 
-function createFurinPlugin(
+function createFurinMount(
   app: AnyElysia,
   instance: FurinInstance,
   hmrPrefix: string | undefined,
   hasSync: boolean,
-  options: FurinOptions,
+  createRuntime: () => Promise<FurinMount>,
   loggerOptions: FurinEvlogOptions
-) {
-  // Reusing a plugin must initialize a complete runtime, including every
-  // captured dev callback. Elysia resolves async plugins before serving.
-  let used = false;
+): FurinMount {
   const marker = () => undefined;
   const anchor = app.routes.find((route) => typeof route.handler === "function");
   const extension = Reflect.get(app, "~ext") as {
@@ -780,19 +757,34 @@ function createFurinPlugin(
     hoc?: RequestScopeWrapper[];
     setup?: ((app: AnyElysia) => unknown)[];
   };
-  const mount: FurinMount | undefined = anchor
-    ? {
-        anchor,
-        app,
-        cleanup: extension.cleanup?.slice() ?? [],
-        hoc: extension.hoc?.slice() ?? [],
-        instance,
-        logger: loggerOptions,
-        options,
-        setup: extension.setup?.slice() ?? [],
-      }
-    : undefined;
-  if (mount) {
+  const mount: FurinMount = {
+    anchor,
+    app,
+    cleanup: extension.cleanup?.slice() ?? [],
+    createRuntime,
+    hasSync,
+    hmrPrefix,
+    hoc: extension.hoc?.slice() ?? [],
+    instance,
+    logger: loggerOptions,
+    setup: extension.setup?.slice() ?? [],
+  };
+  if (anchor) {
+    furinMountMarkers.set(marker, mount);
+  }
+  mount.app = new Elysia().beforeHandle(marker).use(app);
+  return mount;
+}
+
+function createFurinPlugin(mount: FurinMount) {
+  const { app, hasSync, hmrPrefix, instance } = mount;
+  let used = false;
+  const extension = Reflect.get(app, "~ext") as {
+    cleanup?: ((app: AnyElysia) => unknown)[];
+    hoc?: RequestScopeWrapper[];
+    setup?: ((app: AnyElysia) => unknown)[];
+  };
+  if (mount.anchor) {
     if (extension.hoc) {
       extension.hoc = mount.hoc.map(
         (original, index) =>
@@ -853,13 +845,6 @@ function createFurinPlugin(
     ownedExtension.setup?.splice(0, mount.setup.length);
     ownedExtension.cleanup?.splice(0, mount.cleanup.length);
   }
-  if (anchor && mount) {
-    furinMountMarkers.set(marker, mount);
-  }
-  const markedApp = new Elysia().beforeHandle(marker).use(app);
-  if (mount) {
-    mount.app = markedApp;
-  }
   const plugin = <ParentApp extends AnyElysia>(
     parentApp: ParentApp
   ): FurinApplication<ParentApp> => {
@@ -873,7 +858,7 @@ function createFurinPlugin(
       wrapWithRequestScope(parentApp, instances);
     }
     if (used) {
-      parentApp.use(furin(options));
+      parentApp.use(mount.createRuntime().then(createFurinPlugin));
       return result as FurinApplication<ParentApp>;
     }
     used = true;
@@ -883,16 +868,13 @@ function createFurinPlugin(
     if (hasSync) {
       bindSyncValidation(parentApp);
     }
-    parentApp.use(markedApp);
+    parentApp.use(app);
     if (hmrPrefix !== undefined) {
       const entryPath = `${parentConfig?.prefix ?? ""}${hmrPrefix}/_bun_hmr_entry`;
       disableNativeHmrHooks(parentApp, entryPath);
     }
     return result as FurinApplication<ParentApp>;
   };
-  if (mount) {
-    furinPluginMounts.set(plugin, mount);
-  }
   return plugin;
 }
 
@@ -1101,7 +1083,11 @@ function configurePageCache(
  *   .listen(3000)
  * ```
  */
-export async function furin({
+export async function furin(options?: FurinOptions) {
+  return createFurinPlugin(await createFurinRuntime(options === undefined ? {} : options));
+}
+
+async function createFurinRuntime({
   pagesDir,
   prefix: rawPrefix,
   clientDir: explicitClientDir,
@@ -1109,7 +1095,7 @@ export async function furin({
   clientLogging,
   pageCache,
   sync,
-}: FurinOptions = {}) {
+}: FurinOptions): Promise<FurinMount> {
   const prefix = normalizePrefix(rawPrefix);
   const syncPath = resolveSyncPath(sync);
   const elysiaLoggerOptions = initializeLogger(logger);
@@ -1434,12 +1420,12 @@ export async function furin({
           );
         })
       );
-    return createFurinPlugin(
+    return createFurinMount(
       devApp,
       instance,
       prefix,
       Boolean(sync),
-      mountOptions,
+      () => createFurinRuntime(mountOptions),
       elysiaLoggerOptions
     );
   }
@@ -1509,12 +1495,12 @@ export async function furin({
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(ctx.nativeRoutes)
     .use(createNotFoundHandling(prefix, routes, root));
-  return createFurinPlugin(
+  return createFurinMount(
     prodApp,
     instance,
     undefined,
     Boolean(sync),
-    mountOptions,
+    () => createFurinRuntime(mountOptions),
     elysiaLoggerOptions
   );
 }
