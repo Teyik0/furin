@@ -1,0 +1,25 @@
+packages/electrobun/src/runtime.ts
+  s_fa3ba074f76831::t_9e49d70f2bc354 242-244
+packages/electrobun/src/cli.ts
+  s_fa3ba074f76831::t_ca67854f6084de 107,114
+packages/electrobun/tests/backend.test.ts
+  s_fa3ba074f76831::t_276cdd6b9f9973 199,206-208,234
+packages/electrobun/tests/external.test.ts
+  s_fa3ba074f76831::t_ba511c5fc0d50e 11,368-369,375-376,381-387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9d5d05cf1adf8b429cf135a20a7fa43c3a6e72d",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
