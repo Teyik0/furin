@@ -1,0 +1,38 @@
+packages/core/tests/rendering/deferred/deferred-abort.test.ts
+  s_a0a481a34b8480::t_95d5eefe66c507 4,86-119
+packages/core/package.json
+  s_a0a481a34b8480::t_d292596ca6b741 3
+packages/electrobun/README.md
+  s_a0a481a34b8480::t_87fa3753fee9ee 108-112,289-290
+packages/core/src/shared/deferred-ndjson.ts
+  s_a0a481a34b8480::t_ff76a0ca9d28ef 139-150
+packages/electrobun/src/cli.ts
+  s_a0a481a34b8480::t_69e99cb1216d25 3,5,10-44,223-227,230-231,236,241-242
+  s_a0a481a34b8480::t_0c1155bef80e3e 243-244,249
+.github/workflows/cd.yaml
+  s_a0a481a34b8480::t_d292596ca6b741 71-76
+packages/electrobun/package.json
+  s_a0a481a34b8480::t_d292596ca6b741 3
+packages/electrobun/tests/custom-dev.test.ts
+  s_a0a481a34b8480::t_63bb07bfbd60ae 44-48,105,124-134
+  s_a0a481a34b8480::t_b9d466b8e3f3d8 43,109
+  s_a0a481a34b8480::t_c993f15fd09f11 135-136
+bun.lock
+  s_a0a481a34b8480::t_bf6dacd1b171de 135,178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88dcf453d68a4a4d92762cece40522433684e503",
+  "prompts": {},
+  "sessions": {
+    "s_a0a481a34b8480": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11830-66c0-7db0-b0af-3670e9f2f43e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+packages/core/src/furin.ts
+  s_fa3ba074f76831::t_1302b427a8bfcf 1415-1423,1426-1464,1466
+  s_fa3ba074f76831::t_b896cbc22f9907 1465
+  s_fa3ba074f76831::t_fe32f73c3a2ebe 1146,1230,1477
+  s_fa3ba074f76831::t_2f63adef3b0e99 1148,1168,1480
+  s_fa3ba074f76831::t_5d8af3d15fd3f3 1149
+  s_fa3ba074f76831::t_1caa85a9588c1a 1140-1145,1147,1151-1164,1167,1351,1392,1413-1414,1424-1425,1467-1470,1478
+  s_fa3ba074f76831::t_b82d9d8cc68fc0 1150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80dd78dbeca35e11eab8dcc31aa94a37efca4175",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
