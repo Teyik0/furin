@@ -133,7 +133,7 @@ test("configured app and compile conflict only when building Bun", async () => {
     }
     const overridden = await runCli(["build", "--output", "server"], { cwd: fixture.path });
     expect(overridden.exitCode, overridden.stderr + overridden.stdout).toBe(0);
-    expect(existsSync(join(fixture.path, ".furin/build/bun/server"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun", process.platform === "win32" ? "server.exe" : "server"))).toBe(true);
     expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(false);
   } finally {
     fixture.cleanup();
@@ -150,7 +150,7 @@ test("Bun defaults retain listening and compiled server outputs", async () => {
     writeFileSync(join(fixture.path, "furin.config.ts"), 'export default { bun: { compile: "server" } };\n');
     const compiled = await runCli(["build"], { cwd: fixture.path });
     expect(compiled.exitCode, compiled.stderr + compiled.stdout).toBe(0);
-    expect(existsSync(join(fixture.path, ".furin/build/bun/server"))).toBe(true);
+    expect(existsSync(join(fixture.path, ".furin/build/bun", process.platform === "win32" ? "server.exe" : "server"))).toBe(true);
     expect(existsSync(join(fixture.path, ".furin/build/bun/app.js"))).toBe(false);
   } finally {
     fixture.cleanup();
