@@ -1,0 +1,21 @@
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/server.ts
+  s_fa3ba074f76831::t_b5ad699379761a 6
+packages/core/tests/dev/hmr/dev-hmr-aliased-footer.integration.test.ts
+  s_fa3ba074f76831::t_b5ad699379761a 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1d799f944d02c19a9d70e7a821b8890398a814e",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
