@@ -13,6 +13,7 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
   const files = new Set(entries);
   // Each build gets fresh resolution state; Bun.resolveSync caches renamed
   // extensionless targets for the supervisor's entire process lifetime.
+  // No outdir: the JavaScript API returns in-memory artifacts without writing files.
   await Bun.build({
     entrypoints: entries,
     target: "bun",
@@ -206,7 +207,7 @@ async function waitForDevReady(
   return !isStopping();
 }
 
-async function watchBackend(
+function watchBackend(
   root: string,
   serverEntry: string,
   dataDir: string | undefined,
@@ -217,7 +218,9 @@ async function watchBackend(
   const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
     join(canonicalRoot, relative(root, path))
   );
-  let dependencies = await backendDependencies(canonicalRoot, entries);
+  let dependencies = new Set(entries);
+  const changed = new Set<string>();
+  let scanning = false;
   const resolvedData = dataDir ? resolve(dataDir) : undefined;
   const ownedData = resolvedData?.startsWith(`${root}${sep}`) ? resolvedData : undefined;
   // Follow runtime ownership: JSX can belong to the backend and plain TS to
@@ -234,17 +237,31 @@ async function watchBackend(
       (ownedData &&
         (join(root, filename) === ownedData ||
           join(root, filename).startsWith(`${ownedData}${sep}`))) ||
-      !dependencies.has(path) ||
       statSync(path, { throwIfNoEntry: false })?.isDirectory()
     ) {
       return;
     }
-    onChange();
+    if (scanning) {
+      changed.add(path);
+    } else if (dependencies.has(path)) {
+      onChange();
+    }
   });
   return {
     close: () => watcher.close(),
     async refresh() {
-      dependencies = await backendDependencies(canonicalRoot, entries);
+      scanning = true;
+      try {
+        let retry: boolean;
+        do {
+          changed.clear();
+          const next = await backendDependencies(canonicalRoot, entries);
+          retry = [...changed].some((path) => dependencies.has(path) || next.has(path));
+          dependencies = next;
+        } while (retry);
+      } finally {
+        scanning = false;
+      }
     },
   };
 }
@@ -345,7 +362,7 @@ async function runDesktopDev(
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const watcher = await watchBackend(root, serverEntry, dataDir, customHost, () => {
+  const watcher = watchBackend(root, serverEntry, dataDir, customHost, () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       restart = true;
