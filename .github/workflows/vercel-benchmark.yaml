@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout Furin
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
@@ -76,7 +76,7 @@ jobs:
 
       - name: Checkout benchmark
         if: steps.adapter-support.outputs.available == 'true'
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
           ref: 54c6f6971b5ce6f032794345517c015c87567afb
@@ -85,14 +85,14 @@ jobs:
 
       - name: Cache bun
         if: steps.adapter-support.outputs.available == 'true'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-live-vercel-${{ hashFiles('bun.lock', '.benchmark/bun.lock') }}
 
       - name: Setup bun
         if: steps.adapter-support.outputs.available == 'true'
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
 
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload live benchmark
         if: always() && steps.live-benchmark.outputs.report_available == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: live-vercel-benchmark
           path: .benchmark/reports/

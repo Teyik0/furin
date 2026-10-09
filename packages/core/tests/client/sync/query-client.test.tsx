@@ -184,6 +184,15 @@ test.each([
   { name: "Date", value: () => new Date("2026-01-01T00:00:00Z"), supported: true },
   { name: "BigInt", value: () => 1n, supported: false },
   {
+    name: "throwing coercion",
+    value: () => ({
+      toString: () => {
+        throw new Error("invalid header");
+      },
+    }),
+    supported: false,
+  },
+  {
     name: "cyclic objects",
     supported: false,
     value: () => {

@@ -59,6 +59,17 @@ describe("normalizePrefix", () => {
 });
 
 describe("resolveInstanceByPath", () => {
+  test("re-registering a mount replaces its runtime state", () => {
+    const original = registerInstance(createInstance("/admin", "/apps/admin"));
+    original.buildId = "before";
+    const replacement = createInstance("/admin", "/apps/admin");
+    replacement.buildId = "after";
+    trackInstance(replacement);
+    expect(registerInstance(replacement)).toBe(replacement);
+    expect(resolveInstanceByPath("/admin/item")).toBe(replacement);
+    expect(currentInstance()).toBe(replacement);
+    expect(allInstances()).toEqual([replacement]);
+  });
   test("a prepared runtime supplies state before its first mount", () => {
     const prepared = createInstance("/admin", "/apps/admin");
     trackInstance(prepared);

@@ -4,6 +4,25 @@ import { QueryStore } from "../../../src/client/query-store.ts";
 const url = "http://localhost/cards";
 const identity = { id: "board.cards", scope: { boardId: "alpha" }, session: "alice" };
 const SECURE_REQUEST_KEY = /#furin-query:[a-f0-9]{32}:1$/;
+test("invalid header coercion reaches the query error instead of crashing key generation", async () => {
+  const store = new QueryStore(undefined);
+  const invalid = {
+    toString: () => {
+      throw new Error("invalid header");
+    },
+  };
+  const reference = {
+    client: store,
+    url,
+    load: async () => ({ data: String(invalid), error: null }),
+  };
+  const key = store.readKey(reference, { headers: { Authorization: invalid } });
+  store.bind(key, reference.load);
+  await store.fetch(key);
+  expect(store.snapshot(key).error).toEqual(new Error("invalid header"));
+  expect(store.snapshot(key).data).toBeUndefined();
+});
+
 function result(data: unknown, session: string) {
   return {
     data,
@@ -88,6 +107,27 @@ test("request-specific seeds retain isolated identities without serializing cred
     headers: { Authorization: "Bearer private-alice" },
   });
   expect(browser.snapshot(browserAlice).data).toBeUndefined();
+});
+
+test("a principal change clears reads sharing the same credential options and rejects their late response", () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const headers = () => ({ Authorization: "current token" });
+  const key = store.readKey(reference, { headers });
+  const other = store.readKey({ ...reference, url: "http://localhost/profile" }, { headers });
+  const isolated = store.readKey(reference, { headers: { Authorization: "separate" } });
+  for (const entry of [key, other]) {
+    store.observe(entry, result("Alice", "alice"), store.generation());
+  }
+  store.observe(isolated, result("Independent", "independent"), store.generation());
+  const previous = store.generation();
+  store.observe(key, result("Bob", "bob"), previous);
+  expect(store.snapshot(key).data).toBe("Bob");
+  expect(store.snapshot(other).data).toBeUndefined();
+  expect(store.snapshot(isolated).data).toBe("Independent");
+  expect(store.generation()).toBeGreaterThan(previous);
+  store.observe(other, result("Late Alice", "alice"), previous);
+  expect(store.snapshot(other).data).toBeUndefined();
 });
 
 test("a stale read cannot confirm an optimistic increment twice", async () => {

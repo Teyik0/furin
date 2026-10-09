@@ -210,6 +210,32 @@ process.stdout.write("__RESULT__" + JSON.stringify({ a: events.a.map(event => ev
   });
 });
 
+test("synthetic rendering returns while its log drain remains tracked", async () => {
+  const result = await runFixture(`
+import { setFurinEvlogOptions, setRuntimeEvlogWaitUntil } from "./src/server/evlog.ts";
+import { createInstance, withInstance } from "./src/server/instance.ts";
+import { runInSyntheticRenderScope } from "./src/server/context-logger.ts";
+const instance = createInstance("/admin", "admin");
+const gate = Promise.withResolvers();
+const pending = [];
+setRuntimeEvlogWaitUntil(promise => pending.push(promise));
+setFurinEvlogOptions(instance, { drain: () => gate.promise });
+let rendered = false;
+const render = withInstance(instance, () => runInSyntheticRenderScope(() => "rendered", { route: "/" })).then(() => { rendered = true; });
+await Bun.sleep(25);
+const beforeDrain = rendered;
+const tracked = pending.length;
+gate.resolve();
+await render;
+await Promise.all(pending);
+process.stdout.write("__RESULT__" + JSON.stringify({ beforeDrain, tracked }));
+`);
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(
+    JSON.parse(result.stdout.slice(result.stdout.lastIndexOf("__RESULT__") + "__RESULT__".length))
+  ).toEqual({ beforeDrain: true, tracked: 1 });
+});
+
 test("a failed synthetic log drain preserves render results and original errors", async () => {
   const result = await runFixture(`
 import { setFurinEvlogOptions } from "./src/server/evlog.ts";
@@ -217,13 +243,15 @@ import { createInstance, withInstance } from "./src/server/instance.ts";
 import { runInSyntheticRenderScope } from "./src/server/context-logger.ts";
 const instance = createInstance("/admin", "admin");
 let emissions = 0;
-setFurinEvlogOptions(instance, { drain: () => { emissions++; return Promise.reject(new Error("drain unavailable")); } });
+const pending = [];
+setFurinEvlogOptions(instance, { drain: () => { emissions++; return Promise.reject(new Error("drain unavailable")); }, waitUntil: promise => pending.push(promise) });
 const rendered = await withInstance(instance, () => runInSyntheticRenderScope(() => "rendered", { route: "/" }));
 const original = new Error("loader failure");
 let retained = false;
 try {
   await withInstance(instance, () => runInSyntheticRenderScope(() => { throw original; }, { route: "/" }));
 } catch (error) { retained = error === original; }
+await Promise.all(pending);
 process.stdout.write("__RESULT__" + JSON.stringify({ rendered, retained, emissions }));
 `);
   expect(result.exitCode, result.stderr).toBe(0);
@@ -240,13 +268,16 @@ import { createInstance, withInstance } from "./src/server/instance.ts";
 import { getLogger, runInSyntheticRenderScope } from "./src/server/context-logger.ts";
 const instance = createInstance("/admin", "admin");
 const events = [];
+const pending = [];
 setFurinEvlogOptions(instance, {
+  waitUntil: promise => pending.push(promise),
   drain: ({ event }) => events.push(event),
   redact: { paths: ["secret"] },
   enrich: ({ event }) => { event.owner = "admin"; },
 });
 
 await withInstance(instance, () => runInSyntheticRenderScope(() => getLogger().set({ secret: "hidden", marker: "synthetic" }), { route: "/dashboard", render: "isr" }));
+await Promise.all(pending);
 process.stdout.write("__RESULT__" + JSON.stringify({ count: events.length, marker: events[0]?.marker, owner: events[0]?.owner, leaked: JSON.stringify(events).includes("hidden") }));
 `);
   expect(result.exitCode, result.stderr).toBe(0);

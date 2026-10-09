@@ -173,14 +173,22 @@ export class QueryStore {
     }
     if (Array.isArray(value)) {
       if (value.length === 2 && typeof value[0] === "string") {
-        return [value[0].toLowerCase(), String(value[1])];
+        try {
+          return [value[0].toLowerCase(), String(value[1])];
+        } catch {
+          return value;
+        }
       }
       return value.map((source) => this.headerValue(source));
     }
     if (value !== null && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value).map(([name, header]) => [name.toLowerCase(), String(header)])
-      );
+      try {
+        return Object.fromEntries(
+          Object.entries(value).map(([name, header]) => [name.toLowerCase(), String(header)])
+        );
+      } catch {
+        return value;
+      }
     }
     return value;
   }
@@ -268,8 +276,8 @@ export class QueryStore {
     const header = result.response?.headers.get("x-furin-query");
     const identity =
       result.identity ?? (header ? (JSON.parse(header) as QueryReadIdentity) : undefined);
-    if (identity && !new URL(url, this.origin).hash.startsWith("#furin-query:")) {
-      this.setSession(identity.session);
+    if (identity) {
+      this.setSession(identity.session, url);
     }
     const entry = this.entry(url);
     entry.base = result.data;
@@ -300,14 +308,40 @@ export class QueryStore {
     }
   }
 
-  private setSession(session: string): void {
-    if (this.session !== undefined && this.session !== session) {
+  private setSession(session: string, url: string): void {
+    let keys: Set<string> | undefined;
+    if (new URL(url, this.origin).hash.startsWith("#furin-query:")) {
+      const key = this.key(url);
+      const request = this.requests.find((item) => this.key(item.key) === key);
+      keys = new Set(
+        request
+          ? this.requests
+              .filter((item) => item.client === request.client && item.options === request.options)
+              .map((item) => this.key(item.key))
+          : [key]
+      );
+    }
+    const entries = [...this.entries]
+      .filter(([key]) => keys === undefined || keys.has(key))
+      .map(([, entry]) => entry);
+    const changed =
+      keys === undefined
+        ? this.session !== undefined && this.session !== session
+        : entries.some(
+            (entry) => entry.identity !== undefined && entry.identity.session !== session
+          );
+    if (changed) {
       this.epoch += 1;
       for (const projection of this.projections) {
-        projection.onRemove?.();
+        for (const entry of entries) {
+          projection.transforms.delete(entry);
+        }
+        if (projection.transforms.size === 0) {
+          this.projections.delete(projection);
+          projection.onRemove?.();
+        }
       }
-      this.projections.clear();
-      for (const entry of this.entries.values()) {
+      for (const entry of entries) {
         entry.base = undefined;
         entry.identity = undefined;
         entry.stale = true;
@@ -316,7 +350,9 @@ export class QueryStore {
         this.publish(entry);
       }
     }
-    this.session = session;
+    if (keys === undefined) {
+      this.session = session;
+    }
   }
 
   generation(): number {

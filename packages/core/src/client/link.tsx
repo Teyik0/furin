@@ -137,7 +137,7 @@ function LinkInteractive<To extends RouteTo>({
       { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
       router.basePath,
       window.location.origin,
-      ""
+      window.location.pathname
     );
     if (target !== null) {
       prefetch(target, { staleTime: effectiveStaleTime });

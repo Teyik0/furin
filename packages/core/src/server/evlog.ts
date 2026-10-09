@@ -56,8 +56,11 @@ export function setRuntimeEvlogWaitUntil(
   return () => runtimeWaitUntil.delete(waitUntil);
 }
 
-function registerEmission(emission: Promise<void>, options: FurinEvlogOptions): void {
-  if (options.waitUntil) {
+export function registerEmission(
+  emission: Promise<void>,
+  options: FurinEvlogOptions | undefined
+): void {
+  if (options?.waitUntil) {
     options.waitUntil(emission);
   } else {
     for (const waitUntil of runtimeWaitUntil) {

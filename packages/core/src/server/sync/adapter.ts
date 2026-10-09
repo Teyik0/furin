@@ -125,6 +125,7 @@ export type SyncMutation<Adapter> = <T>(
 export interface SyncRuntimeOptions<Adapter extends SyncAdapter = SyncAdapter> {
   adapter: Adapter;
   notifier?: SyncNotifier;
+  /** Authenticate the request and return its verified identity, including for journal recovery. */
   principal: (context: Context) => Promise<string> | string;
 }
 

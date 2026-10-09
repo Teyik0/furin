@@ -24,6 +24,21 @@ const ROOT_LAYOUT = `import { defineRoute } from "@teyik0/furin";
 export const route = defineRoute().layout(({ children }) => children);
 `;
 
+test("autofix rejects a route factory hidden by repeated var declarations", () => {
+  const source = `import { defineRoute } from "@teyik0/furin";
+var create = () => null;
+var create = defineRoute;
+export const route = create().page(() => null);`;
+  const pages = createPages({ "root.tsx": ROOT_LAYOUT, "index.tsx": source });
+  try {
+    expect(() => fixRouteConfigLayout(source, join(pages.path, "index.tsx"), pages.path)).toThrow(
+      "ambiguous"
+    );
+  } finally {
+    pages.cleanup();
+  }
+});
+
 test("autofix follows a nested constant factory chain and preserves a shadowed DSL", () => {
   const source = `import { defineRoute } from "@teyik0/furin";
 function custom(create) { return create().config({ custom: true }).page(() => null); }

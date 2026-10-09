@@ -60,8 +60,14 @@ export function requireClientModule(id: string): object | Promise<object> {
   if (module === undefined) {
     const load = registry.loaders.get(id);
     if (load !== undefined) {
-      module = load();
-      registry.modules.set(id, module);
+      const pending = load();
+      module = pending;
+      registry.modules.set(id, pending);
+      pending.catch(() => {
+        if (registry.modules.get(id) === pending) {
+          registry.modules.delete(id);
+        }
+      });
     }
   }
   if (module === undefined) {

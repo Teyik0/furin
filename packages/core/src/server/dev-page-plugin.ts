@@ -71,9 +71,10 @@ import { routeModuleSourceVersion } from "./router/source-version.ts";
 // Matches ?furin-server with an optional &t=<ms> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const FURIN_RENDER_FILTER = /\?furin-render&t=\d+$/;
+const COMMONJS_FILE_RE = /\.c[jt]s$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
-  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$).*\.(?:[cm]?[jt]s|[jt]sx)$/;
+  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$).*\.(?:m?[jt]s|[jt]sx)$/;
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
@@ -561,7 +562,10 @@ export function registerDevPagePlugin(): void {
         const filePath = args.path.replace(STRIP_FURIN_SERVER_RE, "");
         // biome-ignore lint/suspicious/noUnnecessaryConditions: the timestamp query is optional.
         const resolvedPath = tMatch ? `${filePath}?t=${tMatch[1]}` : filePath;
-        return { namespace: "furin-dev-page", path: resolvedPath };
+        return {
+          namespace: COMMONJS_FILE_RE.test(filePath) ? "file" : "furin-dev-page",
+          path: resolvedPath,
+        };
       });
 
       /**

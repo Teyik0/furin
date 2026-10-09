@@ -1,6 +1,6 @@
 import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -247,7 +247,7 @@ function stableFingerprintPath(path: string, projectRoot: string): string {
   ) {
     return `furin/${toPosixPath(frameworkPath)}`;
   }
-  return `external/${basename(path)}`;
+  return `external/${toPosixPath(projectPath)}`;
 }
 
 function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {

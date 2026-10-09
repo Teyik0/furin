@@ -30,6 +30,8 @@ export const sync = {
 
 `namespace` separates applications sharing the same database. `principal` must return a stable, non-empty identity; it scopes idempotency keys so two users can safely use the same client-generated key.
 
+Authenticate the request inside `principal`, for example by verifying a signed session as `requireUser` does above. The same callback authorizes journal recovery at the change endpoint. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
+
 ```ts
 // src/server.ts
 import { Elysia } from "elysia";

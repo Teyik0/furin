@@ -4,7 +4,7 @@ import type { RequestLogger } from "evlog";
 import { createLogger } from "evlog";
 import { createMiddlewareLogger } from "evlog/toolkit";
 import { physicalPath } from "../shared/prefix.ts";
-import { getFurinEvlogOptions, getRequestLogger } from "./evlog.ts";
+import { getFurinEvlogOptions, getRequestLogger, registerEmission } from "./evlog.ts";
 import { currentInstance } from "./instance.ts";
 
 export { createLogger };
@@ -73,6 +73,7 @@ export async function runInSyntheticRenderScope<T>(
       ? undefined
       : createMiddlewareLogger({
           ...options,
+          waitUntil: undefined,
           method: "GET",
           path: physicalPath(currentInstance().prefix, route),
         });
@@ -80,14 +81,20 @@ export async function runInSyntheticRenderScope<T>(
   if (middleware) {
     logger.set(initialContext);
   }
-  const emit = () => (middleware ? middleware.finish() : logger.emit());
   try {
-    const result = await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
-    await emit();
-    return result;
+    return await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
   } catch (err) {
     logger.error(err instanceof Error ? err : new Error(String(err)));
-    await emit();
     throw err;
+  } finally {
+    const emission = Promise.resolve()
+      .then(() => (middleware ? middleware.finish() : logger.emit()))
+      .then(
+        () => undefined,
+        (error: unknown) => {
+          console.error("[furin] Synthetic log emission failed", error);
+        }
+      );
+    registerEmission(emission, options);
   }
 }

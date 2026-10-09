@@ -7,6 +7,27 @@ import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types
 const { createBuildFingerprint } = await import("../../../src/adapter/runtime-build.ts");
 
 describe("createBuildFingerprint", () => {
+  test("distinguishes same-named workspace files when their contents are swapped", async () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-workspace-"));
+    try {
+      const appDir = join(workspace, "app");
+      const first = join(workspace, "packages/first/index.js");
+      const second = join(workspace, "packages/second/index.js");
+      for (const directory of [appDir, join(workspace, "packages/first"), join(workspace, "packages/second")]) mkdirSync(directory, { recursive: true });
+      writeFileSync(join(appDir, "root.tsx"), "export default null;");
+      writeFileSync(join(appDir, "server.ts"), 'import first from "../packages/first/index.js"; import second from "../packages/second/index.js"; export default [first, second];');
+      const root: RootLayout = { path: join(appDir, "root.tsx"), route: { __type: "FURIN_ROUTE" } };
+      writeFileSync(first, 'export default "first";');
+      writeFileSync(second, 'export default "second";');
+      const before = await createBuildFingerprint("entry.js", [], [], root, join(appDir, "server.ts"), [], appDir);
+      writeFileSync(first, 'export default "second";');
+      writeFileSync(second, 'export default "first";');
+      const after = await createBuildFingerprint("entry.js", [], [], root, join(appDir, "server.ts"), [], appDir);
+      expect(after).not.toBe(before);
+    } finally {
+      rmSync(workspace, { force: true, recursive: true });
+    }
+  });
   test("changes when an externalized package's transitive server code changes", async () => {
     const appDir = mkdtempSync(resolve(tmpdir(), "furin-fingerprint-package-"));
     try {

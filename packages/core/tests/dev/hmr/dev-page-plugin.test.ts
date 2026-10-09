@@ -15,6 +15,29 @@ import { createTmpApp } from "../../support/app-fixtures.ts";
 
 const MDX_FILTER = /\.mdx$/;
 
+test.each(["cjs", "cts"])(
+  "virtual development loads real CommonJS .%s exports",
+  async (extension) => {
+    const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-commonjs-"));
+    try {
+      const page = resolve(directory, "page.ts");
+      writeFileSync(
+        page,
+        `import helper from "./helper.${extension}"; export const value = helper.value;`
+      );
+      writeFileSync(resolve(directory, "data.cjs"), 'module.exports = "CommonJS";');
+      writeFileSync(
+        resolve(directory, `helper.${extension}`),
+        'module.exports = { value: require("./data.cjs") };'
+      );
+      registerDevPagePlugin();
+      expect((await import(`${page}?furin-server&t=1`)).value).toBe("CommonJS");
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
+
 test.each(["mjs", "cjs", "mts", "cts"])(
   "virtual development reloads an edited .%s helper",
   async (extension) => {

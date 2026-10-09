@@ -4,6 +4,7 @@ interface ClosingConnection {
 }
 
 const closeConnections = new WeakMap<Bun.Server<unknown>, Map<() => void, ClosingConnection>>();
+const drainingServers = new WeakSet<Bun.Server<unknown>>();
 
 export function registerBrowserEventConnection(
   server: Bun.Server<unknown>,
@@ -17,6 +18,9 @@ export function registerBrowserEventConnection(
   if (!connections.has(close)) {
     const { promise, resolve } = Promise.withResolvers<void>();
     connections.set(close, { closed: promise, resolve });
+    if (drainingServers.has(server)) {
+      close();
+    }
   }
 }
 
@@ -30,14 +34,18 @@ export function unregisterBrowserEventConnection(
 }
 
 export async function closeBrowserEventConnections(server: Bun.Server<unknown>): Promise<void> {
+  drainingServers.add(server);
   const connections = closeConnections.get(server);
   if (!connections) {
     return;
   }
-  const closed = [...connections.values()].map((connection) => connection.closed);
-  for (const close of connections.keys()) {
-    close();
+  while (connections.size > 0) {
+    const pending = [...connections];
+    for (const [close] of pending) {
+      close();
+    }
+    // biome-ignore lint/performance/noAwaitInLoops: late upgrades must be drained after the previous connections close.
+    await Promise.all(pending.map(([, connection]) => connection.closed));
   }
-  await Promise.all(closed);
   closeConnections.delete(server);
 }

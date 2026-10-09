@@ -35,7 +35,13 @@ export function rebaseDocumentHead(
       src: script.src === undefined ? undefined : rebaseAssetHref(script.src, instance),
     })),
     meta: [
-      ...(head?.meta ?? []).filter((meta) => !("name" in meta && meta.name === "furin-base-path")),
+      ...(head?.meta ?? [])
+        .filter((meta) => !("name" in meta && meta.name === "furin-base-path"))
+        .map((meta) =>
+          "tagName" in meta && meta.tagName === "link" && typeof meta.href === "string"
+            ? { ...meta, href: rebaseAssetHref(meta.href, instance) }
+            : meta
+        ),
       { name: "furin-base-path", content: instance.prefix },
     ],
   };

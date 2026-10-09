@@ -118,6 +118,7 @@ export class FactoryBindings extends Set<string> {
       return node.name;
     }
     let match: FactoryAlias | undefined;
+    let sameScope: FactoryAlias[] = [];
     let scopeIndex = -1;
     const aliases = this.aliases.get(node.name);
     if (!aliases) {
@@ -128,6 +129,9 @@ export class FactoryBindings extends Set<string> {
       if (index > scopeIndex) {
         match = alias;
         scopeIndex = index;
+        sameScope = [alias];
+      } else if (index === scopeIndex && index >= 0) {
+        sameScope.push(alias);
       }
     }
     if (
@@ -135,6 +139,18 @@ export class FactoryBindings extends Set<string> {
       seen.has(match) ||
       hasShadowingDeclaration(node.name, ancestors.slice(scopeIndex + 1))
     ) {
+      return undefined;
+    }
+    if (sameScope.length > 1) {
+      const factory = sameScope.some(
+        (alias) =>
+          !seen.has(alias) &&
+          this.resolve(alias.initializer, alias.ancestors, imports, new Set([...seen, alias])) !==
+            undefined
+      );
+      if (factory) {
+        throw new Error("[furin] Route factory aliases are ambiguous in the same scope.");
+      }
       return undefined;
     }
     seen.add(match);

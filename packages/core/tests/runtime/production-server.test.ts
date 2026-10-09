@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Elysia } from "elysia";
 import { createBrowserEventsPlugin } from "../../src/server/browser-events/plugin.ts";
 import {
+  closeBrowserEventConnections,
   registerBrowserEventConnection,
   unregisterBrowserEventConnection,
 } from "../../src/server/browser-events/shutdown.ts";
@@ -12,6 +13,39 @@ import { startProductionServer } from "../../src/server/production-server.ts";
 import type { SyncAdapter } from "../../src/server/sync/adapter.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../src/server/sync/sqlite/index.ts";
 import { subscribeSyncCursor } from "../../src/server/sync/stream.ts";
+
+test("connections registered during a server drain are closed and awaited", async () => {
+  const server = Bun.serve({ port: 0, fetch: () => new Response("ok") });
+  let firstClosed = false;
+  let lateClosed = false;
+  const first = () => {
+    firstClosed = true;
+  };
+  const late = () => {
+    lateClosed = true;
+  };
+  registerBrowserEventConnection(server, first);
+  const closing = closeBrowserEventConnections(server);
+  try {
+    expect(firstClosed).toBe(true);
+    registerBrowserEventConnection(server, late);
+    expect(lateClosed).toBe(true);
+    unregisterBrowserEventConnection(server, first);
+    let finished = false;
+    closing.then(() => {
+      finished = true;
+    });
+    await Bun.sleep(0);
+    expect(finished).toBe(false);
+    unregisterBrowserEventConnection(server, late);
+    await closing;
+  } finally {
+    unregisterBrowserEventConnection(server, first);
+    unregisterBrowserEventConnection(server, late);
+    await closing;
+    await server.stop(true);
+  }
+});
 
 test.each([
   { code: 7, mode: "success" },

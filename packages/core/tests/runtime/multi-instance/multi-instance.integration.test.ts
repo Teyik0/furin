@@ -194,7 +194,7 @@ try {
     for (const [path, expected] of [["caf%C3%A9", "café"], ["a%2Fb", "a/b"], ["name/", "name"]]) {
       const html = await parent.handle(new Request("http://furin/item/" + path));
       expect(html.status).toBe(200);
-      expect(await html.text()).toContain(expected);
+      expect(await html.text()).toContain("<main>" + expected + "</main>");
       const data = await parent.handle(new Request("http://furin/_furin/data?path=" + encodeURIComponent("/item/" + path)));
       expect(data.status).toBe(200);
       const parsed = await parseDeferredNdjson(data.body);

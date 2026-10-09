@@ -99,12 +99,15 @@ export function startProductionServer(options: ProductionServerOptions): {
             console.error("[furin] Shutdown deadline exceeded; forcing server stop");
             const stopped = server.stop(true);
             Promise.resolve(app.stop(true)).catch((error: unknown) => {
-              console.error("[furin] Forced server stop failed", error);
+              console.error("[furin] Forced Elysia app cleanup failed", error);
             });
             drainSync().catch((error: unknown) => {
               console.error("[furin] Forced Sync cursor cleanup failed", error);
             });
-            stopped.then(resolve, reject);
+            stopped.then(resolve, (error: unknown) => {
+              console.error("[furin] Forced server stop failed", error);
+              reject(error);
+            });
           }, timeoutMs);
         });
         const drain = async (): Promise<void> => {

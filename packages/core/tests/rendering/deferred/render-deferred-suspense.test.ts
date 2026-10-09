@@ -80,7 +80,9 @@ describe.serial("renderSSR deferred Suspense scenarios", () => {
     if (!reader) {
       throw new Error("SSR response body missing");
     }
-    await reader.read();
+    const shell = await reader.read();
+    expect(shell.done).toBe(false);
+    expect(new TextDecoder().decode(shell.value)).toContain("Loading");
     await reader.cancel();
     slow.resolve("After disconnect");
     await Bun.sleep(20);

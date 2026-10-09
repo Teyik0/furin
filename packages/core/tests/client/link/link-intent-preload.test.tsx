@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { toCrossJSON } from "seroval";
-import { Link, RouterProvider } from "../../../src/client/link.tsx";
+import { Link, RouterContext, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
@@ -34,6 +34,49 @@ afterEach(async () => {
 
 // Intent prefetch loads the route module; the prefetch cache suppresses a
 // second load when the link is hovered again within its stale time.
+test("same-page fragments do not prefetch on render or intent", async () => {
+  window.history.replaceState(null, "", "/");
+  const prefetch = mock((_href: string, _options: { staleTime: number }) => undefined);
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(() =>
+      root.render(
+        createElement(
+          RouterContext.Provider,
+          {
+            value: {
+              basePath: "",
+              currentHref: "/",
+              defaultPreload: "intent",
+              defaultPreloadDelay: 0,
+              defaultPreloadStaleTime: 30_000,
+              prefetch,
+              searchRoutes: [],
+              search: {},
+            } as never,
+          },
+          createElement(Link, { to: "/", hash: "details", preload: "render" }, "Details"),
+          createElement(Link, { to: "/", hash: "details", preloadDelay: 0 }, "Intent"),
+          createElement(Link, { to: "/target", hash: "details", preload: "render" }, "Other page")
+        )
+      )
+    );
+    const [, intent] = container.querySelectorAll("a");
+    await act(async () => {
+      intent?.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })
+      );
+      await Bun.sleep(10);
+    });
+    expect(prefetch.mock.calls).toEqual([["/target#details", { staleTime: 30_000 }]]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
 test("intent prefetch loads the route once across hovers within stale time", async () => {
   const homeComponent = () => createElement(Link, { preloadDelay: 0, to: "/target" }, "Target");
   const loadTarget = mock(() => Promise.resolve(pageModule(() => createElement("p", null, "T"))));

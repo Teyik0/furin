@@ -127,13 +127,15 @@ export function registerInstance(
 ): FurinInstance {
   const target = registry ?? _defaultRegistry;
   assertPrefixAvailable(instance.prefix, instance.pagesDir, target);
-  const mounted = target.get(instance.prefix) ?? instance;
-  target.set(instance.prefix, mounted);
-  _instances.add(mounted);
+  const previous = target.get(instance.prefix);
+  if (previous) {
+    _instances.delete(previous);
+  }
+  target.set(instance.prefix, instance);
+  _instances.add(instance);
   _prepared.delete(instance);
-  _prepared.delete(mounted);
-  _tracked.add(mounted);
-  return mounted;
+  _tracked.add(instance);
+  return instance;
 }
 
 export function unregisterInstance(

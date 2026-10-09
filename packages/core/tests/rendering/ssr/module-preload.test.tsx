@@ -128,6 +128,7 @@ describe("module preloading", () => {
           routes: { "/canvas": ["/admin/_client/canvas.js", "/admin/_client/shared.js"] },
         });
         const { root, route } = createCanvasRoute(true, {
+          meta: [{ tagName: "link", rel: "canonical", href: "/admin/canvas" }],
           links: [
             { rel: "stylesheet", href: "/admin/_client/head.css" },
             { rel: "alternate", href: "https://example.org/alternate" },
@@ -157,11 +158,16 @@ describe("module preloading", () => {
         expect(html).toContain('href="/outer/inner/admin/favicon.ico"');
         expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
         expect(html).toContain('href="/outer/inner/admin/_client/head.css"');
+        expect(html).toContain('rel="canonical" href="/outer/inner/admin/canvas"');
         expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
         expect(html).toContain('href="/outer/inner/admin#fragment"');
         expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
         const serializedHead = html.match(HEAD_JSON_RE)?.[1];
         expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
+          meta: [
+            { tagName: "link", rel: "canonical", href: "/outer/inner/admin/canvas" },
+            { name: "furin-base-path", content: "/outer/inner/admin" },
+          ],
           links: [
             { rel: "stylesheet", href: "/outer/inner/admin/_client/head.css" },
             { rel: "alternate", href: "https://example.org/alternate" },

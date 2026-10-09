@@ -8,12 +8,31 @@ import {
 } from "../../../src/rsc/build/client-references.ts";
 import { flightLoaderPlugin } from "../../../src/rsc/build/flight-loader.ts";
 import { buildRscGraph } from "../../../src/rsc/build/index.ts";
+import { registerClientLoader, requireClientModule } from "../../../src/rsc/client-references.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getTestPort, waitForHttp } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
 const temporaryDirectory = join(import.meta.dir, "../../../.tmp-tests");
 mkdirSync(temporaryDirectory, { recursive: true });
+
+test("a failed Flight client import can recover on its next attempt", async () => {
+  const id = `test:${crypto.randomUUID()}`;
+  const module = { default: () => null };
+  let attempts = 0;
+  registerClientLoader(id, () => {
+    attempts += 1;
+    if (attempts === 1) {
+      return Promise.reject(new Error("temporary import failure"));
+    }
+    return Promise.resolve(module);
+  });
+  const first = requireClientModule(id);
+  expect(requireClientModule(id)).toBe(first);
+  await expect(first).rejects.toThrow("temporary import failure");
+  expect(await requireClientModule(id)).toBe(module);
+  expect(attempts).toBe(2);
+});
 
 test("client references share their identity across Windows and browser import paths", () => {
   expect(clientModuleId("D:\\apps\\src\\counter.tsx")).toBe(
@@ -209,6 +228,10 @@ export const route = defineRoute().config({ mode: "isr", revalidate: 300 })
           server
             .getStderr()
             .replace(/^Bundled page .*$/gm, "")
+            .replace(
+              /^warn: File .* is not in the project directory and will not be watched\r?$/gm,
+              ""
+            )
             .trim()
         ).toBe("");
         expect(html).toContain('href="/blog/hello"');
