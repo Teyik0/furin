@@ -1,0 +1,85 @@
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/not-found.tsx
+  s_9f7f06cf3ad0c4::t_cd814510185dde 1-3
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/error.tsx
+  s_9f7f06cf3ad0c4::t_953219006e7584 1-8
+packages/core/src/server/router/discovery.ts
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 343-346
+  s_9f7f06cf3ad0c4::t_4ee8f98cc8ac31 372,427-443
+  s_9f7f06cf3ad0c4::t_f059d73de3efc2 444-445
+packages/core/src/client/router/boundary-tree.tsx
+  s_9f7f06cf3ad0c4::t_827c2eceb65ede 86-88
+  s_9f7f06cf3ad0c4::t_4ee8f98cc8ac31 73-74,84,102-104,113-115
+packages/core/src/server/router/types.ts
+  s_9f7f06cf3ad0c4::t_4ee8f98cc8ac31 15
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/detail/error.tsx
+  s_9f7f06cf3ad0c4::t_ca6188975223fa 1-3
+apps/docs/src/content/docs/routing.mdx
+  s_9f7f06cf3ad0c4::t_cd814510185dde 13
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/detail/_route.tsx
+  s_9f7f06cf3ad0c4::t_24f08bc3a3c26d 3,6
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 5,7-20
+  s_9f7f06cf3ad0c4::t_ca6188975223fa 1-2,4
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/error.tsx
+  s_9f7f06cf3ad0c4::t_953219006e7584 1-5
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/page.tsx
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 6,8-14,16-21
+  s_9f7f06cf3ad0c4::t_24f08bc3a3c26d 4,7
+  s_9f7f06cf3ad0c4::t_cd814510185dde 1-2,15
+  s_9f7f06cf3ad0c4::t_953219006e7584 3,5
+packages/core/tests/fixtures/pages/group-boundaries/root.tsx
+  s_9f7f06cf3ad0c4::t_953219006e7584 1-5
+packages/core/tests/client/link/router-provider-not-found.test.tsx
+  s_9f7f06cf3ad0c4::t_79e722999c46b4 7
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 9-44,46-52
+packages/core/src/server/render/element.tsx
+  s_9f7f06cf3ad0c4::t_c5c793b9ddb646 49-50
+  s_9f7f06cf3ad0c4::t_827c2eceb65ede 30-32
+  s_9f7f06cf3ad0c4::t_4ee8f98cc8ac31 23-25,39-41,51-53
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_9f7f06cf3ad0c4::t_65408b73ea433c 330,367-375
+packages/core/tests/routing/discovery/segment-boundaries.test.ts
+  s_9f7f06cf3ad0c4::t_bd97b044b4cf73 51-52,74,87
+packages/core/src/client/router/provider.tsx
+  s_9f7f06cf3ad0c4::t_f9c2ea61ed6fd1 291
+  s_9f7f06cf3ad0c4::t_c5c793b9ddb646 284
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/not-found.tsx
+  s_9f7f06cf3ad0c4::t_cd814510185dde 1,3-6
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 2
+packages/core/src/client/router/types.ts
+  s_9f7f06cf3ad0c4::t_f9c2ea61ed6fd1 219-220
+packages/core/tests/rendering/errors/route-group-boundaries.test.tsx
+  s_9f7f06cf3ad0c4::t_ca6188975223fa 10,17-22,31
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 32-67,69
+  s_9f7f06cf3ad0c4::t_953219006e7584 1-9,11-16,23-30,68
+packages/core/tests/fixtures/pages/group-boundaries/(outer)/(inner)/detail/index.tsx
+  s_9f7f06cf3ad0c4::t_33dc81d94b8542 4,6
+  s_9f7f06cf3ad0c4::t_ca6188975223fa 1,3
+  s_9f7f06cf3ad0c4::t_24f08bc3a3c26d 2,5
+packages/core/src/build/hydrate.ts
+  s_9f7f06cf3ad0c4::t_f9c2ea61ed6fd1 34,89-90
+  s_79639caaf919c8::t_9c161819c97a93 91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f56ab0934e60c8bf6a89f791eaa35e6e2a2e83e",
+  "prompts": {},
+  "sessions": {
+    "s_79639caaf919c8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a106a7-3174-7193-8989-4d51dc38ef79",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

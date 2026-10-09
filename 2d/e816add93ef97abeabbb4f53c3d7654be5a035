@@ -1,0 +1,32 @@
+packages/core/src/server/render/loaders.ts
+  s_3675bf950b5936::t_74f7ddd48983b1 212-218,222-231
+  s_b176097edcc3fc::t_f8729598cb9ff7 219-221
+packages/core/src/server/render/ppr-route.ts
+  s_3675bf950b5936::t_74f7ddd48983b1 9,117
+packages/core/src/server/router/plugin.ts
+  s_3675bf950b5936::t_74f7ddd48983b1 15,44,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "2de816add93ef97abeabbb4f53c3d7654be5a035",
+  "prompts": {},
+  "sessions": {
+    "s_3675bf950b5936": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f753e-81fa-77e1-a0c0-194bc69846bd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b176097edcc3fc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7594-eb1a-70a3-b92c-edff978ed0ce",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

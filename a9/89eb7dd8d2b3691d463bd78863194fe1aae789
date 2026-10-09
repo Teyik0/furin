@@ -1,0 +1,55 @@
+packages/core/src/server/router/discovery.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 128
+packages/core/src/server/router/types.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 42-43
+packages/core/tests/dev/hmr/deferred-page.fixture.ts
+  s_3295c4a2d42648::t_351b0ecd0ca07c 1,20
+  s_3295c4a2d42648::t_fc79f3896a9053 17-19,21-28,159,162,164
+  s_3295c4a2d42648::t_832a576e4cceab 12-16
+packages/core/src/adapter/runtime-build.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 176
+packages/core/src/server/render/loaders.ts
+  s_c4a1ae9cc2cd6c::t_74bfe86f388d1e 271,274-278,286,290-293,295-299,302-303,305-309,311-322,324-329,331-333,338,342,349,357-358,369,517,596-597
+  s_3295c4a2d42648::t_832a576e4cceab 284-285,287-289
+  s_3295c4a2d42648::t_ff3a3a70273bd0 300-301
+packages/core/src/server/router/hmr.ts
+  s_c4a1ae9cc2cd6c::t_9fdd677fefc209 43-46,370,373-377
+packages/core/src/server/internal.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 55
+packages/core/src/build/request-keys.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 84-87,89-90
+packages/core/src/build/entry-template.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 41
+packages/core/src/adapter/package.ts
+  s_c4a1ae9cc2cd6c::t_bf4f8635965a7b 114,126
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_c4a1ae9cc2cd6c::t_b1b00ee3b012dd 268-305
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3295c4a2d42648::t_f2c19d1e7c4f91 71
+  s_3295c4a2d42648::t_fc79f3896a9053 51,61-70,72-73,75-77
+  s_3295c4a2d42648::t_351b0ecd0ca07c 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a989eb7dd8d2b3691d463bd78863194fe1aae789",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

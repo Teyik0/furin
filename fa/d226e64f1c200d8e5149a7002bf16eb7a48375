@@ -1,0 +1,25 @@
+packages/core/tests/contract/define-route-conflicts.test.ts
+  s_60a29d9fb49afc::t_dff10c197f9b50 88-113
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  s_60a29d9fb49afc::t_dff10c197f9b50 68,70-74,76-85,87
+  s_60a29d9fb49afc::t_c82e0a4510ce05 75
+  s_60a29d9fb49afc::t_6faf6e99c900f4 69,86
+packages/core/src/server/router/defined-route.ts
+  s_60a29d9fb49afc::t_84ad803bf171dc 51-55,96-98,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fad226e64f1c200d8e5149a7002bf16eb7a48375",
+  "prompts": {},
+  "sessions": {
+    "s_60a29d9fb49afc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b6bd-78cc-7732-afa9-84421fa78f0e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

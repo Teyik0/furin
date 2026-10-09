@@ -1,0 +1,20 @@
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_13b9bbaf2a91a1::t_ae01b400ef8794 39,42-43,47,53,64-65,79,85,91,94,103,106,115,126,139,151,169,189,215,234,249,264,282,297,312,327,349
+  s_13b9bbaf2a91a1::t_7f58e574129628 100,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "424c7699fdc9f8453bd9310fab3860bd36037ea1",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

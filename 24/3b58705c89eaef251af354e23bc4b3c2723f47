@@ -1,0 +1,25 @@
+packages/core/src/server/dev/runtime.production.ts
+  s_13b9bbaf2a91a1::t_a503dc99533b65 22-25
+packages/core/tests/build/devtools-production-isolation.test.ts
+  s_13b9bbaf2a91a1::t_346e30e5d99996 37-54
+  s_13b9bbaf2a91a1::t_1664ecfdb27ff2 36
+packages/core/src/build/production-instrumentation.ts
+  s_13b9bbaf2a91a1::t_a503dc99533b65 6
+  s_13b9bbaf2a91a1::t_40c0208614bf68 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "243b58705c89eaef251af354e23bc4b3c2723f47",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

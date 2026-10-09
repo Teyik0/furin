@@ -1,0 +1,40 @@
+apps/scaffolder/src/pipeline/stages/5-generation.ts
+  s_8454b9f1e5fd7f::t_a217d2e0736e06 6-23,29,99,107,112
+  s_8454b9f1e5fd7f::t_aac5ef784a5539 5
+packages/core/src/plugin/transform-client.ts
+  s_8454b9f1e5fd7f::t_5c64aa68acd495 23,31-35,37,39-40,43-47,49-62,64-70,92,97-108,110-112,114-120,129-135,137-143,145-157,160,164-168,173-174,463,468,475,478
+  s_8454b9f1e5fd7f::t_758f952ddfc704 94
+  s_8454b9f1e5fd7f::t_3cff70b6b45355 125-128
+  s_8454b9f1e5fd7f::t_24bbb3cbf408cd 121-124
+  s_8454b9f1e5fd7f::t_04439a1eb29b11 48,63,71-77,79-91,93,95-96,109,113,136,144
+apps/scaffolder/src/pipeline/context.ts
+  s_8454b9f1e5fd7f::t_a1d375c37a6449 2,163-168,170-174,176-182
+  s_8454b9f1e5fd7f::t_aac5ef784a5539 169
+apps/scaffolder/tests/generation.test.ts
+  s_8454b9f1e5fd7f::t_d166f1df64d40b 2,5,46-76
+  s_8454b9f1e5fd7f::t_1331ccd9bb20fa 77
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_8454b9f1e5fd7f::t_4acbd5edbf8ef1 19
+  s_8454b9f1e5fd7f::t_e5b8409835f84a 28-29,58,74,96,111,132,207,223
+  s_8454b9f1e5fd7f::t_9489e4283c34dc 261,281,305,326,347,373,389,410,431
+  s_8454b9f1e5fd7f::t_9ccf20f3732442 466,481,496,510,528,544,574,591,610,627,651,668,688
+  s_8454b9f1e5fd7f::t_facf50a1db40b9 576-577,593-594,613-614,630-631,654-655,692-693
+  s_8454b9f1e5fd7f::t_85e5d668c1e809 52,55-56,59-60,72,75-76,263-264,283-284,307-308,328-329,349-350,375-376,390-391
+  s_8454b9f1e5fd7f::t_81096f8ddd0504 145-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "43c0aa5c929202e119a7a0ca0bd9609e7bc2f778",
+  "prompts": {},
+  "sessions": {
+    "s_8454b9f1e5fd7f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5f3f-eb0e-7f12-a759-fd024d19084d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

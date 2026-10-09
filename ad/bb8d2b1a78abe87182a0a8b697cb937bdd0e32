@@ -1,0 +1,25 @@
+packages/core/src/client/router/provider.tsx
+  s_1b22c438b33a80::t_05691ecd11fc19 3-11,1021,1025-1027
+packages/core/src/server/render/not-found.ts
+  s_1b22c438b33a80::t_0738ab07dbefb1 100-101,107
+packages/core/tests/client/link/router-provider-not-found.test.tsx
+  s_1b22c438b33a80::t_43006bcb60f689 1-31
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_1b22c438b33a80::t_b6c99be5f5f5cf 48-50,60,63-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "adbb8d2b1a78abe87182a0a8b697cb937bdd0e32",
+  "prompts": {},
+  "sessions": {
+    "s_1b22c438b33a80": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e91d-f151-7cd0-96b1-45c8b5befdcb",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

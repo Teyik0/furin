@@ -1,0 +1,43 @@
+packages/core/src/build.ts
+  82882efc2727449e 4,451-454,457,761,764
+packages/core/tests/elyra.test.ts
+  82882efc2727449e 27-28,34-35,47,61,74,99
+packages/core/src/cli/config.ts
+  82882efc2727449e 58,79,83-84
+packages/core/tests/helpers/tmp-app.ts
+  82882efc2727449e 18-27,41-42,44,48-49
+packages/core/tests/cli-config.test.ts
+  82882efc2727449e 21,31,54,61,67,75
+packages/core/src/render/template.ts
+  82882efc2727449e 7,33,41-50
+packages/core/src/cli/commands/dev.ts
+  82882efc2727449e 52
+packages/core/tests/build-cli.test.ts
+  82882efc2727449e 33,48,59,68,90,100,111,119,149,158,167,176,190,199,215,229,245
+packages/core/src/router.ts
+  82882efc2727449e 180
+packages/core/src/cli/commands/preview.ts
+  82882efc2727449e 50-56,101
+packages/core/tests/helpers/http.ts
+  82882efc2727449e 1-2,8,15-19,21-24,26-29,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "42bbbc24e61df00284c15da5283b716a6af4ab98",
+  "prompts": {
+    "82882efc2727449e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cc6a8a0-b298-4596-889d-9172c6fa7c54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 102,
+      "total_deletions": 65,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}

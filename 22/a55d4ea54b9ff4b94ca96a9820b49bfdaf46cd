@@ -1,0 +1,128 @@
+packages/core/tests/client/sync/sync.test.ts
+  s_3f76954d6c8d97::t_537c500ff92e49 94-96,98-109,115-119,124-125,131,133,136-147,149-153,155-163
+  s_3f76954d6c8d97::t_24498aad540594 97,111-114,154
+  s_3f76954d6c8d97::t_6a82d3f96dcf47 126-130,132,134
+  s_3f76954d6c8d97::t_7d14c6d20bf635 110,120-123
+  s_3f76954d6c8d97::t_52bda473f7cb6c 148
+  s_3f76954d6c8d97::t_2696077f1db3e4 135
+.github/workflows/distributed-sync-validation.yaml
+  s_3f76954d6c8d97::t_f504da0c39ff68 1-62
+packages/core/tests/contract/sync-types.test.ts
+  s_3f76954d6c8d97::t_7d14c6d20bf635 24-26,28-30
+  s_3f76954d6c8d97::t_6faa1752d4e1ec 1-5,9-10,13-14,16-18
+  s_3f76954d6c8d97::t_7700677b2409a5 22-23,27,31
+  s_3f76954d6c8d97::t_aa915a7cf232c1 6-8,11,19-21
+  s_3f76954d6c8d97::t_9300bb64d5fad9 12,15,32
+packages/sync-redis/README.md
+  s_3f76954d6c8d97::t_9917dc86b58e89 10
+packages/core/tests/client/sync/sync-notifier.test.ts
+  s_3f76954d6c8d97::t_d693322a946c62 2,5-11,13-16,48-66
+  s_3f76954d6c8d97::t_0655ef3d113f79 109-124,126-136
+  s_3f76954d6c8d97::t_52bda473f7cb6c 125
+  s_3f76954d6c8d97::t_7d14c6d20bf635 3,12
+  s_3f76954d6c8d97::t_ccf051e2712540 89-108
+  s_3f76954d6c8d97::t_47127632bff1d6 68-88
+  s_3f76954d6c8d97::t_615df32a64420a 1,4,17-30,137
+  s_3f76954d6c8d97::t_898cba0797e5df 31-47,67
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_3f76954d6c8d97::t_c7f6523a54fe37 22,52-55,206-247
+  s_3f76954d6c8d97::t_659c877493febb 248-250
+examples/task-manager/src/components/ui/kanban.tsx
+  s_2e188f7249ab1b::t_986106a8a38d6c 4
+  s_2e188f7249ab1b::t_36fb4f587eb7b5 135-186,189-190,192,198
+apps/docs/src/content/docs/comparison.mdx
+  s_3f76954d6c8d97::t_9917dc86b58e89 150
+packages/sync-redis/src/index.ts
+  s_3f76954d6c8d97::t_c10a5570259c25 255,268
+  s_3f76954d6c8d97::t_c773166e8a8513 27,115-116
+  s_3f76954d6c8d97::t_1efffd5291611c 112
+packages/sync-postgres/tests/postgres-sync-adapter.test.ts
+  s_3f76954d6c8d97::t_99c69925b645a1 33,35-46
+  s_3f76954d6c8d97::t_fbc3ff1f6634bd 34
+.github/workflows/ci.yaml
+  s_3f76954d6c8d97::t_f504da0c39ff68 13-16
+CHANGELOG.md
+  s_3f76954d6c8d97::t_2356c7e57907f7 11,33
+  s_2e188f7249ab1b::t_8a9c18ff1943c3 32
+packages/core/src/server/sync/index.ts
+  s_3f76954d6c8d97::t_218bf367b91de9 25-28
+apps/docs/src/content/docs/deployment.mdx
+  s_3f76954d6c8d97::t_c2904b2feef4e0 200-203,207,217,223-227
+  s_3f76954d6c8d97::t_f5b92c9bec0fec 187,192-199,204-206,208-216,218-222,228-234
+packages/core/src/server/sync/stream.ts
+  s_3f76954d6c8d97::t_7599440942e92c 123
+  s_3f76954d6c8d97::t_7d14c6d20bf635 121
+apps/docs/src/content/docs/caching.mdx
+  s_3f76954d6c8d97::t_9917dc86b58e89 193,195
+packages/sync-redis/tests/redis-sync.test.ts
+  s_3f76954d6c8d97::t_1168bb61b69ccf 28-36
+  s_3f76954d6c8d97::t_fbc3ff1f6634bd 39-40
+  s_3f76954d6c8d97::t_b5f437239b1c4c 37-38,41-69
+packages/sync-postgres/migrations/0001_sync.sql
+  s_3f76954d6c8d97::t_59132e1e061724 16-24
+packages/sync-postgres/README.md
+  s_3f76954d6c8d97::t_9917dc86b58e89 6
+packages/core/src/server/sync/plugin.ts
+  s_3f76954d6c8d97::t_712e30e332a83a 192
+packages/core/tests/client/sync/memory-sync-adapter.test.ts
+  s_3f76954d6c8d97::t_b0a8b75c02070b 38-61
+  s_3f76954d6c8d97::t_40a362e89ff9eb 156,186-194
+  s_3f76954d6c8d97::t_ce8bdd7f830ea1 2,136-155
+  s_3f76954d6c8d97::t_6b2428bcb5c247 158-185
+  s_3f76954d6c8d97::t_7ceb68dc61b5e3 157
+examples/task-manager/src/pages/globals.css
+  s_2e188f7249ab1b::t_7327e576ab2d6b 65-77
+apps/docs/src/content/docs/api-routes.mdx
+  s_3f76954d6c8d97::t_9917dc86b58e89 124-131
+.github/workflows/cd.yaml
+  s_3f76954d6c8d97::t_f504da0c39ff68 16-19,22
+packages/core/src/server/sync/notifier.ts
+  s_3f76954d6c8d97::t_7556d2b22f5d59 3-6,8,11,13,22-23,26
+  s_3f76954d6c8d97::t_93a6e3113e7a56 61,63,65
+  s_3f76954d6c8d97::t_7d14c6d20bf635 120
+  s_3f76954d6c8d97::t_32778fbd8caf71 42,62,103-105,107-109,111-113,116-119,121-122
+  s_3f76954d6c8d97::t_1f1cd040c3415b 12,14-16
+  s_3f76954d6c8d97::t_06dde21a583925 40,43-45,53,59-60,64,69,71,84-89,95-102,106,114-115,123-137
+  s_3f76954d6c8d97::t_215ec117cacf3a 94,110
+packages/core/src/server/sync/memory-adapter.ts
+  s_3f76954d6c8d97::t_f50f94d5215be5 58-62,163
+  s_3f76954d6c8d97::t_199de9dd574832 12,41-48,133
+  s_3f76954d6c8d97::t_24853cfff87ce2 19,161-162
+  s_3f76954d6c8d97::t_d0fabcfd8dd037 170-173
+packages/core/src/client/router/provider.tsx
+  s_3f76954d6c8d97::t_c310149c2fca0b 808,832
+examples/task-manager/src/sync.ts
+  s_aec303be7b97b2::t_d2f34a0b2dcfc0 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.13",
+  "base_commit_sha": "22a55d4ea54b9ff4b94ca96a9820b49bfdaf46cd",
+  "prompts": {},
+  "sessions": {
+    "s_2e188f7249ab1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f614a-4cfa-7cc3-80ea-8984a7bf9904",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3f76954d6c8d97": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f614b-5853-7361-8404-6342a4296289",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_aec303be7b97b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f611e-eea1-7dd0-9810-b0e93a80346d",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

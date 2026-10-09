@@ -1,0 +1,65 @@
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_fa3ba074f76831::t_2813ab69ebd122 14-33,35-36
+  s_fa3ba074f76831::t_2842db13c0c03d 10,12,34
+  s_fa3ba074f76831::t_64c4325162dd36 11,13
+packages/core/tests/routing/conventions/prefix.test.ts
+  s_fa3ba074f76831::t_eb6aafc56724de 18-25
+packages/core/src/client/router/sync-catch-up.ts
+  s_fa3ba074f76831::t_a58e1c44c0ab32 36-37,39
+  s_fa3ba074f76831::t_d4e1af7cbe8555 26-27,38
+packages/core/src/plugin/transform-client.ts
+  s_fa3ba074f76831::t_16b7d036db5a14 302-310,345
+packages/core/tests/contract/route-types.test.ts
+  s_fa3ba074f76831::t_8b212665ea56e0 8,38,72-102
+packages/core/src/server/production-server.ts
+  s_fa3ba074f76831::t_306f4bd9893bcf 104-107
+  s_fa3ba074f76831::t_6bbefd5e7c5723 77-82,96,100,119
+packages/core/src/shared/prefix.ts
+  s_fa3ba074f76831::t_34b7d51bf3655c 5
+  s_fa3ba074f76831::t_fb2fcd307f5f9a 29-32
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_fa3ba074f76831::t_5439e70a14f9cb 5-7,17-18,20-40
+  s_fa3ba074f76831::t_0999b98f292750 4,19
+packages/core/tests/client/sync/adapters/sqlite-sync-adapter.test.ts
+  s_fa3ba074f76831::t_4f3999fd02a506 78-83
+packages/core/src/plugin/index.ts
+  s_fa3ba074f76831::t_9680563cb7202b 73,105
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_86885781e7bdf9 327,341-342
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_fa3ba074f76831::t_50e346bc6b0470 185
+  s_fa3ba074f76831::t_43aed291ae8d21 156,158-184,186-196
+  s_fa3ba074f76831::t_97eeed664cb6b0 117,119-155
+  s_fa3ba074f76831::t_72b7e5520d223b 118,157
+packages/core/src/server/elysia-owner.ts
+  s_fa3ba074f76831::t_b3f84a0b6bb836 78
+  s_fa3ba074f76831::t_72b7e5520d223b 63-64
+packages/core/tests/runtime/production-server.test.ts
+  s_fa3ba074f76831::t_58ff2d8fc3f5f0 1,487-489,494-495,500-503,505,520,523-537,542,547-548,555-563
+  s_fa3ba074f76831::t_da1a67a0dd89c1 13,504
+  s_fa3ba074f76831::t_fb2fcd307f5f9a 490-493,496-499,506-519,521-522,538-541,543-546,549-554
+packages/core/tests/runtime/dependency-security.test.ts
+  s_fa3ba074f76831::t_3239ef327634ca 11-12,16,41
+packages/core/tests/build/hydrate/strip-plugin.test.ts
+  s_fa3ba074f76831::t_2a1c9fca3c58e2 15-17,23-30
+  s_fa3ba074f76831::t_1ae240ed5e5e4d 2,7-14,18-22,31-40
+  s_fa3ba074f76831::t_24626a2a42d8f9 41
+apps/docs/src/content/docs/sync.mdx
+  s_fa3ba074f76831::t_13e53d4779d30a 465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80a46112c5b245872384603c7292d0be2fbc7c3d",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

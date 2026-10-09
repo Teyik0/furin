@@ -1,0 +1,35 @@
+apps/docs/src/content/docs/sync.mdx
+  s_c4a1ae9cc2cd6c::t_3293cca7724c50 181
+apps/docs/src/content/docs/layouts.mdx
+  s_c4a1ae9cc2cd6c::t_3293cca7724c50 85
+packages/core/src/adapter/runtime-build.ts
+  s_c4a1ae9cc2cd6c::t_ae7ce1505173ec 17,39,53,247-266
+  s_c4a1ae9cc2cd6c::t_df7e7b32b71a2d 267-269
+  s_c4a1ae9cc2cd6c::t_35b1fee3b7b175 270-272
+packages/core/tests/build/adapters/mixed-runtime-plugin.test.ts
+  s_c4a1ae9cc2cd6c::t_d433c8a237fc73 1-4,9,11-14,19-22,24-26,28-30,48
+  s_c4a1ae9cc2cd6c::t_e7e9b9ae32fe23 42
+  s_c4a1ae9cc2cd6c::t_13ec60d6dea763 5-8,10,15-18,23,27,31-41,43-47
+packages/core/src/adapter/bun.ts
+  s_c4a1ae9cc2cd6c::t_6f42ec85c7c4d6 20,227,262
+packages/core/src/adapter/vercel.ts
+  s_c4a1ae9cc2cd6c::t_6f42ec85c7c4d6 26,780
+apps/docs/src/content/docs/rendering.mdx
+  s_c4a1ae9cc2cd6c::t_bd710f4275652d 11,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc55c39b782c5fe41e5e5fa50dcb7165b4f0693c",
+  "prompts": {},
+  "sessions": {
+    "s_c4a1ae9cc2cd6c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0df9c-a4a7-72b2-b3d7-f834fb99f611",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

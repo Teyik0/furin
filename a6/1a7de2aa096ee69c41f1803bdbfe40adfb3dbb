@@ -1,0 +1,25 @@
+packages/core/src/client/router/provider.tsx
+  s_2a4069bf188ef3::t_1ea6a8ecf209f7 653,655-658,662
+packages/core/src/plugin/transform-client.ts
+  s_2a4069bf188ef3::t_05b5ddec1898a8 18-23,312-314,326-328
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_2a4069bf188ef3::t_411afde953af41 262-281
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_2a4069bf188ef3::t_76f074cc6ac95f 182,184,199,201,210-226,439-474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a61a7de2aa096ee69c41f1803bdbfe40adfb3dbb",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

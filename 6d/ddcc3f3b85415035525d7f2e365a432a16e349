@@ -1,0 +1,22 @@
+examples/task-manager/src/db/index.ts
+  s_075e79516eb63b::t_fcbde61dba9ac6 10
+  s_075e79516eb63b::t_a9507ea692624f 3
+examples/task-manager/src/db/bootstrap.ts
+  s_075e79516eb63b::t_fcbde61dba9ac6 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6dddcc3f3b85415035525d7f2e365a432a16e349",
+  "prompts": {},
+  "sessions": {
+    "s_075e79516eb63b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eb2b5-c73b-77f0-9d96-cf6d1727724d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

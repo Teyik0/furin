@@ -1,0 +1,130 @@
+packages/core/tests/deferred-client.test.ts
+  s_c3a9f9a3ef0501::t_30ea2d25b2769a 58,60
+  s_c3a9f9a3ef0501::t_10fbea389f2059 66
+  s_c3a9f9a3ef0501::t_c1294fb3b1bb64 10-12,14
+  s_c3a9f9a3ef0501::t_4bdef9b49e7630 41-42
+  s_c3a9f9a3ef0501::t_29a4d5ef7bf1ba 29-30
+examples/task-manager/src/pages/index.tsx
+  s_6f78daf515e3d1::t_581fdcf9fd73e4 160
+packages/core/tests/render.test.ts
+  s_c3a9f9a3ef0501::t_020be8effe78e9 786
+  s_c3a9f9a3ef0501::t_5a587757d62109 816
+examples/task-manager/src/server.ts
+  s_6f78daf515e3d1::t_05f8dcff2f1b3a 3,11
+apps/scaffolder/README.md
+  s_c3a9f9a3ef0501::t_ac16df3610ebd8 3,5,11,25,41-45,48,51,54,57,65,87,91,100,116,121,125,127,129-130,132,136-137,142,145,148,152,154,164,166-168
+packages/core/tests/deferred-hydration-race.test.ts
+  s_c3a9f9a3ef0501::t_391c028582a3de 159
+  s_c3a9f9a3ef0501::t_0768721e650605 177
+  s_c3a9f9a3ef0501::t_456f00ec8979f1 189
+  s_c3a9f9a3ef0501::t_419a59315a9427 133
+  s_c3a9f9a3ef0501::t_b16491a354c2d9 118
+  s_c3a9f9a3ef0501::t_7f70db6dbcd0d9 146
+examples/weather/src/pages/index.tsx
+  s_6f78daf515e3d1::t_d520b5e5fe91d4 45
+react-doctor.config.json
+  s_6f78daf515e3d1::t_387a049734eea4 33-34,37-38
+  s_6f78daf515e3d1::t_f2a7bb4eb9a308 9-10
+  s_6f78daf515e3d1::t_ce6eb0d01be9d6 14-15,26-32,46
+  s_6f78daf515e3d1::t_79481e189691a9 20-24
+  s_6f78daf515e3d1::t_69255f4392b209 2
+packages/core/tests/deferred-rejection.test.ts
+  s_c3a9f9a3ef0501::t_853ac19172093d 67
+  s_c3a9f9a3ef0501::t_b383efb7901eda 76
+  s_c3a9f9a3ef0501::t_8abae36e2418c1 29
+  s_c3a9f9a3ef0501::t_3da31f816ce96f 85
+  s_c3a9f9a3ef0501::t_c5b05348166bfa 57
+  s_c3a9f9a3ef0501::t_0ed0ff9063c747 44
+examples/task-manager/src/components/ui/kanban.tsx
+  s_6f78daf515e3d1::t_7b203e033fe841 589
+apps/docs/src/components/docs-toc.tsx
+  s_6f78daf515e3d1::t_addbbe2c0bfffd 171-172,180-193,198,205
+packages/core/tests/deferred-render.test.ts
+  s_c3a9f9a3ef0501::t_a3ec60aef651bc 66
+  s_c3a9f9a3ef0501::t_0bff45f6c806c0 27
+  s_c3a9f9a3ef0501::t_8198f2af591b4d 10
+  s_c3a9f9a3ef0501::t_761b812b384a5c 22
+  s_c3a9f9a3ef0501::t_b33d3b415df091 39
+  s_c3a9f9a3ef0501::t_21bfe1ec15f974 45
+  s_c3a9f9a3ef0501::t_e475accc2f53d5 88
+  s_c3a9f9a3ef0501::t_5ded9b58510f15 73,77
+  s_c3a9f9a3ef0501::t_dfb996e095ceb5 15
+  s_c3a9f9a3ef0501::t_a36208257d4760 52
+  s_c3a9f9a3ef0501::t_b90db06a38a23f 59
+packages/core/tests/deferred-abort.test.ts
+  s_c3a9f9a3ef0501::t_f0757fd90f342e 57
+  s_c3a9f9a3ef0501::t_b2c008c011364e 124
+  s_c3a9f9a3ef0501::t_dcf039dbbf1b51 137
+  s_c3a9f9a3ef0501::t_0b15dca1c5b849 31
+  s_c3a9f9a3ef0501::t_3e712f310bf2b0 85
+  s_c3a9f9a3ef0501::t_41ac7ff8c9b3c2 108
+  s_c3a9f9a3ef0501::t_193726ebfec3b8 42
+packages/core/tests/defer.test.ts
+  s_c3a9f9a3ef0501::t_a868a5c4f461e6 10
+  s_c3a9f9a3ef0501::t_74e6bafcf7d30b 16
+  s_c3a9f9a3ef0501::t_b3034813224705 21
+  s_c3a9f9a3ef0501::t_59336a6eb7f3da 5
+  s_c3a9f9a3ef0501::t_eec6ec356c75af 33
+  s_c3a9f9a3ef0501::t_c1519a6b82156d 49
+  s_c3a9f9a3ef0501::t_31471d29cb0f18 54
+  s_c3a9f9a3ef0501::t_e01fd3cac7f1a8 63
+  s_c3a9f9a3ef0501::t_09529613172d25 58
+packages/core/tests/deferred-endpoint.test.ts
+  s_c3a9f9a3ef0501::t_a9c15b48166a8f 73
+  s_c3a9f9a3ef0501::t_8859d3351ddcaa 94
+  s_c3a9f9a3ef0501::t_35d3770667a28d 105
+  s_c3a9f9a3ef0501::t_1e6ece041324dd 126
+  s_c3a9f9a3ef0501::t_abaf76bffb2228 191
+  s_c3a9f9a3ef0501::t_4eb8a62dae64a4 276
+  s_c3a9f9a3ef0501::t_20ecfcab938bdd 48
+  s_c3a9f9a3ef0501::t_df5b553e318b89 39
+  s_c3a9f9a3ef0501::t_dd61c2936cdd0c 149
+  s_c3a9f9a3ef0501::t_a7f23874511872 62
+  s_c3a9f9a3ef0501::t_4e4870c6dd6805 219
+packages/core/tests/await.test.tsx
+  s_c3a9f9a3ef0501::t_5059a96918a75d 109
+  s_c3a9f9a3ef0501::t_0844d910fdae76 90
+  s_c3a9f9a3ef0501::t_f7e7b2a016c588 13
+  s_c3a9f9a3ef0501::t_c405a30cb7916a 84,86
+  s_c3a9f9a3ef0501::t_c6ddc282575481 30
+  s_c3a9f9a3ef0501::t_c8fc63071bc22a 43
+  s_c3a9f9a3ef0501::t_6c7eba6bdf74f7 119
+  s_c3a9f9a3ef0501::t_c69f069d912407 47-50,52-53
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_6f78daf515e3d1::t_1323f05de75634 153
+  s_6f78daf515e3d1::t_4d2f07382f818f 171
+packages/core/tests/deferred-loaders.test.ts
+  s_c3a9f9a3ef0501::t_77110deeb1f70c 121
+  s_c3a9f9a3ef0501::t_8ae590a4a21613 162
+  s_c3a9f9a3ef0501::t_1b5c6d5ba69c06 141
+  s_c3a9f9a3ef0501::t_748a12360e75ca 84
+  s_c3a9f9a3ef0501::t_6da6c5767626b0 71
+  s_c3a9f9a3ef0501::t_3afdfada3da11e 100
+  s_c3a9f9a3ef0501::t_4afe11b8d31078 174
+apps/docs/src/components/theme-provider.tsx
+  s_6f78daf515e3d1::t_516be61d541465 60,62-64,67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b91c7d6ade156ee9c8b45a74d88d73c310cf9423",
+  "prompts": {},
+  "sessions": {
+    "s_6f78daf515e3d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d99de349-7f73-4973-ad7f-b9437ba5fd69",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c3a9f9a3ef0501": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5090927-637d-4d15-a3d1-e5a5f567af99",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

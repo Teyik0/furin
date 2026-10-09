@@ -1,0 +1,37 @@
+apps/docs/src/components/docs-search-dialog.tsx
+  ai_agent 16
+  s_6f78daf515e3d1::t_536f9fe9845166 84-94
+  s_6f78daf515e3d1::t_a268bd80e60948 15
+react-doctor.config.json
+  s_6f78daf515e3d1::t_5d4ab984d6ef74 12-19,23
+apps/docs/src/lib/docs-search.ts
+  s_6f78daf515e3d1::t_b83a7cc07bcdd1 5,7-8,10-12
+  s_6f78daf515e3d1::t_b4c1adbc7025b6 210
+  s_6f78daf515e3d1::t_ba5467720c2046 6,9
+  s_6f78daf515e3d1::t_b6142d5b24939b 15
+packages/core/tests/render.test.ts
+  ai_agent 829
+apps/docs/src/lib/docs-search-shared.ts
+  ai_agent 84
+  s_6f78daf515e3d1::t_45c5e20b32d708 1-83,85-109
+apps/docs/src/lib/docs-search-client.ts
+  s_6f78daf515e3d1::t_83ab7f35ab1104 2-8,15-16,51
+lefthook.yml
+  s_6f78daf515e3d1::t_7a524cf3849e19 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f76f86a92a08c49da6f610387bee77e0b39eac23",
+  "prompts": {},
+  "sessions": {
+    "s_6f78daf515e3d1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d99de349-7f73-4973-ad7f-b9437ba5fd69",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

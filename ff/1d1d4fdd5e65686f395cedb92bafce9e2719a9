@@ -1,0 +1,25 @@
+packages/core/tests/adapter-bun.test.ts
+  dcab186f154b18ab 25-26
+packages/core/tests/build-cli.test.ts
+  dcab186f154b18ab 10,21-30,32,46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "ff1d1d4fdd5e65686f395cedb92bafce9e2719a9",
+  "prompts": {
+    "dcab186f154b18ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81af1d4b-8778-4048-9da3-44b79c37a6b7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 10,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    }
+  }
+}

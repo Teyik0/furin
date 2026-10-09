@@ -1,0 +1,121 @@
+packages/core/src/furin.ts
+  s_13b9bbaf2a91a1::t_21c95c03f45d99 5,350,353,357,464,471
+scripts/compare-vercel-framework-reports.ts
+  s_13b9bbaf2a91a1::t_729d713d04b356 17-20,31-45,47-49,64-67,84
+  s_13b9bbaf2a91a1::t_d43a7189c8c1f1 22,46
+.github/workflows/vercel-benchmark.yaml
+  s_13b9bbaf2a91a1::t_eeb2b49b18a6e1 117-125
+  s_13b9bbaf2a91a1::t_b3a855e2abde54 126
+apps/scaffolder/README.md
+  s_13b9bbaf2a91a1::t_490d8714023071 87
+examples/task-manager/src/pages/index.tsx
+  s_13b9bbaf2a91a1::t_9ade1ea5502f4d 4,9-13,19
+packages/core/src/build/elysia-aot.ts
+  s_13b9bbaf2a91a1::t_d985c973de28fa 1,5,64-66
+  s_13b9bbaf2a91a1::t_b578be6a1fc603 44,50-54,69-71
+  s_13b9bbaf2a91a1::t_8d04bf44752cc1 55-57
+packages/core/tests/runtime/plugin/data-endpoint-logging.test.ts
+  s_13b9bbaf2a91a1::t_490d8714023071 8,30,52-80
+  s_13b9bbaf2a91a1::t_5211ad6bb1ac7c 28,44,46
+  s_13b9bbaf2a91a1::t_4eaee8f72af58e 81
+packages/core/tests/build/measurement/compare-vercel-framework-reports.test.ts
+  s_13b9bbaf2a91a1::t_9a845a8f8c18a3 23-27,33,51-57,77-96
+  s_13b9bbaf2a91a1::t_0440624fe1c2a1 97
+apps/docs/src/content/docs/deployment.mdx
+  s_13b9bbaf2a91a1::t_9bc8627874647e 27-28
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_13b9bbaf2a91a1::t_ea5ae1631141d3 155-156,158-171,173-184
+  s_13b9bbaf2a91a1::t_5211ad6bb1ac7c 157,172
+packages/core/src/server/sync/plugin.ts
+  s_13b9bbaf2a91a1::t_5211ad6bb1ac7c 45
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_13b9bbaf2a91a1::t_bd343bcdac94a0 336,338-341,627,629-632
+  s_13b9bbaf2a91a1::t_78ce5965755f58 192-198,231-232,243-244,353-359
+apps/docs/src/content/docs/cli.mdx
+  s_13b9bbaf2a91a1::t_490d8714023071 46
+packages/core/src/cli/index.ts
+  s_13b9bbaf2a91a1::t_490d8714023071 99-102
+examples/task-manager/src/api/modules/boards/index.ts
+  s_13b9bbaf2a91a1::t_3a83e9cfbcdc04 2,18,55
+  s_13b9bbaf2a91a1::t_734db5f589c10a 19-31,33-34,37-39,41-42,44-46,48-51,53-54
+  s_13b9bbaf2a91a1::t_21c95c03f45d99 32,35,40,43,47,52
+packages/core/src/server/router/plugin.ts
+  s_13b9bbaf2a91a1::t_78ce5965755f58 354,359,387
+  s_13b9bbaf2a91a1::t_da6fc0f05f7aae 287
+  s_13b9bbaf2a91a1::t_21c95c03f45d99 1,431,435
+  s_13b9bbaf2a91a1::t_4a90be053b507b 274-284
+CHANGELOG.md
+  s_13b9bbaf2a91a1::t_369381662b5b5c 16,20
+  s_13b9bbaf2a91a1::t_490d8714023071 10-11,15
+packages/core/tests/build/elysia-aot.test.ts
+  s_13b9bbaf2a91a1::t_221df078581cd4 1-22
+examples/task-manager/src/server.ts
+  s_13b9bbaf2a91a1::t_734db5f589c10a 8-13,15-23
+  s_13b9bbaf2a91a1::t_3a83e9cfbcdc04 7
+packages/core/package.json
+  s_13b9bbaf2a91a1::t_490d8714023071 3
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_b3a855e2abde54 142,180
+  s_13b9bbaf2a91a1::t_eeb2b49b18a6e1 129-137,176-179
+examples/task-manager/e2e/task-manager.e2e.ts
+  s_13b9bbaf2a91a1::t_bd343bcdac94a0 257-272
+packages/core/src/server/auto-invalidate/plugin.ts
+  s_13b9bbaf2a91a1::t_490d8714023071 1,9
+examples/task-manager/src/api/index.ts
+  s_13b9bbaf2a91a1::t_3a83e9cfbcdc04 5
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_13b9bbaf2a91a1::t_bd343bcdac94a0 212-215,217-218
+  s_13b9bbaf2a91a1::t_316693237e8a9c 216
+examples/task-manager/src/api/modules/cards/index.ts
+  s_13b9bbaf2a91a1::t_734db5f589c10a 8,10-11,13-35,37-38,41,45-58,60-61,64,68-70,72-73,75-77,79-80
+  s_13b9bbaf2a91a1::t_21c95c03f45d99 9,12,36,39,43,59,62,66,71,74,78
+  s_13b9bbaf2a91a1::t_3a83e9cfbcdc04 2,7,81
+  s_13b9bbaf2a91a1::t_4a90be053b507b 42
+apps/docs/src/content/docs/defer.mdx
+  s_13b9bbaf2a91a1::t_369381662b5b5c 5-6
+packages/core/src/adapter/vercel.ts
+  s_13b9bbaf2a91a1::t_b976e9037c3e03 777
+apps/docs/src/content/docs/error-handling.mdx
+  s_13b9bbaf2a91a1::t_369381662b5b5c 10-28
+packages/core/src/adapter/bun.ts
+  s_13b9bbaf2a91a1::t_b976e9037c3e03 162,202
+packages/core/src/plugin/routes.ts
+  s_13b9bbaf2a91a1::t_490d8714023071 616-618
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_13b9bbaf2a91a1::t_5b793c05fb4e31 125,131,252-256
+  s_13b9bbaf2a91a1::t_0c30cc7a8aef1f 151
+packages/core/tests/build/preview.test.ts
+  s_13b9bbaf2a91a1::t_ea5ae1631141d3 146-157,159-166
+  s_13b9bbaf2a91a1::t_29336a91fed77d 158
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_13b9bbaf2a91a1::t_5b793c05fb4e31 131,140,156
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_13b9bbaf2a91a1::t_23f73db5d26d18 210-215
+apps/docs/src/content/docs/api-routes.mdx
+  s_13b9bbaf2a91a1::t_3b8b911da02004 33,35,38
+  s_13b9bbaf2a91a1::t_490d8714023071 49
+  s_13b9bbaf2a91a1::t_369381662b5b5c 8,11,23-25,31,43-44,55,57,73,75,84,87-88,104-132
+  s_13b9bbaf2a91a1::t_4c32d24ba6b300 32
+packages/core/src/server/router/schemas.ts
+  s_13b9bbaf2a91a1::t_490d8714023071 134-135,181
+  s_13b9bbaf2a91a1::t_5211ad6bb1ac7c 182
+  s_13b9bbaf2a91a1::t_7c196fc8fe3a87 183
+bun.lock
+  s_13b9bbaf2a91a1::t_74386d523ff3da 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0dfc6e484b91f63b55bae4ce42b51d0c5288ba7d",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

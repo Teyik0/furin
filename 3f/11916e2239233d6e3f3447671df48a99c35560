@@ -1,0 +1,19 @@
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_96675323854193::t_83b56594c88b48 453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f11916e2239233d6e3f3447671df48a99c35560",
+  "prompts": {},
+  "sessions": {
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

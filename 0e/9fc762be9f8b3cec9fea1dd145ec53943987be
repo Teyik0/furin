@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0e9fc762be9f8b3cec9fea1dd145ec53943987be",
+  "prompts": {
+    "0d463d84f21e2371": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "812debb7-e3fd-4db3-b981-cdd1df7901b3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 30,
+      "accepted_lines": 66,
+      "overriden_lines": 0
+    }
+  }
+}

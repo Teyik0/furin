@@ -1,0 +1,21 @@
+apps/scaffolder/package.json
+  s_b576dcd625fc94::t_fd6d32a878a17f 3
+bun.lock
+  s_b576dcd625fc94::t_aaf6d2159d46b3 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8306a64e678bc53cd0d115da41235019ed804536",
+  "prompts": {},
+  "sessions": {
+    "s_b576dcd625fc94": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e471-4494-7cc0-a098-6a4a0fb343d0",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

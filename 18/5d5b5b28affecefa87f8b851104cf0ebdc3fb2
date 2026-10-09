@@ -1,0 +1,19 @@
+.github/workflows/ci.yaml
+  s_013aa92b7e2fef::t_1bb8b1a191f722 53-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "185d5b5b28affecefa87f8b851104cf0ebdc3fb2",
+  "prompts": {},
+  "sessions": {
+    "s_013aa92b7e2fef": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a7a748bdffekaGT0fU7bYoX4B",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

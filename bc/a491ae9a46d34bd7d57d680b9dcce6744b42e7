@@ -1,0 +1,23 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_d08a8495311633::t_daf5a43add1ee1 274-279,287-288
+packages/core/tests/README.md
+  s_d08a8495311633::t_46ee0949f69ce9 86-90
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_d08a8495311633::t_f08f20ecbb0003 11-13,1118,1233,1361,1636,1668
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "bca491ae9a46d34bd7d57d680b9dcce6744b42e7",
+  "prompts": {},
+  "sessions": {
+    "s_d08a8495311633": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07fa7-7c92-7b70-b987-d1afa978e4bb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

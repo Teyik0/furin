@@ -1,0 +1,19 @@
+packages/core/tests/client/sync/atomic-sync.test.ts
+  s_cef9e2f8108a55::t_e0d8438ea59052 558-559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8a76e23b37dee060eda62e6dc165ddd51778f636",
+  "prompts": {},
+  "sessions": {
+    "s_cef9e2f8108a55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f0ff-6af6-7551-83ec-5241ee0de4c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.test.ts
+  s_13b9bbaf2a91a1::t_ed0c97d6f1c726 1-160
+packages/core/src/server/evlog.ts
+  s_13b9bbaf2a91a1::t_ed0c97d6f1c726 7,61-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4fd3f8cdf0764a5676fa3970efc91a19cd6fb3bf",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

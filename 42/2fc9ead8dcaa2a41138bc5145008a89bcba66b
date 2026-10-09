@@ -1,0 +1,41 @@
+AUDIT_CORE.md
+  s_fa3ba074f76831::t_d038c860f37b38 349-356
+apps/docs/src/content/docs/deployment.mdx
+  s_fa3ba074f76831::t_9414e59919281b 24
+package.json
+  s_fa3ba074f76831::t_69a565dd1a29a1 65
+  s_fa3ba074f76831::t_004f0fcaea37f8 34
+  s_fa3ba074f76831::t_9414e59919281b 54
+CHANGELOG.md
+  s_fa3ba074f76831::t_d038c860f37b38 11
+  s_fa3ba074f76831::t_9414e59919281b 10
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_fa3ba074f76831::t_a83b531eab1024 228
+patches/README.md
+  s_fa3ba074f76831::t_d038c860f37b38 6,8
+  s_fa3ba074f76831::t_cbd8a3556cbded 7
+apps/scaffolder/README.md
+  s_fa3ba074f76831::t_9414e59919281b 159
+bun.lock
+  s_fa3ba074f76831::t_fada2e0210886f 171,178,1158,1696
+.github/workflows/vercel-benchmark.yaml
+  s_fa3ba074f76831::t_9414e59919281b 124
+.github/workflows/ci.yaml
+  s_fa3ba074f76831::t_9414e59919281b 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "422fc9ead8dcaa2a41138bc5145008a89bcba66b",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}

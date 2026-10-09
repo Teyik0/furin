@@ -1,0 +1,43 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  1cd934626f6145d1 1-91
+apps/docs/src/pages/docs/_route.tsx
+  d7a16172c83a3de8 3
+  1cd934626f6145d1 31-34
+apps/docs/src/pages/docs/dev-hmr.tsx
+  1cd934626f6145d1 1-10
+apps/docs/src/pages/docs/index.tsx
+  1cd934626f6145d1 41-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "c3410e2dda5150746522380bf68e42eedd03efc6",
+  "prompts": {
+    "1cd934626f6145d1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d310c-224f-7153-9108-160696cb4571",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 111,
+      "total_deletions": 0,
+      "accepted_lines": 111,
+      "overriden_lines": 0
+    },
+    "d7a16172c83a3de8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d311c-f372-7963-8540-4852bab9f262",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 8,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

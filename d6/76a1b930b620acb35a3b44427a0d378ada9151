@@ -1,0 +1,26 @@
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_96675323854193::t_44dabfb60786e9 269,280-283
+  s_96675323854193::t_591d9b1c98c405 216,224,233-243,258-260,268,270-273,285-291
+  s_96675323854193::t_8189f518998e86 232
+  s_96675323854193::t_05347366400ada 217-223,225-231,244-257,261-267
+  s_96675323854193::t_dca5b9757b6ef3 274-279
+  s_96675323854193::t_2a67a825341736 284
+packages/core/src/server/render/isr.ts
+  s_96675323854193::t_21ace7e069990a 690-692
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d676a1b930b620acb35a3b44427a0d378ada9151",
+  "prompts": {},
+  "sessions": {
+    "s_96675323854193": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a102ab-2d1a-7cf2-80d9-b6904e854e93",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

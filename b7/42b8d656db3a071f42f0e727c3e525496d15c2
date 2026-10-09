@@ -1,0 +1,124 @@
+packages/core/src/server/cache/isr.ts
+  s_000ab58467e1cb::t_59f3fb4d79921f 11-14
+packages/core/src/server/router/index.ts
+  s_0654e5e6b2fba8::t_dac607f9ce57e8 12
+  s_000ab58467e1cb::t_59f3fb4d79921f 16
+packages/core/src/client/router/provider.tsx
+  s_0654e5e6b2fba8::t_a946f6c9ac01d6 230
+lefthook.yml
+  s_ec28c707458ea1::t_dd5811b6c9c687 4
+package.json
+  s_ec28c707458ea1::t_ba0ca3eeabc9f6 45-49
+  s_ec28c707458ea1::t_dd5811b6c9c687 34
+packages/core/src/config.ts
+  s_000ab58467e1cb::t_59f3fb4d79921f 42-45
+packages/core/src/build/ssg-cache.ts
+  s_0654e5e6b2fba8::t_87a0d7beb99000 1-31
+packages/core/src/adapter/bun.ts
+  s_0654e5e6b2fba8::t_a13ab76a3df9dd 12,162-164
+  s_0654e5e6b2fba8::t_10bc6b91ebab25 198,231
+  s_0654e5e6b2fba8::t_3e7ef1aa3f389c 8,167,191,223
+apps/docs/src/content/docs/logging.mdx
+  s_000ab58467e1cb::t_59f3fb4d79921f 11,13,22-23,174
+packages/core/src/build/index.ts
+  s_0654e5e6b2fba8::t_0f3cf873709791 15
+packages/core/src/build/server-routes-entry.ts
+  s_0654e5e6b2fba8::t_f616f543aaade8 18,29
+packages/core/src/server/internal.ts
+  s_0654e5e6b2fba8::t_9761fcc9ba7f7b 37-45
+packages/core/tests/router/patterns.test.ts
+  s_0654e5e6b2fba8::t_ffd674da5d0822 2-6,8,109-135
+  s_000ab58467e1cb::t_38bc39a613b231 7,73-75
+packages/core/src/server/router/plugin.ts
+  s_0654e5e6b2fba8::t_733fc34aec1956 18,144,169-171
+packages/core/tests/measure-client-bundle.test.ts
+  s_000ab58467e1cb::t_0a0e28e1ebde94 4
+  s_000ab58467e1cb::t_38bc39a613b231 1-3,5-46
+packages/core/tests/hydrate-entry.test.ts
+  s_0654e5e6b2fba8::t_14aba4e4bc2efa 113-118,120
+  s_0654e5e6b2fba8::t_0b9376c5e14753 112,119,121-122
+  s_0654e5e6b2fba8::t_84b800bc6a77e7 271
+  s_0654e5e6b2fba8::t_658735ab47dc0f 310
+  s_0654e5e6b2fba8::t_a769d211ee5149 265
+  s_0654e5e6b2fba8::t_34a104a80d827a 222-225,257-259,274,281-282,288,296-297,301,309,311
+packages/core/src/server/render/ssr.ts
+  s_000ab58467e1cb::t_59f3fb4d79921f 99,129,137
+packages/core/src/furin.ts
+  s_0654e5e6b2fba8::t_923dbfec59b118 15,163-164,167
+  s_000ab58467e1cb::t_59f3fb4d79921f 194-197
+  s_0654e5e6b2fba8::t_1857ae9523da06 14,165-166,168-169
+  s_0654e5e6b2fba8::t_27c3b2f41de65a 334,365-367
+packages/core/src/build/client.ts
+  s_0654e5e6b2fba8::t_f11f99869f39b9 97
+packages/core/src/client/router/types.ts
+  s_0654e5e6b2fba8::t_16e1160aa837c6 135
+packages/core/src/server/router/patterns.ts
+  s_0654e5e6b2fba8::t_f37e5c7901183d 171-214
+packages/core/src/build/compile-entry.ts
+  s_0654e5e6b2fba8::t_e2518a8c8d29f7 24,103
+  s_0654e5e6b2fba8::t_311bccf6d31129 37-39
+packages/core/tests/furinjs-runtime.test.ts
+  s_0654e5e6b2fba8::t_4059872e513580 236-238,240-257,259-263
+  s_0654e5e6b2fba8::t_be16414022603c 7,69,226-235,239,258
+packages/core/src/build/entry-template.ts
+  s_0654e5e6b2fba8::t_8047431c1e65ac 39-47,86-95,130,154
+packages/core/tests/build-embed.test.ts
+  s_0654e5e6b2fba8::t_73f2e435c10e7a 94-123
+AGENTS.md
+  s_000ab58467e1cb::t_59f3fb4d79921f 23
+scripts/measure-client-bundle.ts
+  s_000ab58467e1cb::t_38bc39a613b231 56-57
+  s_000ab58467e1cb::t_59f3fb4d79921f 50-55,58-62,70
+packages/core/src/build/hydrate.ts
+  s_0654e5e6b2fba8::t_532da000d8c4fb 214-219
+  s_000ab58467e1cb::t_59f3fb4d79921f 102-104
+  s_0654e5e6b2fba8::t_47729ae79c1f16 29,33,37-38,47,54-55,61,64,68-78,81,120
+  s_0654e5e6b2fba8::t_4a500fb964001a 4,46
+packages/core/tests/build-cli.test.ts
+  s_0654e5e6b2fba8::t_46ad5d793b1edf 75,79,81-92,94-95,104
+  s_0654e5e6b2fba8::t_7262af9682a6a1 93
+  s_0654e5e6b2fba8::t_f03ddcbd790a46 7-10,232
+  s_0654e5e6b2fba8::t_3d630381960ab1 5,229-231,233-238
+  s_0654e5e6b2fba8::t_ea354aea28fe48 76-78,80,96-103,105-106
+doctor.config.ts
+  s_000ab58467e1cb::t_59f3fb4d79921f 10-11
+packages/core/src/server/cache/index.ts
+  s_000ab58467e1cb::t_59f3fb4d79921f 28
+packages/core/src/server/render/isr.ts
+  s_000ab58467e1cb::t_0a0e28e1ebde94 3
+  s_000ab58467e1cb::t_59f3fb4d79921f 5,244-246,269-281
+packages/core/tests/render.test.ts
+  s_000ab58467e1cb::t_38bc39a613b231 1391-1421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b742b8d656db3a071f42f0e727c3e525496d15c2",
+  "prompts": {},
+  "sessions": {
+    "s_000ab58467e1cb": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019eada6-7cd9-7463-835c-c3722d170b01",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_0654e5e6b2fba8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ead9c-a2dd-7133-b3bb-0b06ccec0ea1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_ec28c707458ea1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ead9d-8951-7082-837a-07bccce09c86",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

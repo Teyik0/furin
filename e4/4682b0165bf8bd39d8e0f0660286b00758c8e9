@@ -1,0 +1,16 @@
+packages/core/src/devtools/dashboard.tsx
+  h_a2cbd1b0e3ae6e 2-10,154-155,157-159,162-164,203,205-207,209,211-213,236,272,300
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  h_a2cbd1b0e3ae6e 106-110,139-140,147-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e44682b0165bf8bd39d8e0f0660286b00758c8e9",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

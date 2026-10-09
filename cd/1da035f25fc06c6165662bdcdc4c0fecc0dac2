@@ -1,0 +1,26 @@
+packages/core/src/server/router/plugin.ts
+  s_6e29de6615b1db::t_8a4520054fbff1 259-263
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_6e29de6615b1db::t_fa6dff6cd04bc0 457-488
+packages/core/tests/client/link/router-provider-intercept.test.tsx
+  s_6e29de6615b1db::t_01c981f3212954 35-49
+  s_6e29de6615b1db::t_da7188e04e9e75 276-343
+packages/core/src/client/router/provider.tsx
+  s_6e29de6615b1db::t_3312f534a58cf7 698-704,710
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "cd1da035f25fc06c6165662bdcdc4c0fecc0dac2",
+  "prompts": {},
+  "sessions": {
+    "s_6e29de6615b1db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1283c729-f60d-4733-9075-8eb0605f4662",
+        "model": "claude-fable-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

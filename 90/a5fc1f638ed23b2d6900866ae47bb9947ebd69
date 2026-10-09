@@ -1,0 +1,52 @@
+packages/core/tests/rendering/errors/render-element-boundaries.test.tsx
+  s_3675bf950b5936::t_1eaa413024ecd2 242-254,259-265,270-276
+packages/core/src/client/boundaries.tsx
+  s_3675bf950b5936::t_eb3aa69d9b5d2c 20-27,85-88,130
+  s_3675bf950b5936::t_c3d8f7e32ab2b9 57-59,120-124
+examples/task-manager/src/sync.ts
+  s_3675bf950b5936::t_1eaa413024ecd2 6-7,9-10
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_3675bf950b5936::t_6fe4cccc68776c 179-195
+packages/core/src/plugin/transform-client.ts
+  s_3675bf950b5936::t_68a1507c101a16 288-292
+packages/core/src/server/router/plugin.ts
+  s_3675bf950b5936::t_018d75bfbcac6f 39-59,312-315
+  s_3675bf950b5936::t_66c6947b43c472 15
+  s_3675bf950b5936::t_dc5dad5d43e691 38
+packages/core/src/server/render/ssr.ts
+  s_3675bf950b5936::t_d44dc5f32f1edf 376
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_3675bf950b5936::t_6a223ff8dd0ebf 171-213,215
+  s_3675bf950b5936::t_742347cefbcdc3 214
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_3675bf950b5936::t_42a66deb2e4af8 425-456
+packages/core/tests/rendering/deferred/deferred-rejection.test.ts
+  s_3675bf950b5936::t_565e2d16eafa83 2-3,7,10,106-125
+  s_3675bf950b5936::t_0dd8206894d99d 90-92
+  s_3675bf950b5936::t_dfdca81dc6eecc 126-128
+  s_4c228e7b4e3aad::t_8c74e3e8ed6ca9 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "90a5fc1f638ed23b2d6900866ae47bb9947ebd69",
+  "prompts": {},
+  "sessions": {
+    "s_3675bf950b5936": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f753e-81fa-77e1-a0c0-194bc69846bd",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4c228e7b4e3aad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f753f-52e4-7653-adea-807dea862153",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

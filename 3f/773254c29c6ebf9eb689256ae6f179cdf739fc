@@ -1,0 +1,26 @@
+packages/core/src/server/production-server.ts
+  s_7c2a26ae7397db::t_79868d520ced5e 69,72-76,85-87
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_6f86a5620766a8 35,39-63
+  s_7c2a26ae7397db::t_e64ffcdae59c40 36-38
+packages/core/src/build/elysia-aot.ts
+  s_7c2a26ae7397db::t_e5627b6e4169f8 45
+packages/core/tests/build/elysia-aot.test.ts
+  s_7c2a26ae7397db::t_094166eb91619b 2,33-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3f773254c29c6ebf9eb689256ae6f179cdf739fc",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

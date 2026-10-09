@@ -1,0 +1,31 @@
+packages/core/tests/client/sync/sync-runtime.test.ts
+  s_2a4069bf188ef3::t_deeb8789ce8031 76-91
+apps/docs/src/content/docs/deployment.mdx
+  s_2a4069bf188ef3::t_0010af9c45a1b8 225
+packages/core/src/server/sync/adapter.ts
+  s_2a4069bf188ef3::t_00ff18e219145c 61-64,75-78
+packages/core/src/server/sync/plugin.ts
+  s_2a4069bf188ef3::t_175a556965cc27 243-246
+packages/core/src/server/sync/runtime.ts
+  s_2a4069bf188ef3::t_fc06fa29d703b1 18-24
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_2a4069bf188ef3::t_59db8431340c23 1,78-115
+packages/core/tests/client/sync/sync-catch-up.test.ts
+  s_2a4069bf188ef3::t_0081abf5dcee9b 66-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e4135faf3b57757918dafb108f6b383036336266",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,209 @@
+apps/docs/src/pages/root.tsx
+  5b56c22e313f91e7 4-5,25-29,36
+apps/docs/src/content/docs/dev-hmr.mdx
+  92fcd4ba8da7e9b0 3-8,15-16,29,35,50-56,72,74-75,80-82,84,87-121,136-139
+packages/core/tests/fixtures/cli-app-ssr/src/server.ts
+  fa591cb4b7cc84b5 1-14
+packages/core/src/client.ts
+  5b56c22e313f91e7 34-42,125,133,146,170,178,187,234
+AGENTS.md
+  92fcd4ba8da7e9b0 7,33,77-83
+packages/core/tests/fixtures/cli-app-ssr/src/pages/root.tsx
+  fa591cb4b7cc84b5 1-5
+packages/core/src/adapter/static.ts
+  fa591cb4b7cc84b5 1-9,11-250,252-268
+packages/core/src/link.tsx
+  5b56c22e313f91e7 194-200,243,299-309,420-423,425,434,445-452,458,460-466,473,486,494,500-501,505,522,526,576-579,583,589-595,602-605,607,609,611-614,616,625,630-635,637,641-643,647-648,653,660-664,672-673,675,677-679,686,732,750-756,779-785,790-793,800-802,855-856,906-1022
+  fa591cb4b7cc84b5 424,426-427
+packages/core/tests/fixtures/cli-app-ssr/src/pages/index.tsx
+  fa591cb4b7cc84b5 1-5
+packages/core/src/render/index.ts
+  5b56c22e313f91e7 1,3,61-62,86-109,120-121,124-146,193-194,205
+packages/core/tests/types.test.tsx
+  5b56c22e313f91e7 61-99,247,270,310-314,323,338-342,348-352,359,476,482-486,490
+  b066bf660351692b 2
+apps/docs/src/content/docs/data-loading.mdx
+  5b56c22e313f91e7 39-41,52-68,119-121,123,132-134,136,142-165
+apps/docs/src/content/docs/deployment.mdx
+  5b56c22e313f91e7 3,5-117,138,151,165,177
+packages/core/tsconfig.json
+  5b56c22e313f91e7 4
+packages/core/tests/fixtures/cli-app-ssr/public/.gitkeep
+  fa591cb4b7cc84b5 1
+packages/core/tests/fixtures/cli-app/furin-env.d.ts
+  92fcd4ba8da7e9b0 1-10
+packages/core/src/build/client.ts
+  5b56c22e313f91e7 37,48,60,84,109-111,139-142
+apps/docs/src/server.ts
+  fa591cb4b7cc84b5 7,21-44,46-55,57-66,68-74
+packages/core/src/dev-page-plugin.ts
+  5b56c22e313f91e7 29-51,66-152,156-191,219-243,247-255,259,263-280,384-385,389-418,427,430
+  90949739039db31e 59,64-65,153-155,244-246,256-258,260-262,281-333,349-383,423-426
+.gitignore
+  5b56c22e313f91e7 45
+packages/core/tests/link.test.tsx
+  fa591cb4b7cc84b5 13,377
+  5b56c22e313f91e7 20,27-52,351-376
+apps/docs/scripts/generate-docs-content.ts
+  fa591cb4b7cc84b5 48-56
+apps/docs/src/components/docs-search-dialog.tsx
+  fa591cb4b7cc84b5 15,19-27,29-62,92,94-95,148-175,189-191,193-194,196-197,199-203,206-208,210-222,225-233,236,243
+  92fcd4ba8da7e9b0 209
+  f4ae8c7e274b7b45 3,18,28
+packages/core/src/router.ts
+  92fcd4ba8da7e9b0 224-233,238
+packages/core/tests/fixtures/cli-app-ssr/src/pages/blog/[slug].tsx
+  fa591cb4b7cc84b5 1-6
+packages/core/tests/render.test.ts
+  5b56c22e313f91e7 231-239,247,251-266,274,278-302,305-308,310-327,330-340,348,352-353
+  0d368bbe8922aa70 267-273,275-277,328-329
+packages/core/src/config.ts
+  5b56c22e313f91e7 5,9-34,48-54,60
+packages/core/src/build/hydrate.ts
+  5b56c22e313f91e7 17-20,22-26,38-52,66,86
+packages/core/tests/dev-page-plugin.test.ts
+  5b56c22e313f91e7 2-4,83-173
+packages/core/tests/fixtures/cli-app-ssr/src/pages/dashboard.tsx
+  fa591cb4b7cc84b5 1-8
+packages/core/src/cli/index.ts
+  5b56c22e313f91e7 73-84,95
+packages/core/tests/adapter-static.test.ts
+  fa591cb4b7cc84b5 1-192
+packages/core/tests/react-singleton-integration.test.ts
+  90949739039db31e 19-30,32-44,51-54,125-193
+  fa591cb4b7cc84b5 1-18,31,45-50,55-124,194-196
+apps/docs/public/llms-full.txt
+  5b56c22e313f91e7 316-318,329-345,396,398-400,409-411,413,419-445,887-889,891-997,1014,1027,1041,1053
+packages/core/src/build/index.ts
+  fa591cb4b7cc84b5 126-128
+  5b56c22e313f91e7 4,8-9,11-13,23,27-29,31-33,42,44-45,48-50,52-53,56,59-76,103,120-125
+packages/core/src/render/loaders.ts
+  5b56c22e313f91e7 2,9-43,47-48,53-57,59-60,62-65,67-71,75-76,78,81
+packages/core/src/build/types.ts
+  5b56c22e313f91e7 1,5-10,14-18,41-42,50,60-61,65-73,76
+apps/docs/furin.config.ts
+  5b56c22e313f91e7 9-11,15-18
+apps/docs/package.json
+  5b56c22e313f91e7 15-16
+packages/core/package.json
+  5b56c22e313f91e7 3
+CLAUDE.md
+  f4ae8c7e274b7b45 1-83
+packages/core/tests/hydrate-entry.test.ts
+  fa591cb4b7cc84b5 1-8,11-33,40-93,162-163
+  92fcd4ba8da7e9b0 96
+  90949739039db31e 10,34-36,38-39,94-95,97-122,124-161
+apps/docs/scripts/preview-static.ts
+  fa591cb4b7cc84b5 1-15,17-94,96-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "3bd4ddbfd812e01822cc7f6e5117ae77410118be",
+  "prompts": {
+    "0d368bbe8922aa70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3349ef9b-b71b-4fc1-9519-57f3392d9157",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 317,
+      "total_deletions": 129,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    },
+    "5b56c22e313f91e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8fcdc3d1-955d-4be5-9525-6fc9e713c5eb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 3697,
+      "total_deletions": 3024,
+      "accepted_lines": 2309,
+      "overriden_lines": 2
+    },
+    "8863a33ae70375aa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8d67-4c7b-7bb3-b949-45f29ed1ee34",
+        "model": "unknown"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "90949739039db31e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d8d67-4c54-7360-9ab8-e112e8d3fa66",
+        "model": "gpt-5.4"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 310,
+      "total_deletions": 56,
+      "accepted_lines": 279,
+      "overriden_lines": 3
+    },
+    "92fcd4ba8da7e9b0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f58bc97b-bb8d-45a5-91d9-5b7f97af8779",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 102,
+      "total_deletions": 26,
+      "accepted_lines": 95,
+      "overriden_lines": 0
+    },
+    "b066bf660351692b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "391da3a9-b99d-41bf-afe7-f7dfd1cd751d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "f4ae8c7e274b7b45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbb965b4-2f91-4e32-b6c7-6c537064c212",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 8,
+      "accepted_lines": 86,
+      "overriden_lines": 1
+    },
+    "fa591cb4b7cc84b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "657bfdef-7d9f-4353-892d-2fb31795b11b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 11347,
+      "total_deletions": 3209,
+      "accepted_lines": 964,
+      "overriden_lines": 24
+    }
+  }
+}

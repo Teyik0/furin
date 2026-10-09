@@ -1,0 +1,21 @@
+packages/core/tests/client/sync/query-store.test.ts
+  s_91fb1436775985::t_f53eb56ef2cd01 133-160
+packages/core/src/client/query-store.ts
+  s_91fb1436775985::t_628f6ea11159ec 431-435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2af5c5ba62eda75f45226b72b9a5e4caba29199f",
+  "prompts": {},
+  "sessions": {
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

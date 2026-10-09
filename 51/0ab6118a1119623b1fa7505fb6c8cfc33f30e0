@@ -1,0 +1,120 @@
+packages/core/src/server/render/mixed-cache.ts
+  s_035d1b9503f515::t_d626b88a3af0b5 155-157
+apps/docs/src/components/docs-search-trigger.tsx
+  s_035d1b9503f515::t_9b7eccfa8f5040 1-10,12-35,37-39,41,43
+  s_3374b237594169::t_88c78f5c64a1a8 11,36,40,42
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_035d1b9503f515::t_95c1a8b06955e2 334,1181-1217
+  s_035d1b9503f515::t_6239cabc93a9d1 1218-1219
+packages/core/tests/client/sync/query-identity.test.ts
+  s_035d1b9503f515::t_828b988b451e60 1-3,5-15
+  s_035d1b9503f515::t_8f5b1736cec317 4
+apps/docs/tests/docs-search-dialog.test.tsx
+  s_035d1b9503f515::t_2014e1cf810cea 5-9,35-41
+  s_035d1b9503f515::t_ed4d7704c80ab7 1-4,10-12,14-17,19,21-34,42-47
+  s_035d1b9503f515::t_7852fd235799dd 13,18,20
+packages/core/package.json
+  s_035d1b9503f515::t_3357381619edfa 168
+packages/core/src/server/render/ppr-route.ts
+  s_035d1b9503f515::t_75686707db7df9 296-298
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_035d1b9503f515::t_9c5eb99414b6ed 95-115,117-132
+  s_035d1b9503f515::t_42505409ae29ae 116
+packages/core/tests/client/sync/query-store.test.ts
+  s_035d1b9503f515::t_64365062321227 54-62
+  s_035d1b9503f515::t_ce04e740c39e6f 150-155
+  s_035d1b9503f515::t_cbb6988ca379e5 186
+  s_035d1b9503f515::t_5073b3430a5650 123-136
+  s_035d1b9503f515::t_a3f1b306e2f998 165-172,174-185,187-189
+  s_035d1b9503f515::t_52cd49665987df 173
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_035d1b9503f515::t_d6360027c5a72a 63,67-72
+apps/docs/src/components/root-layout.tsx
+  s_035d1b9503f515::t_c837d6f28b5bb7 3,15-22,24-25
+  s_3374b237594169::t_bcf84eda50124e 26,28-36,38-52,54,56-86,89-91
+examples/task-manager/src/lib/card-mutations.ts
+  s_035d1b9503f515::t_ed6a841559b46f 27-32,34-35,37-42
+  s_035d1b9503f515::t_3bc2ae5331eb85 36
+apps/docs/src/components/doc-page.tsx
+  s_035d1b9503f515::t_8172da27fe4abe 2,56
+  s_035d1b9503f515::t_af1694c68df341 61,68
+  s_035d1b9503f515::t_b04e3538fcd11f 52,55,57-58,60
+apps/docs/src/pages/docs/sync.tsx
+  s_035d1b9503f515::t_30258eb473e377 2-3,11,13-16,21-24
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_035d1b9503f515::t_a84433919ca043 174-177,179-181,183-185,187-197,199-211,213-221,223,225-229,232-239
+  s_035d1b9503f515::t_848de7641fa328 182,186,230-231
+  s_035d1b9503f515::t_e5dfdb829b2f64 224
+  s_035d1b9503f515::t_a83e3de3c9f8a4 430
+  s_035d1b9503f515::t_c31e9c7c4b2253 178
+  s_035d1b9503f515::t_417c6e90177b2d 198
+  s_035d1b9503f515::t_7f795fd7d587da 212
+  s_035d1b9503f515::t_b49e840ae210c7 222
+packages/core/src/shared/sync-query.ts
+  s_3374b237594169::t_9f458ebcaad56c 84-86
+  s_035d1b9503f515::t_c001cb8d6d1230 83,87-88,120-122
+  s_035d1b9503f515::t_11856e2f86e2be 97-119
+apps/docs/src/components/docs-search-dialog.tsx
+  s_035d1b9503f515::t_e24fdffce82dce 42,207-210
+  s_035d1b9503f515::t_3c521e78e5e99d 18,169-171,173-175,177,291
+  s_3374b237594169::t_3badee0d2ee40c 168,172
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_035d1b9503f515::t_e908897429abbc 89-103
+  s_035d1b9503f515::t_b7ef9fc2691c28 37-41,43-44,51-53,119
+  s_035d1b9503f515::t_b167353f920561 87,117
+  s_035d1b9503f515::t_451d8baa87a3a5 42,54-55,88
+packages/core/src/env.d.ts
+  s_035d1b9503f515::t_72c2ea06a0108e 46,48
+packages/core/tests/client/sync/query-client.test.tsx
+  s_035d1b9503f515::t_6bb52e17bbe652 39-40,42
+  s_035d1b9503f515::t_4e089b20bd5eba 9,11,15-16
+packages/core/tests/rendering/ssr/query-loaders.test.tsx
+  s_035d1b9503f515::t_c57b590e5d3165 319-343,346-366
+  s_035d1b9503f515::t_e0ceb33c8f1ba6 9-11,13-14,165-175,200,230-231,242-243
+  s_035d1b9503f515::t_56d23cb7e11272 164,176-190,192-199,201-207,211-217,219-229,232-233,235-241,244-248
+  s_035d1b9503f515::t_fa05e514a53bab 12
+  s_035d1b9503f515::t_472f51977eb425 191
+  s_035d1b9503f515::t_ab020e7ddc3abf 208-210
+  s_035d1b9503f515::t_39988ef995d492 218
+  s_035d1b9503f515::t_7ce4a54c795fbc 234
+  s_035d1b9503f515::t_5149a884f98d3f 344-345
+packages/core/src/server/render/isr.ts
+  s_035d1b9503f515::t_732ac4b027a32d 758-761
+  s_035d1b9503f515::t_25764855c9cc63 768,773-779
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_035d1b9503f515::t_8f08f66d73671a 115-147
+packages/core/src/server/sync/query-context.ts
+  s_035d1b9503f515::t_1229089890c7e7 65-67
+packages/core/src/client/query-store.ts
+  s_035d1b9503f515::t_da29fabc76eb16 304
+  s_035d1b9503f515::t_4b8f03d0f50bbd 181-182,212-228
+  s_035d1b9503f515::t_a26bbb00af6fd8 14-15,179-180,188,411-412
+  s_035d1b9503f515::t_eafb2b2e97c014 186
+  s_035d1b9503f515::t_60599bfb5212f4 229-230
+bun.lock
+  s_035d1b9503f515::t_5258fe6aef1d14 121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "510ab6118a1119623b1fa7505fb6c8cfc33f30e0",
+  "prompts": {},
+  "sessions": {
+    "s_035d1b9503f515": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f435-6a6d-78c1-86d1-50938836251a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3374b237594169": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a5dd1ac-8c1b-417b-88f1-7a887407992b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

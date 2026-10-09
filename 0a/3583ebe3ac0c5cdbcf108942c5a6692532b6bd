@@ -1,0 +1,19 @@
+packages/core/tests/dev-hmr-cache-invalidation.integration.test.ts
+  s_d5f13cdb647e2e::t_85e2a2255c45a2 150-153,156,160-166,173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "0a3583ebe3ac0c5cdbcf108942c5a6692532b6bd",
+  "prompts": {},
+  "sessions": {
+    "s_d5f13cdb647e2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8db78949-b76d-43e1-8b49-afb983313977",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

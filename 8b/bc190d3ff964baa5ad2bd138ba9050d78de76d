@@ -1,0 +1,33 @@
+examples/task-manager/src/components/create-board-form.tsx
+  s_d5f13cdb647e2e::t_5ee88a1715f919 1,8-11,14-16,21
+  s_d5f13cdb647e2e::t_e8fa3b627f0d0d 35
+packages/core/src/adapter/static.ts
+  s_d5f13cdb647e2e::t_960af6f7fd13cb 152,169
+  s_d5f13cdb647e2e::t_0be29944609c7b 12
+packages/core/src/utils.ts
+  s_d5f13cdb647e2e::t_bf8fb7d093fa79 48-78
+packages/core/src/router.ts
+  s_d5f13cdb647e2e::t_445137385417fe 39
+  s_d5f13cdb647e2e::t_70bb728ba1310d 1054-1060,1073,1076,1081-1085
+  s_d5f13cdb647e2e::t_51070ba6e4366e 1079
+packages/core/src/render/index.ts
+  s_d5f13cdb647e2e::t_5bc8524eabf90f 8
+  s_d5f13cdb647e2e::t_8ab5cb5acaec0e 970-984
+  s_d5f13cdb647e2e::t_9a9a328ca5b821 939-942,949
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "8bbc190d3ff964baa5ad2bd138ba9050d78de76d",
+  "prompts": {},
+  "sessions": {
+    "s_d5f13cdb647e2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8db78949-b76d-43e1-8b49-afb983313977",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

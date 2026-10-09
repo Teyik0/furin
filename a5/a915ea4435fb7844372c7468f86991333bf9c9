@@ -1,0 +1,56 @@
+packages/core/tests/cache.test.ts
+  6e39ed0a2328d8e2 1,23-24,29-30
+apps/scaffolder/package.json
+  b16194350eef2867 2,4,15,20-24,26-27
+packages/core/src/furin.ts
+  6e39ed0a2328d8e2 11,14,151-157,159-163,241,259,274,340
+apps/scaffolder/tsconfig.json
+  b16194350eef2867 3-18,20-21
+apps/scaffolder/README.md
+  b16194350eef2867 3,9-27
+packages/core/src/render/index.ts
+  6e39ed0a2328d8e2 6,11,230-278,280,282-286,299,333
+apps/scaffolder/src/errors.ts
+  b16194350eef2867 2,5-11
+apps/scaffolder/src/package-catalog.ts
+  b16194350eef2867 12
+packages/core/src/render/cache.ts
+  6e39ed0a2328d8e2 64-69,71-86,89,94-95,98-99,170,211
+apps/scaffolder/src/engine/helpers.ts
+  b16194350eef2867 1-47
+apps/scaffolder/src/generated/package-catalog.json
+  b16194350eef2867 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "a5a915ea4435fb7844372c7468f86991333bf9c9",
+  "prompts": {
+    "6e39ed0a2328d8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2e5f3a2-390d-4fac-bd6b-7cd4a1f951b9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 134,
+      "total_deletions": 69,
+      "accepted_lines": 114,
+      "overriden_lines": 2
+    },
+    "b16194350eef2867": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f7c9372b-41f7-4795-ad67-c54d2b830365",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 350,
+      "total_deletions": 0,
+      "accepted_lines": 323,
+      "overriden_lines": 2
+    }
+  }
+}

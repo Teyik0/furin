@@ -1,0 +1,27 @@
+packages/core/tests/auto-invalidate.test.ts
+  s_7e941f2bc779fa::t_df200c640bc66d 141-172
+  s_7e941f2bc779fa::t_4546b9f1221c84 173-200
+packages/core/src/render/loaders.ts
+  s_7e941f2bc779fa::t_8fe699ce66ad7f 162-190
+  s_7e941f2bc779fa::t_31e3273c560587 280-284
+packages/core/src/router.ts
+  s_7e941f2bc779fa::t_25302749da914b 1409-1420
+CHANGELOG.md
+  s_7e941f2bc779fa::t_61f29b58af3d09 17-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "9bbc0110fd5417c3e14f25eddb5eda2f086a0665",
+  "prompts": {},
+  "sessions": {
+    "s_7e941f2bc779fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb9fedbf-89b7-45bf-b305-69c1d3858949",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

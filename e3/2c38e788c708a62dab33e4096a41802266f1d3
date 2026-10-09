@@ -1,0 +1,330 @@
+packages/core/tests/dev-page-plugin.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/link/normalize-href.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/link/scroll-restoration.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 7-8
+packages/core/tests/link/interactive.test.tsx
+  ai_agent 6-11
+packages/core/tests/router/not-found-scan.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tsconfig.json
+  s_8d0ff0fcf4ced5::t_42005fe1112233 5
+packages/core/src/server/render/element.tsx
+  s_31454683ff0ef9::t_d56afb17413edf 3
+  s_4d952d5811185a::t_908051b733dd7c 2,4-6
+packages/core/tests/router/schema-merge.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 27-28
+packages/core/tests/router/route-chain-layouts.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 6-8
+packages/core/tests/await.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 4
+packages/core/bunfig.toml
+  s_4d952d5811185a::t_1447ca7b0fd86e 15
+packages/core/tests/adapter-static.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 13-16
+  s_4d952d5811185a::t_8b5e0d25769aca 120
+packages/core/src/client/router/boundary-tree.tsx
+  s_31454683ff0ef9::t_e68f91b904eb13 1-109
+packages/core/tests/deferred-endpoint.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 20-21
+  ai_agent 22
+packages/core/tests/types.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 17-18
+packages/core/src/server/cache/invalidation.ts
+  ai_agent 2-13,83,93-96,99-102,106,109-110
+packages/core/tests/adapter-bun.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 6
+packages/core/tests/render-not-found.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 13-15
+  ai_agent 16
+packages/core/src/build/index.ts
+  s_4d952d5811185a::t_7887c9baa7ba77 6
+packages/core/src/server/render/loaders.ts
+  s_4d952d5811185a::t_493a4e77d804f2 2-3,5
+packages/core/tests/router/scan-order.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 5-6
+packages/core/tests/router/patterns.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/router/e2e-inline-layout.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3-5
+packages/core/src/client/router/types.ts
+  s_31454683ff0ef9::t_6834cb134034e4 1-262
+packages/core/tests/isr-uselogger-bg-revalidation.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 34-38
+  ai_agent 33
+packages/core/src/build/route-types.ts
+  s_4d952d5811185a::t_db07eb391306c1 3
+packages/core/tests/furinjs.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 5-8
+packages/core/src/server/auto-invalidate/types.ts
+  s_4d952d5811185a::t_2aacb767d344c7 1
+packages/core/src/adapter/bun.ts
+  s_4d952d5811185a::t_6749b02c1e962b 23-28
+  s_4d952d5811185a::t_03e9a547a2cbae 10-11
+  ai_agent 17
+  s_4d952d5811185a::t_7e6d2ec7a42caf 14-16,18,21
+packages/core/tests/deferred-render.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/package.json
+  s_4d952d5811185a::t_1d3e10d4e687d4 45-47,65-67,75-77
+  s_4d952d5811185a::t_aa0117b9a1e0e3 37-39
+packages/core/src/plugin/transform-client.ts
+  s_4d952d5811185a::t_7879cbd8368db3 3-4
+  s_4d952d5811185a::t_fabc3f1a73413c 365
+  s_17bd885893e34d::t_e45ee6cd79aad6 222,249
+  s_17bd885893e34d::t_be2012103fd1d2 355
+packages/core/src/server/router/discovery.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 1-6,14-18,38-453
+  ai_agent 7-13
+  s_8d0ff0fcf4ced5::t_9e7852c771c4e2 19-37
+packages/core/tests/link/router-provider-intercept.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 6-7
+packages/core/tests/render-template.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 11
+packages/core/src/client/router/link-utils.ts
+  s_31454683ff0ef9::t_ffb0d414157f16 1,3-5,8-11,13-28,31-34,37-51,54-57,62-77,81-82,85-93,96-101,104-106,110-112,116-123,127-128,131-132,135-138,140-144,147-149,151-154,156-164,166-177,179
+packages/core/src/server/render/ssr.ts
+  s_4d952d5811185a::t_223189e5f16ae7 11-14
+  s_8d0ff0fcf4ced5::t_6fbece59431eb5 7-9
+packages/core/src/server/router/schemas.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 1-163
+packages/core/src/server/render/boundaries.tsx
+  s_4d952d5811185a::t_331dfb28f7c29c 2-3
+packages/core/src/server/auto-invalidate/plugin.ts
+  s_31454683ff0ef9::t_10b475461887f1 1-25
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 21,28-29,498,653
+  ai_agent 11,22-27
+packages/core/tests/cache.test.ts
+  ai_agent 33,36,38-39,41-42,47-48
+  s_4d952d5811185a::t_c2aaf6389bdb75 52-53
+packages/core/tests/router/validation.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 6
+  ai_agent 7-11
+packages/core/tests/shell.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 14
+packages/core/src/adapter/static.ts
+  s_4d952d5811185a::t_e3c72db759d726 7-12
+packages/core/src/server/dev-inspector.ts
+  s_4d952d5811185a::t_2dec75730fb145 7
+packages/core/src/build/compile-entry.ts
+  s_17bd885893e34d::t_4e5d6a1a0493ca 3,13
+packages/core/src/server/context-logger.ts
+  s_4d952d5811185a::t_a9c558e46dc81b 17-18
+packages/core/tests/deferred-client.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tests/render-digest.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 7
+packages/core/src/server/render/not-found.ts
+  s_4d952d5811185a::t_27f369ef0cad1e 2-3,5
+  s_8d0ff0fcf4ced5::t_6fbece59431eb5 4
+packages/core/src/server/render/shell.ts
+  s_31454683ff0ef9::t_9c56345dff0052 1
+packages/core/tests/render-error.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 18-20
+packages/core/tests/router/route-plugin.test.ts
+  ai_agent 11-15
+  s_4d952d5811185a::t_c2aaf6389bdb75 16
+packages/core/tests/furinjs-not-found.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 9-11
+packages/core/tests/request-scope-integration.test.ts
+  ai_agent 11-15
+  s_4d952d5811185a::t_c2aaf6389bdb75 10,16
+packages/core/src/client/router/provider.tsx
+  ai_agent 3
+  s_4d952d5811185a::t_d8ff51d15c4eb2 4-5,7-35,52,95,119,172,221,232,243,532,586,630,637
+packages/core/src/server/render/default-screens.tsx
+  s_8d0ff0fcf4ced5::t_6fbece59431eb5 20
+  s_4d952d5811185a::t_b8d67ce8621a69 21-22
+packages/core/src/client/router/context.ts
+  s_31454683ff0ef9::t_e5db3726efe816 1-38
+packages/core/tests/loaders.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 24-27
+  ai_agent 28
+packages/core/tests/render.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 19,32-34,36-39
+  s_4d952d5811185a::t_cf768e8fd810d4 283
+packages/core/src/server/render/ssg.ts
+  s_4d952d5811185a::t_2597251e012b8a 3-4
+  s_4d952d5811185a::t_23b4ab9f7a89b8 6
+packages/core/tests/route-types.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 6
+packages/core/src/server/cache/ssg.ts
+  ai_agent 1-24
+packages/core/tests/render-element-boundaries.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 21-23
+  ai_agent 24-25
+packages/core/src/build/scan-server.ts
+  s_17bd885893e34d::t_856280f4c41edf 30-34
+  s_4d952d5811185a::t_6db4d5ef6dff4f 3-4
+packages/core/src/client/router/spa-response.ts
+  s_31454683ff0ef9::t_8130f73bea004b 1-6,8-18,21-22,24-27,29,31-46,48,52,54,56-60,62-65,68,71-85,88-106,109-122,124-125,127-130,132-142
+packages/core/src/build/server-routes-entry.ts
+  s_17bd885893e34d::t_c04891aab69b31 3,17
+packages/core/tests/data-endpoint-logging.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 35-36
+packages/core/build.ts
+  s_4d952d5811185a::t_741b469d44dbc4 26,30,32,35-36
+  s_4d952d5811185a::t_e392ba3a3d8129 43-45,47-48,54-56
+packages/core/src/shared/boundaries.tsx
+  ai_agent 2
+  s_8d0ff0fcf4ced5::t_6fbece59431eb5 3-4
+  s_17bd885893e34d::t_e285283b3ef843 5-77
+packages/core/tests/deferred-abort.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tests/build-cli.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 5-6
+packages/core/tests/link/router-provider-redirect-follow.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 7-8
+packages/core/tests/auto-invalidate.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 47
+  s_4d952d5811185a::t_9bf639bf3ca248 150,161
+packages/core/src/server/auto-invalidate/runtime.ts
+  s_4d952d5811185a::t_533ed39c573ad0 2
+packages/core/src/build/types.ts
+  s_4d952d5811185a::t_80277b5127f9e8 2
+packages/core/src/server/cache/registry.ts
+  ai_agent 1-35
+packages/core/tests/link.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 14,27-28
+  ai_agent 29
+packages/core/src/server/router/patterns.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 1-60,62-63,66-72,76-78,80-92,94-95,97-128
+packages/core/tests/router/cache-headers.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 11-13
+packages/core/src/client/link.tsx
+  s_4d952d5811185a::t_a82746bbab52f4 11,13-14
+packages/core/tests/furinjs-runtime.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 6-9
+packages/core/src/client/router/history.ts
+  s_31454683ff0ef9::t_8ec61d497db61d 1,3-4,7-8,11,13-20,22,26-40
+packages/core/src/build/hydrate.ts
+  s_4d952d5811185a::t_d2fcab18b48401 3-4
+packages/core/tests/render-boundaries.test.tsx
+  ai_agent 26-27
+  s_4d952d5811185a::t_c2aaf6389bdb75 24-25
+packages/core/tests/router/error-scan.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/src/build/shared.ts
+  s_4d952d5811185a::t_7fdaa89eca4cc8 4
+packages/core/src/server/router/hmr.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 1-11,16-386
+  s_4d952d5811185a::t_0a9005d10486c1 13
+  ai_agent 14-15
+packages/core/src/server/dev-page-plugin.ts
+  s_4d952d5811185a::t_8ba31eeac503ee 56
+packages/core/src/shared/utils.ts
+  s_31454683ff0ef9::t_6051de5558c76f 1
+bun.lock
+  ai_agent 8-10,13-15,17,27,36,41,59,62,79,111,119,135,138-140,145-160,163-169,171,173,175,177,179,181,183,185-191,195,197,199,201,211,213,215,217,219,221,225,229,237-238,305-318,329-338,341-346,349-350,353-364,373-386,413,415,417,419,421,423,425,427,429,431,433,435,437,439,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,471,473,475,477,479,481,483,485,487,489,491,651-659,661,663,665,667,669,671-673,683-684,687,689,719-720,729,743,745,747,749,751,753,755,757,759,761,763,767-768,775-776,789-790,795-796,801-802,813-814,827-828,843-846,853-854,869-870,875-876,881-883,889,895-899,907,921-925,931-934,953-955,963-964,971-974,989-990,995-1002,1009-1010,1045-1048,1053-1054,1057-1061,1093-1096,1101-1106,1109-1110,1113-1115,1117,1119,1121,1123,1125,1127,1129,1131,1133,1135,1137-1139,1143-1144,1149,1153-1154,1269-1270,1277-1278,1285-1296,1305,1307-1309,1313-1317,1327-1328,1341-1342,1347-1350,1355,1357,1359,1397-1398,1417,1425-1426,1441-1444,1449-1450,1463-1464,1475-1478,1483,1503-1506,1515-1516,1529-1530,1533-1534,1541-1542,1549-1551,1555-1556,1559-1574,1579,1583-1586,1593-1596,1599-1600,1603-1604,1607-1608,1619-1624,1709-1710,1713-1754
+packages/core/src/client.ts
+  s_4d952d5811185a::t_4496631c4f7136 15
+packages/core/src/build/entry-template.ts
+  ai_agent 6-12
+  s_17bd885893e34d::t_90b678c0a51bb9 43,45,47-51
+  s_4d952d5811185a::t_a57e92cc5e90a6 18-19
+  s_17bd885893e34d::t_6e730d3d942f85 44,46
+packages/core/src/server/render/isr.ts
+  s_4d952d5811185a::t_702d0a3a35d7b5 7
+  s_4d952d5811185a::t_484e8111b1cd81 4-5
+packages/core/tests/route-cache.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tests/deferred-rejection.test.ts
+  ai_agent 20
+  s_4d952d5811185a::t_c2aaf6389bdb75 19
+packages/core/tests/link/route-matching-trailing-slash.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/hydrate-entry.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 12
+  s_8d0ff0fcf4ced5::t_6fbece59431eb5 43
+packages/core/src/server/router/types.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 1-59
+packages/core/tests/link-boundaries.test.tsx
+  ai_agent 24-25
+  s_4d952d5811185a::t_c2aaf6389bdb75 20-21,23
+packages/core/tests/deferred-loaders.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 22-23
+packages/core/tests/router/hydration-order.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3-5
+packages/core/src/server/render/index.ts
+  ai_agent 1-22
+packages/core/src/server/auto-invalidate/registry.ts
+  s_31454683ff0ef9::t_10b475461887f1 1-3,5-9,11,13-22,25-30,32-33,35-38,41-44,46-48,50-52,54-57,59-60
+packages/core/tests/link/build-data-endpoint.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/router/dev-route-rebuild.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/src/server/router/plugin.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 4-7,14-18,20-23,25-26,68,112,117
+  s_8d0ff0fcf4ced5::t_9e7852c771c4e2 63-67
+packages/core/tests/error-boundary-navigation.test.tsx
+  s_4d952d5811185a::t_c2aaf6389bdb75 4
+packages/core/tests/deferred-hydration-race.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tests/utils/ast-walk.test.ts
+  s_17bd885893e34d::t_6c537d8cb71ffe 1,3-78
+  s_4d952d5811185a::t_c2aaf6389bdb75 2
+packages/core/tests/router/refresh-layout.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3
+packages/core/tests/react-singleton-integration.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 12-13
+packages/core/src/server/cache/isr-ssg.ts
+  ai_agent 1-18
+packages/core/src/server/furin.ts
+  s_4d952d5811185a::t_96aa8ed04dc43d 13-15,18
+  s_4d952d5811185a::t_b220109f6b4811 252
+  s_8d0ff0fcf4ced5::t_42005fe1112233 255,389-392,397-398
+  s_4d952d5811185a::t_917f3209e2a66a 401
+packages/core/tests/link/should-intercept-click.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 4
+packages/core/tests/router/plugin.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 3-4
+packages/core/src/build/client.ts
+  s_4d952d5811185a::t_e816d328dbe9d7 4
+packages/core/src/server/router/index.ts
+  s_8d0ff0fcf4ced5::t_cf2cba3c84f23b 2-3,11,19
+  s_4d952d5811185a::t_e21a532eaeda04 1
+packages/core/tests/router/segment-boundaries.test.ts
+  s_4d952d5811185a::t_c2aaf6389bdb75 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e32c38e788c708a62dab33e4096a41802266f1d3",
+  "prompts": {},
+  "sessions": {
+    "s_17bd885893e34d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a545c925ffeDW2ldPZNtZzVzK",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_31454683ff0ef9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37393b63-d1b5-4da5-8d4b-f3291fbda73b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_4d952d5811185a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47d0711f-14d7-4858-a41f-676335e2d604",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_8d0ff0fcf4ced5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8a1f-152f-7192-80d0-979bb2dead29",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

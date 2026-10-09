@@ -1,0 +1,23 @@
+apps/docs/src/content/docs/routing.mdx
+  s_d53042d344584f::t_4bd553f4189fae 135-145
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_d53042d344584f::t_986bd4854a70bb 425-462,930-956,1877-1913
+packages/core/tests/dev/hmr/dev-route-typegen-watch.integration.test.ts
+  s_d53042d344584f::t_abf9c8516fe0bc 1-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3aaf57e35ba2a2d166740f82f950d49d66717b1b",
+  "prompts": {},
+  "sessions": {
+    "s_d53042d344584f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cfc-9c34-7e10-b2c2-048bd53b2897",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

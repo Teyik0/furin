@@ -1,0 +1,27 @@
+packages/core/src/cli/index.ts
+  s_2a4069bf188ef3::t_3a7ec25033a474 162-169
+packages/core/src/devtools/collector.ts
+  s_2a4069bf188ef3::t_fe444a14e7eaa4 75-76,82,86
+packages/core/src/devtools/dashboard.tsx
+  s_2a4069bf188ef3::t_10777ae5145e55 148-163
+packages/core/tests/build/dev-command.test.ts
+  s_2a4069bf188ef3::t_3e553d6d983970 68
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_2a4069bf188ef3::t_97018da3ea444d 17,111-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f519ca4bd7d94661de59023393919ecf95785182",
+  "prompts": {},
+  "sessions": {
+    "s_2a4069bf188ef3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08cda-78e3-7e20-8b66-92ad3ce8fe96",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

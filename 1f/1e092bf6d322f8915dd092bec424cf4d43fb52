@@ -1,0 +1,25 @@
+packages/core/src/render/cache.ts
+  53ff89752e234495 220
+apps/docs/src/components/doc-page.tsx
+  53ff89752e234495 29,31,33,36,38,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1f1e092bf6d322f8915dd092bec424cf4d43fb52",
+  "prompts": {
+    "53ff89752e234495": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21d5b6a7dffeUiCWuJBFSFwlFY",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 7,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}

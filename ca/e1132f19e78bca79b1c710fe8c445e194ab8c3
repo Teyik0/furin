@@ -1,0 +1,129 @@
+packages/core/src/router-provider.tsx
+  ea6ed75276b66f31 1098-1102,1134,1140-1145,1200-1215,1217,1228,1243-1244,1246,1249-1267,1352,1376-1377,1379,1382-1392
+  efb5422074f4c356 20,384-392,472-478,485,488-499,502-507,518-519,760-780,786-787,789-796,1054-1072,1075,1081-1087,1109-1128,1567-1585
+  76925d75ee96edcd 699-701
+  58b1ee5edae242a5 1245,1247,1274,1378,1380,1399
+  cb2baadac803e933 954,1002,1005,1017,1043,1147,1151,1181,1192,1197,1240,1248,1276,1297,1309,1315,1321,1347,1381,1402,1418,1497,1509,1527,1529,1544,1595,1602-1604
+packages/core/src/render/boundaries.tsx
+  efb5422074f4c356 4,12-19,120-124,126,130-132,134-137,140
+packages/core/src/render/element.tsx
+  efb5422074f4c356 111-126,130-132,135-141
+packages/core/tests/fixtures/pages/dynamic/[id]/_route.tsx
+  8c854760cb51fab9 2-8
+packages/core/tests/deferred-endpoint.test.ts
+  8c854760cb51fab9 115-128
+  efb5422074f4c356 24,129-189
+  ea6ed75276b66f31 96
+packages/core/src/router.ts
+  ea6ed75276b66f31 1042-1047,1051-1053,1057-1109,1192-1212
+  efb5422074f4c356 20,1241-1259
+packages/core/tests/render-error.test.ts
+  efb5422074f4c356 251-364
+packages/core/src/render/loaders.ts
+  ea6ed75276b66f31 211,215-216
+  8c854760cb51fab9 217-220,224,228-233
+  efb5422074f4c356 25-72,235-236,241-254,256-262
+packages/core/src/server-error.ts
+  efb5422074f4c356 1-47
+packages/core/tests/loaders.test.ts
+  efb5422074f4c356 1-209
+packages/core/tests/link.test.tsx
+  76925d75ee96edcd 919,921,924,927-933,938-939,950-951,958-959,976-977
+  efb5422074f4c356 164,174,185,200-202,211-213,223-225,763-767,779-810
+packages/core/tests/link-boundaries.test.tsx
+  efb5422074f4c356 95,109,126,141,159,175,209,231,255,272-315
+packages/core/tests/render-element-boundaries.test.tsx
+  efb5422074f4c356 228,230-236,242,248,253-259,264-280
+packages/core/src/error.ts
+  efb5422074f4c356 14-27,42-45
+packages/core/src/render/index.ts
+  ea6ed75276b66f31 480
+  efb5422074f4c356 168-175,388,397,423,432-443,487-492,725,734,741
+packages/core/tests/fixtures/pages/dynamic/[id]/index.tsx
+  8c854760cb51fab9 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "cae1132f19e78bca79b1c710fe8c445e194ab8c3",
+  "prompts": {
+    "58b1ee5edae242a5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_20b75bff8fferRfBtQA0fdjLUV",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "76925d75ee96edcd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21072466affeoa51fIxrS4AqMm",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    },
+    "8c854760cb51fab9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2105c23bbffeWwWm59lgN0x1hy",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 41,
+      "overriden_lines": 0
+    },
+    "cb2baadac803e933": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8d3549-e513-4dbf-8b07-cbd79163c5dd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    },
+    "ea6ed75276b66f31": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2108049c4ffeoFjM9krZ3R3tIN",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 155,
+      "overriden_lines": 0
+    },
+    "efb5422074f4c356": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c507178b-8d6d-477f-8991-352df347b1a9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 894,
+      "overriden_lines": 0
+    }
+  }
+}

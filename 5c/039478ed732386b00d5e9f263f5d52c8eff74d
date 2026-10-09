@@ -1,0 +1,25 @@
+examples/simple/src/pages/index.tsx
+  11488199a72eb77d 5,10,12-16,18,20-35,37-44,46-48,50,52-54,56-58,60-76,78-120,125-126,128-132,135,140,145,150,155,160,164-165,170,177-182,184-185,188-191,193-196,209,215,218,224-249,251-252,254-255,257-322,324-330,332
+examples/simple/src/pages/root.tsx
+  11488199a72eb77d 7,9-10,12,14-15,17-18,20-21,23-25,27-29,31-32,34-35,37-40,44,47-50,52,54,56-57,62,64-65,69-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "5c039478ed732386b00d5e9f263f5d52c8eff74d",
+  "prompts": {
+    "11488199a72eb77d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2953040-1ae3-4d06-92fb-0b40b6b42401",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 391,
+      "total_deletions": 319,
+      "accepted_lines": 311,
+      "overriden_lines": 4
+    }
+  }
+}

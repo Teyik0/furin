@@ -1,0 +1,23 @@
+package.json
+  s_fa3ba074f76831::t_7d4c988160b955 46
+.github/workflows/ci.yaml
+  s_fa3ba074f76831::t_3c0c636f75c957 75,78-99
+bun.lock
+  s_fa3ba074f76831::t_9518226dced232 15,1689-1690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cae410156844a1d2bef564a49ad28e264595ddf4",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

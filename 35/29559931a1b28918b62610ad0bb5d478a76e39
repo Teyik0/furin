@@ -1,0 +1,45 @@
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3295c4a2d42648::t_07ad5bdcb0d5a9 333-342
+  s_3295c4a2d42648::t_41a36e799eeb95 278
+  s_3295c4a2d42648::t_5a5ea9799a3ecb 276,279
+packages/core/src/server/render/ppr-document.ts
+  s_3295c4a2d42648::t_ea43a069d3344d 11,206,236
+  s_3295c4a2d42648::t_d2b8f64c80b98d 191-197
+  s_3295c4a2d42648::t_652e22c6e05199 190
+packages/core/src/server/security/csp.ts
+  s_3295c4a2d42648::t_f71cfb830a4f45 28-31
+.github/workflows/vercel-benchmark.yaml
+  s_3295c4a2d42648::t_38cab1ccaf02d5 118-120,127-131,133
+packages/core/tests/runtime/browser-events/browser-events-client.test.ts
+  s_3295c4a2d42648::t_a68c59106b6a33 110-114
+packages/core/tests/rendering/ssr/ppr-document.test.tsx
+  s_3295c4a2d42648::t_56c2c70e2f1d4d 21,153
+  s_3295c4a2d42648::t_0238259d9b4e33 99-106,146-152,154-155,159
+packages/core/src/server/render/ppr-route.ts
+  s_3295c4a2d42648::t_f71cfb830a4f45 421-423
+  s_3295c4a2d42648::t_e4ef746c5279d9 424
+.github/workflows/ci.yaml
+  s_3295c4a2d42648::t_6cb14ad73b3f05 218
+  s_3295c4a2d42648::t_38cab1ccaf02d5 161-163,170-174,176
+packages/core/src/server/router/plugin.ts
+  s_3295c4a2d42648::t_f71cfb830a4f45 202,204
+  s_3295c4a2d42648::t_68cff6e1ed12d8 203
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_a68c59106b6a33 288-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3529559931a1b28918b62610ad0bb5d478a76e39",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

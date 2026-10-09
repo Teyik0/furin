@@ -1,0 +1,25 @@
+CHANGELOG.md
+  s_cd8a49090aa00e::t_26ccd320c484ca 15
+apps/docs/src/content/docs/deployment.mdx
+  s_cd8a49090aa00e::t_a888bfbcd0d429 291
+packages/core/src/adapter/cloudflare.ts
+  s_cd8a49090aa00e::t_4ebbba1defd1ff 67-71,73-77
+packages/core/tests/build/cloudflare.test.ts
+  s_cd8a49090aa00e::t_31a0696ca7ddc6 115-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f41e1c565d64983d73b3d5987c1939af67588737",
+  "prompts": {},
+  "sessions": {
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/tests/build/devtools-production-isolation.test.ts
+  s_82ce7b9afee04d::t_32a212bd3cbafe 33-37,39,41-43,45,47-56,58-62,64,66-72,74-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "53e2e9f0f87e177787448561f423a78a01d7dd16",
+  "prompts": {},
+  "sessions": {
+    "s_82ce7b9afee04d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07dca-2c80-75a1-b189-c33e1281fe22",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 124,132-135
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 22,24,223,225,308,330,383,412-415,447,461-462,465,583-584,668-683,689
+packages/core/src/build/ssg-cache.ts
+  h_a2cbd1b0e3ae6e 5,40,67-69
+packages/core/src/server/cache/runtime-cache.ts
+  h_a2cbd1b0e3ae6e 129-133
+packages/core/src/server/render/ppr-route.ts
+  h_a2cbd1b0e3ae6e 2,7,13,96,99-100,104-137,152-164
+packages/core/src/server/render/ssg.ts
+  h_a2cbd1b0e3ae6e 2,19-20,29-31
+packages/core/src/server/render/ssr.ts
+  h_a2cbd1b0e3ae6e 516-517,534-546
+packages/core/src/server/router/plugin.ts
+  h_a2cbd1b0e3ae6e 14,24,73-75,203
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 268-295,386-412,436-438,441-451,463-464,470,472-478,480-482,489-491,503-510,514,540-542,557-567,571
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  h_a2cbd1b0e3ae6e 7-10,30,76-141
+packages/core/tests/support/with-build-stub.ts
+  h_a2cbd1b0e3ae6e 73-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "86aaefa722d4447a460001fe646fcb5f1ae30c9f",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

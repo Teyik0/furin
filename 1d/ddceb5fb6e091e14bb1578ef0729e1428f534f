@@ -1,0 +1,32 @@
+packages/core/src/server/sync/memory-adapter.ts
+  s_bc00760963b610::t_7730f63f038b88 18,48,68,169,193-197
+  s_663724f968fe57::t_3ad9e9d822b1c3 198-199
+packages/core/tests/client/sync/memory-sync-adapter.test.ts
+  s_bc00760963b610::t_fd7849fdb3964d 1,13,18-19,25,32-55
+  s_bc00760963b610::t_9eca73b2ad7ebe 4-11,56
+  s_bc00760963b610::t_add11843937542 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "1dddceb5fb6e091e14bb1578ef0729e1428f534f",
+  "prompts": {},
+  "sessions": {
+    "s_663724f968fe57": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5cad-4d0c-7b22-8214-2ed36722e2b3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_bc00760963b610": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5caf-88ef-7c20-b611-fc37a7f71a5d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

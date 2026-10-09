@@ -1,0 +1,28 @@
+.github/workflows/ci.yaml
+  h_a2cbd1b0e3ae6e 89,95,103,109,215
+apps/docs/src/content/docs/deployment.mdx
+  h_a2cbd1b0e3ae6e 142
+packages/core/src/adapter/vercel.ts
+  h_a2cbd1b0e3ae6e 373-379,381-382
+packages/core/src/server/cache/purger.ts
+  h_a2cbd1b0e3ae6e 32-40
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  h_a2cbd1b0e3ae6e 375-383,494-495,523-524,574-575
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  h_a2cbd1b0e3ae6e 42,98-104,124
+packages/core/tests/rendering/deferred/compact-loader-data.test.ts
+  h_a2cbd1b0e3ae6e 47
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  h_a2cbd1b0e3ae6e 167-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "130701f2a34e1a44d273bc490475a38804bd4778",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

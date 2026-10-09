@@ -1,0 +1,19 @@
+packages/core/tests/dev/hmr/dev-server-helper.integration.test.ts
+  s_cd8a49090aa00e::t_572b25c3e22df5 35-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96e56a17fb7d55a53cb27b58ee31cdcd5cef262f",
+  "prompts": {},
+  "sessions": {
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

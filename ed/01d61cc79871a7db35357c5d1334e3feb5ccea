@@ -1,0 +1,23 @@
+packages/core/tests/runtime/cache/redis-page-cache.test.ts
+  s_94f8881e2139f4::t_224fb8f1248b4b 87-107
+packages/core/src/server/render/static-params.ts
+  s_94f8881e2139f4::t_2f47c079ded21e 1,10,35-50,70,75,78
+packages/core/tests/rendering/ssr/static-params.test.ts
+  s_94f8881e2139f4::t_224fb8f1248b4b 100-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ed01d61cc79871a7db35357c5d1334e3feb5ccea",
+  "prompts": {},
+  "sessions": {
+    "s_94f8881e2139f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf45-d557-7fb3-aec4-fe66a3a21b6a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+packages/core/src/rsc/shared.tsx
+  s_d5481d2c57de22::t_7383d72fd82ecb 85-88,94-96,120-124,189-192
+  s_d5481d2c57de22::t_98273cb41816ec 193
+packages/core/tests/rendering/rsc/rsc-suspense.test.ts
+  s_d5481d2c57de22::t_7383d72fd82ecb 1-26
+packages/core/tests/rendering/rsc/rsc-suspense.scenario.tsx
+  s_d5481d2c57de22::t_7383d72fd82ecb 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b6155af938e5df02cef65242d62d350905b5dddf",
+  "prompts": {},
+  "sessions": {
+    "s_d5481d2c57de22": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10559-882c-7b90-a2f6-8acd1da6ccc7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

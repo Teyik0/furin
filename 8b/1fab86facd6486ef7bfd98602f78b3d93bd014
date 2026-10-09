@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_cd8a49090aa00e::t_1037e4b64cd913 9-13,477-478
+bun.lock
+  s_cd8a49090aa00e::t_46d7431913d9d3 114
+packages/core/package.json
+  s_cd8a49090aa00e::t_87c833c949a8ed 3
+packages/core/src/build/elysia-aot-worker.ts
+  s_cd8a49090aa00e::t_1210591427a99b 1-51
+packages/core/src/build/elysia-aot.ts
+  s_cd8a49090aa00e::t_24fcc8e8b21130 1-9,13-18,20-22,58,64-104,106,108,119-125,127-131,135,138-142,144-145,155
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_cd8a49090aa00e::t_b5df6d39130755 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b1fab86facd6486ef7bfd98602f78b3d93bd014",
+  "prompts": {},
+  "sessions": {
+    "s_cd8a49090aa00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a105b9-3bf0-79f1-9ac5-8d113ece2d74",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

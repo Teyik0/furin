@@ -1,0 +1,53 @@
+packages/core/src/devtools/collector.ts
+  s_fdfc7b46fb89f9::t_989b279c9739ca 2,292-295,297-312,337,353,355,361,366,382-384,438,443-444,450-461,464
+packages/core/src/devtools/dashboard.tsx
+  s_fdfc7b46fb89f9::t_7fc1a8e929387b 13,97,101-103,167-170,173,175-177,181-184,212-213,218,223-229,246-248,256-258,263-266,269,286,309,418-420,432,462,466-468,492-497,501-506,515-518,525,580
+packages/core/src/devtools/event-history.ts
+  s_fdfc7b46fb89f9::t_1b171f79b33ccc 1-42
+packages/core/src/devtools/hmr-correlation.ts
+  s_fdfc7b46fb89f9::t_e66650fba430fc 1-104
+packages/core/src/devtools/protocol.ts
+  s_fdfc7b46fb89f9::t_98300d807e15ac 79,177,210,214,218,222,226,238,242-250,254-266,270,274,278,289,360,362-363,434,517,537-541
+packages/core/src/server/devtools/hub.ts
+  s_fdfc7b46fb89f9::t_67b6a43393fc19 1,7,15,18-34,44,47,69,71,74-75,77,79-86,91
+packages/core/src/server/devtools/plugin.ts
+  s_fdfc7b46fb89f9::t_b45188911a1bd8 277
+packages/core/tests/runtime/devtools/devtools-client.test.ts
+  s_fdfc7b46fb89f9::t_ec9f2f25b2ffdb 94,323,367,383,388-394,414-566
+packages/core/tests/runtime/devtools/devtools-correlation.test.ts
+  s_eb4334a35ae091::t_9a6c8df1c8114f 1-64
+packages/core/tests/runtime/devtools/devtools-dashboard.test.tsx
+  s_fdfc7b46fb89f9::t_ce6ccbb6de06ec 5,29,92,130,152-219,221-227,229,231-293,295
+packages/core/tests/runtime/devtools/devtools-event-history.test.ts
+  s_eb4334a35ae091::t_2c885beb507beb 1-49
+packages/core/tests/runtime/devtools/devtools-plugin.test.ts
+  s_fdfc7b46fb89f9::t_dc3a4a35690628 3,71-82
+packages/core/tests/runtime/devtools/devtools-session.test.ts
+  s_fdfc7b46fb89f9::t_b761e5a2ce437b 1-68
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_fdfc7b46fb89f9::t_c944ab3cb40994 482-483
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e87da66ce7b1ad9a71b23ba8a79e124b50ba78b4",
+  "prompts": {},
+  "sessions": {
+    "s_eb4334a35ae091": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1056c-31df-7681-a2ed-9da20a8f938c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fdfc7b46fb89f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1057a-ce6d-7fb3-997b-5ca33ae3bc7a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

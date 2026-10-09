@@ -1,0 +1,19 @@
+.github/workflows/ci.yaml
+  s_a9bbb765ef24b1::t_1c22b55bfa148f 225-227,229-234,236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aac68ceeef208d852df5e601dc148510c81049be",
+  "prompts": {},
+  "sessions": {
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

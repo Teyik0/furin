@@ -1,0 +1,26 @@
+packages/core/src/server/production-server.ts
+  s_7c2a26ae7397db::t_f2832fbee188e4 5,103-107
+  s_7c2a26ae7397db::t_8600abd1a4e720 9-22,115-119,126-130
+packages/core/tests/runtime/production-server.test.ts
+  s_7c2a26ae7397db::t_9c830e0449807a 7-8,291-316
+  s_7c2a26ae7397db::t_e4f0db7851cabe 32-39,54
+  s_7c2a26ae7397db::t_2e3adc68b50524 317-321,341-343,345
+packages/core/src/server/sync/stream.ts
+  s_7c2a26ae7397db::t_f2832fbee188e4 218-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c4d08f6bef059f66be5a6f435d1381c4246bd81e",
+  "prompts": {},
+  "sessions": {
+    "s_7c2a26ae7397db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bfc5-004f-7a80-a5c5-6cc906b88683",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

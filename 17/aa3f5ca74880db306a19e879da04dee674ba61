@@ -1,0 +1,26 @@
+packages/core/src/plugin/transform-isomorphic.ts
+  s_134d8def1194c6::t_a8ac283ef64aec 37-41,243-260,269-270,272,275,277,284-288,296,302,304,353,367,400
+  s_134d8def1194c6::t_64060f97efaf51 289-295
+  s_134d8def1194c6::t_b7a5b6949bf58f 314
+  s_134d8def1194c6::t_baf6f31e152548 297
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_134d8def1194c6::t_9f0ff464edd679 126-142
+  s_134d8def1194c6::t_5db83e9deb9351 109-125
+  s_134d8def1194c6::t_13f5b0f4decfe8 187-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "17aa3f5ca74880db306a19e879da04dee674ba61",
+  "prompts": {},
+  "sessions": {
+    "s_134d8def1194c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f990f-4cd7-7a01-bd9e-20c2f04494ba",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

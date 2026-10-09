@@ -1,0 +1,108 @@
+packages/core/src/client/request-props.tsx
+  s_3295c4a2d42648::t_a223b3b2866072 30-35,41
+packages/core/src/server/render/not-found.ts
+  s_3295c4a2d42648::t_b6056c8c8ff122 14,49,115-118,140-143
+packages/core/src/furin.ts
+  s_3295c4a2d42648::t_182e0e0f57e075 476-478
+  s_3295c4a2d42648::t_b418eab7577f06 484
+  s_3295c4a2d42648::t_e5b87ac64784ba 479,483
+  s_3295c4a2d42648::t_38a396a5662345 482
+packages/core/src/server/router/plugin.ts
+  s_3295c4a2d42648::t_1a45a4f5b3bc53 202-203
+  s_3295c4a2d42648::t_c66070c7367bc0 204-209
+packages/core/src/server/render/ppr-route.ts
+  s_3295c4a2d42648::t_f19eb5e5dcc120 17,417-420
+packages/core/src/client/hmr.ts
+  s_3295c4a2d42648::t_9a6b11f1e9d37d 60
+  s_3295c4a2d42648::t_b434a2b1b3a4d3 1
+  s_3295c4a2d42648::t_30cbdfcd146a39 2
+apps/docs/src/content/docs/sync.mdx
+  s_3295c4a2d42648::t_a223b3b2866072 141
+packages/core/src/client/document.tsx
+  s_3295c4a2d42648::t_a223b3b2866072 104
+packages/core/src/rsc/version.ts
+  s_3295c4a2d42648::t_d385a3fc165b00 9
+  s_3295c4a2d42648::t_f7b1267ea24b21 27,29,31,34
+packages/core/src/adapter/README.md
+  s_3295c4a2d42648::t_a223b3b2866072 38
+packages/core/tests/contract/define-route-conflicts.test.ts
+  s_3295c4a2d42648::t_38a396a5662345 79-81
+packages/core/src/server/dev/symbolicate.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 33,65
+packages/core/src/server/dev-page-plugin.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 460
+packages/core/tests/runtime/browser-events/browser-events-client.test.ts
+  s_3295c4a2d42648::t_059d4514c87765 93-97,100-106,108-119
+  s_3295c4a2d42648::t_bef8eabce379b8 107
+  s_3295c4a2d42648::t_547c1c2b0bfbc9 120
+packages/core/tests/rendering/rsc/rsc.scenario.tsx
+  s_3295c4a2d42648::t_bef8eabce379b8 123
+packages/core/src/build/hydrate.ts
+  s_3295c4a2d42648::t_a223b3b2866072 236
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_3295c4a2d42648::t_5d2b8c5e4f71ce 180
+  s_3295c4a2d42648::t_033b7bf2d922f0 185
+packages/core/src/client/dev-error-overlay.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 146
+packages/core/src/server/security/csp.ts
+  s_3295c4a2d42648::t_cd8a6ba81aad9f 10
+  s_3295c4a2d42648::t_506f47370ff9ef 24-37,39
+packages/core/src/client/browser-events-runtime.ts
+  s_3295c4a2d42648::t_c66070c7367bc0 159-162
+  s_3295c4a2d42648::t_b6056c8c8ff122 149-152,155-158,163,165-171
+packages/core/tests/support/hmr-proxy.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 34
+packages/core/tests/runtime/security/csp.test.tsx
+  s_3295c4a2d42648::t_6bd42828fbab70 2,71
+  s_3295c4a2d42648::t_9b162c0040645a 11
+  s_3295c4a2d42648::t_5cc721602714fa 70
+  s_3295c4a2d42648::t_d8e43c91fa87b0 90-95
+packages/core/src/server/dev/diagnostics.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 94
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3295c4a2d42648::t_5d2b8c5e4f71ce 704
+packages/core/src/server/dev/error.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 49
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_3295c4a2d42648::t_f7b1267ea24b21 226,228,394,417
+  s_3295c4a2d42648::t_bef8eabce379b8 441,464,489,516,551
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_059d4514c87765 142,149-152
+  s_3295c4a2d42648::t_f9c59d85bac029 127,140,160,164,167-169,271-289
+  s_3295c4a2d42648::t_c66070c7367bc0 161-163
+  s_3295c4a2d42648::t_8c98912f9eb13a 290
+packages/core/src/client/router/provider.tsx
+  s_3295c4a2d42648::t_125c4cde280a7d 487-492,494-495,502-505,507-510,512,514-515,571-574,576,578,592,763-766,768,770,780-781
+  s_3295c4a2d42648::t_942765508ff65c 257,268-272
+  s_3295c4a2d42648::t_9b162c0040645a 496-500
+  s_3295c4a2d42648::t_cd8a6ba81aad9f 493,501,506,511,513
+  s_3295c4a2d42648::t_c66070c7367bc0 273-276
+apps/docs/package.json
+  s_3295c4a2d42648::t_520314a0612f99 24,34,40
+apps/scaffolder/package.json
+  s_3295c4a2d42648::t_0a43f65fdea39a 26
+examples/task-manager/package.json
+  s_3295c4a2d42648::t_889bb21aebf7d3 24,28-29,33,39
+package.json
+  s_3295c4a2d42648::t_56f1b1166ececc 31-34,36-38,40,49-52
+packages/core/package.json
+  s_3295c4a2d42648::t_453c1580a76dc1 159-160,162-163,165-166
+bun.lock
+  s_3295c4a2d42648::t_db17ff6f9c4fa2 8-11,13-15,17,27,37,43,64,77,81-82,86,92,124-125,127-128,130-131,153-154,158-159,203,205,207,209,211,213,215,217,219,221,223,225,227,229,231,235,237,239,241,245,247,249,251,257,353,439,441,443,445,447,449,451,453,455,457,459,461,463,465,467,469,471,473,475,477,517,519,521,523,525,527,529,531,533,535,537,539,541,543,545,547,549,551,553,715,717,753,755,807,811,813,849,851,853,855,857,859,861,863,865,867,869,871,873,1013,1015,1133,1155,1251,1253,1255,1257,1259,1261,1263,1265,1267,1269,1271,1273,1313,1315,1449,1451,1477,1481,1483,1531,1533,1535,1543,1589,1643,1679,1749,1761,1763,1789-1790,1807-1808,1811-1812,1817,1825,1901,1903,1905,1907,1909,1911,1913,1915,1917,1919,1921,1923,1925,1927,1929,1931,1933,1935,1937,1939,1941,1943,1945,1947,1949,1951,1953,1955,1957,1959,1961,1963,1965,1967,1969,1971,1973,1975,1977,1979
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c1c3f39c1432dbbdacff39d963140ea3299b28c5",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

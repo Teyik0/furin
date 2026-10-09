@@ -1,0 +1,46 @@
+apps/docs/public/llms-full.txt
+  1a2a7311aaeb29b0 1106,1108-1126,1129-1136,1138-1145,1148,1150-1152,1154-1157,1160-1164,1166-1269,1276,1278,1281-1282,1305-1306,1320,1322,1324-1330,1332,1339,1343
+packages/core/src/router.ts
+  1a2a7311aaeb29b0 20-35,482,484-485,502,505-507,510-512,516-519,548
+packages/core/tests/router/refresh-layout.test.ts
+  1a2a7311aaeb29b0 55-96,111-122
+packages/core/src/render/index.ts
+  1a2a7311aaeb29b0 60,65-68,157,167,343-346,352-355,463-479,482-484,487-489
+apps/docs/public/search-entries.json
+  1a2a7311aaeb29b0 1103,1108,1113,1115-1116,1119,1123,1125-1126,1129,1133,1135-1136,1139,1143,1145-1146,1149,1153,1155-1156,1159,1163,1165-1166,1169-1189,1193-1253,1258,1268,1273-1313,1318
+apps/docs/src/content/docs/dev-hmr.mdx
+  1a2a7311aaeb29b0 122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "1d5485023cc8044fb1fc611b3261b60ef2e5e122",
+  "prompts": {
+    "1a2a7311aaeb29b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_24e591008ffeGg5WxYSXAudl7C",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 624,
+      "total_deletions": 590,
+      "accepted_lines": 453,
+      "overriden_lines": 0
+    },
+    "4b2bbe2c6b73f14c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_24e5ca2e9ffe7lMW5ccaoxPdTx",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 131,
+      "total_deletions": 54,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

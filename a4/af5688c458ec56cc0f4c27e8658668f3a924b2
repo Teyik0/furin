@@ -1,0 +1,26 @@
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_13b9bbaf2a91a1::t_fe30b22ee1001e 254
+packages/core/tests/build/measurement/compare-vercel-framework-reports.test.ts
+  s_13b9bbaf2a91a1::t_fe30b22ee1001e 26,28,34
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_13b9bbaf2a91a1::t_fe30b22ee1001e 156
+packages/core/src/server/router/plugin.ts
+  s_13b9bbaf2a91a1::t_fe30b22ee1001e 276-278,280,285
+  s_13b9bbaf2a91a1::t_b92f5ed5e96242 281-284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a4af5688c458ec56cc0f4c27e8658668f3a924b2",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

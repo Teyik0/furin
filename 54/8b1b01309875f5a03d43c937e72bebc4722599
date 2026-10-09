@@ -1,0 +1,39 @@
+README.md
+  7e26aedc40f58c7d 599-603
+packages/core/tests/build-embed.test.ts
+  7e26aedc40f58c7d 47,58,68-70,78,89-90,124-140
+packages/core/src/build/compile-entry.ts
+  7e26aedc40f58c7d 2-4,12,23,28,33,37-39,47-48,51-73,79,84,87-94,97
+packages/core/tests/build-cli.test.ts
+  7e26aedc40f58c7d 4,38,49-55,62-64,138,168
+packages/core/src/build/shared.ts
+  7e26aedc40f58c7d 1,20-40,76-79
+packages/core/src/build/entry-template.ts
+  7e26aedc40f58c7d 1-62
+packages/core/src/build/server-routes-entry.ts
+  7e26aedc40f58c7d 2-3,27-32,36
+packages/core/src/adapter/bun.ts
+  7e26aedc40f58c7d 1,8,10-11,46-51,63,116
+packages/core/src/elyra.ts
+  7e26aedc40f58c7d 18-26,28-29,31-32,34,37-39,41-42,44-46,51-54,63-65,67-76,78,80,83-84,86-90,93-95,98,101-102,104,147-152,158-159,161-168,197,231,237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "548b1b01309875f5a03d43c937e72bebc4722599",
+  "prompts": {
+    "7e26aedc40f58c7d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ceca0-f091-7dc0-9dae-fbce65a1a305",
+        "model": "gpt-5.2-codex"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 301,
+      "total_deletions": 179,
+      "accepted_lines": 280,
+      "overriden_lines": 0
+    }
+  }
+}

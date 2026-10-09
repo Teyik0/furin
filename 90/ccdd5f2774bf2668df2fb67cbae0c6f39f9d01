@@ -1,0 +1,70 @@
+examples/task-manager/tests/board-card.test.tsx
+  s_cef9e2f8108a55::t_b22487d010c3cf 23-26
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 22,66
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 15-17,20-22,25-26,31
+  s_cef9e2f8108a55::t_b22487d010c3cf 18-19,23-24
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_cef9e2f8108a55::t_919f02537e7859 23-27,36-52,54-59,66-68
+  s_cef9e2f8108a55::t_6b6396db6bb7dd 1-22,28-35,53,60-65,69-75
+packages/core/src/server/sync/atomic.ts
+  s_cef9e2f8108a55::t_f4604737947ced 149-165,167-169
+  s_cef9e2f8108a55::t_b22487d010c3cf 15-20
+packages/core/src/client/sync.ts
+  s_cef9e2f8108a55::t_e13a6f8a4b1e4f 69-75,193
+  s_cef9e2f8108a55::t_9e5c84bd9e9734 186-187,232
+examples/task-manager/src/components/card-detail-page.tsx
+  s_cef9e2f8108a55::t_d68ec1ceeaa90a 3,26-28,95
+packages/core/tests/client/sync/atomic-furin-sync.test.ts
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 10,21,69
+packages/core/src/server/sync/postgres/index.ts
+  s_cef9e2f8108a55::t_7d44756ec95106 101-106,119
+packages/core/package.json
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 162
+packages/core/tests/client/sync/atomic-postgres-sync.test.ts
+  s_cef9e2f8108a55::t_7aeb974b06b526 114-115,119-121,123-124,127,247-248
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 100,130-131,134,213,242,246
+  s_cef9e2f8108a55::t_919f02537e7859 116-118
+  s_cef9e2f8108a55::t_2efec4054b8616 259,267,282
+  s_cef9e2f8108a55::t_b22487d010c3cf 101-113,122,125-126,128-129,132-133,214-226,228-241,243-245,250-258,260-266,268-281,283-295
+  s_cef9e2f8108a55::t_38c1942b1cec61 249
+apps/docs/src/content/docs/sync.mdx
+  s_cef9e2f8108a55::t_7d60ddca8cf425 79
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_cef9e2f8108a55::t_b22487d010c3cf 70
+packages/core/src/client/router/provider.tsx
+  s_cef9e2f8108a55::t_321424a431c9df 800-802
+  s_cef9e2f8108a55::t_7d44756ec95106 446-454
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_cef9e2f8108a55::t_321424a431c9df 708
+  s_cef9e2f8108a55::t_86751de9c9625c 362-368,370,378-382,385-394,761,763-764
+  s_cef9e2f8108a55::t_e5fca7926b4ac0 372,720,760,762
+  s_cef9e2f8108a55::t_739c7176d122b2 369,371
+  s_cef9e2f8108a55::t_b22487d010c3cf 373-377,383-384
+packages/core/tests/client/sync/sync-client.test.tsx
+  s_cef9e2f8108a55::t_b22487d010c3cf 51-54,61-65
+  s_cef9e2f8108a55::t_a4462bd4afb51f 26-41,43,45-50,55-60,66-68,161
+  s_cef9e2f8108a55::t_2efec4054b8616 159
+  s_cef9e2f8108a55::t_bda2fb019e7b09 42,155,160,162
+  s_cef9e2f8108a55::t_739c7176d122b2 44,146-154,156-158
+examples/task-manager/tests/kanban-sync.test.tsx
+  s_cef9e2f8108a55::t_8c3cfeec2c74e0 12,191,194-198,200-203,217,219-222,241,243-246,262,264-267
+packages/core/tests/client/sync/adapters/postgres-sync-adapter.test.ts
+  s_cef9e2f8108a55::t_b6b1f69de6ec3c 29,31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "90ccdd5f2774bf2668df2fb67cbae0c6f39f9d01",
+  "prompts": {},
+  "sessions": {
+    "s_cef9e2f8108a55": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f0ff-6af6-7551-83ec-5241ee0de4c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

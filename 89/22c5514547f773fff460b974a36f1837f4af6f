@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_e73552165b6f74::t_1d3dc789a4cef6 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8922c5514547f773fff460b974a36f1837f4af6f",
+  "prompts": {},
+  "sessions": {
+    "s_e73552165b6f74": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ec113-4e69-7f30-bd61-501ece6804a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

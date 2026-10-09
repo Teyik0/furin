@@ -1,0 +1,93 @@
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_d3d25a4bf87b5d::t_a0ba81b2689d82 224,232,245
+  s_d3d25a4bf87b5d::t_de65fa1131504d 19,26,28-32,40-41,217
+  s_d3d25a4bf87b5d::t_3fc49736cfaa25 390-393,402,410-412,414-418,420-423,531,562,571,596-603,609-610,616-623
+  s_d3d25a4bf87b5d::t_210198e0edc7ee 255,271,295,321,335,482,499,632
+  s_d3d25a4bf87b5d::t_c237b8b999fc66 20,121-126,134,136-139,147,149-156,172-177,185-190,198-207
+  s_d3d25a4bf87b5d::t_6cd7c1db066029 71,85,90,135,142,148,159,164,167,215
+  s_d3d25a4bf87b5d::t_98cb8f6b0eb0ff 18,42-49,113,116,129,180,193,210
+  s_d3d25a4bf87b5d::t_6cd87c4f822443 345,364,385,438,465,516,549,591,656,690
+  s_d3d25a4bf87b5d::t_6d4a5074894778 17,27,33-39
+  s_d3d25a4bf87b5d::t_2f6150f8ac91bf 50-70,72-84,86-89,91-112,114-115,117-120,127-128,130-133,140-141,143-146,157-158,160-163,165-166,168-171,178-179,181-184,191-192,194-197,208-209,211-214,216
+packages/core/tests/README.md
+  s_d3d25a4bf87b5d::t_fa81a986274f0d 70-78,82,88,93
+  s_d3d25a4bf87b5d::t_5095c334f1bd5b 79-81
+packages/core/src/server/render/ssr.ts
+  s_6b0b7776c84722::t_5eb3bcf80dac5c 7,11,14
+  s_6b0b7776c84722::t_1ee61b8f214c6a 8
+packages/core/tests/architecture/parser-dependency.test.ts
+  s_d3d25a4bf87b5d::t_99b6daa9b1b5df 16-17,27
+packages/core/src/furin.ts
+  s_6b0b7776c84722::t_5eb3bcf80dac5c 24-25
+  s_6b0b7776c84722::t_21e886ec6b1d98 34-35
+  s_6b0b7776c84722::t_96f2b867fde4e9 30-32
+packages/core/src/adapter/bun.ts
+  s_c762298f3f2a19::t_6ea8633b7dd4c6 44-53,112
+packages/core/src/server/render/not-found.ts
+  s_6b0b7776c84722::t_5eb3bcf80dac5c 2-3
+doctor.config.ts
+  s_6b0b7776c84722::t_5eb3bcf80dac5c 34
+  s_6b0b7776c84722::t_21e886ec6b1d98 8-12
+  s_6b0b7776c84722::t_b109000f8485d0 7
+CHANGELOG.md
+  s_0ffcb20031dc43::t_16f42d77eff660 9-27
+packages/core/package.json
+  s_6b0b7776c84722::t_6703b5c59ec7eb 3
+  s_6b0b7776c84722::t_d0e75ee39cc9a0 112-113,115-116,120,124
+apps/scaffolder/src/pipeline/stages/5-generation.ts
+  s_c762298f3f2a19::t_9972e0c3414331 12,14
+  s_c762298f3f2a19::t_23e25ab75bf473 7-11,13,15-20,26
+  s_c762298f3f2a19::t_f00a1a193a64a9 27
+apps/docs/src/components/docs-toc.tsx
+  s_c762298f3f2a19::t_23e25ab75bf473 38,42-45,98-99,152-153,157
+  s_6b0b7776c84722::t_96f2b867fde4e9 159-161
+  s_6b0b7776c84722::t_5eb3bcf80dac5c 39,143,147,154-156
+apps/scaffolder/tests/generation.test.ts
+  s_c762298f3f2a19::t_9972e0c3414331 17-45
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_c762298f3f2a19::t_9972e0c3414331 5-7,61-62,66,77-78
+  s_c762298f3f2a19::t_13a06b0d728449 1
+  s_c762298f3f2a19::t_06eea9af8fd0df 2-4,8-60,63-65,67-76
+bun.lock
+  s_d3d25a4bf87b5d::t_d6b5522233780e 15,117,121,824,826,828,830,832,834,836,838,840,842,844,846,994,1500,1554,1804,1848,1850-1852,1874,1902-1903,1960-1984,1986,1988,1990,1992,1994,1996,1998,2000,2002,2004,2006,2008,2010,2012,2014,2016,2018,2020,2022-2036,2044,2046,2048,2050,2052,2054,2056,2058,2060,2062,2064,2066,2068,2070,2072,2074,2076,2078,2080,2082,2084,2144,2146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "5b525c70cab61aad1fd95c54d8367a39d8ae70c8",
+  "prompts": {},
+  "sessions": {
+    "s_0ffcb20031dc43": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f57e7-a29a-71c0-8689-7098c2b67726",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_6b0b7776c84722": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f57e6-e305-7d62-b57d-0ad719bf2725",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_c762298f3f2a19": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f57d8-38c3-7232-bd7d-23940da5f9c2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d3d25a4bf87b5d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5703-52a5-7cf0-a6e2-702e51af942e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

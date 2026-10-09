@@ -1,0 +1,36 @@
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_722be10dd9d16b::t_f49fb980e99276 509,521-523
+  s_722be10dd9d16b::t_e039051b61da84 463-508,510-520,524-527
+packages/core/src/define-route.ts
+  s_722be10dd9d16b::t_8adf3c2abf136a 68-72,211
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_722be10dd9d16b::t_669ae0aabf73c9 8-12
+  s_722be10dd9d16b::t_f0917e1e5eb987 79-110
+  s_722be10dd9d16b::t_8b4ff829af8a52 34-60,62-72,76-78
+  s_722be10dd9d16b::t_f5a910424ea0ce 61,73-75
+packages/core/tests/contract/define-route.test.tsx
+  s_722be10dd9d16b::t_20fcfa6fcab50d 171,176,179,197-198
+  s_722be10dd9d16b::t_555a9caee929a5 209-224
+apps/docs/src/content/docs/data-loading.mdx
+  s_722be10dd9d16b::t_970d6861445f19 119,123
+apps/docs/src/content/docs/layouts.mdx
+  s_722be10dd9d16b::t_a86517b53bbc91 85
+packages/core/src/server/render/loaders.ts
+  s_722be10dd9d16b::t_73eacae17531b9 288-294,338-361,363,373,599,606-609,612,653,668,711
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2c785ee0ba9d07c9ee67dbf265153d79cf5da58d",
+  "prompts": {},
+  "sessions": {
+    "s_722be10dd9d16b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e497-63cb-7d82-89ad-3ba9eda91971",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

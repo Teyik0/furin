@@ -1,0 +1,58 @@
+benchmarks/bundle-size/scenarios/full/src/pages/dashboard/index.tsx
+  s_ef70e544be3a5e::t_4e90bc8c170af7 1-5
+benchmarks/bundle-size/scenarios/full/src/pages/dashboard/layout.tsx
+  s_ef70e544be3a5e::t_624955543169e1 2,5
+  s_ef70e544be3a5e::t_df30846b124a50 1,3-4,6-14
+benchmarks/bundle-size/scenarios/full/src/pages/blog/[slug].tsx
+  s_ef70e544be3a5e::t_19cf3ff5ae43d2 1-5
+benchmarks/bundle-size/measure.ts
+  s_ef70e544be3a5e::t_ffbed43bf0c9b6 4,8,10-11,16,18-19,25,110-116,156-158,160-165
+  s_ef70e544be3a5e::t_8f3b088921c1e4 9
+  s_ef70e544be3a5e::t_9d0c10834adee3 1-3,5-7,12-15,17,20-24,26-67,71-77,79,90-95,97,99-101,103,109,117-155,159,166-171
+  s_ef70e544be3a5e::t_1094acbbed894c 68-70,78,80-89,96,98,102,104-108
+benchmarks/bundle-size/scenarios/full/src/pages/index.tsx
+  s_ef70e544be3a5e::t_8fc4eaac0504cd 35,41
+  s_ef70e544be3a5e::t_ffbed43bf0c9b6 1-8,13-14,17,32
+  s_ef70e544be3a5e::t_070174843a3f5d 9-12,15-16,18-31,33-34,36-40,42-48
+benchmarks/bundle-size/scenarios/minimal/src/server.ts
+  s_ef70e544be3a5e::t_ffbed43bf0c9b6 2
+  s_ef70e544be3a5e::t_e67dc8c9afc6eb 1,3-12
+benchmarks/bundle-size/scenarios/full/src/pages/about.tsx
+  s_ef70e544be3a5e::t_0809c746240413 1-6
+benchmarks/bundle-size/scenarios/minimal/src/pages/index.tsx
+  s_ef70e544be3a5e::t_5bd24a7696d23b 1-5
+package.json
+  s_ef70e544be3a5e::t_378030dafae19f 10-11
+  s_ef70e544be3a5e::t_006b5b5308de9e 23
+benchmarks/bundle-size/scenarios/full/src/server.ts
+  s_ef70e544be3a5e::t_d897edf144347b 1,3-12
+  s_ef70e544be3a5e::t_ffbed43bf0c9b6 2
+benchmarks/bundle-size/package.json
+  s_ef70e544be3a5e::t_18ef00fedcfce2 1-18
+benchmarks/bundle-size/results/.gitignore
+  s_ef70e544be3a5e::t_cdfd25cfa04aeb 1
+benchmarks/bundle-size/scenarios/full/src/pages/root.tsx
+  s_ef70e544be3a5e::t_ffbed43bf0c9b6 1,10-11,14
+  s_ef70e544be3a5e::t_fee12e9abd87f5 2-9,12-13,15-24
+benchmarks/bundle-size/README.md
+  s_ef70e544be3a5e::t_6db281f84fa66d 19-20
+  s_ef70e544be3a5e::t_139bc456cdbb10 1-18,21-56
+benchmarks/bundle-size/scenarios/minimal/src/pages/root.tsx
+  s_ef70e544be3a5e::t_4492f80cfe654b 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d94f40ed5ff2875f48909daadaa276bf1054e6c5",
+  "prompts": {},
+  "sessions": {
+    "s_ef70e544be3a5e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_14d052b2cffels0a5Zszw8l6Gh",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/core/tests/architecture/layering.test.ts
+  s_815d738d114937::t_5f535183ea567e 1-51,53-56,67-98
+  s_815d738d114937::t_a7455ee5011af3 57-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6042f8767cbbc12985d11a822b5095245eebf14a",
+  "prompts": {},
+  "sessions": {
+    "s_815d738d114937": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5eff9438-49d1-4743-8769-b5328f9a021c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+apps/scaffolder/src/pipeline/context.ts
+  40dcd84bcb2a74ff 97-98,119
+apps/docs/src/lib/docs-search.ts
+  23e48f25d1f11b93 3
+apps/docs/src/components/theme-provider.tsx
+  23e48f25d1f11b93 19-25,40-44
+apps/docs/src/lib/docs-server.ts
+  23e48f25d1f11b93 1-27
+packages/core/src/render/shell.ts
+  23e48f25d1f11b93 118-127,134,171
+apps/scaffolder/tests/git.test.ts
+  40dcd84bcb2a74ff 50-51
+packages/core/tests/helpers/with-build-stub.ts
+  40dcd84bcb2a74ff 8-12,17,48
+apps/scaffolder/tests/templates.test.ts
+  40dcd84bcb2a74ff 92-94,100-101,120-122,126-128
+examples/task-manager/src/pages/index.tsx
+  40dcd84bcb2a74ff 135-136
+apps/docs/src/server.ts
+  23e48f25d1f11b93 6
+apps/docs/src/pages/docs/plugins.tsx
+  23e48f25d1f11b93 3-4
+apps/docs/src/pages/docs/index.tsx
+  23e48f25d1f11b93 3-4
+apps/docs/src/pages/docs/_route.tsx
+  23e48f25d1f11b93 4,14-17
+apps/docs/src/components/giscus-comments.tsx
+  23e48f25d1f11b93 18-29
+apps/docs/src/components/docs-toc.tsx
+  23e48f25d1f11b93 99-105,107,109-111,113-115,119
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  40dcd84bcb2a74ff 14-20
+apps/docs/src/pages/docs/dev-hmr.tsx
+  23e48f25d1f11b93 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5b60977b14bd1734be3a5daef18c1bab3259ff95",
+  "prompts": {
+    "23e48f25d1f11b93": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3b7d57a3-c5e5-450d-8715-1bbf3f971b4f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 93,
+      "total_deletions": 33,
+      "accepted_lines": 91,
+      "overriden_lines": 1
+    },
+    "40dcd84bcb2a74ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "11ff61b5-1bf1-4557-b75d-f3652573fd9d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 34,
+      "total_deletions": 15,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}

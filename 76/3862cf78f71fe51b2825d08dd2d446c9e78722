@@ -1,0 +1,45 @@
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_bdeacf5cc82db5 116,120-124,126,128-135,167-170,172,174
+  s_13b9bbaf2a91a1::t_4fc0dd139014c7 183-184,186,189-191
+packages/core/src/adapter/bun.ts
+  s_13b9bbaf2a91a1::t_0c860371325124 5
+  s_13b9bbaf2a91a1::t_d60dc1470b6dc6 156,196
+knip.config.ts
+  s_13b9bbaf2a91a1::t_1f77e877e6223a 10
+packages/core/src/build/elysia-aot.ts
+  s_13b9bbaf2a91a1::t_b21f6f63590cf9 1-41,43,45-74
+  s_13b9bbaf2a91a1::t_db783071786002 42,44
+scripts/compare-vercel-framework-reports.ts
+  s_13b9bbaf2a91a1::t_7f7c7e230a2409 1-41,43-78
+  s_13b9bbaf2a91a1::t_0c860371325124 42
+.github/workflows/vercel-benchmark.yaml
+  s_13b9bbaf2a91a1::t_bdeacf5cc82db5 102,107-111,113,118-123
+packages/core/src/adapter/vercel.ts
+  s_13b9bbaf2a91a1::t_d60dc1470b6dc6 770
+  s_13b9bbaf2a91a1::t_0c860371325124 13
+apps/docs/src/content/docs/deployment.mdx
+  s_13b9bbaf2a91a1::t_1ed3add5d28fd8 38
+packages/core/tests/build/measurement/compare-vercel-framework-reports.test.ts
+  s_13b9bbaf2a91a1::t_1ad816961aac47 5,33,40-44
+  s_13b9bbaf2a91a1::t_8f8da780e0828f 1-4,6-32,34-39,45-73
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_13b9bbaf2a91a1::t_2c05ed9ff44bc8 215,217-226
+  s_13b9bbaf2a91a1::t_f7c5df2e7afc09 38-46,201-214
+  s_13b9bbaf2a91a1::t_0dd36907ddabf1 216
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "763862cf78f71fe51b2825d08dd2d446c9e78722",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+packages/core/tests/client/link/router-provider-redirect-follow.test.tsx
+  s_3295c4a2d42648::t_30e636d94f32fc 134,153,179-182,403,405-411
+  s_3295c4a2d42648::t_48f76dc442748b 402,404
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6fdeb812f965ab69d14e97766d7228da1bf79f1e",
+  "prompts": {},
+  "sessions": {
+    "s_3295c4a2d42648": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dfea-6aed-77b1-b0bc-c821c85091c9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

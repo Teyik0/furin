@@ -1,0 +1,38 @@
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_13b9bbaf2a91a1::t_48395d865d507a 157-160
+  s_13b9bbaf2a91a1::t_2165c6835cc9a2 188-204
+packages/core/tests/runtime/plugin/data-endpoint-logging.test.ts
+  s_13b9bbaf2a91a1::t_48395d865d507a 77,80
+.github/workflows/ci.yaml
+  s_13b9bbaf2a91a1::t_48395d865d507a 137-138,180-181
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_13b9bbaf2a91a1::t_2165c6835cc9a2 231-243
+  s_13b9bbaf2a91a1::t_59e6dd048be5c1 31,177-179,183-185,205-214
+packages/core/src/server/router/schemas.ts
+  s_13b9bbaf2a91a1::t_48395d865d507a 62-70,75-89,96-98,100-101,103
+apps/docs/src/content/docs/error-handling.mdx
+  s_13b9bbaf2a91a1::t_48395d865d507a 22
+examples/task-manager/src/pages/index.tsx
+  s_13b9bbaf2a91a1::t_48395d865d507a 12
+.github/workflows/vercel-benchmark.yaml
+  s_13b9bbaf2a91a1::t_48395d865d507a 126-127
+  s_13b9bbaf2a91a1::t_75cf4e758a4481 23,133,143,146-159,162,172,184
+apps/docs/src/content/docs/api-routes.mdx
+  s_13b9bbaf2a91a1::t_48395d865d507a 34,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dc6b40af2bbcc6a8f15773a50bca9490e50aab08",
+  "prompts": {},
+  "sessions": {
+    "s_13b9bbaf2a91a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0bf3c-f99a-7281-8d92-1966b95d20c4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+packages/core/src/auto-invalidate/runtime.ts
+  s_0868f19af3ac92::t_e3dbc1c64e8c65 78
+.github/workflows/ci.yaml
+  s_eb59b0f1409a36::t_8b7a48307819db 54-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a2f8c62476192ba1a1899cd3fe6568a7f91794c1",
+  "prompts": {},
+  "sessions": {
+    "s_0868f19af3ac92": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a459f5e6ffe0w15opq4aW9dCV",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_eb59b0f1409a36": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a45a5152ffedJwBnT18ATbLaD",
+        "model": "kimi-k2.6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+apps/docs/furin-env.d.ts
+  s_ca8fdc92fd1a52::t_8a884562155608 7-8
+packages/core/tests/route-types.test.ts
+  s_ca8fdc92fd1a52::t_948011e1a2420f 263-266
+packages/core/src/auto-invalidate/runtime.ts
+  s_ca8fdc92fd1a52::t_de6e4c2544af15 48-90,92
+packages/core/src/build/route-types.ts
+  s_ca8fdc92fd1a52::t_8102f47f49c025 80-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b5b2192e3316d0a8fd03f9cc786e0f1f870f4ece",
+  "prompts": {},
+  "sessions": {
+    "s_ca8fdc92fd1a52": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a499b345ffeiaY1kFB2hpEwRq",
+        "model": "glm-5.1"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

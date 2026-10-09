@@ -1,0 +1,29 @@
+package.json
+  9d5f3873f99ccbc0 2
+packages/core/package.json
+  9d5f3873f99ccbc0 2,9-11,13
+examples/simple/package.json
+  9d5f3873f99ccbc0 2,18
+packages/core/build.ts
+  9d5f3873f99ccbc0 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.11",
+  "base_commit_sha": "55f2194285f165a7ed11c81a1ca14e0f46221d23",
+  "prompts": {
+    "9d5f3873f99ccbc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "adbd6447-a423-4885-babc-b09c699a8f79",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 25,
+      "accepted_lines": 22,
+      "overriden_lines": 0
+    }
+  }
+}

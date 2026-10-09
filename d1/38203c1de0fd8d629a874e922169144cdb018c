@@ -1,0 +1,18 @@
+packages/core/src/furin.ts
+  h_a2cbd1b0e3ae6e 390-394,396-398,581-596,637-650,786-787,791-793,795-804,811-819
+packages/core/tests/dev/hmr/dev-hmr-parent-child.integration.test.ts
+  h_a2cbd1b0e3ae6e 44-48,465
+packages/core/tests/dev/hmr/dev-route-topology.integration.test.ts
+  h_a2cbd1b0e3ae6e 1-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "d138203c1de0fd8d629a874e922169144cdb018c",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

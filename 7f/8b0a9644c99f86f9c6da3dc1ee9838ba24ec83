@@ -1,0 +1,41 @@
+packages/core/src/server/dev-page-plugin.ts
+  s_fa3ba074f76831::t_c25dedfc8c9387 291-299
+packages/core/tests/fixtures/apps/hmr-aliased-footer/tsconfig.json
+  s_fa3ba074f76831::t_34233217ea9619 1-6
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/components/public-footer.tsx
+  s_fa3ba074f76831::t_34233217ea9619 1-7
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/server.ts
+  s_fa3ba074f76831::t_34233217ea9619 1-6
+  s_fa3ba074f76831::t_f5289b8ed671c9 7-8
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/pages/index.tsx
+  s_fa3ba074f76831::t_34233217ea9619 1-6
+packages/core/tests/dev/hmr/dev-hmr-aliased-footer.integration.test.ts
+  s_fa3ba074f76831::t_f5289b8ed671c9 42,49
+  s_fa3ba074f76831::t_db92b048b5eca3 10-12,48,50
+  s_fa3ba074f76831::t_ec346c1a9eabbd 13-26,28-30,32-38,40-41,43-46
+  s_fa3ba074f76831::t_34233217ea9619 1-9,27,31,39,47
+packages/core/tests/fixtures/apps/hmr-aliased-footer/bunfig.toml
+  s_fa3ba074f76831::t_34233217ea9619 1-2
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_fa3ba074f76831::t_a1916ca94f352e 94,113,120,127-133
+packages/core/tests/fixtures/apps/hmr-aliased-footer/src/pages/root.tsx
+  s_fa3ba074f76831::t_34233217ea9619 1-17
+CHANGELOG.md
+  s_fa3ba074f76831::t_a1916ca94f352e 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7f8b0a9644c99f86f9c6da3dc1ee9838ba24ec83",
+  "prompts": {},
+  "sessions": {
+    "s_fa3ba074f76831": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a114ff-b2f5-7982-87ab-898bdd90fff6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

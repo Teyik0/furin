@@ -1,0 +1,19 @@
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_a9bbb765ef24b1::t_5f4f8804de795c 170,186-188,194-195,198-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "90e00b2562dd7840600162d2d7025d6583a72bd0",
+  "prompts": {},
+  "sessions": {
+    "s_a9bbb765ef24b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e446-8c97-7ea0-9722-10c67ac89d3b",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

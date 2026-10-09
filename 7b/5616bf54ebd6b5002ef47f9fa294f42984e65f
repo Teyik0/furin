@@ -1,0 +1,37 @@
+apps/docs/src/components/doc-page.tsx
+  53ff89752e234495 7-23,29,44
+packages/core/tests/request-scope-integration.test.ts
+  53ff89752e234495 78
+packages/core/tests/cache.test.ts
+  53ff89752e234495 355
+packages/core/src/build/hydrate.ts
+  53ff89752e234495 92-93
+packages/core/tests/hydrate-entry.test.ts
+  53ff89752e234495 87,92
+examples/task-manager/src/pages/index.tsx
+  53ff89752e234495 103
+packages/core/tests/link/should-intercept-click.test.ts
+  53ff89752e234495 3,8,21-24,26,35-40,43-44,49-50,55-56,63-64,69,76,82,88-89,94-99,101-108,112-113,118-119
+packages/core/src/render/cache.ts
+  53ff89752e234495 220,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7b5616bf54ebd6b5002ef47f9fa294f42984e65f",
+  "prompts": {
+    "53ff89752e234495": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_21d5b6a7dffeUiCWuJBFSFwlFY",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 70,
+      "total_deletions": 43,
+      "accepted_lines": 73,
+      "overriden_lines": 1
+    }
+  }
+}

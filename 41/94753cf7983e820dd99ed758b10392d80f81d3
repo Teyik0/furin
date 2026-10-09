@@ -1,0 +1,21 @@
+packages/core/src/adapter/cloudflare.ts
+  s_9f7f06cf3ad0c4::t_b4a11b205e9db0 8,119-135,208,212,230,258,277,279,281-282
+packages/core/tests/build/worker-build-artifacts.test.ts
+  s_9f7f06cf3ad0c4::t_fcebadf69f56da 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4194753cf7983e820dd99ed758b10392d80f81d3",
+  "prompts": {},
+  "sessions": {
+    "s_9f7f06cf3ad0c4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10770-7b13-72c2-9726-66fbd1805016",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+packages/core/src/plugin/routes.ts
+  s_18268c18f8c5c7::t_10649f9d100b19 547-549,890,894,904
+packages/core/src/build/elysia-aot.ts
+  s_18268c18f8c5c7::t_1cc9bffc953e32 5-6,11-19,60-83
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_18268c18f8c5c7::t_13e77206ce184e 420-441
+  s_18268c18f8c5c7::t_47186f464355db 12-13,24-40,397-419,442-509
+  s_18268c18f8c5c7::t_08c8a3cd21d59a 510
+apps/docs/src/content/docs/deployment.mdx
+  s_18268c18f8c5c7::t_47186f464355db 40
+apps/docs/src/content/docs/api-routes.mdx
+  s_18268c18f8c5c7::t_f7424f9607a715 46-59
+packages/core/tests/support/http.ts
+  s_18268c18f8c5c7::t_9d91449c97843a 2
+packages/core/src/furin.ts
+  s_18268c18f8c5c7::t_d99061695f5b0b 987,989,994
+  s_18268c18f8c5c7::t_47186f464355db 185-188,203-206,968,976-978
+  s_18268c18f8c5c7::t_cf55e8dd6000ea 962-967,969-971,988
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "563e7f708af2d864a00c4937bfaea4f61331bcfa",
+  "prompts": {},
+  "sessions": {
+    "s_18268c18f8c5c7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0cf46-6788-7223-964b-670ad4d8b33b",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

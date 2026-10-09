@@ -1,0 +1,29 @@
+packages/core/tests/router/dev-isr-loader-cache.test.ts
+  646391d6b5bce9f2 1
+packages/core/tests/link/router-provider-intercept.test.tsx
+  646391d6b5bce9f2 52,59-61,69,116,122,148-149,155
+packages/core/tests/link/interactive.test.tsx
+  646391d6b5bce9f2 527-529,540-542,553-555,566-568,582,596,607
+packages/core/tests/adapter-static.test.ts
+  646391d6b5bce9f2 16,32-37,110,213,246,260,277,378,449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "354016ce3d71c08cff42332ccaf8122cd1ffd571",
+  "prompts": {
+    "646391d6b5bce9f2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_212e7349fffeOe0hxspK6Rwp5B",
+        "model": "opencode-go/kimi-k2.6"
+      },
+      "human_author": "teyik0",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 56,
+      "accepted_lines": 163,
+      "overriden_lines": 0
+    }
+  }
+}

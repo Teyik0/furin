@@ -1,0 +1,29 @@
+packages/core/src/elyra.ts
+  9042419100b04f07 54-56
+packages/core/src/cli/config.ts
+  9042419100b04f07 89-94
+packages/core/src/cli/index.ts
+  9042419100b04f07 26
+packages/core/tests/scan-server.test.ts
+  9042419100b04f07 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "651c6050cc2d3718687b4f3068701ecd63ab3340",
+  "prompts": {
+    "9042419100b04f07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "50e6221f-a58f-4865-8544-562ac5526577",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 16,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
