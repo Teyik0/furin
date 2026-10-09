@@ -169,7 +169,7 @@
     "@elysia/static": "2.0.0-beta.2",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vercel/functions": "^3.9.9",
-    "@yuku-toolchain/types": "0.12.0",
+    "@yuku-toolchain/types": "0.13.0",
     "exact-mirror": "catalog:",
     "magic-string": "^1.4.2",
     "react-server-dom-webpack": "19.3.0",
