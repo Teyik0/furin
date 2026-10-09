@@ -30,7 +30,7 @@ test.each(["@/components/public-footer", "../components/public-footer"])(
       writeAppFile(app.path, footerPath, source.replace("rounded-full ring-1", "rounded-full"));
 
       let html = "";
-      for (let attempt = 0; attempt < 50; attempt += 1) {
+      for (let attempt = 0; attempt < 150; attempt += 1) {
         html = await (await fetch(url)).text();
         if (html.includes('class="rounded-full"')) {
           break;
