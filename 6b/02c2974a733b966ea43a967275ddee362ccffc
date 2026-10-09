@@ -1,0 +1,29 @@
+packages/electrobun/tests/scan-race.test.ts
+  s_20cb3617bed95c::t_18b89b3bf5a50c 1-166
+packages/electrobun/src/cli.ts
+  s_b8b588f399515a::t_1e0e6600bd76ce 16,210,221-223,244-248,253-264,365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b02c2974a733b966ea43a967275ddee362ccffc",
+  "prompts": {},
+  "sessions": {
+    "s_20cb3617bed95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "729b55a0-5251-41c2-bf88-c3920fa7bbaf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b8b588f399515a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12297-9e4a-71e1-9814-145bdc6f1a16",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
