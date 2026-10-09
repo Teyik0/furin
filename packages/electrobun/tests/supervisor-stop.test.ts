@@ -66,14 +66,13 @@ async function fixture(
     },
   });
   await writeFile(join(root, "package.json"), '{"name":"fixture","version":"1.0.0"}');
-  await writeFile(join(root, "furin.config.ts"), 'export default { serverEntry: "server.ts" };');
   await writeFile(
-    join(root, "furin.desktop.config.ts"),
-    `export default {
+    join(root, "furin.config.ts"),
+    `export default { serverEntry: "server.ts", desktop: {
       app: { name: "Fixture", identifier: "local.furin.fixture" },
       window: { width: 800, height: 600 },
       dataDir: ${JSON.stringify(join(root, ".data"))}
-    };`
+    } };`
   );
   await writeFile(
     join(root, "server.ts"),

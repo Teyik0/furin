@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { activateDesktopApp, type DesktopMode } from "./registry";
+import { activateDesktopApp, type DesktopMode, getDesktopState } from "./registry";
 
 export function getExternalUrl(
   detail: unknown,
@@ -210,7 +210,11 @@ export async function startDesktopBackend(
         try {
           await app.stop(true);
         } finally {
-          await module.onShutdown?.();
+          try {
+            await getDesktopState(app)?.stop();
+          } finally {
+            await module.onShutdown?.();
+          }
         }
       })()
     ).finally(async () => {
@@ -239,6 +243,10 @@ export async function startDesktopBackend(
     await withDeadline(
       (async () => {
         const validate = await activateDesktopApp(app, guard, mode);
+        if (canceled) {
+          throw new Error("Desktop startup was canceled.");
+        }
+        await getDesktopState(app)?.start(startup.signal);
         if (canceled) {
           throw new Error("Desktop startup was canceled.");
         }

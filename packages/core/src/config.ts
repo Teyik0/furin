@@ -93,6 +93,8 @@ export const configSchema = t.Object({
    * via the `furin({ logger })` plugin option).
    */
   clientLogging: t.Optional(t.Boolean()),
+  /** Optional integrations validate their own settings; core never loads a native SDK. */
+  desktop: t.Optional(t.Object({}, { additionalProperties: true })),
   /**
    * Package barrels Bun should parse on demand in production client bundles.
    * Packages declaring `sideEffects: false` are optimized automatically.
@@ -136,10 +138,14 @@ export const configSchema = t.Object({
 
 export type FurinPlugin = BunPlugin & { buildOnly?: boolean };
 
-export type FurinConfig = Static<typeof configSchema> & {
-  plugins?: FurinPlugin[];
-  static?: StaticExportConfig;
-};
+// biome-ignore lint/suspicious/noEmptyInterface: Optional packages augment configuration without core dependencies.
+export interface FurinConfigExtensions {}
+
+export type FurinConfig = Static<typeof configSchema> &
+  FurinConfigExtensions & {
+    plugins?: FurinPlugin[];
+    static?: StaticExportConfig;
+  };
 
 export function defineConfig(config: FurinConfig): FurinConfig {
   return config;

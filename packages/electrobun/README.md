@@ -15,11 +15,12 @@ bun add -d @teyik0/furin-electrobun
 bunx --bun @teyik0/furin-electrobun init
 ```
 
-`init` adds `furin.desktop.config.ts` and the two package scripts. It refuses
-an existing config or either existing desktop script before writing anything.
-It atomically rewrites `package.json` to add those scripts, preserving other
-scripts and package fields. It does not rewrite server code, install a
-replacement frontend, or replace an existing desktop configuration.
+Desktop settings live in the `desktop` section of `furin.config.ts`.
+`init` creates that file if it is absent and adds the two package scripts.
+If a Furin config already exists, add its desktop section first: `init` does
+not parse and rewrite application plugins or functions. Existing desktop scripts
+are refused. Manifest replacement and new configuration publication are atomic.
+The former standalone `furin.desktop.config.ts` is not read.
 
 Update the server constructor as described below, then run:
 
@@ -29,14 +30,14 @@ bun run build:desktop
 ```
 
 ```ts
+import { defineConfig } from "@teyik0/furin/config";
 import { defineDesktopConfig } from "@teyik0/furin-electrobun";
 
-export default defineDesktopConfig({
-  app: {
-    name: "Relay",
-    identifier: "local.furin.relay",
-  },
-  window: { width: 1024, height: 768 },
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Relay", identifier: "local.furin.relay" },
+    window: { width: 1024, height: 768 },
+  }),
 });
 ```
 
@@ -58,24 +59,31 @@ application framework or a directory developers maintain by hand.
 
 Furin detects the existing `furin.config.ts` / `.js` / `.mjs`, `rootDir` and
 `serverEntry` conventions. With no explicit server entry, it uses `src/server.ts`.
-The server must default-export an inert Elysia app created by `createDesktopApp`:
+The server must default-export an inert Elysia root with `desktopApp()` as its
+first plugin, before wrappers or application plugins:
 
 ```ts
 import { furin } from "@teyik0/furin";
-import { createDesktopApp } from "@teyik0/furin-electrobun/server";
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
 
-const app = createDesktopApp().use(furin({ pagesDir: "src/pages" }));
+const app = new Elysia()
+  .use(desktopApp({
+    restrictWebToLoopback: true,
+    async onStartup(signal) {
+      await database.open(signal);
+    },
+    async onShutdown() {
+      await database.close();
+    },
+  }))
+  .use(furin({ pagesDir: "src/pages" }));
 
 export default app;
 
-// Optional: close database handles, subscriptions and other owned resources.
-export async function onShutdown() {
-  await database.close();
-}
-
 // Normal web boot remains unchanged when this file is executed directly.
 if (import.meta.main) {
-  app.listen(3000);
+  app.listen({ hostname: "127.0.0.1", port: 3000 });
 }
 ```
 
@@ -83,12 +91,19 @@ Desktop imports must not start a listener. An already listening app is rejected
 with a migration diagnostic; the CLI does not try to strip arbitrary `.listen`
 calls from your code.
 
-Replace `new Elysia(options)` with `createDesktopApp(options)` at the application
-root. The returned value is a normal, type-inferred Elysia instance. The factory
-installs the outer session wrapper before application hooks, cache wrappers and
-plugins can register their own behavior. Normal web execution leaves that guard
-inactive. Desktop startup refuses an unregistered root instead of silently
-falling back to a late, bypassable request hook.
+The functional plugin preserves the original Elysia identity, prefix, decorators
+and route inference. Installing it after a wrapper or after listening is rejected.
+Application routes remain ordinary Elysia plugins.
+
+`onStartup` and `onShutdown` run once per app lifecycle in web and desktop modes.
+Web uses Elysia setup/cleanup; the desktop host initializes resources before its
+listener opens. Callbacks are options, not required named module exports.
+They must tolerate partial initialization and honor startup cancellation.
+
+The desktop session is always mandatory. `restrictWebToLoopback` optionally adds
+local-host and mutation-origin checks to ordinary web requests, and refuses a web
+listener bound to a non-loopback hostname. It does not disable desktop protection.
+With this option omitted, ordinary web requests are not session-protected.
 
 The desktop host imports and listens to that same root; it does not remount the
 application inside another Elysia instance. Change the original constructor,
@@ -149,12 +164,12 @@ const databasePath = process.env.FURIN_APP_DATA_DIR
 No existing user data is moved. An absolute `dataDir` override is available for
 applications that already own a storage location.
 
-The inert app may export `onStartup(signal: AbortSignal)` to initialize resources
-before the private listener opens. Startup failure calls `onShutdown`; the signal
+The plugin may provide `onStartup(signal: AbortSignal)` to initialize resources
+before the private listener opens. Startup failure calls its cleanup; the signal
 is aborted on cancellation, so initialization must honor it and release any late
 resources. The hook must not call `listen()`.
 
-Window close and app quit stop the server and call named `onShutdown` once,
+Window close and app quit stop the server and call plugin cleanup once,
 then use the SDK's public window close and quit APIs. Startup diagnostics print
 the identifier, private origin and data path. SIGUSR-based reload is not used:
 the SDK-managed Bun currently does not implement it.
@@ -173,10 +188,12 @@ Use `external` to declare runtime packages that must be copied alongside the
 inert app, for example:
 
 ```ts
-export default defineDesktopConfig({
-  app: { name: "Tofu", identifier: "app.tofu.torrents" },
-  window: { width: 1200, height: 800 },
-  external: ["webtorrent", "parse-torrent"],
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Tofu", identifier: "app.tofu.torrents" },
+    window: { width: 1200, height: 800 },
+    external: ["webtorrent", "parse-torrent"],
+  }),
 });
 ```
 
@@ -214,7 +231,7 @@ accepted once; the spent listener remains bound until shutdown to prevent
 port rebinding. Bootstrap credentials never enter the user application's
 request hooks or access logs. This adds a listener, not a production process.
 
-`createDesktopApp()` registers the session wrapper first, outside application
+`desktopApp()` registers the session wrapper first, outside application
 request hooks, cache wrappers and plugin wrappers. The host activates that
 specific root's guard before listening. Missing credentials, cross-origin and
 cross-site requests are rejected before user middleware can return an early
@@ -240,16 +257,18 @@ inert app and its external dependency closure; the SDK bundles the custom host.
 The standard generated host remains the default.
 
 ```ts
-export default defineDesktopConfig({
-  app: { name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1" },
-  window: { width: 1400, height: 940 },
-  hostEntry: "src/desktop-host.ts",
-  external: ["webtorrent", "parse-torrent"],
-  sdk: {
-    app: { urlSchemes: ["magnet", "tofu"] },
-    build: { mac: { icons: "assets/tofu.iconset", codesign: true } },
-    release: { baseUrl: "https://example.com/releases" },
-  },
+export default defineConfig({
+  desktop: defineDesktopConfig({
+    app: { name: "Tofu", identifier: "app.tofu.torrents", version: "0.2.1" },
+    window: { width: 1400, height: 940 },
+    hostEntry: "src/desktop-host.ts",
+    external: ["webtorrent", "parse-torrent"],
+    sdk: {
+      app: { urlSchemes: ["magnet", "tofu"] },
+      build: { mac: { icons: "assets/tofu.iconset", codesign: true } },
+      release: { baseUrl: "https://example.com/releases" },
+    },
+  }),
 });
 ```
 
@@ -259,10 +278,29 @@ paths are resolved from the application's root. Copy destinations cannot replace
 Furin's `furin` artifact. Furin retains Bun entrypoint, renderer and runtime
 ownership in the generated SDK configuration.
 
-Custom entrypoints use `startDesktopBackend()` from
-`@teyik0/furin-electrobun/host` with the artifact at
-`join(import.meta.dir, "../furin/app.js")`, their existing data path and `"build"`.
-The returned backend provides `origin`, `bootstrapOrigin`, `stop()` and
+Custom entrypoints can use `runDesktopHost(sdk, setup)` from
+`@teyik0/furin-electrobun/host`. Import the canonical SDK in the application
+entrypoint and pass it explicitly, preserving its complete inferred types:
+
+```ts
+import * as sdk from "electrobun/main";
+import { runDesktopHost } from "@teyik0/furin-electrobun/host";
+
+await runDesktopHost(sdk, async ({ startBackend }) => {
+  // Set application native capabilities before startup callbacks run.
+  const { backend } = await startBackend();
+  await createApplicationNativeController({ sdk, backend });
+});
+```
+
+The wrapper chooses source or packaged `app.js`, resolves data storage, handles
+supervisor readiness and drains the backend on setup failure, process signals
+and non-vetoed SDK quit events. It never constructs a window. Existing native
+quit vetoes are respected; closing a window does not itself stop the backend.
+`startBackend({ dataDir })` accepts an application-owned absolute storage path.
+Only one backend may be started. Await startup inside the callback.
+
+The backend provides `origin`, `bootstrapOrigin`, `stop()` and
 `createWindowUrl(destination?)`. Create a fresh bootstrap for each opened native
 window or OS browser; it is single-use and can target only the application origin.
 At most one unspent bootstrap is active, so minting another invalidates the prior
@@ -275,6 +313,7 @@ native helper descriptor; never log or serialize it into browser data. SSR loade
 that call the HTTP API must forward the incoming request cookie only to the same
 application origin. The default host never exposes the cookie.
 
+The lower-level `startDesktopBackend` and development context remain available.
 Custom hosts also support `dev`. After importing the SDK, call
 `getDesktopDevelopment()` from `@teyik0/furin-electrobun/host`. When present,
 import its `serverEntry` instead of the packaged artifact and pass `"dev"` to

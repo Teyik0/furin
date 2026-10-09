@@ -154,6 +154,9 @@ export async function prepareDesktop(
     );
   }
   await writeFile(join(generated, "main.ts"), renderRuntime(config, options, generated));
+  if (config.hostEntry) {
+    await writeFile(join(generated, "host.json"), JSON.stringify(config));
+  }
   await writeFile(join(generated, "control"), "");
   await writeFile(join(generated, "package.json"), '{"private":true,"type":"module"}\n');
   await writeFile(
@@ -172,6 +175,9 @@ export async function prepareDesktop(
         target.startsWith("../") ||
         posix.isAbsolute(target) ||
         win32.isAbsolute(target) ||
+        reserved === "bun" ||
+        reserved === "bun/furin-host.json" ||
+        reserved.startsWith("bun/furin-host.json/") ||
         reserved === "furin" ||
         reserved.startsWith("furin/")
       ) {
@@ -198,7 +204,11 @@ export async function prepareDesktop(
         entrypoint: config.hostEntry ? resolve(options.root, config.hostEntry) : "main.ts",
         external: additions?.build?.bun?.external,
       },
-      copy: { ...(options.mode === "build" ? { furin: "furin" } : {}), ...copy },
+      copy: {
+        ...(options.mode === "build" ? { furin: "furin" } : {}),
+        ...(config.hostEntry ? { "host.json": "bun/furin-host.json" } : {}),
+        ...copy,
+      },
       mac: {
         ...mac,
         ...platform,

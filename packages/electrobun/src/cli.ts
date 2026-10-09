@@ -91,7 +91,7 @@ export async function desktopCommand(
 ): Promise<void> {
   if (command === "init") {
     await initDesktop(cwd);
-    console.log("Desktop config and dev:desktop / build:desktop scripts added.");
+    console.log("Desktop scripts configured through furin.config.ts.");
     return;
   }
   if (command !== "dev" && command !== "build") {

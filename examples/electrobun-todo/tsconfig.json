@@ -4,6 +4,6 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "furin-env.d.ts",
-    "furin.desktop.config.ts"
+    "furin.config.ts"
   ]
 }

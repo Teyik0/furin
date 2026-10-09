@@ -2,8 +2,8 @@
 
 A small task app demonstrating Furin's desktop integration: **the same pages, React DOM components, loaders and API serve both the browser and the system WebView**.
 
-The server root uses `createDesktopApp()` from `@teyik0/furin-electrobun/server`.
-It returns an Elysia instance with a desktop session wrapper installed before
+The server root uses `new Elysia().use(desktopApp(...))`.
+The first plugin installs a desktop session wrapper before
 application middleware. That wrapper is inactive for ordinary web execution;
 no separate frontend or backend implementation is needed.
 
@@ -25,7 +25,7 @@ The web app listens on `http://127.0.0.1:3004`. To open the desktop app:
 bun run dev:desktop
 ```
 
-Desktop settings live in `furin.desktop.config.ts`. The first command prepares the pinned Electrobun SDK automatically; developers do not write a native entrypoint or an asset-copy script.
+Desktop settings live in the `desktop` section of `furin.config.ts`. The first command prepares the pinned Electrobun SDK automatically; developers do not write a native entrypoint or an asset-copy script.
 
 ## Web production
 

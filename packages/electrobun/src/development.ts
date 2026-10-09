@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { DesktopConfig } from "./config";
 import { publishDevReady } from "./dev-server";
 import { type DesktopBackend, withShutdownDeadline } from "./runtime";
 
@@ -8,12 +9,16 @@ export async function getDesktopDevelopment() {
   if (!settings) {
     return;
   }
-  const { root, serverEntry }: { root: string; serverEntry: string } =
-    await Bun.file(settings).json();
+  const {
+    root,
+    serverEntry,
+    config,
+  }: { root: string; serverEntry: string; config: DesktopConfig } = await Bun.file(settings).json();
   const directory = join(settings, "..");
   // Call after loading the SDK, which resolves native resources from its launch CWD.
   process.chdir(root);
   return {
+    config,
     serverEntry,
     async ready(backend: DesktopBackend, shutdown: () => Promise<void>) {
       let closing: Promise<void> | undefined;

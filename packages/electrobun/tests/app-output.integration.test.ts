@@ -10,11 +10,13 @@ test("a relocated Furin app retains its factory guard across the separately bund
     writeFileSync(
       join(fixture.path, "src/server.ts"),
       `import { furin } from "@teyik0/furin";
-import { createDesktopApp } from ${JSON.stringify(resolve(import.meta.dir, "../src/server.ts"))};
+import { Elysia } from "elysia";
+import { desktopApp } from ${JSON.stringify(resolve(import.meta.dir, "../src/server.ts"))};
 
 const observed: string[] = [];
 const lifecycle = { setup: 0, cleanup: 0, shutdown: 0 };
-const app = createDesktopApp()
+const app = new Elysia()
+  .use(desktopApp({ onShutdown: () => { lifecycle.shutdown += 1; } }))
   .wrap((next) => (request, server) => {
     const path = new URL(request.url).pathname;
     observed.push(path);
@@ -32,7 +34,6 @@ const app = createDesktopApp()
   .cleanup(() => { lifecycle.cleanup += 1; })
   .use(await furin({ pagesDir: import.meta.dir + "/pages" }));
 
-export const onShutdown = () => { lifecycle.shutdown += 1; };
 export default Object.assign(app, {
   getObserved: () => observed,
   getLifecycle: () => lifecycle,

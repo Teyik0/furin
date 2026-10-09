@@ -1,5 +1,6 @@
 // biome-ignore lint/performance/noBarrelFile: This is the package's explicit public host capability entrypoint.
 export { getDesktopDevelopment } from "./development";
+export { type DesktopHostContext, type NativeHostSdk, runDesktopHost } from "./run-host";
 export {
   type DesktopAppModule,
   type DesktopBackend,

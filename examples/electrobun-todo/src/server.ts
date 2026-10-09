@@ -1,9 +1,11 @@
 import { furin } from "@teyik0/furin";
-import { createDesktopApp } from "@teyik0/furin-electrobun/server";
+import { desktopApp } from "@teyik0/furin-electrobun/server";
+import { Elysia } from "elysia";
 import { closeTodoBackend, getTodoBackend } from "./backend-instance";
 
 const backend = getTodoBackend();
-const app = createDesktopApp()
+const app = new Elysia()
+  .use(desktopApp({ restrictWebToLoopback: true, onShutdown: closeTodoBackend }))
   .use(backend.api)
   .use(await furin({ pagesDir: `${import.meta.dir}/pages`, sync: backend.sync }));
 
@@ -13,4 +15,3 @@ if (import.meta.main) {
 }
 
 export default app;
-export const onShutdown = closeTodoBackend;

@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { FurinConfig } from "@teyik0/furin/config";
 import { isPackageName } from "./package-name";
 
 const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)+$/;
@@ -36,6 +37,12 @@ export interface DesktopConfig {
   hostEntry?: string;
   sdk?: DesktopSdkConfig;
   window: { width: number; height: number };
+}
+
+declare module "@teyik0/furin/config" {
+  interface FurinConfigExtensions {
+    desktop?: DesktopConfig;
+  }
 }
 
 function object(value: unknown): value is { [key: string]: unknown } {
@@ -184,7 +191,7 @@ function validateSdkRelease(release: unknown) {
   }
 }
 
-export function defineDesktopConfig(config: DesktopConfig): DesktopConfig {
+export function defineDesktopConfig(config: DesktopConfig): NonNullable<FurinConfig["desktop"]> {
   validateDesktopConfig(config);
   return config;
 }

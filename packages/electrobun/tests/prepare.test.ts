@@ -61,6 +61,7 @@ test("a custom native host preserves packaging ownership and platform integratio
     expect(sdk.build.bun.entrypoint).toBe(join(root, "src/desktop.ts"));
     expect(sdk.build.copy).toEqual({
       furin: "furin",
+      "host.json": "bun/furin-host.json",
       [join(root, "runtime/helper.js")]: "bun/helper.js",
     });
     expect(sdk.app.urlSchemes).toEqual(["tofu-dev"]);
@@ -85,6 +86,9 @@ test("SDK copy destinations cannot alias or escape the reserved artifact", async
       "../furin",
       "/furin",
       "C:\\furin",
+      "bun",
+      "bun/furin-host.json",
+      "bun/furin-host.json/child",
     ]) {
       // biome-ignore lint/performance/noAwaitInLoops: Each case writes the same generated project.
       await expect(

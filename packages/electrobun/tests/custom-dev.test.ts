@@ -33,12 +33,12 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
       '{"name":"fixture","version":"1.0.0","type":"module"}'
     );
     await writeFile(
-      join(root, "furin.desktop.config.ts"),
-      `export default {
+      join(root, "furin.config.ts"),
+      `export default { desktop: {
       app: { name: "Fixture", identifier: "local.furin.custom" },
       window: { width: 800, height: 600 }, hostEntry: "src/host.ts",
       dataDir: ${JSON.stringify(join(root, ".data"))}
-    };`
+    } };`
     );
     await writeFile(join(root, "src/value.tsx"), 'export const value = "first";');
     await writeFile(join(root, "src/frontend.ts"), 'export const label = "Before";');
@@ -49,22 +49,25 @@ test("custom dev hosts retain their backend for frontend edits and drain before 
     await writeFile(
       join(root, "src/server.ts"),
       `
-      import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
+      import { Elysia } from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
+      import { desktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
       import { value } from "./value";
-      export default createDesktopApp().get("/", () => ({ value, pid: process.pid, cwd: process.cwd(), args: process.execArgv }));
-      export async function onShutdown() {
-        await Bun.write(${JSON.stringify(join(root, ".closed"))}, String(process.pid));
-      }
+      export default new Elysia().use(desktopApp({
+        async onShutdown() {
+          await Bun.write(${JSON.stringify(join(root, ".closed"))}, String(process.pid));
+        }
+      })).get("/", () => ({ value, pid: process.pid, cwd: process.cwd(), args: process.execArgv }));
     `
     );
     await writeFile(
       join(root, "src/host.ts"),
       `
-      import { getDesktopDevelopment, startDesktopBackend } from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
-      const development = await getDesktopDevelopment();
-      if (!development) throw new Error("Missing development context");
-      const backend = await startDesktopBackend(() => import(development.serverEntry), ${JSON.stringify(join(root, ".data"))}, "dev");
-      await development.ready(backend, async () => { await backend.stop(); process.exit(0); });
+      import { runDesktopHost } from ${JSON.stringify(join(import.meta.dir, "../src/host.ts"))};
+      const sdk = {
+        Utils: { paths: { appData: ${JSON.stringify(root)} }, quit: process.exit },
+        default: { events: { on() {} } }
+      };
+      await runDesktopHost(sdk, async ({ startBackend }) => { await startBackend(); });
     `
     );
     const sdk = join(root, "node_modules/electrobun");

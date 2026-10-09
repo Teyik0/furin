@@ -70,15 +70,11 @@ for (const rootData of [false, true]) {
       await writeFile(join(root, "package.json"), '{"name":"fixture","version":"1.0.0"}');
       await writeFile(
         join(root, "furin.config.ts"),
-        'export default { serverEntry: "src/server/index.tsx" };'
-      );
-      await writeFile(
-        join(root, "furin.desktop.config.ts"),
-        `export default {
+        `export default { serverEntry: "src/server/index.tsx", desktop: {
         app: { name: "Fixture", identifier: "local.furin.fixture" },
         window: { width: 800, height: 600 },
         dataDir: ${JSON.stringify(rootData ? root : join(root, "storage/database"))}
-      };`
+      } };`
       );
       const entry = `
       import { createDesktopApp } from ${JSON.stringify(Bun.resolveSync("@teyik0/furin-electrobun/server", import.meta.dir))};
@@ -262,14 +258,13 @@ test("dev supervisor terminates its ready worker when onShutdown holds an active
   let pid: number | undefined;
   try {
     await writeFile(join(root, "package.json"), '{"name":"fixture","version":"1.0.0"}');
-    await writeFile(join(root, "furin.config.ts"), 'export default { serverEntry: "server.ts" };');
     await writeFile(
-      join(root, "furin.desktop.config.ts"),
-      `export default {
+      join(root, "furin.config.ts"),
+      `export default { serverEntry: "server.ts", desktop: {
       app: { name: "Fixture", identifier: "local.furin.fixture" },
       window: { width: 800, height: 600 },
       dataDir: ${JSON.stringify(join(root, ".data"))}
-    };`
+    } };`
     );
     await writeFile(
       join(root, "server.ts"),
