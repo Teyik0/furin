@@ -1,0 +1,111 @@
+packages/core/src/server/evlog.ts
+  s_91fb1436775985::t_7cdca4fd165cf4 59-63
+packages/core/tests/client/sync/query-client.test.tsx
+  s_91fb1436775985::t_994aa5680b238a 186-190,192,194
+  s_20cb3617bed95c::t_cd6bb0da08748b 191,193
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_91fb1436775985::t_fc6ee7adf3a174 213-214,216-220,223-238
+  s_91fb1436775985::t_7cdca4fd165cf4 246-247,254,271,273,280
+  s_91fb1436775985::t_7c5e6cc35269fb 215,221-222
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_91fb1436775985::t_440848f465ff13 197
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_91fb1436775985::t_db828fe175d579 18-40
+packages/core/tests/plugin/route-config-autofix.test.ts
+  s_91fb1436775985::t_020f382b5f8044 27-41
+packages/core/tests/build/adapters/build-fingerprint.test.ts
+  s_91fb1436775985::t_e5346c71d67082 10-30
+packages/core/tests/rendering/ssr/module-preload.test.tsx
+  s_91fb1436775985::t_3b1f9c10ce49df 131,161,167-168,170
+  s_91fb1436775985::t_2feb34c71eee2c 169
+packages/core/src/server/instance.ts
+  s_91fb1436775985::t_440848f465ff13 130-135,137-138
+packages/core/src/client/link.tsx
+  s_91fb1436775985::t_d4cba2fcdd233b 140
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_91fb1436775985::t_4c547944dd3a54 11,19-22,24-25,27,29-36,231-234
+  s_91fb1436775985::t_fd81eb9da3e320 23,26,28
+packages/core/src/server/browser-events/shutdown.ts
+  s_91fb1436775985::t_fd81eb9da3e320 47
+  s_91fb1436775985::t_2b01d30faf136c 7,21-23,37,42-46,48
+packages/core/src/server/render/asset-path.ts
+  s_91fb1436775985::t_5f02d8d4dc7abf 38-44
+packages/core/src/server/production-server.ts
+  s_91fb1436775985::t_440848f465ff13 102,107-109
+  s_20cb3617bed95c::t_9b5fe3f2e5eaf0 110
+packages/core/src/client/query-store.ts
+  s_91fb1436775985::t_667b565cacf113 279,324-333,337-342,344
+  s_91fb1436775985::t_31a6547034bf2c 176-180,185-191
+  s_91fb1436775985::t_d6a202832ca16c 280,311-323,355
+  s_91fb1436775985::t_65a39b66fdfa95 336,353-354
+packages/core/src/rsc/build/flight-loader.ts
+  s_91fb1436775985::t_6faa2d1ebf9a20 6,18-32
+packages/core/src/rsc/client-references.ts
+  s_91fb1436775985::t_0e251a51a6c7f4 63-70
+packages/core/tests/rendering/deferred/render-deferred-suspense.test.ts
+  s_91fb1436775985::t_440848f465ff13 83-85
+packages/core/tests/routing/discovery/patterns.test.ts
+  s_91fb1436775985::t_bdc7e82b84fd14 2,10-16
+  s_91fb1436775985::t_59e7f90b87348d 17
+packages/core/tests/client/link/link-intent-preload.test.tsx
+  s_91fb1436775985::t_19fddec9d87940 39
+  s_91fb1436775985::t_f5ea51953353fd 6,37-38,40-56,58-65,67-79
+  s_91fb1436775985::t_fd81eb9da3e320 66
+  s_20cb3617bed95c::t_603cc43cb77c79 57
+.github/workflows/vercel-benchmark.yaml
+  s_91fb1436775985::t_d7acc9b5cc8e34 33,79,88,95,182
+packages/core/src/plugin/binding-scope.ts
+  s_91fb1436775985::t_2604324cdd981a 121,132-134,144-153
+  s_91fb1436775985::t_4fb46e0eacfb35 154-155
+packages/core/tests/runtime/production-server.test.ts
+  s_91fb1436775985::t_3fe3b63cd6f1f6 7,17-48
+  s_20cb3617bed95c::t_79bb9387e58260 49
+packages/core/tests/client/sync/query-store.test.ts
+  s_91fb1436775985::t_0e3ba472f52bea 112-118,120-132
+  s_91fb1436775985::t_0ded45d95c32bc 7-11,13-16,18-25
+  s_20cb3617bed95c::t_23284db6e3952e 12,17,119
+packages/core/tests/runtime/instance/instance.test.ts
+  s_91fb1436775985::t_37e80fadea0748 62-72
+apps/docs/src/content/docs/sync.mdx
+  s_91fb1436775985::t_a8d84622e03b8c 33-34
+packages/core/src/server/dev-page-plugin.ts
+  s_91fb1436775985::t_fd81eb9da3e320 74,565-566,568
+  s_91fb1436775985::t_19fddec9d87940 77
+  s_20cb3617bed95c::t_7f1ded5dab5189 567
+packages/core/src/server/context-logger.ts
+  s_91fb1436775985::t_7cdca4fd165cf4 7,76,85,89-98
+packages/core/src/server/sync/adapter.ts
+  s_91fb1436775985::t_a8d84622e03b8c 128
+packages/core/src/server/render/assemble.ts
+  s_91fb1436775985::t_3cc6c12f6e002b 3,85
+packages/core/src/adapter/runtime-build.ts
+  s_91fb1436775985::t_2514b51ae69de4 3,250
+packages/core/tests/build/adapters/adapter-static-unsafe-path.test.ts
+  s_91fb1436775985::t_c79ff05647b967 24,26-27
+packages/core/tests/setup/evlog-mock.ts
+  s_91fb1436775985::t_0fef22adf34480 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0010636f3c1498fafd178886bd8951eea0e31ce0",
+  "prompts": {},
+  "sessions": {
+    "s_20cb3617bed95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "729b55a0-5251-41c2-bf88-c3920fa7bbaf",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
