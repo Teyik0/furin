@@ -428,7 +428,11 @@ export class QueryStore {
         entry.promise = undefined;
         entry.snapshot = { ...entry.snapshot, isFetching: false };
         this.publish(entry);
-        if (entry.stale && version !== entry.version && entry.listeners.size > 0) {
+        if (
+          entry.stale &&
+          (version !== entry.version || epoch !== this.epoch) &&
+          entry.listeners.size > 0
+        ) {
           this.fetch(url);
         }
       });

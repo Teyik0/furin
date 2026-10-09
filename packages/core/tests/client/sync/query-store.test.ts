@@ -130,6 +130,34 @@ test("a principal change clears reads sharing the same credential options and re
   expect(store.snapshot(other).data).toBeUndefined();
 });
 
+test("a session change lets an independent active query recover from an obsolete response", async () => {
+  const store = new QueryStore(undefined);
+  const reference = { client: store, url, load: async () => result("Alice", "alice") };
+  const shared = store.readKey(reference, { headers: () => ({ Authorization: "current token" }) });
+  const independent = store.readKey(reference, { headers: { Authorization: "independent" } });
+  store.observe(shared, result("Alice", "alice"), store.generation());
+  const delayed = Promise.withResolvers<ReturnType<typeof result>>();
+  let reads = 0;
+  store.bind(independent, () => {
+    reads += 1;
+    return reads === 1 ? delayed.promise : Promise.resolve(result("Independent", "independent"));
+  });
+  const unsubscribe = store.subscribe(independent, () => undefined);
+  try {
+    const fetching = store.fetch(independent);
+    await Bun.sleep(0);
+    store.observe(shared, result("Bob", "bob"), store.generation());
+    delayed.resolve(result("Obsolete", "independent"));
+    await fetching;
+    await Bun.sleep(0);
+    expect(store.snapshot(independent).data).toBe("Independent");
+    expect(store.snapshot(independent).isFetching).toBe(false);
+    expect(reads).toBe(2);
+  } finally {
+    unsubscribe();
+  }
+});
+
 test("a stale read cannot confirm an optimistic increment twice", async () => {
   const store = new QueryStore(undefined);
   store.observe(url, result(0, "alice"), store.generation());
