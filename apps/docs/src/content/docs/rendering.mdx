@@ -141,6 +141,8 @@ Function components with hooks can cross this boundary when their module starts 
 
 Client references currently support function exports. Components exported through `memo()` or `forwardRef()` are not supported inside composite callbacks yet.
 
+Client barrels retain their original exports' Flight identities, including when several applications share a component. CommonJS modules preserve Bun's default interop; their native RSC graph supports literal export assignments and object literals assigned to `module.exports`. Use an ESM wrapper for dynamically generated CommonJS exports.
+
 ```tsx
 // src/components/counter.tsx
 "use client";

@@ -108,6 +108,8 @@ export const api = treaty<Api>(window.location.origin);
 
 For a module imported by both server loaders and browser components, use `createIsomorphicFn()` so loaders call Elysia in-process and the browser uses HTTP:
 
+Keep the factory in one fluent chain, using a named import or direct namespace access such as `Furin.createIsomorphicFn()`. Constant aliases of the factory are supported; aliasing or destructuring the Furin namespace, or selecting its exports with a runtime key, is rejected so unresolved server branches cannot reach the browser bundle.
+
 ```ts
 // src/lib/posts-api.ts
 import { treaty } from "@elysia/eden";

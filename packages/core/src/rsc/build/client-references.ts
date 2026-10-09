@@ -1,7 +1,11 @@
 import { dirname } from "node:path";
+import { walk } from "yuku-ast";
+import type { Node } from "yuku-parser";
+import { hasShadowingDeclaration } from "../../plugin/binding-scope.ts";
 import { transformIsomorphicFunctions } from "../../plugin/transform-isomorphic.ts";
 import { detectLangFromPath, detectLoaderFromPath } from "../../server/lang-detect.ts";
 import { parseSource } from "../../shared/parser.ts";
+import type { AstNode } from "../../shared/utils/ast-walk.ts";
 import { flightLoaderPlugin } from "./flight-loader.ts";
 import type { ClientReference } from "./index.ts";
 import { CLIENT_REFERENCE_RUNTIME_PATH } from "./paths.ts";
@@ -27,6 +31,58 @@ export function isClientModule(source: string, path: string): boolean {
     }
   }
   return false;
+}
+
+function isCommonJsModule(source: string, path: string): boolean {
+  const { program } = parseSource(source, detectLangFromPath(path));
+  const locals = new Set<string>();
+  for (const statement of program.body) {
+    if (statement.type === "ImportDeclaration") {
+      for (const specifier of statement.specifiers) {
+        locals.add(specifier.local.name);
+      }
+    }
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    if (declaration?.type === "VariableDeclaration") {
+      for (const binding of declaration.declarations) {
+        walk(binding.id, {
+          Identifier(node) {
+            locals.add(node.name);
+          },
+        });
+      }
+    } else if (
+      (declaration?.type === "FunctionDeclaration" || declaration?.type === "ClassDeclaration") &&
+      declaration.id
+    ) {
+      locals.add(declaration.id.name);
+    }
+  }
+  let commonJs = false;
+  walk(program, {
+    TSType(_node, context) {
+      context.skip();
+    },
+    Identifier(node, context) {
+      const parent = context.parent;
+      if (
+        (node.name !== "module" && node.name !== "exports") ||
+        locals.has(node.name) ||
+        (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
+        (parent?.type === "Property" &&
+          !parent.computed &&
+          !parent.shorthand &&
+          parent.key === node) ||
+        hasShadowingDeclaration(node.name, context.ancestors() as AstNode[])
+      ) {
+        return;
+      }
+      commonJs = true;
+      context.stop();
+    },
+  });
+  return commonJs;
 }
 
 export function clientReferencesPlugin(): Bun.BunPlugin {
@@ -58,18 +114,28 @@ export function clientReferencesPlugin(): Bun.BunPlugin {
         const names = new Bun.Transpiler({ loader: detectLoaderFromPath(path) }).scan(
           source
         ).exports;
+        const hasDefault = names.includes("default") || isCommonJsModule(source, path);
         return {
           contents: `import * as implementation from ${JSON.stringify(path + IMPLEMENTATION)};
 import { registerClientModule } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};
 registerClientModule(${JSON.stringify(clientModuleId(path))}, implementation);
 export * from ${JSON.stringify(path + IMPLEMENTATION)};
-${names.includes("default") ? `export { default } from ${JSON.stringify(path + IMPLEMENTATION)};` : ""}`,
+${hasDefault ? `export { default } from ${JSON.stringify(path + IMPLEMENTATION)};` : ""}`,
           loader: "js",
           resolveDir: dirname(path),
         };
       });
     },
   };
+}
+
+function staticPropertyName(property: Node, computed: boolean): string | undefined {
+  if (!computed && property.type === "Identifier") {
+    return property.name;
+  }
+  return property.type === "Literal" && typeof property.value === "string"
+    ? property.value
+    : undefined;
 }
 
 async function exportedNames(
@@ -86,6 +152,55 @@ async function exportedNames(
       .scan(source)
       .exports.filter((name) => name !== "*")
   );
+  if (isCommonJsModule(source, path)) {
+    names.add("default");
+    walk(parseSource(source, detectLangFromPath(path)).program, {
+      AssignmentExpression(node, context) {
+        const target = node.left;
+        if (target.type !== "MemberExpression") {
+          return;
+        }
+        const object = target.object;
+        if (
+          object.type === "Identifier" &&
+          object.name === "module" &&
+          staticPropertyName(target.property, target.computed) === "exports" &&
+          !hasShadowingDeclaration(object.name, context.ancestors() as AstNode[])
+        ) {
+          if (node.right.type === "ObjectExpression") {
+            for (const property of node.right.properties) {
+              if (property.type === "Property") {
+                const name = staticPropertyName(property.key, property.computed);
+                if (name) {
+                  names.add(name);
+                }
+              }
+            }
+          }
+          return;
+        }
+        const namespace =
+          object.type === "Identifier" && object.name === "exports"
+            ? object
+            : object.type === "MemberExpression" &&
+                object.object.type === "Identifier" &&
+                object.object.name === "module" &&
+                staticPropertyName(object.property, object.computed) === "exports"
+              ? object.object
+              : undefined;
+        if (
+          !namespace ||
+          hasShadowingDeclaration(namespace.name, context.ancestors() as AstNode[])
+        ) {
+          return;
+        }
+        const name = staticPropertyName(target.property, target.computed);
+        if (typeof name === "string") {
+          names.add(name);
+        }
+      },
+    });
+  }
   for (const statement of parseSource(source, detectLangFromPath(path)).program.body) {
     if (
       statement.type !== "ExportAllDeclaration" ||

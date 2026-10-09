@@ -496,6 +496,36 @@ function assertStaticEnvironmentMethods(
   });
 }
 
+function assertStaticNamespaceUse(
+  node: AstNode,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[],
+  filename: string
+): void {
+  if (
+    !(
+      node.type === "Identifier" &&
+      typeof node.name === "string" &&
+      bindings.namespaces.has(node.name) &&
+      !hasShadowingDeclaration(node.name, ancestors)
+    )
+  ) {
+    return;
+  }
+  const parent = ancestors.at(-1);
+  if (
+    parent?.type === "MemberExpression" &&
+    parent.object === node &&
+    (!parent.computed ||
+      resolveStaticString(parent.property as AstNode, bindings, ancestors, new Set()) !== undefined)
+  ) {
+    return;
+  }
+  throw new Error(
+    `[furin] ${filename}: Furin namespace imports must use direct static member access so createIsomorphicFn can be compiled. Use a named import instead of escaping the namespace.`
+  );
+}
+
 function assertResolvedFactoryUses(
   program: Program,
   bindings: IsomorphicBindings,
@@ -506,6 +536,7 @@ function assertResolvedFactoryUses(
     const parent = ancestors.at(-1);
     if (
       parent?.type === "ImportSpecifier" ||
+      parent?.type === "ImportNamespaceSpecifier" ||
       (parent?.type === "VariableDeclarator" && parent.id === node) ||
       (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
       (parent?.type === "Property" &&
@@ -518,6 +549,7 @@ function assertResolvedFactoryUses(
     ) {
       return;
     }
+    assertStaticNamespaceUse(node, bindings, ancestors, filename);
     if (!isFactoryExpression(node, bindings, ancestors, new Set())) {
       return;
     }

@@ -2,10 +2,15 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { buildClient } from "../../../src/build/client.ts";
+import { generateClientReferenceEntry } from "../../../src/build/hydrate.ts";
 import {
   clientModuleId,
   clientReferencesPlugin,
 } from "../../../src/rsc/build/client-references.ts";
+import {
+  discoverClientBoundaries,
+  registerServerBoundaries,
+} from "../../../src/rsc/build/discover.ts";
 import { flightLoaderPlugin } from "../../../src/rsc/build/flight-loader.ts";
 import { buildRscGraph } from "../../../src/rsc/build/index.ts";
 import { registerClientLoader, requireClientModule } from "../../../src/rsc/client-references.ts";
@@ -39,6 +44,84 @@ test("client references share their identity across Windows and browser import p
     clientModuleId("D:/apps/src/counter.tsx")
   );
 });
+
+test.each(["js", "cjs", "cts"])(
+  "SSR preserves the native default of a CommonJS client module (.%s)",
+  async (extension) => {
+    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+    try {
+      await Bun.write(
+        join(directory, `counter.${extension}`),
+        '"use client"; module.exports = function Counter() { return "CJS_COUNTER"; };'
+      );
+      const entry = join(directory, "entry.ts");
+      await Bun.write(
+        entry,
+        `import Counter from "./counter.${extension}"; console.log(Counter());`
+      );
+      const built = await Bun.build({
+        entrypoints: [entry],
+        outdir: join(directory, "output"),
+        plugins: [clientReferencesPlugin()],
+        target: "bun",
+      });
+      expect(built.success).toBe(true);
+      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [status, output, errors] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect({ status, output: output.trim(), errors }).toEqual({
+        status: 0,
+        output: "CJS_COUNTER",
+        errors: "",
+      });
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
+
+test.each([
+  'export { default as Counter } from "./counter.ts";',
+  'import Original from "./counter.ts"; export const Counter = Object.assign(Original, {});',
+  'import Original from "./counter.ts"; export const Counter = true ? Original : () => null;',
+  'import * as Original from "./counter.ts"; const { default: Counter } = Original; export { Counter };',
+  'exports.Counter = require("./counter.ts").default;',
+])(
+  "client boundary discovery includes the canonical module of a shared reexport: %s",
+  async (reexport) => {
+    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+    try {
+      const counter = join(directory, "counter.ts");
+      const barrel = join(directory, "barrel.ts");
+      const direct = join(directory, "direct.ts");
+      const indirect = join(directory, "indirect.ts");
+      await Bun.write(counter, '"use client"; export default function Counter() { return null; }');
+      await Bun.write(barrel, `"use client"; ${reexport}`);
+      await Bun.write(
+        direct,
+        'import Counter from "./counter.ts"; export const component = Counter;'
+      );
+      await Bun.write(
+        indirect,
+        'import { Counter } from "./barrel.ts"; export const component = Counter;'
+      );
+      const first = await discoverClientBoundaries([direct], undefined);
+      await registerServerBoundaries(first);
+      const second = await discoverClientBoundaries([indirect], undefined);
+      await registerServerBoundaries(second);
+      expect(second.map(({ id }) => id)).toContain(clientModuleId(counter));
+      expect(second.map(({ id }) => id)).toContain(clientModuleId(barrel));
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
 
 test.each(["loader", "layout"])(
   "client boundary discovery preserves tree shaking for %s imports",
@@ -166,6 +249,92 @@ export default function Counter() {
   }
 });
 
+test.each([
+  {
+    name: "default",
+    source: 'module.exports = function Counter() { return "CJS_IMPLEMENTATION"; };',
+  },
+  {
+    name: "Counter",
+    source: 'exports.Counter = function Counter() { return "CJS_IMPLEMENTATION"; };',
+  },
+  {
+    name: "Counter",
+    source: 'module.exports.Counter = function Counter() { return "CJS_IMPLEMENTATION"; };',
+  },
+  {
+    name: "Counter",
+    source: 'module.exports = { Counter: function Counter() { return "CJS_IMPLEMENTATION"; } };',
+  },
+])("the react-server graph preserves a CommonJS $name reference", async ({ name, source }) => {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    const counter = join(directory, "counter.js");
+    const root = join(directory, "root.tsx");
+    await Bun.write(counter, `"use client"; ${source}`);
+    await Bun.write(
+      root,
+      `import ${name === "default" ? "Counter" : "{ Counter }"} from "./counter.js"; export const tree = <Counter />;`
+    );
+    const manifest = await buildRscGraph(
+      [{ root: { path: root, route: {} as never }, routes: [] }],
+      join(directory, "output"),
+      "commonjs-reference",
+      undefined
+    );
+    expect(manifest.clientReferences).toContainEqual({
+      id: clientModuleId(counter),
+      name,
+      chunks: [],
+    });
+    const files = await Array.fromAsync(
+      new Bun.Glob("**/*.js").scan({ cwd: join(directory, "output/rsc"), absolute: true })
+    );
+    const code = (await Promise.all(files.map((path) => Bun.file(path).text()))).join("\n");
+    expect(code).not.toContain("CJS_IMPLEMENTATION");
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("SSR client registration does not classify shadowed module and exports as CommonJS", async () => {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    await Bun.write(
+      join(directory, "component.ts"),
+      '"use client"; export function local(module, exports) { return module.exports + exports; }'
+    );
+    const entry = join(directory, "entry.ts");
+    await Bun.write(
+      entry,
+      'import { local } from "./component.ts"; console.log(local({ exports: "LOCAL" }, "_VALUE"));'
+    );
+    const built = await Bun.build({
+      entrypoints: [entry],
+      outdir: join(directory, "output"),
+      plugins: [clientReferencesPlugin()],
+      target: "bun",
+    });
+    expect(built.logs).toEqual([]);
+    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [status, output, errors] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect({ status, output: output.trim(), errors }).toEqual({
+      status: 0,
+      output: "LOCAL_VALUE",
+      errors: "",
+    });
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test.each(["development", "production"])(
   "Furin renders a composite containing Link and a loader-only client component (%s)",
   async (mode) => {
@@ -251,7 +420,7 @@ export const route = defineRoute().config({ mode: "isr", revalidate: 300 })
 );
 
 test.each(["development", "production"])(
-  "a Flight-only client component hydrates and handles clicks without webpack globals (%s)",
+  "a Flight-only client component reexported by a barrel hydrates and handles clicks (%s)",
   async (mode) => {
     const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
     try {
@@ -265,10 +434,14 @@ export default function Counter() {
 }`
       );
       await Bun.write(
+        join(directory, "barrel.ts"),
+        '"use client"; import Counter from "./counter.tsx"; const Alias = Counter; export { Alias as default };'
+      );
+      await Bun.write(
         join(directory, "server.tsx"),
         `import { renderServerComponent, getRscSourceState } from "@teyik0/furin/rsc";
 import { renderToReadableStream } from "react-dom/server";
-import Counter from "./counter.tsx";
+import Counter from "./barrel.ts";
 const tree = await renderServerComponent(<Counter />);
 const html = await new Response(await renderToReadableStream(tree)).text();
 console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }));`
@@ -295,14 +468,13 @@ console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }))
       expect(errors).toBe("");
       expect(status).toBe(0);
       await Bun.write(join(directory, "payload.json"), payload);
-      const runtime = join(import.meta.dir, "../../../src/rsc/client-references.ts");
+      const boundaries = await discoverClientBoundaries([join(directory, "server.tsx")], undefined);
       await Bun.write(
         join(directory, "browser.tsx"),
         `import { hydrateRoot } from "react-dom/client";
 import { restoreRscSource } from "@teyik0/furin/rsc";
-import { registerClientLoader } from ${JSON.stringify(runtime)};
 import payload from "./payload.json";
-registerClientLoader(${JSON.stringify(clientModuleId(join(directory, "counter.tsx")))}, () => import("./counter.tsx"));
+${generateClientReferenceEntry(boundaries)}
 document.body.innerHTML = payload.html;
 const errors = [];
 hydrateRoot(document.body, restoreRscSource("renderable", new Uint8Array(payload.bytes)), { onRecoverableError: error => errors.push(String(error)) });

@@ -423,6 +423,36 @@ test("browser bundles remove server secrets through constant factory and method 
   expect(output).not.toContain("SERVER_SECRET");
 });
 
+test.each([
+  'const Alias = Furin; export const getValue = Alias.createIsomorphicFn()',
+  'const { createIsomorphicFn: create } = Furin; export const getValue = create()',
+  'export const getValue = Furin[globalThis.factory]()',
+])("browser builds reject an escaped Furin namespace before emitting server code: %s", async (factory) => {
+  const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-namespace-"));
+  temporaryDirectories.push(root);
+  const entrypoint = join(root, "entry.ts");
+  writeFileSync(entrypoint, `
+    import * as Furin from "@teyik0/furin";
+    ${factory}
+      .server(() => "SERVER_SECRET_MARKER")
+      .client(() => "PUBLIC_VALUE");
+  `);
+  await expect(Bun.build({
+    entrypoints: [entrypoint],
+    external: ["@teyik0/furin"],
+    plugins: [stripPlugin],
+    target: "browser",
+  })).rejects.toThrow();
+});
+
+test("namespace validation preserves other direct exports and shadowed local namespaces", () => {
+  const source = `import * as Furin from "@teyik0/furin";
+    export const useRouter = Furin["useRouter"];
+    export function local(Furin) { return Furin; }
+  `;
+  expect(transformIsomorphicFunctions(source, "shared.ts", "client").code).toBe(source);
+});
+
 test("browser builds recursively compile nested isomorphic functions in the selected branch", async () => {
   const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-nested-"));
   temporaryDirectories.push(root);
