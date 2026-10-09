@@ -1,0 +1,24 @@
+bun.lock
+  h_a2cbd1b0e3ae6e 135,178
+packages/core/package.json
+  h_a2cbd1b0e3ae6e 3
+packages/electrobun/README.md
+  h_a2cbd1b0e3ae6e 126-127
+packages/electrobun/package.json
+  h_a2cbd1b0e3ae6e 3
+packages/electrobun/src/cli.ts
+  h_a2cbd1b0e3ae6e 3,5,10-35,209,220,225,244-249,348,385
+packages/electrobun/tests/custom-dev.test.ts
+  h_a2cbd1b0e3ae6e 3,19,24-27,144-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f347e28bf776b95b51207ec445e32a1b541d62f4",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
