@@ -1,0 +1,19 @@
+.github/workflows/distributed-sync-validation.yaml
+  s_91fb1436775985::t_3312cb5840d5fe 21,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "68dfcc82563e81ad98daa16746e41b4dc85e4fed",
+  "prompts": {},
+  "sessions": {
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
