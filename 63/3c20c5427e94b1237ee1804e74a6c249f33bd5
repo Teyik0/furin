@@ -1,0 +1,43 @@
+examples/electrobun-todo/README.md
+  s_91fb1436775985::t_37f70f9e130998 5-6,28
+packages/core/src/config.ts
+  s_91fb1436775985::t_fa394d50da87b1 96-97,141-148
+packages/electrobun/src/config.ts
+  s_91fb1436775985::t_2f1fb6c83fbbcb 2,42-47,194
+packages/electrobun/src/prepare.ts
+  s_91fb1436775985::t_6564ed0ea90eca 157-159,178-180,207-211
+packages/electrobun/src/registry.ts
+  s_91fb1436775985::t_d2206cce73792b 7-8,12,22-25,34
+packages/electrobun/src/run-host.ts
+  s_91fb1436775985::t_8a83a0889c2b13 1-132
+packages/electrobun/src/server.ts
+  s_91fb1436775985::t_615a1b2f4c9fb7 1,7,9-30,32-34,36,39-104,106-113
+packages/electrobun/tests/init.test.ts
+  s_91fb1436775985::t_4ec4be77fa59fc 2,18,35-64,75-76,79,117
+packages/electrobun/tests/plugin.test.ts
+  s_91fb1436775985::t_4aff58fb2edc09 1-209
+packages/electrobun/tests/prepare.test.ts
+  s_91fb1436775985::t_7c046dc3b65a83 64,89-91
+packages/electrobun/tests/run-host.test.ts
+  s_91fb1436775985::t_1909cdc946fb47 1-85
+packages/electrobun/tests/unified-config.test.ts
+  s_91fb1436775985::t_eb1e5c7e9803b6 1-52
+packages/electrobun/src/host.ts
+  s_91fb1436775985::t_ef65294774c5af 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "633c20c5427e94b1237ee1804e74a6c249f33bd5",
+  "prompts": {},
+  "sessions": {
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
