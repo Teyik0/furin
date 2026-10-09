@@ -5,7 +5,7 @@ import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateHydrateEntry } from "./hydrate";
@@ -14,7 +14,6 @@ import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shar
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
-const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 const ROUTER_PROVIDER_PATH = resolve(import.meta.dir, "../client/router/provider.tsx");
 
 function resolveClientModuleSpecifiers(code: string): string {
@@ -82,7 +81,7 @@ export async function buildClient(
   }
 
   const boundaries = await discoverClientBoundaries(
-    [...new Set([rootLayout, ...routes.map(route => route.path)])], plugins
+    [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
   );
   await registerServerBoundaries(boundaries);
   const hydrateCode = generateClientReferenceEntry(boundaries) + resolveClientModuleSpecifiers(

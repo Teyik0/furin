@@ -8,6 +8,11 @@ export function flightLoaderPlugin(): Bun.BunPlugin {
   return {
     name: "furin-flight-module-loader",
     setup(build) {
+      if (build.config?.target === "browser") {
+        build.onResolve({ filter: /(?:^|[\\/])client-codec\.ts$/ }, () => ({
+          path: BUNDLED_CLIENT_CODEC_PATH,
+        }));
+      }
       build.onResolve({ filter: /(?:^|\/)server-client-codec\.ts$/ }, () => ({
         path: BUNDLED_CLIENT_CODEC_PATH,
       }));

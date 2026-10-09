@@ -1,15 +1,75 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { clientReferencesPlugin } from "../../../src/rsc/build/client-references.ts";
+import { buildClient } from "../../../src/build/client.ts";
+import {
+  clientModuleId,
+  clientReferencesPlugin,
+} from "../../../src/rsc/build/client-references.ts";
 import { flightLoaderPlugin } from "../../../src/rsc/build/flight-loader.ts";
 import { buildRscGraph } from "../../../src/rsc/build/index.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 import { getTestPort, waitForHttp } from "../../support/http.ts";
 import { startProcess } from "../../support/process.ts";
 
+const temporaryDirectory = join(import.meta.dir, "../../../.tmp-tests");
+mkdirSync(temporaryDirectory, { recursive: true });
+
+test("client references share their identity across Windows and browser import paths", () => {
+  expect(clientModuleId("D:\\apps\\src\\counter.tsx")).toBe(
+    clientModuleId("D:/apps/src/counter.tsx")
+  );
+});
+
+test.each(["loader", "layout"])(
+  "client boundary discovery preserves tree shaking for %s imports",
+  async (mode) => {
+    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+    try {
+      await Bun.write(
+        join(directory, "dependency.ts"),
+        `"use client";
+export function label() { return "Count"; }
+export function unused() { return "UNUSED_CLIENT_BOUNDARY_EXPORT"; }`
+      );
+      await Bun.write(
+        join(directory, "counter.tsx"),
+        `"use client";
+import { label } from "./dependency";
+export default function Counter() { return <button>{label()}</button>; }
+export function Unused() { return <span>UNUSED_ROOT_CLIENT_BOUNDARY_EXPORT</span>; }`
+      );
+      const root = join(directory, "root.tsx");
+      await Bun.write(
+        root,
+        `import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
+import Counter from "./counter";
+export const route = defineRootRoute()
+${mode === "loader" ? ".loader(async () => ({ tree: await createCompositeComponent(() => <Counter />) }))" : ""}
+.layout(({ children${mode === "loader" ? ", tree" : ""} }) => <html><head><HeadContent /></head><body>${mode === "loader" ? "<CompositeComponent src={tree} />" : "<Counter />"}{children}<Scripts /></body></html>);`
+      );
+      await buildClient([], {
+        outDir: join(directory, "output"),
+        basePath: "",
+        clientLogging: false,
+        publicPath: "/_client/",
+        rootLayout: root,
+      });
+      const files = await Array.fromAsync(
+        new Bun.Glob("*.js").scan({ cwd: join(directory, "output/client"), absolute: true })
+      );
+      const code = (await Promise.all(files.map((path) => Bun.file(path).text()))).join("\n");
+      expect(code.includes("UNUSED_CLIENT_BOUNDARY_EXPORT")).toBe(false);
+      expect(code.includes("UNUSED_ROOT_CLIENT_BOUNDARY_EXPORT")).toBe(mode === "loader");
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
+
 test("a use-client component renders through Flight without running its hooks in the RSC renderer", async () => {
-  const directory = mkdtempSync(join(import.meta.dir, "../../.tmp-rsc-references-"));
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
   try {
     mkdirSync(join(directory, "output"));
     await Bun.write(
@@ -55,7 +115,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
 });
 
 test("the react-server graph replaces a client boundary with references and emits its manifest", async () => {
-  const directory = mkdtempSync(join(import.meta.dir, "../../.tmp-rsc-references-"));
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
   try {
     await Bun.write(
       join(directory, "counter.tsx"),
@@ -170,7 +230,7 @@ export const route = defineRoute().config({ mode: "isr", revalidate: 300 })
 test.each(["development", "production"])(
   "a Flight-only client component hydrates and handles clicks without webpack globals (%s)",
   async (mode) => {
-    const directory = mkdtempSync(join(import.meta.dir, "../../.tmp-rsc-references-"));
+    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
     try {
       await Bun.write(
         join(directory, "counter.tsx"),
@@ -219,7 +279,7 @@ console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }))
 import { restoreRscSource } from "@teyik0/furin/rsc";
 import { registerClientLoader } from ${JSON.stringify(runtime)};
 import payload from "./payload.json";
-registerClientLoader(${JSON.stringify(`furin:${Bun.hash(join(directory, "counter.tsx")).toString(16)}`)}, () => import("./counter.tsx"));
+registerClientLoader(${JSON.stringify(clientModuleId(join(directory, "counter.tsx")))}, () => import("./counter.tsx"));
 document.body.innerHTML = payload.html;
 const errors = [];
 hydrateRoot(document.body, restoreRscSource("renderable", new Uint8Array(payload.bytes)), { onRecoverableError: error => errors.push(String(error)) });
@@ -236,7 +296,7 @@ export { errors };`
       expect(browser.success).toBe(true);
       await Bun.write(
         join(directory, "run.ts"),
-        `import { installDom, waitForDom, uninstallDom } from "../support/dom.ts";
+        `import { installDom, waitForDom, uninstallDom } from ${JSON.stringify(join(import.meta.dir, "../../support/dom.ts"))};
 installDom();
 const { errors } = await import("./browser/browser.js");
 await Bun.sleep(100);

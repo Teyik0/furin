@@ -10,7 +10,7 @@ const IMPLEMENTATION = "?furin-client-implementation";
 const SCRIPTS = /\.[cm]?[jt]sx?$/;
 
 export function clientModuleId(path: string): string {
-  return `furin:${Bun.hash(path).toString(16)}`;
+  return `furin:${Bun.hash(path.replaceAll("\\", "/")).toString(16)}`;
 }
 
 export function isClientModule(source: string, path: string): boolean {

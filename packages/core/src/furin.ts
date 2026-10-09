@@ -1261,7 +1261,10 @@ async function createFurinRuntime({
       await registerServerBoundaries([
         ...clientBoundaries,
         ...clientBoundaries
-          .filter(({ path }) => path !== LINK_MODULE_PATH && !path.includes("/node_modules/"))
+          .filter(
+            ({ path }) =>
+              path !== LINK_MODULE_PATH.replaceAll("\\", "/") && !path.includes("/node_modules/")
+          )
           .map((boundary) => ({
             ...boundary,
             path: `${boundary.path}?furin-server&t=${routeModuleSourceVersion(boundary.path)}`,
