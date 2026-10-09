@@ -288,6 +288,15 @@ export function rewriteBareImports(transpiled: string, dir: string): string {
       // Leave unresolved imports to Bun's native resolution and diagnostics.
       return;
     }
+    if (
+      WORKSPACE_SOURCE_FILTER.test(resolved) &&
+      specifier !== "furin" &&
+      !specifier.startsWith("furin/") &&
+      specifier !== "@teyik0/furin" &&
+      !specifier.startsWith("@teyik0/furin/")
+    ) {
+      resolved = `${resolved}?furin-server&t=${routeModuleSourceVersion(resolved)}`;
+    }
     output.update(literal.start, literal.end, JSON.stringify(resolved));
   });
   return output.toString();

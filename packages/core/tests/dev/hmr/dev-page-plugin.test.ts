@@ -91,7 +91,7 @@ test("a virtual development loader resolves a dynamically imported MDX alias", a
   }
 });
 
-test("virtual modules resolve static imports and re-exports while preserving import examples", async () => {
+test("virtual modules refresh aliased imports and re-exports while preserving import examples", async () => {
   const directory = mkdtempSync(resolve(tmpdir(), "furin-dev-alias-"));
   const filePath = resolve(directory, "page.ts");
   const example = 'import "@/value.ts"';
@@ -110,18 +110,27 @@ test("virtual modules resolve static imports and re-exports while preserving imp
         'import { value } from "@/value.ts";',
         'export { value } from "@/value.ts";',
         'export const label = "café " + value;',
+        'export async function loadValue() { return (await import("@/value.ts")).value; }',
       ].join("\n")
     );
     registerDevPagePlugin();
     const imported = (await import(`${filePath}?furin-server&t=1`)) as {
       example: string;
       label: string;
+      loadValue: () => Promise<string>;
       value: string;
     };
 
     expect(imported.example).toBe(example);
     expect(imported.value).toBe("loaded");
     expect(imported.label).toBe("café loaded");
+    expect(await imported.loadValue()).toBe("loaded");
+
+    writeFileSync(resolve(directory, "value.ts"), 'export const value = "updated";');
+    const refreshed = await import(`${filePath}?furin-server&t=2`);
+    expect(refreshed.value).toBe("updated");
+    expect(refreshed.label).toBe("café updated");
+    expect(await refreshed.loadValue()).toBe("updated");
   } finally {
     rmSync(directory, { force: true, recursive: true });
   }

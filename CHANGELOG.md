@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Dependency security** — update compatible transitive dependencies and use the official selector-parser `7.1.6` fix. Local dependency patches are removed.
 
 ### Fixed
+- **Development HMR aliases** — refresh server-rendered components imported through TypeScript path aliases after edits, including ISR layouts, re-exports and dynamic imports, while preserving React and framework singleton modules.
 - **Application isolation and composition** — isolate page caches, queries, sync principals, logging, development graphs and watchers across independent applications, reused plugins and nested Elysia prefixes. Keep compiled SSG snapshots while adapting their document URLs to the physical mount.
 - **Server/client compilation** — resolve builder bindings and static aliases, reject ambiguous server-only chains, process every supported script extension and preserve valid imports during development autofixes.
 - **Rendering and navigation** — preserve rich loader values through SSR/RSC hydration, stream deferred data progressively, release cancelled transports, retain error/404 markers and normalize links, route specificity, params and search selectors consistently.
