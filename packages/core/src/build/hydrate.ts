@@ -8,8 +8,17 @@ import {
 import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { collectSearchDefaults } from "../shared/search-params.ts";
+import type { ClientBoundary } from "../rsc/build/discover.ts";
+import { CLIENT_REFERENCE_RUNTIME_PATH } from "../rsc/build/paths.ts";
 import { writeRouteTypes } from "./route-types";
 import type { BuildClientOptions } from "./types";
+
+export function generateClientReferenceEntry(boundaries: readonly ClientBoundary[]): string {
+  if (boundaries.length === 0) {
+    return "";
+  }
+  return `import { registerClientLoader } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${boundaries.map(({ id, path }) => `registerClientLoader(${JSON.stringify(id)}, () => import(${JSON.stringify(path)}));`).join("\n")}\n`;
+}
 
 /**
  * Generates the client hydration entry.
@@ -453,7 +462,7 @@ if (__deferred && __deferred._chunks) {
  */
 export function writeDevFiles(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, basePath, clientLogging, skipRouteTypes }: BuildClientOptions,
+  { outDir, rootLayout, basePath, clientLogging, clientBoundaries, skipRouteTypes }: BuildClientOptions,
   projectRoot: string,
   serverSourceVersion?: string
 ): void {
@@ -468,6 +477,7 @@ export function writeDevFiles(
       ? ""
       : `\nif (import.meta.hot) import.meta.hot.data.furinServerSourceVersion = ${JSON.stringify(serverSourceVersion)};\n`;
   const hydrateCode =
+    generateClientReferenceEntry(clientBoundaries ?? []) +
     generateHydrateEntry(routes, rootLayout, basePath, clientLogging) + serverVersion;
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";

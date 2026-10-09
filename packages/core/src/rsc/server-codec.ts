@@ -1,4 +1,5 @@
 import { renderToReadableStream } from "react-server-dom-webpack/server.edge";
+import { clientReferenceManifest } from "./client-references.ts";
 import type { FlightRenderSession } from "./flight-drain.ts";
 
 export function renderFlight(model: unknown, signal: AbortSignal | undefined): FlightRenderSession {
@@ -10,14 +11,10 @@ export function renderFlight(model: unknown, signal: AbortSignal | undefined): F
       renderErrorReported = true;
     }
   };
-  const stream = renderToReadableStream(
-    model,
-    {},
-    {
-      onError,
-      ...(signal === undefined ? {} : { signal }),
-    }
-  );
+  const stream = renderToReadableStream(model, clientReferenceManifest, {
+    onError,
+    ...(signal === undefined ? {} : { signal }),
+  });
   return {
     getRenderError: () => ({ error: firstRenderError, reported: renderErrorReported }),
     stream,

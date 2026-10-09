@@ -12,6 +12,7 @@ import type { BuildAppOptions, VercelTargetBuildManifest } from "../build/types.
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
 import {
@@ -789,6 +790,7 @@ export async function buildVercelTarget(
       mixedRuntimePlugin(apps),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
+      clientReferencesPlugin(),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("ssr"),
       elysiaAot(appEntry),

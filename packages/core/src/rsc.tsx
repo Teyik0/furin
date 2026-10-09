@@ -2,6 +2,7 @@
 
 import { createElement, type ReactNode } from "react";
 import { encodeFlight } from "./rsc/codec.ts";
+import { installClientCodec } from "./rsc/server-client-codec.ts";
 import {
   type CompositeComponentSource,
   createRenderableSource,
@@ -9,6 +10,8 @@ import {
   type RenderableServerComponent,
 } from "./rsc/shared.tsx";
 import { RSC_SOURCE, SLOT_MARKER } from "./rsc/symbols.ts";
+
+installClientCodec();
 
 export { FurinRscRenderError, isFurinRscRenderError } from "./rsc/render-error.ts";
 // react-doctor-disable-next-line react-doctor/only-export-components

@@ -1235,14 +1235,19 @@ async function createFurinRuntime({
     navigationDataMatchers.set(instance, (path) => matchNavigationData(path) !== null);
 
     const { writeDevFiles } = await import("./build/hydrate.ts");
+    const { discoverClientBoundaries, registerServerBoundaries } = await import(
+      "./rsc/build/discover.ts"
+    );
+    const { routeModuleSourceVersion } = await import("./server/router/source-version.ts");
+    const { LINK_MODULE_PATH } = await import("./build/shared.ts");
     const { getHmrDataSignature } = await import("./plugin/transform-client.ts");
     let serverSourceVersion = 0;
     let serverDataSignatures = new Map<string, string>();
     let serverSourcePaths: string | undefined;
-    const writeCurrentDevFiles = (
+    const writeCurrentDevFiles = async (
       snapshot: DevelopmentRouteSnapshot,
       changedSources: readonly string[]
-    ): void => {
+    ): Promise<void> => {
       const paths = [
         ...new Set([
           snapshot.root.path,
@@ -1252,6 +1257,16 @@ async function createFurinRuntime({
           ]),
         ]),
       ].toSorted();
+      const clientBoundaries = await discoverClientBoundaries(paths, undefined);
+      await registerServerBoundaries([
+        ...clientBoundaries,
+        ...clientBoundaries
+          .filter(({ path }) => path !== LINK_MODULE_PATH && !path.includes("/node_modules/"))
+          .map((boundary) => ({
+            ...boundary,
+            path: `${boundary.path}?furin-server&t=${routeModuleSourceVersion(boundary.path)}`,
+          })),
+      ]);
       const nextPaths = JSON.stringify(paths);
       const nextSignatures = new Map(
         paths.map((path) => {
@@ -1285,6 +1300,7 @@ async function createFurinRuntime({
         {
           basePath: prefix,
           clientLogging: clientLogging ?? false,
+          clientBoundaries,
           outDir: furinDir,
           publicPath: `${prefix}/_client/`,
           rootLayout: snapshot.root.path,
@@ -1296,7 +1312,7 @@ async function createFurinRuntime({
         String(serverSourceVersion)
       );
     };
-    writeCurrentDevFiles(initialSnapshot, []);
+    await writeCurrentDevFiles(initialSnapshot, []);
     graph.commit(initialSnapshot);
     const hmrEntry = (await import(join(furinDir, "index.html"))).default;
     const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
@@ -1317,7 +1333,7 @@ async function createFurinRuntime({
                 }
           );
           const nextSnapshot = createDevelopmentRouteSnapshot(next.root, nextRoutes);
-          writeCurrentDevFiles(nextSnapshot, changedSources);
+          await writeCurrentDevFiles(nextSnapshot, changedSources);
           graph.commit(nextSnapshot);
           matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
           const diagnostics = devDiagnosticStore(instance);

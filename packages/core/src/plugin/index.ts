@@ -1,5 +1,6 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
+import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
@@ -37,6 +38,7 @@ export default {};
 const plugin: Bun.BunPlugin = {
   name: "furin-strip-server",
   setup(build) {
+    flightLoaderPlugin().setup(build);
     environmentGuardPlugin("client").setup(build);
     const topologyPaths = new Set<string>();
     const loadedSources = new Map<

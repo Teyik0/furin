@@ -13,6 +13,7 @@ import { createVirtualBuildEntry, type VirtualBuildEntry } from "../build/virtua
 import type { BuildTarget } from "../config.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
 import {
@@ -218,7 +219,6 @@ export async function buildBunTarget(
             assets: collectEmbeddedAssets(entryApps, publicDir, options.compile),
             outfile: join(targetDir, serverFilename),
           },
-          define: { "process.env.NODE_ENV": JSON.stringify("production") },
           format: "esm",
           splitting: true,
         }
@@ -229,6 +229,7 @@ export async function buildBunTarget(
 
     const serverBuild = await runBunBuild({
       ...outputOptions,
+      define: { "process.env.NODE_ENV": JSON.stringify("production") },
       entrypoints: [entry.entrypoint],
       files: entry.files,
       metafile: options.analyze,
@@ -240,6 +241,7 @@ export async function buildBunTarget(
         mixedRuntimePlugin(apps),
         ...(options.plugins ?? []),
         createRoutesPlugin({ instances: apps, target: "server" }),
+        clientReferencesPlugin(),
         isomorphicTransformPlugin("server"),
         environmentGuardPlugin("ssr"),
         elysiaAot(appEntry),

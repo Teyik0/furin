@@ -12,7 +12,7 @@ declare module "react-server-dom-webpack/server.edge" {
 declare module "react-server-dom-webpack/client.edge" {
   interface ServerConsumerManifest {
     moduleLoading: null;
-    moduleMap: object;
+    moduleMap: object | null;
     serverModuleMap: object;
   }
 

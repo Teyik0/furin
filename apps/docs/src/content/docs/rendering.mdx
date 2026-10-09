@@ -137,6 +137,37 @@ React server-component transport is a loader value, not another route mode. `cre
 
 Furin's composite API is intentionally narrower than the Next.js React Server Component model: it does not provide Server Actions, and mutations remain Elysia routes.
 
+Function components with hooks can cross this boundary when their module starts with `"use client"`. Furin sends a Flight reference, renders the component with React DOM during SSR, and loads its browser module for hydration. Imports used only by a loader are included in the client build too.
+
+Client references currently support function exports. Components exported through `memo()` or `forwardRef()` are not supported inside composite callbacks yet.
+
+```tsx
+// src/components/counter.tsx
+"use client";
+
+import { useState } from "react";
+
+export function Counter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
+}
+```
+
+```tsx
+// Inside a route loader
+const header = await createCompositeComponent<{ children: ReactNode }>(
+  ({ children }) => (
+    <header>
+      <Link to="/">Home</Link>
+      <Counter />
+      {children}
+    </header>
+  )
+);
+```
+
+Furin's `Link` already declares this client boundary. It keeps its router context and SPA navigation when rendered through Flight. Props passed from a server tree to a client component must be serializable by React; event handlers belong inside the client component. Composite slots remain available for supplying live children from the route layout or page.
+
 ## Content Security Policy
 
 Install `furinCsp()` before Furin routes. Its `policy` callback receives a fresh nonce for live SSR and `undefined` for cached SSG/ISR HTML. Furin adds the SSR nonce to its own scripts, React's streaming scripts, and scripts and styles declared through `head()`. The callback lets the application choose the rest of the policy.
