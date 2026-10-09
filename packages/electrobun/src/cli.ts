@@ -1,45 +1,38 @@
 #!/usr/bin/env bun
 // biome-ignore-all lint/performance/noAwaitInLoops: Restart supervision and readiness polling must be sequential.
-import { readFileSync, realpathSync, statSync, watch } from "node:fs";
+import { realpathSync, statSync, watch } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
 
-function backendDependencies(root: string, entries: string[]): Set<string> {
-  const files = new Set<string>();
-  const visit = (path: string) => {
-    if (
-      files.has(path) ||
-      !path.startsWith(`${root}${sep}`) ||
-      path.includes(`${sep}node_modules${sep}`)
-    ) {
-      return;
-    }
-    files.add(path);
-    const extension = extname(path);
-    if (![".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"].includes(extension)) {
-      return;
-    }
-    try {
-      const transpiler = new Bun.Transpiler({
-        loader: extension === ".tsx" || extension === ".jsx" ? "tsx" : "ts",
-      });
-      for (const imported of transpiler.scanImports(readFileSync(path, "utf8"))) {
-        try {
-          visit(Bun.resolveSync(imported.path, dirname(path)));
-        } catch {
-          // Native/builtin or temporarily missing imports are handled by the worker.
-        }
-      }
-    } catch {
-      // An incomplete save must still restart its already-owned source file.
-    }
-  };
-  for (const entry of entries) {
-    visit(entry);
-  }
+const MODULE_PATH = /.*/;
+
+async function backendDependencies(root: string, entries: string[]): Promise<Set<string>> {
+  const files = new Set(entries);
+  // Each build gets fresh resolution state; Bun.resolveSync caches renamed
+  // extensionless targets for the supervisor's entire process lifetime.
+  await Bun.build({
+    entrypoints: entries,
+    target: "bun",
+    packages: "external",
+    plugins: [
+      {
+        name: "desktop-backend-ownership",
+        setup(builder) {
+          builder.onResolve({ filter: MODULE_PATH }, (args) => {
+            if (isAbsolute(args.path) && !resolve(args.path).startsWith(`${root}${sep}`)) {
+              return { path: args.path, external: true };
+            }
+          });
+          builder.onLoad({ filter: MODULE_PATH }, (args) => {
+            files.add(resolve(args.path));
+          });
+        },
+      },
+    ],
+  });
   return files;
 }
 
@@ -213,7 +206,7 @@ async function waitForDevReady(
   return !isStopping();
 }
 
-function watchBackend(
+async function watchBackend(
   root: string,
   serverEntry: string,
   dataDir: string | undefined,
@@ -224,12 +217,12 @@ function watchBackend(
   const entries = [serverEntry, ...(customHost ? [customHost] : [])].map((path) =>
     join(canonicalRoot, relative(root, path))
   );
-  let dependencies = backendDependencies(canonicalRoot, entries);
+  let dependencies = await backendDependencies(canonicalRoot, entries);
   const resolvedData = dataDir ? resolve(dataDir) : undefined;
   const ownedData = resolvedData?.startsWith(`${root}${sep}`) ? resolvedData : undefined;
   // Follow runtime ownership: JSX can belong to the backend and plain TS to
   // the frontend. Bun's frontend server owns modules outside this import graph.
-  return watch(root, { recursive: true }, (_event, filename) => {
+  const watcher = watch(root, { recursive: true }, (_event, filename) => {
     if (!filename) {
       return;
     }
@@ -246,9 +239,14 @@ function watchBackend(
     ) {
       return;
     }
-    dependencies = backendDependencies(canonicalRoot, entries);
     onChange();
   });
+  return {
+    close: () => watcher.close(),
+    async refresh() {
+      dependencies = await backendDependencies(canonicalRoot, entries);
+    },
+  };
 }
 
 async function runDevWindow(
@@ -347,7 +345,7 @@ async function runDesktopDev(
   const requestStop = async () => {
     await writeFile(control, crypto.randomUUID());
   };
-  const watcher = watchBackend(root, serverEntry, dataDir, customHost, () => {
+  const watcher = await watchBackend(root, serverEntry, dataDir, customHost, () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
       restart = true;
@@ -384,6 +382,7 @@ async function runDesktopDev(
           continue;
         }
       }
+      await watcher.refresh();
       backend = await launchDevBackend(root, generated, sdk, env, !!customHost);
       try {
         if (!(await waitForDevReady(backend, ready, () => stopping || restart))) {
