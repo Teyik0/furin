@@ -6,6 +6,7 @@ import { buildApp } from "../build/index.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
+import { runDevelopment } from "./dev.ts";
 import { normalizeStaticPreviewBasePath, startStaticPreview } from "./preview.ts";
 
 const argv = process.argv.slice(2);
@@ -71,7 +72,9 @@ function extractCompileFlag(args: string[]): {
   return { compileFlag, parseableArgs };
 }
 
-if (command === "preview") {
+if (command === "dev") {
+  await runDevelopment(process.cwd(), argv.slice(1));
+} else if (command === "preview") {
   let rawValues: ReturnType<typeof parseArgs>["values"];
   try {
     rawValues = parseArgs({
@@ -120,6 +123,7 @@ if (command === "preview") {
       options: {
         analyze: { type: "boolean" },
         config: { type: "string" },
+        output: { type: "string" },
         pagesDir: { type: "string" },
         prefix: { type: "string" },
         target: { type: "string" },
@@ -132,6 +136,7 @@ if (command === "preview") {
 
   const values = rawValues as {
     analyze?: boolean;
+    output?: string;
     target?: string;
     pagesDir?: string;
     prefix?: string;
@@ -145,6 +150,14 @@ if (command === "preview") {
   }
 
   const config = await loadCliConfig(process.cwd(), values.config);
+
+  const output = values.output ?? config.bun?.output;
+  if (output !== undefined && output !== "app" && output !== "server") {
+    bail(`Invalid Bun output "${output}". Valid: app, server`);
+  }
+  if (values.output !== undefined && target !== "bun") {
+    bail("--output requires --target bun");
+  }
 
   const isServerlessTarget = target === "static" || target === "package";
 
@@ -163,6 +176,7 @@ if (command === "preview") {
 
   const result = await buildApp({
     analyze: values.analyze,
+    bun: output === undefined ? undefined : { output },
     // --pagesDir/--prefix build a single explicit app; otherwise fall back to
     // the config's `apps` list (then to server.ts scanning inside buildApp).
     // normalizePrefix here so a bad --prefix fails before buildApp starts
@@ -198,6 +212,7 @@ if (command === "preview") {
     `Furin CLI
 
 USAGE
+  furin dev [--web | --desktop] [--port number]
   furin build [options]
   furin preview [options]
 
@@ -208,6 +223,7 @@ BUILD OPTIONS
   --prefix    Mount prefix for the built app (e.g. /admin) — pairs with --pagesDir
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
+  --output    app | server  Bun only: inert app.js or listening server.js (default: server)
   --analyze   Write complete bundle metafiles to .furin/build/analysis
 
 PREVIEW OPTIONS

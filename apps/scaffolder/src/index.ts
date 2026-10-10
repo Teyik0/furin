@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { cancel } from "@clack/prompts";
+import { version } from "../package.json";
 import { parseArgs } from "./args.ts";
 import { run } from "./cli.ts";
 import { ScaffolderError } from "./errors.ts";
@@ -19,14 +20,7 @@ try {
   }
 
   if (args.version) {
-    const { getPackageCatalog } = await import("./package-catalog.ts");
-    const catalog = getPackageCatalog();
-    const pkg = catalog["@teyik0/furin"];
-    if (pkg === undefined) {
-      cancel("package not found in catalog");
-      process.exit(1);
-    }
-    console.log(pkg);
+    console.log(version);
     process.exit(0);
   }
 

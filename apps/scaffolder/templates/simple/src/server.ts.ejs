@@ -14,3 +14,5 @@ const app = new Elysia()
   .listen(port);
 
 console.log(<%- JSON.stringify(projectName) %> + ` running at http://localhost:${app.server?.port}`);
+
+export default app;

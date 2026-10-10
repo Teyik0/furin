@@ -39,6 +39,8 @@ Full API reference, rendering modes, routing, and deployment guides at **[teyik0
 | [`apps/docs`](apps/docs) | Documentation site |
 | [`examples/task-manager`](examples/task-manager) | Example: task manager app |
 | [`examples/weather`](examples/weather) | Example: weather app |
+| [`packages/electrobun`](packages/electrobun) | Optional Electrobun desktop integration — `@teyik0/furin-electrobun` |
+| [`examples/electrobun-todo`](examples/electrobun-todo) | Example: Relay todo app with the same web and Electrobun UI |
 
 ## Workspace Commands
 
@@ -48,3 +50,30 @@ bun run test      # run all tests
 bun run tscheck   # type-check
 bun run build     # build all packages
 ```
+
+## Releases
+
+Each published workspace owns its version in `package.json`. Publishing a
+GitHub Release selects **one** npm package through its tag:
+
+| Release tag | Package | Version source |
+|---|---|---|
+| `v0.7.0-alpha.5` | `@teyik0/furin` | `packages/core/package.json` |
+| `electrobun-v0.1.0` | `@teyik0/furin-electrobun` | `packages/electrobun/package.json` |
+| `create-furin-v0.4.1` | `create-furin` | `apps/scaffolder/package.json` |
+
+To release, update only the selected manifest and the Bun lockfile, commit the
+change, wait for CI, then publish the matching GitHub Release. A draft release or
+a tag push alone does not publish npm packages. The workflow rejects a tag whose
+package name or version differs from the manifest. GitHub's prerelease checkbox
+must match the version: prereleases use npm's `next` tag, stable versions use
+`latest`.
+
+Electrobun also verifies that npm already contains a core version satisfying its
+declared peer range. When new SDK functionality requires a newer core, publish
+that compatible core **first**, then Electrobun. Independent releases do not
+bypass dependency compatibility.
+
+PR previews include all three packages; stable publishing still selects only
+one. The scaffolder's `--version` reports its own version, not the core version
+chosen for a generated application.

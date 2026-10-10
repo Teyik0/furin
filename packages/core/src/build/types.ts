@@ -55,6 +55,8 @@ export interface BuildRouteManifestEntry {
 }
 
 export interface TargetBuildManifest {
+  /** Importable, inert Bun application; absent for listening server outputs. */
+  appPath?: string;
   buildId: string;
   clientDir: string | null;
   generatedAt: string;
@@ -102,6 +104,8 @@ export interface BuildManifest {
 export interface BuildAppOptions {
   /** Emit Bun metafiles for client and supported server bundle analysis. */
   analyze?: boolean;
+  /** Bun emits a listening server unless output is explicitly "app". */
+  bun?: { output?: "app" | "server" };
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
    * and server-entry auto-detection.

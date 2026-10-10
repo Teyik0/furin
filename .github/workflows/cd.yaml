@@ -10,7 +10,6 @@ defaults:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   distributed-sync:
@@ -37,6 +36,10 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Select release package
+        id: release
+        run: bun scripts/release-target.ts select
+
       - name: Install packages
         run: bun install --frozen-lockfile
 
@@ -58,13 +61,17 @@ jobs:
       - name: React Doctor
         run: bunx react-doctor -y --scope full
 
-      - name: Setup auth for Bun
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          echo "registry=https://registry.npmjs.org/" >> .npmrc
+      - name: Verify publication prerequisites
+        run: bun scripts/release-target.ts verify
 
-      - name: Publish core
-        working-directory: packages/core
-        run: bun publish --access public
+      - name: Verify packed scaffolder
+        if: steps.release.outputs.directory == 'apps/scaffolder'
+        run: bun test apps/scaffolder/tests/package.test.ts
+        env:
+          FURIN_SCAFFOLDER_RELEASE_SMOKE: "1"
+
+      - name: Publish selected package
+        working-directory: ${{ steps.release.outputs.directory }}
+        run: bun publish --access public --tag "${{ steps.release.outputs.dist_tag }}"
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
