@@ -14,6 +14,7 @@ import {
   routeSourcePaths,
 } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
@@ -177,6 +178,7 @@ export async function buildPackageTarget(
       register.plugin,
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: [app], target: "server" }),
+      clientReferencesPlugin(),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("ssr"),
     ],

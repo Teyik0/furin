@@ -4,8 +4,9 @@ import "../../setup/evlog-mock";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
-import { clientModule, preloadClientModule } from "../../../src/client.ts";
+import { clientModule, type HeadOptions, preloadClientModule } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
+import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
 import { generateProdIndexHtml } from "../../../src/server/render/shell.ts";
 import { renderSSR } from "../../../src/server/render/ssr.ts";
@@ -20,6 +21,7 @@ import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const SCENE_KEY = "__FURIN_CLIENT_MODULE_scene__";
 const MODULE_PRELOAD_RE = /<link rel="modulepreload"[^>]*?href="([^"]+)"/g;
+const HEAD_JSON_RE = /id="__FURIN_HEAD__"[^>]*>([\s\S]*?)<\/script>/;
 
 function createContext(): Context {
   return {
@@ -34,7 +36,10 @@ function createContext(): Context {
   } as Context;
 }
 
-function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: ResolvedRoute } {
+function createCanvasRoute(
+  preloadScene: boolean,
+  head?: HeadOptions
+): { root: RootLayout; route: ResolvedRoute } {
   const scene = clientModule(() => Promise.resolve({}), SCENE_KEY);
   const rootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
@@ -52,6 +57,7 @@ function createCanvasRoute(preloadScene: boolean): { root: RootLayout; route: Re
   const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
   const terminal = defineRoute()
     .config({ layout: rootTerminal, mode: "ssr" })
+    .head(() => head ?? {})
     .page(() => {
       if (preloadScene) {
         preloadClientModule(scene);
@@ -82,6 +88,104 @@ afterEach(() => {
 });
 
 describe("module preloading", () => {
+  test("keeps assets already rooted at the physical mount of a root plugin", async () => {
+    const instance = createInstance("", "/pages");
+    instance.prefix = "/outer";
+    await withInstance(instance, async () => {
+      setProductionTemplateContent(
+        '<script data-furin-framework-module="" type="module" src="/outer/_furin/events/client.js"></script>' +
+          '<script type="module" src="/_client/entry.js"></script>'
+      );
+      setProductionPreloadManifest({
+        modules: { [SCENE_KEY]: ["/outer/_client/scene.js"] },
+        routes: { "/canvas": ["/_client/canvas.js"] },
+      });
+      const { root, route } = createCanvasRoute(true);
+      const { html } = await renderToHTML(route, createContext(), root);
+      expect(headPreloads(html).toSorted()).toEqual([
+        "/outer/_client/canvas.js",
+        "/outer/_client/scene.js",
+      ]);
+      expect(html).toContain('src="/outer/_client/entry.js"');
+      expect(html).toContain('src="/outer/_furin/events/client.js"');
+      expect(html).not.toContain("/outer/outer/");
+    });
+  });
+
+  test.each(["buffered", "streaming"])(
+    "rebases %s production assets and explicit client preloads under nested mounts",
+    async (mode) => {
+      const instance = createInstance("/admin", "/pages");
+      instance.prefix = "/outer/inner/admin";
+      await withInstance(instance, async () => {
+        setProductionTemplateContent(
+          '<link rel="stylesheet" href="/admin/_client/style.css"><link rel="icon" href="/admin/favicon.ico">' +
+            '<script data-furin-framework-module="" type="module" src="/admin/_furin/events/client.js"></script>' +
+            '<script type="module" src="/admin/_client/entry.js"></script>'
+        );
+        setProductionPreloadManifest({
+          modules: { [SCENE_KEY]: ["/admin/_client/scene.js", "/admin/_client/shared.js"] },
+          routes: { "/canvas": ["/admin/_client/canvas.js", "/admin/_client/shared.js"] },
+        });
+        const { root, route } = createCanvasRoute(true, {
+          meta: [{ tagName: "link", rel: "canonical", href: "/admin/canvas" }],
+          links: [
+            { rel: "stylesheet", href: "/admin/_client/head.css" },
+            { rel: "alternate", href: "https://example.org/alternate" },
+            { rel: "alternate", href: "/admin?mode=x#tab" },
+            { rel: "alternate", href: "/admin#fragment" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=physical" },
+            { rel: "alternate", href: "//example.org/admin?mode=x" },
+            { rel: "alternate", href: "/administrator?mode=x" },
+          ],
+          scripts: [
+            { src: "/admin/_client/head.js" },
+            { children: 'window.marker="/admin/_client/user-data.js";' },
+          ],
+        });
+        const html =
+          mode === "buffered"
+            ? (await renderToHTML(route, createContext(), root)).html
+            : await (await renderSSR(route, createContext(), root, undefined)).text();
+        expect(headPreloads(html).toSorted()).toEqual([
+          "/outer/inner/admin/_client/canvas.js",
+          "/outer/inner/admin/_client/scene.js",
+          "/outer/inner/admin/_client/shared.js",
+        ]);
+        expect(html).toContain('src="/outer/inner/admin/_client/entry.js"');
+        expect(html).toContain('src="/outer/inner/admin/_furin/events/client.js"');
+        expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
+        expect(html).toContain('href="/outer/inner/admin/favicon.ico"');
+        expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
+        expect(html).toContain('href="/outer/inner/admin/_client/head.css"');
+        expect(html).toContain('rel="canonical" href="/outer/inner/admin/canvas"');
+        expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
+        expect(html).toContain('href="/outer/inner/admin#fragment"');
+        expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
+        const serializedHead = html.match(HEAD_JSON_RE)?.[1];
+        expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
+          meta: [
+            { tagName: "link", rel: "canonical", href: "/outer/inner/admin/canvas" },
+            { name: "furin-base-path", content: "/outer/inner/admin" },
+          ],
+          links: [
+            { rel: "stylesheet", href: "/outer/inner/admin/_client/head.css" },
+            { rel: "alternate", href: "https://example.org/alternate" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=x#tab" },
+            { rel: "alternate", href: "/outer/inner/admin#fragment" },
+            { rel: "alternate", href: "/outer/inner/admin?mode=physical" },
+            { rel: "alternate", href: "//example.org/admin?mode=x" },
+            { rel: "alternate", href: "/administrator?mode=x" },
+          ],
+          scripts: [
+            { src: "/outer/inner/admin/_client/head.js" },
+            { children: 'window.marker="/admin/_client/user-data.js";' },
+          ],
+        });
+      });
+    }
+  );
+
   function installBuild(): void {
     setProductionTemplateContent(
       generateProdIndexHtml("/_client/entry.js", [], "build", undefined, false)

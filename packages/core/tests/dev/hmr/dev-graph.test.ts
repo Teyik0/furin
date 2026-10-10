@@ -1,12 +1,43 @@
 import { expect, test } from "bun:test";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { DevGraph, resolveDevSourceImports } from "../../../src/server/dev/graph.ts";
 
 interface TestSnapshot {
   value: string;
 }
+
+test("legacy graph registries release unowned graphs after a hot upgrade", () => {
+  const proc = Bun.spawnSync({
+    cmd: [
+      "bun",
+      "-e",
+      `
+import { expect } from "bun:test";
+import { DevGraph, developmentGraphs } from "./src/server/dev/graph.ts";
+function releaseGraph() {
+  const graph = new DevGraph(null);
+  Reflect.set(globalThis, Symbol.for("@teyik0/furin/development-graphs"), new Map([["legacy", graph]]));
+  expect(developmentGraphs()).toContain(graph);
+  return new WeakRef(graph);
+}
+const released = releaseGraph();
+for (let attempt = 0; attempt < 5; attempt++) {
+  await Bun.sleep(0);
+  Bun.gc(true);
+}
+expect(released.deref()).toBeUndefined();
+expect(developmentGraphs()).toHaveLength(0);
+`,
+    ],
+    cwd: resolve(import.meta.dir, "../../.."),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+  expect(proc.exitCode).toBe(0);
+});
 
 test("discovers relative imports with a custom file extension", () => {
   const page = join(import.meta.dir, "page.tsx");

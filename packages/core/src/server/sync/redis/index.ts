@@ -14,6 +14,7 @@ import type {
   SyncNotifier,
   SyncSubscription,
 } from "../adapter.ts";
+import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import {
   ABORT_MUTATION_SCRIPT,
   BEGIN_MUTATION_SCRIPT,
@@ -134,7 +135,7 @@ function compareStreamIds(left: string, right: string): number {
   return leftSequence < rightSequence ? -1 : 1;
 }
 
-function streamEntries(value: unknown): [string, string][] {
+function streamEntries(value: unknown): [string, string, string | undefined][] {
   const entries = arrayResult(value, "stream read");
   return entries.map((entry) => {
     const tuple = arrayResult(entry, "stream entry");
@@ -143,7 +144,12 @@ function streamEntries(value: unknown): [string, string][] {
     if (fields[0] !== "data") {
       throw new Error("[furin-sync-redis] Invalid stream fields.");
     }
-    return [cursor, stringResult(fields[1], "stream data")];
+    const principalIndex = fields.indexOf("principal");
+    return [
+      cursor,
+      stringResult(fields[1], "stream data"),
+      principalIndex < 0 ? undefined : stringResult(fields[principalIndex + 1], "stream principal"),
+    ];
   });
 }
 
@@ -156,6 +162,7 @@ export class RedisSyncAdapter implements SyncAdapter {
     assertNamespace(options.namespace);
     this.client = options.client;
     this.prefix = `furin:sync:{${encodeURIComponent(options.namespace)}}`;
+    registerPrincipalJournal(this);
   }
 
   async beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
@@ -220,6 +227,7 @@ export class RedisSyncAdapter implements SyncAdapter {
         JSON.stringify(input.invalidations),
         String(MUTATION_TTL_MS),
         String(CHANGE_RETENTION),
+        principalHash(input.lease.principal),
       ]),
       "complete mutation"
     );
@@ -281,10 +289,15 @@ export class RedisSyncAdapter implements SyncAdapter {
       };
     }
     const hasMore = entries.length > input.limit;
-    const changes: SyncChange[] = entries.slice(0, input.limit).map(([cursor, raw]) => ({
-      cursor,
-      invalidations: JSON.parse(raw) as SyncInvalidation[],
-    }));
+    const changes: SyncChange[] = entries.slice(0, input.limit).map(([cursor, raw, hash]) =>
+      journalChange(
+        {
+          cursor,
+          invalidations: JSON.parse(raw) as SyncInvalidation[],
+        },
+        hash
+      )
+    );
     return {
       changes,
       cursor: changes.at(-1)?.cursor ?? input.after,

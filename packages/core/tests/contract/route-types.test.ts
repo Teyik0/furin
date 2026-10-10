@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeRouteTypes } from "../../src/build/route-types.ts";
 import type { ResolvedRoute } from "../../src/server/router/types.ts";
+import { routeMapDeclaration } from "../../src/shared/route-map.ts";
+import { startProcess } from "../support/process.ts";
 
 function route(pattern: string, path: string, tags?: string[]): ResolvedRoute {
   return {
@@ -31,6 +33,73 @@ describe("writeRouteTypes", () => {
 
   afterAll(() => {
     rmSync(temporaryDirectory, { force: true, recursive: true });
+  });
+
+  test("dynamic and catch-all sibling routes retain both types in a valid TypeScript contract", async () => {
+    const directory = join(temporaryDirectory, "overlap");
+    mkdirSync(directory);
+    writeFileSync(join(directory, "one.ts"), 'export const route = { kind: "dynamic" } as const;');
+    writeFileSync(join(directory, "two.ts"), 'export const route = { kind: "catchall" } as const;');
+    writeFileSync(
+      join(directory, "routes.d.ts"),
+      routeMapDeclaration([
+        { pattern: "/blog/:id", importSpecifier: "./one" },
+        { pattern: "/blog/*", importSpecifier: "./two" },
+      ])
+    );
+    writeFileSync(
+      join(directory, "consumer.ts"),
+      `
+      import type { RouteMap } from "@teyik0/furin/routes";
+      const dynamic: RouteMap["/blog/example"]["kind"] = "dynamic";
+      const catchall: RouteMap["/blog/example"]["kind"] = "catchall";
+    `
+    );
+    const config = join(directory, "tsconfig.json");
+    writeFileSync(
+      config,
+      JSON.stringify({
+        compilerOptions: {
+          noEmit: true,
+          strict: true,
+          skipLibCheck: false,
+          types: [],
+          target: "ESNext",
+        },
+        files: ["routes.d.ts", "consumer.ts"],
+      })
+    );
+    const compiler = startProcess(
+      [
+        process.execPath,
+        join(import.meta.dir, "../../node_modules/typescript/lib/tsc.js"),
+        "--project",
+        config,
+      ],
+      { cwd: directory }
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const exitCode = await Promise.race([
+        compiler.exitCode,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            compiler.kill();
+            reject(
+              new Error(
+                `TypeScript contract check timed out.\n${compiler.getStdout()}\n${compiler.getStderr()}`
+              )
+            );
+          }, 12_000);
+        }),
+      ]);
+      expect(compiler.getStdout() + compiler.getStderr()).toBe("");
+      expect(exitCode).toBe(0);
+    } finally {
+      clearTimeout(timer);
+      compiler.kill();
+      await compiler.exitCode;
+    }
   });
 
   test("emits only the Elysia-derived RouteMap contract", () => {

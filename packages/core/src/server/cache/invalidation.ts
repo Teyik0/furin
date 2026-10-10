@@ -1,3 +1,4 @@
+import { encodeInvalidationEntry } from "../../shared/invalidation-header.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import {
   currentInstrumentationRequest,
@@ -156,7 +157,7 @@ export function revalidatePathForInstance(
   type: RevalidateType,
   emitPathEvent?: boolean
 ): { deleted: boolean; purgedPaths: string[] } {
-  _activeInvalidationSet().add(type === "layout" ? `${path}:layout` : path);
+  _activeInvalidationSet().add(encodeInvalidationEntry(path, type));
 
   let deleted = false;
   const purgedPaths: string[] = [];

@@ -1,16 +1,21 @@
 import type { SourceLang } from "yuku-parser";
 
+export const SCRIPT_FILE_FILTER = /\.(?:[cm]?[jt]s|[jt]sx)(?:\?.*)?$/;
+const DECLARATION_FILE_RE = /\.d\.[cm]?ts$/;
+const TYPESCRIPT_FILE_RE = /\.[cm]?ts$/;
+
 export function detectLangFromPath(filePath: string): SourceLang {
-  if (filePath.endsWith(".d.ts")) {
+  const path = filePath.split("?")[0] as string;
+  if (DECLARATION_FILE_RE.test(path)) {
     return "dts";
   }
-  if (filePath.endsWith(".tsx")) {
+  if (path.endsWith(".tsx")) {
     return "tsx";
   }
-  if (filePath.endsWith(".ts")) {
+  if (TYPESCRIPT_FILE_RE.test(path)) {
     return "ts";
   }
-  if (filePath.endsWith(".jsx")) {
+  if (path.endsWith(".jsx")) {
     return "jsx";
   }
   return "js";

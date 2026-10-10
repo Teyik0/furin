@@ -1,4 +1,10 @@
-import MagicString from "magic-string";
+import {
+  decodedMappings,
+  originalPositionFor,
+  type SourceMapSegment,
+  TraceMap,
+} from "@jridgewell/trace-mapping";
+import MagicString, { SourceMap } from "magic-string";
 import { walk } from "yuku-ast";
 import type { CallExpression, ImportDeclaration, Program } from "yuku-parser";
 import {
@@ -8,14 +14,13 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
-import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { hasShadowingDeclaration, lexicalBindingScope, varBindingScope } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
-import { transformClientModules } from "./transform-client-module.ts";
+import { transformClientModuleSource } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
-// Accepts a query suffix: dev-mode route discovery imports `page.tsx?furin-server&t=…`.
 const SCRIPT_FILE_FILTER =
-  /^(?!.*(?:node_modules|[\\/]\.furin[\\/]build[\\/])).*\.(tsx?|jsx?)(?:\?.*)?$/;
+  /^(?!.*(?:node_modules|[\\/]\.furin[\\/]build[\\/])).*\.(?:[cm]?[jt]s|[jt]sx)(?:\?.*)?$/;
 
 export type IsomorphicEnvironment = "client" | "server";
 
@@ -26,8 +31,18 @@ export interface IsomorphicTransformResult {
 }
 
 interface IsomorphicBindings {
+  constants: ConstantBinding[];
+  constantsByName: Map<string, ConstantBinding[]>;
   named: Set<string>;
   namespaces: Set<string>;
+}
+
+interface ConstantBinding {
+  ancestors: AstNode[];
+  declaration: AstNode;
+  initializer: AstNode;
+  name: string;
+  scope: AstNode;
 }
 
 interface IsomorphicCandidate {
@@ -81,6 +96,8 @@ function addImportSpecifier(specifier: AstNode, bindings: IsomorphicBindings): v
 
 function collectBindings(program: Program): IsomorphicBindings {
   const bindings = {
+    constants: [] as ConstantBinding[],
+    constantsByName: new Map<string, ConstantBinding[]>(),
     named: new Set<string>(),
     namespaces: new Set<string>(),
   };
@@ -98,7 +115,80 @@ function collectBindings(program: Program): IsomorphicBindings {
     }
   }
 
+  if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
+    return bindings;
+  }
+  walk(program, {
+    VariableDeclarator(node, context) {
+      const ancestors = context.ancestors() as AstNode[];
+      const declaration = ancestors.at(-1);
+      const scope = lexicalBindingScope(ancestors);
+      if (
+        declaration?.type !== "VariableDeclaration" ||
+        declaration.kind !== "const" ||
+        node.id.type !== "Identifier" ||
+        !node.init ||
+        !scope
+      ) {
+        return;
+      }
+      const binding = {
+        ancestors,
+        declaration: node as unknown as AstNode,
+        initializer: node.init as AstNode,
+        name: node.id.name,
+        scope,
+      };
+      bindings.constants.push(binding);
+      const constants = bindings.constantsByName.get(binding.name) ?? [];
+      constants.push(binding);
+      bindings.constantsByName.set(binding.name, constants);
+    },
+  });
+
   return bindings;
+}
+
+function resolveConstant(
+  name: string,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[]
+): ConstantBinding | undefined {
+  let match: ConstantBinding | undefined;
+  let scopeIndex = -1;
+  const constants = bindings.constantsByName.get(name);
+  if (!constants) {
+    return undefined;
+  }
+  for (const binding of constants) {
+    const index = ancestors.lastIndexOf(binding.scope);
+    if (index > scopeIndex) {
+      match = binding;
+      scopeIndex = index;
+    }
+  }
+  return match && !hasShadowingDeclaration(name, ancestors.slice(scopeIndex + 1))
+    ? match
+    : undefined;
+}
+
+function resolveStaticString(
+  expression: AstNode,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[],
+  seen: Set<ConstantBinding>
+): string | undefined {
+  const node = unwrapTSExpression(expression);
+  if (node.type === "Literal" && typeof node.value === "string") {
+    return node.value;
+  }
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    const binding = resolveConstant(node.name, bindings, ancestors);
+    if (binding && !seen.has(binding)) {
+      seen.add(binding);
+      return resolveStaticString(binding.initializer, bindings, binding.ancestors, seen);
+    }
+  }
 }
 
 function isCreateIsomorphicCall(
@@ -110,43 +200,65 @@ function isCreateIsomorphicCall(
     return false;
   }
   const call = node as unknown as CallExpression;
+  return isFactoryExpression(call.callee as AstNode, bindings, ancestors, new Set());
+}
+
+function isFactoryExpression(
+  expression: AstNode,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[],
+  seen: Set<ConstantBinding>
+): boolean {
+  const callee = unwrapTSExpression(expression);
   if (
-    call.callee.type === "Identifier" &&
-    typeof call.callee.name === "string" &&
-    bindings.named.has(call.callee.name) &&
-    !hasShadowingDeclaration(call.callee.name, ancestors)
+    callee.type === "Identifier" &&
+    typeof callee.name === "string" &&
+    bindings.named.has(callee.name) &&
+    !hasShadowingDeclaration(callee.name, ancestors)
   ) {
     return true;
   }
-  const { callee } = call;
+  if (callee.type === "Identifier" && typeof callee.name === "string") {
+    const binding = resolveConstant(callee.name, bindings, ancestors);
+    if (binding && !seen.has(binding)) {
+      seen.add(binding);
+      return isFactoryExpression(binding.initializer, bindings, binding.ancestors, seen);
+    }
+  }
   return (
     callee.type === "MemberExpression" &&
-    !callee.computed &&
-    callee.object.type === "Identifier" &&
-    typeof callee.object.name === "string" &&
-    bindings.namespaces.has(callee.object.name) &&
-    !hasShadowingDeclaration(callee.object.name, ancestors) &&
-    callee.property.type === "Identifier" &&
-    callee.property.name === "createIsomorphicFn"
+    (callee.object as AstNode).type === "Identifier" &&
+    typeof (callee.object as AstNode).name === "string" &&
+    bindings.namespaces.has((callee.object as AstNode).name as string) &&
+    !hasShadowingDeclaration((callee.object as AstNode).name as string, ancestors) &&
+    (callee.computed
+      ? resolveStaticString(callee.property as AstNode, bindings, ancestors, new Set()) ===
+        "createIsomorphicFn"
+      : (callee.property as AstNode).type === "Identifier" &&
+        (callee.property as AstNode).name === "createIsomorphicFn")
   );
 }
 
-function environmentMethod(node: AstNode): IsomorphicEnvironment | undefined {
+function environmentMethod(
+  node: AstNode,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[]
+): IsomorphicEnvironment | undefined {
   if (node.type !== "CallExpression") {
     return;
   }
   const call = node as unknown as CallExpression;
   const { callee } = call;
-  if (
-    callee.type !== "MemberExpression" ||
-    callee.computed ||
-    callee.property.type !== "Identifier"
-  ) {
+  if (callee.type !== "MemberExpression") {
     return;
   }
-  return callee.property.name === "client" || callee.property.name === "server"
-    ? callee.property.name
-    : undefined;
+  let method: string | undefined;
+  if (callee.computed) {
+    method = resolveStaticString(callee.property as AstNode, bindings, ancestors, new Set());
+  } else if (callee.property.type === "Identifier") {
+    method = callee.property.name;
+  }
+  return method === "client" || method === "server" ? method : undefined;
 }
 
 function parseCandidate(
@@ -161,7 +273,7 @@ function parseCandidate(
   let server: AstNode | undefined;
 
   for (;;) {
-    const method = environmentMethod(current);
+    const method = environmentMethod(current, bindings, ancestors);
     if (!method) {
       break;
     }
@@ -173,26 +285,35 @@ function parseCandidate(
     if (!implementation) {
       return null;
     }
-    const unwrappedImplementation = unwrapTSExpression(implementation) as AstNode;
-    if (
-      unwrappedImplementation.type !== "ArrowFunctionExpression" &&
-      unwrappedImplementation.type !== "FunctionExpression" &&
-      unwrappedImplementation.type !== "Identifier"
-    ) {
-      throw new Error(
-        `[furin] ${filename}:${sourcePosition(source, implementation.start)} createIsomorphicFn().${method}() must receive a function.`
-      );
-    }
     if (method === "client") {
-      client = implementation;
+      client ??= implementation;
     } else {
-      server = implementation;
+      server ??= implementation;
     }
     current = unwrapTSExpression(call.callee.object) as AstNode;
   }
 
   if (!isCreateIsomorphicCall(current, bindings, ancestors)) {
     return null;
+  }
+
+  for (const [method, implementation] of [
+    ["client", client],
+    ["server", server],
+  ] as const) {
+    if (!implementation) {
+      continue;
+    }
+    const unwrapped = unwrapTSExpression(implementation) as AstNode;
+    if (
+      unwrapped.type !== "ArrowFunctionExpression" &&
+      unwrapped.type !== "FunctionExpression" &&
+      unwrapped.type !== "Identifier"
+    ) {
+      throw new Error(
+        `[furin] ${filename}:${sourcePosition(source, implementation.start)} createIsomorphicFn().${method}() must receive a function.`
+      );
+    }
   }
 
   return {
@@ -241,36 +362,6 @@ function sourcePosition(source: string, offset: number): string {
   const line = before.split("\n").length;
   const lastNewline = before.lastIndexOf("\n");
   return `${line}:${offset - lastNewline}`;
-}
-
-function lexicalBindingScope(ancestors: AstNode[]): AstNode | undefined {
-  return ancestors.findLast(
-    (ancestor) =>
-      ancestor.type === "Program" ||
-      ancestor.type === "BlockStatement" ||
-      ancestor.type === "SwitchStatement" ||
-      ancestor.type === "ForStatement" ||
-      ancestor.type === "ForInStatement" ||
-      ancestor.type === "ForOfStatement" ||
-      ancestor.type === "StaticBlock"
-  );
-}
-
-function varBindingScope(ancestors: AstNode[]): AstNode | undefined {
-  return ancestors.findLast((ancestor, index) => {
-    if (ancestor.type === "Program" || ancestor.type === "StaticBlock") {
-      return true;
-    }
-    if (ancestor.type !== "BlockStatement") {
-      return false;
-    }
-    const parent = ancestors[index - 1];
-    return (
-      parent?.type === "FunctionDeclaration" ||
-      parent?.type === "FunctionExpression" ||
-      parent?.type === "ArrowFunctionExpression"
-    );
-  });
 }
 
 function collectBuilderBindings(
@@ -358,7 +449,7 @@ function chainStartsWithCreateIsomorphicFn(
     if (isCreateIsomorphicCall(current, bindings, ancestors)) {
       return true;
     }
-    if (current.type !== "CallExpression" || !environmentMethod(current)) {
+    if (current.type !== "CallExpression" || !environmentMethod(current, bindings, ancestors)) {
       return false;
     }
     const call = current as unknown as CallExpression;
@@ -378,10 +469,7 @@ function assertStaticEnvironmentMethods(
 ): void {
   walk(program, {
     MemberExpression(node, context) {
-      if (!node.computed || node.property.type !== "Literal") {
-        return;
-      }
-      if (node.property.value !== "server" && node.property.value !== "client") {
+      if (!node.computed) {
         return;
       }
       const ancestors = context.ancestors() as AstNode[];
@@ -397,11 +485,185 @@ function assertStaticEnvironmentMethods(
       ) {
         return;
       }
+      const method = resolveStaticString(node.property as AstNode, bindings, ancestors, new Set());
+      if (!splitBuilder && (method === "server" || method === "client")) {
+        return;
+      }
       throw new Error(
         `[furin] ${filename}:${sourcePosition(source, node.start)} createIsomorphicFn() requires static .server() and .client() methods.`
       );
     },
   });
+}
+
+function assertStaticNamespaceUse(
+  node: AstNode,
+  bindings: IsomorphicBindings,
+  ancestors: AstNode[],
+  filename: string
+): void {
+  if (
+    !(
+      node.type === "Identifier" &&
+      typeof node.name === "string" &&
+      bindings.namespaces.has(node.name) &&
+      !hasShadowingDeclaration(node.name, ancestors)
+    )
+  ) {
+    return;
+  }
+  const parent = ancestors.at(-1);
+  if (
+    parent?.type === "MemberExpression" &&
+    parent.object === node &&
+    (!parent.computed ||
+      resolveStaticString(parent.property as AstNode, bindings, ancestors, new Set()) !== undefined)
+  ) {
+    return;
+  }
+  throw new Error(
+    `[furin] ${filename}: Furin namespace imports must use direct static member access so createIsomorphicFn can be compiled. Use a named import instead of escaping the namespace.`
+  );
+}
+
+function assertResolvedFactoryUses(
+  program: Program,
+  bindings: IsomorphicBindings,
+  filename: string
+): void {
+  const inspect = (value: unknown, ancestors: AstNode[]): void => {
+    const node = value as AstNode;
+    const parent = ancestors.at(-1);
+    if (
+      parent?.type === "ImportSpecifier" ||
+      parent?.type === "ImportNamespaceSpecifier" ||
+      (parent?.type === "VariableDeclarator" && parent.id === node) ||
+      (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
+      (parent?.type === "Property" &&
+        !parent.computed &&
+        !parent.shorthand &&
+        parent.key === node) ||
+      ancestors.some(
+        (ancestor) => ancestor.type === "TSTypeQuery" || ancestor.type === "TSTypeReference"
+      )
+    ) {
+      return;
+    }
+    assertStaticNamespaceUse(node, bindings, ancestors, filename);
+    if (!isFactoryExpression(node, bindings, ancestors, new Set())) {
+      return;
+    }
+    let expression = node;
+    let index = ancestors.length - 1;
+    while (index >= 0 && unwrapTSExpression(ancestors[index] as AstNode) === expression) {
+      expression = ancestors[index] as AstNode;
+      index -= 1;
+    }
+    const owner = ancestors[index];
+    if (owner?.type === "CallExpression" && owner.callee === expression) {
+      return;
+    }
+    if (
+      owner?.type === "VariableDeclarator" &&
+      owner.init === expression &&
+      (owner.id as AstNode).type === "Identifier" &&
+      ancestors[index - 1]?.kind === "const"
+    ) {
+      return;
+    }
+    throw new Error(
+      `[furin] ${filename}: createIsomorphicFn references must stay in statically resolvable fluent chains or constant aliases.`
+    );
+  };
+  walk(program, {
+    Identifier(node, context) {
+      inspect(node, context.ancestors() as AstNode[]);
+    },
+    MemberExpression(node, context) {
+      inspect(node, context.ancestors() as AstNode[]);
+    },
+  });
+}
+
+function pruneFactoryAliases(code: string, filename: string, maps: SourceMap[]): string {
+  const { program } = parseSource(code, detectLangFromPath(filename));
+  const bindings = collectBindings(program);
+  const aliases = bindings.constants.filter((binding) =>
+    isFactoryExpression(binding.initializer, bindings, binding.ancestors, new Set())
+  );
+  const used = new Set<ConstantBinding>();
+  walk(program, {
+    Identifier(node, context) {
+      const ancestors = context.ancestors() as AstNode[];
+      const parent = ancestors.at(-1);
+      if (
+        (parent?.type === "VariableDeclarator" && parent.id === node) ||
+        (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
+        (parent?.type === "Property" &&
+          !parent.computed &&
+          !parent.shorthand &&
+          parent.key === node)
+      ) {
+        return;
+      }
+      const binding = resolveConstant(node.name, bindings, ancestors);
+      if (binding) {
+        used.add(binding);
+      }
+    },
+  });
+  const unused = aliases.filter(
+    (binding) => !(used.has(binding) || binding.ancestors.at(-2)?.type === "ExportNamedDeclaration")
+  );
+  if (unused.length === 0) {
+    return code;
+  }
+  const pruned = new MagicString(code);
+  const removedDeclarations = new Set<AstNode>();
+  for (const binding of unused) {
+    const declaration = binding.ancestors.at(-1) as AstNode;
+    if (removedDeclarations.has(declaration)) {
+      continue;
+    }
+    removedDeclarations.add(declaration);
+    const declarators = declaration.declarations as AstNode[];
+    if (declarators.length === 1) {
+      pruned.remove(declaration.start, declaration.end);
+    } else {
+      const index = declarators.indexOf(binding.declaration);
+      const next = declarators[index + 1];
+      const previous = declarators[index - 1];
+      pruned.remove(
+        next ? binding.declaration.start : (previous as AstNode).end,
+        next ? next.start : binding.declaration.end
+      );
+    }
+  }
+  maps.push(pruned.generateMap({ hires: true, source: filename }));
+  return pruneFactoryAliases(pruned.toString(), filename, maps);
+}
+
+function composeSourceMaps(maps: SourceMap[], source: string, filename: string): SourceMap {
+  const traces = maps.map((map) => new TraceMap({ ...map, version: 3 }));
+  const last = traces.pop() as TraceMap;
+  const previous = traces.toReversed();
+  const mappings = decodedMappings(last).map((line) =>
+    line.map((segment): SourceMapSegment => {
+      if (segment.length === 1) {
+        return [segment[0]];
+      }
+      let position = { line: segment[2] + 1, column: segment[3] };
+      for (const trace of previous) {
+        const original = originalPositionFor(trace, position);
+        if (original.line === null || original.column === null) {
+          return [segment[0]];
+        }
+        position = { line: original.line, column: original.column };
+      }
+      return [segment[0], 0, position.line - 1, position.column];
+    })
+  );
+  return new SourceMap({ mappings, names: [], sources: [filename], sourcesContent: [source] });
 }
 
 export function transformIsomorphicFunctions(
@@ -413,7 +675,8 @@ export function transformIsomorphicFunctions(
   if (lang === "dts") {
     return { code: input, map: null, transformed: false };
   }
-  const source = transformClientModules(input, filename, environment);
+  const clientModules = transformClientModuleSource(input, filename, environment);
+  const source = clientModules.toString();
   const clientModulesTransformed = source !== input;
 
   const { program, diagnostics } = parseSource(source, lang);
@@ -423,6 +686,10 @@ export function transformIsomorphicFunctions(
   }
 
   const bindings = collectBindings(program);
+  if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
+    return { code: source, map: null, transformed: clientModulesTransformed };
+  }
+  assertResolvedFactoryUses(program, bindings, filename);
   const builders = collectBuilderBindings(program, bindings);
   assertStaticEnvironmentMethods(source, filename, program, bindings, builders);
   assertNoSplitChains(source, filename, program, builders);
@@ -434,19 +701,32 @@ export function transformIsomorphicFunctions(
   const transformed = new MagicString(source);
   for (const candidate of candidates) {
     const implementation = candidate[environment];
-    transformed.overwrite(
-      candidate.start,
-      candidate.end,
-      implementation
-        ? `(${source.slice(implementation.start, implementation.end)})`
-        : "(() => undefined)"
-    );
+    if (implementation) {
+      transformed.remove(candidate.start, implementation.start);
+      transformed.remove(implementation.end, candidate.end);
+      transformed.appendLeft(implementation.start, "(");
+      transformed.appendLeft(implementation.end, ")");
+    } else {
+      transformed.overwrite(candidate.start, candidate.end, "(() => undefined)");
+    }
   }
 
-  const pruned = deadCodeElimination(transformed, source, lang);
+  const maps = [
+    clientModules.generateMap({ hires: true, source: filename }),
+    transformed.generateMap({ hires: true, source: filename }),
+  ];
+  const aliasesPruned = new MagicString(
+    pruneFactoryAliases(transformed.toString(), filename, maps)
+  );
+  const pruned = deadCodeElimination(aliasesPruned, source, lang);
+  maps.push(pruned.generateMap({ hires: true, source: filename }));
+  const nested = transformIsomorphicFunctions(pruned.toString(), filename, environment);
+  if (nested.map) {
+    maps.push(nested.map);
+  }
   return {
-    code: pruned.toString(),
-    map: pruned.generateMap({ includeContent: true, source: filename }),
+    code: nested.code,
+    map: composeSourceMaps(maps, input, filename),
     transformed: true,
   };
 }

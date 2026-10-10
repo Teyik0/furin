@@ -171,6 +171,42 @@ describeWithRedis("Redis page cache", () => {
     }
   });
 
+  test("keeps concurrent replica commits and path invalidations consistent", async () => {
+    const otherClient = new RedisClient(redisUrl as string);
+    const otherCache = redisPageCache({ client: otherClient, namespace: "page-cache-conformance" });
+    try {
+      const lease = await cache.acquire({ identity, leaseMs: 30_000 });
+      if (lease === null) {
+        throw new Error("Expected a render lease");
+      }
+      const [commit, invalidation] = await Promise.all([
+        cache.commit({
+          entry: { cachedAt: 1, payload: "stale", revalidate: 60 },
+          identity,
+          lease,
+        }),
+        otherCache.invalidate({ kind: "path", path: "/posts", scope: "shop", type: "page" }),
+      ]);
+      expect(["stored", "superseded"]).toContain(commit);
+      expect(invalidation).toEqual({ invalidated: true, paths: ["/posts"] });
+      expect(await cache.read(identity)).toBeNull();
+      const freshLease = await otherCache.acquire({ identity, leaseMs: 30_000 });
+      if (freshLease === null) {
+        throw new Error("Expected a fresh render lease");
+      }
+      expect(
+        await otherCache.commit({
+          entry: { cachedAt: 2, payload: "fresh", revalidate: 60 },
+          identity,
+          lease: freshLease,
+        })
+      ).toBe("stored");
+      expect((await cache.read(identity))?.payload).toBe("fresh");
+    } finally {
+      otherClient.close();
+    }
+  });
+
   test("shares entries and invalidates them by tag", async () => {
     const lease = await cache.acquire({ identity, leaseMs: 30_000 });
     if (lease === null) {
@@ -291,6 +327,55 @@ describeWithRedis("Redis page cache", () => {
       await cache.invalidate({ kind: "path", path: "/posts/", scope: "shop", type: "layout" })
     ).toEqual({ invalidated: true, paths: ["/posts/one"] });
     expect(await cache.read(childIdentity)).toBeNull();
+  });
+
+  test("matches literal paths across JSON and glob characters in entries and leases", async () => {
+    const path = '/文章,[draft]*?/"quoted"\\leaf';
+    const targets = [path, `${path}/child`, `${path}-other`, "/unrelated"];
+    const identities = targets.map((target) => ({ ...identity, key: target, path: target }));
+    await Promise.all(
+      identities.map(async (target) => {
+        const lease = await cache.acquire({ identity: target, leaseMs: 30_000 });
+        if (lease === null) {
+          throw new Error("Expected a render lease");
+        }
+        expect(
+          await cache.commit({
+            entry: { cachedAt: 1, payload: target.path, revalidate: 60 },
+            identity: target,
+            lease,
+          })
+        ).toBe("stored");
+      })
+    );
+    const activeIdentity = { ...identity, key: `${path}/active`, path: `${path}/active` };
+    const activeLease = await cache.acquire({ identity: activeIdentity, leaseMs: 30_000 });
+    expect(activeLease).not.toBeNull();
+    expect(await cache.invalidate({ kind: "path", path, scope: "other", type: "layout" })).toEqual({
+      invalidated: false,
+      paths: [],
+    });
+    expect(await cache.invalidate({ kind: "path", path, scope: "shop", type: "page" })).toEqual({
+      invalidated: true,
+      paths: [path],
+    });
+    expect(await cache.read(identities[0] as PageCacheIdentity)).toBeNull();
+    expect(await cache.read(identities[1] as PageCacheIdentity)).not.toBeNull();
+    expect(
+      await cache.invalidate({ kind: "path", path: `${path}/`, scope: "shop", type: "layout" })
+    ).toEqual({ invalidated: true, paths: [`${path}/child`, `${path}/active`] });
+    expect(await cache.read(identities[2] as PageCacheIdentity)).not.toBeNull();
+    expect(await cache.read(identities[3] as PageCacheIdentity)).not.toBeNull();
+    const rootInvalidation = await cache.invalidate({
+      kind: "path",
+      path: "/",
+      scope: "shop",
+      type: "layout",
+    });
+    expect(rootInvalidation.invalidated).toBe(true);
+    expect(rootInvalidation.paths.toSorted()).toEqual(
+      [`${path}-other`, "/unrelated", `${path}/active`].toSorted()
+    );
   });
 
   test("expires entries and prunes their path and tag indexes", async () => {

@@ -3,16 +3,17 @@ import { basename, dirname, join, resolve } from "node:path";
 import { transformForClient } from "../plugin/transform-client";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
+import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
-import { generateHydrateEntry } from "./hydrate";
+import { generateClientReferenceEntry, generateHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
-const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 const ROUTER_PROVIDER_PATH = resolve(import.meta.dir, "../client/router/provider.tsx");
 
 function resolveClientModuleSpecifiers(code: string): string {
@@ -79,7 +80,11 @@ export async function buildClient(
     mkdirSync(clientDir, { recursive: true });
   }
 
-  const hydrateCode = resolveClientModuleSpecifiers(
+  const boundaries = await discoverClientBoundaries(
+    [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
+  );
+  await registerServerBoundaries(boundaries);
+  const hydrateCode = generateClientReferenceEntry(boundaries) + resolveClientModuleSpecifiers(
     generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
   );
   const hydratePath = join(
@@ -162,6 +167,7 @@ export async function buildClient(
     // transforms for every imported application module.
     plugins: [
       hydrateEntry.plugin,
+      flightLoaderPlugin(),
       ...(plugins ?? []),
       ...(!clientLogging ? [routerLoggerPlugin] : []),
       ...(pagesDir

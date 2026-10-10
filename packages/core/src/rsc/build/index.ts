@@ -2,9 +2,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBunBuild } from "../../build/bun-build.ts";
+import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
 import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
 import { assertInstalledRscVersions } from "../version.ts";
+import { rscClientReferencesPlugin } from "./client-references.ts";
 import { environmentGuardPlugin } from "./environment.ts";
 
 export interface ClientReference {
@@ -40,10 +42,7 @@ export async function buildRscGraph(
   const rscEntry = fileURLToPath(import.meta.resolve("../../rsc-server.tsx"));
   const entrypoints = [
     ...new Set(
-      apps.flatMap(({ root, routes }) => [
-        root.path,
-        ...routes.map((route) => route.path),
-      ])
+      apps.flatMap(({ root, routes }) => [root.path, ...routes.map((route) => route.path)])
     ),
   ];
   const aliasPlugin: Bun.BunPlugin = {
@@ -53,10 +52,17 @@ export async function buildRscGraph(
         if (path === "furin/rsc" || path === "@teyik0/furin/rsc") {
           return { path: rscEntry };
         }
+        if (path.endsWith("/link")) {
+          return { path: LINK_MODULE_PATH };
+        }
+        if (path.endsWith("/client")) {
+          return { path: CLIENT_MODULE_PATH };
+        }
         return { path, external: true };
       });
     },
   };
+  const clientReferences: ClientReference[] = [];
   const result = await runBunBuild({
     entrypoints,
     outdir: graphDir,
@@ -67,6 +73,7 @@ export async function buildRscGraph(
     naming: { entry: "[dir]/[name]-[hash].[ext]", chunk: "[name]-[hash].[ext]" },
     plugins: [
       ...(userPlugins ?? []),
+      rscClientReferencesPlugin(clientReferences),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("rsc"),
       aliasPlugin,
@@ -100,7 +107,7 @@ export async function buildRscGraph(
   const css = result.outputs
     .filter((output) => output.path.endsWith(".css"))
     .map((output) => ({ href: `/_rsc/${basename(output.path)}` }));
-  const manifest: RscManifest = { buildId, clientReferences: [], css };
+  const manifest: RscManifest = { buildId, clientReferences, css };
   writeFileSync(join(graphDir, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
 }

@@ -1,10 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import { resolvePath } from "../../../src/server/render/assemble.ts";
 import {
   buildRouteMatcher,
   buildRouteRegex,
   compareRouteSpecificity,
   filePathToPattern,
 } from "../../../src/server/router/patterns.ts";
+
+test("decoded route params preserve their segment boundary in rendered cache paths", () => {
+  const match = buildRouteMatcher([{ pattern: "/item/:id" }])("/item/a%2Fb");
+  expect(match?.params.id).toBe("a/b");
+  expect(resolvePath("/item/:id", match?.params ?? {})).toBe("/item/a%2Fb");
+  expect(resolvePath("/item/*", { "*": "a/b" })).toBe("/item/a/b");
+  expect(resolvePath("/item/:id", { id: "a?b#c%" })).toBe("/item/a%3Fb%23c%25");
+});
 
 describe("filePathToPattern", () => {
   test("converts index route to root", () => {

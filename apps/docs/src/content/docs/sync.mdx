@@ -30,6 +30,8 @@ export const sync = {
 
 `namespace` separates applications sharing the same database. `principal` must return a stable, non-empty identity; it scopes idempotency keys so two users can safely use the same client-generated key.
 
+Authenticate the request inside `principal`, for example by verifying a signed session as `requireUser` does above. The same callback authorizes journal recovery at the change endpoint. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
+
 ```ts
 // src/server.ts
 import { Elysia } from "elysia";
@@ -241,7 +243,7 @@ function DoneCount({ boardId }: { boardId: string }) {
 }
 ```
 
-Consumers of the same GET and query arguments share one cache entry and fetch. Completed loader reads hydrate that cache without an initial browser GET. The hook returns `data`, `error` and `isFetching`; `select` derives a value from the shared data. Direct `await api.…get()` calls still return Eden's original result and perform a request.
+Consumers of the same GET, query arguments and request options share one cache entry and fetch. Completed loader reads with only `query` options hydrate the default cache without an initial browser GET. Reads with explicit request options, such as authorization headers, retain their loader bindings and PPR metadata under an isolated, opaque seed identity; browser consumers fetch their own variant because the server's credentials cannot be assumed to match. `select` derives a value from the shared data without changing its identity. The hook returns `data`, `error` and `isFetching`. Direct `await api.…get()` calls still return Eden's original result and perform a request.
 
 Query arguments remain inferred from the GET schema:
 
@@ -252,7 +254,7 @@ useQuery(api.cards.get, {
 });
 ```
 
-A scope invalidation refreshes every cached query variant of that resource. Different scopes remain separate. Create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation); do not reuse one cache across principals. Response session identities also clear data from a previous principal and reject its late responses. Per-call authorization changes are not cache keys: keep one client per authenticated session.
+A scope invalidation refreshes every cached query variant of that resource. Different scopes remain separate. Per-call authorization and other request options isolate cache entries. Client-wide defaults still belong to that client's session: create a fresh client when authentication changes and remount the authenticated router (or perform a full navigation). Response session identities also clear data from a previous principal and reject its late responses.
 
 ### Mutation State In React
 
@@ -462,6 +464,8 @@ The standalone `sqliteSyncAdapter`, `postgresSyncAdapter` and `redisSyncAdapter`
 
 After a commit, the notifier wakes connected browsers with the latest cursor. The generated client then reads ordered pages from the `/_furin/sync/changes` recovery endpoint, invalidates prefetched routes, and refreshes the active route when affected.
 
+Built-in adapters return paginated changes attributable to the current principal. If recovery crosses another principal's changes, older entries without principal provenance, or a custom adapter without that provenance, Furin invalidates all cached queries and prefetched routes instead of exposing journal scopes. With `autoRefresh: true`, it also reloads the active route's loaders. With `autoRefresh: false`, active loaders refresh on the next navigation or an explicit router refresh. The public adapter interface stays unchanged.
+
 The wake-up transport is best-effort. Correctness comes from the durable adapter journal and cursor catch-up, so a missed browser event or notifier outage delays discovery but does not erase committed changes.
 
 Furin multiplexes sync, development diagnostics, and DevTools notifications over one versioned `/_furin/events` connection per page on Bun servers. The Vercel adapter uses Server-Sent Events for sync notifications through its HTTP handler. The browser reconnects when the event stream closes and catches up through the durable journal. Application code should consume the `withSync()` client and the router contract rather than either internal endpoint directly.
@@ -481,6 +485,8 @@ Production rejects process-local adapters such as SQLite `:memory:`.
 ### PostgreSQL
 
 Apply the bundled idempotent schema bootstrap through the CLI or your migration system:
+
+Run it when upgrading an existing database too: the journal's nullable `principal_hash` column is added without changing existing entries. Those entries use the full-refresh recovery path.
 
 ```sh
 FURIN_SYNC_POSTGRES_URL=postgres://... \

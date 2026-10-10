@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +19,32 @@ afterEach(() => {
 });
 
 describe("transformIsomorphicFunctions", () => {
+  test.each(["shared.ts", "C:\\project\\shared.ts"])("factory-alias pruning maps runtime statements back to the original source: %s", (filename) => {
+    const source = `import { createIsomorphicFn } from "furin";
+const factory = createIsomorphicFn;
+export const value = (() => {
+  const local = factory;
+  return local()
+    .server(() => "PRIVATE_SOURCE_MAP_VALUE")
+    .client(() => {
+      throw new Error("CLIENT_RUNTIME_LINE");
+    });
+})();`;
+    const result = transformIsomorphicFunctions(source, filename, "client");
+    expect(result.map?.sourcesContent).toEqual([source]);
+    const generatedPrefix = result.code.slice(0, result.code.indexOf("throw new Error"));
+    const generatedLines = generatedPrefix.split("\n");
+    const originalPrefix = source.slice(0, source.indexOf("throw new Error"));
+    const originalLines = originalPrefix.split("\n");
+    if (!result.map) { throw new Error("Expected a transformation map"); }
+    const mapped = originalPositionFor(new TraceMap({ ...result.map, version: 3 }), { line: generatedLines.length, column: generatedLines.at(-1)?.length ?? 0 });
+    expect(mapped.line).toBe(originalLines.length);
+    expect(mapped.column).toBe(originalLines.at(-1)?.length ?? 0);
+  });
+  test("leaves unrelated client and server methods unchanged", () => {
+    const source = 'export const value = api.server("production").client({ name: "browser" });';
+    expect(transformForClient(source, "helper.ts").code).toBe(source);
+  });
   test("selects the client implementation", () => {
     const result = transformIsomorphicFunctions(
       `
@@ -174,17 +201,49 @@ describe("transformIsomorphicFunctions", () => {
     expect(result.code).toContain('builder.server(() => "local")');
   });
 
-  test("rejects computed environment methods", () => {
-    expect(() =>
-      transformIsomorphicFunctions(
+  test("selects statically computed environment methods", () => {
+    const result = transformForClient(
         `
           import { createIsomorphicFn } from "@teyik0/furin";
-          export const getValue = createIsomorphicFn()["server"](() => "server");
+          const serverMethod = "server" as const;
+          export const getValue = createIsomorphicFn()[serverMethod](() => "SERVER_SECRET")["client"](() => "client");
         `,
-        "shared.ts",
-        "server"
-      )
-    ).toThrow("static .server() and .client() methods");
+        "shared.ts"
+    );
+    expect(result.code).toContain("client");
+    expect(result.code).not.toContain("SERVER_SECRET");
+  });
+
+  test("the last environment implementation wins", () => {
+    const result = transformForClient(`import { createIsomorphicFn } from "furin";
+      export const value = createIsomorphicFn().client(() => "first").client(() => "last");`, "shared.ts");
+    expect(result.code).toContain("last");
+    expect(result.code).not.toContain("first");
+  });
+
+  test("rejects a runtime-selected environment method before bundling server code", () => {
+    expect(() => transformForClient(`
+      import { createIsomorphicFn } from "@teyik0/furin";
+      export const getValue = createIsomorphicFn()[globalThis.method](() => "SERVER_SECRET").client(() => "public");
+    `, "shared.ts")).toThrow("static .server() and .client() methods");
+  });
+
+  test.each([
+    'let create = createIsomorphicFn; export const value = create().server(() => "SECRET");',
+    'const factories = { create: createIsomorphicFn }; export const value = factories.create().server(() => "SECRET");',
+  ])("rejects an opaque factory boundary: %s", (expression) => {
+    expect(() => transformForClient(`import { createIsomorphicFn } from "furin"; ${expression}`, "shared.ts"))
+      .toThrow("statically resolvable");
+  });
+
+  test("preserves methods on a named class expression that shadows the factory", () => {
+    const source = `
+      import { createIsomorphicFn } from "@teyik0/furin";
+      export const Factory = class createIsomorphicFn {
+        static value() { return createIsomorphicFn().server(() => "local"); }
+      };
+    `;
+    expect(transformForClient(source, "shared.ts").code).toContain('createIsomorphicFn().server(() => "local")');
   });
 
   test("rejects computed environment methods on a split builder", () => {
@@ -347,7 +406,73 @@ test("transformForClient applies the client isomorphic branch", () => {
   expect(result.code).not.toContain("readServerValue");
 });
 
-test.each(["js", "jsx", "ts", "tsx"])(
+test("browser bundles remove server secrets through constant factory and method aliases", async () => {
+  const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-alias-"));
+  temporaryDirectories.push(root);
+  const entrypoint = join(root, "entry.ts");
+  writeFileSync(entrypoint, `
+    import { createIsomorphicFn } from "@teyik0/furin";
+    const create = createIsomorphicFn;
+    const method = "server" as const;
+    export const getValue = create()[method](() => "SERVER_SECRET").client(() => "PUBLIC_VALUE");
+  `);
+  const result = await Bun.build({ entrypoints: [entrypoint], plugins: [stripPlugin], target: "browser" });
+  expect(result.success).toBe(true);
+  const output = await result.outputs[0]?.text();
+  expect(output).toContain("PUBLIC_VALUE");
+  expect(output).not.toContain("SERVER_SECRET");
+});
+
+test.each([
+  'const Alias = Furin; export const getValue = Alias.createIsomorphicFn()',
+  'const { createIsomorphicFn: create } = Furin; export const getValue = create()',
+  'export const getValue = Furin[globalThis.factory]()',
+])("browser builds reject an escaped Furin namespace before emitting server code: %s", async (factory) => {
+  const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-namespace-"));
+  temporaryDirectories.push(root);
+  const entrypoint = join(root, "entry.ts");
+  writeFileSync(entrypoint, `
+    import * as Furin from "@teyik0/furin";
+    ${factory}
+      .server(() => "SERVER_SECRET_MARKER")
+      .client(() => "PUBLIC_VALUE");
+  `);
+  await expect(Bun.build({
+    entrypoints: [entrypoint],
+    external: ["@teyik0/furin"],
+    plugins: [stripPlugin],
+    target: "browser",
+  })).rejects.toThrow();
+});
+
+test("namespace validation preserves other direct exports and shadowed local namespaces", () => {
+  const source = `import * as Furin from "@teyik0/furin";
+    export const useRouter = Furin["useRouter"];
+    export function local(Furin) { return Furin; }
+  `;
+  expect(transformIsomorphicFunctions(source, "shared.ts", "client").code).toBe(source);
+});
+
+test("browser builds recursively compile nested isomorphic functions in the selected branch", async () => {
+  const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-nested-"));
+  temporaryDirectories.push(root);
+  const entrypoint = join(root, "entry.ts");
+  writeFileSync(entrypoint, `import { createIsomorphicFn } from "@teyik0/furin";
+export const nested = createIsomorphicFn()
+  .server(() => "OUTER_SERVER_SECRET")
+  .client(() => createIsomorphicFn()
+    .server(() => "NESTED_SERVER_SECRET")
+    .client(() => "NESTED_CLIENT_VALUE"));
+console.log(nested()());`);
+  const result = await Bun.build({ entrypoints: [entrypoint], plugins: [stripPlugin], target: "browser" });
+  expect(result.success).toBe(true);
+  const browser = (await Promise.all(result.outputs.map((output) => output.text()))).join("\n");
+  expect(browser).toContain("NESTED_CLIENT_VALUE");
+  expect(browser).not.toContain("OUTER_SERVER_SECRET");
+  expect(browser).not.toContain("NESTED_SERVER_SECRET");
+});
+
+test.each(["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"])(
   "the server build plugin excludes the client module from a .%s bundle",
   async (extension) => {
   const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-server-"));
@@ -381,7 +506,7 @@ test.each(["js", "jsx", "ts", "tsx"])(
   }
 );
 
-test.each(["js", "jsx"])(
+test.each(["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"])(
   "the browser strip plugin selects the client branch in a .%s route",
   async (extension) => {
     const root = mkdtempSync(join(tmpdir(), "furin-isomorphic-client-"));

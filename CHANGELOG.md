@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Composite client references** — support function components declared with `"use client"` inside server composites on Bun 1.4.2, including loader-only browser imports, React DOM hydration and `Link` navigation with router context.
+
+### Changed
+- **Elysia beta update** — pin `2.0.0-beta.29` across the workspace, generated projects, documentation and benchmark workflows while preserving the public API and TypeScript inference.
+- **Dependency security** — update compatible transitive dependencies and use the official selector-parser `7.1.6` fix. Local dependency patches are removed.
+
+### Fixed
+- **Development HMR aliases** — refresh server-rendered components imported through TypeScript path aliases after edits, including ISR layouts, re-exports and dynamic imports, while preserving React and framework singleton modules.
+- **Application isolation and composition** — isolate page caches, queries, sync principals, logging, development graphs and watchers across independent applications, reused plugins and nested Elysia prefixes. Keep compiled SSG snapshots while adapting their document URLs to the physical mount.
+- **Server/client compilation** — resolve builder bindings and static aliases, reject ambiguous server-only chains, process every supported script extension and preserve valid imports during development autofixes.
+- **Client boundary interop** — preserve canonical Flight identities through shared barrels and CommonJS exports, and reject unresolved Furin namespace escapes before browser compilation.
+- **Rendering and navigation** — preserve rich loader values through SSR/RSC hydration, stream deferred data progressively, release cancelled transports, retain error/404 markers and normalize links, route specificity, params and search selectors consistently.
+- **Sync and cache integrity** — share HTTP response finalization and replay semantics, restrict journal recovery to the current principal, encode invalidation paths safely and bound the memory cache. Existing PostgreSQL journals require the bundled idempotent migration to add `principal_hash`.
+- **Build and lifecycle safety** — copy symlinked assets into isolated outputs, fingerprint transitive server dependencies, avoid Vercel function-name collisions and run Elysia cleanup after graceful connection and background-work draining.
+
 ## [0.7.0-alpha.3] — 2026-10-04
 
 ### Added

@@ -1,6 +1,23 @@
 import { expect, test } from "bun:test";
 import { splitDevPage } from "../../../src/plugin/transform-dev-page.ts";
 
+test("a constant route factory alias keeps render-only imports outside the server contract", () => {
+  const result = splitDevPage(
+    `import { defineRoute } from "furin";
+    import { View } from "./view";
+    const create = defineRoute;
+    export const route = create().config({ mode: "ssr" }).page(() => <View />);`,
+    "page.tsx",
+    "page.tsx?furin-render&t=1"
+  );
+  expect(result).toBeDefined();
+  if (!result) {
+    throw new Error("Expected an eligible route to split");
+  }
+  expect(result.contract).not.toContain('"./view"');
+  expect(result.render).toContain('"./view"');
+});
+
 test.each([
   'const label = "local state"; export const route = defineRoute().page(() => <Heavy>{label}</Heavy>);',
   "export const route = defineRoute().page(Heavy);",

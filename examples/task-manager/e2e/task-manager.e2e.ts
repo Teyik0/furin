@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SyncChangePage } from "@teyik0/furin/sync";
 
 const SERVER_READY_TIMEOUT_MS = 10_000;
 const HTTP_TIMEOUT_MS = 5000;
@@ -12,17 +13,6 @@ interface CreatedBoard {
   createdAt: string;
   id: string;
   name: string;
-}
-
-interface SyncChangesResponse {
-  changes: Array<{
-    cursor: string;
-    invalidations: string[];
-    queries?: Array<{ id: string; scope: { [key: string]: string } }>;
-  }>;
-  cursor: string;
-  hasMore: boolean;
-  reset: boolean;
 }
 
 interface SyncEnvelope {
@@ -231,8 +221,23 @@ describe.serial("task-manager production E2E", () => {
         HTTP_TIMEOUT_MS
       );
       expect(changesResponse.status).toBe(200);
-      const changes = (await changesResponse.json()) as SyncChangesResponse;
-      expect(changes).toEqual({ cursor: "1", hasMore: false, reset: true, changes: [] });
+      const changes = (await changesResponse.json()) as SyncChangePage;
+      expect(changes).toEqual({
+        cursor: "1",
+        hasMore: false,
+        reset: false,
+        changes: [
+          {
+            cursor: "1",
+            invalidations: [
+              { kind: "tags", tags: ['__furin.query:["boards",[]]'] },
+              { kind: "path", path: "/", type: "page" },
+              { kind: "path", path: "/rsc", type: "page" },
+              { kind: "path", path: "/board", type: "layout" },
+            ],
+          },
+        ],
+      });
 
       const replayResponse = await withTimeout(
         createBoard(),

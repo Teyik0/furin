@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
 import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
@@ -76,6 +77,25 @@ function compareCodeUnits(a: string, b: string): number {
   return 0;
 }
 
+function nearestFingerprintFile(
+  directory: string,
+  names: string[],
+  boundary: string | undefined
+): string | undefined {
+  let current: string | undefined = directory;
+  while (current !== undefined) {
+    for (const name of names) {
+      const path = join(current, name);
+      if (existsSync(path)) {
+        return path;
+      }
+    }
+    const parent = dirname(current);
+    current = parent === current || current === boundary ? undefined : parent;
+  }
+  return undefined;
+}
+
 /**
  * Deterministic build-ID input covering everything that can change rendered
  * output: client chunks, route shape, route/root/error/not-found source
@@ -90,11 +110,17 @@ export async function createBuildFingerprint(
   routeSources: string[],
   projectRoot: string
 ): Promise<string> {
+  const rootBoundary = existsSync(projectRoot) ? realpathSync(projectRoot) : projectRoot;
   const fingerprintPaths = new Set<string>([
     root.path,
     ...routes.map((route) => route.path),
     ...routeSources,
+    ...BUILD_ID_INPUT_PATHS,
   ]);
+  const lockfile = nearestFingerprintFile(projectRoot, ["bun.lock", "bun.lockb"], undefined);
+  if (lockfile) {
+    fingerprintPaths.add(lockfile);
+  }
   if (serverEntry) {
     fingerprintPaths.add(serverEntry);
   }
@@ -123,30 +149,38 @@ export async function createBuildFingerprint(
       return;
     }
     sources.set(path, "");
-    const content = existsSync(path) ? await Bun.file(path).text() : "";
-    sources.set(path, content);
-    if (!SCRIPT_FILE_RE.test(path)) {
+    const bytes = existsSync(path) ? await Bun.file(path).arrayBuffer() : new ArrayBuffer(0);
+    const isScript = SCRIPT_FILE_RE.test(path);
+    const content = isScript ? new TextDecoder().decode(bytes) : "";
+    const isDependency = toPosixPath(path).includes("/node_modules/");
+    sources.set(path, isDependency || !isScript ? Bun.hash(bytes).toString(16) : content);
+    if (!isScript) {
       return;
+    }
+    const relativePath = toPosixPath(relative(rootBoundary, path));
+    const manifestBoundary =
+      relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
+        ? undefined
+        : rootBoundary;
+    const manifest = nearestFingerprintFile(dirname(path), ["package.json"], manifestBoundary);
+    if (manifest) {
+      fingerprintPaths.add(manifest);
+      await visit(manifest);
     }
     const transpiler = new Bun.Transpiler({ loader: path.endsWith("x") ? "tsx" : "ts" });
     await Promise.all(
-      transpiler.scanImports(content).flatMap(({ path: specifier }) => {
-        if (
-          specifier === "furin" ||
-          specifier.startsWith("furin/") ||
-          specifier === "@teyik0/furin" ||
-          specifier.startsWith("@teyik0/furin/")
-        ) {
-          return [];
-        }
+      transpiler.scanImports(content).flatMap(({ path: specifier, kind }) => {
         let dependency: string;
         try {
-          dependency = Bun.resolveSync(specifier, dirname(path));
+          dependency =
+            kind === "require-call" || kind === "require-resolve"
+              ? createRequire(path).resolve(specifier)
+              : Bun.resolveSync(specifier, dirname(path));
         } catch {
           // Build plugins can supply imports that have no filesystem path.
           return [];
         }
-        if (!isAbsolute(dependency) || toPosixPath(dependency).includes("/node_modules/")) {
+        if (!isAbsolute(dependency)) {
           return [];
         }
         fingerprintPaths.add(dependency);
@@ -162,7 +196,6 @@ export async function createBuildFingerprint(
           "the generated build ID may not reflect all framework changes."
       );
     }
-    fingerprintPaths.add(path);
   }
 
   const fileParts = (
@@ -191,6 +224,11 @@ export async function createBuildFingerprint(
 
 function stableFingerprintPath(path: string, projectRoot: string): string {
   const absolutePath = existsSync(path) ? realpathSync(path) : path;
+  const posixPath = toPosixPath(absolutePath);
+  const dependencyStart = posixPath.indexOf("/node_modules/");
+  if (dependencyStart !== -1) {
+    return `dependency/${posixPath.slice(dependencyStart + "/node_modules/".length)}`;
+  }
   const projectPath = relative(realpathSync(projectRoot), absolutePath);
   if (
     !isAbsolute(projectPath) &&
@@ -209,7 +247,7 @@ function stableFingerprintPath(path: string, projectRoot: string): string {
   ) {
     return `furin/${toPosixPath(frameworkPath)}`;
   }
-  return `external/${basename(path)}`;
+  return `external/${toPosixPath(projectPath)}`;
 }
 
 function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {

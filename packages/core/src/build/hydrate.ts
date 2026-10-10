@@ -8,8 +8,17 @@ import {
 import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { collectSearchDefaults } from "../shared/search-params.ts";
+import type { ClientBoundary } from "../rsc/build/discover.ts";
+import { CLIENT_REFERENCE_RUNTIME_PATH } from "../rsc/build/paths.ts";
 import { writeRouteTypes } from "./route-types";
 import type { BuildClientOptions } from "./types";
+
+export function generateClientReferenceEntry(boundaries: readonly ClientBoundary[]): string {
+  if (boundaries.length === 0) {
+    return "";
+  }
+  return `import { registerClientLoader } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${boundaries.map(({ id, path }) => `registerClientLoader(${JSON.stringify(id)}, () => import(${JSON.stringify(path)}));`).join("\n")}\n`;
+}
 
 /**
  * Generates the client hydration entry.
@@ -93,9 +102,9 @@ export function generateHydrateEntry(
     }
 
     const lazyImports = [
-      `import("${resolvedPage}")`,
-      ...layoutPaths.map((filePath) => `import("${filePath.replace(/\\/g, "/")}")`),
-      ...[...boundaryIdents.keys()].map((filePath) => `import("${filePath.replace(/\\/g, "/")}")`),
+      `import(${JSON.stringify(resolvedPage)})`,
+      ...layoutPaths.map((filePath) => `import(${JSON.stringify(filePath.replace(/\\/g, "/"))})`),
+      ...[...boundaryIdents.keys()].map((filePath) => `import(${JSON.stringify(filePath.replace(/\\/g, "/"))})`),
     ];
     const importIdents = ["__furin_page", ...layoutIdents, ...boundaryIdents.values()];
     const layoutAssignments = layoutPaths
@@ -116,7 +125,7 @@ export function generateHydrateEntry(
       ? `, searchDefaults: ${JSON.stringify(searchDefaults)}`
       : "";
     routeEntries.push(
-      ` { pattern: "${route.pattern}", regex: new RegExp(${JSON.stringify(regexPattern)}), load: () => ${loadBody}${searchDefaultsEntry} }`
+      ` { pattern: ${JSON.stringify(route.pattern)}, regex: new RegExp(${JSON.stringify(regexPattern)}), load: () => ${loadBody}${searchDefaultsEntry} }`
     );
   }
 
@@ -126,16 +135,12 @@ export function generateHydrateEntry(
   // Strip basePath only when it matches on a path boundary (prevents "/furin" from
   // matching "/furinity/foo"). The boundary holds when the pathname ends exactly
   // at the prefix length OR the next character is "/".
-  // Trailing slashes are also stripped so "/docs/routing/" matches the route
-  // pattern "/docs/routing" — GitHub Pages and many static hosts append them.
-  const pathnameExpr = basePath
-    ? `(() => { const p = window.location.pathname; const b = ${basePathLiteral}; const stripped = (p.startsWith(b) && (p.length === b.length || p[b.length] === "/")) ? p.slice(b.length) || "/" : p; return stripped === "/" ? "/" : stripped.replace(/\\/+$/, ""); })()`
-    : `window.location.pathname.replace(/\\/+$/, "") || "/"`;
+  // Route regexes accept the same trailing slash as native Elysia routes.
+  // Preserve catch-all tails, including the empty tail in "/docs/".
+  const pathnameExpr = `(() => { const p = window.location.pathname; const b = __furinBasePath; return (b && p.startsWith(b) && (p.length === b.length || p[b.length] === "/")) ? p.slice(b.length) || "/" : p; })()`;
 
   // Log drain endpoint: prepend basePath so the request goes to the correct origin path.
-  const logEndpoint = basePath
-    ? `${JSON.stringify(basePath)} + "/_furin/ingest"`
-    : `"/_furin/ingest"`;
+  const logEndpoint = `__furinBasePath + "/_furin/ingest"`;
 
   // Client-side HTTP draining is opt-in (config `clientLogging`). When disabled
   // we emit neither the hydrate-entry evlog imports nor initLogger, and define a
@@ -148,7 +153,7 @@ export function generateHydrateEntry(
     : "const log = { error() {}, info() {} };";
 
   // RouterProvider receives basePath so navigate() / Link push physical paths.
-  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: ${basePathLiteral},\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
+  const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: __furinBasePath,\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
 
   const resolvedRootLayout = rootLayout.replace(/\\/g, "/");
   const rootComponentKey = JSON.stringify(`root:${resolvedRootLayout}`);
@@ -161,8 +166,9 @@ ${loggingImports}import { DocumentProvider, type DocumentState, type HotComponen
 import { RouterProvider } from "@teyik0/furin/link";
 import { fromCrossJSON, parseDeferredNdjson } from "@teyik0/furin/link";
 import type { SerovalNode } from "seroval";
-import { route as __furin_root_route } from "${resolvedRootLayout}";
+import { route as __furin_root_route } from ${JSON.stringify(resolvedRootLayout)};
 
+const __furinBasePath = document.querySelector('meta[name="furin-base-path"]')?.getAttribute("content") ?? ${basePathLiteral};
 ${loggerSetup}
 
 if (import.meta.hot) {
@@ -456,7 +462,7 @@ if (__deferred && __deferred._chunks) {
  */
 export function writeDevFiles(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, basePath, clientLogging, skipRouteTypes }: BuildClientOptions,
+  { outDir, rootLayout, basePath, clientLogging, clientBoundaries, skipRouteTypes }: BuildClientOptions,
   projectRoot: string,
   serverSourceVersion?: string
 ): void {
@@ -471,6 +477,7 @@ export function writeDevFiles(
       ? ""
       : `\nif (import.meta.hot) import.meta.hot.data.furinServerSourceVersion = ${JSON.stringify(serverSourceVersion)};\n`;
   const hydrateCode =
+    generateClientReferenceEntry(clientBoundaries ?? []) +
     generateHydrateEntry(routes, rootLayout, basePath, clientLogging) + serverVersion;
   const hydratePath = join(outDir, "_hydrate.tsx");
   const existingHydrate = existsSync(hydratePath) ? readFileSync(hydratePath, "utf8") : "";

@@ -4,6 +4,17 @@ import { serializeCompactJsonLine } from "../../../src/shared/compact-json.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 
 describe("loader data transport", () => {
+  test("reserved-looking user objects survive deferred route frames", async () => {
+    const user = { __furinRsc: "rsc-0", nested: { __furinRsc: "ordinary-user-field" } };
+    const payload = await serializeLoaderDataNdjson({ user }, { later: Promise.resolve(user) });
+    const { body } = new Response(payload);
+    if (!body) {
+      throw new Error("Loader response body missing");
+    }
+    const parsed = await parseDeferredNdjson(body, undefined);
+    expect(parsed.syncData.user).toEqual(user);
+    expect(await parsed.deferredPromises.later).toEqual(user);
+  });
   test("rejects accessors without evaluating them in objects or arrays", async () => {
     let calls = 0;
     const object = Object.defineProperty({}, "value", {

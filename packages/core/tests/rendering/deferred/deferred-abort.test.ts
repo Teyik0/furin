@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { toCrossJSON } from "seroval";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 
 const enc = new TextEncoder();
 
@@ -28,6 +29,41 @@ function makeControlledStream(initialBytes: Uint8Array): ControlledStream {
 }
 
 describe("parseDeferredNdjson — error paths", () => {
+  test("malformed route frames reject their deferred value without an unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => {
+      unhandled.push(error);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const { stream, controller } = makeControlledStream(
+        enc.encode(serializeRouteFrames({}, ["later"]))
+      );
+      const result = await parseDeferredNdjson(stream, undefined);
+      controller.enqueue(enc.encode("invalid json\n"));
+      controller.close();
+      await expect(result.deferredPromises.later).rejects.toThrow();
+      await Bun.sleep(10);
+      expect(unhandled).toEqual([]);
+      expect(stream.locked).toBe(false);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+  test("malformed initial data cancels and releases an open stream", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(enc.encode("invalid json\n"));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    await expect(parseDeferredNdjson(stream, new AbortController().signal)).rejects.toThrow();
+    expect(cancelled).toBe(true);
+    expect(stream.locked).toBe(false);
+  });
   test("malformed first NDJSON line → rejects with an explicit error", async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
@@ -82,6 +118,21 @@ describe("parseDeferredNdjson — error paths", () => {
 });
 
 describe("parseDeferredNdjson — AbortSignal", () => {
+  test("an abort between receiving the initial frame and attaching deferred readers releases the stream", async () => {
+    const abort = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          ndjsonLine(toCrossJSON({ __furinDeferredKeys: ["later"], title: "received" }))
+        );
+        queueMicrotask(() => abort.abort());
+      },
+    });
+    const result = await parseDeferredNdjson(stream, abort.signal);
+    expect(result.syncData.title).toBe("received");
+    await expect(result.deferredPromises.later).rejects.toThrow("aborted");
+    expect(stream.locked).toBe(false);
+  });
   test("abandoned deferred promises do not leak an unhandled AbortError", async () => {
     const initial = ndjsonLine(toCrossJSON({ __furinDeferredKeys: ["abandoned"], title: "x" }));
     const { stream } = makeControlledStream(initial);

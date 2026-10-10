@@ -13,6 +13,7 @@ import type {
   SyncChange,
   SyncInvalidation,
 } from "../adapter.ts";
+import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import migrationSql from "./migration.sql" with { type: "text" };
 
 const CHANGE_RETENTION = 1000;
@@ -44,6 +45,7 @@ interface CursorRow {
 interface ChangeRow {
   cursor: string;
   invalidations: string;
+  principal_hash: string | null;
 }
 
 interface MinimumCursorRow {
@@ -66,7 +68,17 @@ function storedResponse(row: MutationRow): StoredResponse {
 }
 
 export function migrateSqliteSync(database: Database): void {
-  database.run(migrationSql);
+  database
+    .transaction(() => {
+      database.run(migrationSql);
+      const columns = database
+        .query<{ name: string }, []>("PRAGMA table_info(furin_sync_changes)")
+        .all();
+      if (!columns.some((column) => column.name === "principal_hash")) {
+        database.run("ALTER TABLE furin_sync_changes ADD COLUMN principal_hash TEXT");
+      }
+    })
+    .immediate();
 }
 
 export class SqliteSyncAdapter implements SyncAdapter {
@@ -80,6 +92,7 @@ export class SqliteSyncAdapter implements SyncAdapter {
     }
     this.database = options.database;
     this.namespace = options.namespace;
+    registerPrincipalJournal(this);
     this.scope =
       options.database.filename === "" || options.database.filename === ":memory:"
         ? "process-local"
@@ -206,15 +219,16 @@ export class SqliteSyncAdapter implements SyncAdapter {
           }
           cursor = cursorRow.current_cursor;
           this.database
-            .query<never, [string, string, string, number]>(
-              `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at)
-               VALUES (?, ?, ?, ?)`
+            .query<never, [string, string, string, number, string]>(
+              `INSERT INTO furin_sync_changes (namespace, cursor, invalidations, created_at, principal_hash)
+               VALUES (?, ?, ?, ?, ?)`
             )
             .run(
               this.namespace,
               cursorRow.current_cursor,
               JSON.stringify(completion.invalidations),
-              now
+              now,
+              principalHash(completion.lease.principal)
             );
           const removed = this.database
             .query<never, [string, string, number]>(
@@ -311,15 +325,20 @@ export class SqliteSyncAdapter implements SyncAdapter {
       }
       const rows = this.database
         .query<ChangeRow, [string, string, number]>(
-          `SELECT CAST(cursor AS TEXT) AS cursor, invalidations FROM furin_sync_changes
+          `SELECT CAST(cursor AS TEXT) AS cursor, invalidations, principal_hash FROM furin_sync_changes
            WHERE namespace = ? AND cursor > CAST(? AS INTEGER) ORDER BY cursor ASC LIMIT ?`
         )
         .all(this.namespace, page.after, page.limit + 1);
       const hasMore = rows.length > page.limit;
-      const changes: SyncChange[] = rows.slice(0, page.limit).map((row) => ({
-        cursor: row.cursor,
-        invalidations: JSON.parse(row.invalidations) as SyncInvalidation[],
-      }));
+      const changes: SyncChange[] = rows.slice(0, page.limit).map((row) =>
+        journalChange(
+          {
+            cursor: row.cursor,
+            invalidations: JSON.parse(row.invalidations) as SyncInvalidation[],
+          },
+          row.principal_hash
+        )
+      );
       return {
         changes,
         cursor: changes.at(-1)?.cursor ?? page.after,

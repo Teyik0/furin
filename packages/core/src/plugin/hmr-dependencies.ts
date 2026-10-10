@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
-
-const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 
 /** Fingerprint server imports without importing their code into the client bundle. */
 export function hmrDependencySignature(imports: Set<string>, filename: string): string | undefined {
@@ -35,7 +33,7 @@ export function hmrDependencySignature(imports: Set<string>, filename: string): 
     visited.add(path);
     const source = readFileSync(path, "utf8");
     hash.update(source);
-    if (SCRIPT_FILE.test(path)) {
+    if (SCRIPT_FILE_FILTER.test(path)) {
       const transpiler = new Bun.Transpiler({ loader: detectLoaderFromPath(path) });
       for (const dependency of transpiler.scanImports(source)) {
         if (!visit(dependency.path, path)) {
