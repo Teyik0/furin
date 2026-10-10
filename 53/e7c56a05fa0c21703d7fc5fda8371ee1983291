@@ -1,0 +1,21 @@
+packages/electrobun/src/cli.ts
+  s_7268924ff816a4::t_5749ea3f6f5813 17,19,22,36-43
+packages/electrobun/tests/file-assets.test.ts
+  s_7268924ff816a4::t_f20f750aafb73d 1-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53e7c56a05fa0c21703d7fc5fda8371ee1983291",
+  "prompts": {},
+  "sessions": {
+    "s_7268924ff816a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a125e5-c923-7da3-8578-39b16910ee7f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
