@@ -20,7 +20,7 @@
     "tscheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ejs": "^6.0.1"
+    "ejs": "^7.0.1"
   },
   "devDependencies": {
     "@clack/prompts": "^1.8.1",
