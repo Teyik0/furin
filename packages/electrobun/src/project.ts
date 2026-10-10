@@ -1,6 +1,6 @@
-import { constants, existsSync } from "node:fs";
+import { constants, existsSync, realpathSync } from "node:fs";
 import { access, chmod, link, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { type DesktopConfig, validateDesktopConfig } from "./config";
 
@@ -8,6 +8,59 @@ interface PackageManifest {
   name?: string;
   scripts?: { [name: string]: string };
   version?: string;
+}
+
+const PRELOAD = "@teyik0/furin-electrobun/preload";
+
+async function preloadSettings(root: string) {
+  const path = join(root, "bunfig.toml");
+  const original = existsSync(path) ? await readFile(path, "utf8") : undefined;
+  const config = Bun.TOML.parse(original ?? "") as { preload?: string[] };
+  if (config.preload?.includes(PRELOAD)) {
+    return { path, original };
+  }
+  if (config.preload !== undefined) {
+    throw new Error(
+      `Add "${PRELOAD}" to the existing preload array in bunfig.toml, then rerun init.`
+    );
+  }
+  let mode = 0o644;
+  if (original !== undefined) {
+    await access(path, constants.W_OK);
+    // biome-ignore lint/suspicious/noBitwiseOperators: Preserve existing Bun configuration permissions.
+    mode = (await stat(path)).mode & 0o777;
+  }
+  return { path, original, content: `preload = ["${PRELOAD}"]\n\n${original ?? ""}`, mode };
+}
+
+async function publishPreload(
+  settings: Awaited<ReturnType<typeof preloadSettings>>,
+  staged: string,
+  backup: string
+): Promise<boolean> {
+  if (!settings.content) {
+    return false;
+  }
+  await writeFile(staged, settings.content, { flag: "wx", mode: settings.mode });
+  await chmod(staged, settings.mode);
+  if (settings.original === undefined) {
+    await link(staged, settings.path);
+  } else {
+    await link(settings.path, backup);
+    await rename(staged, settings.path);
+  }
+  return true;
+}
+
+async function restorePreload(
+  settings: Awaited<ReturnType<typeof preloadSettings>>,
+  backup: string
+) {
+  if (settings.original === undefined) {
+    await rm(settings.path);
+  } else {
+    await rename(backup, settings.path);
+  }
 }
 
 async function importFurinConfig(cwd: string) {
@@ -45,9 +98,14 @@ export async function initDesktop(root: string): Promise<void> {
     window: { width: 1024, height: 768 },
   };
   validateDesktopConfig(config);
+  const settings = await preloadSettings(root);
+  const entry = relative(
+    root,
+    resolve(root, project.config.rootDir ?? ".", project.config.serverEntry ?? "src/server.ts")
+  );
   pkg.scripts = {
     ...pkg.scripts,
-    "dev:desktop": "furin-electrobun dev",
+    dev: pkg.scripts?.dev ?? `bun --hot ${entry.includes(" ") ? JSON.stringify(entry) : entry}`,
     "build:desktop": "furin-electrobun build",
   };
   // Atomic replacement must still respect a deliberately read-only manifest.
@@ -57,7 +115,10 @@ export async function initDesktop(root: string): Promise<void> {
   const transaction = crypto.randomUUID();
   const stagedManifest = join(root, `.package.json.${transaction}.tmp`);
   const stagedConfig = join(root, `.furin.config.ts.${transaction}.tmp`);
+  const stagedSettings = join(root, `.bunfig.toml.${transaction}.tmp`);
+  const previousSettings = join(root, `.bunfig.toml.${transaction}.backup`);
   let configPublished = false;
+  let settingsPublished = false;
   try {
     await writeFile(stagedManifest, `${JSON.stringify(pkg, null, 2)}\n`, { flag: "wx", mode });
     await chmod(stagedManifest, mode);
@@ -71,14 +132,23 @@ export async function initDesktop(root: string): Promise<void> {
       await link(stagedConfig, configPath);
       configPublished = true;
     }
+    settingsPublished = await publishPreload(settings, stagedSettings, previousSettings);
     await rename(stagedManifest, packagePath);
   } catch (error) {
+    if (settingsPublished) {
+      await restorePreload(settings, previousSettings);
+    }
     if (configPublished) {
       await rm(configPath);
     }
     throw error;
   } finally {
-    await Promise.all([rm(stagedManifest, { force: true }), rm(stagedConfig, { force: true })]);
+    await Promise.all([
+      rm(stagedManifest, { force: true }),
+      rm(stagedConfig, { force: true }),
+      rm(stagedSettings, { force: true }),
+      rm(previousSettings, { force: true }),
+    ]);
   }
 }
 
@@ -109,4 +179,15 @@ export async function loadFurinProject(cwd: string) {
   const { config } = await importFurinConfig(cwd);
   const root = resolve(cwd, config.rootDir ?? ".");
   return { root, serverEntry: resolve(root, config.serverEntry ?? "src/server.ts") };
+}
+
+export async function isDesktopDevelopmentEntry(cwd: string, entry: string): Promise<boolean> {
+  const { config } = await importFurinConfig(cwd);
+  if (config.desktop === undefined) {
+    return false;
+  }
+  const expected = resolve(cwd, config.rootDir ?? ".", config.serverEntry ?? "src/server.ts");
+  return (
+    existsSync(expected) && existsSync(entry) && realpathSync(expected) === realpathSync(entry)
+  );
 }

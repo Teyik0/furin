@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { desktopCommand } from "../src/cli";
 import { prepareDesktop } from "../src/prepare";
+import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 for (const rootData of [false, true]) {
   test(`dev supervisor reloads sibling backend imports with ${rootData ? "root" : "child"} data storage`, async () => {
@@ -85,21 +86,18 @@ for (const rootData of [false, true]) {
       await writeFile(join(root, "src/database.ts"), 'export const value = "first";');
       const sdk = join(root, "node_modules/electrobun");
       await mkdir(join(sdk, "bin"), { recursive: true });
-      await writeFile(
-        join(sdk, "package.json"),
-        '{"name":"electrobun","version":"2.0.2","exports":{"./package.json":"./package.json"}}'
-      );
+      await installSdk(root);
       await writeFile(
         join(sdk, "bin/electrobun.cjs"),
         `
-      if (process.argv[2] !== "run") process.exit(0);
+      ${sdkRunHeader(root)}
       const { watch } = require("node:fs");
-      const ready = await Bun.file("ready.json").json();
+      const ready = await Bun.file(generated + "/ready.json").json();
       const send = (checkpoint) => fetch(${JSON.stringify(receiver.url.href)}, {
         method: "POST", body: JSON.stringify({ ...ready, checkpoint })
       });
-      const watcher = watch("control", async () => {
-        if (await Bun.file("control").text()) process.exit(0);
+      const watcher = watch(generated + "/control", async () => {
+        if (await Bun.file(generated + "/control").text()) sdk.Utils.quit(0);
       });
       if (await (await send(false)).text() === "observe") {
         setTimeout(() => send(true), 700);
@@ -283,11 +281,8 @@ test("dev supervisor terminates its ready worker when onShutdown holds an active
     // The SDK command boundary exits like a closed window; no GUI is launched.
     const sdk = join(root, "node_modules/electrobun");
     await mkdir(join(sdk, "bin"), { recursive: true });
-    await writeFile(
-      join(sdk, "package.json"),
-      '{"name":"electrobun","version":"2.0.2","exports":{"./package.json":"./package.json"}}'
-    );
-    await writeFile(join(sdk, "bin/electrobun.cjs"), "process.exit(0);");
+    await installSdk(root);
+    await writeFile(join(sdk, "bin/electrobun.cjs"), `${sdkRunHeader(root)} sdk.Utils.quit(0);`);
     const result = await Promise.race([
       desktopCommand("dev", root).then(
         () => "unexpected success",

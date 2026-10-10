@@ -16,7 +16,12 @@ bunx --bun @teyik0/furin-electrobun init
 ```
 
 Desktop settings live in the `desktop` section of `furin.config.ts`.
-`init` creates that file if it is absent and adds the two package scripts.
+`init` creates that file if absent, adds `build:desktop`, and defaults `dev` to
+`bun --hot src/server.ts` (using your configured server entry). Existing dev
+commands are preserved, including application setup/codegen hooks.
+It registers the desktop launcher in `bunfig.toml` without rewriting existing
+tables or plugins. If a top-level preload array already exists, add
+`"@teyik0/furin-electrobun/preload"` to it before initialization.
 If a Furin config already exists, add its desktop section first: `init` does
 not parse and rewrite application plugins or functions. Existing desktop scripts
 are refused. Manifest replacement and new configuration publication are atomic.
@@ -25,7 +30,7 @@ The former standalone `furin.desktop.config.ts` is not read.
 Update the server constructor as described below, then run:
 
 ```sh
-bun run dev:desktop
+bun run dev
 bun run build:desktop
 ```
 
@@ -70,7 +75,8 @@ import { Elysia } from "elysia";
 const app = new Elysia()
   .use(desktopApp({
     restrictWebToLoopback: true,
-    async onStartup(signal) {
+    async onStartup({ signal, runtime }) {
+      // Native capabilities are available when runtime.kind is "desktop".
       await database.open(signal);
     },
     async onShutdown() {
@@ -95,7 +101,10 @@ The functional plugin preserves the original Elysia identity, prefix, decorators
 and route inference. Installing it after a wrapper or after listening is rejected.
 Application routes remain ordinary Elysia plugins.
 
-`onStartup` and `onShutdown` run once per app lifecycle in web and desktop modes.
+`onStartup` and `onShutdown` run once per service generation in web and desktop modes.
+`onReady({ runtime, backend, signal })` is awaited after listening and bootstrap
+creation, before windows/dev readiness. Failed update handoff reopens services
+through the same hooks without replacing the listener/session.
 Web uses Elysia setup/cleanup; the desktop host initializes resources before its
 listener opens. Callbacks are options, not required named module exports.
 They must tolerate partial initialization and honor startup cancellation.
@@ -114,8 +123,21 @@ new final root too, as described in the
 
 ## Development
 
-The default host uses two Bun processes during development: an ordinary Furin dev helper
-running from the consuming root, and the SDK window host. This preserves the
+Keep the usual command `bun --hot src/server.ts`, with a top-level Bun preload:
+
+```toml
+preload = ["@teyik0/furin-electrobun/preload"]
+```
+
+The preload starts the standard SDK host with the backend in that same managed
+Bun process, opening desktop and an authenticated browser on one backend. It
+only intercepts a hot launch of the configured server entry; ordinary imports,
+tests/builds and SDK startup stay inert. The launcher does not evaluate the app
+or initialize a second set of services. No additional server code is needed.
+
+`furin dev` is an optional alternative, with `--desktop` to omit the browser or
+`--web` to run without the SDK. The supervising Bun process remains separate.
+Both paths reuse the same orchestration. This preserves the
 original `bunfig.toml` `[serve.static]` plugins, public environment filtering,
 Tailwind and Furin's frontend Fast Refresh without copying configs or changing
 SDK directories. There is no Vite process or replacement frontend.
@@ -134,9 +156,9 @@ Changes to backend source trigger controlled shutdown and relaunch. A separate
 real WKWebView test verified old-host termination, a new native host and document,
 sync readiness, and a task persisted before the restart. Backend changes replace
 the window/document; preservation of unsaved React state is not promised.
-Closing the window or stopping the CLI drains the owned dev backend. This
-development-only helper is not packaged: production always imports `app.js`
-in-process.
+Stopping the CLI drains/reaps the managed native process. Window close follows
+the runtime background policy in [Native host capabilities](native-host.md).
+Production dynamically imports `app.js` in-process too.
 
 ## Production
 
@@ -166,12 +188,12 @@ const databasePath = process.env.FURIN_APP_DATA_DIR
 No existing user data is moved. An absolute `dataDir` override is available for
 applications that already own a storage location.
 
-The plugin may provide `onStartup(signal: AbortSignal)` to initialize resources
+The plugin may provide `onStartup({ signal, runtime })` to initialize resources
 before the private listener opens. Startup failure calls its cleanup; the signal
 is aborted on cancellation, so initialization must honor it and release any late
 resources. The hook must not call `listen()`.
 
-Window close and app quit stop the server and call plugin cleanup once,
+App quit stops the server and calls cleanup once per active service generation,
 then use the SDK's public window close and quit APIs. Startup diagnostics print
 the identifier, private origin and data path. SIGUSR-based reload is not used:
 the SDK-managed Bun currently does not implement it.
@@ -305,8 +327,9 @@ Only one backend may be started. Await startup inside the callback.
 The backend provides `origin`, `bootstrapOrigin`, `stop()` and
 `createWindowUrl(destination?)`. Create a fresh bootstrap for each opened native
 window or OS browser; it is single-use and can target only the application origin.
-At most one unspent bootstrap is active, so minting another invalidates the prior
-one. Keep navigation sandboxed and restricted to these two origins, and call
+Multiple independently single-use bootstraps coexist, so opening a browser does
+not invalidate a pending native window. Tokens expire after sixty seconds; at
+most 128 are retained. Keep navigation sandboxed and restricted to these origins, and call
 `stop()` when quitting. Closing only a window may leave the backend running.
 
 The native host owns menus, native events, updates and explicit test-script
@@ -330,8 +353,8 @@ supervisor starts it with the consuming `bunfig.toml`, preserving frontend
 plugins and public environment filtering. Frontend-only edits retain the window
 and use Furin Fast Refresh. Backend or host dependency edits drain the old host, rebuild the
 SDK entry and open a replacement window; durable state survives, while unsaved
-React state across a backend restart is not promised. The default host keeps
-its separate helper workflow. This follows the frontend/state distinction in
+React state across a backend restart is not promised. The standard host uses
+the same in-process topology. This follows the frontend/state distinction in
 [Next.js Fast Refresh](https://nextjs.org/docs/architecture/fast-refresh); using
 Bun server `--hot` alone would also replace native SDK module identities.
 
@@ -366,6 +389,9 @@ and Elysia lifecycle; reusing those contracts is smaller and more maintainable
 than introducing another server DSL or an SDK dependency into core.
 
 ## Package development
+
+See [Native host capabilities](native-host.md) for the standard controller and
+[Tofu migration](tofu-migration.md) for the application-specific migration.
 
 ```sh
 bun run test

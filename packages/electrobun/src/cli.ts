@@ -88,7 +88,8 @@ async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv): Prom
 export async function desktopCommand(
   command: string,
   cwd: string,
-  buildEnvironment?: "dev" | "stable"
+  buildEnvironment?: "dev" | "stable",
+  development?: { openBrowser: boolean }
 ): Promise<void> {
   if (command === "init") {
     await initDesktop(cwd);
@@ -101,7 +102,11 @@ export async function desktopCommand(
   const config = await loadDesktopConfig(cwd);
   const project = await loadFurinProject(cwd);
   const sdk = sdkBootstrap(cwd);
-  const env = { ...process.env, NODE_ENV: command === "build" ? "production" : "development" };
+  const env = {
+    ...process.env,
+    NODE_ENV: command === "build" ? "production" : "development",
+    FURIN_DEV_OPEN_BROWSER: development?.openBrowser ? "1" : "0",
+  };
   const channel = command === "build" ? (buildEnvironment ?? "stable") : "dev";
   if (command === "build") {
     await run(
@@ -112,7 +117,7 @@ export async function desktopCommand(
   }
   const generated = await prepareDesktop(cwd, config, { ...project, mode: command });
   await run([process.execPath, sdk, "prepare", `--env=${channel}`], generated, env);
-  if (command === "build" || !config.hostEntry) {
+  if (command === "build") {
     await run([process.execPath, sdk, "build", `--env=${channel}`], generated, env);
   }
   if (command === "build") {
@@ -126,7 +131,7 @@ export async function desktopCommand(
     generated,
     sdk,
     env,
-    config.hostEntry ? resolve(project.root, config.hostEntry) : undefined
+    config.hostEntry ? resolve(project.root, config.hostEntry) : join(generated, "main.ts")
   );
 }
 
@@ -182,6 +187,13 @@ async function stopOwnedDevWorker(
     await writeFile(control, crypto.randomUUID());
     const status = await withShutdownDeadline(backend.exited);
     if (status !== 0 && !stoppedByUser(backend, isStopping())) {
+      const failure = Bun.file(join(dirname(control), "failure.json"));
+      if (await failure.exists()) {
+        const diagnostic: { kind?: string } = await failure.json();
+        if (diagnostic.kind === "shutdown-timeout") {
+          throw new Error("Desktop shutdown exceeded 5 seconds; forced termination is required.");
+        }
+      }
       throw new Error(`Desktop dev backend shutdown failed (${status}).`);
     }
   } catch (error) {
@@ -397,6 +409,7 @@ async function runDesktopDev(
       await writeFile(control, "");
       const ready = join(generated, "ready.json");
       await rm(ready, { force: true });
+      await rm(join(generated, "failure.json"), { force: true });
       if (stopping) {
         return;
       }

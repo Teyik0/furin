@@ -59,7 +59,7 @@ for (const mode of ["web", "desktop"] as const) {
     const app = new Elysia()
       .use(
         desktopApp({
-          async onStartup(signal) {
+          async onStartup({ signal }) {
             expect(signal.aborted).toBe(false);
             starts += 1;
             await Bun.sleep(10);
@@ -151,7 +151,7 @@ test("plugin startup failure cleans resources once before any listener opens", a
   const app = new Elysia().use(
     desktopApp({
       onStartup(value) {
-        signal = value;
+        ({ signal } = value);
         throw new Error("Initialization failed");
       },
       onShutdown() {

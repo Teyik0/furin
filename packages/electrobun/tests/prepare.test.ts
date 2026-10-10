@@ -24,11 +24,14 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
     expect(await readFile(join(generated, "furin/client/nested/chunk.js"), "utf8")).toBe("client");
     expect(await readFile(join(generated, "furin/public/logo.svg"), "utf8")).toBe("public");
     const sdkConfig = await import(join(generated, "electrobun.config.ts"));
-    expect(sdkConfig.default.build.copy).toEqual({ furin: "furin" });
+    expect(sdkConfig.default.build.copy).toEqual({
+      furin: "furin",
+      "host.json": "bun/furin-host.json",
+      "native-open.js": "bun/native-open.js",
+    });
     const main = await readFile(join(generated, "main.ts"), "utf8");
-    expect(main).toContain("pathToFileURL");
-    expect(main).toContain("../furin/app.js");
-    expect(main).toContain('renderer: "native"');
+    expect(main).toContain("runStandardDesktopHost");
+    expect(main).toContain('from "electrobun/main"');
     expect(main).not.toContain("import app from");
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -62,6 +65,7 @@ test("a custom native host preserves packaging ownership and platform integratio
     expect(sdk.build.copy).toEqual({
       furin: "furin",
       "host.json": "bun/furin-host.json",
+      "native-open.js": "bun/native-open.js",
       [join(root, "runtime/helper.js")]: "bun/helper.js",
     });
     expect(sdk.app.urlSchemes).toEqual(["tofu-dev"]);

@@ -35,7 +35,14 @@ export interface DesktopConfig {
   external?: string[];
   /** Project-relative or absolute Bun entrypoint for an application-owned native host. */
   hostEntry?: string;
+  /** Explicit per-user registration of app-private schemes, never inferred from shared associations. */
+  protocols?: string[];
   sdk?: DesktopSdkConfig;
+  tray?: {
+    mac?: { image: string; template?: boolean };
+    win?: { image: string };
+    linux?: { image: string };
+  };
   window: { width: number; height: number };
 }
 
@@ -84,6 +91,34 @@ export function validateDesktopConfig(value: unknown): asserts value is DesktopC
     throw new Error("external must contain package names, not paths.");
   }
   validateHost(value);
+  validateNativeConfig(value);
+}
+
+function validateNativeConfig(value: { [key: string]: unknown }) {
+  if (
+    value.protocols !== undefined &&
+    (!Array.isArray(value.protocols) ||
+      value.protocols.some((scheme: unknown) => typeof scheme !== "string" || !SCHEME.test(scheme)))
+  ) {
+    throw new Error("protocols must contain valid app-private schemes.");
+  }
+  if (value.tray !== undefined) {
+    if (!object(value.tray)) {
+      throw new Error("tray must be an object.");
+    }
+    for (const name of ["mac", "win", "linux"]) {
+      const icon = value.tray[name];
+      if (
+        icon !== undefined &&
+        (!object(icon) ||
+          typeof icon.image !== "string" ||
+          !icon.image.trim() ||
+          (icon.template !== undefined && typeof icon.template !== "boolean"))
+      ) {
+        throw new Error(`tray.${name} must contain an image path and an optional template flag.`);
+      }
+    }
+  }
 }
 
 function validateHost(value: { [key: string]: unknown }) {

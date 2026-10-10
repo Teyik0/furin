@@ -41,10 +41,11 @@ const config: KnipConfig = {
     },
     "packages/electrobun": {
       // Copied into the SDK fixture and launched by path, rather than imported.
-      entry: ["src/dev-server.ts"],
+      entry: ["src/dev-server.ts", "src/native-open.ts"],
     },
     "packages/core": {
       entry: [
+        "src/cli/dev-worker.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",

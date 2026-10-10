@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { installSdk, sdkRunHeader } from "./fixtures/sdk";
 
 interface Started {
   childPid?: number;
@@ -108,16 +109,13 @@ async function fixture(
   );
   const sdk = join(root, "node_modules/electrobun");
   await mkdir(join(sdk, "bin"), { recursive: true });
-  await writeFile(
-    join(sdk, "package.json"),
-    '{"name":"electrobun","version":"2.0.2","exports":{"./package.json":"./package.json"}}'
-  );
+  await installSdk(root, mode === "hung" ? "hung-quit" : undefined);
   await writeFile(
     join(sdk, "bin/electrobun.cjs"),
     `
-    if (process.argv[2] !== "run") process.exit(0);
+    ${sdkRunHeader(root)}
     const { watch } = require("node:fs");
-    const ready = await Bun.file("ready.json").json();
+    const ready = await Bun.file(generated + "/ready.json").json();
     ${
       mode === "hung"
         ? `const child = Bun.spawn([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
@@ -130,8 +128,8 @@ async function fixture(
     ${
       mode === "hung"
         ? ""
-        : `watch("control", async () => {
-        if (await Bun.file("control").text()) {
+        : `watch(generated + "/control", async () => {
+        if (await Bun.file(generated + "/control").text()) {
           ${
             mode === "backend-signal"
               ? `if (process.platform !== "win32") {

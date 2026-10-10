@@ -1,7 +1,10 @@
 import { type AnyElysia, Elysia } from "elysia";
 import { BunAdapter, isHTMLBundle } from "elysia/adapter/bun";
 import type { ElysiaConfig, EventScope } from "elysia/types";
+import type { DesktopAppOptions } from "./capabilities";
 import { type DesktopMode, type DesktopState, registerDesktopApp } from "./registry";
+
+export type { DesktopAppOptions } from "./capabilities";
 
 const HMR_ENTRY = /(?:^|\/)_bun_hmr_entry(?:\/index\.html)?$/;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -17,19 +20,13 @@ function protectLocalWeb(request: Request): Response | undefined {
   }
 }
 
-export interface DesktopAppOptions {
-  onShutdown?: () => void | Promise<void>;
-  onStartup?: (signal: AbortSignal) => void | Promise<void>;
-  restrictWebToLoopback?: boolean;
-}
-
 /** Install on the original root before application wrappers or plugins. */
 export function desktopApp(hooks?: DesktopAppOptions) {
   return <App extends AnyElysia>(app: App): App => {
     if (app["~ext"]?.hoc?.length || app.server) {
       throw new Error("Install desktopApp() before application wrappers and before listening.");
     }
-    const options = app["~config"];
+    const { "~config": options } = app;
     const validate = (mode: DesktopMode): void => {
       if (options?.adapter !== undefined && options.adapter !== BunAdapter) {
         throw new Error(
@@ -52,25 +49,59 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         }
       }
     };
-    const controller = new AbortController();
+    let controller = new AbortController();
+    let { signal } = controller;
     let starting: Promise<void> | undefined;
     let stopping: Promise<void> | undefined;
+    let ready: Promise<void> | undefined;
     const state: DesktopState = {
-      start(signal) {
+      hooks,
+      start(parent) {
         starting ??= Promise.resolve().then(async () => {
+          const native = state.runtime?.kind === "desktop" ? state.runtime.signal : undefined;
+          signal = AbortSignal.any([
+            controller.signal,
+            ...(parent ? [parent] : []),
+            ...(native ? [native] : []),
+          ]);
           controller.signal.throwIfAborted();
-          await hooks?.onStartup?.(
-            signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
-          );
+          await hooks?.onStartup?.({
+            signal,
+            runtime: state.runtime ?? { kind: "server" },
+          });
         });
         return starting;
       },
       stop() {
         stopping ??= Promise.resolve().then(async () => {
           controller.abort();
-          await hooks?.onShutdown?.();
+          await hooks?.onShutdown?.({
+            signal: controller.signal,
+            runtime: state.runtime ?? { kind: "server" },
+          });
         });
         return stopping;
+      },
+      ready(backend) {
+        ready ??= Promise.resolve().then(() =>
+          hooks?.onReady?.({
+            backend,
+            signal,
+            runtime: state.runtime ?? { kind: "server" },
+          })
+        );
+        return ready;
+      },
+      async recover(backend) {
+        controller = new AbortController();
+        starting = undefined;
+        stopping = undefined;
+        ready = undefined;
+        await state.start();
+        signal.throwIfAborted();
+        await state.ready?.(backend);
+        signal.throwIfAborted();
+        state.paused = false;
       },
       async validate(mode) {
         await app.modules;
@@ -85,11 +116,12 @@ export function desktopApp(hooks?: DesktopAppOptions) {
       (next) =>
         (request, ...rest: unknown[]) =>
           state.guard?.(request) ??
+          (state.paused ? new Response("Application unavailable", { status: 503 }) : undefined) ??
           (hooks?.restrictWebToLoopback ? protectLocalWeb(request) : undefined) ??
           next(request, ...rest)
     );
     app
-      .setup(() => {
+      .setup(async () => {
         if (
           hooks?.restrictWebToLoopback &&
           app.server &&
@@ -97,7 +129,10 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         ) {
           throw new Error("restrictWebToLoopback requires a loopback listener hostname.");
         }
-        return state.start();
+        await state.start();
+        if (!state.guard && app.server) {
+          await state.ready?.({ origin: `http://${app.server.hostname}:${app.server.port}` });
+        }
       })
       .cleanup(() => state.stop());
     registerDesktopApp(app, state);

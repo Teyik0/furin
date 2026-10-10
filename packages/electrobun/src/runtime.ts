@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import type { ApplicationRuntime } from "./capabilities";
 import { activateDesktopApp, type DesktopMode, getDesktopState } from "./registry";
 
 export function getExternalUrl(
@@ -34,7 +35,7 @@ export function createSessionGuard(
   session: DesktopSession,
   origin: () => string,
   bootstrapOrigin?: () => string | undefined,
-  bootstrapPath?: () => string | undefined
+  bootstrapAllows?: (destination: string) => boolean
 ) {
   return (request: Request): Response | undefined => {
     const url = new URL(request.url);
@@ -53,7 +54,8 @@ export function createSessionGuard(
     // Only the private listener's initial document redirect may cross ports.
     const bootstrapNavigation =
       request.method === "GET" &&
-      `${url.pathname}${url.search}` === (bootstrapPath?.() ?? "/") &&
+      (bootstrapAllows?.(`${url.pathname}${url.search}`) ??
+        (url.pathname === "/" && url.search === "")) &&
       request.headers.get("sec-fetch-mode") === "navigate" &&
       request.headers.get("sec-fetch-dest") === "document" &&
       site === "same-site" &&
@@ -81,34 +83,50 @@ export function createSessionGuard(
 }
 
 function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
-  let path = `/${crypto.randomUUID()}`;
+  const path = `/${crypto.randomUUID()}`;
   let origin = "";
-  let spent = false;
   let stopped = false;
-  let destination = new URL("/", appOrigin);
+  const tokens = new Map<string, { destination: URL; spent: boolean; issued: number }>();
+  tokens.set(path, { destination: new URL("/", appOrigin), spent: false, issued: Date.now() });
+  const prune = () => {
+    for (const [key, token] of tokens) {
+      if (Date.now() - token.issued > 60_000) {
+        tokens.delete(key);
+      }
+    }
+    while (tokens.size > 128) {
+      const first = tokens.keys().next().value;
+      if (first) {
+        tokens.delete(first);
+      }
+    }
+  };
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     fetch(request) {
-      if (spent) {
+      prune();
+      const url = new URL(request.url);
+      const token = tokens.get(url.pathname);
+      if (token?.spent || [...tokens.values()].every((value) => value.spent)) {
         return new Response("Gone", { status: 410, headers: { "cache-control": "no-store" } });
       }
-      const url = new URL(request.url);
       const requestOrigin = request.headers.get("origin");
       if (
         request.method !== "GET" ||
         url.origin !== origin ||
-        url.pathname !== path ||
+        !token ||
+        url.search !== "" ||
         (requestOrigin && requestOrigin !== origin && requestOrigin !== appOrigin) ||
         request.headers.get("sec-fetch-site") === "cross-site"
       ) {
         return new Response("Forbidden", { status: 403 });
       }
-      spent = true;
+      token.spent = true;
       return new Response(null, {
         status: 303,
         headers: {
-          location: destination.href,
+          location: token.destination.href,
           "set-cookie": `${session.name}=${session.value}; HttpOnly; SameSite=Strict; Path=/`,
           "cache-control": "no-store",
           "referrer-policy": "origin",
@@ -120,7 +138,13 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
   return {
     origin,
     url: `${origin}${path}`,
-    destination: () => `${destination.pathname}${destination.search}`,
+    allows(destination: string) {
+      prune();
+      return [...tokens.values()].some(
+        (token) =>
+          token.spent && `${token.destination.pathname}${token.destination.search}` === destination
+      );
+    },
     createWindowUrl(target?: string) {
       if (stopped) {
         throw new Error("Desktop backend is stopped.");
@@ -129,13 +153,14 @@ function startSessionBootstrap(session: DesktopSession, appOrigin: string) {
       if (next.origin !== appOrigin || next.username || next.password) {
         throw new Error("Desktop bootstrap destination must use the app origin.");
       }
-      destination = next;
-      path = `/${crypto.randomUUID()}`;
-      spent = false;
-      return `${origin}${path}`;
+      const key = `/${crypto.randomUUID()}`;
+      tokens.set(key, { destination: next, spent: false, issued: Date.now() });
+      prune();
+      return `${origin}${key}`;
     },
     stop() {
       stopped = true;
+      tokens.clear();
       return server.stop(true);
     },
   };
@@ -190,15 +215,24 @@ export function withShutdownDeadline<T>(pending: Promise<T>): Promise<T> {
   );
 }
 
+export function withStartupDeadline<T>(pending: Promise<T>): Promise<T> {
+  return withDeadline(pending, 30_000, "Desktop service recovery exceeded 30 seconds.");
+}
+
 export async function startDesktopBackend(
   load: () => Promise<DesktopAppModule>,
   dataDir: string,
-  mode: DesktopMode
+  mode: DesktopMode,
+  runtime?: ApplicationRuntime
 ): Promise<DesktopBackend> {
   await mkdir(dataDir, { recursive: true });
   process.env.FURIN_APP_DATA_DIR = dataDir;
   const module = await load();
   const app = module.default;
+  const state = app ? getDesktopState(app) : undefined;
+  if (state) {
+    state.runtime = runtime;
+  }
   if (!app || typeof app.listen !== "function" || typeof app.stop !== "function") {
     throw new Error("Desktop server must default-export an Elysia app.");
   }
@@ -235,18 +269,21 @@ export async function startDesktopBackend(
     session,
     () => origin,
     () => bootstrap?.origin,
-    () => bootstrap?.destination()
+    (destination) => bootstrap?.allows(destination) ?? false
   );
   let canceled = false;
   const startup = new AbortController();
   try {
-    await withDeadline(
+    return await withDeadline(
       (async () => {
         const validate = await activateDesktopApp(app, guard, mode);
         if (canceled) {
           throw new Error("Desktop startup was canceled.");
         }
         await getDesktopState(app)?.start(startup.signal);
+        if (runtime?.kind === "desktop") {
+          runtime.signal?.throwIfAborted();
+        }
         if (canceled) {
           throw new Error("Desktop startup was canceled.");
         }
@@ -284,11 +321,33 @@ export async function startDesktopBackend(
           }
           origin = `http://127.0.0.1:${listening.server.port}`;
         });
+        bootstrap = startSessionBootstrap(session, origin);
+        const activeBootstrap = bootstrap;
+        const backend: DesktopBackend = {
+          origin,
+          bootstrapOrigin: activeBootstrap.origin,
+          url: activeBootstrap.url,
+          cookie: `${session.name}=${session.value}`,
+          createWindowUrl(destination) {
+            if (stopped) {
+              throw new Error("Desktop backend is stopped.");
+            }
+            return activeBootstrap.createWindowUrl(destination);
+          },
+          stop,
+        };
+        await state?.ready?.(backend);
+        if (canceled) {
+          throw new Error("Desktop startup was canceled.");
+        }
+        if (runtime?.kind === "desktop") {
+          runtime.signal?.throwIfAborted();
+        }
+        return backend;
       })(),
       30_000,
       "Desktop startup exceeded 30 seconds while waiting for Elysia setup."
     );
-    bootstrap = startSessionBootstrap(session, origin);
   } catch (error) {
     canceled = true;
     startup.abort(error);
@@ -304,17 +363,4 @@ export async function startDesktopBackend(
     }
     throw error;
   }
-  return {
-    origin,
-    bootstrapOrigin: bootstrap.origin,
-    url: bootstrap.url,
-    cookie: `${session.name}=${session.value}`,
-    createWindowUrl: (destination?: string) => {
-      if (stopped) {
-        throw new Error("Desktop backend is stopped.");
-      }
-      return bootstrap.createWindowUrl(destination);
-    },
-    stop,
-  };
 }

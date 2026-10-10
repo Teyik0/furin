@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DesktopConfig } from "./config";
 import { publishDevReady } from "./dev-server";
@@ -19,7 +20,12 @@ export async function getDesktopDevelopment() {
   process.chdir(root);
   return {
     config,
+    root,
     serverEntry,
+    reportFailure(kind: "shutdown-timeout" | "shutdown-failure") {
+      // Publish before the SDK exits; the supervisor reads this only after reaping.
+      writeFileSync(join(directory, "failure.json"), JSON.stringify({ kind }), { mode: 0o600 });
+    },
     async ready(backend: DesktopBackend, shutdown: () => Promise<void>) {
       let closing: Promise<void> | undefined;
       const stop = () => {

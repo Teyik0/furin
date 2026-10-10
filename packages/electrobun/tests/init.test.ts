@@ -14,8 +14,12 @@ test("init adds desktop scripts while preserving existing scripts", async () => 
     await initDesktop(root);
     const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     expect(pkg.scripts.dev).toBe("bun --hot src/server.ts");
-    expect(pkg.scripts["dev:desktop"]).toBe("furin-electrobun dev");
+    expect(pkg.scripts["dev:desktop"]).toBeUndefined();
+    expect(pkg.scripts["build:desktop"]).toBe("furin-electrobun build");
     expect(await readFile(join(root, "furin.config.ts"), "utf8")).toContain("defineDesktopConfig");
+    expect(Bun.TOML.parse(await Bun.file(join(root, "bunfig.toml")).text())).toEqual({
+      preload: ["@teyik0/furin-electrobun/preload"],
+    });
     const before = await readFile(join(root, "package.json"), "utf8");
     await expect(initDesktop(root)).rejects.toThrow("already exists");
     expect(await readFile(join(root, "package.json"), "utf8")).toBe(before);
@@ -59,8 +63,8 @@ test("init preserves an existing unified config and refuses to rewrite applicati
     await writeFile(join(configured, "package.json"), manifest);
     await initDesktop(configured);
     expect(await Bun.file(join(configured, "furin.config.ts")).text()).toBe(settings);
-    expect((await Bun.file(join(configured, "package.json")).json()).scripts["dev:desktop"]).toBe(
-      "furin-electrobun dev"
+    expect((await Bun.file(join(configured, "package.json")).json()).scripts.dev).toBe(
+      "bun --hot src/server.ts"
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -114,7 +118,37 @@ test("init preserves manifest permissions and removes transaction staging files"
       // biome-ignore lint/suspicious/noBitwiseOperators: File-type bits are not part of permission preservation.
       expect((await stat(manifest)).mode & 0o777).toBe(0o640);
     }
-    expect((await readdir(root)).sort()).toEqual(["furin.config.ts", "package.json"]);
+    expect((await readdir(root)).sort()).toEqual([
+      "bunfig.toml",
+      "furin.config.ts",
+      "package.json",
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("init preserves Bun plugins and refuses to rewrite an existing preload array", async () => {
+  const root = await mkdtemp(join(tmpdir(), "furin-init-bunfig-"));
+  const manifest = '{"name":"relay","version":"1.2.3"}';
+  const settings =
+    '[serve.static]\nplugins = ["tailwind", "furin/strip-plugin"]\nenv = "FURIN_PUBLIC_*"\n';
+  try {
+    await writeFile(join(root, "package.json"), manifest);
+    await writeFile(join(root, "bunfig.toml"), `preload = ["./custom.ts"]\n${settings}`);
+    const original = await Bun.file(join(root, "bunfig.toml")).text();
+    await expect(initDesktop(root)).rejects.toThrow("existing preload");
+    expect(await Bun.file(join(root, "bunfig.toml")).text()).toBe(original);
+    expect(await Bun.file(join(root, "package.json")).text()).toBe(manifest);
+    expect(await Bun.file(join(root, "furin.config.ts")).exists()).toBe(false);
+    await writeFile(join(root, "bunfig.toml"), settings);
+    await initDesktop(root);
+    const actual = await Bun.file(join(root, "bunfig.toml")).text();
+    expect(actual).toBe(`preload = ["@teyik0/furin-electrobun/preload"]\n\n${settings}`);
+    expect(Bun.TOML.parse(actual)).toEqual({
+      preload: ["@teyik0/furin-electrobun/preload"],
+      serve: { static: { plugins: ["tailwind", "furin/strip-plugin"], env: "FURIN_PUBLIC_*" } },
+    });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

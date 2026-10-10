@@ -6,6 +6,7 @@ import { buildApp } from "../build/index.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
+import { runDevelopment } from "./dev.ts";
 import { normalizeStaticPreviewBasePath, startStaticPreview } from "./preview.ts";
 
 const argv = process.argv.slice(2);
@@ -71,7 +72,9 @@ function extractCompileFlag(args: string[]): {
   return { compileFlag, parseableArgs };
 }
 
-if (command === "preview") {
+if (command === "dev") {
+  await runDevelopment(process.cwd(), argv.slice(1));
+} else if (command === "preview") {
   let rawValues: ReturnType<typeof parseArgs>["values"];
   try {
     rawValues = parseArgs({
@@ -209,6 +212,7 @@ if (command === "preview") {
     `Furin CLI
 
 USAGE
+  furin dev [--web | --desktop] [--port number]
   furin build [options]
   furin preview [options]
 

@@ -3,6 +3,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareDesktop } from "../src/prepare";
+import { installSdk } from "./fixtures/sdk";
 
 test("generated SDK host closes the window and quits with failure when cleanup hangs", async () => {
   const root = await mkdtemp(join(tmpdir(), "furin-sdk-shutdown-"));
@@ -30,35 +31,7 @@ test("generated SDK host closes the window and quits with failure when cleanup h
       },
       { mode: "build", root, serverEntry: join(root, "server.ts") }
     );
-    // A native SDK window cannot be launched by a child test. These fixtures
-    // implement its public close-event/close/quit boundary, not backend cleanup.
-    const entries = join(generated, ".hutch/devkit/api/sdks/main/entries");
-    await mkdir(entries, { recursive: true });
-    await writeFile(
-      join(entries, "browser-window.ts"),
-      `
-      import { writeFileSync } from "node:fs";
-      export class BrowserWindow {
-        webviewId = 1;
-        webview = { setNavigationRules() {} };
-        on(name, callback) { if (name === "close") setTimeout(callback, 10); }
-        close() { writeFileSync(${JSON.stringify(join(root, "window-closed"))}, "closed"); }
-      }
-    `
-    );
-    await writeFile(join(entries, "events.ts"), "export default { on() {} };");
-    await writeFile(
-      join(entries, "utils.ts"),
-      `
-      import { writeFileSync } from "node:fs";
-      export const paths = { appData: ${JSON.stringify(root)} };
-      export function openExternal() {}
-      export function quit(code) {
-        writeFileSync(${JSON.stringify(join(root, "quit"))}, String(code));
-        process.exit(code);
-      }
-    `
-    );
+    await installSdk(root, "close-window");
     const bundle = join(root, "bundle/app");
     await cp(join(generated, "furin"), join(bundle, "furin"), { recursive: true });
     const built = await Bun.build({
@@ -69,6 +42,7 @@ test("generated SDK host closes the window and quits with failure when cleanup h
       naming: "index.js",
     });
     expect(built.success).toBe(true);
+    await cp(join(generated, "host.json"), join(bundle, "bun/furin-host.json"));
     child = Bun.spawn([process.execPath, join(bundle, "bun/index.js")], {
       cwd: bundle,
       stdin: "ignore",

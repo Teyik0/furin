@@ -17,6 +17,16 @@ test("a host can reopen an authenticated window without reusing a spent bootstra
       "build"
     );
     owned = backend;
+    const nativeUrl = backend.createWindowUrl("/");
+    const browserUrl = backend.createWindowUrl("/settings");
+    const [native, browser] = await Promise.all([
+      fetch(nativeUrl, { redirect: "manual" }),
+      fetch(browserUrl, { redirect: "manual" }),
+    ]);
+    expect(native.status).toBe(303);
+    expect(browser.status).toBe(303);
+    expect(native.headers.get("location")).toBe(`${backend.origin}/`);
+    expect(browser.headers.get("location")).toBe(`${backend.origin}/settings`);
     const first = await fetch(backend.url, { redirect: "manual" });
     expect(first.status).toBe(303);
     expect((await fetch(backend.url, { redirect: "manual" })).status).toBe(410);

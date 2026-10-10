@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "Official system-WebView desktop packaging for Furin.",
   "license": "MIT",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/preload.ts",
+    "./dist/preload.js"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -15,6 +18,16 @@
       "types": "./dist/server.d.ts",
       "bun": "./src/server.ts",
       "import": "./dist/server.js"
+    },
+    "./dev": {
+      "types": "./dist/dev.d.ts",
+      "bun": "./src/dev.ts",
+      "import": "./dist/dev.js"
+    },
+    "./preload": {
+      "types": "./dist/preload.d.ts",
+      "bun": "./src/preload.ts",
+      "import": "./dist/preload.js"
     },
     "./host": {
       "types": "./dist/host.d.ts",
@@ -29,7 +42,9 @@
     "LICENSE",
     "dist",
     "src",
-    "README.md"
+    "README.md",
+    "native-host.md",
+    "tofu-migration.md"
   ],
   "scripts": {
     "build": "bun build.ts",

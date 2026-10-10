@@ -1,15 +1,22 @@
 /** Shared across the separately bundled app artifact and SDK host. No Elysia import. */
+import type { ApplicationRuntime, DesktopAppOptions, ReadyBackend } from "./capabilities";
+
 export type DesktopMode = "dev" | "build";
 export type DesktopGuard = (request: Request) => Response | undefined;
 
 export interface DesktopState {
   guard?: DesktopGuard;
+  hooks?: DesktopAppOptions;
+  paused?: boolean;
+  ready?: (backend: ReadyBackend) => Promise<void>;
+  recover?: (backend: ReadyBackend) => Promise<void>;
+  runtime?: ApplicationRuntime;
   start: (signal?: AbortSignal) => Promise<void>;
   stop: () => Promise<void>;
   validate: (mode: DesktopMode) => Promise<() => void>;
 }
 
-const registryKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/roots/v2");
+const registryKey: unique symbol = Symbol.for("@teyik0/furin-electrobun/roots/v3");
 const shared = globalThis as typeof globalThis & {
   [registryKey]?: WeakMap<object, DesktopState>;
 };
