@@ -1,0 +1,46 @@
+.github/workflows/cd.yaml
+  h_a2cbd1b0e3ae6e 39-42,64-65,67-69,71,73-75
+README.md
+  h_a2cbd1b0e3ae6e 53-79
+apps/scaffolder/README.md
+  h_a2cbd1b0e3ae6e 44,152-165
+apps/scaffolder/package.json
+  h_a2cbd1b0e3ae6e 3
+apps/scaffolder/src/index.ts
+  h_a2cbd1b0e3ae6e 4,23
+apps/scaffolder/templates/full/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 10-11
+apps/scaffolder/templates/full/src/server.ts.ejs
+  h_a2cbd1b0e3ae6e 13-14
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  h_a2cbd1b0e3ae6e 10
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  h_a2cbd1b0e3ae6e 17-18
+apps/scaffolder/tests/index.test.ts
+  h_a2cbd1b0e3ae6e 3,10-19
+apps/scaffolder/tests/package.test.ts
+  h_a2cbd1b0e3ae6e 1-65
+bun.lock
+  h_a2cbd1b0e3ae6e 56,178
+package.json
+  h_a2cbd1b0e3ae6e 20,22,24-25
+packages/electrobun/package.json
+  h_a2cbd1b0e3ae6e 3,44
+scripts/release-target.test.ts
+  h_a2cbd1b0e3ae6e 1-226
+scripts/release-target.ts
+  h_a2cbd1b0e3ae6e 1-133
+scripts/tsconfig.release.json
+  h_a2cbd1b0e3ae6e 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5716406d65bff39a1a2abf019e6795e7c2d670ef",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
