@@ -17,11 +17,12 @@
     "performance:compare": "bun scripts/compare-performance-reports.ts",
     "performance:startup": "bun scripts/probe-server-startup.ts",
     "prepare": "lefthook install",
-    "preview:publish": "pkg-pr-new publish --bun --no-compact --packageManager=bun ./packages/core ./packages/electrobun",
+    "preview:publish": "pkg-pr-new publish --bun --no-compact --packageManager=bun ./packages/core ./packages/electrobun ./apps/scaffolder",
     "start": "bun run --parallel --filter '*' --if-present start",
-    "test": "bun run --parallel --filter '*' test",
+    "test": "bun run test:release && bun run --parallel --filter '*' test",
     "test:dev": "bun run --parallel --filter '*' test:dev",
-    "tscheck": "bun run --parallel --filter '*' tscheck"
+    "test:release": "bun test scripts/release-target.test.ts",
+    "tscheck": "tsc --noEmit -p scripts/tsconfig.release.json && bun run --parallel --filter '*' tscheck"
   },
   "overrides": {
     "brace-expansion": "^5.0.6",
