@@ -14,10 +14,12 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
   // Each build gets fresh resolution state; Bun.resolveSync caches renamed
   // extensionless targets for the supervisor's entire process lifetime.
   // No outdir: the JavaScript API returns in-memory artifacts without writing files.
-  await Bun.build({
+  const result = await Bun.build({
     entrypoints: entries,
+    root,
     target: "bun",
     packages: "external",
+    metafile: true,
     plugins: [
       {
         name: "desktop-backend-ownership",
@@ -27,13 +29,18 @@ async function backendDependencies(root: string, entries: string[]): Promise<Set
               return { path: args.path, external: true };
             }
           });
-          builder.onLoad({ filter: MODULE_PATH }, (args) => {
-            files.add(resolve(args.path));
-          });
         },
       },
     ],
   });
+  if (result.metafile === undefined) {
+    throw new Error("Desktop dependency scan did not produce the requested metafile.");
+  }
+  // Observe Bun's resolved inputs, including file assets, without an onLoad
+  // hook: passing file-loader imports through that hook can panic Bun.
+  for (const path of Object.keys(result.metafile.inputs)) {
+    files.add(resolve(root, path));
+  }
   return files;
 }
 
