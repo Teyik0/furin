@@ -1,0 +1,89 @@
+packages/electrobun/src/capabilities.ts
+  s_807678f85853ef::t_873ff25ef3978c 1-136
+packages/electrobun/src/cli.ts
+  s_807678f85853ef::t_0e7c9d7d1dd7ec 91-92,105-109,120,134,190-196,412
+packages/electrobun/src/dev.ts
+  s_80c24c8adedafa::t_9e430eb0e6750b 1-6
+packages/electrobun/src/development.ts
+  s_807678f85853ef::t_f5234e61df5508 1,23,25-28
+packages/electrobun/src/native-instance.ts
+  s_fedfaad7545ed5::t_d63476c49774d9 1-268
+packages/electrobun/src/native-open.ts
+  s_fedfaad7545ed5::t_79633c5b130b06 1-52
+packages/electrobun/src/native-sdk.ts
+  s_807678f85853ef::t_6062b2674c2dac 1-93
+packages/electrobun/src/preload.ts
+  s_1a9731d075e0a1::t_e81dba5149e32e 1-23
+packages/electrobun/src/prepare.ts
+  s_807678f85853ef::t_c52f08b8ecb2fb 12-14,16,57-63,65-66,116-117
+packages/electrobun/src/project.ts
+  s_003b5186e3cced::t_ad7b199a92496e 1,3,13-65,101-105,108,118-119,121,135,138-140,146-151,183-193
+packages/electrobun/src/registry.ts
+  s_807678f85853ef::t_98a6c4a191fcab 2-3,9-13,19
+packages/electrobun/src/runtime.ts
+  s_807678f85853ef::t_658e7bbdc1678b 2,38,57-58,86,89-103,108-111,118-119,125,129,141-147,156-159,163,218-221,225-226,232-235,272,277,284-286,324-346
+packages/electrobun/tests/fixtures/sdk.ts
+  s_3af946632013be::t_e6b032f0042243 1-99
+packages/electrobun/tests/prepare.test.ts
+  s_807678f85853ef::t_a282a8d5a6f2fd 27-31,33-34,68
+packages/electrobun/tests/reopen.test.ts
+  s_807678f85853ef::t_7bb3165e911df7 20-29
+packages/electrobun/tests/startup-failure.test.ts
+  s_807678f85853ef::t_c39dad51e4cc2b 7,34,47,49-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1b6726fbccbc11d407a3a4b60716e8a4c1bbb8a",
+  "prompts": {},
+  "sessions": {
+    "s_003b5186e3cced": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12783-afeb-7610-88c4-26d597d1aace",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_1a9731d075e0a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12777-11ef-7350-b283-46db7c807d44",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3af946632013be": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1276d-4543-7363-acf8-59c9d1ff0873",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_807678f85853ef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a126ec-19de-7c63-9436-f99151a96f2b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_80c24c8adedafa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a126c9-2c6f-7972-9607-c5b99da7c4f3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_fedfaad7545ed5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1271b-2a42-75f3-9f3c-7f473fc79c26",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
