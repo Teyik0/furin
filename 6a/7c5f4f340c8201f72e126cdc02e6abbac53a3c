@@ -1,0 +1,39 @@
+packages/electrobun/src/cli.ts
+  s_87e44248de7d03::t_31eab7c9db3f52 422,449-451
+packages/electrobun/src/native-restart.ts
+  s_87e44248de7d03::t_88ccc2e65bdd24 1-255
+packages/electrobun/README.md
+  s_91fb1436775985::t_ae461f7f6ecb33 125,127-129,223
+packages/electrobun/native-host.md
+  s_91fb1436775985::t_d28736bf800620 157-159,196-218,221-224
+packages/electrobun/tests/prepare.test.ts
+  s_91fb1436775985::t_20793375d600b6 31,71
+packages/electrobun/tests/standard-host.test.ts
+  s_91fb1436775985::t_6cb139474527a4 10-47,49-53,56-63,66-70,72-75,77-78,80-81,83-136,139-212,214-221,223-242,244-247,249,252
+packages/electrobun/tofu-migration.md
+  s_91fb1436775985::t_5e60af904b840c 64,67-68,73,96-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a7c5f4f340c8201f72e126cdc02e6abbac53a3c",
+  "prompts": {},
+  "sessions": {
+    "s_87e44248de7d03": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12cd0-008d-7e53-8667-52d87f1a5848",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

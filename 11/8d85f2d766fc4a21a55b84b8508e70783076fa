@@ -1,0 +1,16 @@
+packages/electrobun/tests/custom-dev.test.ts
+  h_a2cbd1b0e3ae6e 8-9
+packages/electrobun/tests/dev.test.ts
+  h_a2cbd1b0e3ae6e 11-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "118d85f2d766fc4a21a55b84b8508e70783076fa",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

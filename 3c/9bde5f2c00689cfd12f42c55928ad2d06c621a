@@ -1,0 +1,65 @@
+packages/electrobun/README.md
+  s_9443b23cd760cf::t_102cd3a4725dbf 51-70,81-82,209-215
+packages/electrobun/native-host.md
+  s_9c29c20952db36::t_002cca580a3366 61-98,134-137,209-210
+packages/electrobun/src/config.ts
+  s_93bdb5b9406d95::t_f94b10108cecac 8-16,41-42,90,101-124
+packages/electrobun/src/dev-server.ts
+  s_93bdb5b9406d95::t_ed9fae8b48f7ad 7,23,34-41
+packages/electrobun/src/development.ts
+  s_9443b23cd760cf::t_ff94e2ad36104b 7,34
+packages/electrobun/src/host.ts
+  s_a7294d95d08aac::t_0a5f05119eddc2 25
+packages/electrobun/src/prepare.ts
+  s_93bdb5b9406d95::t_a544b8ae66d6a5 13,47-50
+packages/electrobun/src/run-host.ts
+  s_93bdb5b9406d95::t_79ce50c5e6fc91 11,21,61,73-87
+packages/electrobun/tests/preload.test.ts
+  s_9443b23cd760cf::t_73b8383e7ffabc 44-46,49-50,57,62-63,75,97-102
+packages/electrobun/tests/prepare.test.ts
+  s_9443b23cd760cf::t_014aa4c394ec6d 34-35
+packages/electrobun/tests/storage.test.ts
+  s_9c29c20952db36::t_cad4c529594cd8 1-149
+packages/electrobun/tofu-migration.md
+  s_9443b23cd760cf::t_a4405e9ec9eb20 5-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c9bde5f2c00689cfd12f42c55928ad2d06c621a",
+  "prompts": {},
+  "sessions": {
+    "s_93bdb5b9406d95": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12b9a-02d8-73a3-be30-4bc3fa7f8178",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_9443b23cd760cf": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12b9c-0fd1-7782-b73c-ca6cb4aebf4d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_9c29c20952db36": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12bad-2011-79e0-8f2d-a27f98fc32d5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a7294d95d08aac": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12ba2-0545-7001-8415-50b2c146124c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
