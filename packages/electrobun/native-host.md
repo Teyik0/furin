@@ -154,6 +154,9 @@ SIGINT/SIGTERM also converge on the same idempotent `desktop.quit()` cleanup.
   keep essential actions in UI/tray. Menu handlers may be asynchronous.
 - `updates.check`, `download`, `install`, `snapshot`, `subscribe` delegate to the
   SDK updater. Subscription disposal does not remove other app subscribers.
+- `restart()` releases application/native ownership, quits through the SDK and
+  launches a new native application only after the old runtime and launcher exit.
+  The resolved data directory and launch environment are retained, not UI state.
 
 ## Incoming events and single-instance handoff
 
@@ -190,18 +193,35 @@ Changing defaults is an explicit user action, never part of normal startup.
 
 ## Native updates
 
-Furin coordinates **service** generations; SDK owns download verification,
-patching, post-exit replacement and binary rollback.
+SDK owns download verification, patching, post-exit replacement and binary rollback.
 
-Install pauses authenticated app dispatch, aborts/drains the current services,
-and permits the SDK's synchronous quit approval only after cleanup. A reported
-helper error, rejected handoff or cancelled approval reopens services and awaits
-`onReady` while retaining the same listener/session. Recovery has a thirty-second
-deadline. Normal shutdown has a five-second deadline.
+Install pauses dispatch and closes services before permitting SDK quit approval.
+Successful handoff lets the SDK launch the new version. On a reported error,
+exception or cancelled handoff, the host shows a native error dialog and calls
+`restart()`. There is no `state.recover` or old-process reinitialization.
+
+Packaged restart arms a transient helper before quitting. It pins kernel process
+identities (macOS kqueue, Linux pidfd, Windows process handles), waits for both
+the main runtime and `ELECTROBUN_LAUNCHER_PID`, then runs the packaged native
+launcher. Application cleanup releases the data lease; native shutdown releases
+the instance lease. No Worker or direct app-script execution replaces the SDK.
+The environment is handed off over a temporary authenticated loopback listener
+and is never serialized to a restart file. Already-consumed native URLs and old
+launcher PID metadata are not replayed. The helper refuses to launch if shutdown
+does not complete within thirty seconds.
+
+Windows uses a current-user-only transient scheduled task to escape the old
+application's Job Object, then deletes the task after readiness. Task Scheduler
+must be available. Linux requires kernel 5.3+ and glibc. In source development,
+the existing supervisor reaps the old SDK process before launching its replacement.
+Shutdown retains its five-second cleanup deadline. If arming restart fails,
+the error is reported; it never falls back to old-process service recovery.
 
 The `dev` SDK channel does not offer native updates. Validate an installed stable
-or canary build. Recovery within the old process is possible only before it exits;
-post-exit replacement recovery is SDK-owned.
+or canary build. Post-exit binary rollback remains SDK-owned.
+Headless launcher tests validate process ordering and lease release; actual GUI
+and native update installation require separate platform validation. Windows
+scheduled-task integration tests require `FURIN_NATIVE_RESTART_TEST=1`.
 
 ## Opt-in native tests
 

@@ -122,10 +122,11 @@ The functional plugin preserves the original Elysia identity, prefix, decorators
 and route inference. Installing it after a wrapper or after listening is rejected.
 Application routes remain ordinary Elysia plugins.
 
-`onStartup` and `onShutdown` run once per service generation in web and desktop modes.
+`onStartup` and `onShutdown` run once per process in web and desktop modes.
 `onReady({ runtime, backend, signal })` is awaited after listening and bootstrap
-creation, before windows/dev readiness. Failed update handoff reopens services
-through the same hooks without replacing the listener/session.
+creation, before windows/dev readiness. An update failure shows a native error
+dialog and restarts through the native launcher in a fresh process. Services
+are never reopened in the old process; the replacement obtains new HTTP sessions.
 Web uses Elysia setup/cleanup; the desktop host initializes resources before its
 listener opens. Callbacks are options, not required named module exports.
 They must tolerate partial initialization and honor startup cancellation.
@@ -219,7 +220,7 @@ before the private listener opens. Startup failure calls its cleanup; the signal
 is aborted on cancellation, so initialization must honor it and release any late
 resources. The hook must not call `listen()`.
 
-App quit stops the server and calls cleanup once per active service generation,
+App quit stops the server and calls cleanup once,
 then use the SDK's public window close and quit APIs. Startup diagnostics print
 the identifier, private origin and data path. SIGUSR-based reload is not used:
 the SDK-managed Bun currently does not implement it.

@@ -49,7 +49,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         }
       }
     };
-    let controller = new AbortController();
+    const controller = new AbortController();
     let { signal } = controller;
     let starting: Promise<void> | undefined;
     let stopping: Promise<void> | undefined;
@@ -91,17 +91,6 @@ export function desktopApp(hooks?: DesktopAppOptions) {
           })
         );
         return ready;
-      },
-      async recover(backend) {
-        controller = new AbortController();
-        starting = undefined;
-        stopping = undefined;
-        ready = undefined;
-        await state.start();
-        signal.throwIfAborted();
-        await state.ready?.(backend);
-        signal.throwIfAborted();
-        state.paused = false;
       },
       async validate(mode) {
         await app.modules;

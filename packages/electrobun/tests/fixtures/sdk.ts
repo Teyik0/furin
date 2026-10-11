@@ -5,7 +5,11 @@ import { join } from "node:path";
 export async function installSdk(
   root: string,
   mode?: "hung-quit" | "failed-window" | "close-window",
-  options?: { channel?: string; metadataFromCwd?: boolean }
+  options?: {
+    channel?: string;
+    metadataFromCwd?: boolean;
+    handoff?: "reported" | "throw" | "cancelled";
+  }
 ) {
   const directory = join(root, "node_modules/electrobun");
   await mkdir(join(directory, "bin"), { recursive: true });
@@ -72,7 +76,10 @@ export async function installSdk(
         return true;
       },
       openPath: () => true, showItemInFolder() {},
-      openFileDialog: async () => [], showMessageBox: async () => ({ response: 0 }),
+      openFileDialog: async () => [], showMessageBox: async (message) => {
+        require("node:fs").writeFileSync(${JSON.stringify(join(root, "error-dialog"))},JSON.stringify(message));
+        return { response: 0 };
+      },
       showNotification() {},
       quit(code) {
         const event = {};
@@ -83,7 +90,7 @@ export async function installSdk(
         ${mode === "hung-quit" ? "setInterval(() => {}, 1000); return true;" : "setTimeout(() => process.exit(code), 0); return true;"}
       }
     };
-    const info = { version: "", hash: "", updateAvailable: false, updateReady: false, error: "" };
+    const info = { version: "", hash: "", updateAvailable: ${!!options?.handoff}, updateReady: ${!!options?.handoff}, error: "" };
     export const Updater = {
       async getLocalInfo() {
         ${
@@ -98,7 +105,11 @@ export async function installSdk(
         return { ...config.app, channel: ${JSON.stringify(options?.channel ?? "dev")} };
       },
       checkForUpdate: async () => info, downloadUpdate: async () => {},
-      applyUpdate: async () => {}, updateInfo: () => info, getStatusHistory: () => [],
+      applyUpdate: async () => {
+        ${options?.handoff === "throw" ? 'throw new Error("Native update helper failed");' : ""}
+        ${options?.handoff === "reported" ? 'info.error="Native update helper failed";' : ""}
+      },
+      updateInfo: () => info, getStatusHistory: () => [],
       onStatusChange() {},
     };
   `

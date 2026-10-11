@@ -419,6 +419,7 @@ async function runDesktopDev(
       const ready = join(generated, "ready.json");
       await rm(ready, { force: true });
       await rm(join(generated, "failure.json"), { force: true });
+      await rm(join(generated, "restart"), { force: true });
       if (stopping) {
         return;
       }
@@ -445,6 +446,9 @@ async function runDesktopDev(
       } finally {
         await stopDevBackend(backend, control, () => stopping || canceledStartup, !!customHost);
         backend = undefined;
+        if (await Bun.file(join(generated, "restart")).exists()) {
+          restart = true;
+        }
       }
     } while (restart && !stopping);
   } finally {

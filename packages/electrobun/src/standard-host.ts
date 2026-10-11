@@ -13,6 +13,7 @@ import type {
 import type { DesktopConfig } from "./config";
 import { getDesktopDevelopment } from "./development";
 import { forwardNativeOpen, openNativeInstance } from "./native-instance";
+import { armNativeRestart, nativeLauncherPath } from "./native-restart";
 import type { DesktopSdk, NativeTray, NativeWindow, SdkMenuItem } from "./native-sdk";
 import { nativeLaunchEvents } from "./open-events";
 import { type DesktopMode, type DesktopState, getDesktopState } from "./registry";
@@ -22,7 +23,6 @@ import {
   getExternalUrl,
   startDesktopBackend,
   withShutdownDeadline,
-  withStartupDeadline,
 } from "./runtime";
 import { resolveDesktopDataDir } from "./storage";
 
@@ -37,6 +37,8 @@ export interface StandardHostOptions {
   testScript?: string;
 }
 
+const PARENT_PID = /^[1-9]\d*$/;
+
 function object(value: unknown): value is { [key: string]: unknown } {
   return value !== null && typeof value === "object";
 }
@@ -47,8 +49,10 @@ async function resolveOptions(
   supplied: StandardHostOptions | undefined,
   development: Awaited<ReturnType<typeof getDesktopDevelopment>>
 ): Promise<StandardHostOptions> {
+  const restartDirectory = process.env.FURIN_RESTART_DATA_DIR;
+  delete process.env.FURIN_RESTART_DATA_DIR;
   if (supplied) {
-    return supplied;
+    return { ...supplied, dataDir: restartDirectory ?? supplied.dataDir };
   }
   const config: DesktopConfig =
     development?.config ?? (await Bun.file(join(dirname(Bun.main), "furin-host.json")).json());
@@ -59,9 +63,10 @@ async function resolveOptions(
     root,
     mode,
     dataDir:
-      config.dataDir === undefined
+      restartDirectory ??
+      (config.dataDir === undefined
         ? join(sdk.Utils.paths.appData, config.app.identifier)
-        : await resolveDesktopDataDir(config.dataDir, { root, mode, channel: identity.channel }),
+        : await resolveDesktopDataDir(config.dataDir, { root, mode, channel: identity.channel })),
     load: () =>
       import(
         pathToFileURL(development?.serverEntry ?? join(dirname(Bun.main), "../furin/app.js")).href
@@ -138,6 +143,8 @@ export async function runStandardDesktopHost(
   let tray: NativeTray | undefined;
   let closing: Promise<void> | undefined;
   let installing: Promise<void> | undefined;
+  let restarting: Promise<void> | undefined;
+  let quitRequested = false;
   let allowUpdateQuit = false;
   const actions = new Map<string, (context: NativeActionContext) => unknown>();
   const listeners = new Set<(status: NativeUpdateStatus) => void>();
@@ -291,7 +298,7 @@ export async function runStandardDesktopHost(
         if (installing) {
           return installing;
         }
-        const active = requireBackend();
+        requireBackend();
         if (!sdk.Updater.updateInfo().updateReady) {
           return Promise.reject(new Error("Download an update first."));
         }
@@ -314,17 +321,23 @@ export async function runStandardDesktopHost(
             phase = "quitting";
           } catch (error) {
             allowUpdateQuit = false;
-            phase = "recovering";
             try {
-              await withStartupDeadline(state?.recover?.(active) ?? Promise.resolve());
-              phase = "ready";
-              await flush();
-            } catch (recovery) {
-              await withShutdownDeadline(state?.stop() ?? Promise.resolve());
-              // biome-ignore lint/style/useErrorCause: Preserve both handoff and recovery failures, with handoff as the primary cause.
+              await sdk.Utils.showMessageBox({
+                type: "error",
+                title: "Update failed",
+                message: "The update could not be installed. The application will restart.",
+                detail: error instanceof Error ? error.message : String(error),
+                buttons: ["Restart application"],
+                defaultId: 0,
+                cancelId: 0,
+              });
+              allowUpdateQuit = true;
+              await desktop.restart();
+            } catch (restartError) {
+              // biome-ignore lint/style/useErrorCause: Preserve both update and restart failures.
               throw new AggregateError(
-                [error, recovery],
-                "Update handoff and service recovery failed.",
+                [error, restartError],
+                "Update handoff and native restart failed.",
                 { cause: error }
               );
             }
@@ -343,6 +356,47 @@ export async function runStandardDesktopHost(
       webviews: sdk.BrowserView.getAll().length,
       trayVisible: tray?.visible ?? false,
     }),
+    restart() {
+      if (restarting) {
+        return restarting;
+      }
+      if (!backend || closing) {
+        return Promise.reject(new Error("Desktop application cannot restart now."));
+      }
+      restarting = (async () => {
+        phase = "restarting";
+        let cancel: (() => void) | undefined;
+        if (development) {
+          development.requestRestart();
+        } else {
+          const launcher = nativeLauncherPath(Bun.main);
+          const parent = process.env.ELECTROBUN_LAUNCHER_PID;
+          const pids = [process.pid];
+          if (parent && PARENT_PID.test(parent)) {
+            pids.push(Number(parent));
+          }
+          const helper = await armNativeRestart(
+            {
+              launcher,
+              cwd: dirname(launcher),
+              pids,
+              env: { ...process.env, FURIN_RESTART_DATA_DIR: options.dataDir },
+            },
+            join(dirname(Bun.main), "native-restart.js")
+          );
+          ({ cancel } = helper);
+        }
+        try {
+          await desktop.quit();
+        } catch (error) {
+          if (!quitRequested) {
+            cancel?.();
+          }
+          throw error;
+        }
+      })();
+      return restarting;
+    },
     quit() {
       if (installing && !allowUpdateQuit) {
         return Promise.reject(new Error("Native update in progress."));
@@ -375,23 +429,33 @@ export async function runStandardDesktopHost(
           throw error;
         } finally {
           clearTimeout(backgroundTimer);
-          await instance?.stop();
-          sdk.default.events.off?.("open-url", capture);
-          sdk.default.events.off?.("reopen", reopen);
-          sdk.default.events.off?.("before-quit", beforeQuit);
-          process.off("SIGINT", stop);
-          process.off("SIGTERM", stop);
-          sdk.Updater.onStatusChange(null);
-          listeners.clear();
-          actions.clear();
-          queued.length = 0;
-          tray?.remove();
-          const previous = window;
-          window = undefined;
-          previous?.webview?.setNavigationRules(["^*"]);
-          previous?.close();
-          phase = "stopped";
-          sdk.Utils.quit(code);
+          const backendCode = code;
+          code = 1;
+          try {
+            await instance?.stop();
+            code = backendCode;
+          } finally {
+            sdk.default.events.off?.("open-url", capture);
+            sdk.default.events.off?.("reopen", reopen);
+            sdk.default.events.off?.("before-quit", beforeQuit);
+            process.off("SIGINT", stop);
+            process.off("SIGTERM", stop);
+            sdk.Updater.onStatusChange(null);
+            listeners.clear();
+            actions.clear();
+            queued.length = 0;
+            tray?.remove();
+            const previous = window;
+            window = undefined;
+            previous?.webview?.setNavigationRules(["^*"]);
+            previous?.close();
+            phase = "stopped";
+            const result = sdk.Utils.quit(code);
+            quitRequested = result !== false;
+          }
+        }
+        if (!quitRequested) {
+          throw new Error("Native quit was vetoed; restart was cancelled.");
         }
       })();
       return closing;

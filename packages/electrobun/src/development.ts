@@ -22,6 +22,9 @@ export async function getDesktopDevelopment() {
     config,
     root,
     serverEntry,
+    requestRestart() {
+      writeFileSync(join(directory, "restart"), crypto.randomUUID(), { mode: 0o600 });
+    },
     reportFailure(kind: "shutdown-timeout" | "shutdown-failure") {
       // Publish before the SDK exits; the supervisor reads this only after reaping.
       writeFileSync(join(directory, "failure.json"), JSON.stringify({ kind }), { mode: 0o600 });

@@ -9,7 +9,6 @@ export interface DesktopState {
   hooks?: DesktopAppOptions;
   paused?: boolean;
   ready?: (backend: ReadyBackend) => Promise<void>;
-  recover?: (backend: ReadyBackend) => Promise<void>;
   runtime?: ApplicationRuntime;
   start: (signal?: AbortSignal) => Promise<void>;
   stop: () => Promise<void>;

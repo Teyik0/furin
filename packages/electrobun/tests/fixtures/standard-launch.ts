@@ -10,13 +10,21 @@ export async function standardLaunchFixture(options: {
   channel?: string;
   failure?: string;
   startup?: string;
+  handoff?: "reported" | "throw" | "cancelled";
+  nativeLauncher?: boolean;
+  applicationLease?: boolean;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "furin-standard-launch-"));
   const root = join(directory, "project");
   const buildHome = join(directory, "build-user");
   const launchHome = join(directory, "launch-user");
-  const bundle = join(directory, "bundle");
-  const cwd = join(bundle, "bin");
+  const bundle = join(
+    directory,
+    "bundle",
+    process.platform === "darwin" ? "Fixture.app/Contents" : "Fixture"
+  );
+  const application = join(bundle, "Resources/app");
+  const cwd = join(bundle, process.platform === "darwin" ? "MacOS" : "bin");
   const script = "explicit native fixture";
   try {
     await Promise.all(
@@ -29,19 +37,33 @@ export async function standardLaunchFixture(options: {
       import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import {desktopApp} from ${JSON.stringify(join(import.meta.dir, "../../src/server.ts"))};
       import {appendFileSync} from "node:fs";
+      import {openNativeInstance} from ${JSON.stringify(join(import.meta.dir, "../../src/native-instance.ts"))};
       let desktop;
+      let applicationLease;
       export default new Elysia().use(desktopApp({
-        onStartup({runtime}) {
+        async onStartup({runtime}) {
           desktop=runtime.desktop;
+          ${
+            options.applicationLease
+              ? `
+          applicationLease=await openNativeInstance({
+            dataDir:process.env.FURIN_APP_DATA_DIR+"/application-lease",
+            identity:{identifier:"local.fixture.data",channel:"stable",version:"1.0.0",name:"Data"},
+            schemes:[],extensions:[],onOpen(){},onActivate(){}
+          });
+          if(!applicationLease) throw new Error("Application data lease was not released");`
+              : ""
+          }
           appendFileSync(${JSON.stringify(join(root, "lifecycle"))},"start\\n");
           ${options.startup ?? ""}
         },
         async onReady({backend}) {
           await Bun.write(${JSON.stringify(join(root, "backend.json"))},JSON.stringify({
-            ...backend,dataDir:process.env.FURIN_APP_DATA_DIR,cwd:process.cwd()
+            ...backend,dataDir:process.env.FURIN_APP_DATA_DIR,cwd:process.cwd(),pid:process.pid
           }));
         },
-        onShutdown() {
+        async onShutdown() {
+          await applicationLease?.stop();
           appendFileSync(${JSON.stringify(join(root, "lifecycle"))},"stop\\n");
           ${options.failure ?? ""}
         },
@@ -51,6 +73,8 @@ export async function standardLaunchFixture(options: {
         }
       }))
       .get("/",()=>({dataDir:process.env.FURIN_APP_DATA_DIR,pid:process.pid}))
+      .get("/update",()=>desktop.updates.install())
+      .get("/quit",()=>desktop.quit())
       .get("/background",()=>desktop.window.background())
       .get("/open",()=>desktop.window.open());`;
     await writeFile(entry, source);
@@ -95,20 +119,21 @@ export async function standardLaunchFixture(options: {
       throw new Error(error);
     }
     const generated = join(root, ".furin/electrobun");
-    await installSdk(root, undefined, { metadataFromCwd: true });
+    await installSdk(root, undefined, { metadataFromCwd: true, handoff: options.handoff });
     const built = await Bun.build({
       entrypoints: [join(generated, "main.ts")],
       target: "bun",
-      outdir: join(bundle, "bun"),
+      outdir: join(application, "bun"),
       naming: "index.js",
     });
     if (!built.success) {
       throw new AggregateError(built.logs, "Fixture SDK build failed.");
     }
     if (options.mode === "build") {
-      await cp(join(generated, "furin"), join(bundle, "furin"), { recursive: true });
+      await cp(join(generated, "furin"), join(application, "furin"), { recursive: true });
     }
-    await cp(join(generated, "host.json"), join(bundle, "bun/furin-host.json"));
+    await cp(join(generated, "host.json"), join(application, "bun/furin-host.json"));
+    await cp(join(generated, "native-restart.js"), join(application, "bun/native-restart.js"));
     await writeFile(
       join(bundle, "Resources/version.json"),
       JSON.stringify({
@@ -116,11 +141,39 @@ export async function standardLaunchFixture(options: {
         channel: options.channel ?? (options.mode === "dev" ? "dev" : "stable"),
       })
     );
-    const runner = join(bundle, "bun/main.ts");
+    const runner = join(application, "bun/main.ts");
     await writeFile(
       runner,
       `process.on("message",signal=>{if(signal==="SIGINT"||signal==="SIGTERM")process.emit(signal);}); await import("./index.js");`
     );
+    const launcher = join(cwd, process.platform === "win32" ? "launcher.exe" : "launcher");
+    if (options.nativeLauncher) {
+      const launcherSource = join(root, "launcher.ts");
+      await writeFile(
+        launcherSource,
+        `
+        import {appendFileSync} from "node:fs";
+        const trace=${JSON.stringify(join(root, "launcher-events"))};
+        appendFileSync(trace,JSON.stringify({type:"start",pid:process.pid})+"\\n");
+        const child=Bun.spawn([${JSON.stringify(process.execPath)},${JSON.stringify(runner)}],{
+          cwd:${JSON.stringify(cwd)},env:{...process.env,ELECTROBUN_LAUNCHER_PID:String(process.pid)},
+          stdout:"inherit",stderr:"inherit",ipc:()=>{}
+        });
+        process.on("message",signal=>child.send(signal));
+        const code=await child.exited;
+        await Bun.sleep(200);
+        appendFileSync(trace,JSON.stringify({type:"exit",pid:process.pid})+"\\n");
+        process.exit(code);
+      `
+      );
+      const compile = Bun.spawn(
+        [process.execPath, "build", launcherSource, "--compile", "--outfile", launcher],
+        { stdout: "pipe", stderr: "pipe" }
+      );
+      if ((await compile.exited) !== 0) {
+        throw new Error(await new Response(compile.stderr).text());
+      }
+    }
     return {
       root,
       buildHome,
@@ -129,7 +182,7 @@ export async function standardLaunchFixture(options: {
       generated,
       script,
       launch(env?: NodeJS.ProcessEnv) {
-        const child = Bun.spawn([process.execPath, runner], {
+        const child = Bun.spawn(options.nativeLauncher ? [launcher] : [process.execPath, runner], {
           cwd,
           stdin: "ignore",
           stdout: "pipe",

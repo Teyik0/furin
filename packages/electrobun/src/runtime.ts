@@ -235,10 +235,6 @@ export function withShutdownDeadline<T>(pending: Promise<T>): Promise<T> {
   );
 }
 
-export function withStartupDeadline<T>(pending: Promise<T>): Promise<T> {
-  return withDeadline(pending, 30_000, "Desktop service recovery exceeded 30 seconds.");
-}
-
 export async function startDesktopBackend(
   load: () => Promise<DesktopAppModule>,
   dataDir: string,

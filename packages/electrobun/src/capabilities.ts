@@ -49,7 +49,7 @@ export type AssociationResult =
 
 export interface DesktopSnapshot {
   background: boolean;
-  phase: "starting" | "ready" | "updating" | "recovering" | "quitting" | "stopped";
+  phase: "starting" | "ready" | "updating" | "restarting" | "quitting" | "stopped";
   trayVisible: boolean;
   webviews: number;
   windows: number;
@@ -67,6 +67,7 @@ export interface DesktopCapabilities {
   };
   notifications: { show: (options: NotificationOptions) => void };
   quit: () => Promise<void>;
+  restart: () => Promise<void>;
   shell: {
     openExternal: (url: string) => boolean;
     openPath: (path: string) => boolean;

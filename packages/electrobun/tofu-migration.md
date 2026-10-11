@@ -61,16 +61,16 @@ marker, legacy-instance checks and download-directory policy.
 5. Resolve instance configuration during startup, not from an eager global native
    SDK import. Keep existing data locations via `desktop.dataDir`; do not silently
    migrate databases to a new identifier-based default.
-6. Keep ApplicationHost's domain generations. `onReady` activates the full
+6. Keep ApplicationHost's startup/shutdown ownership. `onReady` activates the full
    application with its runtime after worker/database checks. Business API remains
    unavailable until that activation.
-7. `background()` reads the current generation's saved `runInBackground`.
-   Do not capture a retired engine: update recovery creates a new generation.
+7. `background()` reads the saved `runInBackground` setting. Failed update
+   handoff restarts the whole native application, not a new generation in the old VM.
 8. Tray/menu callbacks call the supplied desktop controller. Keep only the
    torrent/AniList interpretation of incoming `OpenEvent` in the application.
    Preserve file-size checks, OAuth state checks and repeated paused-torrent behavior.
 9. Replace desktop SDK imports/types with public Furin capabilities in backend
-   routes and update service integration. Furin owns service preparation/recovery
+   routes and update service integration. Furin owns shutdown and native relaunch
    and the native quit approval; Tofu still owns release selection and notification policy.
 10. Remove the custom DesktopController, DesktopUpdateInstaller, protocol
     forwarding helper and generic macOS FFI adapter after native parity tests pass.
@@ -93,8 +93,10 @@ Parity gates before deleting the old host:
 - backend/host restart reaps the previous owner and restores persisted transfers;
 - cold/warm torrent, magnet and OAuth events reach the correct dev/release instance;
 - dev cannot claim release data/default associations;
-- explicit native update handoff failure restores service/API readiness without
-  dropping the original HTTP session;
+- explicit native update handoff failure closes services and releases both the
+  Tofu data lease and native instance lease before a fresh process becomes ready;
+- replacement runtime and launcher PIDs differ; persisted transfers remain
+  available through a new authenticated session, never an old-process recovery;
 - each recreated document receives the opt-in smoke script, never normal launches.
 
 Use temporary state and real peer fixtures. Do not change the user's system-default

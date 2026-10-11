@@ -28,6 +28,7 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
       furin: "furin",
       "host.json": "bun/furin-host.json",
       "native-open.js": "bun/native-open.js",
+      "native-restart.js": "bun/native-restart.js",
     });
     const main = await readFile(join(generated, "main.ts"), "utf8");
     expect(main).toContain("runStandardDesktopHost");
@@ -67,6 +68,7 @@ test("a custom native host preserves packaging ownership and platform integratio
       furin: "furin",
       "host.json": "bun/furin-host.json",
       "native-open.js": "bun/native-open.js",
+      "native-restart.js": "bun/native-restart.js",
       [join(root, "runtime/helper.js")]: "bun/helper.js",
     });
     expect(sdk.app.urlSchemes).toEqual(["tofu-dev"]);

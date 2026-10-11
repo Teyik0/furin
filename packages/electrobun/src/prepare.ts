@@ -67,6 +67,14 @@ export async function prepareDesktop(
     throw new AggregateError(helper.logs, "Native helper build failed.");
   }
   await writeFile(join(generated, "native-open.js"), await helper.outputs[0].text());
+  const restart = await Bun.build({
+    entrypoints: [join(import.meta.dir, "native-restart.ts")],
+    target: "bun",
+  });
+  if (!(restart.success && restart.outputs[0])) {
+    throw new AggregateError(restart.logs, "Native restart helper build failed.");
+  }
+  await writeFile(join(generated, "native-restart.js"), await restart.outputs[0].text());
   await writeFile(join(generated, "host.json"), JSON.stringify(config));
   await writeFile(join(generated, "control"), "");
   await writeFile(join(generated, "package.json"), '{"private":true,"type":"module"}\n');
@@ -119,6 +127,7 @@ export async function prepareDesktop(
         ...(options.mode === "build" ? { furin: "furin" } : {}),
         "host.json": "bun/furin-host.json",
         "native-open.js": "bun/native-open.js",
+        "native-restart.js": "bun/native-restart.js",
         ...copy,
       },
       mac: {

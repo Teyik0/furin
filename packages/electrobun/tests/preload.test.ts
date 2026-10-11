@@ -56,11 +56,13 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
       import {value} from "./value";
       import state from "../storage/state.txt" with {type:"file"};
       import {appendFileSync} from "node:fs";
+      let desktop;
       export default new Elysia().use(desktopApp({
-        onStartup(){appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");},
+        onStartup({runtime}){desktop=runtime.desktop;appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");},
         onShutdown(){appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");}
       })).get("/",()=>({value,pid:process.pid}))
-        .get("/checkpoint",async()=>{await Bun.sleep(500);return {pid:process.pid,state:await Bun.file(state).text()};});
+        .get("/checkpoint",async()=>{await Bun.sleep(500);return {pid:process.pid,state:await Bun.file(state).text()};})
+        .get("/restart",()=>desktop.restart());
       if(import.meta.main) throw new Error("Launcher evaluated the application");`
     );
     await installSdk(root);
@@ -124,9 +126,20 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
     expect(last.value).toBe("third");
     expect(last.pid).not.toBe(replacement.pid);
     expect(await Bun.file(join(root, "starts")).text()).toBe("start\nstart\nstart\n");
+    await fetch(`${third.origin}/restart`, { headers: { cookie: thirdCookie } }).catch(
+      () => undefined
+    );
+    const fourth = await ready(third.url);
+    const fourthBootstrap = await fetch(fourth.url, { redirect: "manual" });
+    const fourthCookie = fourthBootstrap.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const restarted = (await (
+      await fetch(fourth.origin, { headers: { cookie: fourthCookie } })
+    ).json()) as { pid: number };
+    expect(restarted.pid).not.toBe(last.pid);
+    expect(await Bun.file(join(root, "starts")).text()).toBe("start\nstart\nstart\nstart\n");
     await writeFile(join(root, ".furin/electrobun/control"), "stop");
     expect(await child.exited, (await output).join("\n")).toBe(0);
-    expect(await Bun.file(join(root, "stops")).text()).toBe("stop\nstop\nstop\n");
+    expect(await Bun.file(join(root, "stops")).text()).toBe("stop\nstop\nstop\nstop\n");
   } finally {
     if (child && child.exitCode === null && child.signalCode === null) {
       const control = join(root, ".furin/electrobun/control");
