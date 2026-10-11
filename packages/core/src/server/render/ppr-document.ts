@@ -139,6 +139,7 @@ export async function prerenderPprDocument(
       headers: prepared.headers,
       message: "Something went wrong",
       status: prepared.status,
+      syncData: { ...prepared.syncData, __furinLayouts: [] },
       type: "error",
     };
   }

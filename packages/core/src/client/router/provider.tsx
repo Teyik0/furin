@@ -15,8 +15,10 @@ import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
 import { subscribeBrowserEvent } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
+import { wrapLoaderLayouts } from "../loader-layouts.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { isAbortError } from "./abort.ts";
@@ -44,6 +46,7 @@ import { createOptimisticRuntime, registerOptimisticRuntime, SYNC_REQUEST } from
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import {
   buildDataEndpoint,
+  buildErrorPageElement,
   buildNotFoundPageElement,
   classifySpaResponse,
   detectStaticMode,
@@ -121,6 +124,7 @@ export function setPrefetchCacheEntry(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the router coordinates success, legacy fallbacks and scoped loader fallbacks in one render.
 export function RouterProvider({
   routes,
   root,
@@ -1244,14 +1248,27 @@ export function RouterProvider({
   );
   const renderedData = optimisticRuntime.project(queryData, currentHref);
   let pageElement: React.ReactNode;
-  if (state.notFound || !state.match) {
-    const notFoundElement = buildNotFoundPageElement(
-      state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries,
-      state.notFound ?? {}
-    );
-    pageElement = root?.layout
-      ? createElement(root.layout as React.ElementType, renderedData, notFoundElement)
-      : notFoundElement;
+  const hasLoaderLayouts = renderedData.__furinLayouts !== undefined;
+  if (state.notFound || !state.match || (state.error && hasLoaderLayouts)) {
+    const boundaries = state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries;
+    const fallback = state.error
+      ? buildErrorPageElement(boundaries, state.error, () => {
+          refresh(undefined).catch((error: unknown) =>
+            log.error({ action: "boundary_reset_failed", error: String(error) })
+          );
+        })
+      : buildNotFoundPageElement(boundaries, state.notFound ?? {});
+    if (hasLoaderLayouts) {
+      let chain = root ? [root] : [];
+      if (state.match) {
+        chain = collectRouteChainFromRoute(state.match.pageRoute);
+      }
+      pageElement = wrapLoaderLayouts(fallback, chain, renderedData);
+    } else {
+      pageElement = root?.layout
+        ? createElement(root.layout as React.ElementType, renderedData, fallback)
+        : fallback;
+    }
   } else {
     pageElement = buildPageElement(
       state.match,

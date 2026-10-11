@@ -1,7 +1,8 @@
 import type React from "react";
 import { createElement } from "react";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
-import { DefaultNotFoundScreen } from "../default-screens.tsx";
+import { DefaultErrorFallback, DefaultNotFoundScreen } from "../default-screens.tsx";
+import type { FurinServerErrorPayload } from "../server-error.ts";
 import { TRAILING_SLASHES_RE, toLogical } from "./link-utils.ts";
 import type { ClientSegmentBoundary, SpaResponseKind } from "./types.ts";
 
@@ -82,6 +83,15 @@ export function buildNotFoundPageElement(
 ): React.ReactNode {
   const Fallback = pickDeepestNotFound(boundaries) ?? DefaultClientNotFoundFallback;
   return createElement(Fallback, { error });
+}
+
+export function buildErrorPageElement(
+  boundaries: ClientSegmentBoundary[] | undefined,
+  error: FurinServerErrorPayload,
+  reset: () => void
+): React.ReactNode {
+  const Fallback = boundaries?.findLast((segment) => segment.error)?.error ?? DefaultErrorFallback;
+  return createElement(Fallback, { error, reset });
 }
 
 /**

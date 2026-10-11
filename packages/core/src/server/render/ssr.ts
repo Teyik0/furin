@@ -2,6 +2,7 @@ import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
 import { toCrossJSON, toCrossJSONAsync } from "seroval";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
+import { wrapLoaderLayouts } from "../../client/loader-layouts.tsx";
 import { RouterContext } from "../../client/router/context.ts";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import {
@@ -431,11 +432,7 @@ export async function prepareRender(
   const isNotFound = loaderResult.type === "not-found";
   const isError = loaderResult.type === "error";
   const isFallback = isNotFound || isError;
-  const syncData = isFallback
-    ? { params: ctx.params, path: ctx.path, query: ctx.query }
-    : loaderResult.syncData;
-  const deferredPromises =
-    !isFallback && loaderResult.type === "data" ? loaderResult.deferredPromises : undefined;
+  const { syncData, deferredPromises } = loaderResult;
   assertDeferredModeAllowed(route, deferredPromises);
 
   const { headers } = loaderResult;
@@ -477,7 +474,9 @@ export async function prepareRender(
     ));
   }
   if (isFallback || status !== 200) {
-    element = wrapRootLayout(element, componentProps, root.route);
+    element = isFallback
+      ? wrapLoaderLayouts(element, route.routeChain, componentProps)
+      : wrapRootLayout(element, componentProps, root.route);
   }
 
   // Explicit basePath (static export) wins; otherwise resolve the mount

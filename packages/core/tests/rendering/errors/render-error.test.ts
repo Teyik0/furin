@@ -483,6 +483,7 @@ describe("renderSSR — digest", () => {
         headers: {},
         message: "",
         status: 500,
+        syncData: { __furinLayouts: [{}], params: {}, path: "/blog", query: {} },
         type: "error",
       }
     );

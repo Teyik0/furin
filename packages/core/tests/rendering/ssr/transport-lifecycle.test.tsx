@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { Elysia } from "elysia";
+import { Suspense } from "react";
 import { QueryStore } from "../../../src/client/query-store.ts";
 import { createClient } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
-import { type RenderResult, renderToHTML } from "../../../src/server/render/ssr.ts";
+import { type RenderResult, renderSSR, renderToHTML } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
+import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { Await } from "../../../src/shared/await.tsx";
+import { defer } from "../../../src/shared/defer.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
@@ -40,6 +43,129 @@ async function documentData(html: string): Promise<{ [key: string]: unknown }> {
   }
   return (await parseData(template.replaceAll("&lt;", "<").replaceAll("&amp;", "&"))).syncData;
 }
+
+test.each(["deferred", "request"] as const)(
+  "a 404 streams successful parent %s data",
+  async (kind) => {
+    const base = defineRootRoute().config({ mode: "ssr" });
+    const definition = (
+      kind === "deferred"
+        ? base.loader(() => defer({ greeting: Promise.resolve("Welcome home") }))
+        : base.requestLoader(() => ({ greeting: "Welcome home" }))
+    ).layout(({ children, greeting }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <Suspense fallback={<p>Loading greeting</p>}>
+            <Await resolve={greeting}>{(value) => <h1>{value}</h1>}</Await>
+          </Suspense>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+    const root = { path: "/root.tsx", route: adaptDefinedLayout(definition, undefined) };
+    const pageDefinition = defineRoute()
+      .config({ layout: definition, mode: "ssr" })
+      .loader(() => notFound(undefined))
+      .page(() => <p>Resource</p>);
+    const page = adaptDefinedPage(pageDefinition, root.route);
+    const route = {
+      mode: "ssr" as const,
+      page,
+      path: "/missing.tsx",
+      pattern: "/missing",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+      ...(kind === "request"
+        ? { requestKeys: ["greeting"], requestKeysByLoader: [["greeting"], []] }
+        : {}),
+    };
+    const response = await new Elysia()
+      .get("/missing", (context) => renderSSR(route, context, root, undefined))
+      .handle(new Request("http://localhost/missing"));
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("Welcome home");
+    const navigation = await new Elysia()
+      .use(createDataEndpoint([route], root))
+      .handle(new Request("http://localhost/_furin/data?path=/missing"));
+    const parsed = await parseData(await navigation.text());
+    expect(await parsed.deferredPromises.greeting).toBe("Welcome home");
+  }
+);
+
+test.each([404, 503])(
+  "failed pages preserve each successful layout's own loader scope (%s)",
+  async (status) => {
+    const rootDefinition = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(() => ({ dashboard: { settings: { theme: "forest" } } }))
+      .layout(({ children, dashboard }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body data-theme={dashboard.settings.theme}>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const nestedDefinition = defineRoute()
+      .config({ layout: rootDefinition, mode: "ssr" })
+      .loader(async ({ dashboard }) => ({
+        dashboard: { ...(await dashboard), settings: { theme: "ocean" } },
+        section: "Library",
+      }))
+      .layout(({ children, dashboard, section }) => (
+        <section data-theme={dashboard.settings.theme}>
+          <h1>{section}</h1>
+          {children}
+        </section>
+      ));
+    const root = { path: "/root.tsx", route: adaptDefinedLayout(rootDefinition, undefined) };
+    const nested = adaptDefinedLayout(nestedDefinition, root.route);
+    const definition = defineRoute()
+      .config({ layout: nestedDefinition, mode: "ssr" })
+      .loader(async ({ dashboard }) => {
+        expect((await dashboard).settings.theme).toBe("ocean");
+        if (status === 404) {
+          notFound({ message: "Missing resource", data: { slug: "gone" } });
+        }
+        throw new Response("Resource unavailable", { status });
+      })
+      .page(() => <p>Resource</p>);
+    const page = adaptDefinedPage(definition, nested);
+    const route = {
+      mode: "ssr" as const,
+      page,
+      path: "/missing.tsx",
+      pattern: "/missing",
+      routeChain: collectRouteChainFromRoute(page._route),
+      segmentBoundaries: [],
+      error: () => <p>Resource unavailable</p>,
+    };
+    const response = await new Elysia()
+      .get("/missing", (context) => renderSSR(route, context, root, undefined))
+      .handle(new Request("http://localhost/missing"));
+
+    expect(response.status).toBe(status);
+    const html = await response.text();
+    expect(html).toContain('<body data-theme="forest">');
+    expect(html).toContain('<section data-theme="ocean">');
+    expect(html).toContain("Library");
+    expect(html).toContain(status === 404 ? "404 — NOT FOUND" : "Resource unavailable");
+    const navigation = await new Elysia()
+      .use(createDataEndpoint([route], root))
+      .handle(new Request("http://localhost/_furin/data?path=/missing"));
+    const parsed = await parseData(await navigation.text());
+    expect(parsed.syncData.dashboard).toEqual({ settings: { theme: "ocean" } });
+    expect(parsed.syncData.section).toBe("Library");
+    expect(parsed.syncData.__furinLayouts).toEqual((await documentData(html)).__furinLayouts);
+  }
+);
 
 test("buffered not-found documents carry the same status and payload as navigation", async () => {
   const layout = defineRootRoute()
