@@ -64,7 +64,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
             ...(parent ? [parent] : []),
             ...(native ? [native] : []),
           ]);
-          controller.signal.throwIfAborted();
+          signal.throwIfAborted();
           await hooks?.onStartup?.({
             signal,
             runtime: state.runtime ?? { kind: "server" },

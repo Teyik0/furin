@@ -58,6 +58,44 @@ schemes on Windows/Linux; it must be a subset of declared SDK schemes.
 Shared schemes such as `magnet` are **not** implicitly made system defaults.
 macOS registration remains owned by SDK packaging.
 
+### Runtime storage before startup
+
+Static absolute `dataDir` strings remain supported. To keep an existing
+user-relative location, declare a policy instead of calling `homedir()` in
+build configuration:
+
+```ts
+dataDir: {
+  name: "Example",
+  developmentName: "Example-dev",
+  env: "EXAMPLE_DATA_DIR",
+}
+```
+
+The launching user determines HOME/APPDATA and the optional override. macOS
+uses `Library/Application Support`, Linux `.local/share` (this named-location
+policy deliberately does not switch historical data to XDG_DATA_HOME), and
+Windows APPDATA with the existing `AppData/Roaming` home fallback. Names must
+be directory components and different between release and dev. SDK channel
+`dev`, not NODE_ENV or build-time environment, selects the development name.
+Relative source overrides use the actual project root; packaged overrides
+use launch CWD. Canonical release-tree aliases are rejected for dev.
+
+Omission retains the identifier-based SDK default. Resolution is read-only;
+normal startup creates only the selected directory and its ownership metadata.
+The resolved path is shared by the native lease, forwarding and backend. Profile
+markers, migrations and checks against legacy processes remain app responsibilities.
+Do not try to resolve the host directory in `onStartup`: ownership already exists
+then. Advanced hosts can call `resolveDesktopDataDir` from the host entrypoint.
+
+The serializable policy fits the existing `furin-host.json` contract. A runtime
+configuration module would allow arbitrary logic but adds an entry, packaging
+and watching responsibilities; it is unnecessary for named directories and an
+environment override. Like [Next.js runtime environment variables](https://nextjs.org/docs/app/guides/environment-variables)
+and [TanStack Start server environment](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables),
+launch values are read in the runtime, not frozen in build configuration. Here
+resolution occurs once before instance ownership, rather than per HTTP request.
+
 Runtime callbacks belong on the original server root:
 
 ```ts
@@ -93,6 +131,10 @@ not `NODE_ENV`. Native dialogs, shell, notifications and updater exist before
 service startup. Window/browser actions require completed backend readiness.
 Shutdown callbacks must tolerate partial initialization and cooperate with
 aborted signals. Do not open a listener in a startup hook.
+The standard host publishes development readiness and shutdown failure records;
+application `onReady` hooks only activate their services/descriptors. They do not
+call `getDesktopDevelopment()` or manage supervisor control files. Packaged
+SIGINT/SIGTERM also converge on the same idempotent `desktop.quit()` cleanup.
 
 ## Capabilities
 
@@ -164,6 +206,8 @@ post-exit replacement recovery is SDK-owned.
 ## Opt-in native tests
 
 `FURIN_NATIVE_TEST_SCRIPT=/absolute/path/to/script.js` loads an explicit script.
+Relative paths resolve from the project root in source development and from
+launch CWD in packaged runs. No application-specific aliases are interpreted.
 It runs at `dom-ready` on each newly created document, including reopened windows.
 No script is injected by default. Scripts and temporary test state are app-owned.
 

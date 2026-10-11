@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { DesktopConfig } from "./config";
 import { type DesktopAppModule, startDesktopBackend, withShutdownDeadline } from "./runtime";
+import { resolveDesktopDataDir } from "./storage";
 
 export async function publishDevReady(
   path: string,
@@ -19,7 +20,7 @@ export async function publishDevReady(
 }
 
 if (import.meta.main) {
-  const settings: { config: DesktopConfig; serverEntry: string } = await Bun.file(
+  const settings: { config: DesktopConfig; serverEntry: string; root: string } = await Bun.file(
     join(import.meta.dir, "dev.json")
   ).json();
   const home = homedir();
@@ -30,7 +31,14 @@ if (import.meta.main) {
   } else if (process.platform === "win32") {
     root = process.env.LOCALAPPDATA ?? join(home, "AppData/Local");
   }
-  const dataDir = settings.config.dataDir ?? join(root, settings.config.app.identifier);
+  const dataDir =
+    settings.config.dataDir === undefined
+      ? join(root, settings.config.app.identifier)
+      : await resolveDesktopDataDir(settings.config.dataDir, {
+          channel: "dev",
+          mode: "dev",
+          root: settings.root,
+        });
   const backend = await startDesktopBackend(
     (): Promise<DesktopAppModule> => import(pathToFileURL(settings.serverEntry).href),
     dataDir,

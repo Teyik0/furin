@@ -4,7 +4,7 @@ import type { DesktopConfig } from "./config";
 import { publishDevReady } from "./dev-server";
 import { type DesktopBackend, withShutdownDeadline } from "./runtime";
 
-/** Available only to a custom host launched by the desktop dev supervisor. */
+/** SDK host context provided by the desktop dev supervisor. */
 export async function getDesktopDevelopment() {
   const settings = process.env.FURIN_DESKTOP_DEV;
   if (!settings) {
@@ -31,7 +31,7 @@ export async function getDesktopDevelopment() {
       const stop = () => {
         closing ??= withShutdownDeadline(shutdown()).finally(() => clearInterval(timer));
         closing.catch((error) => {
-          console.error("[furin-electrobun] Custom dev shutdown failed:", error);
+          console.error("[furin-electrobun] Desktop development shutdown failed:", error);
           process.exit(1);
         });
       };

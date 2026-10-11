@@ -192,6 +192,26 @@ export interface DesktopBackend {
   url: string;
 }
 
+async function withCancellation<T>(
+  pending: Promise<T>,
+  signal: AbortSignal | undefined
+): Promise<T> {
+  if (!signal) {
+    return pending;
+  }
+  const aborted = Promise.withResolvers<never>();
+  const cancel = () => aborted.reject(signal.reason);
+  signal.addEventListener("abort", cancel, { once: true });
+  if (signal.aborted) {
+    cancel();
+  }
+  try {
+    return await Promise.race([pending, aborted.promise]);
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+}
+
 async function withDeadline<T>(pending: Promise<T>, duration: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -225,9 +245,12 @@ export async function startDesktopBackend(
   mode: DesktopMode,
   runtime?: ApplicationRuntime
 ): Promise<DesktopBackend> {
+  const nativeSignal = runtime?.kind === "desktop" ? runtime.signal : undefined;
+  nativeSignal?.throwIfAborted();
   await mkdir(dataDir, { recursive: true });
+  nativeSignal?.throwIfAborted();
   process.env.FURIN_APP_DATA_DIR = dataDir;
-  const module = await load();
+  const module = await withCancellation(load(), nativeSignal);
   const app = module.default;
   const state = app ? getDesktopState(app) : undefined;
   if (state) {
@@ -275,76 +298,79 @@ export async function startDesktopBackend(
   const startup = new AbortController();
   try {
     return await withDeadline(
-      (async () => {
-        const validate = await activateDesktopApp(app, guard, mode);
-        if (canceled) {
-          throw new Error("Desktop startup was canceled.");
-        }
-        await getDesktopState(app)?.start(startup.signal);
-        if (runtime?.kind === "desktop") {
-          runtime.signal?.throwIfAborted();
-        }
-        if (canceled) {
-          throw new Error("Desktop startup was canceled.");
-        }
-        await module.onStartup?.(startup.signal);
-        if (canceled) {
-          throw new Error("Desktop startup was canceled.");
-        }
-        if (app.server) {
-          throw new Error("onStartup must not open a listener; the desktop host owns listening.");
-        }
-        await new Promise<void>((resolve, reject) => {
-          app.cleanup(() => {
-            reject(
-              new Error(
-                "Elysia stopped before desktop startup completed; check source setup errors."
-              )
-            );
-          });
-          const listening = app.listen(
-            { hostname: "127.0.0.1", port: 0, development: mode === "dev" },
-            (server) => {
-              try {
-                validate();
-                resolve();
-              } catch (error) {
-                // Stop the native listener in this callback, before readiness or
-                // another event-loop turn can expose a late native HTML route.
-                Promise.resolve(server.stop(true)).catch(console.error);
-                reject(error);
-              }
-            }
-          );
-          if (!listening.server?.port) {
-            throw new Error("Elysia did not create a desktop server.");
+      withCancellation(
+        (async () => {
+          const validate = await activateDesktopApp(app, guard, mode);
+          if (canceled) {
+            throw new Error("Desktop startup was canceled.");
           }
-          origin = `http://127.0.0.1:${listening.server.port}`;
-        });
-        bootstrap = startSessionBootstrap(session, origin);
-        const activeBootstrap = bootstrap;
-        const backend: DesktopBackend = {
-          origin,
-          bootstrapOrigin: activeBootstrap.origin,
-          url: activeBootstrap.url,
-          cookie: `${session.name}=${session.value}`,
-          createWindowUrl(destination) {
-            if (stopped) {
-              throw new Error("Desktop backend is stopped.");
+          await getDesktopState(app)?.start(startup.signal);
+          if (runtime?.kind === "desktop") {
+            runtime.signal?.throwIfAborted();
+          }
+          if (canceled) {
+            throw new Error("Desktop startup was canceled.");
+          }
+          await module.onStartup?.(startup.signal);
+          if (canceled) {
+            throw new Error("Desktop startup was canceled.");
+          }
+          if (app.server) {
+            throw new Error("onStartup must not open a listener; the desktop host owns listening.");
+          }
+          await new Promise<void>((resolve, reject) => {
+            app.cleanup(() => {
+              reject(
+                new Error(
+                  "Elysia stopped before desktop startup completed; check source setup errors."
+                )
+              );
+            });
+            const listening = app.listen(
+              { hostname: "127.0.0.1", port: 0, development: mode === "dev" },
+              (server) => {
+                try {
+                  validate();
+                  resolve();
+                } catch (error) {
+                  // Stop the native listener in this callback, before readiness or
+                  // another event-loop turn can expose a late native HTML route.
+                  Promise.resolve(server.stop(true)).catch(console.error);
+                  reject(error);
+                }
+              }
+            );
+            if (!listening.server?.port) {
+              throw new Error("Elysia did not create a desktop server.");
             }
-            return activeBootstrap.createWindowUrl(destination);
-          },
-          stop,
-        };
-        await state?.ready?.(backend);
-        if (canceled) {
-          throw new Error("Desktop startup was canceled.");
-        }
-        if (runtime?.kind === "desktop") {
-          runtime.signal?.throwIfAborted();
-        }
-        return backend;
-      })(),
+            origin = `http://127.0.0.1:${listening.server.port}`;
+          });
+          bootstrap = startSessionBootstrap(session, origin);
+          const activeBootstrap = bootstrap;
+          const backend: DesktopBackend = {
+            origin,
+            bootstrapOrigin: activeBootstrap.origin,
+            url: activeBootstrap.url,
+            cookie: `${session.name}=${session.value}`,
+            createWindowUrl(destination) {
+              if (stopped) {
+                throw new Error("Desktop backend is stopped.");
+              }
+              return activeBootstrap.createWindowUrl(destination);
+            },
+            stop,
+          };
+          await state?.ready?.(backend);
+          if (canceled) {
+            throw new Error("Desktop startup was canceled.");
+          }
+          if (runtime?.kind === "desktop") {
+            runtime.signal?.throwIfAborted();
+          }
+          return backend;
+        })(),
+        nativeSignal
+      ),
       30_000,
       "Desktop startup exceeded 30 seconds while waiting for Elysia setup."
     );

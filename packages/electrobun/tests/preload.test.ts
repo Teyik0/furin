@@ -41,20 +41,26 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
       join(root, "furin.config.ts"),
       `export default {desktop:{
         app:{name:"Fixture",identifier:"local.furin.preload"},
-        window:{width:800,height:600},dataDir:${JSON.stringify(join(root, "data"))}
+        window:{width:800,height:600},dataDir:{
+          name:"Fixture",developmentName:"Fixture-dev",env:"FURIN_PRELOAD_DATA"
+        }
       }};`
     );
+    await mkdir(join(root, "storage"));
+    await writeFile(join(root, "storage/state.txt"), "first state");
     await writeFile(join(root, "src/value.ts"), 'export const value = "first";');
     await writeFile(
       join(root, "src/server.ts"),
       `import {Elysia} from ${JSON.stringify(Bun.resolveSync("elysia", import.meta.dir))};
       import {desktopApp} from ${JSON.stringify(join(import.meta.dir, "../src/server.ts"))};
       import {value} from "./value";
+      import state from "../storage/state.txt" with {type:"file"};
       import {appendFileSync} from "node:fs";
       export default new Elysia().use(desktopApp({
         onStartup(){appendFileSync(${JSON.stringify(join(root, "starts"))}, "start\\n");},
         onShutdown(){appendFileSync(${JSON.stringify(join(root, "stops"))}, "stop\\n");}
-      })).get("/",()=>({value,pid:process.pid}));
+      })).get("/",()=>({value,pid:process.pid}))
+        .get("/checkpoint",async()=>{await Bun.sleep(500);return {pid:process.pid,state:await Bun.file(state).text()};});
       if(import.meta.main) throw new Error("Launcher evaluated the application");`
     );
     await installSdk(root);
@@ -66,6 +72,7 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
       stderr: "pipe",
       timeout: 20_000,
       killSignal: "SIGKILL",
+      env: { ...process.env, FURIN_PRELOAD_DATA: "storage" },
     });
     output = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
     const first = await ready();
@@ -86,6 +93,12 @@ test("bun --hot src/server.ts starts one desktop/browser owner without evaluatin
       await fetch(first.origin, { headers: { cookie: cookie ?? "" } })
     ).json()) as { value: string; pid: number };
     expect(original.value).toBe("first");
+    expect(await Bun.file(join(root, "starts")).text()).toBe("start\n");
+    await writeFile(join(root, "storage/state.txt"), "changed state");
+    const checkpoint = await (
+      await fetch(`${first.origin}/checkpoint`, { headers: { cookie: cookie ?? "" } })
+    ).json();
+    expect(checkpoint).toEqual({ pid: original.pid, state: "changed state" });
     expect(await Bun.file(join(root, "starts")).text()).toBe("start\n");
     await writeFile(join(root, "src/value.ts"), 'export const value = "second";');
     const second = await ready(first.url);

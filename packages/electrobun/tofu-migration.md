@@ -2,6 +2,52 @@
 
 This is a migration guide, not a modification of the Tofu checkout.
 
+## Preserve historical storage
+
+Keep Tofu's existing build-time identity, packaging, protocols and icons, remove
+`hostEntry`, and add this literal policy inside `desktop: defineDesktopConfig(...)`:
+
+```ts
+dataDir: {
+  name: "Tofu",
+  developmentName: "Tofu-dev",
+  env: "TOFU_DATA_DIR",
+},
+```
+
+Do not evaluate `homedir()` or `TOFU_DATA_DIR` in `furin.config.ts`. At launch
+this yields the existing paths:
+
+| Platform | Release | SDK dev channel |
+| --- | --- | --- |
+| macOS | `~/Library/Application Support/Tofu` | `~/Library/Application Support/Tofu-dev` |
+| Linux | `~/.local/share/Tofu` | `~/.local/share/Tofu-dev` |
+| Windows | `%APPDATA%/Tofu` | `%APPDATA%/Tofu-dev` |
+
+Windows without APPDATA uses `~/AppData/Roaming`. A launch-time `TOFU_DATA_DIR`
+override takes precedence. Relative source overrides resolve from the actual
+project root, matching the backend's CWD; packaged overrides retain launch-CWD
+resolution. Nothing is migrated, replaced or deleted. Keep Tofu's own profile
+marker, legacy-instance checks and download-directory policy.
+
+## Remove bootstrap workarounds
+
+- Delete `src/desktop-host.ts` once parity gates pass: the generated host uses the
+  canonical Hutch SDK and obtains metadata before changing development CWD.
+- Remove `TOFU_MODE = "desktop"` from native boot; services already receive the
+  typed desktop runtime. Retain server-mode behavior where Tofu still needs it.
+- Remove manual data-directory option calculation and development chdir. Tofu can
+  keep its domain resolver's `FURIN_APP_DATA_DIR` consistency assertion.
+- Remove `getDesktopDevelopment()`, `developmentHosts`, the `DesktopBackend` cast
+  and `development.ready(...)` branch from application `onReady`. Keep activation
+  and `writeServerInfo(...)`; Furin owns native/dev readiness and shutdown reporting.
+- Remove custom SIGINT/SIGTERM registration; the standard controller owns those.
+- Remove test-script loading from the host. Tofu's smoke launchers may explicitly
+  pass `FURIN_NATIVE_TEST_SCRIPT: process.env.TOFU_SMOKE_SCRIPT`; Furin deliberately
+  does not recognize `TOFU_SMOKE_SCRIPT` itself.
+
+## Migration checklist
+
 1. Keep the original Elysia root and ordinary `.use(apiPlugin)` composition.
 2. Remove `hostEntry` after moving runtime policies to `desktopApp`.
 3. Keep `dev` as `bun run codegen && TOFU_PROFILE=dev bun --hot src/server.ts`.

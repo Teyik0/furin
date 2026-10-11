@@ -22,3 +22,4 @@ export {
   withShutdownDeadline,
 } from "./runtime";
 export { runStandardDesktopHost, type StandardHostOptions } from "./standard-host";
+export { type DataDirectoryContext, resolveDesktopDataDir } from "./storage";

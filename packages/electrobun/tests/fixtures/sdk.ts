@@ -4,7 +4,8 @@ import { join } from "node:path";
 /** Headless implementation of the documented SDK boundary, not of the Furin host. */
 export async function installSdk(
   root: string,
-  mode?: "hung-quit" | "failed-window" | "close-window"
+  mode?: "hung-quit" | "failed-window" | "close-window",
+  options?: { channel?: string; metadataFromCwd?: boolean }
 ) {
   const directory = join(root, "node_modules/electrobun");
   await mkdir(join(directory, "bin"), { recursive: true });
@@ -31,7 +32,13 @@ export async function installSdk(
     export class BrowserWindow {
       webviewId = views.size + 1;
       closed;
-      webview = { on() {}, setNavigationRules() {}, executeJavascript() {} };
+      webview = {
+        on(name, callback) { if(name === "dom-ready") setTimeout(() => callback({}), 0); },
+        setNavigationRules() {},
+        executeJavascript(script) {
+          require("node:fs").appendFileSync(${JSON.stringify(join(root, "test-scripts"))}, JSON.stringify(script)+"\\n", {mode:0o600});
+        }
+      };
       constructor(options) {
         ${mode === "failed-window" ? 'throw new Error("constructor failed");' : ""}
         require("node:fs").writeFileSync(${JSON.stringify(join(root, "window-url"))}, options.url, {mode:0o600});
@@ -57,8 +64,9 @@ export async function installSdk(
       visible = true; setMenu() {} on() {} remove() { this.visible = false; }
     }
     export const ApplicationMenu = { setApplicationMenu() {}, on() {} };
+    export let quitting = false;
     export const Utils = {
-      paths: { appData: ${JSON.stringify(root)} },
+      paths: { get appData() { return process.env.FIXTURE_APP_DATA ?? ${JSON.stringify(root)}; } },
       openExternal(url) {
         require("node:fs").writeFileSync(${JSON.stringify(join(root, "browser-url"))}, url, {mode:0o600});
         return true;
@@ -70,6 +78,7 @@ export async function installSdk(
         const event = {};
         events.emit("before-quit", event);
         if (event.response?.allow === false) return false;
+        quitting = true;
         require("node:fs").writeFileSync(${JSON.stringify(join(root, "quit"))}, String(code));
         ${mode === "hung-quit" ? "setInterval(() => {}, 1000); return true;" : "setTimeout(() => process.exit(code), 0); return true;"}
       }
@@ -77,14 +86,28 @@ export async function installSdk(
     const info = { version: "", hash: "", updateAvailable: false, updateReady: false, error: "" };
     export const Updater = {
       async getLocalInfo() {
+        ${
+          options?.metadataFromCwd
+            ? `
+          events.emit("open-url", {data:{url:"fixture://early"}});
+          return await Bun.file("../Resources/version.json").json();
+        `
+            : ""
+        }
         const config = await Bun.file(generated + "/host.json").json();
-        return { ...config.app, channel: "dev" };
+        return { ...config.app, channel: ${JSON.stringify(options?.channel ?? "dev")} };
       },
       checkForUpdate: async () => info, downloadUpdate: async () => {},
       applyUpdate: async () => {}, updateInfo: () => info, getStatusHistory: () => [],
       onStatusChange() {},
     };
   `
+  );
+  const projection = join(root, ".furin/electrobun/.hutch/devkit/api/sdks/main");
+  await mkdir(projection, { recursive: true });
+  await writeFile(
+    join(projection, "index.ts"),
+    `export * from ${JSON.stringify(join(directory, "main.ts"))};\nexport {default} from ${JSON.stringify(join(directory, "main.ts"))};\n`
   );
 }
 
@@ -95,5 +118,7 @@ export function sdkRunHeader(root: string): string {
     const config = (await import(generated + "/electrobun.config.ts")).default;
     await import(require("node:path").resolve(generated, config.build.bun.entrypoint));
     const sdk = await import(${JSON.stringify(join(root, "node_modules/electrobun/main.ts"))});
+    // Native quit has been requested; do not start the mock launcher's next phase.
+    if (sdk.quitting) await new Promise(() => {});
   `;
 }

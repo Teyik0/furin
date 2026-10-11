@@ -31,7 +31,8 @@ test("desktop build keeps the whole Furin artifact outside the SDK main bundle",
     });
     const main = await readFile(join(generated, "main.ts"), "utf8");
     expect(main).toContain("runStandardDesktopHost");
-    expect(main).toContain('from "electrobun/main"');
+    expect(main).toContain('from "./.hutch/devkit/api/sdks/main/index.ts"');
+    expect(main).not.toContain('from "electrobun/main"');
     expect(main).not.toContain("import app from");
   } finally {
     await rm(root, { recursive: true, force: true });

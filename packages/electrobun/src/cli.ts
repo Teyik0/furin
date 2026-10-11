@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { prepareDesktop } from "./prepare";
 import { initDesktop, loadDesktopConfig, loadFurinProject } from "./project";
 import { withShutdownDeadline } from "./runtime";
+import { resolveDesktopDataDir } from "./storage";
 
 const MODULE_PATH = /.*/;
 
@@ -127,7 +128,14 @@ export async function desktopCommand(
   await runDesktopDev(
     project.root,
     project.serverEntry,
-    config.dataDir,
+    config.dataDir === undefined
+      ? undefined
+      : await resolveDesktopDataDir(config.dataDir, {
+          channel: "dev",
+          env,
+          mode: "dev",
+          root: project.root,
+        }),
     generated,
     sdk,
     env,
@@ -241,7 +249,10 @@ function watchBackend(
   const changed = new Set<string>();
   let scanning = false;
   const resolvedData = dataDir ? resolve(dataDir) : undefined;
-  const ownedData = resolvedData?.startsWith(`${root}${sep}`) ? resolvedData : undefined;
+  const canonicalData = resolvedData?.startsWith(`${root}${sep}`)
+    ? resolve(canonicalRoot, relative(root, resolvedData))
+    : resolvedData;
+  const ownedData = canonicalData?.startsWith(`${canonicalRoot}${sep}`) ? canonicalData : undefined;
   // Follow runtime ownership: JSX can belong to the backend and plain TS to
   // the frontend. Bun's frontend server owns modules outside this import graph.
   const watcher = watch(root, { recursive: true }, (_event, filename) => {
@@ -253,9 +264,7 @@ function watchBackend(
       filename
         .split(sep)
         .some((part) => part.startsWith(".") || ["node_modules", "dist", "build"].includes(part)) ||
-      (ownedData &&
-        (join(root, filename) === ownedData ||
-          join(root, filename).startsWith(`${ownedData}${sep}`))) ||
+      (ownedData && (path === ownedData || path.startsWith(`${ownedData}${sep}`))) ||
       statSync(path, { throwIfNoEntry: false })?.isDirectory()
     ) {
       return;

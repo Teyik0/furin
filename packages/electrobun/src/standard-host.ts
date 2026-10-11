@@ -24,6 +24,7 @@ import {
   withShutdownDeadline,
   withStartupDeadline,
 } from "./runtime";
+import { resolveDesktopDataDir } from "./storage";
 
 export interface StandardHostOptions {
   config: DesktopConfig;
@@ -42,6 +43,7 @@ function object(value: unknown): value is { [key: string]: unknown } {
 
 async function resolveOptions(
   sdk: DesktopSdk,
+  identity: DesktopIdentity,
   supplied: StandardHostOptions | undefined,
   development: Awaited<ReturnType<typeof getDesktopDevelopment>>
 ): Promise<StandardHostOptions> {
@@ -50,18 +52,25 @@ async function resolveOptions(
   }
   const config: DesktopConfig =
     development?.config ?? (await Bun.file(join(dirname(Bun.main), "furin-host.json")).json());
+  const root = development?.root ?? dirname(Bun.main);
+  const mode = development ? "dev" : "build";
   return {
     config,
-    root: development?.root ?? dirname(Bun.main),
-    mode: development ? "dev" : "build",
-    dataDir: config.dataDir ?? join(sdk.Utils.paths.appData, config.app.identifier),
+    root,
+    mode,
+    dataDir:
+      config.dataDir === undefined
+        ? join(sdk.Utils.paths.appData, config.app.identifier)
+        : await resolveDesktopDataDir(config.dataDir, { root, mode, channel: identity.channel }),
     load: () =>
       import(
         pathToFileURL(development?.serverEntry ?? join(dirname(Bun.main), "../furin/app.js")).href
       ),
     openBrowser: !!development && process.env.FURIN_DEV_OPEN_BROWSER === "1",
     testScript: process.env.FURIN_NATIVE_TEST_SCRIPT
-      ? await Bun.file(process.env.FURIN_NATIVE_TEST_SCRIPT).text()
+      ? await Bun.file(
+          resolve(development?.root ?? process.cwd(), process.env.FURIN_NATIVE_TEST_SCRIPT)
+        ).text()
       : undefined,
   };
 }
@@ -347,7 +356,7 @@ export async function runStandardDesktopHost(
             (async () => {
               if (starting && !backend) {
                 await starting.catch((error: unknown) => {
-                  if (!(error instanceof DOMException && error.name === "AbortError")) {
+                  if (error !== lifetime.signal.reason) {
                     throw error;
                   }
                 });
@@ -370,6 +379,8 @@ export async function runStandardDesktopHost(
           sdk.default.events.off?.("open-url", capture);
           sdk.default.events.off?.("reopen", reopen);
           sdk.default.events.off?.("before-quit", beforeQuit);
+          process.off("SIGINT", stop);
+          process.off("SIGTERM", stop);
           sdk.Updater.onStatusChange(null);
           listeners.clear();
           actions.clear();
@@ -403,6 +414,11 @@ export async function runStandardDesktopHost(
   };
   sdk.default.events.on("reopen", reopen);
   sdk.default.events.on("before-quit", beforeQuit);
+  const stop = () => {
+    desktop.quit().catch(report);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
   let flushing: Promise<void> | undefined;
   flush = () => {
     flushing ??= (async () => {
@@ -423,10 +439,11 @@ export async function runStandardDesktopHost(
     return flushing;
   };
   try {
-    development = supplied ? undefined : await getDesktopDevelopment();
-    options = await resolveOptions(sdk, supplied, development);
-    const { config, root } = options;
+    // SDK metadata resolves relative to native launch CWD and caches its result.
     identity = await sdk.Updater.getLocalInfo();
+    development = supplied ? undefined : await getDesktopDevelopment();
+    options = await resolveOptions(sdk, identity, supplied, development);
+    const { config, root } = options;
     lifetime.signal.throwIfAborted();
     if (identity.identifier !== config.app.identifier) {
       throw new Error("SDK identity does not match desktop configuration.");
@@ -481,6 +498,8 @@ export async function runStandardDesktopHost(
       sdk.default.events.off?.("open-url", capture);
       sdk.default.events.off?.("reopen", reopen);
       sdk.default.events.off?.("before-quit", beforeQuit);
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
       phase = "stopped";
       sdk.Utils.quit(0);
       return;
@@ -561,7 +580,10 @@ export async function runStandardDesktopHost(
     }
     return desktop;
   } catch (error) {
-    failureCode = 1;
+    const cancelled = !!closing && error === lifetime.signal.reason;
+    if (!cancelled) {
+      failureCode = 1;
+    }
     try {
       await desktop.quit();
     } catch (cleanup) {
@@ -570,6 +592,8 @@ export async function runStandardDesktopHost(
         cause: error,
       });
     }
-    throw error;
+    if (!cancelled) {
+      throw error;
+    }
   }
 }

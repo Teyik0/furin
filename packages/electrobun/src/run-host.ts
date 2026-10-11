@@ -8,6 +8,7 @@ import {
   startDesktopBackend,
   withShutdownDeadline,
 } from "./runtime";
+import { resolveDesktopDataDir } from "./storage";
 
 interface NativeQuitEvent {
   response?: { allow: boolean };
@@ -17,6 +18,7 @@ export interface NativeHostSdk {
   default: {
     events: { on: (name: "before-quit", handler: (event: NativeQuitEvent) => void) => unknown };
   };
+  Updater?: { getLocalInfo: () => Promise<{ channel: string }> };
   Utils: { paths: { appData: string }; quit: (code: number) => void };
 }
 
@@ -56,6 +58,7 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
     return closing;
   };
   try {
+    const identity = await sdk.Updater?.getLocalInfo();
     const development = await getDesktopDevelopment();
     const config: DesktopConfig =
       development?.config ?? (await Bun.file(join(dirname(Bun.main), "furin-host.json")).json());
@@ -65,15 +68,23 @@ export async function runDesktopHost<Sdk extends NativeHostSdk>(
         if (pending) {
           throw new Error("The native host already owns a backend.");
         }
-        const dataDir =
-          options?.dataDir ??
-          config.dataDir ??
-          join(sdk.Utils.paths.appData, config.app.identifier);
-        if (!isAbsolute(dataDir)) {
-          throw new Error("Native host dataDir must be absolute.");
-        }
         const entry = development?.serverEntry ?? join(dirname(Bun.main), "../furin/app.js");
         pending = (async () => {
+          const policy = options?.dataDir ?? config.dataDir;
+          if (typeof policy === "object" && !identity) {
+            throw new Error("Runtime dataDir policy requires the SDK Updater metadata.");
+          }
+          const dataDir =
+            policy === undefined
+              ? join(sdk.Utils.paths.appData, config.app.identifier)
+              : await resolveDesktopDataDir(policy, {
+                  channel: identity?.channel ?? "",
+                  root: development?.root ?? dirname(Bun.main),
+                  mode: development ? "dev" : "build",
+                });
+          if (!isAbsolute(dataDir)) {
+            throw new Error("Native host dataDir must be absolute.");
+          }
           let loaded: Promise<DesktopAppModule> | undefined;
           const load = () => {
             loaded ??= import(pathToFileURL(entry).href);

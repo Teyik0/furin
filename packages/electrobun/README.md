@@ -48,7 +48,26 @@ export default defineConfig({
 
 `app.version` is optional and otherwise comes from the consuming `package.json`.
 Dimensions must be positive integers, and `identifier` must be a reverse-domain
-identifier. `dataDir`, when provided, must be an absolute path.
+identifier. `dataDir` accepts an absolute path or a serializable runtime policy:
+
+```ts
+dataDir: {
+  name: "Tofu",
+  developmentName: "Tofu-dev",
+  env: "TOFU_DATA_DIR",
+}
+```
+
+The policy resolves the launching user's home/environment, not the build user's:
+macOS `~/Library/Application Support/<name>`, Linux `~/.local/share/<name>`,
+Windows `%APPDATA%/<name>` with `~/AppData/Roaming` as the unset-APPDATA fallback.
+SDK channel `dev` selects `developmentName`, including packaged dev apps.
+The optional environment variable overrides the path at launch. Relative source
+development overrides resolve from the actual project directory; packaged
+relative overrides resolve from launch CWD. No directories or user data are moved.
+Dev policy overrides into the default release tree are rejected, including
+existing symbolic-link aliases. Tofu's profile markers and legacy-instance checks
+remain application-owned.
 
 The SDK bootstrap is an optional, exactly pinned package dependency. If your
 installation omitted optional dependencies, run `bun add -d electrobun@2.0.2`.
@@ -59,6 +78,8 @@ requires network access; subsequent builds reuse the toolchain cache.
 Hutch is Electrobun's toolchain manager. Its SDK projection is the generated
 API and native toolchain under `.furin/electrobun/.hutch/devkit`, not another
 application framework or a directory developers maintain by hand.
+The generated standard host imports that canonical Hutch SDK projection and
+loads its launch-CWD-dependent metadata before restoring the project CWD.
 
 ## Server contract
 
@@ -185,8 +206,13 @@ const databasePath = process.env.FURIN_APP_DATA_DIR
   : ".furin/todos.sqlite";
 ```
 
-No existing user data is moved. An absolute `dataDir` override is available for
-applications that already own a storage location.
+No existing user data is moved. Omitting `dataDir` preserves the SDK app-data
+directory joined with `app.identifier`. An absolute string remains compatible;
+a runtime policy preserves named legacy locations without embedding a build
+machine home path. Resolution happens before native instance ownership, and
+one resolved path is used for forwarding, startup and `FURIN_APP_DATA_DIR`.
+Advanced hosts can use `resolveDesktopDataDir(policy, { channel, mode, root })`
+from `@teyik0/furin-electrobun/host`; this resolver is read-only.
 
 The plugin may provide `onStartup({ signal, runtime })` to initialize resources
 before the private listener opens. Startup failure calls its cleanup; the signal

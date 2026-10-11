@@ -5,6 +5,15 @@ import { isPackageName } from "./package-name";
 const IDENTIFIER = /^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)+$/;
 const VERSION = /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/;
 const SCHEME = /^[a-z][a-z0-9+.-]*$/i;
+const DIRECTORY_NAME = /^[^/\\\0]+$/;
+const ENVIRONMENT_NAME = /^[a-z_][a-z0-9_]*$/i;
+
+/** Resolved for the launching user, never while packaging the application. */
+export interface RuntimeDataDirectory {
+  developmentName: string;
+  env?: string;
+  name: string;
+}
 
 /** SDK additions; Furin retains ownership of the main process and app artifact. */
 export interface DesktopSdkConfig {
@@ -29,8 +38,8 @@ export interface DesktopSdkConfig {
 
 export interface DesktopConfig {
   app: { name: string; identifier: string; version?: string };
-  /** Absolute override; otherwise uses the OS app-data directory and identifier. */
-  dataDir?: string;
+  /** Absolute override or runtime user-data policy; omitted preserves the SDK default. */
+  dataDir?: string | RuntimeDataDirectory;
   /** Server-only packages kept outside the SDK main bundle. */
   external?: string[];
   /** Project-relative or absolute Bun entrypoint for an application-owned native host. */
@@ -78,12 +87,7 @@ export function validateDesktopConfig(value: unknown): asserts value is DesktopC
   ) {
     throw new Error("app.version must be a semantic version.");
   }
-  if (
-    value.dataDir !== undefined &&
-    (typeof value.dataDir !== "string" || !isAbsolute(value.dataDir))
-  ) {
-    throw new Error("dataDir must be absolute.");
-  }
+  validateDataDirectory(value.dataDir);
   if (
     value.external !== undefined &&
     (!Array.isArray(value.external) || value.external.some((name: unknown) => !isPackageName(name)))
@@ -92,6 +96,30 @@ export function validateDesktopConfig(value: unknown): asserts value is DesktopC
   }
   validateHost(value);
   validateNativeConfig(value);
+}
+
+function validateDataDirectory(value: unknown) {
+  if (value === undefined || (typeof value === "string" && isAbsolute(value))) {
+    return;
+  }
+  if (
+    object(value) &&
+    [value.name, value.developmentName].every(
+      (name) =>
+        typeof name === "string" &&
+        name.trim() &&
+        DIRECTORY_NAME.test(name) &&
+        name !== "." &&
+        name !== ".."
+    ) &&
+    value.name !== value.developmentName &&
+    (value.env === undefined || (typeof value.env === "string" && ENVIRONMENT_NAME.test(value.env)))
+  ) {
+    return;
+  }
+  throw new Error(
+    "dataDir must be absolute or a runtime policy with distinct name/developmentName and an optional env name."
+  );
 }
 
 function validateNativeConfig(value: { [key: string]: unknown }) {

@@ -10,7 +10,7 @@ export interface DesktopPreparation {
 }
 
 export function renderRuntime(): string {
-  return `import * as sdk from "electrobun/main";
+  return `import * as sdk from "./.hutch/devkit/api/sdks/main/index.ts";
 import { runStandardDesktopHost } from ${JSON.stringify(join(import.meta.dir, "standard-host.ts"))};
 
 await runStandardDesktopHost(sdk);
@@ -43,6 +43,10 @@ export async function prepareDesktop(
   await writeFile(
     join(generated, "registry.ts"),
     await Bun.file(join(import.meta.dir, "registry.ts")).text()
+  );
+  await writeFile(
+    join(generated, "storage.ts"),
+    await Bun.file(join(import.meta.dir, "storage.ts")).text()
   );
   if (options.mode === "dev") {
     await writeFile(
