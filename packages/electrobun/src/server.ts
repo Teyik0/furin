@@ -20,6 +20,26 @@ function protectLocalWeb(request: Request): Response | undefined {
   }
 }
 
+function protectNetworkDispatch(
+  request: Request,
+  rest: unknown[],
+  app: AnyElysia,
+  state: DesktopState
+): Response | undefined {
+  // Eden/app.handle calls fetch with one argument. Bun's listener supplies
+  // its Server as the second argument, including compiled/AOT dispatch.
+  if (rest.length === 0) {
+    return;
+  }
+  if (state.guard && (!app.server || rest[0] !== app.server)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  return (
+    state.guard?.(request) ??
+    (state.hooks?.restrictWebToLoopback ? protectLocalWeb(request) : undefined)
+  );
+}
+
 /** Install on the original root before application wrappers or plugins. */
 export function desktopApp(hooks?: DesktopAppOptions) {
   return <App extends AnyElysia>(app: App): App => {
@@ -54,7 +74,10 @@ export function desktopApp(hooks?: DesktopAppOptions) {
     let starting: Promise<void> | undefined;
     let stopping: Promise<void> | undefined;
     let ready: Promise<void> | undefined;
+    let available = false;
+    const closed = Promise.withResolvers<void>();
     const state: DesktopState = {
+      closed: closed.promise,
       hooks,
       start(parent) {
         starting ??= Promise.resolve().then(async () => {
@@ -73,6 +96,7 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         return starting;
       },
       stop() {
+        closed.resolve();
         stopping ??= Promise.resolve().then(async () => {
           controller.abort();
           await hooks?.onShutdown?.({
@@ -83,13 +107,14 @@ export function desktopApp(hooks?: DesktopAppOptions) {
         return stopping;
       },
       ready(backend) {
-        ready ??= Promise.resolve().then(() =>
-          hooks?.onReady?.({
+        ready ??= Promise.resolve().then(async () => {
+          await hooks?.onReady?.({
             backend,
             signal,
             runtime: state.runtime ?? { kind: "server" },
-          })
-        );
+          });
+          available = true;
+        });
         return ready;
       },
       async validate(mode) {
@@ -101,14 +126,16 @@ export function desktopApp(hooks?: DesktopAppOptions) {
     // Public configuration disables native promoted Responses. Bun HTML/HMR
     // bypasses dispatch independently and is checked through public route metadata.
     app["~config"] = { ...options, nativeStaticResponse: false };
-    app.wrap(
-      (next) =>
-        (request, ...rest: unknown[]) =>
-          state.guard?.(request) ??
-          (state.paused ? new Response("Application unavailable", { status: 503 }) : undefined) ??
-          (hooks?.restrictWebToLoopback ? protectLocalWeb(request) : undefined) ??
-          next(request, ...rest)
-    );
+    app.wrap((next) => (request, ...rest: unknown[]) => {
+      const denied = protectNetworkDispatch(request, rest, app, state);
+      if (denied) {
+        return denied;
+      }
+      if (stopping || state.paused || ((state.guard || starting) && !available)) {
+        return new Response("Application unavailable", { status: 503 });
+      }
+      return next(request, ...rest);
+    });
     app
       .setup(async () => {
         if (

@@ -106,33 +106,39 @@ for (const mode of ["web", "desktop"] as const) {
   });
 }
 
-test("optional web protection rejects foreign hosts and mutation origins before shortcuts", async () => {
+test("optional web protection rejects real HTTP foreign hosts and origins but trusts direct dispatch", async () => {
   const app = new Elysia()
     .use(desktopApp({ restrictWebToLoopback: true }))
     .wrap(() => () => new Response("shortcut"));
-  const responses = await Promise.all(
-    [
-      new Request("http://foreign.test/api"),
-      new Request("http://localhost/api", {
-        method: "POST",
-        headers: { origin: "https://foreign.test" },
-      }),
-    ].map((request) => app.handle(request))
-  );
-  for (const response of responses) {
-    expect(response.status).toBe(403);
+  try {
+    await new Promise<void>((resolve) =>
+      app.listen({ hostname: "127.0.0.1", port: 0 }, () => resolve())
+    );
+    const origin = `http://127.0.0.1:${app.server?.port}`;
+    const responses = await Promise.all([
+      fetch(`${origin}/api`, { headers: { host: "foreign.test" } }),
+      fetch(`${origin}/api`, { method: "POST", headers: { origin: "https://foreign.test" } }),
+    ]);
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+    }
+    expect((await fetch(`${origin}/api`, { method: "POST", headers: { origin } })).status).toBe(
+      200
+    );
+    expect((await app.handle("http://foreign.test/api")).status).toBe(200);
+    expect(
+      (
+        await app.handle(
+          new Request("http://e.ly/api", {
+            method: "POST",
+            headers: { origin: "https://foreign.test" },
+          })
+        )
+      ).status
+    ).toBe(200);
+  } finally {
+    await app.stop(true);
   }
-  expect(await (await app.handle("http://localhost/api")).text()).toBe("shortcut");
-  expect(
-    (
-      await app.handle(
-        new Request("http://127.0.0.1/api", {
-          method: "POST",
-          headers: { origin: "http://127.0.0.1" },
-        })
-      )
-    ).status
-  ).toBe(200);
   const ordinary = new Elysia().use(desktopApp()).get("/", () => "web");
   expect((await ordinary.handle("https://ordinary.test/")).status).toBe(200);
 });

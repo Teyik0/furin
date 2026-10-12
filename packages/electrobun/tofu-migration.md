@@ -84,6 +84,24 @@ marker, legacy-instance checks and download-directory policy.
     access to the standard instance transport; retain any app-specific diagnostic
     descriptor in `onReady` if needed, without exposing it to browser loaders.
 
+## Keep the isomorphic Eden client
+
+Keep the server-side `createClient(apiPlugin).api` and browser-side
+`createClient<Api>(window.location.origin, { fetch: { cache: "no-store",
+credentials: "include" } }).api`. Here `apiPlugin` is the same final application
+that listens, not a second active router.
+
+The server client calls `app.handle()` without network dispatch. Furin permits
+these trusted in-process reads and mutations without a cookie; SSR loaders use
+the same application. The browser still sends real HTTP requests and must pass
+session and origin checks. Neither `http://e.ly` nor a header identifies internal
+calls. Startup, update pause and shutdown block both paths.
+
+Remove the provisional vendored guard workaround when using this upstream fix.
+Do not add cookie forwarding or replace internal Eden calls with HTTP fetches.
+Application authorization remains Tofu-owned; possession of an application
+reference is a trusted in-process capability, not a sandbox boundary.
+
 Parity gates before deleting the old host:
 
 - startup failure leaves no engine, DB or profile lease;

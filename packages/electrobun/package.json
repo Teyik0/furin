@@ -53,6 +53,7 @@
     "tscheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@elysia/eden": "2.0.0-beta.5",
     "elysia": "catalog:"
   },
   "peerDependencies": {

@@ -292,7 +292,15 @@ export async function startDesktopBackend(
   );
   let canceled = false;
   const startup = new AbortController();
+  const listeningReady = Promise.withResolvers<void>();
   try {
+    // The plugin registered cleanup before any request could seal Elysia.
+    state?.closed?.then(() => {
+      listeningReady.reject(
+        new Error("Elysia stopped before desktop startup completed; check source setup errors.")
+      );
+    });
+    listeningReady.promise.catch(() => undefined);
     return await withDeadline(
       withCancellation(
         (async () => {
@@ -315,24 +323,18 @@ export async function startDesktopBackend(
             throw new Error("onStartup must not open a listener; the desktop host owns listening.");
           }
           await new Promise<void>((resolve, reject) => {
-            app.cleanup(() => {
-              reject(
-                new Error(
-                  "Elysia stopped before desktop startup completed; check source setup errors."
-                )
-              );
-            });
+            listeningReady.promise.then(resolve, reject);
             const listening = app.listen(
               { hostname: "127.0.0.1", port: 0, development: mode === "dev" },
               (server) => {
                 try {
                   validate();
-                  resolve();
+                  listeningReady.resolve();
                 } catch (error) {
                   // Stop the native listener in this callback, before readiness or
                   // another event-loop turn can expose a late native HTML route.
                   Promise.resolve(server.stop(true)).catch(console.error);
-                  reject(error);
+                  listeningReady.reject(error);
                 }
               }
             );

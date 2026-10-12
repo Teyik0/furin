@@ -180,13 +180,14 @@
         "furin-electrobun": "./src/cli.ts",
       },
       "devDependencies": {
+        "@elysia/eden": "2.0.0-beta.5",
         "elysia": "catalog:",
       },
       "optionalDependencies": {
         "electrobun": "2.0.2",
       },
       "peerDependencies": {
-        "@teyik0/furin": ">=0.7.0-alpha.1 <0.8.0",
+        "@teyik0/furin": ">=0.7.0-alpha.5 <0.8.0",
         "elysia": "catalog:",
       },
     },

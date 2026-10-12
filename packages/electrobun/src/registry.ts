@@ -5,6 +5,7 @@ export type DesktopMode = "dev" | "build";
 export type DesktopGuard = (request: Request) => Response | undefined;
 
 export interface DesktopState {
+  closed?: Promise<void>;
   guard?: DesktopGuard;
   hooks?: DesktopAppOptions;
   paused?: boolean;

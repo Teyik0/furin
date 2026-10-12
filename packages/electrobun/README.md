@@ -288,6 +288,27 @@ specific root's guard before listening. Missing credentials, cross-origin and
 cross-site requests are rejected before user middleware can return an early
 response. No Elysia modification or extra proxy is needed.
 
+### Internal API calls and SSR
+
+`treaty(app)` and `createClient(app).api` dispatch directly through the same
+listening Elysia application. They do not send HTTP requests and do not require a
+session cookie. SSR loaders can use this client without copying credentials,
+opening another listener or mounting a second router.
+
+The supported Bun adapter passes its `Server` object to network dispatch;
+Elysia's `app.handle()` supplies only the `Request`. The desktop wrapper checks
+this calling convention, not the URL, hostname or headers. Network dispatch must
+carry the active application's exact server object and pass the session/origin
+guard. A forged `http://e.ly` host or "internal" header cannot bypass HTTP checks.
+Unexpected adapter context is rejected rather than treated as internal.
+
+Startup (including `onReady`), update pause and shutdown still gate both
+transports with `503`. Missing or invalid HTTP credentials return `403` before
+application hooks. Direct dispatch is a trusted in-process capability: do not
+expose `app.handle()` as an unguarded proxy for external requests. No opt-in
+option is required, and this is not isolation from code already running inside
+the application process.
+
 Native Bun routes can bypass Elysia dispatch, so desktop startup rejects
 `serve.routes` and custom adapters, and disables promoted static responses.
 Production also rejects native HTMLBundle handlers. Development permits only
@@ -360,10 +381,11 @@ most 128 are retained. Keep navigation sandboxed and restricted to these origins
 `stop()` when quitting. Closing only a window may leave the backend running.
 
 The native host owns menus, native events, updates and explicit test-script
-injection. It may use the private `cookie` for in-process requests or an owner-only
-native helper descriptor; never log or serialize it into browser data. SSR loaders
-that call the HTTP API must forward the incoming request cookie only to the same
-application origin. The default host never exposes the cookie.
+injection. It may use the private `cookie` for authenticated HTTP requests or an
+owner-only native helper descriptor; never log or serialize it into browser data.
+SSR loaders using `createClient(app)` do not need it. Loaders that deliberately
+call the HTTP API instead must forward the incoming request cookie only to the
+same application origin. The default host never exposes the cookie.
 
 The lower-level `startDesktopBackend` and development context remain available.
 Custom hosts also support `dev`. After importing the SDK, call
