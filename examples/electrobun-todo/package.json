@@ -1,0 +1,31 @@
+{
+  "name": "@teyik0/furin-example-electrobun-todo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "furin build --target bun",
+    "build:desktop": "furin-electrobun build",
+    "dev": "bun --hot src/server.ts",
+    "fix": "ultracite fix",
+    "start": "PORT=3004 bun .furin/build/bun/server.js",
+    "test": "bun test --isolate --bail tests",
+    "tscheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "5.2.8",
+    "@fontsource/ibm-plex-mono": "5.2.7",
+    "@teyik0/furin": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "elysia": "catalog:",
+    "evlog": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@teyik0/furin-electrobun": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
+  }
+}

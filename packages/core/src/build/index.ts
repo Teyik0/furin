@@ -87,6 +87,13 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
 }
 
 async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
+  if (
+    (options.target === "bun" || options.target === "all") &&
+    options.bun?.output === "app" &&
+    options.compile
+  ) {
+    throw new Error("[furin] Bun app output cannot be combined with compile.");
+  }
   const rootDir = resolve(options.rootDir ?? process.cwd());
   const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
   const serverEntry = (() => {

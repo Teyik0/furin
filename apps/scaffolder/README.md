@@ -41,7 +41,7 @@ Options:
   --template <simple|full>   Template choice (default: interactive)
   --yes                      Skip interactive confirmations
   --no-install               Do not run bun install after scaffolding
-  --version                  Show the targeted @teyik0/furin version
+  --version                  Show the create-furin package version
   --help                     Show help
 ```
 
@@ -148,6 +148,20 @@ bun run --filter="create-furin" test
 # TypeScript check
 bun run --filter="create-furin" tscheck
 ```
+
+`create-furin` is versioned independently from the core library. `--version` reports
+the scaffolder's own manifest version; generated projects resolve the published
+core separately. Publishing a `create-furin-v<version>` GitHub release runs a
+packed-package smoke test before publication:
+
+```bash
+FURIN_SCAFFOLDER_RELEASE_SMOKE=1 bun test apps/scaffolder/tests/package.test.ts
+```
+
+This test accesses the public registry, installs the archive in an isolated
+consumer, reinstalls with its frozen lockfile, and builds and type-checks the
+generated simple and full starters. Ordinary workspace tests skip this network-dependent
+release check.
 
 ### Updating a dependency version
 

@@ -146,6 +146,48 @@ async function createBunAppEntry(
   });
 }
 
+async function bundleBunApplication(
+  apps: RuntimeTargetApp[],
+  appEntry: string,
+  targetDir: string,
+  buildRoot: string,
+  options: BuildAppOptions,
+  manifest: TargetBuildManifest
+): Promise<void> {
+  const isApp = options.bun?.output === "app";
+  const entry = isApp ? undefined : generateBootEntry(appEntry, targetDir, "server.ts");
+  const build = await runBunBuild({
+    entrypoints: [entry?.entrypoint ?? appEntry],
+    files: entry?.files,
+    metafile: options.analyze,
+    minify: true,
+    naming: { chunk: "[name]-[hash].[ext]", entry: isApp ? "app.[ext]" : "[name].[ext]" },
+    outdir: targetDir,
+    plugins: [
+      ...(entry ? [entry.plugin] : []),
+      productionInstrumentationPlugin(),
+      pprRuntimePlugin(apps),
+      mixedRuntimePlugin(apps),
+      ...(options.plugins ?? []),
+      createRoutesPlugin({ instances: apps, target: "server" }),
+      isomorphicTransformPlugin("server"),
+      environmentGuardPlugin("ssr"),
+      elysiaAot(appEntry),
+    ],
+    sourcemap: serverSourcemapMode(options.serverSourceMaps),
+    target: "bun",
+  });
+  relocateServerMaps(build, options.serverSourceMaps, targetDir, buildRoot);
+  writeServerMetafile(build, options.analyze, buildRoot);
+  const artifactPath = toPosixPath(join(manifest.targetDir, isApp ? "app.js" : "server.js"));
+  console.log(`[furin] ${isApp ? "Application" : "Server"} bundle: ${artifactPath}`);
+  if (isApp) {
+    manifest.appPath = artifactPath;
+  } else {
+    manifest.serverPath = artifactPath;
+  }
+}
+
 export async function buildBunTarget(
   apps: RuntimeTargetApp[],
   rootDir: string,
@@ -153,6 +195,9 @@ export async function buildBunTarget(
   serverEntry: string | null,
   options: BuildAppOptions
 ): Promise<TargetBuildManifest> {
+  if (options.bun?.output === "app" && (options.compile || !serverEntry)) {
+    throw new Error("[furin] Bun app output requires a server entry and cannot use compile.");
+  }
   if (options.compile && !serverEntry) {
     throw new Error(
       `[furin] \`compile: "${options.compile}"\` requires a server entry point. ` +
@@ -245,37 +290,7 @@ export async function buildBunTarget(
     // Embed mode: assets are in the binary — clean up client dirs too.
     finalizeEmbeddedAssets(options.compile, apps, targetDir, targetManifest);
   } else if (serverEntry && appEntry) {
-    // Disk mode: generate server.ts then bundle it into self-contained server.js
-    const entry = generateBootEntry(appEntry, targetDir, "server.ts");
-
-    const serverBuild = await runBunBuild({
-      entrypoints: [entry.entrypoint],
-      files: entry.files,
-      metafile: options.analyze,
-      minify: true,
-      naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
-      outdir: targetDir,
-      plugins: [
-        entry.plugin,
-        productionInstrumentationPlugin(),
-        pprRuntimePlugin(apps),
-        mixedRuntimePlugin(apps),
-        ...(options.plugins ?? []),
-        createRoutesPlugin({ instances: apps, target: "server" }),
-        isomorphicTransformPlugin("server"),
-        environmentGuardPlugin("ssr"),
-        elysiaAot(appEntry),
-      ],
-      sourcemap: serverSourcemapMode(options.serverSourceMaps),
-      target: "bun",
-    });
-    relocateServerMaps(serverBuild, options.serverSourceMaps, targetDir, buildRoot);
-    writeServerMetafile(serverBuild, options.analyze, buildRoot);
-    console.log(
-      `[furin] Server bundle: ${toPosixPath(join(targetManifest.targetDir, "server.js"))}`
-    );
-
-    targetManifest.serverPath = toPosixPath(join(targetManifest.targetDir, "server.js"));
+    await bundleBunApplication(apps, appEntry, targetDir, buildRoot, options, targetManifest);
   }
 
   return targetManifest;

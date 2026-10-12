@@ -265,6 +265,7 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
             "export const port = __serverModule.port;",
             "export const idleTimeout = __serverModule.idleTimeout;",
             "export const startServer = __serverModule.startServer;",
+            "export const onStartup = __serverModule.onStartup;",
             "export const onShutdown = __serverModule.onShutdown;",
             "export default __serverModule.default;",
             "",

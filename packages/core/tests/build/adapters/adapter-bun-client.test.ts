@@ -43,6 +43,29 @@ afterEach(() => {
 });
 
 describe.serial("buildBunTarget Bun branches", () => {
+  test("app output bundles an inert application instead of a server boot entry", async () => {
+    const app = createCompileTmpApp();
+    const { root, routes } = await scanPages(join(app.path, "src/pages"));
+    const builds: Bun.BuildConfig[] = [];
+    const manifest = await withBuildStub(() =>
+      buildBunTarget(
+        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
+        app.path,
+        join(app.path, ".furin/build"),
+        join(app.path, "src/server.ts"),
+        { bun: { output: "app" }, target: "bun" }
+      ),
+      (build) => builds.push(build)
+    );
+    expect(manifest.appPath).toBe(".furin/build/bun/app.js");
+    expect(manifest.serverPath).toBeNull();
+    const bundle = builds.find((build) =>
+      build.entrypoints.includes(join(app.path, ".furin/build/bun/_furin-app.ts"))
+    );
+    expect(bundle?.entrypoints).toEqual([join(app.path, ".furin/build/bun/_furin-app.ts")]);
+    expect(bundle?.naming).toEqual({ chunk: "[name]-[hash].[ext]", entry: "app.[ext]" });
+  });
+
   test("client builds inline public environment values without exposing private ones", async () => {
     const app = createCompileTmpApp();
     const previousPublic = process.env.FURIN_PUBLIC_AUDIT;

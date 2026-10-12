@@ -434,34 +434,56 @@ describe("RouterProvider sync refresh", () => {
     }
   });
 
-  test("performs one initial catch-up read from the WebSocket cursor", async () => {
+  test("recovers writes missed before subscription and advances only from HTTP cursors", async () => {
     const requested: string[] = [];
+    let loaderReads = 0;
     globalThis.fetch = mock((input: RequestInfo | URL) => {
       const url = new URL(input.toString(), window.location.origin);
       if (url.pathname === "/_furin/sync/changes") {
         requested.push(url.searchParams.get("after") ?? "initial");
         return Promise.resolve(
-          Response.json({ changes: [], cursor: "12", hasMore: false, reset: false })
+          Response.json({
+            changes: [],
+            cursor: "12",
+            hasMore: false,
+            reset: url.searchParams.get("after") === "0",
+          })
         );
+      }
+      if (url.pathname === "/_furin/data") {
+        loaderReads += 1;
+        return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
       return Promise.resolve(new Response(null, { status: 404 }));
     }) as unknown as typeof globalThis.fetch;
 
     const route = makeRoute("/board");
     const initialMatch = await loadInitialMatch(route);
-    const { cleanup } = await renderRouter(route, initialMatch);
+    const { cleanup, container } = await renderRouter(route, initialMatch, { message: "stale" });
     currentCleanup = cleanup;
 
     await waitForDom(() => browserEvents.listener !== undefined, { timeoutMs: 2000 });
     expect(requested).toEqual([]);
+    expect(container.textContent).toBe("stale");
+
+    await act(async () => {
+      browserEvents.emit("11");
+      await Promise.resolve();
+    });
+
+    await waitForDom(() => requested.length === 1, { timeoutMs: 100 });
+    expect(requested).toEqual(["0"]);
+    await waitForDom(() => container.textContent === "fresh", { timeoutMs: 2000 });
+    expect(loaderReads).toBe(1);
 
     await act(async () => {
       browserEvents.emit("12");
       await Promise.resolve();
     });
-
-    await waitForDom(() => requested.length === 1, { timeoutMs: 100 });
-    expect(requested).toEqual(["12"]);
+    await waitForDom(() => requested.length === 2, { timeoutMs: 100 });
+    expect(requested).toEqual(["0", "12"]);
+    expect(loaderReads).toBe(1);
+    expect(container.textContent).toBe("fresh");
   });
 
   test("refreshes the current page after a sync event catches up through /changes", async () => {

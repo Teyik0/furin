@@ -136,14 +136,18 @@ export async function parseDeferredNdjson(
         signal.addEventListener("abort", abortHandler, { once: true });
       }
     }
-    result.completion.finally(() => {
-      cleanupAbortHandler();
-      try {
-        reader.releaseLock();
-      } catch {
-        /* already released via reader.cancel() in the abort path */
-      }
-    });
+    // Deferred consumers receive stream failures through their promises; the
+    // background reader's cleanup must not create another unhandled rejection.
+    result.completion
+      .finally(() => {
+        cleanupAbortHandler();
+        try {
+          reader.releaseLock();
+        } catch {
+          /* already released via reader.cancel() in the abort path */
+        }
+      })
+      .catch(() => undefined);
     return { deferredPromises: result.deferredPromises, syncData: result.syncData };
   }
 
