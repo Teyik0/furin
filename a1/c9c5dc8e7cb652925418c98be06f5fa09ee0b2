@@ -1,0 +1,32 @@
+bun.lock
+  h_a2cbd1b0e3ae6e 183,190
+packages/electrobun/README.md
+  h_a2cbd1b0e3ae6e 291-311,384-388
+packages/electrobun/package.json
+  h_a2cbd1b0e3ae6e 56
+packages/electrobun/src/registry.ts
+  h_a2cbd1b0e3ae6e 8
+packages/electrobun/src/runtime.ts
+  h_a2cbd1b0e3ae6e 295,297-303,326,332,337
+packages/electrobun/src/server.ts
+  h_a2cbd1b0e3ae6e 23-42,77-78,80,99,110-111,115-117,129-138
+packages/electrobun/tests/internal-dispatch-build.test.ts
+  h_a2cbd1b0e3ae6e 1-125
+packages/electrobun/tests/internal-dispatch.test.ts
+  h_a2cbd1b0e3ae6e 1-229
+packages/electrobun/tests/plugin.test.ts
+  h_a2cbd1b0e3ae6e 109,113-140
+packages/electrobun/tofu-migration.md
+  h_a2cbd1b0e3ae6e 87-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1c9c5dc8e7cb652925418c98be06f5fa09ee0b2",
+  "prompts": {},
+  "humans": {
+    "h_a2cbd1b0e3ae6e": {
+      "author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
