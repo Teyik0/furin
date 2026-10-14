@@ -25,14 +25,16 @@ interface NavigationSnapshot {
 }
 
 const headerSource = `"use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@teyik0/furin/link";
 export function Header() {
   const [count, setCount] = useState(0);
+  const counter = useRef<HTMLButtonElement>(null);
+  useEffect(() => { counter.current?.setAttribute("data-hydrated", "true"); }, []);
   return <nav>
     <Link data-testid="classic-other" to="/other">Classic other</Link>
     <Link data-testid="classic-home" to="/">Classic home</Link>
-    <button data-testid="counter" onClick={() => setCount(count + 1)}>Count {count}</button>
+    <button ref={counter} data-testid="counter" onClick={() => setCount(count + 1)}>Count {count}</button>
     <span data-testid="header-version">header-v1</span>
   </nav>;
 }`;
@@ -183,6 +185,15 @@ browserTest.each([
       await waitForHttp(`${origin}${prefix}/`, { timeoutMs: 15_000 });
       await view.navigate("about:blank");
       await view.cdp("Network.enable");
+      if (mode === "production") {
+        // SSR markup can arrive before the lazy hydration modules on a slow connection.
+        await view.cdp("Network.emulateNetworkConditions", {
+          offline: false,
+          latency: 200,
+          downloadThroughput: 128 * 1024,
+          uploadThroughput: 128 * 1024,
+        });
+      }
       view.addEventListener("Network.requestWillBeSent", (event) => {
         const request = (
           event as unknown as { data?: { type?: string; request?: { url?: string } } }
@@ -192,6 +203,10 @@ browserTest.each([
         }
       });
       await view.navigate(`${origin}${prefix}/`);
+      await waitFor(
+        view,
+        'document.querySelector("[data-testid=counter]")?.getAttribute("data-hydrated") === "true"'
+      );
       await view.click('[data-testid="counter"]');
       await waitFor(
         view,
