@@ -1,0 +1,20 @@
+packages/core/tests/browser/composite-link.webview.test.ts
+  s_91fb1436775985::t_d15324b62d6417 28,32-33,37,206-209
+  s_91fb1436775985::t_7a8b7d6d5ddc67 188-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45ff3add1d299e66ec7c5d12fadd870109a53fbb",
+  "prompts": {},
+  "sessions": {
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
