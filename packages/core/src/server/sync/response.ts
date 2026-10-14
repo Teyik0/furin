@@ -32,11 +32,34 @@ function statusCode(status: Context["set"]["status"]): number {
   return status === undefined ? 200 : StatusMap[status];
 }
 
-function unwrapStatusResponse(value: unknown): { status: number; value: unknown } | undefined {
-  if (!(value instanceof ElysiaStatus)) {
-    return;
+/** Match Elysia's effective status without interpreting application payload fields. */
+export function effectiveResponseStatus(value: unknown, set: Context["set"]): number {
+  if (value instanceof ElysiaStatus || (value instanceof Response && value.status !== 200)) {
+    return value.status;
   }
-  return { status: value.status, value: value.response };
+  const status = statusCode(set.status);
+  return value instanceof Error && status === 200 ? 500 : status;
+}
+
+export function effectiveResponseHeaders(
+  value: unknown,
+  set: Context["set"]
+): Context["set"]["headers"] {
+  const entries = Object.entries(set.headers);
+  if (value instanceof Response) {
+    entries.push(...value.headers);
+  } else if (value instanceof ElysiaStatus) {
+    entries.push(...Object.entries(value.headers ?? {}));
+  }
+  return Object.fromEntries(entries.map(([name, header]) => [name.toLowerCase(), header]));
+}
+
+function replayableHeaders(entries: Iterable<readonly [string, string]>): Headers {
+  return new Headers(
+    Array.from(entries, ([name, value]): [string, string] => [name, value]).filter(
+      ([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())
+    )
+  );
 }
 
 function responseHeaders(headers: Context["set"]["headers"]): Headers {
@@ -132,13 +155,7 @@ export function mergeStoredResponseHeaders(
   storedResponse: StoredResponse,
   headers: Context["set"]["headers"]
 ): StoredResponse {
-  const headerEntries: [string, string][] = [];
-  for (const [name, value] of storedResponse.headers) {
-    if (!NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
-      headerEntries.push([name, value]);
-    }
-  }
-  const merged = new Headers(headerEntries);
+  const merged = replayableHeaders(storedResponse.headers);
   for (const [name, value] of Object.entries(headers)) {
     if (value !== undefined && !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
       merged.delete(name);
@@ -163,12 +180,8 @@ export async function storeResponse(
     if (body === undefined) {
       return unreplayable();
     }
-    const headers = new Headers(
-      [...clone.headers.entries()].filter(
-        ([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())
-      )
-    );
-    return storedResponseResult(headers, body, clone.status);
+    const headers = replayableHeaders(clone.headers);
+    return storedResponseResult(headers, body, effectiveResponseStatus(responseValue, set));
   }
 
   return storeResponseSync(responseValue, set);
@@ -183,27 +196,26 @@ export function storeResponseSync(
       return unreplayable();
     }
     return storedResponseResult(
-      new Headers(
-        [...responseValue.headers.entries()].filter(
-          ([name]) => !NON_REPLAYABLE_HEADERS.has(name.toLowerCase())
-        )
-      ),
+      replayableHeaders(responseValue.headers),
       new Uint8Array(),
-      responseValue.status
+      effectiveResponseStatus(responseValue, set)
     );
   }
-  const headers = responseHeaders(set.headers);
-  const statusResponse = unwrapStatusResponse(responseValue);
-  const value = statusResponse?.value ?? responseValue;
-  const responseStatus = statusResponse ? statusResponse.status : statusCode(set.status);
+  const headers = responseHeaders(effectiveResponseHeaders(responseValue, set));
+  const value = responseValue instanceof ElysiaStatus ? responseValue.response : responseValue;
+  const responseStatus =
+    responseValue instanceof ElysiaStatus ? responseValue.status : statusCode(set.status);
   let body: Uint8Array;
   if (value === undefined || value === null) {
     body = new Uint8Array();
-  } else if (typeof value === "string") {
-    headers.set("content-type", headers.get("content-type") ?? "text/plain;charset=utf-8");
-    body = new TextEncoder().encode(value);
+  } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const contentType = new Response(String(value)).headers.get("content-type");
+    if (!headers.has("content-type") && contentType !== null) {
+      headers.set("content-type", contentType);
+    }
+    body = new TextEncoder().encode(String(value));
   } else {
-    headers.set("content-type", headers.get("content-type") ?? "application/json");
+    headers.set("content-type", headers.get("content-type") ?? "application/json;charset=utf-8");
     body = new TextEncoder().encode(JSON.stringify(value));
   }
   return storedResponseResult(headers, body, responseStatus);
@@ -214,14 +226,8 @@ export function replayResponse(stored: StoredResponse): Response {
     stored.status === 204 || stored.status === 205 || stored.status === 304
       ? null
       : stored.body.slice();
-  const headerEntries: [string, string][] = [];
-  for (const [name, value] of stored.headers) {
-    if (!NON_REPLAYABLE_HEADERS.has(name.toLowerCase())) {
-      headerEntries.push([name, value]);
-    }
-  }
   return new Response(body, {
-    headers: new Headers(headerEntries),
+    headers: replayableHeaders(stored.headers),
     status: stored.status,
   });
 }

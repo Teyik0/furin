@@ -78,6 +78,28 @@ async function renderWithRouter(
 describe("useSearch", () => {
   useDomTests();
 
+  test("object selections remain stable while search changes are delivered", async () => {
+    function Page() {
+      const [search] = useSearch("/products", (value) => ({ page: value.page }));
+      return createElement("output", null, String(search.page));
+    }
+    const context = makeRouterContext({ currentHref: "/products?page=1", search: { page: 1 } });
+    const view = await renderWithRouter(createElement(Page), context);
+    try {
+      expect(view.container.textContent).toBe("1");
+      await act(() => {
+        view.searchStore.setSnapshot({
+          ...searchSnapshotFromRouterContext(context),
+          search: { page: 2 },
+        });
+        view.searchStore.flush();
+      });
+      expect(view.container.textContent).toBe("2");
+    } finally {
+      await view.cleanup();
+    }
+  });
+
   test("keeps the matching root fallback usable without a router provider", () => {
     function Page() {
       const [search] = useSearch("/");

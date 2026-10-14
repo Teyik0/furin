@@ -14,6 +14,7 @@ import type {
   SyncNotifier,
   SyncSubscription,
 } from "../adapter.ts";
+import { journalChange, principalHash, registerPrincipalJournal } from "../principal-journal.ts";
 import type { SyncSql, SyncSqlQuery } from "./sql.ts";
 
 const CHANGE_RETENTION = 1000;
@@ -47,6 +48,7 @@ interface CursorRow {
 interface ChangeRow {
   cursor: string | number | bigint;
   invalidations: SyncInvalidation[];
+  principal_hash: string | null;
 }
 
 function notificationChannel(namespace: string): string {
@@ -93,6 +95,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
     this.publishesNotifications = options.publishNotifications !== false;
     this.namespace = options.namespace;
     this.sql = options.sql;
+    registerPrincipalJournal(this);
   }
 
   beginMutation(input: BeginMutationInput): Promise<BeginMutationResult> {
@@ -219,11 +222,12 @@ export class PostgresSyncAdapter implements SyncAdapter {
         `;
         cursor = String(cursors[0]?.current_cursor);
         await tx`
-          INSERT INTO furin_sync.changes (namespace, cursor, invalidations)
+          INSERT INTO furin_sync.changes (namespace, cursor, invalidations, principal_hash)
           VALUES (
             ${this.namespace},
             ${cursor},
-            ${JSON.stringify(input.invalidations)}::text::jsonb
+            ${JSON.stringify(input.invalidations)}::text::jsonb,
+            ${principalHash(input.lease.principal)}
           )
         `;
         await tx`
@@ -315,7 +319,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
       return { changes: [], cursor: currentCursor, hasMore: false, reset: true };
     }
     const rows = await this.sql<ChangeRow[]>`
-      SELECT cursor, invalidations
+      SELECT cursor, invalidations, principal_hash
       FROM furin_sync.changes
       WHERE namespace = ${this.namespace} AND cursor > ${input.after}::bigint
       ORDER BY cursor ASC
@@ -338,10 +342,15 @@ export class PostgresSyncAdapter implements SyncAdapter {
       };
     }
     const hasMore = rows.length > input.limit;
-    const changes: SyncChange[] = rows.slice(0, input.limit).map((row) => ({
-      cursor: String(row.cursor),
-      invalidations: row.invalidations,
-    }));
+    const changes: SyncChange[] = rows.slice(0, input.limit).map((row) =>
+      journalChange(
+        {
+          cursor: String(row.cursor),
+          invalidations: row.invalidations,
+        },
+        row.principal_hash
+      )
+    );
     return {
       changes,
       cursor: changes.at(-1)?.cursor ?? input.after,

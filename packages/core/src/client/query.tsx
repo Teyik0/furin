@@ -6,13 +6,7 @@ import {
   useEffect,
   useSyncExternalStore,
 } from "react";
-import {
-  type QueryData,
-  type QueryMethod,
-  type QueryStore,
-  readReference,
-  readUrl,
-} from "./query-store.ts";
+import { type QueryData, type QueryMethod, type QueryStore, readReference } from "./query-store.ts";
 
 // Entrypoints are bundled separately; they must share the context, never the cached data.
 const QUERY_CONTEXT = Symbol.for("furin.query.context.v1");
@@ -44,7 +38,7 @@ export function useQuery<Method extends QueryMethod, Selected = QueryData<Method
   const [options] = args;
   const select = (options as { select?: (data: QueryData<Method>) => Selected } | undefined)
     ?.select;
-  const url = readUrl(reference, options);
+  const url = store.readKey(reference, options);
   store.bind(url, () => reference.load(options), reference.client);
   const subscribe = useCallback(
     (listener: () => void) => store.subscribe(url, listener),

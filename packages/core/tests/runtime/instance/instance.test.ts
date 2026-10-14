@@ -5,11 +5,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   __clearInstanceRegistry,
+  allInstances,
+  allStateBuckets,
   createInstance,
+  currentInstance,
   defaultInstanceBucket,
+  type FurinInstance,
   normalizePrefix,
   registerInstance,
   resolveInstanceByPath,
+  trackInstance,
+  unregisterInstance,
 } from "../../../src/server/instance.ts";
 import {
   __resetCompileContext,
@@ -53,6 +59,64 @@ describe("normalizePrefix", () => {
 });
 
 describe("resolveInstanceByPath", () => {
+  test("re-registering a mount replaces its runtime state", () => {
+    const original = registerInstance(createInstance("/admin", "/apps/admin"));
+    original.buildId = "before";
+    const replacement = createInstance("/admin", "/apps/admin");
+    replacement.buildId = "after";
+    trackInstance(replacement);
+    expect(registerInstance(replacement)).toBe(replacement);
+    expect(resolveInstanceByPath("/admin/item")).toBe(replacement);
+    expect(currentInstance()).toBe(replacement);
+    expect(allInstances()).toEqual([replacement]);
+  });
+  test("a prepared runtime supplies state before its first mount", () => {
+    const prepared = createInstance("/admin", "/apps/admin");
+    trackInstance(prepared);
+    expect(currentInstance()).toBe(prepared);
+    expect(allInstances()).toEqual([prepared]);
+    expect(resolveInstanceByPath("/admin")).toBe(defaultInstanceBucket());
+  });
+  test("an unmounted runtime does not replace the sole registered instance", () => {
+    const mounted = registerInstance(createInstance("/admin", "/apps/admin"));
+    const pending = createInstance("/pending", "/apps/pending");
+    trackInstance(pending);
+    expect(currentInstance()).toBe(mounted);
+    expect(allInstances()).toEqual([mounted]);
+    expect(resolveInstanceByPath("/pending")).toBe(defaultInstanceBucket());
+    expect(allStateBuckets()).toContain(pending);
+  });
+  test("stopped mounts are excluded when prepared state becomes the fallback", () => {
+    const registry = new Map<string, FurinInstance>();
+    const mounted = createInstance("/admin", "/apps/admin");
+    trackInstance(mounted);
+    registerInstance(mounted, registry);
+    const pending = createInstance("/pending", "/apps/pending");
+    trackInstance(pending);
+
+    expect(currentInstance()).toBe(mounted);
+    expect(allInstances()).toEqual([mounted]);
+    unregisterInstance(mounted, registry);
+    expect(currentInstance()).toBe(pending);
+    expect(allInstances()).toEqual([pending]);
+    expect(resolveInstanceByPath("/admin")).toBe(defaultInstanceBucket());
+    expect(resolveInstanceByPath("/pending")).toBe(defaultInstanceBucket());
+
+    registerInstance(pending, registry);
+    unregisterInstance(pending, registry);
+    expect(currentInstance()).toBe(defaultInstanceBucket());
+    expect(allInstances()).toEqual([defaultInstanceBucket()]);
+    expect(allStateBuckets()).toContain(mounted);
+    expect(allStateBuckets()).toContain(pending);
+  });
+  test("multiple prepared runtimes preserve ambiguous state access before mounting", () => {
+    const first = createInstance("/one", "/apps/one");
+    const second = createInstance("/two", "/apps/two");
+    trackInstance(first);
+    trackInstance(second);
+    expect(currentInstance()).toBe(defaultInstanceBucket());
+    expect(allInstances()).toEqual([first, second]);
+  });
   test("longest boundary-aware prefix wins", () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const adminV2 = registerInstance(createInstance("/admin/v2", "/apps/admin-v2"));
@@ -128,5 +192,12 @@ describe("compile contexts keyed by (pagesDir, prefix)", () => {
 
     expect(getCompileContext()?.buildId).toBe("only");
     expect(getCompileContext("/elsewhere/src/pages", "/nope")?.buildId).toBe("only");
+  });
+
+  test("does not guess between independent apps sharing a prefix after deployment", () => {
+    __setCompileContext(makeContext("/build/a/src/pages/root.tsx", "", "build-a"));
+    __setCompileContext(makeContext("/build/b/src/pages/root.tsx", "", "build-b"));
+    expect(getCompileContext("/deploy/cwd/src/pages", "")).toBeNull();
+    expect(getCompileContext("/build/b/src/pages", "")?.buildId).toBe("build-b");
   });
 });

@@ -86,6 +86,9 @@ mock.module("evlog", () => ({
 const requestLoggerStorage = new AsyncLocalStorage<RequestLogger>();
 
 mock.module(join(import.meta.dir, "../../src/server/evlog.ts"), () => ({
+  getFurinEvlogOptions: noop,
+  registerEmission: noop,
+  setFurinEvlogOptions: noop,
   createFurinEvlog: (options: BaseEvlogOptions) => {
     evlogOptionsMock(options);
     const requestLoggers = new WeakMap<Request, RequestLogger>();

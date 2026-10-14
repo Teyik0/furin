@@ -64,6 +64,8 @@ The nearest `error.tsx` handles this failure, including a 404 API response. Use 
 
 Without an authored boundary, Furin renders its built-in safe error screen. If the root document itself cannot render, a framework-owned minimal document is the last resort.
 
+When a loader fails or calls `notFound()`, successful ancestor layouts keep their loader data. Each layout receives only its own data and data inherited from its successful ancestors; failed loaders and descendants do not contribute data. Furin does not rerun these loaders. If the root loader fails, its layout is skipped and the boundary renders inside the framework's minimal document. Hydration and client navigation follow the same contract. For an unmatched URL, a root layout that depends on an unexecuted loader is also skipped.
+
 ## Not Found
 
 ```tsx

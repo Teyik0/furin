@@ -306,13 +306,6 @@ export async function warmSSGCache(
       continue;
     }
     const { route, paramSets } = result;
-    if (!Array.isArray(paramSets)) {
-      logSsgError(
-        { action: "warmup_failed", render: "ssg", route: route.pattern },
-        new Error(`staticParams() for "${route.pattern}" returned a non-array value`)
-      );
-      continue;
-    }
     for (const params of paramSets) {
       tasks.push(async () => {
         try {
@@ -331,15 +324,5 @@ export async function warmSSGCache(
     }
   }
 
-  if (tasks.length === 0) {
-    return;
-  }
-
-  const queue = [...tasks];
-  const workers = Array.from({ length: Math.min(SSG_WARM_CONCURRENCY, tasks.length) }, async () => {
-    while (queue.length > 0) {
-      await queue.shift()?.();
-    }
-  });
-  await Promise.all(workers);
+  await mapWithConcurrency(tasks, SSG_WARM_CONCURRENCY, (task) => task());
 }

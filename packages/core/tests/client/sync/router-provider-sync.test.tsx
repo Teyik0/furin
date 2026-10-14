@@ -297,6 +297,71 @@ describe("RouterProvider sync refresh", () => {
     expect(loaderReads).toBe(1);
   });
 
+  test.each(["reset", "unknown-tag"])(
+    "%s recovery refreshes the active loader and expires other prefetched routes",
+    async (recovery) => {
+      const reads = new Map<string, number>();
+      let revision = 0;
+      let router: ReturnType<typeof useRouter> | undefined;
+      const app = new Elysia()
+        .get("/_furin/sync/changes", () => ({
+          changes:
+            recovery === "reset"
+              ? []
+              : [{ cursor: "1", invalidations: [{ kind: "tags", tags: ["posts"] }] }],
+          cursor: "1",
+          hasMore: false,
+          reset: recovery === "reset",
+        }))
+        .get("/_furin/data", ({ request }) => {
+          const path = new URL(request.url).searchParams.get("path") ?? "/";
+          reads.set(path, (reads.get(path) ?? 0) + 1);
+          return makeNdjsonResponse({ message: `${path}:${revision}` });
+        });
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        // Happy DOM's AbortSignal cannot be passed to Bun's native Request.
+        const requestInit = { ...init, signal: undefined };
+        return app.handle(
+          input instanceof Request
+            ? new Request(input, requestInit)
+            : new Request(new URL(input, window.location.origin), requestInit)
+        );
+      }) as typeof fetch;
+      function RoutePage(props: PageProps) {
+        router = useRouter();
+        return <main>{String(props.message)}</main>;
+      }
+      const board = makeRoute("/board");
+      board.load = async () => ({
+        default: { component: RoutePage, _route: { __type: "FURIN_ROUTE" } as never },
+      });
+      const sidebar = makeRoute("/sidebar");
+      const rendered = await renderRouter(
+        board,
+        await loadInitialMatch(board),
+        { message: "/board:0" },
+        [board, sidebar]
+      );
+      currentCleanup = rendered.cleanup;
+      expect(router).toBeDefined();
+      await act(async () => {
+        router?.prefetch("/sidebar");
+        await Bun.sleep(0);
+      });
+      expect(reads.get("/sidebar")).toBe(1);
+      revision = 1;
+      await act(async () => {
+        browserEvents.emit("0");
+        await Bun.sleep(0);
+      });
+      expect(rendered.container.textContent).toBe("/board:1");
+      expect(reads.get("/board")).toBe(1);
+      await act(async () => router?.navigate("/sidebar"));
+      expect(reads.get("/sidebar")).toBe(2);
+      expect(rendered.container.textContent).toBe("/sidebar:1");
+    }
+  );
+
   test("a streamed private GET updates promise props optimistically, rolls back, and refreshes on sync", async () => {
     const writeGate = Promise.withResolvers<void>();
     const identity = { id: "board.count", scope: { boardId: "alpha" }, session: "test" };

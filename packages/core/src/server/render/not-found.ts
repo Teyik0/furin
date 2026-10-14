@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
+import { wrapLoaderLayouts } from "../../client/loader-layouts.tsx";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
@@ -13,7 +14,7 @@ import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { buildNotFoundElement, wrapRootLayout } from "./element.tsx";
+import { buildNotFoundElement } from "./element.tsx";
 import { renderToReadableStream } from "./react-stream.ts";
 import { generateIndexHtml } from "./shell.ts";
 import { withSSRRouterContext } from "./ssr.ts";
@@ -27,6 +28,7 @@ import {
  * Renders the root-level not-found component into a complete 404 HTML Response.
  * Used by the Elysia `.error` catch-all when no route matches the request URL.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the catch-all resolves document assets, route context and a safe fallback for an unexecuted root loader.
 export async function renderRootNotFound(
   root: RootLayout,
   request: Request | undefined,
@@ -98,13 +100,17 @@ export async function renderRootNotFound(
   });
 
   const rootData = { params: {}, path: logicalPath, query };
-  const data = { ...rootData, __furinStatus: 404 };
+  const data = {
+    ...rootData,
+    __furinLayouts: root.route.loader || root.route.requestLoader ? [] : [{}],
+    __furinStatus: 404,
+  };
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
     reactStream = await renderToReadableStream(
       withDocumentState(
         withSSRRouterContext(
-          wrapRootLayout(buildNotFoundElement(root.notFound, notFoundError), rootData, root.route),
+          wrapLoaderLayouts(buildNotFoundElement(root.notFound, notFoundError), [root.route], data),
           notFoundContext
         ),
         assets,

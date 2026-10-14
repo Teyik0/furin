@@ -182,12 +182,16 @@ function soleContextForPagesDir(dir: string): CompileContext | null {
 }
 
 function contextForPrefix(prefix: string): CompileContext | null {
+  let match: CompileContext | null = null;
   for (const ctx of _compileContexts.values()) {
     if ((ctx.prefix ?? "") === prefix) {
-      return ctx;
+      if (match) {
+        return null;
+      }
+      match = ctx;
     }
   }
-  return null;
+  return match;
 }
 
 /** All registered contexts, keyed by the composite (pagesDir, prefix) key. */

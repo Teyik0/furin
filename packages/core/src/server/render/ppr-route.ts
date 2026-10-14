@@ -109,11 +109,10 @@ async function readPprArtifact(key: string, buildId: string): Promise<PprArtifac
     if (typeof stored !== "string") {
       return;
     }
-    const artifact: unknown = JSON.parse(stored);
-    if (!isPprArtifact(artifact) || artifact.state.buildId !== buildId) {
+    const artifact = await parseSharedPprArtifact(stored, buildId);
+    if (artifact === undefined) {
       throw new Error("Invalid PPR artifact");
     }
-    await pprPublicResult(artifact.state);
     return artifact;
   } catch {
     getLogger().warn("PPR runtime cache read failed; rendering fresh public data");

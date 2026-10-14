@@ -19,8 +19,8 @@ import {
   type ReadReference,
   type ReadResult,
   readReference,
-  readUrl,
 } from "./query-store.ts";
+import { createRequestId } from "./request-id.ts";
 import {
   findOptimisticRuntime,
   type OptimisticRuntime,
@@ -102,7 +102,7 @@ function queryProjectionCache(
     ) {
       if (typeof destination === "function") {
         const reference = readReference(destination);
-        const url = readUrl(reference, queryOptions);
+        const url = queries.readKey(reference, queryOptions);
         queries.bind(url, () => reference.load(queryOptions), reference.client);
         queries.update(token, url, transform);
       } else {
@@ -127,13 +127,6 @@ type HeaderSource =
   | HeaderSource[];
 type Callable = (...args: unknown[]) => unknown;
 const MUTATIONS = new Set(["post", "put", "patch", "delete"]);
-
-function createIdempotencyKey(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random()}`;
-}
 
 const plugin: TreatyPlugin<SyncPluginType> = {
   name: "furin-sync",
@@ -254,7 +247,7 @@ async function runMutation(
       fetchHeaders.get("Idempotency-Key") ??
       resolved.get("Idempotency-Key") ??
       new Headers(init.headers).get("Idempotency-Key") ??
-      createIdempotencyKey();
+      createRequestId();
     resolved.set("Idempotency-Key", key);
     if (supplied?.fetch?.headers) {
       fetchHeaders.set("Idempotency-Key", key);
@@ -429,7 +422,7 @@ function wrapClient(
           environment?.store ??
           findOptimisticRuntime(new URL(reference.url).origin)?.queries ??
           queries;
-        const url = readUrl(reference, args[0]);
+        const url = store.readKey(reference, args[0]);
         const epoch = store.generation();
         store.bind(url, () => reference.load(args[0]), reference.client);
         const version = store.version(url);

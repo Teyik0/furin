@@ -332,9 +332,6 @@ export function createSearchRouteMetadata(
   const metadata: SearchRouteMetadata[] = [];
   for (const route of routes) {
     const searchDefaults = collectSearchDefaults(mergeRouteSchemas(route.routeChain, "query"));
-    if (!searchDefaults) {
-      continue;
-    }
     metadata.push({
       pattern: route.pattern,
       regex: buildRouteRegex(route.pattern).regex,

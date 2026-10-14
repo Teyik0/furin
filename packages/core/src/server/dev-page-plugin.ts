@@ -65,14 +65,16 @@ import { publishDevError } from "./dev/error.ts";
 import { developmentGraphs, resolveDevSourceImports } from "./dev/graph.ts";
 import { rewriteModuleSpecifiers } from "./dev/rewrite-module-specifiers.ts";
 import { DevTransformFailure } from "./dev/transform-failure.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "./lang-detect.ts";
 import { routeModuleSourceVersion } from "./router/source-version.ts";
 
 // Matches ?furin-server with an optional &t=<ms> cache-buster.
 const FURIN_SERVER_FILTER = /\?furin-server(?:&t=\d+)?$/;
 const FURIN_RENDER_FILTER = /\?furin-render&t=\d+$/;
+const COMMONJS_FILE_RE = /\.c[jt]s$/;
 const ANY_FILTER = /.*/;
 export const WORKSPACE_SOURCE_FILTER =
-  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.[jt]sx?$).*\.[jt]sx?$/;
+  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.bun[\\/]))(?!.*\.(?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$).*\.(?:m?[jt]s|[jt]sx)$/;
 const T_PARAM_RE = /&t=(\d+)/;
 const STRIP_FURIN_SERVER_RE = /\?furin-server.*$/;
 const STRIP_T_PARAM_RE = /\?t=\d+$/;
@@ -125,10 +127,6 @@ export function toImportSpecifier(filePath: string): string {
   return filePath.replaceAll("\\", "/");
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
  * Rewrites bare React/react-dom singleton imports in source text to their
  * absolute resolved paths. Handles explicit static import / re-export forms:
@@ -143,13 +141,25 @@ function escapeRegExp(s: string): string {
  * @internal exported for testing
  */
 export function rewriteSingletonImports(source: string): string {
-  let result = source;
-  for (const [pkg, absPath] of SINGLETON_PATHS) {
-    // react-doctor-disable-next-line react-doctor/js-hoist-regexp
-    const re = new RegExp(`((?:from|import(?:\\s+type)?)\\s+)["']${escapeRegExp(pkg)}["']`, "g");
-    result = result.replace(re, (_, g1: string) => `${g1}${JSON.stringify(absPath)}`);
+  const result = new MagicString(source);
+  for (const statement of parseSource(source, "tsx").program.body) {
+    if (
+      statement.type !== "ImportDeclaration" &&
+      statement.type !== "ExportNamedDeclaration" &&
+      statement.type !== "ExportAllDeclaration"
+    ) {
+      continue;
+    }
+    const specifier = (statement as unknown as AstNode).source as AstNode | undefined;
+    if (specifier?.type !== "Literal" || typeof specifier.value !== "string") {
+      continue;
+    }
+    const path = SINGLETON_PATHS.get(specifier.value);
+    if (path) {
+      result.overwrite(specifier.start, specifier.end, JSON.stringify(path));
+    }
   }
-  return result;
+  return result.toString();
 }
 
 /**
@@ -279,25 +289,22 @@ export function rewriteBareImports(transpiled: string, dir: string): string {
       // Leave unresolved imports to Bun's native resolution and diagnostics.
       return;
     }
+    if (
+      WORKSPACE_SOURCE_FILTER.test(resolved) &&
+      specifier !== "furin" &&
+      !specifier.startsWith("furin/") &&
+      specifier !== "@teyik0/furin" &&
+      !specifier.startsWith("@teyik0/furin/")
+    ) {
+      resolved = `${resolved}?furin-server&t=${routeModuleSourceVersion(resolved)}`;
+    }
     output.update(literal.start, literal.end, JSON.stringify(resolved));
   });
   return output.toString();
 }
 
 function getSourceLoader(filePath: string): SourceLoader | null {
-  if (filePath.endsWith(".tsx")) {
-    return "tsx";
-  }
-  if (filePath.endsWith(".ts")) {
-    return "ts";
-  }
-  if (filePath.endsWith(".jsx")) {
-    return "jsx";
-  }
-  if (filePath.endsWith(".js")) {
-    return "js";
-  }
-  return null;
+  return SCRIPT_FILE_FILTER.test(filePath) ? detectLoaderFromPath(filePath) : null;
 }
 
 // Bun.Transpiler drops static import attributes, turning text imports into file paths.
@@ -555,7 +562,10 @@ export function registerDevPagePlugin(): void {
         const filePath = args.path.replace(STRIP_FURIN_SERVER_RE, "");
         // biome-ignore lint/suspicious/noUnnecessaryConditions: the timestamp query is optional.
         const resolvedPath = tMatch ? `${filePath}?t=${tMatch[1]}` : filePath;
-        return { namespace: "furin-dev-page", path: resolvedPath };
+        return {
+          namespace: COMMONJS_FILE_RE.test(filePath) ? "file" : "furin-dev-page",
+          path: resolvedPath,
+        };
       });
 
       /**

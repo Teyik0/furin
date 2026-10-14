@@ -5,6 +5,7 @@ import {
   queryTag,
   queryUrl,
 } from "../shared/sync-query.ts";
+import { createRequestId } from "./request-id.ts";
 
 export const QUERY_REFERENCE = Symbol.for("furin.query.reference.v1");
 
@@ -108,6 +109,11 @@ export function readUrl(reference: ReadReference, options: unknown): string {
 
 export class QueryStore {
   private readonly entries = new Map<string, QueryEntry>();
+  private requests: { client: QueryStore; options: string; url: string; key: string }[] = [];
+  private readonly optionObjects = new WeakMap<object, number>();
+  private readonly requestScope = createRequestId();
+  private nextRequest = 0;
+  private nextOptionObject = 0;
   private readonly listeners = new Set<() => void>();
   private revisionValue = 0;
   private readonly projections = new Set<QueryProjection>();
@@ -120,8 +126,100 @@ export class QueryStore {
   }
 
   private key(url: string): string {
-    const absolute = new URL(url, this.origin).href;
-    return queryUrl(absolute, undefined);
+    const absolute = new URL(url, this.origin);
+    return (
+      queryUrl(absolute.href, undefined) +
+      (absolute.hash.startsWith("#furin-query:") ? absolute.hash : "")
+    );
+  }
+
+  private optionValue(value: unknown): unknown {
+    if (value instanceof Headers) {
+      return [...value.entries()].sort(([left], [right]) => left.localeCompare(right));
+    }
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.optionValue(entry));
+    }
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+    ) {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([, entry]) => entry !== undefined)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, entry]) => [key, this.optionValue(entry)])
+      );
+    }
+    if ((value !== null && typeof value === "object") || typeof value === "function") {
+      let id = this.optionObjects.get(value);
+      if (id === undefined) {
+        this.nextOptionObject += 1;
+        id = this.nextOptionObject;
+        this.optionObjects.set(value, id);
+      }
+      return { object: id };
+    }
+    return value;
+  }
+
+  private headerValue(value: unknown): unknown {
+    if (value instanceof Headers) {
+      return Object.fromEntries(value.entries());
+    }
+    if (typeof value === "function") {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 2 && typeof value[0] === "string") {
+        try {
+          return [value[0].toLowerCase(), String(value[1])];
+        } catch {
+          return value;
+        }
+      }
+      return value.map((source) => this.headerValue(source));
+    }
+    if (value !== null && typeof value === "object") {
+      try {
+        return Object.fromEntries(
+          Object.entries(value).map(([name, header]) => [name.toLowerCase(), String(header)])
+        );
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+
+  /** Options affect cache identity without exposing credentials in URLs or cache keys. */
+  readKey(reference: ReadReference, options: unknown): string {
+    const url = readUrl(reference, options);
+    const requestOptions = Object.fromEntries(
+      Object.entries(options ?? {})
+        .filter(
+          ([option, value]) => option !== "query" && option !== "select" && value !== undefined
+        )
+        .map(([option, value]) => [option, option === "headers" ? this.headerValue(value) : value])
+    );
+    const signature = JSON.stringify(this.optionValue(requestOptions));
+    const existing = this.requests.find(
+      (request) =>
+        request.url === url && request.client === reference.client && request.options === signature
+    );
+    if (existing) {
+      return existing.key;
+    }
+    const useUrl =
+      signature === "{}" &&
+      !this.requests.some((request) => request.url === url && request.key === url);
+    if (!useUrl) {
+      this.nextRequest += 1;
+    }
+    const key = useUrl ? url : `${url}#furin-query:${this.requestScope}:${this.nextRequest}`;
+    this.requests.push({ client: reference.client, options: signature, url, key });
+    return key;
   }
 
   private entry(url: string): QueryEntry {
@@ -179,7 +277,7 @@ export class QueryStore {
     const identity =
       result.identity ?? (header ? (JSON.parse(header) as QueryReadIdentity) : undefined);
     if (identity) {
-      this.setSession(identity.session);
+      this.setSession(identity.session, url);
     }
     const entry = this.entry(url);
     entry.base = result.data;
@@ -205,18 +303,45 @@ export class QueryStore {
       );
       if (oldest) {
         this.entries.delete(oldest[0]);
+        this.requests = this.requests.filter((request) => this.key(request.key) !== oldest[0]);
       }
     }
   }
 
-  private setSession(session: string): void {
-    if (this.session !== undefined && this.session !== session) {
+  private setSession(session: string, url: string): void {
+    let keys: Set<string> | undefined;
+    if (new URL(url, this.origin).hash.startsWith("#furin-query:")) {
+      const key = this.key(url);
+      const request = this.requests.find((item) => this.key(item.key) === key);
+      keys = new Set(
+        request
+          ? this.requests
+              .filter((item) => item.client === request.client && item.options === request.options)
+              .map((item) => this.key(item.key))
+          : [key]
+      );
+    }
+    const entries = [...this.entries]
+      .filter(([key]) => keys === undefined || keys.has(key))
+      .map(([, entry]) => entry);
+    const changed =
+      keys === undefined
+        ? this.session !== undefined && this.session !== session
+        : entries.some(
+            (entry) => entry.identity !== undefined && entry.identity.session !== session
+          );
+    if (changed) {
       this.epoch += 1;
       for (const projection of this.projections) {
-        projection.onRemove?.();
+        for (const entry of entries) {
+          projection.transforms.delete(entry);
+        }
+        if (projection.transforms.size === 0) {
+          this.projections.delete(projection);
+          projection.onRemove?.();
+        }
       }
-      this.projections.clear();
-      for (const entry of this.entries.values()) {
+      for (const entry of entries) {
         entry.base = undefined;
         entry.identity = undefined;
         entry.stale = true;
@@ -225,7 +350,9 @@ export class QueryStore {
         this.publish(entry);
       }
     }
-    this.session = session;
+    if (keys === undefined) {
+      this.session = session;
+    }
   }
 
   generation(): number {
@@ -301,7 +428,11 @@ export class QueryStore {
         entry.promise = undefined;
         entry.snapshot = { ...entry.snapshot, isFetching: false };
         this.publish(entry);
-        if (entry.stale && version !== entry.version && entry.listeners.size > 0) {
+        if (
+          entry.stale &&
+          (version !== entry.version || epoch !== this.epoch) &&
+          entry.listeners.size > 0
+        ) {
           this.fetch(url);
         }
       });
@@ -370,17 +501,18 @@ export class QueryStore {
   }
 
   dehydrate(): QuerySeed[] {
-    return [...this.entries].flatMap(([url, entry]) =>
-      entry.identity && entry.base !== undefined
-        ? [{ url, data: entry.base, identity: entry.identity, local: entry.local }]
-        : []
-    );
+    return [...this.entries].flatMap(([url, entry]) => {
+      if (!entry.identity || entry.base === undefined) {
+        return [];
+      }
+      return [{ url, data: entry.base, identity: entry.identity, local: entry.local }];
+    });
   }
 
   private seedUrl(seed: QuerySeed, localOrigin: string | undefined): string {
     const original = new URL(seed.url, this.origin);
     return seed.local && localOrigin
-      ? new URL(original.pathname + original.search, localOrigin).href
+      ? new URL(original.pathname + original.search + original.hash, localOrigin).href
       : original.href;
   }
 

@@ -21,6 +21,14 @@ type Transaction<Db extends BunSQLiteDatabase<Schema> | BunSQLDatabase<Schema>> 
   Parameters<Db["transaction"]>[0]
 >[0];
 
+function drizzleTransactionSql(db: Pick<BunSQLDatabase<Schema>, "execute">) {
+  return transactionSql(<Rows>(strings: TemplateStringsArray, values: unknown[]) =>
+    Promise.resolve(db.execute(drizzleSql(strings, ...values))).then(
+      (rows) => rows as unknown as Rows
+    )
+  );
+}
+
 export class DrizzleSqliteSyncAdapter<Db extends BunSQLiteDatabase<Schema>>
   extends SqliteSyncAdapter
   implements TransactionalSyncAdapter<Transaction<Db>, "sync">
@@ -71,21 +79,8 @@ export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<Schema>>
   private readonly syncNamespace: string;
 
   constructor(options: { db: Db & { $client: import("bun").SQL }; namespace: string }) {
-    const sql = transactionSql(<Rows>(strings: TemplateStringsArray, values: unknown[]) =>
-      Promise.resolve(options.db.execute(drizzleSql(strings, ...values))).then(
-        (rows) => rows as unknown as Rows
-      )
-    );
-    sql.begin = (callback) =>
-      options.db.transaction((tx) =>
-        callback(
-          transactionSql(<Rows>(strings: TemplateStringsArray, values: unknown[]) =>
-            Promise.resolve(tx.execute(drizzleSql(strings, ...values))).then(
-              (rows) => rows as unknown as Rows
-            )
-          )
-        )
-      );
+    const sql = drizzleTransactionSql(options.db);
+    sql.begin = (callback) => options.db.transaction((tx) => callback(drizzleTransactionSql(tx)));
     super({ namespace: options.namespace, sql, publishNotifications: false });
     this.db = options.db;
     this.syncNamespace = options.namespace;
@@ -96,11 +91,7 @@ export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<Schema>>
     callback: (tx: Transaction<Db>) => AtomicMutationValue<T> | Promise<AtomicMutationValue<T>>
   ): Promise<AtomicMutationResult<T>> {
     return this.db.transaction((tx) => {
-      const sql = transactionSql(<Rows>(strings: TemplateStringsArray, values: unknown[]) =>
-        Promise.resolve(tx.execute(drizzleSql(strings, ...values))).then(
-          (rows) => rows as unknown as Rows
-        )
-      );
+      const sql = drizzleTransactionSql(tx);
       return executePostgresMutation(
         new PostgresSyncAdapter({
           namespace: this.syncNamespace,

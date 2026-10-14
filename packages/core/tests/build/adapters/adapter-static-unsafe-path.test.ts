@@ -21,10 +21,10 @@ test("buildStaticTarget rejects all unsafe output paths before creating artifact
       __type: "FURIN_PAGE",
       _route: routeEntry,
       component: () => null,
-      staticParams: async () => [{ slug: "../../etc/passwd" }],
+      staticParams: async () => [{ "*": "../../etc/passwd" }],
     },
-    path: join(rootDir, "[slug].tsx"),
-    pattern: "/:slug",
+    path: join(rootDir, "[...slug].tsx"),
+    pattern: "/*",
     routeChain: [routeEntry],
     segmentBoundaries: [],
   };

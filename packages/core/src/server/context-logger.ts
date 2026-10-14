@@ -2,7 +2,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { RequestLogger } from "evlog";
 // biome-ignore lint/style/noExportedImports: used locally and re-exported for consumers
 import { createLogger } from "evlog";
-import { getRequestLogger } from "./evlog.ts";
+import { createMiddlewareLogger } from "evlog/toolkit";
+import { physicalPath } from "../shared/prefix.ts";
+import { getFurinEvlogOptions, getRequestLogger, registerEmission } from "./evlog.ts";
+import { currentInstance } from "./instance.ts";
 
 export { createLogger };
 
@@ -63,14 +66,35 @@ export async function runInSyntheticRenderScope<T>(
   fn: () => Promise<T> | T,
   initialContext: Record<string, unknown>
 ): Promise<T> {
-  const logger = createLogger(initialContext);
+  const options = getFurinEvlogOptions();
+  const route = typeof initialContext.route === "string" ? initialContext.route : "/";
+  const middleware =
+    options === undefined
+      ? undefined
+      : createMiddlewareLogger({
+          ...options,
+          waitUntil: undefined,
+          method: "GET",
+          path: physicalPath(currentInstance().prefix, route),
+        });
+  const logger = middleware?.logger ?? createLogger(initialContext);
+  if (middleware) {
+    logger.set(initialContext);
+  }
   try {
-    const result = await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
-    logger.emit();
-    return result;
+    return await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));
   } catch (err) {
     logger.error(err instanceof Error ? err : new Error(String(err)));
-    logger.emit();
     throw err;
+  } finally {
+    const emission = Promise.resolve()
+      .then(() => (middleware ? middleware.finish() : logger.emit()))
+      .then(
+        () => undefined,
+        (error: unknown) => {
+          console.error("[furin] Synthetic log emission failed", error);
+        }
+      );
+    registerEmission(emission, options);
   }
 }

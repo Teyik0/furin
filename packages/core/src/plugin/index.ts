@@ -1,12 +1,12 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { detectLoaderFromPath } from "../server/lang-detect.ts";
+import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
 const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
 const ANY_FILTER = /.*/;
-const SCRIPT_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
 // Minimal browser stub for elysia — `t` is only used for schema definitions
 // in params/query, which the client never validates at runtime.
@@ -38,6 +38,7 @@ export default {};
 const plugin: Bun.BunPlugin = {
   name: "furin-strip-server",
   setup(build) {
+    flightLoaderPlugin().setup(build);
     environmentGuardPlugin("client").setup(build);
     const topologyPaths = new Set<string>();
     const loadedSources = new Map<
@@ -62,15 +63,16 @@ const plugin: Bun.BunPlugin = {
 
     // ── page file stripping ─────────────────────────────────────────────────
     build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
-      if (args.path.includes("node_modules")) {
+      const filePath = args.path.split("?")[0] as string;
+      if (filePath.includes("node_modules")) {
         return;
       }
 
       let source: string;
       try {
-        source = await Bun.file(args.path).text();
+        source = await Bun.file(filePath).text();
       } catch (error) {
-        const loaded = loadedSources.get(args.path);
+        const loaded = loadedSources.get(filePath);
         // Bun can revisit its previous client graph before topology changes remove
         // a deleted route from the hydration entry. Keep that graph loadable.
         if (
@@ -84,25 +86,25 @@ const plugin: Bun.BunPlugin = {
         throw error;
       }
 
-      const normalizedPath = args.path.replaceAll("\\", "/");
+      const normalizedPath = filePath.replaceAll("\\", "/");
       if (normalizedPath.includes("/.furin/") && normalizedPath.endsWith("/_hydrate.tsx")) {
         const transpiler = new Bun.Transpiler({ loader: "tsx" });
         for (const imported of transpiler.scanImports(source)) {
           if (isAbsolute(imported.path) || imported.path.startsWith(".")) {
-            topologyPaths.add(resolve(dirname(args.path), imported.path));
+            topologyPaths.add(resolve(dirname(filePath), imported.path.split("?")[0] as string));
           }
         }
       }
-      const result = transformForClient(source, args.path);
+      const result = transformForClient(source, filePath);
       // Output is TS/TSX (yuku parses directly, no pre-transpile). Bun's
       // bundler picks the loader from the file extension and applies the
       // project tsconfig — including the JSX automatic runtime.
       const loaded = {
         contents: result.code,
-        isRouteModule: topologyPaths.has(args.path),
-        loader: detectLoaderFromPath(args.path),
+        isRouteModule: topologyPaths.has(filePath),
+        loader: detectLoaderFromPath(filePath),
       };
-      loadedSources.set(args.path, loaded);
+      loadedSources.set(filePath, loaded);
       return loaded;
     });
   },

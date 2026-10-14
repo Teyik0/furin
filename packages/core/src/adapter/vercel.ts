@@ -12,6 +12,7 @@ import type { BuildAppOptions, VercelTargetBuildManifest } from "../build/types.
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
 import {
@@ -202,7 +203,11 @@ function exactPathSource(path: string): string {
   return `(?<${ISR_PATH_PARAM}>${escapeRegex(path)})`;
 }
 
-function functionNameForPath(path: string, mode: "isr" | "ssg"): string {
+function functionNameForPath(
+  path: string,
+  mode: "isr" | "ssg",
+  names: Map<string, string>
+): string {
   const normalized =
     path
       .split("/")
@@ -222,11 +227,16 @@ function functionNameForPath(path: string, mode: "isr" | "ssg"): string {
         return `${readable}-${Bun.hash(segment).toString(16).slice(0, 8)}`;
       })
       .join("/") || "index";
-  const slash = normalized.lastIndexOf("/");
-  if (slash === -1) {
-    return `${normalized}-${mode}`;
+  const base = `${normalized}-${mode}`;
+  const identity = `${mode}:${path}`;
+  let name = base;
+  let suffix = 2;
+  while (names.has(name) && names.get(name) !== identity) {
+    name = `${base}-${suffix}`;
+    suffix += 1;
   }
-  return `${normalized.slice(0, slash + 1)}${normalized.slice(slash + 1)}-${mode}`;
+  names.set(name, identity);
+  return name;
 }
 
 function destinationForFunction(functionName: string): string {
@@ -292,7 +302,8 @@ function createFunctionAlias(
 
 function createExactPrerenderSpec(
   prerender: RoutePrerender,
-  routePath: string
+  routePath: string,
+  names: Map<string, string>
 ): PrerenderSpec | undefined {
   if (!DYNAMIC_SEGMENT_RE.test(prerender.route.pattern)) {
     return;
@@ -308,7 +319,7 @@ function createExactPrerenderSpec(
       passQuery: true,
     },
     exact: true,
-    functionName: functionNameForPath(routePath, mode),
+    functionName: functionNameForPath(routePath, mode, names),
     pattern: routePath,
     source,
   };
@@ -321,6 +332,7 @@ async function createPrerenderSpecs(
   pprResumeKey: string
 ): Promise<PrerenderSpec[]> {
   const specs = new Map<string, PrerenderSpec>();
+  const names = new Map<string, string>();
 
   for (const app of apps) {
     for (const route of app.routes) {
@@ -341,7 +353,7 @@ async function createPrerenderSpecs(
             : {}),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
-        functionName: functionNameForPath(physicalPattern, mode),
+        functionName: functionNameForPath(physicalPattern, mode, names),
         pattern: physicalPattern,
         source,
       });
@@ -355,7 +367,7 @@ async function createPrerenderSpecs(
       const routePath = physicalPath(app.prefix, prerender.path);
       const genericSource = routePatternSource(app.prefix, prerender.route.pattern);
       let spec = specs.get(genericSource) as PrerenderSpec;
-      const exactSpec = createExactPrerenderSpec(prerender, routePath);
+      const exactSpec = createExactPrerenderSpec(prerender, routePath, names);
       if (exactSpec !== undefined) {
         exactSpec.config.chain = spec.config.chain;
         spec = exactSpec;
@@ -778,6 +790,7 @@ export async function buildVercelTarget(
       mixedRuntimePlugin(apps),
       ...(options.plugins ?? []),
       createRoutesPlugin({ instances: apps, target: "server" }),
+      clientReferencesPlugin(),
       isomorphicTransformPlugin("server"),
       environmentGuardPlugin("ssr"),
       elysiaAot(appEntry),

@@ -1,5 +1,9 @@
 import type { Context } from "elysia";
-import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import type {
+  RuntimeData,
+  RuntimePage,
+  RuntimeRoute,
+} from "../../client/internal/runtime-types.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import { isFurinRscRenderError } from "../../rsc/render-error.ts";
 import { isDeferred } from "../../shared/defer.ts";
@@ -30,7 +34,13 @@ export type LoaderResult =
       headers: Record<string, string>;
     }
   | { type: "redirect"; response: Response }
-  | { type: "not-found"; error: FurinNotFoundError; headers: Record<string, string> }
+  | {
+      type: "not-found";
+      error: FurinNotFoundError;
+      headers: Record<string, string>;
+      syncData: { [key: string]: unknown };
+      deferredPromises?: { [key: string]: Promise<unknown> };
+    }
   | {
       type: "error";
       /**
@@ -52,6 +62,8 @@ export type LoaderResult =
        */
       message: string;
       headers: Record<string, string>;
+      syncData: { [key: string]: unknown };
+      deferredPromises?: { [key: string]: Promise<unknown> };
     };
 
 /**
@@ -309,6 +321,7 @@ export function runRequestLoaderFields(
       fields: Record<string, Promise<unknown>>;
       fieldsByLoader: Record<string, Promise<unknown>>[];
       noFieldCompletion: Promise<void>;
+      resultsByLoader: (Promise<RuntimeData> | undefined)[];
     }
   | undefined {
   const loaderIndexes = route.routeChain.flatMap((entry, index) =>
@@ -391,7 +404,10 @@ export function runRequestLoaderFields(
   noFieldCompletion.catch(() => {
     /* The caller observes this after the public loaders settle. */
   });
-  return { fields, fieldsByLoader, noFieldCompletion };
+  const resultsByLoader = route.routeChain.map(
+    (_, index) => results.find((entry) => entry.index === index)?.result
+  );
+  return { fields, fieldsByLoader, noFieldCompletion, resultsByLoader };
 }
 
 function requestFieldPromises(
@@ -534,10 +550,12 @@ function sanitizedDeferredError(): Error {
 
 async function normalizeLoaderError(
   err: unknown,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  syncData: RuntimeData,
+  deferredPromises: { [key: string]: Promise<unknown> } | undefined
 ): Promise<Exclude<LoaderResult, { type: "data" }>> {
   if (isNotFoundError(err)) {
-    return { error: err, headers, type: "not-found" };
+    return { deferredPromises, error: err, headers, syncData, type: "not-found" };
   }
   if (err instanceof Response) {
     if (isHttpRedirect(err)) {
@@ -555,7 +573,7 @@ async function normalizeLoaderError(
     const status = isMalformedRedirect ? 500 : err.status;
     const body = await readResponseMessage(err);
     const message = body || "Something went wrong";
-    return { error: err, headers, message, status, type: "error" };
+    return { deferredPromises, error: err, headers, message, status, syncData, type: "error" };
   }
   if (
     err instanceof Error &&
@@ -577,23 +595,35 @@ async function normalizeLoaderError(
     } else if ("title" in err.value && typeof err.value.title === "string") {
       message = err.value.title;
     }
-    return { error: err, headers, message, status: err.status, type: "error" };
+    return {
+      deferredPromises,
+      error: err,
+      headers,
+      message,
+      status: err.status,
+      syncData,
+      type: "error",
+    };
   }
   if (isFurinRscRenderError(err)) {
     getLogger().error(err);
     return {
+      deferredPromises,
       error: err,
       headers,
       message: IS_DEV ? err.message : "Something went wrong",
       status: 500,
+      syncData,
       type: "error",
     };
   }
   return {
+    deferredPromises,
     error: err,
     headers,
     message: "Something went wrong",
     status: 500,
+    syncData,
     type: "error",
   };
 }
@@ -648,14 +678,90 @@ function startSegmentLoader(
   );
 }
 
+async function recoverLoaderError(
+  route: ResolvedRoute,
+  ctx: Context,
+  error: unknown,
+  loaderMap: Map<RuntimeRoute, Promise<RuntimeData>>,
+  requestFields: ReturnType<typeof runRequestLoaderFields>
+): Promise<Exclude<LoaderResult, { type: "data" }>> {
+  let failure = error;
+  const parents: RuntimeData[] = [];
+  const deferredByLayout: { [key: string]: string }[] = [];
+  const deferredPromises: { [key: string]: Promise<unknown> } = {};
+  const merged: RuntimeData = {};
+  for (const [index, segment] of route.routeChain.entries()) {
+    if (
+      (segment.loader && !loaderMap.has(segment)) ||
+      (segment.requestLoader && !requestFields?.resultsByLoader[index])
+    ) {
+      break;
+    }
+    try {
+      // biome-ignore lint/performance/noAwaitInLoops: recover already-started ancestors in route order, stopping at the first failure.
+      const [publicData, requestData] = await Promise.all([
+        loaderMap.get(segment),
+        requestFields?.resultsByLoader[index],
+      ]);
+      const own = publicData ?? {};
+      const { sync, deferred } = splitOneLoaderResult(own);
+      if (requestData) {
+        const fields = Object.fromEntries(
+          Object.entries(requestData).map(([key, value]) => [key, Promise.resolve(value)])
+        );
+        Object.assign(deferred, requestFieldPromises(route, fields, sync, deferred));
+      }
+      const references: { [key: string]: string } = {};
+      for (const [key, promise] of Object.entries(deferred)) {
+        // Stream each layout's value under its own slot so descendant collisions
+        // cannot replace a parent's promise during navigation or hydration.
+        const slot = `__furinLayout${index}:${key}`;
+        references[key] = slot;
+        deferredPromises[slot] = promise;
+        deferredPromises[key] = promise;
+        delete merged[key];
+      }
+      for (const key of Object.keys(sync)) {
+        delete deferredPromises[key];
+      }
+      Object.assign(merged, sync);
+      parents.push(sync);
+      deferredByLayout.push(references);
+    } catch (parentError) {
+      failure = parentError;
+      break;
+    }
+  }
+  const syncData = {
+    ...merged,
+    __furinLayouts: parents,
+    ...(Object.keys(deferredPromises).length > 0
+      ? { __furinLayoutDeferred: deferredByLayout }
+      : {}),
+    params: ctx.params,
+    path: ctx.path,
+    query: ctx.query,
+  };
+  const headers: Record<string, string> = {};
+  Object.assign(headers, ctx.set.headers);
+  return normalizeLoaderError(
+    failure,
+    headers,
+    syncData,
+    Object.keys(deferredPromises).length > 0 ? deferredPromises : undefined
+  );
+}
+
 async function runLoadersInternal(
   route: ResolvedRoute,
   ctx: Context,
   includeRequestData: boolean,
   mixed: boolean
 ): Promise<LoaderResult> {
+  const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
+  let requestFields: ReturnType<typeof runRequestLoaderFields>;
   try {
-    const requestFields = includeRequestData ? runRequestLoaderFields(route, ctx) : undefined;
+    requestFields = includeRequestData ? runRequestLoaderFields(route, ctx) : undefined;
     // Inject `log` so loaders can destructure it directly as `({ log })`.
     // getLogger() resolves the correct logger for every rendering context:
     // live request → evlog request-scoped logger, synthetic render → detached
@@ -664,7 +770,6 @@ async function runLoadersInternal(
       ? Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { log: getLogger() })
       : createPublicLoaderContext(ctx);
     const publicCtxRecord = mixed ? createPublicLoaderContext(ctx) : ctxRecord;
-    const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
 
     // All loaders in the chain start immediately. Each receives a Proxy where
     // parent-data fields are individually-awaitable Promises. The loader opts
@@ -773,9 +878,10 @@ async function runLoadersInternal(
       type: "data",
     };
   } catch (err) {
-    const headers: Record<string, string> = {};
-    Object.assign(headers, ctx.set.headers);
-    return normalizeLoaderError(err, headers);
+    if (err instanceof Response && isHttpRedirect(err)) {
+      return { response: err, type: "redirect" };
+    }
+    return recoverLoaderError(route, ctx, err, loaderMap, requestFields);
   }
 }
 

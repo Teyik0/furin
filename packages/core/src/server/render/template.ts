@@ -13,6 +13,7 @@ import {
   type FurinInstance,
   instanceSlot,
 } from "../instance.ts";
+import { rebaseAssetHref } from "./asset-path.ts";
 
 interface TemplateState {
   devAssets: { assets: DocumentAssets; ts: number } | null;
@@ -226,7 +227,13 @@ export function getProductionPreloadManifest(): ClientPreloadManifest | null {
 }
 
 // Server-side clientModule() calls carry a build key instead of chunk URLs.
-setClientModuleHrefResolver((key) => getProductionPreloadManifest()?.modules[key] ?? []);
+setClientModuleHrefResolver((key) => {
+  const hrefs = getProductionPreloadManifest()?.modules[key] ?? [];
+  const instance = currentInstance();
+  return instance.prefix === instance.declaredPrefix
+    ? hrefs
+    : hrefs.map((href) => rebaseAssetHref(href, instance));
+});
 
 /** @internal test-only — resets all template state */
 export function __resetTemplateState(): void {

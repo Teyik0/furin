@@ -35,6 +35,9 @@ const config: KnipConfig = {
     },
     "packages/core": {
       entry: [
+        // Referenced by generated hydration entries and Bun codec aliases.
+        "src/rsc/client-references.ts",
+        "src/rsc/bundled-client-codec.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",
         "tests/fixtures/sync-prisma/schema.prisma",

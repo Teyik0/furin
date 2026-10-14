@@ -285,6 +285,9 @@ test.serial("a failed route import keeps its tags while healthy route types upda
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
   try {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+      timeoutMs: 3000,
+    });
     await waitForFileContent(typesPath, "fragile: 'fragile';");
     writeAppFile(app.path, "src/pages/fragile.tsx", 'throw new Error("broken route");');
     writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("after"));
@@ -746,6 +749,79 @@ test.serial(
         200
       );
       expect(pageHtml).toContain("Catch-all page");
+    } finally {
+      server.kill();
+      await server.exitCode;
+    }
+  },
+  30_000
+);
+
+test.serial(
+  "dev HTTP routes validate current params schemas before SSR and navigation loaders",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    const pagePath = "src/pages/items/[id].tsx";
+    const pageSource = (version: "after" | "before") =>
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'import { route as rootRoute } from "../root";',
+        "export const route = defineRoute()",
+        `  .config({ layout: rootRoute, ${version === "before" ? 'mode: "ssr"' : 'mode: "isr", revalidate: 60'},`,
+        `    params: t.Object({ id: t.${version === "before" ? "Number" : "String"}() }),`,
+        `    query: t.Object({ page: t.${version === "before" ? "Number" : "String"}() }) })`,
+        `  .loader(({ params, query }) => ({ summary: "${version}:" + typeof params.id + ":" + typeof query.page, id: params.id }))`,
+        "  .page(({ summary, id }) => <main>{summary}:{id}</main>);",
+      ].join("\n");
+    writeAppFile(app.path, pagePath, pageSource("before"));
+    const port = getTestPort();
+    const server = startProcess([process.execPath, "--hot", join(app.path, "src/server.ts")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    const origin = `http://127.0.0.1:${port}`;
+    const navigationPath = (path: string) => `/_furin/data?path=${encodeURIComponent(path)}`;
+    try {
+      const ready = await waitForHttp(`${origin}/_bun_hmr_entry`, { timeoutMs: 10_000 });
+      await ready.arrayBuffer();
+      await Promise.all(
+        ["/items/42?page=1", navigationPath("/items/42?page=1")].map(async (path) => {
+          const response = await fetch(origin + path);
+          const body = await response.text();
+          expect(response.status, `${body}\n${server.getStderr()}`).toBe(200);
+          expect(body).toContain("before:number:number");
+        })
+      );
+      await Promise.all(
+        ["/items/invalid?page=1", navigationPath("/items/invalid?page=1")].map(async (path) => {
+          const response = await fetch(origin + path);
+          await response.arrayBuffer();
+          expect(response.status).toBe(422);
+        })
+      );
+      writeAppFile(app.path, pagePath, pageSource("after"));
+      const deadline = Date.now() + 4000;
+      let body = "";
+      do {
+        // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the route schema watcher.
+        const response = await fetch(origin + navigationPath("/items/42?page=1"));
+        body = await response.text();
+        if (body.includes("after:string:string")) {
+          break;
+        }
+        await Bun.sleep(20);
+      } while (Date.now() < deadline);
+      expect(body, server.getStderr()).toContain("after:string:string");
+      await Promise.all(
+        ["/items/a%2Fb?page=1", navigationPath("/items/a%2Fb?page=1")].map(async (path) => {
+          const response = await fetch(origin + path);
+          const result = await response.text();
+          expect(response.status, result).toBe(200);
+          expect(result).toContain("after:string:string");
+          expect(result).toContain("a/b");
+        })
+      );
     } finally {
       server.kill();
       await server.exitCode;

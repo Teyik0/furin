@@ -4,6 +4,7 @@ import type {
   VercelDeploymentConfig,
 } from "../config";
 import type { ResolvedRoute } from "../server/router/types.ts";
+import type { ClientBoundary } from "../rsc/build/discover.ts";
 
 export interface BuildClientOptions {
   /**
@@ -19,6 +20,8 @@ export interface BuildClientOptions {
   clientDirName?: string;
   /** Inject the evlog client logger into the hydrate entry. Off by default. */
   clientLogging: boolean;
+  /** Client boundaries found in the unstripped server graph. */
+  clientBoundaries?: readonly ClientBoundary[];
   /** Write Bun's complete build metafile to this path when provided. */
   metafilePath?: string;
   /** Package barrels Bun should parse on demand instead of loading in full. */

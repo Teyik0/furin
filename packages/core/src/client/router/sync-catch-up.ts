@@ -1,7 +1,11 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: sync catch-up pages must be fetched sequentially by cursor
+import type { SyncInvalidation } from "../../server/sync/adapter.ts";
+import { encodeInvalidationEntry } from "../../shared/invalidation-header.ts";
+import { type QueryIdentity, queryFromTag } from "../../shared/sync-query.ts";
+
 export interface SyncChangePayload {
   cursor: string;
-  invalidations: readonly string[];
+  invalidations: readonly (string | SyncInvalidation)[];
   queries?: readonly import("../../shared/sync-query.ts").QueryIdentity[];
 }
 
@@ -17,6 +21,36 @@ interface SyncCatchUpOptions {
   onInvalidations: (invalidations: readonly string[]) => void;
   onQueries?: (identities: readonly import("../../shared/sync-query.ts").QueryIdentity[]) => void;
   onReset?: () => void;
+}
+
+const LAYOUT_SUFFIX_RE = /:layout$/;
+
+function changeInvalidations(change: SyncChangePayload): {
+  paths: string[];
+  queries: QueryIdentity[];
+} {
+  const paths: string[] = [];
+  const queries = [...(change.queries ?? [])];
+  for (const entry of change.invalidations) {
+    if (typeof entry === "string") {
+      const trimmed = entry.trim();
+      const type = trimmed.endsWith(":layout") ? "layout" : "page";
+      const path = trimmed.replace(LAYOUT_SUFFIX_RE, "");
+      paths.push(encodeInvalidationEntry(path, type));
+    } else if (entry.kind === "path") {
+      paths.push(encodeInvalidationEntry(entry.path, entry.type));
+    } else {
+      for (const tag of entry.tags) {
+        const identity = queryFromTag(tag);
+        if (identity) {
+          queries.push(identity);
+        } else {
+          paths.push("/:layout");
+        }
+      }
+    }
+  }
+  return { paths, queries };
 }
 
 export interface SyncCatchUp {
@@ -90,9 +124,10 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
           break;
         }
         for (const change of page.changes) {
-          options.onInvalidations(change.invalidations);
-          if (change.queries) {
-            options.onQueries?.(change.queries);
+          const { paths, queries } = changeInvalidations(change);
+          options.onInvalidations(paths);
+          if (queries.length > 0) {
+            options.onQueries?.(queries);
           }
         }
         currentCursor = page.cursor;

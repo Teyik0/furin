@@ -82,6 +82,8 @@ The application API stays the same on every target:
 
 Cache handles resolve the active provider when an operation runs, not when the module is imported. This guarantees that top-level handles created by statically imported route modules still use the deployment provider.
 
+The memory provider retains up to 1,000 values across namespaces and evicts the least recently used value when full. Empty namespaces are released; existing handles remain valid after eviction.
+
 The runtime data cache is intentionally separate from the page cache. Page artifacts need conditional writes and distributed regeneration leases so a render that started before an invalidation cannot publish stale HTML afterward.
 
 ## Shared Page Cache

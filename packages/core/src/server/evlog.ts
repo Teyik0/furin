@@ -6,6 +6,7 @@ import {
   defineFrameworkIntegration,
   shouldDeferEmitForResponse,
 } from "evlog/toolkit";
+import { type FurinInstance, instanceSlot } from "./instance.ts";
 
 interface EvlogRequestContext {
   request: Request;
@@ -32,6 +33,17 @@ const integration = defineFrameworkIntegration<EvlogRequestContext>({
 });
 
 export type FurinEvlogOptions = BaseEvlogOptions;
+const instanceOptions = instanceSlot<{ options: FurinEvlogOptions | undefined }>(() => ({
+  options: undefined,
+}));
+
+export function setFurinEvlogOptions(instance: FurinInstance, options: FurinEvlogOptions): void {
+  instanceOptions(instance).options = options;
+}
+
+export function getFurinEvlogOptions(): FurinEvlogOptions | undefined {
+  return instanceOptions().options;
+}
 
 export const getRequestLogger = loggerStorage.useLogger;
 
@@ -42,6 +54,19 @@ export function setRuntimeEvlogWaitUntil(
 ): () => void {
   runtimeWaitUntil.add(waitUntil);
   return () => runtimeWaitUntil.delete(waitUntil);
+}
+
+export function registerEmission(
+  emission: Promise<void>,
+  options: FurinEvlogOptions | undefined
+): void {
+  if (options?.waitUntil) {
+    options.waitUntil(emission);
+  } else {
+    for (const waitUntil of runtimeWaitUntil) {
+      waitUntil(emission);
+    }
+  }
 }
 
 /** Elysia 2-native evlog integration built on evlog's public adapter toolkit. */
@@ -57,7 +82,8 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
       return { log };
     })
     .wrap((fetch) => async (request, ...rest) => {
-      const handle = integration.start({ request }, options);
+      const requestOptions = getFurinEvlogOptions() ?? options;
+      const handle = integration.start({ request }, requestOptions);
       requestLoggers.set(request, handle.logger);
       try {
         const response = await handle.runWith(() => fetch(request, ...rest));
@@ -86,13 +112,7 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
         });
         // Register before the Vercel request context closes, even though the
         // emission itself starts after this response is returned.
-        if (options.waitUntil) {
-          options.waitUntil(emission);
-        } else {
-          for (const waitUntil of runtimeWaitUntil) {
-            waitUntil(emission);
-          }
-        }
+        registerEmission(emission, requestOptions);
         return response;
       } catch (error) {
         await handle.finish({

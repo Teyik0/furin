@@ -15,10 +15,44 @@ import { Elysia, t } from "elysia";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { collectRouteTags } from "../../../src/server/router/discovery.ts";
 import { mergeRouteSchemas } from "../../../src/server/router/schema-merge.ts";
-import { parseRouteQuery } from "../../../src/server/router/schemas.ts";
+import { createSearchRouteMetadata, parseRouteQuery } from "../../../src/server/router/schemas.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { buildSearchParams, findSearchDefaults } from "../../../src/shared/search-params.ts";
 
 const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
+
+test("root search defaults take priority over a matching catch-all", () => {
+  const metadata = createSearchRouteMetadata([
+    {
+      pattern: "/*",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "wildcard" }) }) },
+      ],
+    },
+    {
+      pattern: "/",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "root" }) }) },
+      ],
+    },
+  ]);
+  expect(buildSearchParams({ tab: "root" }, findSearchDefaults("/", metadata)).toString()).toBe("");
+});
+
+test("a route without defaults keeps search values matching a less specific route's defaults", () => {
+  const metadata = createSearchRouteMetadata([
+    {
+      pattern: "/products/:id",
+      routeChain: [
+        { __type: "FURIN_ROUTE", query: t.Object({ tab: t.String({ default: "details" }) }) },
+      ],
+    },
+    { pattern: "/products/new", routeChain: [{ __type: "FURIN_ROUTE" }] },
+  ]);
+  expect(
+    buildSearchParams({ tab: "details" }, findSearchDefaults("/products/new", metadata)).toString()
+  ).toBe("tab=details");
+});
 
 let originalDevMode: boolean;
 beforeAll(() => {

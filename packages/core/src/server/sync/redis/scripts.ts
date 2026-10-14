@@ -57,7 +57,7 @@ if ARGV[3] ~= '[]' then
     local oldest = redis.call('XRANGE', KEYS[2], '-', '+', 'COUNT', 1)
     if oldest[1] then redis.call('SET', KEYS[3], oldest[1][1]) end
   end
-  cursor = redis.call('XADD', KEYS[2], 'MAXLEN', '=', ARGV[5], '*', 'data', ARGV[3])
+  cursor = redis.call('XADD', KEYS[2], 'MAXLEN', '=', ARGV[5], '*', 'data', ARGV[3], 'principal', ARGV[6])
 end
 redis.call('SET', KEYS[1], cjson.encode(value), 'PX', ARGV[4])
 return {'committed', cursor}

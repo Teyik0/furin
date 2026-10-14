@@ -72,6 +72,46 @@ test("the dev topology watcher reloads only when the route set changes", async (
   }
 });
 
+test("a reloaded server mount replaces its watcher without letting stale cleanup stop it", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-reload-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "index.ts"), "export const route = 1;\n");
+  const server = {};
+  let staleChanges = 0;
+  let currentChanges = 0;
+  const previous = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    owner: { app: server, prefix: "/admin" },
+    onTopologyChange: () => {
+      staleChanges += 1;
+    },
+  });
+  const current = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    owner: { app: server, prefix: "/admin" },
+    onTopologyChange: () => {
+      currentChanges += 1;
+    },
+  });
+  try {
+    writeFileSync(join(pagesDir, "added.ts"), "export const route = 2;\n");
+    await current.refresh();
+    await previous.refresh();
+    expect(currentChanges).toBe(1);
+    expect(staleChanges).toBe(0);
+    previous.close();
+    writeFileSync(join(pagesDir, "later.ts"), "export const route = 3;\n");
+    await current.refresh();
+    expect(currentChanges).toBe(2);
+    expect(staleChanges).toBe(0);
+  } finally {
+    previous.close();
+    current.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
 test("the dev topology watcher observes transitive route dependencies", async () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-dependency-watch-"));
   const pagesDir = join(projectRoot, "src/pages");

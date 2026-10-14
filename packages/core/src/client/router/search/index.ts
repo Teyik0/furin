@@ -1,5 +1,5 @@
 import type { RouteSearch, RouteTo } from "@teyik0/furin/link";
-import { useCallback, useContext, useSyncExternalStore } from "react";
+import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
   type SearchParamsInput,
@@ -56,16 +56,26 @@ function useSearchSelection<To extends SearchRouteTo, TSelected>(
 ): TSelected {
   const store = useContext(SearchStoreContext) ?? FALLBACK_SEARCH_STORE;
 
-  const getSnapshot = useCallback(() => {
-    const snapshot = store.getSnapshot();
-    assertSearchRoute(from, snapshot, store);
-    return selector(snapshot.search as ResolvedRouteSearch<To>);
+  const selectSnapshot = useMemo(() => {
+    let previous: { snapshot: SearchStoreSnapshot; selection: TSelected } | undefined;
+    return (snapshot: SearchStoreSnapshot): TSelected => {
+      assertSearchRoute(from, snapshot, store);
+      if (previous?.snapshot === snapshot) {
+        return previous.selection;
+      }
+      const selection = selector(snapshot.search as ResolvedRouteSearch<To>);
+      previous = { snapshot, selection };
+      return selection;
+    };
   }, [from, selector, store]);
-  const getServerSnapshot = useCallback(() => {
-    const snapshot = store.getServerSnapshot();
-    assertSearchRoute(from, snapshot, store);
-    return selector(snapshot.search as ResolvedRouteSearch<To>);
-  }, [from, selector, store]);
+  const getSnapshot = useCallback(
+    () => selectSnapshot(store.getSnapshot()),
+    [selectSnapshot, store]
+  );
+  const getServerSnapshot = useCallback(
+    () => selectSnapshot(store.getServerSnapshot()),
+    [selectSnapshot, store]
+  );
 
   return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot);
 }

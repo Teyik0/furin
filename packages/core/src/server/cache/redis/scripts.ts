@@ -123,8 +123,26 @@ redis.call('HINCRBY', KEYS[1], ARGV[1], 1)
 redis.call('PEXPIRE', KEYS[1], ARGV[4])
 local now_parts = redis.call('TIME')
 local now = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2]) / 1000)
-redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now)
-local members = redis.call('ZRANGE', KEYS[2], 0, -1)
+local function matching_members(key)
+  redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
+  if ARGV[3] == 'layout' and ARGV[2] == '/' then
+    return redis.call('ZRANGE', key, 0, -1)
+  end
+  local needle = key == KEYS[2] and ARGV[5] or ARGV[6]
+  local members = {}
+  local offset = 0
+  repeat
+    local batch = redis.call('ZRANGE', key, offset, offset + 999)
+    for _, member in ipairs(batch) do
+      if string.find(member, needle, 1, true) then
+        table.insert(members, member)
+      end
+    end
+    offset = offset + #batch
+  until #batch < 1000
+  return members
+end
+local members = matching_members(KEYS[2])
 local seen = {}
 local affected = {}
 local function matches_path(path)
@@ -145,8 +163,7 @@ for _, member in ipairs(members) do
     end
   end
 end
-redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
-for _, member in ipairs(redis.call('ZRANGE', KEYS[3], 0, -1)) do
+for _, member in ipairs(matching_members(KEYS[3])) do
   local lease = cjson.decode(member)
   if matches_path(lease.path) and not seen[lease.path] then
     seen[lease.path] = true

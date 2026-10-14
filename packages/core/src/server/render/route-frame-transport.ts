@@ -14,13 +14,14 @@ export async function serializeDeferredRouteFrame(
   idPrefix: string
 ): Promise<string> {
   try {
-    const { rscFrames, value } = serializeRouteFrameValue(await promise, idPrefix);
+    const { rscFrames, value, references } = serializeRouteFrameValue(await promise, idPrefix);
     const queries = deferredQuerySeeds(promise);
     return (
       serializeRouteFrame({
         key,
         type: "defer-resolve",
         value,
+        ...(references && { references }),
         ...(queries && { queries: toCrossJSON(queries) }),
       }) + rscFrames
     );

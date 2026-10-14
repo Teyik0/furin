@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from "react";
 import { drainFlight } from "./rsc/flight-drain.ts";
 import type { RscRenderOperation } from "./rsc/render-error.ts";
+import { installClientCodec } from "./rsc/server-client-codec.ts";
 import { renderFlight } from "./rsc/server-codec.ts";
 import type {
   CompositeComponentSource,
@@ -9,6 +10,8 @@ import type {
 } from "./rsc/shared.tsx";
 import { decodeFlightBytes } from "./rsc/shared.tsx";
 import { RSC_SOURCE, SLOT_MARKER } from "./rsc/symbols.ts";
+
+installClientCodec();
 
 // biome-ignore lint/performance/noBarrelFile: react-server condition for the public furin/rsc entrypoint
 export { FurinRscRenderError, isFurinRscRenderError } from "./rsc/render-error.ts";

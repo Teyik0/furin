@@ -3,7 +3,9 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { currentInstance, type FurinInstance } from "../instance.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../lang-detect.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
+import { WeakRegistry } from "../weak-registry.ts";
 
 export const DEV_ERROR_PROTOCOL_VERSION = 1;
 
@@ -78,7 +80,7 @@ export function resolveDevSourceImports(
   for (const imported of transpiler.scanImports(source)) {
     try {
       const extension = extname(imported.path);
-      const isSourceExtension = [".js", ".jsx", ".ts", ".tsx"].includes(extension);
+      const isSourceExtension = SCRIPT_FILE_FILTER.test(imported.path);
       const absolute =
         imported.path.startsWith(".") && extension && !isSourceExtension
           ? resolve(dirname(path), imported.path)
@@ -454,48 +456,59 @@ export class DevGraph<Snapshot> {
 }
 
 function sourceLoader(path: string): "js" | "jsx" | "ts" | "tsx" | undefined {
-  const extension = extname(path);
-  if (extension === ".js" || extension === ".jsx" || extension === ".ts" || extension === ".tsx") {
-    return extension.slice(1) as "js" | "jsx" | "ts" | "tsx";
-  }
+  return SCRIPT_FILE_FILTER.test(path) ? detectLoaderFromPath(path) : undefined;
 }
 
 const DEV_GRAPH_STATE = Symbol.for("@teyik0/furin/dev-graph");
-const DEVELOPMENT_GRAPHS = Symbol.for("@teyik0/furin/development-graphs");
+const DEVELOPMENT_GRAPHS = Symbol.for("@teyik0/furin/development-graph-registry");
 
-function developmentGraphMap(): Map<string, DevGraph<DevelopmentRouteSnapshot | null>> {
+function developmentGraphMap(): WeakRegistry<DevGraph<DevelopmentRouteSnapshot | null>> {
   const existing = Reflect.get(globalThis, DEVELOPMENT_GRAPHS);
-  if (existing instanceof Map) {
-    return existing as Map<string, DevGraph<DevelopmentRouteSnapshot | null>>;
+  if (existing) {
+    return existing as WeakRegistry<DevGraph<DevelopmentRouteSnapshot | null>>;
   }
-  const graphs = new Map<string, DevGraph<DevelopmentRouteSnapshot | null>>();
+  const graphs = new WeakRegistry<DevGraph<DevelopmentRouteSnapshot | null>>();
+  const legacyKey = Symbol.for("@teyik0/furin/development-graphs");
+  const legacy = Reflect.get(globalThis, legacyKey) as
+    | Map<string, DevGraph<DevelopmentRouteSnapshot | null>>
+    | undefined;
+  if (legacy) {
+    for (const graph of legacy.values()) {
+      graphs.add(graph);
+    }
+    legacy.clear();
+    Reflect.deleteProperty(globalThis, legacyKey);
+  }
   Reflect.set(globalThis, DEVELOPMENT_GRAPHS, graphs);
   return graphs;
 }
 
 export function developmentGraphs(): DevGraph<DevelopmentRouteSnapshot | null>[] {
-  return [...new Set(developmentGraphMap().values())];
+  return [...developmentGraphMap().values()];
 }
 
 export function devGraph(
   instance: FurinInstance | undefined
 ): DevGraph<DevelopmentRouteSnapshot | null> {
   const target = instance ?? currentInstance();
-  const key = `${target.pagesDir}\0${target.prefix}`;
   const graphs = developmentGraphMap();
-  const registered = graphs.get(key);
-  if (registered) {
-    target.state.set(DEV_GRAPH_STATE, registered);
-    return registered;
-  }
   const existing = target.state.get(DEV_GRAPH_STATE);
   if (existing !== undefined) {
     const graph = existing as DevGraph<DevelopmentRouteSnapshot | null>;
-    graphs.set(key, graph);
+    graphs.add(graph);
     return graph;
   }
   const graph = new DevGraph<DevelopmentRouteSnapshot | null>(null);
   target.state.set(DEV_GRAPH_STATE, graph);
-  graphs.set(key, graph);
+  graphs.add(graph);
   return graph;
+}
+
+export function releaseDevGraph(instance: FurinInstance): void {
+  const graph = instance.state.get(DEV_GRAPH_STATE) as
+    | DevGraph<DevelopmentRouteSnapshot | null>
+    | undefined;
+  if (graph) {
+    developmentGraphMap().delete(graph);
+  }
 }

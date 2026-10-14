@@ -32,7 +32,12 @@ import {
   type SyncInvalidationSelector,
   type SyncReadOption,
 } from "./queries.ts";
-import { mergeStoredResponseHeaders, replayResponse, storeResponse } from "./response.ts";
+import {
+  effectiveResponseHeaders,
+  mergeStoredResponseHeaders,
+  replayResponse,
+  storeResponse,
+} from "./response.ts";
 import { resolveSyncRuntime } from "./runtime.ts";
 import { bindSyncValidation, syncValidationApp } from "./validation.ts";
 
@@ -74,6 +79,13 @@ const routeMetadata = new WeakMap<Request, RouteSyncMetadata>();
 const activeMutations = new WeakMap<Request, ActiveMutation>();
 const atomicCalls = new WeakSet<Request>();
 const atomicResponses = new WeakMap<Request, { response: StoredResponse; value: unknown }>();
+interface SyncOwner {
+  id: number;
+  mutationFor: (context: MutationContext & Pick<Context, "set">) => unknown;
+}
+const syncOwners = new WeakMap<SyncRuntimeOptions<SyncAdapter>, SyncOwner>();
+const requestOwners = new WeakMap<Request, SyncOwner>();
+let ownerId = 0;
 
 function hideTransportResponse<TContext>(
   hook: (context: TContext) => Promise<Response | undefined>
@@ -129,7 +141,27 @@ function leaseLostResponse(): Response {
   );
 }
 
-function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {
+function syncRouteMacro(input: SyncRouteOption) {
+  return {
+    transform({ request }: Pick<Context, "request">) {
+      routeMetadata.set(
+        request,
+        input === false
+          ? { disabled: true }
+          : {
+              disabled: false,
+              invalidate: invalidationInputFromSync(input),
+              read: "id" in input ? input : undefined,
+            }
+      );
+    },
+  };
+}
+
+function createSyncPlugin<Adapter extends SyncAdapter>(
+  options: SyncRuntimeOptions<Adapter>,
+  owner: SyncOwner
+) {
   const runtime = resolveSyncRuntime(options);
   const transactional =
     "executeMutation" in options.adapter
@@ -266,18 +298,25 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
     if (pending.length > 0) {
       ctx.set.headers["x-furin-sync"] = "1";
     }
-    const response = mergeStoredResponseHeaders(result.response, ctx.set.headers);
+    const response = mergeStoredResponseHeaders(
+      result.response,
+      result.kind === "unreplayable"
+        ? ctx.set.headers
+        : effectiveResponseHeaders(ctx.responseValue, ctx.set)
+    );
     const semanticInvalidations = normalizedInvalidations(invalidate);
-    const invalidations = [...semanticInvalidations];
-    for (const manual of pendingPathInvalidations(manualPending)) {
-      const duplicated = semanticInvalidations.some(
-        (semantic) =>
-          semantic.kind === "path" && semantic.path === manual.path && semantic.type === manual.type
-      );
-      if (!duplicated) {
-        invalidations.push(manual);
-      }
-    }
+    const invalidations = [
+      ...semanticInvalidations,
+      ...pendingPathInvalidations(manualPending).filter(
+        (manual) =>
+          !semanticInvalidations.some(
+            (semantic) =>
+              semantic.kind === "path" &&
+              semantic.path === manual.path &&
+              semantic.type === manual.type
+          )
+      ),
+    ];
     const completion = await runtime.adapter.completeMutation({
       invalidations,
       lease: active.lease,
@@ -333,20 +372,32 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
     }
   }
 
-  const finishMutationHook = hideTransportResponse(finishMutation);
-
-  const plugin = new Elysia({ name: "furin-sync" })
-    .derive("global", (ctx) => ({ mutation: mutationFor(ctx) }))
+  owner.mutationFor = mutationFor;
+  const plugin = new Elysia({ name: `furin-sync:${owner.id}` })
+    .derive("global", (ctx) => ({
+      mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
+    }))
     .beforeHandle("global", (context) => {
       if (
+        requestOwners.get(context.request) === owner &&
         isMutationMethod(context.request.method) &&
         !routeMetadata.get(context.request)?.disabled
       ) {
         prepareMutationHandler(context, () => beginMutation(context));
       }
     })
-    .afterHandle("global", finishMutationHook)
+    .afterHandle(
+      "global",
+      hideTransportResponse((context: CompletionContext) =>
+        requestOwners.get(context.request) === owner
+          ? finishMutation(context)
+          : Promise.resolve(undefined)
+      )
+    )
     .afterHandle("global", async (ctx) => {
+      if (requestOwners.get(ctx.request) !== owner) {
+        return;
+      }
       const read = routeMetadata.get(ctx.request)?.read;
       if (
         ctx.request.method !== "GET" ||
@@ -376,43 +427,41 @@ function createSyncPlugin<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
     .error(
       "global",
       MutationLeaseLost,
-      hideTransportResponse(() => Promise.resolve(leaseLostResponse()))
+      hideTransportResponse(({ request }: { request: Request }) =>
+        Promise.resolve(requestOwners.get(request) === owner ? leaseLostResponse() : undefined)
+      )
     )
     .error(
       "global",
       hideTransportResponse(async ({ request }: { request: Request }) => {
+        if (requestOwners.get(request) !== owner) {
+          return;
+        }
         atomicResponses.delete(request);
         atomicCalls.delete(request);
         await abortMutation(request);
       })
     )
-    .macro({
-      sync(input: SyncRouteOption) {
-        return {
-          transform({ request }) {
-            routeMetadata.set(
-              request,
-              input === false
-                ? { disabled: true }
-                : {
-                    disabled: false,
-                    invalidate: invalidationInputFromSync(input),
-                    read: "id" in input ? input : undefined,
-                  }
-            );
-          },
-        };
-      },
-    });
+    .macro({ sync: syncRouteMacro });
   return plugin;
 }
 
 export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptions<Adapter>) {
   return (app: Elysia) => {
+    let owner = syncOwners.get(options);
+    if (!owner) {
+      ownerId += 1;
+      owner = { id: ownerId, mutationFor: () => undefined };
+      syncOwners.set(options, owner);
+    }
+    const routeOwner = owner;
+    app.transform(({ request }) => {
+      requestOwners.set(request, routeOwner);
+    });
     installMutationHandlers(app);
     if ("executeMutation" in options.adapter) {
       bindSyncValidation(app);
     }
-    return app.use(createSyncPlugin(options));
+    return app.use(createSyncPlugin(options, owner));
   };
 }

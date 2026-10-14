@@ -1,4 +1,6 @@
 import type { PostponedState } from "react-dom/static";
+import { currentInstance } from "../instance.ts";
+import { rebaseCachedDocument } from "./asset-path.ts";
 
 export interface PprResumeState {
   buildId: string;
@@ -94,7 +96,7 @@ export function pprContentType(state: string): string {
 
 export function pprPrerenderResponse(artifact: { html: string; state: PprResumeState }): Response {
   const state = JSON.stringify(artifact.state);
-  return new Response(state + artifact.html, {
+  return new Response(state + rebaseCachedDocument(artifact.html, currentInstance()), {
     headers: {
       "cache-control": "private, no-store",
       "cache-tag": new URL(artifact.state.path, "http://furin.local").pathname,

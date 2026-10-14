@@ -1,5 +1,6 @@
 import { type AnyElysia, type Context, Elysia, problem } from "elysia";
 import { toCrossJSONAsync } from "seroval";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
@@ -116,17 +117,28 @@ async function serializeLoaderDataResponse(
     return serializeNavigationRedirect(result.response, pageUrl, prefix);
   }
   if (result.type === "not-found") {
-    const serialized = await toCrossJSONAsync({
-      __furinNotFound: { data: result.error.data, message: result.error.message },
-      __furinStatus: 404,
-    });
-    return new Response(`${JSON.stringify(serialized)}\n`, {
+    const body = await serializeLoaderDataNdjson(
+      {
+        ...result.syncData,
+        __furinNotFound: { data: result.error.data, message: result.error.message },
+        __furinStatus: 404,
+      },
+      result.deferredPromises
+    );
+    return new Response(body, {
       headers: { "content-type": "application/x-ndjson" },
       status: 200,
     });
   }
   if (result.type === "error") {
-    return createRouteDataErrorResponse(result.error, result.message, result.status, routeContext);
+    return createRouteDataErrorResponse(
+      result.error,
+      result.message,
+      result.status,
+      routeContext,
+      result.syncData,
+      result.deferredPromises
+    );
   }
 
   const syncDataWithTitle = withResolvedHead(route, result.syncData);
@@ -262,19 +274,21 @@ async function createRouteDataErrorResponse(
   error: unknown,
   message: string,
   status: number,
-  routeContext: RouteDataContext | undefined
+  routeContext: RouteDataContext | undefined,
+  data: RuntimeData | undefined,
+  deferredPromises: { [key: string]: Promise<unknown> } | undefined
 ): Promise<Response> {
   const __furinError = { digest: computeErrorDigest(error), message, status };
-  const payload = routeContext
-    ? {
-        __furinError,
-        params: routeContext.params,
-        path: routeContext.path,
-        query: routeContext.query,
-      }
-    : { __furinError };
-  const serialized = await toCrossJSONAsync(payload);
-  return new Response(`${JSON.stringify(serialized)}\n`, {
+  const payload = {
+    ...data,
+    ...(routeContext
+      ? { params: routeContext.params, path: routeContext.path, query: routeContext.query }
+      : {}),
+    __furinError,
+    __furinLayouts: data?.__furinLayouts ?? [],
+  };
+  const body = await serializeLoaderDataNdjson(payload, deferredPromises);
+  return new Response(body, {
     headers: { "content-type": "application/x-ndjson" },
     status,
   });
@@ -291,7 +305,14 @@ async function resolveDataRoute(
     if (IS_DEV) {
       reportDevRouteFailure(error, route);
     }
-    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+    return createRouteDataErrorResponse(
+      error,
+      "Something went wrong",
+      500,
+      undefined,
+      undefined,
+      undefined
+    );
   }
 }
 
@@ -303,7 +324,14 @@ async function resolveDataRoutes(
     return typeof routesSource === "function" ? await routesSource(request) : routesSource;
   } catch (error) {
     getLogger().error(error instanceof Error ? error : new Error(String(error)));
-    return createRouteDataErrorResponse(error, "Something went wrong", 500, undefined);
+    return createRouteDataErrorResponse(
+      error,
+      "Something went wrong",
+      500,
+      undefined,
+      undefined,
+      undefined
+    );
   }
 }
 

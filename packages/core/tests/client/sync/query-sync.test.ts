@@ -7,6 +7,7 @@ import { drizzleSyncAdapter } from "../../../src/server/sync/drizzle/index.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
+import { queryTag } from "../../../src/shared/sync-query.ts";
 
 test("identified GETs and committed mutations share a board-scoped identity", async () => {
   const database = new Database(":memory:");
@@ -54,8 +55,15 @@ test("identified GETs and committed mutations share a board-scoped identity", as
     ]);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
-      changes: [],
-      reset: true,
+      changes: [
+        {
+          cursor: "1",
+          invalidations: [
+            { kind: "tags", tags: [queryTag({ id: "board.cards", scope: { boardId: "alpha" } })] },
+          ],
+        },
+      ],
+      reset: false,
     });
   } finally {
     database.close();
@@ -134,8 +142,15 @@ test("atomic query invalidations roll back with the domain write and replay with
     expect(selections).toBe(2);
     const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
     expect(await changes.json()).toMatchObject({
-      changes: [],
-      reset: true,
+      changes: [
+        {
+          cursor: "1",
+          invalidations: [
+            { kind: "tags", tags: [queryTag({ id: "board.cards", scope: { boardId: "alpha" } })] },
+          ],
+        },
+      ],
+      reset: false,
     });
   } finally {
     database.close();

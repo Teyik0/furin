@@ -21,6 +21,7 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 const { generateProdIndexHtml } = await import("../../../src/server/render/shell");
 
 const tmpApps: TmpApp[] = [];
+const HEAD_JSON_RE = /id="__FURIN_HEAD__"[^>]*>([\s\S]*?)<\/script>/;
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
 const originalPath = process.env.PATH;
@@ -295,6 +296,90 @@ test.serial("furin() production hydrates embedded SSG cache", async () => {
   expect(instance).toBeInstanceOf(Elysia);
   expect(getSSGCache("/")?.html).toBe("<html>prebuilt</html>");
 });
+
+test.serial(
+  "prebuilt SSG documents preserve physical URLs under nested parent mounts",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    __setDevMode(false);
+    const rootPath = join(app.path, "src/pages/root.tsx");
+    writeFileSync(
+      rootPath,
+      (await Bun.file(rootPath).text()).replace('mode: "ssr"', 'mode: "ssg"')
+    );
+    const indexPath = join(app.path, "src/pages/index.tsx");
+    writeFileSync(
+      indexPath,
+      `${(await Bun.file(indexPath).text()).replace(
+        ".page(",
+        '.loader(() => { runtimeLoaderReads += 1; throw new Error("Runtime loader forbidden"); }).page('
+      )}\nexport let runtimeLoaderReads = 0;\n`
+    );
+    const clientDir = join(app.path, "client");
+    mkdirSync(clientDir, { recursive: true });
+    writeFileSync(
+      join(clientDir, "index.html"),
+      generateProdIndexHtml(
+        "/admin/_client/entry.js",
+        ["/admin/_client/style.css"],
+        "build",
+        undefined,
+        false
+      )
+    );
+    __setCompileContext({
+      ...(await createCompileContext(app.path)),
+      prefix: "/admin",
+      ssgCache: {
+        "/": {
+          cachedAt: 123,
+          status: 200,
+          ndjson: "{}\n",
+          html: '<html><head><meta name="furin-base-path" content="/admin"><link rel="stylesheet" href="/admin/_client/style.css"><script src="/admin/_client/head.js"></script><link rel="icon" href="/admin/custom.ico"><link rel="modulepreload" href="/admin/custom-module.js"><link rel="alternate" href="/admin?mode=x#tab"><link rel="alternate" href="/admin#fragment"><link rel="alternate" href="https://example.org/admin?mode=x"></head><body>prebuilt<script id="__FURIN_DATA__" type="application/json">{"snapshot":"/admin/_client/private-value.js"}</script><script id="__FURIN_HEAD__" type="application/json">{"links":[{"rel":"stylesheet","href":"/admin/_client/style.css"},{"rel":"alternate","href":"/admin?mode=x#tab"},{"rel":"alternate","href":"/admin#fragment"},{"rel":"alternate","href":"https://example.org/admin?mode=x"}],"scripts":[{"src":"/admin/_client/head.js"},{"children":"window.snapshot=\\"/admin/_client/private-value.js\\";"}],"meta":[{"name":"furin-base-path","content":"/admin"},{"title":"Snapshot title"}]}</script><script id="__FURIN_SYNC__" type="application/json">{"path":"/sync"}</script><script>window.authorValue="/admin/_client/private-value.js";</script><script src="/admin/author.js"></script><script type="module" src="/admin/_client/entry.js"></script></body></html>',
+        },
+      },
+    });
+    const plugin = await furin({
+      prefix: "/admin",
+      pagesDir: join(app.path, "src/pages"),
+      clientDir,
+    });
+    const composed = new Elysia({ prefix: "/outer" }).use(
+      new Elysia({ prefix: "/inner" }).use(plugin)
+    );
+    const response = await composed.handle(new Request("http://localhost/outer/inner/admin/"));
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
+    expect(html).toContain('src="/outer/inner/admin/_client/entry.js"');
+    expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
+    expect(html).toContain('{"snapshot":"/admin/_client/private-value.js"}');
+    expect(html).toContain('window.authorValue="/admin/_client/private-value.js";');
+    expect(html).toContain('src="/admin/author.js"');
+    expect(html).toContain('{"path":"/sync"}');
+    expect(html).toContain('"name":"furin-base-path","content":"/outer/inner/admin"');
+    expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
+    expect(html).toContain('href="/outer/inner/admin/custom.ico"');
+    expect(html).toContain('href="/outer/inner/admin/custom-module.js"');
+    expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
+    expect(html).toContain('href="/outer/inner/admin#fragment"');
+    expect(html).toContain('href="https://example.org/admin?mode=x"');
+    const serializedHead = html.match(HEAD_JSON_RE)?.[1];
+    expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
+      links: [
+        { rel: "stylesheet", href: "/outer/inner/admin/_client/style.css" },
+        { rel: "alternate", href: "/outer/inner/admin?mode=x#tab" },
+        { rel: "alternate", href: "/outer/inner/admin#fragment" },
+        { rel: "alternate", href: "https://example.org/admin?mode=x" },
+      ],
+      scripts: [
+        { src: "/outer/inner/admin/_client/head.js" },
+        { children: 'window.snapshot="/admin/_client/private-value.js";' },
+      ],
+    });
+    expect((await import(indexPath)).runtimeLoaderReads).toBe(0);
+  }
+);
 
 test.serial("furin() production preloads route chunks from the compiled manifest", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));

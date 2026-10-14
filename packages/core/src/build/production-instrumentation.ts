@@ -6,9 +6,10 @@ const DEV_RUNTIME_IMPORT =
   /(?:^|[/\\])server[/\\]dev[/\\](?:browser-events|diagnostics|graph|plugin)(?:\.ts|\.js)?$/;
 const DEV_BUILD_IMPORT =
   /(?:^|[/\\])(?:build[/\\]hydrate|plugin[/\\](?:route-config-autofix|transform-client))(?:\.ts|\.js)?$/;
+const DEV_RSC_BUILD_IMPORT = /(?:^|[/\\])rsc[/\\]build[/\\]discover(?:\.ts|\.js)?$/;
 const HMR_IMPORT = /(?:^|[/\\])server[/\\]router[/\\]hmr(?:\.ts|\.js)?$/;
 const PRODUCTION_BOUNDARY_IMPORT =
-  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|hmr|hydrate|route-config-autofix|transform-client)(?:\.ts|\.js)?$/;
+  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|hmr|hydrate|route-config-autofix|transform-client|discover)(?:\.ts|\.js)?$/;
 const PRODUCTION_STUB_NAMESPACE = "furin-production-runtime-stub";
 const FURIN_RUNTIME_ROOT = resolve(import.meta.dir, "..");
 
@@ -21,11 +22,14 @@ function isFurinRuntimePath(path: string): boolean {
   );
 }
 
-function devBuildExport(path: string): "fixRouteConfigLayout" | "getHmrDataSignature" | "writeDevFiles" {
-  if (path.includes("transform-client")) {
-    return "getHmrDataSignature";
+function devBuildExports(path: string): readonly string[] {
+  if (DEV_RSC_BUILD_IMPORT.test(path)) {
+    return ["discoverClientBoundaries", "registerServerBoundaries"];
   }
-  return path.includes("route-config-autofix") ? "fixRouteConfigLayout" : "writeDevFiles";
+  if (path.includes("transform-client")) {
+    return ["getHmrDataSignature"];
+  }
+  return [path.includes("route-config-autofix") ? "fixRouteConfigLayout" : "writeDevFiles"];
 }
 
 export function productionInstrumentationPlugin(): Bun.BunPlugin {
@@ -51,19 +55,20 @@ export function productionInstrumentationPlugin(): Bun.BunPlugin {
         if (HMR_IMPORT.test(importPath)) {
           return { path: resolve(import.meta.dir, "../server/router/hmr.production.ts") };
         }
-        if (DEV_BUILD_IMPORT.test(importPath)) {
+        if (DEV_BUILD_IMPORT.test(importPath) || DEV_RSC_BUILD_IMPORT.test(importPath)) {
           return { namespace: PRODUCTION_STUB_NAMESPACE, path: importPath };
         }
       });
-      build.onLoad(
-        { filter: /.*/, namespace: PRODUCTION_STUB_NAMESPACE },
-        ({ path }) => ({
-          contents: `export function ${devBuildExport(path)}() {
+      build.onLoad({ filter: /.*/, namespace: PRODUCTION_STUB_NAMESPACE }, ({ path }) => ({
+        contents: devBuildExports(path)
+          .map(
+            (name) => `export function ${name}() {
   throw new Error("[furin] Development-only module reached a production bundle.");
-}`,
-          loader: "js",
-        })
-      );
+}`
+          )
+          .join("\n"),
+        loader: "js",
+      }));
     },
   };
 }
