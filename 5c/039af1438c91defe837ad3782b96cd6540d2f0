@@ -1,0 +1,35 @@
+packages/core/tests/README.md
+  s_91fb1436775985::t_8dc340c7fdd7c7 83-84
+  s_91fb1436775985::t_2c41370b1a6a23 85-86
+packages/core/tests/browser/composite-link.webview.test.ts
+  s_91fb1436775985::t_104745960240dc 91-95,131-138,183,194,205-211,220-249,255
+  s_91fb1436775985::t_ef873a6e22ea0f 1-9,11-20,27-90,96-130,139,160,184-185,195-199,204,250,256-258
+  s_91fb1436775985::t_dc2888f0e60df8 21-23,25-26,140-142,212-219,251-254
+  s_91fb1436775985::t_7ffe4553db0cf1 24,143-159,161-169,171-182,193,200-202
+  s_91fb1436775985::t_1356a5616dd0c8 203
+  s_91fb1436775985::t_311296fb02c43d 10,170,186-192
+packages/core/src/build/client.ts
+  s_91fb1436775985::t_2d39afe2c3b32c 87-88
+packages/core/package.json
+  s_91fb1436775985::t_104745960240dc 164
+CHANGELOG.md
+  s_91fb1436775985::t_2c41370b1a6a23 17
+packages/core/src/build/hydrate.ts
+  s_91fb1436775985::t_c44360d5f8324f 14,21-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c039af1438c91defe837ad3782b96cd6540d2f0",
+  "prompts": {},
+  "sessions": {
+    "s_91fb1436775985": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a121f0-9a35-71c2-ba9d-be3f5a135445",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
