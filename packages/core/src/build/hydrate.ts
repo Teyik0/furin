@@ -11,13 +11,21 @@ import { collectSearchDefaults } from "../shared/search-params.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
 import { CLIENT_REFERENCE_RUNTIME_PATH } from "../rsc/build/paths.ts";
 import { writeRouteTypes } from "./route-types";
+import { LINK_MODULE_PATH, toPosixPath } from "./shared.ts";
 import type { BuildClientOptions } from "./types";
 
 export function generateClientReferenceEntry(boundaries: readonly ClientBoundary[]): string {
   if (boundaries.length === 0) {
     return "";
   }
-  return `import { registerClientLoader } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${boundaries.map(({ id, path }) => `registerClientLoader(${JSON.stringify(id)}, () => import(${JSON.stringify(path)}));`).join("\n")}\n`;
+  return `import { registerClientLoader } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${boundaries.map(({ id, path }) => {
+    // Keep the Flight identity, but let browser exports resolve Link exactly
+    // like RouterProvider and application imports instead of loading its source twice.
+    const specifier = toPosixPath(path) === toPosixPath(LINK_MODULE_PATH)
+      ? "@teyik0/furin/link"
+      : path;
+    return `registerClientLoader(${JSON.stringify(id)}, () => import(${JSON.stringify(specifier)}));`;
+  }).join("\n")}\n`;
 }
 
 /**

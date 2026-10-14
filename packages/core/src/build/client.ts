@@ -84,8 +84,8 @@ export async function buildClient(
     [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
   );
   await registerServerBoundaries(boundaries);
-  const hydrateCode = generateClientReferenceEntry(boundaries) + resolveClientModuleSpecifiers(
-    generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
+  const hydrateCode = resolveClientModuleSpecifiers(
+    generateClientReferenceEntry(boundaries) + generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
   );
   const hydratePath = join(
     outDir,
