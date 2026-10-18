@@ -1,0 +1,26 @@
+packages/core/tests/routing/cache/dev-isr-loader-cache.scenario.ts
+  s_3827fec5c7f2ed::t_93d3a8b04906d4 120-130,135-136
+  s_3827fec5c7f2ed::t_66e2b6347229fe 8,131-134
+  s_3827fec5c7f2ed::t_9f3d71c17768a5 119
+packages/core/src/server/router/hmr.ts
+  s_3827fec5c7f2ed::t_17a24b6e86a29d 16,481-482,505
+  s_3827fec5c7f2ed::t_ab027dfc0223bd 483-485
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_cc264fd29082a3 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "348f0f876933670197a10b953ae0d222fc1c98c2",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
