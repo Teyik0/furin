@@ -66,8 +66,7 @@ export function loadProdRoutes(ctx: CompileContext): {
   root: RootLayout;
   routes: ResolvedRoute[];
 } {
-  const rootMod = ctx.modules[ctx.rootPath] as Record<string, unknown>;
-  const rootExport = rootMod.route;
+  const rootExport = ctx.modules[ctx.rootPath]?.route;
   if (!isDefinedRouteTerminal(rootExport) || typeof rootExport.layout !== "function") {
     throw new Error("[furin] root.tsx: defineRoute().layout() not found in CompileContext.");
   }
@@ -77,8 +76,7 @@ export function loadProdRoutes(ctx: CompileContext): {
     if (!modPath) {
       return;
     }
-    const mod = ctx.modules[modPath] as { default?: T } | undefined;
-    return mod?.default;
+    return ctx.modules[modPath]?.default as T | undefined;
   }
 
   const root: RootLayout = {
@@ -90,8 +88,7 @@ export function loadProdRoutes(ctx: CompileContext): {
 
   const routes: ResolvedRoute[] = [];
   for (const { pattern, path, mode } of ctx.routes) {
-    const pageMod = ctx.modules[path] as { route?: unknown };
-    const page = resolveCompiledRuntimePage(pageMod, path, root, ctx);
+    const page = resolveCompiledRuntimePage(ctx.modules[path] ?? {}, path, root, ctx);
     if (!page) {
       throw new Error(`[furin] ${path}: invalid page module in CompileContext.`);
     }
@@ -175,7 +172,7 @@ function resolveCompiledLayoutParent(
   for (const segment of segments) {
     directory = `${directory}/${segment}`;
     for (const candidate of getSourceModuleCandidates(directory, "_route")) {
-      const layoutModule = context.modules[candidate] as { route?: unknown } | undefined;
+      const layoutModule = context.modules[candidate];
       if (!layoutModule) {
         continue;
       }

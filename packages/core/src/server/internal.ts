@@ -25,6 +25,14 @@ export interface EmbeddedAppData {
   publicDir?: string;
 }
 
+/** Namespace of a bundled page, layout or convention module. */
+export interface CompiledModule {
+  /** Convention component (`error.tsx`, `not-found.tsx`). */
+  readonly default?: unknown;
+  /** `defineRoute()` export of a page or layout. */
+  readonly route?: unknown;
+}
+
 export interface CompileContextRoute {
   mode: "ssr" | "ssg" | "isr";
   path: string;
@@ -40,7 +48,8 @@ export interface CompileContext {
   /** Deployment adapter that owns public page caching for this build. */
   deploymentTarget?: "vercel";
   embedded?: EmbeddedAppData;
-  modules: Record<string, unknown>;
+  /** Bundled route modules, keyed by their absolute posix source path. */
+  modules: { readonly [path: string]: CompiledModule };
   /** Elysia-native route tree generated for this mounted app. */
   nativeRoutes?: AnyElysia;
   /** Mount prefix this app was built for (`""` = root). */
