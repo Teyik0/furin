@@ -525,6 +525,28 @@ test.each(["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"])(
   }
 );
 
+test("the server build plugin compiles a project whose directory name contains node_modules", async () => {
+  const root = mkdtempSync(join(tmpdir(), "my_node_modules_app-"));
+  temporaryDirectories.push(root);
+  writeFileSync(
+    join(root, "entry.ts"),
+    `import { createIsomorphicFn } from "@teyik0/furin";
+export const getValue = createIsomorphicFn().server(() => "SERVER_MARKER").client(() => "CLIENT_MARKER");`
+  );
+
+  const result = await Bun.build({
+    entrypoints: [join(root, "entry.ts")],
+    external: ["@teyik0/furin"],
+    outdir: join(root, "out"),
+    plugins: [isomorphicTransformPlugin("server")],
+    target: "bun",
+  });
+  const output = readFileSync(result.outputs[0]?.path ?? "", "utf8");
+
+  expect(output).toContain("SERVER_MARKER");
+  expect(output).not.toContain("CLIENT_MARKER");
+});
+
 test.each(["js", "jsx", "ts", "tsx", "mjs", "cjs", "mts", "cts"])(
   "the browser strip plugin selects the client branch in a .%s route",
   async (extension) => {

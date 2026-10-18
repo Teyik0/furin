@@ -1,9 +1,11 @@
 import { detectLoaderFromPath } from "../server/lang-detect.ts";
 import { transformForClient } from "./transform-client.ts";
 
+const NODE_MODULES_SEGMENT = /[\\/]node_modules[\\/]/;
+
 /** Package modules are published code: they are bundled as-is, never stripped. */
 export function isPackageModule(path: string): boolean {
-  return path.includes("node_modules");
+  return NODE_MODULES_SEGMENT.test(path);
 }
 
 /**

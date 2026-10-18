@@ -20,7 +20,7 @@ import { transformClientModuleSource } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
 const SCRIPT_FILE_FILTER =
-  /^(?!.*(?:node_modules|[\\/]\.furin[\\/]build[\\/])).*\.(?:[cm]?[jt]s|[jt]sx)(?:\?.*)?$/;
+  /^(?!.*(?:[\\/]node_modules[\\/]|[\\/]\.furin[\\/]build[\\/])).*\.(?:[cm]?[jt]s|[jt]sx)(?:\?.*)?$/;
 
 export type IsomorphicEnvironment = "client" | "server";
 
