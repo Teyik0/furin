@@ -211,10 +211,10 @@ export const route = defineRoute()
     ]);
   });
 
-  test("reports dynamic segments that no params schema of the page or its layouts declares", () => {
+  test("reports URL segments missing from a page's own params schema", () => {
     const page = (params: string) => `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as orgRoute } from "./_route";
+import { route as orgRoute } from "../_route";
 
 export const route = defineRoute()
   .config({ layout: orgRoute, mode: "ssr"${params} })
@@ -229,22 +229,18 @@ export const route = defineRoute()
   .page(() => null);
 `,
       "orgs/[org]/_route.tsx": `import { defineRoute } from "@teyik0/furin";
-import { t } from "elysia";
 import { route as rootRoute } from "../../root";
 
 export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ org: t.String() }) })
+  .config({ layout: rootRoute, mode: "ssr" })
   .layout(({ children }) => children);
 `,
-      "orgs/[org]/index.tsx": page(""),
-      "orgs/[org]/projects/[id].tsx": page(", params: t.Object({})").replace(
-        '"./_route"',
-        '"../_route"'
+      "orgs/[org]/members.tsx": page(", params: t.Object({ org: t.String() })").replace(
+        '"../_route"',
+        '"./_route"'
       ),
-      "orgs/[org]/teams/[team].tsx": page(", params: teamParams").replace(
-        '"./_route"',
-        '"../_route"'
-      ),
+      "orgs/[org]/projects/[id].tsx": page(", params: t.Object({ org: t.String() })"),
+      "orgs/[org]/teams/[team].tsx": page(", params: teamParams"),
       "root.tsx": ROOT,
     });
 
@@ -254,14 +250,14 @@ export const route = defineRoute()
         file: join(pagesDir, "blog/[...rest].tsx"),
         line: 5,
         message:
-          'The URL segment [...rest] is not declared by a params schema of this route or its layouts. Declare it in config():\n  import { t } from "elysia";\n  params: t.Object({ "*": t.String() })',
+          'The URL segment [...rest] is missing from this page\'s params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  import { t } from "elysia";\n  params: t.Object({ "*": t.String() })',
       },
       {
         column: 11,
         file: join(pagesDir, "orgs/[org]/projects/[id].tsx"),
         line: 6,
         message:
-          "The URL segment [id] is not declared by a params schema of this route or its layouts. Declare it in config():\n  params: t.Object({ id: t.String() })",
+          "The URL segment [id] is missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():\n  params: t.Object({ id: t.String() })",
       },
     ]);
   });

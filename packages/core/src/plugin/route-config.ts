@@ -349,10 +349,10 @@ function checkMode(file: string, parsed: ParsedRoute): RouteConfigIssue | undefi
 }
 
 /** Keys of an inline `params: t.Object({ ... })`; `true` when the schema cannot be read statically. */
-function declaredParams(parsed: ParsedRoute | undefined): Set<string> | true {
-  const value = parsed?.route.config && findProperty(parsed.route.config, "params")?.value;
-  if (!parsed || value === undefined) {
-    return parsed ? new Set() : true;
+function declaredParams(route: RouteExport): Set<string> | true {
+  const value = route.config && findProperty(route.config, "params")?.value;
+  if (value === undefined) {
+    return new Set();
   }
   const schema = unwrapTSExpression(value as AstNode);
   const shape = schema.type === "CallExpression" ? (schema.arguments as AstNode[])[0] : undefined;
@@ -366,26 +366,19 @@ function declaredParams(parsed: ParsedRoute | undefined): Set<string> | true {
   return new Set(keys as string[]);
 }
 
-/** Dynamic segments of the file's path that neither it nor a layout above it declares. */
+/** Dynamic segments of the file's path missing from `declared`. */
 function undeclaredSegments(
   file: string,
   pagesDir: string,
-  own: Set<string> | true,
-  parse: (file: string) => ParsedRoute | undefined
+  declared: Set<string> | true
 ): { key: string; segment: string }[] {
-  const declared = [own];
-  for (let layout = expectedLayoutPath(file, pagesDir); layout; ) {
-    declared.push(declaredParams(parse(layout)));
-    const parent = expectedLayoutPath(layout, pagesDir);
-    layout = parent === layout ? undefined : parent;
-  }
   return withoutExtension(relative(pagesDir, file))
     .split(PATH_SEPARATOR_RE)
     .flatMap((segment) => {
       const dynamic = parseDynamicRouteSegment(segment, file);
       return dynamic ? [{ key: dynamic.catchAll ? "*" : dynamic.name, segment }] : [];
     })
-    .filter(({ key }) => declared.every((keys) => keys !== true && !keys.has(key)));
+    .filter(({ key }) => declared !== true && !declared.has(key));
 }
 
 function paramsSchema(segments: { key: string }[]): string {
@@ -395,13 +388,13 @@ function paramsSchema(segments: { key: string }[]): string {
   return `params: t.Object({ ${fields.join(", ")} })`;
 }
 
+/** Static twin of `validateRouteParams()`, which rejects the page once its module loads. */
 function checkParams(
   file: string,
   pagesDir: string,
-  parsed: ParsedRoute,
-  parse: (file: string) => ParsedRoute | undefined
+  parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
-  const missing = undeclaredSegments(file, pagesDir, declaredParams(parsed), parse);
+  const missing = undeclaredSegments(file, pagesDir, declaredParams(parsed.route));
   if (missing.length === 0) {
     return;
   }
@@ -412,15 +405,14 @@ function checkParams(
     file,
     parsed,
     parsed.route.config ?? parsed.route.head,
-    `The URL segment${plural ? "s" : ""} ${missing.map(({ segment }) => segment).join(", ")} ${plural ? "are" : "is"} not declared by a params schema of this route or its layouts. Declare ${plural ? "them" : "it"} in config():${tImport}\n  ${paramsSchema(missing)}`
+    `The URL segment${plural ? "s" : ""} ${missing.map(({ segment }) => segment).join(", ")} ${plural ? "are" : "is"} missing from this page's params schema. Each page declares every dynamic segment of its path, including those of its layouts. Add to config():${tImport}\n  ${paramsSchema(missing)}`
   );
 }
 
 function checkRoute(
   file: string,
   pagesDir: string,
-  parsed: ParsedRoute,
-  parse: (file: string) => ParsedRoute | undefined
+  parsed: ParsedRoute
 ): (RouteConfigIssue | undefined)[] {
   const factory = checkFactory(file, pagesDir, parsed);
   if (factory) {
@@ -431,7 +423,7 @@ function checkRoute(
     checkConfig(file, pagesDir, parsed),
     parsed.route.isRootFactory ? undefined : checkLayout(file, pagesDir, parsed),
     checkMode(file, parsed),
-    parsed.route.isRootFactory || isLayout ? undefined : checkParams(file, pagesDir, parsed, parse),
+    parsed.route.isRootFactory || isLayout ? undefined : checkParams(file, pagesDir, parsed),
   ];
 }
 
@@ -445,19 +437,9 @@ function routeFiles(pagesDir: string): string[] {
 
 export function validateRouteConfig(pagesDir: string): RouteConfigIssue[] {
   const pages = resolve(pagesDir);
-  const files = routeFiles(pages);
-  const parsedFiles = new Map<string, ParsedRoute | undefined>();
-  const parse = (file: string): ParsedRoute | undefined => {
-    if (!parsedFiles.has(file)) {
-      parsedFiles.set(file, parseRoute(file));
-    }
-    return parsedFiles.get(file);
-  };
-  return files.flatMap((file) => {
-    const parsed = parse(file);
-    return parsed
-      ? checkRoute(file, pages, parsed, parse).filter((issue) => issue !== undefined)
-      : [];
+  return routeFiles(pages).flatMap((file) => {
+    const parsed = parseRoute(file);
+    return parsed ? checkRoute(file, pages, parsed).filter((issue) => issue !== undefined) : [];
   });
 }
 
@@ -540,7 +522,7 @@ function scaffoldTemplate(file: string, pagesDir: string): string | undefined {
   }
   const isLayout = basename(withoutExtension(file)) === "_route";
   const identifier = layoutBinding(layout);
-  const params = undeclaredSegments(file, pagesDir, new Set(), parseRoute);
+  const params = undeclaredSegments(file, pagesDir, new Set());
   return `import { defineRoute } from "@teyik0/furin";${params.length > 0 ? '\nimport { t } from "elysia";' : ""}
 import { route as ${identifier} } from "${importSpecifier(file, layout)}";
 
@@ -552,24 +534,17 @@ export const route = defineRoute()
 
 /**
  * Writes a starter route into route files that are empty or whitespace-only,
- * the only case where Furin writes to a source file. Layouts go first so a
- * page template only declares the params its layouts do not.
+ * the only case where Furin writes to a source file.
  */
 export function scaffoldEmptyRoutes(pagesDir: string): string[] {
   const pages = resolve(pagesDir);
-  const depth = (file: string): number =>
-    basename(withoutExtension(file)) === "_route" || file === join(pages, "root.tsx")
-      ? file.split("/").length
-      : Number.MAX_SAFE_INTEGER;
   const written: string[] = [];
-  for (const file of routeFiles(pages)
-    .filter((path) => readSource(path)?.trim() === "")
-    .toSorted((left, right) => depth(left) - depth(right))) {
+  for (const file of routeFiles(pages).filter((path) => readSource(path)?.trim() === "")) {
     const template = scaffoldTemplate(file, pages);
     if (template) {
       writeFileSync(file, template);
       written.push(file);
     }
   }
-  return written.toSorted((left, right) => left.localeCompare(right));
+  return written;
 }
