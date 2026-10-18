@@ -8,6 +8,7 @@ import {
 import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
+import { ensureRequestScope } from "../instance.ts";
 import type {
   MutationLease,
   StoredResponse,
@@ -396,6 +397,11 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
 
   owner.mutationFor = mutationFor;
   const plugin = new Elysia({ name: `furin-sync:${owner.id}` })
+    .wrap(
+      (fetch) =>
+        (request, ...rest) =>
+          ensureRequestScope(() => fetch(request, ...rest))
+    )
     .derive("global", (ctx) => ({
       mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
     }))

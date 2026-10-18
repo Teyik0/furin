@@ -139,6 +139,20 @@ export function enterRequestScope<T>(runtime: FurinInstance, request: Request, f
   );
 }
 
+/**
+ * Gives a request served without any Furin runtime (an API app using
+ * `furinSync()` or `furinInvalidate()` on its own) its pending invalidations.
+ */
+export function ensureRequestScope<T>(fn: () => T): T {
+  if (_scope.getStore()) {
+    return fn();
+  }
+  return _scope.run(
+    { pending: new Set<string>(), peers: undefined, requests: new WeakSet(), runtime: undefined },
+    fn
+  );
+}
+
 /** Keeps a request rewritten by a wrap inside the scope that rewrote it. */
 export function adoptScopedRequest(request: Request): void {
   _scope.getStore()?.requests.add(request);
@@ -157,7 +171,7 @@ export function scopedInstance(): FurinInstance | undefined {
 
 /**
  * The runtime the current code runs for. Furin binds it through the request
- * scope or `withInstance()`; code running outside both only resolves to the
+ * scope or `withInstance()`; code without that binding only resolves to the
  * default bucket while no runtime exists, so a missing binding fails loudly
  * instead of silently reading or writing another app's state.
  */
@@ -166,7 +180,7 @@ export function currentInstance(): FurinInstance {
   if (scope?.runtime) {
     return scope.runtime;
   }
-  if (scope === undefined && _runtimes.values().next().done) {
+  if (_runtimes.values().next().done) {
     return defaultInstanceBucket();
   }
   throw new Error(

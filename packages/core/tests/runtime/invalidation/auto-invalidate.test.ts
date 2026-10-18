@@ -265,6 +265,22 @@ describe("revalidatePath", () => {
 });
 
 describe("furinInvalidate macro", () => {
+  test("a standalone app reports each request's own invalidations", async () => {
+    const app = new Elysia()
+      .use(furinInvalidate())
+      .post("/a", { invalidate: { path: "/a", type: "page" } }, () => ({ ok: true }))
+      .post("/b", { invalidate: { path: "/b", type: "page" } }, () => ({ ok: true }));
+
+    const [a, b] = await Promise.all(
+      ["/a", "/b"].map((path) =>
+        app.handle(new Request(`http://localhost${path}`, { method: "POST" }))
+      )
+    );
+
+    expect(a?.headers.get("x-furin-revalidate")).toBe("/a");
+    expect(b?.headers.get("x-furin-revalidate")).toBe("/b");
+  });
+
   test("runs invalidation rules on successful mutation responses", async () => {
     setISRCache("/board/123", {
       generatedAt: Date.now(),
