@@ -1,0 +1,19 @@
+apps/docs/src/content/docs/getting-started.mdx
+  s_3827fec5c7f2ed::t_6fd1cdeb73da83 43,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "436f80bc70738f75ae88482696a8b615653a5f8d",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
