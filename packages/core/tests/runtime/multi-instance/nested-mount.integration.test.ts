@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createTmpApp } from "../../support/app-fixtures.ts";
 import { startProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
@@ -7,9 +8,14 @@ async function runFixtureScript(
   source: string,
   timeoutMs: number
 ): Promise<{ exitCode: number; stderr: string }> {
+  // Owned by the parent so it is removed even when the child is killed.
+  const fixture = createTmpApp("cli-app");
   const proc = startProcess([process.execPath, "-e", source], {
     cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    env: { FURIN_TEST_FIXTURE_DEADLINE: String(Date.now() + timeoutMs - 500) },
+    env: {
+      FURIN_TEST_FIXTURE_DEADLINE: String(Date.now() + timeoutMs - 500),
+      FURIN_TEST_FIXTURE_PATH: fixture.path,
+    },
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -27,6 +33,7 @@ async function runFixtureScript(
     clearTimeout(timer);
     proc.kill();
     await proc.exitCode;
+    fixture.cleanup();
   }
 }
 
@@ -38,9 +45,9 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin, isFurinPageRequest } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
 
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -77,7 +84,6 @@ try {
   expect(await (await plain.handle("/")).text()).toBe("plain");
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -94,8 +100,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -115,7 +120,6 @@ try {
   console.log("[fixture] all dispatches rejected");
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -132,8 +136,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -157,7 +160,6 @@ try {
   }
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -175,8 +177,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 const unhandled = [];
 const onUnhandled = error => unhandled.push(error);
@@ -201,7 +202,6 @@ try {
 } finally {
   process.off("unhandledRejection", onUnhandled);
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -218,9 +218,9 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
 
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -259,7 +259,6 @@ try {
   expect(events.some(event => event.path.includes("/_furin/devtools/"))).toBe(false);
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -276,8 +275,8 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
-const fixture = createTmpApp("cli-app");
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -365,7 +364,6 @@ try {
   expect(events.filter(event => event.path === "/two/admin").length).toBe(3);
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -382,8 +380,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -415,7 +412,6 @@ try {
   expect([...first, ...second]).toHaveLength(5);
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -432,9 +428,8 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
 
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -462,7 +457,6 @@ try {
   }
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -481,9 +475,8 @@ import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
 import { allInstances } from "./src/server/instance.ts";
 import { devGraph, developmentGraphs } from "./src/server/dev/graph.ts";
-import { createTmpApp } from "./tests/support/app-fixtures.ts";
 
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
@@ -517,7 +510,6 @@ try {
   expect(developmentGraphs().some(graph => graph.snapshot?.root.path.replaceAll("\\\\", "/").startsWith(pagesDir))).toBe(false);
 } finally {
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     8000
@@ -534,9 +526,9 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { createTmpApp, writeAppFile } from "./tests/support/app-fixtures.ts";
+import { writeAppFile } from "./tests/support/app-fixtures.ts";
 
-const fixture = createTmpApp("cli-app");
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 const apps = [];
 const sockets = [];
@@ -613,7 +605,6 @@ try {
   })));
   console.log("[fixture] all servers and sockets closed");
   process.chdir(originalCwd);
-  fixture.cleanup();
 }
 `,
     9500
