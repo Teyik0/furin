@@ -134,6 +134,68 @@ test("returning to a page refetches its cancelled deferred transport", async () 
   expect(container.textContent).toBe("Ready");
 });
 
+test("the visible page keeps streaming deferred data until the next navigation commits", async () => {
+  let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let releaseB: (() => void) | undefined;
+  function Home() {
+    router = useRouter();
+    return <main>Home</main>;
+  }
+  function Deferred({ slow }: { slow: Promise<string> }) {
+    router = useRouter();
+    return (
+      <Suspense fallback="Pending">
+        <Await resolve={slow}>{(value) => <main>{value}</main>}</Await>
+      </Suspense>
+    );
+  }
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    if (path === "/a") {
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              stream = controller;
+              controller.enqueue(new TextEncoder().encode(serializeRouteFrames({}, ["slow"])));
+            },
+          }),
+          { headers: { "Content-Type": "application/x-ndjson" } }
+        )
+      );
+    }
+    return new Promise<Response>((resolve) => {
+      releaseB = () => resolve(response({}));
+    });
+  }, originalFetch);
+  const container = await mount(
+    [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
+    {}
+  );
+  await act(() => router.navigate("/a"));
+  expect(container.textContent).toBe("Pending");
+  let toB: Promise<void> | undefined;
+  await act(async () => {
+    toB = router.navigate("/b");
+    await Bun.sleep(0);
+  });
+  await act(async () => {
+    stream?.enqueue(
+      new TextEncoder().encode(
+        serializeRouteFrame({ type: "defer-resolve", key: "slow", value: toCrossJSON("Ready") })
+      )
+    );
+    stream?.close();
+    await Bun.sleep(10);
+  });
+  expect(container.textContent).toBe("Ready");
+  await act(async () => {
+    releaseB?.();
+    await toB;
+  });
+  expect(container.textContent).toBe("Home");
+});
+
 test("a prefetched loader cannot overwrite a GET completed after that prefetch", async () => {
   const identity = { id: "counter", scope: {}, session: "test" };
   const app = new Elysia().get("/counter", ({ set }) => {

@@ -261,12 +261,17 @@ export function RouterProvider({
   const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
   const pendingUserNavigation = useRef<Promise<void> | null>(null);
   /**
-   * AbortController for the current navigation. Cancelled when a newer
-   * navigation starts so any in-flight `parseDeferredNdjson` releases its
-   * pending deferred promises (resolvers reject with `AbortError`) and frees
-   * the underlying stream reader.
+   * AbortController for the in-flight navigation. Cancelled when a newer
+   * navigation starts, or when this one ends without committing, so its
+   * `parseDeferredNdjson` releases pending deferred promises and frees the reader.
    */
   const navAbortRef = useRef<AbortController | null>(null);
+  /**
+   * AbortController owning the visible page's deferred stream. Cancelled only
+   * when another navigation commits, so a failed or cancelled navigation never
+   * strands the current page's pending deferred data.
+   */
+  const committedAbortRef = useRef<AbortController | null>(null);
   /**
    * Deferred scroll instruction consumed by the layout effect tied to `currentHref`.
    * This replaces the fragile double-requestAnimationFrame pattern with a render-
@@ -655,6 +660,25 @@ export function RouterProvider({
     return { href, state: redirectState };
   }
 
+  function startNavigationAbort(): AbortController {
+    navAbortRef.current?.abort();
+    const controller = new AbortController();
+    navAbortRef.current = controller;
+    return controller;
+  }
+
+  function settleNavigationAbort(controller: AbortController, committed: boolean): void {
+    if (navAbortRef.current === controller) {
+      navAbortRef.current = null;
+    }
+    if (!committed) {
+      controller.abort();
+      return;
+    }
+    committedAbortRef.current?.abort();
+    committedAbortRef.current = controller;
+  }
+
   function publishPageState(
     nextState: RouterState,
     href: string,
@@ -703,10 +727,9 @@ export function RouterProvider({
         opts?.hmrRefresh === true ? undefined : beginUserNavigation(pendingUserNavigation);
       navVersion.current += 1;
       const myVersion = navVersion.current;
-      navAbortRef.current?.abort();
-      const navAbort = new AbortController();
-      navAbortRef.current = navAbort;
+      const navAbort = startNavigationAbort();
       const navSignal = navAbort.signal;
+      let committed = false;
       setIsNavigating(true);
       try {
         const loaded = await readNavigationState(
@@ -769,6 +792,7 @@ export function RouterProvider({
         ) {
           return;
         }
+        committed = true;
         if (opts?.replace) {
           window.history.replaceState(
             {
@@ -790,6 +814,7 @@ export function RouterProvider({
         const logicalPath = normalizeHref(toLogical(effectiveUrl.pathname, basePath));
         setCurrentHref(logicalPath + effectiveUrl.search);
       } finally {
+        settleNavigationAbort(navAbort, committed);
         finishUserNavigation?.();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
@@ -940,10 +965,9 @@ export function RouterProvider({
     const logicalHref = logicalPath + window.location.search;
     navVersion.current += 1;
     const myVersion = navVersion.current;
-    navAbortRef.current?.abort();
-    const navAbort = new AbortController();
-    navAbortRef.current = navAbort;
+    const navAbort = startNavigationAbort();
     const navSignal = navAbort.signal;
+    let committed = false;
     setIsNavigating(true);
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: popstate handler — cache check, redirect follow, and scroll restoration require this depth
@@ -983,6 +1007,7 @@ export function RouterProvider({
         if (!publishPageState(newState, publicationHref, undefined)) {
           return;
         }
+        committed = true;
         const effectiveLogical = newState.finalHref ?? resolved.href;
         if (effectiveLogical !== logicalHref) {
           window.history.replaceState(history.state, "", basePath + effectiveLogical);
@@ -995,6 +1020,7 @@ export function RouterProvider({
           window.scrollTo({ behavior: "instant", top: 0 });
         }
       } finally {
+        settleNavigationAbort(navAbort, committed);
         finishUserNavigation();
         if (navVersion.current === myVersion) {
           setIsNavigating(false);
