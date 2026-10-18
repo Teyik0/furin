@@ -217,8 +217,23 @@ export function invalidateDevLoaderCacheByPath(
   return { cleared, isr, ssg };
 }
 
+/**
+ * Bun's `onLoad` hook is process-wide and runs outside any request, so a
+ * source edit is dispatched to every runtime whose loader cache depends on it.
+ */
 export function invalidateDevLoaderCacheBySource(filePath: string): InvalidateOutcome {
-  const state = instanceDevLoaderState(undefined);
+  const outcome: InvalidateOutcome = { cleared: [], isr: 0, ssg: 0 };
+  for (const instance of allStateBuckets()) {
+    const result = withInstance(instance, () => invalidateInstanceBySource(instance, filePath));
+    outcome.cleared.push(...result.cleared);
+    outcome.isr += result.isr;
+    outcome.ssg += result.ssg;
+  }
+  return outcome;
+}
+
+function invalidateInstanceBySource(instance: FurinInstance, filePath: string): InvalidateOutcome {
+  const state = instanceDevLoaderState(instance);
   const keys = state.sourceFileToCacheKeys.get(filePath);
   if (!keys || keys.size === 0) {
     return { cleared: [], isr: 0, ssg: 0 };

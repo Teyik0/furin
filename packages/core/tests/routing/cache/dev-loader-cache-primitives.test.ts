@@ -214,9 +214,43 @@ assertEqual(invalidateDevLoaderCacheBySource(dep2).isr, 1, "new dependency shoul
 process.exit(0);
 `;
 
-test("dev loader cache primitive scenarios", async () => {
+const SOURCE_INVALIDATION_ACROSS_RUNTIMES = `
+import { createInstance, registerInstance, withInstance } from "./src/server/instance.ts";
+import {
+  getDevSSGLoaderCache,
+  invalidateDevLoaderCacheBySource,
+  setDevSSGLoaderCache,
+} from "./src/server/cache/index.ts";
+
+const entry = {
+  dependencies: ["/shared/component.tsx"],
+  generatedAt: Date.now(),
+  headers: {},
+  loaderData: { value: "data" },
+  mode: "ssg",
+  revalidate: Number.POSITIVE_INFINITY,
+};
+const runtimes = [createInstance("", "/app/pages"), createInstance("/admin", "/app/admin")];
+for (const runtime of runtimes) {
+  registerInstance(runtime, new Map());
+  withInstance(runtime, () => setDevSSGLoaderCache("/page", entry));
+}
+// Bun's onLoad hook runs outside any request or runtime scope.
+const outcome = invalidateDevLoaderCacheBySource("/shared/component.tsx");
+if (outcome.ssg !== 2) {
+  throw new Error("expected both runtimes to drop their entry, got " + outcome.ssg);
+}
+for (const runtime of runtimes) {
+  if (withInstance(runtime, () => getDevSSGLoaderCache("/page")) !== undefined) {
+    throw new Error("runtime " + JSON.stringify(runtime.prefix) + " kept a stale entry");
+  }
+}
+process.exit(0);
+`;
+
+async function runScenario(source: string, name: string): Promise<void> {
   const proc = Bun.spawn({
-    cmd: [process.execPath, "-e", DEV_LOADER_CACHE_PRIMITIVES],
+    cmd: [process.execPath, "-e", source],
     cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
     stderr: "pipe",
     stdout: "pipe",
@@ -243,8 +277,8 @@ test("dev loader cache primitive scenarios", async () => {
     throw new Error(
       [
         timedOut
-          ? "dev loader cache subprocess timed out after 10 seconds"
-          : `dev loader cache subprocess exited with ${exitCode}`,
+          ? `${name} subprocess timed out after 10 seconds`
+          : `${name} subprocess exited with ${exitCode}`,
         stdout,
         stderr,
       ].join("\n")
@@ -252,4 +286,12 @@ test("dev loader cache primitive scenarios", async () => {
   }
 
   expect(exitCode).toBe(0);
+}
+
+test("dev loader cache primitive scenarios", async () => {
+  await runScenario(DEV_LOADER_CACHE_PRIMITIVES, "dev loader cache");
+}, 15_000);
+
+test("a source edit outside any request invalidates every runtime that depends on it", async () => {
+  await runScenario(SOURCE_INVALIDATION_ACROSS_RUNTIMES, "source invalidation");
 }, 15_000);
