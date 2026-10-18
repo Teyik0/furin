@@ -1,0 +1,20 @@
+examples/task-manager/tests/card-detail-page.test.tsx
+  s_3827fec5c7f2ed::t_6b76a8ac1aeac3 61-69
+  s_3827fec5c7f2ed::t_911b64bd46f6dd 7,10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9d7d57d0a0f2b7e40754ae0842415363e98f5a1",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
