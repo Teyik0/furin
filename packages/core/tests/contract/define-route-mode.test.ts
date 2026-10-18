@@ -130,6 +130,11 @@ const createSsrPageWithEmptyRequestLoader = () =>
     // @ts-expect-error even a requestLoader with no fields is unavailable on SSR pages.
     .page(() => null);
 
+const createSsrRequestLoaderChain = () =>
+  defineRoute()
+    .config({ layout: createRootRoute(), mode: "ssr" })
+    .requestLoader(() => ({ user: "private" }));
+
 const createSsrLayoutWithRequestLoader = () =>
   defineRootRoute()
     .config({ mode: "ssr" })
@@ -283,6 +288,13 @@ describe("defineRoute rendering mode config", () => {
     expectTypeOf<ReturnType<typeof createSsrPageWithOwnRequestLoader>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createSsrPageWithEmptyRequestLoader>>().not.toBeNever();
     expectTypeOf<ReturnType<typeof createSsrLayoutWithRequestLoader>>().not.toBeNever();
+  });
+
+  test("explains the SSR requestLoader rule in the compile error", () => {
+    type PageArgument = Parameters<ReturnType<typeof createSsrRequestLoaderChain>["page"]>[0];
+    expectTypeOf<PageArgument>().toEqualTypeOf<{
+      readonly "~furinError": "SSR pages cannot declare requestLoader(); use loader() and defer()";
+    }>();
   });
 
   test("keeps SSR ancestor data in rendering but excludes it from public work", () => {

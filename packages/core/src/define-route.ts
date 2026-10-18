@@ -207,14 +207,20 @@ type LoaderContext<
   : PublicLoaderContext<Params, Query>) &
   PromisedData<Mode extends "ssr" ? SsrLoaderParentData<ParentData> : PublicParentData<ParentData>>;
 
+/** Carries a readable message into a compile error for a forbidden builder transition. */
+interface FurinTypeError<Message extends string> {
+  readonly "~furinError": Message;
+}
+
 type PageRequestLoaderCheck<
   Mode extends RenderingMode,
   RequestData extends LoaderData,
+  ValidComponent,
 > = Mode extends "ssr"
   ? RequestData extends NoRequestLoader
-    ? []
-    : [error: "SSR pages cannot declare requestLoader(); use loader() and defer()"]
-  : [];
+    ? ValidComponent
+    : FurinTypeError<"SSR pages cannot declare requestLoader(); use loader() and defer()">
+  : ValidComponent;
 
 type Loader<
   Params,
@@ -503,7 +509,11 @@ type ContractOf<Route> = Route extends { readonly [routeContractBrand]?: infer C
 
 type Flatten<Value> = { [Key in keyof Value]: Value[Key] };
 
-type MergeSchemaValues<Parent, Child> = Flatten<Omit<Parent, keyof Child> & Child>;
+type MergeSchemaValues<Parent, Child> = keyof Child extends never
+  ? Parent
+  : keyof Parent extends never
+    ? Child
+    : Flatten<Omit<Parent, keyof Child> & Child>;
 
 type ResolvedConfig<
   Parent extends RouteContract,
@@ -542,9 +552,26 @@ interface ChainRuntime {
   requestLoader: unknown;
 }
 
+// Named stages keep compile errors readable, e.g. "Property 'staticParams'
+// does not exist on type 'SsrRouteStage<...>'".
+
+/** SSR routes render per request: `staticParams()` needs mode `ssg` or `isr`. */
+interface SsrRouteStage<State extends ChainState> extends Omit<RouteChain<State>, "staticParams"> {}
+
+/** `staticParams()` must come first and only once, before `requestLoader()`. */
+interface StaticParamsClosedStage<State extends ChainState>
+  extends Omit<RouteChain<State>, "staticParams"> {}
+
+/** After `loader()`: attach `head()` or finish with `page()`/`layout()`. */
+interface LoadedRouteStage<State extends ChainState>
+  extends Pick<RouteChain<State>, "head" | "layout" | "page"> {}
+
+/** `head()` metadata is page-only: a headed route can only finish with `page()`. */
+interface HeadedPageStage<State extends ChainState> extends Pick<RouteChain<State>, "page"> {}
+
 type ConfiguredStage<State extends ChainState> = State["mode"] extends infer Mode
   ? Mode extends "ssr"
-    ? Omit<RouteChain<State>, "staticParams">
+    ? SsrRouteStage<State>
     : RouteChain<State>
   : never;
 
@@ -664,7 +691,7 @@ class RouteChain<State extends ChainState> {
 
   requestLoader<Data extends RequestLoaderData>(
     requestLoader: RequestLoader<State["params"], State["query"], Data>
-  ): Omit<RouteChain<WithState<State, { requestData: Data }>>, "staticParams"> {
+  ): StaticParamsClosedStage<WithState<State, { requestData: Data }>> {
     return new RouteChain<WithState<State, { requestData: Data }>>({
       ...this.runtime,
       requestLoader,
@@ -673,7 +700,7 @@ class RouteChain<State extends ChainState> {
 
   staticParams(
     staticParams: StaticParams<State["params"], State["parentParams"], State["parentData"]>
-  ): Omit<RouteChain<State>, "staticParams"> {
+  ): StaticParamsClosedStage<State> {
     const { metadata, requestLoader } = this.runtime;
     return new RouteChain<State>({
       ...this.runtime,
@@ -683,7 +710,7 @@ class RouteChain<State extends ChainState> {
 
   loader<Data extends PublicLoaderData>(
     loader: Loader<State["params"], State["query"], State["parentData"], Data, State["mode"]>
-  ): Pick<RouteChain<WithState<State, { data: Data; loaded: true }>>, "head" | "layout" | "page"> {
+  ): LoadedRouteStage<WithState<State, { data: Data; loaded: true }>> {
     return new RouteChain<WithState<State, { data: Data; loaded: true }>>({
       ...this.runtime,
       loader,
@@ -693,13 +720,12 @@ class RouteChain<State extends ChainState> {
   /** Head metadata is page-only: a headed chain can only terminate with `page()`. */
   head(
     head: Head<State["params"], State["query"], State["parentData"], State["data"], State["mode"]>
-  ): Pick<RouteChain<State>, "page"> {
+  ): HeadedPageStage<State> {
     return new RouteChain<State>({ ...this.runtime, head });
   }
 
   page(
-    component: PageComponentOf<State>,
-    ..._requestLoaderCheck: PageRequestLoaderCheck<State["mode"], State["requestData"]>
+    component: PageRequestLoaderCheck<State["mode"], State["requestData"], PageComponentOf<State>>
   ): PageTerminal<State> {
     const { metadata, paramsSchema, querySchema, requestLoader } = this.runtime;
     assertPageRequestLoaderMode(metadata, requestLoader);
