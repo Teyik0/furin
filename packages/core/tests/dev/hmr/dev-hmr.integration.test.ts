@@ -99,7 +99,15 @@ describe.serial("dev HMR", () => {
 
   beforeAll(async () => {
     port = await getFreePort();
-  });
+    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    // Shared by every test below, so start it here rather than in the first test.
+    await waitForHttp(`http://localhost:${port}/`, { timeoutMs: 20_000 }).catch((error) => {
+      throw new Error(`${error}\nstderr:\n${server.getStderr()}`);
+    });
+  }, 30_000);
 
   afterAll(async () => {
     server?.kill();
@@ -108,27 +116,6 @@ describe.serial("dev HMR", () => {
   });
 
   test("server starts and SSR renders initial content", async () => {
-    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
-      cwd: app.path,
-      env: { PORT: String(port) },
-    });
-
-    // Wait for server to be ready (poll with retries)
-    let ready = false;
-    for (let i = 0; i < 80; i += 1) {
-      try {
-        const r = await fetch(`http://localhost:${port}/`);
-        if (r.ok) {
-          ready = true;
-          break;
-        }
-      } catch {
-        // not ready yet
-      }
-      await Bun.sleep(250);
-    }
-    expect(ready).toBe(true);
-
     const html = await (await fetch(`http://localhost:${port}/`)).text();
     expect(html).toContain("ISR home");
     expect(html).toContain("__FURIN_DATA__");
