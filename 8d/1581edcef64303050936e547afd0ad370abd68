@@ -1,0 +1,24 @@
+packages/core/tests/routing/discovery/discovery-diagnostics.test.ts
+  s_3827fec5c7f2ed::t_6c57a540fcd4fd 79-81
+  s_3827fec5c7f2ed::t_5fea33de662f15 1-78,82-122
+packages/core/src/server/router/discovery.ts
+  s_3827fec5c7f2ed::t_ecabab38d8934f 152-160,184,457
+  s_3827fec5c7f2ed::t_dad5a2af35bb82 183,186,227-244,249-251,257-259,263-265,305,320-323,456,459
+  s_3827fec5c7f2ed::t_9dd90b167dc5a3 552
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d1581edcef64303050936e547afd0ad370abd68",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
