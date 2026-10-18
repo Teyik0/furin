@@ -72,6 +72,11 @@ function isRedirectState(state: RouterState | null): state is RouterState & { fi
   return Boolean(state?.finalHref && !state.match && !state.notFound);
 }
 
+/** Failures, errors and not-found pages are transient: never serve them from the prefetch cache. */
+function isCacheableState(state: RouterState | null): state is RouterState {
+  return state !== null && !(state.error || state.notFound);
+}
+
 function getHistoryStateObject(): object {
   const value = history.state;
   return value !== null && typeof value === "object" ? value : {};
@@ -578,9 +583,8 @@ export function RouterProvider({
         staleTime,
       };
       setPrefetchCacheEntry(prefetchCache.current, href, entry, prefetchCacheSize);
-      // A failed prefetch must not be served to later prefetches or navigations.
       entry.promise.then((snapshot) => {
-        if (snapshot === null && prefetchCache.current.get(href) === entry) {
+        if (!isCacheableState(snapshot) && prefetchCache.current.get(href) === entry) {
           prefetchCache.current.delete(href);
         }
       });
@@ -607,7 +611,7 @@ export function RouterProvider({
       }
       const revalidate =
         useCached &&
-        (nextState === null ||
+        (!isCacheableState(nextState) ||
           isRedirectState(nextState) ||
           (nextState && snapshotTransports.current.get(nextState)?.() === false) ||
           (nextState &&
@@ -715,7 +719,7 @@ export function RouterProvider({
         if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
-        if (newState && loaded.fetched) {
+        if (isCacheableState(newState) && loaded.fetched) {
           setPrefetchCacheEntry(
             prefetchCache.current,
             logicalHref,

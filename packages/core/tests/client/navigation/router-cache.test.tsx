@@ -270,3 +270,53 @@ test("a failed prefetch does not poison the cache for the next navigation", asyn
   expect(window.location.pathname).toBe("/target");
   expect(container.textContent).toBe("Target");
 });
+
+test.each([
+  ["error", { __furinError: { digest: "d1", message: "Boom", status: 500 } }],
+  ["not-found", { __furinStatus: 404, __furinNotFound: { message: "Missing" } }],
+] as const)("a %s snapshot is not served from the cache", async (_kind, failure) => {
+  let reads = 0;
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    if (path !== "/target") {
+      return Promise.resolve(response({}));
+    }
+    reads += 1;
+    return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(() => router.navigate("/target"));
+  expect(reads).toBe(1);
+  expect(container.textContent).not.toContain("Target");
+  await act(() => router.navigate("/"));
+  await act(() => router.navigate("/target"));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Target");
+});
+
+test.each([
+  ["error", { __furinError: { digest: "d1", message: "Boom", status: 500 } }],
+  ["not-found", { __furinStatus: 404, __furinNotFound: { message: "Missing" } }],
+] as const)("a prefetched %s snapshot is refetched on navigation", async (_kind, failure) => {
+  let reads = 0;
+  globalThis.fetch = Object.assign(() => {
+    reads += 1;
+    return Promise.resolve(response(reads === 1 ? failure : { message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(async () => {
+    router.prefetch("/target");
+    await Bun.sleep(0);
+  });
+  await act(() => router.navigate("/target"));
+  expect(reads).toBe(2);
+  expect(container.textContent).toBe("Target");
+});
