@@ -24,6 +24,7 @@ import { QueryStore } from "../query-store.ts";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
 import { CacheGeneration } from "./cache-generation.ts";
+import { observeWindowFetch } from "./fetch-observers.ts";
 import {
   generateHistoryKey,
   getHistoryKey,
@@ -31,6 +32,7 @@ import {
   SCROLL_STORAGE_KEY,
   saveScrollPosition,
 } from "./history.ts";
+import { registerHmrRefresh } from "./hmr-refresh.ts";
 import {
   applyRevalidateEntries,
   applyRevalidateHeader,
@@ -951,13 +953,10 @@ export function RouterProvider({
   // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
   // callback swaps the hot component only after fresh data is ready and just
   // before setState publishes the complete router snapshot.
+  // Production builds define NODE_ENV, so the whole registration is compiled out.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
-      (window as any).__FURIN_HMR_REFRESH__ = async (
-        beforeCommit: (() => void) | undefined,
-        dataChanged: boolean | undefined
-      ) => {
+    if (process.env.NODE_ENV !== "production") {
+      return registerHmrRefresh(async (beforeCommit, dataChanged) => {
         hmrVersion.current += 1;
         const myHmrVersion = hmrVersion.current;
         const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
@@ -983,11 +982,7 @@ export function RouterProvider({
         if (didCommit && hmrVersion.current === myHmrVersion) {
           hmrState.current.dataInvalidated = false;
         }
-      };
-      return () => {
-        // biome-ignore lint/suspicious/noExplicitAny: dev-only window hook
-        (window as any).__FURIN_HMR_REFRESH__ = undefined;
-      };
+      });
     }
   }, [refresh]);
 
@@ -1164,14 +1159,12 @@ export function RouterProvider({
     if (typeof window === "undefined") {
       return;
     }
-    const originalFetch = window.fetch;
-    const wrapped = async (...args: Parameters<typeof fetch>): Promise<Response> => {
-      const response = await originalFetch.apply(window, args);
+    return observeWindowFetch((args, response) => {
       if (args[1] && SYNC_REQUEST in args[1]) {
-        return response;
+        return;
       }
       if (!isSameOriginFetchResult(args[0], response.url, window.location.origin)) {
-        return response;
+        return;
       }
       const invalidated: Array<{ path: string; type: "page" | "layout" }> = [];
       applyRevalidateHeader(response.headers, (path, type) => {
@@ -1187,15 +1180,7 @@ export function RouterProvider({
           invalidationRefresh.run();
         }
       }
-      return response;
-    };
-    // Copy static fetch methods so the patched value satisfies typeof fetch.
-    Object.assign(wrapped, originalFetch);
-    // biome-ignore lint/suspicious/noExplicitAny: Object.assign copies all static props but TS can't infer it
-    window.fetch = wrapped as any;
-    return () => {
-      window.fetch = originalFetch;
-    };
+    });
   }, [invalidatePrefetch, invalidationRefresh, autoRefresh, basePath]);
 
   // Listen for sync cursor notifications and recover changes over HTTP.
