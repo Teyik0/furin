@@ -12,22 +12,15 @@ import {
 } from "react";
 import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
-import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
+import type { QuerySeed } from "../../shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
-import { subscribeBrowserEvent } from "../browser-events.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { wrapLoaderLayouts } from "../loader-layouts.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
-import { observeWindowFetch } from "./fetch-observers.ts";
-import { SCROLL_STORAGE_KEY } from "./history.ts";
-import { registerHmrRefresh } from "./hmr-refresh.ts";
 import {
-  applyRevalidateEntries,
   applyRevalidateHeader,
-  decodeHashFragment,
-  isSameOriginFetchResult,
   normalizeHref,
   shouldAutoRefreshPath,
   shouldInterceptClick,
@@ -38,7 +31,7 @@ import {
   type NavigationControllerConfig,
   type NavigationSnapshot,
 } from "./navigation-controller.ts";
-import { createOptimisticRuntime, registerOptimisticRuntime, SYNC_REQUEST } from "./optimistic.ts";
+import { createOptimisticRuntime, registerOptimisticRuntime } from "./optimistic.ts";
 import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import {
@@ -46,23 +39,14 @@ import {
   buildNotFoundPageElement,
   detectStaticMode,
 } from "./spa-response.ts";
-import {
-  createInvalidationRefresh,
-  createSyncCatchUp,
-  type SyncChangePagePayload,
-} from "./sync-catch-up.ts";
-import type {
-  ClientRoute,
-  ClientSegmentBoundary,
-  RouterProviderProps,
-  RouterState,
-} from "./types.ts";
+import { createInvalidationRefresh } from "./sync-catch-up.ts";
+import type { ClientRoute, ClientSegmentBoundary, RouterProviderProps } from "./types.ts";
+import { useFetchInterception } from "./use-fetch-interception.ts";
+import { useHistorySync } from "./use-history-sync.ts";
+import { useHmrRefresh } from "./use-hmr-refresh.ts";
+import { useSyncStream } from "./use-sync-stream.ts";
 
 const EMPTY_SEARCH: SearchParamsInput = {};
-
-interface HmrTransactionState {
-  dataInvalidated: boolean;
-}
 
 /**
  * Root-owned boundary for the "no client route matched" 404 path. When an
@@ -258,9 +242,6 @@ export function RouterProvider({
   useSyncExternalStore(optimisticRuntime.subscribe, optimisticRuntime.revision, () => 0);
   const queryRevision = useSyncExternalStore(queries.subscribeAll, queries.revision, () => 0);
   useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
-  /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
-  const hmrVersion = useRef(0);
-  const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
   const resolvedSearch = (state.data.query as SearchParamsInput | undefined) ?? EMPTY_SEARCH;
 
   const [searchStore] = useState(() =>
@@ -327,83 +308,8 @@ export function RouterProvider({
     };
   }, [autoRefresh, invalidatePrefetch, invalidationRefresh]);
 
-  // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
-  // callback swaps the hot component only after fresh data is ready and just
-  // before the controller publishes the complete router snapshot.
-  // Production builds define NODE_ENV, so the whole registration is compiled out.
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
-      return registerHmrRefresh(async (beforeCommit, dataChanged) => {
-        hmrVersion.current += 1;
-        const myHmrVersion = hmrVersion.current;
-        const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
-        if (!shouldRefreshData) {
-          beforeCommit?.();
-          controller.rerender();
-          return;
-        }
-        hmrState.current.dataInvalidated = true;
-        await controller.waitForUserNavigation();
-        if (hmrVersion.current !== myHmrVersion) {
-          return;
-        }
-        let didCommit = false;
-        await controller.refresh({
-          beforeCommit: () => {
-            didCommit = true;
-            beforeCommit?.();
-          },
-          hmrRefresh: true,
-          shouldCommit: () => hmrVersion.current === myHmrVersion,
-        });
-        if (didCommit && hmrVersion.current === myHmrVersion) {
-          hmrState.current.dataInvalidated = false;
-        }
-      });
-    }
-  }, [controller]);
-
-  // Disable native scroll restoration and assign a key to the initial history entry.
-  useEffect(() => {
-    controller.adoptHistoryEntry();
-  }, [controller]);
-
-  // Render-synchronous scroll restoration, after every committed snapshot.
-  useLayoutEffect(() => {
-    const instruction = controller.takeScrollInstruction();
-    if (!instruction) {
-      return;
-    }
-
-    if (instruction.type === "restore") {
-      try {
-        const raw = sessionStorage.getItem(SCROLL_STORAGE_KEY);
-        const positions: Record<string, number> = raw ? JSON.parse(raw) : {};
-        const y = positions[instruction.key] ?? 0;
-        window.scrollTo({ behavior: "instant", top: y });
-      } catch {
-        window.scrollTo({ behavior: "instant", top: 0 });
-      }
-      return;
-    }
-
-    const destUrl = new URL(instruction.href, window.location.origin);
-    if (destUrl.hash) {
-      const id = decodeHashFragment(destUrl.hash.slice(1));
-      const element = document.getElementById(id);
-      if (element) {
-        element.scrollIntoView({ behavior: "instant", block: "start" });
-      }
-    } else {
-      window.scrollTo({ behavior: "instant", top: 0 });
-    }
-  }, [controller, navigation]);
-
-  // Handle browser back/forward
-  useEffect(() => {
-    window.addEventListener("popstate", controller.popState);
-    return () => window.removeEventListener("popstate", controller.popState);
-  }, [controller]);
+  useHmrRefresh(controller);
+  useHistorySync(controller, navigation);
 
   // Intercept clicks on native <a> tags so that internal links (including
   // those rendered by MDX, CMS content, or third-party components) participate
@@ -452,133 +358,13 @@ export function RouterProvider({
     return () => document.removeEventListener("click", handler);
   }, [navigate, basePath, routes]);
 
-  // Intercept all window.fetch calls to auto-process X-Furin-Revalidate headers.
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    return observeWindowFetch((args, response) => {
-      if (args[1] && SYNC_REQUEST in args[1]) {
-        return;
-      }
-      if (!isSameOriginFetchResult(args[0], response.url, window.location.origin)) {
-        return;
-      }
-      const invalidated: Array<{ path: string; type: "page" | "layout" }> = [];
-      applyRevalidateHeader(response.headers, (path, type) => {
-        const resolvedType = type ?? "page";
-        invalidatePrefetch(path, resolvedType);
-        invalidated.push({ path, type: resolvedType });
-      });
-      if (autoRefresh && invalidated.length > 0) {
-        const currentLogicalPath =
-          normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search;
-        if (shouldAutoRefreshPath(currentLogicalPath, invalidated)) {
-          // fire-and-forget: don't block the original fetch caller
-          invalidationRefresh.run();
-        }
-      }
-    });
-  }, [invalidatePrefetch, invalidationRefresh, autoRefresh, basePath]);
-
-  // Listen for sync cursor notifications and recover changes over HTTP.
-  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
-  useEffect(() => {
-    if (!syncPath || typeof window === "undefined") {
-      return;
-    }
-
-    const changesUrl = syncPath.startsWith("/")
-      ? `${basePath}${syncPath}`
-      : `${basePath}/${syncPath}`;
-    let unsubscribe: (() => void) | undefined;
-    let disposed = false;
-    const applyInvalidations = (entries: readonly string[]) => {
-      if (disposed) {
-        return;
-      }
-      const invalidations: Array<{ path: string; type: "page" | "layout" }> = [];
-      applyRevalidateEntries(entries, (path, type) => {
-        const resolvedType = type ?? "page";
-        invalidatePrefetch(path, resolvedType);
-        invalidations.push({ path, type: resolvedType });
-      });
-
-      if (autoRefresh && invalidations.length > 0) {
-        const currentLogicalPath =
-          normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search;
-        if (shouldAutoRefreshPath(currentLogicalPath, invalidations)) {
-          invalidationRefresh.run();
-        }
-      }
-    };
-    const catchUp = createSyncCatchUp({
-      fetchPage: async (after) => {
-        const url = new URL(`${changesUrl}/changes`, window.location.origin);
-        if (after !== undefined) {
-          url.searchParams.set("after", after);
-        }
-        const response = await window.fetch(url);
-        if (!response.ok) {
-          throw new Error(`Sync catch-up failed with status ${response.status}`);
-        }
-        return (await response.json()) as SyncChangePagePayload;
-      },
-      onInvalidations: applyInvalidations,
-      onReset: () => queries.invalidateAll(),
-      onQueries: (identities) => {
-        queries.invalidate(identities);
-        const tags = new Set(identities.map(queryTag));
-        const affected = (snapshot: RouterState) =>
-          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity))) === true;
-        controller.invalidateQueries(affected);
-        if (autoRefresh && affected(controller.getSnapshot().state)) {
-          invalidationRefresh.run();
-        }
-      },
-    });
-    const recover = () => {
-      if (disposed) {
-        return;
-      }
-      catchUp.catchUp().catch((error: unknown) => {
-        if (!disposed) {
-          log.warn({ action: "sync_catch_up_failed", error: String(error) });
-        }
-      });
-    };
-    const onSync = (event: { data: { cursor: string } }) => {
-      if (typeof event.data.cursor !== "string") {
-        log.warn({ action: "sync_invalid_event", event: "browser-events.sync" });
-        return;
-      }
-      catchUp.seed(event.data.cursor);
-      recover();
-    };
-    const connect = () => {
-      if (disposed || unsubscribe) {
-        return;
-      }
-      unsubscribe = subscribeBrowserEvent("sync", onSync);
-      if (!unsubscribe) {
-        log.warn({ action: "sync_transport_unavailable" });
-      }
-    };
-
-    connect();
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-    };
-  }, [
-    syncPath,
-    basePath,
-    invalidatePrefetch,
-    invalidationRefresh,
+  useFetchInterception({
     autoRefresh,
-    queries,
-    controller,
-  ]);
+    basePath,
+    invalidatePath: invalidatePrefetch,
+    invalidationRefresh,
+  });
+  useSyncStream({ autoRefresh, basePath, controller, invalidationRefresh, queries, syncPath });
 
   const queryData = useMemo(
     () =>
