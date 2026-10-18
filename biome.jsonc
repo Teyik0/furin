@@ -10,11 +10,7 @@
       "!!apps/docs/scripts/generate-docs-content.ts",
       "!!apps/docs/src/components/docs-pager.tsx",
       "!!apps/docs/src/components/docs-toc.tsx",
-      "!!apps/docs/src/components/theme-provider.tsx",
-      "!!packages/core/tests/error-boundary-navigation.test.tsx",
-      "!!packages/core/tests/link/router-provider-intercept.test.tsx",
-      "!!packages/core/tests/router/use-search.test.tsx",
-      "!!packages/core/tests/rsc-client.test.tsx"
+      "!!apps/docs/src/components/theme-provider.tsx"
     ]
   },
   "css": {
