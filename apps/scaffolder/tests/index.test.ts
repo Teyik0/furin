@@ -9,7 +9,7 @@ const entrypoint = resolve(appRoot, "src/index.ts");
 
 describe("create-furin CLI", () => {
   it.each(["simple", "full"])(
-    "generates %s with the workspace Elysia version",
+    "generates %s with the workspace Elysia version and install instructions",
     async (template) => {
       const parentDir = mkdtempSync(resolve(tmpdir(), "create-furin-cli-"));
       const targetDir = resolve(parentDir, "generated-app");
@@ -39,6 +39,8 @@ describe("create-furin CLI", () => {
           resolve(appRoot, "../../package.json")
         ).json();
         expect(generated.dependencies.elysia).toBe(workspace.catalog.elysia);
+        // --no-install skipped dependencies, so the next steps must include them.
+        expect(stdout).toContain("  cd generated-app\n  bun install\n  bun dev\n");
       } finally {
         rmSync(parentDir, { force: true, recursive: true });
       }
