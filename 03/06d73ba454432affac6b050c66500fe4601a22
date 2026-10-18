@@ -1,0 +1,66 @@
+packages/core/src/furin.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 775,842-843,1153,1156,1371,1402,1473,1510,1538
+packages/core/tests/build/aot-prerender-isolation.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 83,112,241,245
+  s_bc143c065ef794::t_6d43016608d3c8 101,106
+package.json
+  s_bc143c065ef794::t_435eb22167d716 55
+.github/workflows/ci.yaml
+  s_bc143c065ef794::t_435eb22167d716 189
+packages/core/tests/runtime/production-server.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 110,291,348,572
+apps/scaffolder/README.md
+  s_bc143c065ef794::t_435eb22167d716 159
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 155,184
+packages/core/package.json
+  s_bc143c065ef794::t_4fea3454d4c476 169
+examples/task-manager/src/api/index.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 25-27
+apps/docs/src/content/docs/deployment.mdx
+  s_bc143c065ef794::t_4fea3454d4c476 24
+packages/core/tests/client/sync/security-regressions.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 542
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_bc143c065ef794::t_b8d609e84a8f55 228
+CHANGELOG.md
+  s_bc143c065ef794::t_4fea3454d4c476 13
+packages/core/tests/client/sync/atomic-sync.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 391,822
+packages/core/src/server/sync/plugin.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 380,389,397,427,434,458
+apps/docs/src/content/docs/error-handling.mdx
+  s_bc143c065ef794::t_2b8ba711211c0a 10,18
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 91
+packages/core/src/server/sync/validation.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 21
+packages/core/tests/rendering/ssr/ppr-document.test.tsx
+  s_bc143c065ef794::t_2b8ba711211c0a 128
+apps/scaffolder/src/generated/package-catalog.json
+  s_bc143c065ef794::t_c9d91b7bdcf4c8 6
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_bc143c065ef794::t_2b8ba711211c0a 49,320
+.github/workflows/vercel-benchmark.yaml
+  s_bc143c065ef794::t_435eb22167d716 124
+packages/core/tests/runtime/security/csp.test.tsx
+  s_bc143c065ef794::t_2b8ba711211c0a 75
+bun.lock
+  s_bc143c065ef794::t_21ba4085c9cfd9 122,175,293,1155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0306d73ba454432affac6b050c66500fe4601a22",
+  "prompts": {},
+  "sessions": {
+    "s_bc143c065ef794": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a14e40-2538-73d1-a349-2c52e9933030",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
