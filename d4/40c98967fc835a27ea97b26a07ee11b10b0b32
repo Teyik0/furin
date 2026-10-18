@@ -1,0 +1,22 @@
+packages/core/src/server/cache/dev-loader.ts
+  s_3827fec5c7f2ed::t_8b28c2298a2c74 220-223,225-236
+packages/core/tests/routing/cache/dev-loader-cache-primitives.test.ts
+  s_3827fec5c7f2ed::t_9d1ee4f4d15535 217-251,253
+  s_3827fec5c7f2ed::t_dc9b689b5273be 280-281,289-296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d440c98967fc835a27ea97b26a07ee11b10b0b32",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
