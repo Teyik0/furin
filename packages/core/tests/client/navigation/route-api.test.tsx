@@ -25,7 +25,7 @@ const defineBoard = () =>
     .page(() => null);
 
 declare module "@teyik0/furin/routes" {
-  interface RoutePatternMap {
+  interface RouteMap {
     "/route-api-board/:boardId": ReturnType<typeof defineBoard>;
   }
 }

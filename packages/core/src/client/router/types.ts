@@ -1,4 +1,4 @@
-import type { RouteMap, RoutePatternMap } from "@teyik0/furin/routes";
+import type { RouteMap } from "@teyik0/furin/routes";
 import type React from "react";
 import type { HeadOptions } from "../../client.ts";
 import type { RouteContractOf } from "../../define-route.ts";
@@ -13,14 +13,85 @@ import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search
 import type { RuntimeRoute } from "../internal/runtime-types.ts";
 import type { FurinServerErrorPayload } from "../server-error.ts";
 
-/** Exact public projection of the generated Elysia route map. */
+/** Exact public projection of the generated route map, keyed by route pattern. */
 export type RouteManifest = RouteMap;
 
-type RouteOf<To extends RouteTo> = To extends keyof RoutePatternMap
-  ? RoutePatternMap[To]
-  : To extends keyof RouteManifest
-    ? RouteManifest[To]
+/** Exact route patterns declared by the generated manifest. */
+export type RoutePattern = keyof RouteManifest & string;
+
+type HrefPath<Href extends string> = Href extends `${infer Path}?${string}`
+  ? HrefPath<Path>
+  : Href extends `${infer Path}#${string}`
+    ? Path
+    : Href;
+
+type SegmentMatches<
+  PatternSegment extends string,
+  Segment extends string,
+> = PatternSegment extends `:${string}`
+  ? Segment extends ""
+    ? false
+    : true
+  : [Segment] extends [PatternSegment]
+    ? true
+    : false;
+
+/** Mirrors the router: `:param` matches one non-empty segment, `*` the rest. */
+type PatternMatches<Pattern extends string, Path extends string> = Pattern extends "*"
+  ? true
+  : Pattern extends `${infer Head}/${infer Rest}`
+    ? Path extends `${infer PathHead}/${infer PathRest}`
+      ? SegmentMatches<Head, PathHead> extends true
+        ? PatternMatches<Rest, PathRest>
+        : false
+      : false
+    : Path extends `${string}/${string}`
+      ? false
+      : SegmentMatches<Pattern, Path>;
+
+type MatchingPattern<Path extends string> = {
+  [Pattern in RoutePattern]: PatternMatches<Pattern, Path> extends true ? Pattern : never;
+}[RoutePattern];
+
+/**
+ * Route pattern(s) a destination resolves to: the exact key when `To` is a
+ * declared pattern or static path, otherwise every pattern matching the
+ * concrete path (search and hash ignored). `never` for unknown destinations.
+ */
+export type RoutePatternOf<To extends string> = To extends RoutePattern
+  ? To
+  : HrefPath<To> extends infer Path extends string
+    ? Path extends RoutePattern
+      ? Path
+      : MatchingPattern<Path>
     : never;
+
+/** The route module type a destination resolves to. */
+export type RouteOf<To extends string> = RouteManifest[RoutePatternOf<To> & RoutePattern];
+
+type IsExternalHref<To extends string> = To extends `//${string}`
+  ? true
+  : To extends `${infer Scheme}:${string}`
+    ? Scheme extends "" | `${string}${"/" | "?" | "#"}${string}`
+      ? false
+      : true
+    : false;
+
+/**
+ * Validates a destination literal: declared patterns, concrete paths matching
+ * a pattern and external URLs (`https:`, `mailto:`, `//host`) pass; unknown
+ * internal literals fail with a readable message. A value typed as plain
+ * `string` cannot be checked statically and is accepted as-is.
+ */
+export type CheckedRouteTo<To extends string> = keyof RouteManifest extends never
+  ? To
+  : string extends To
+    ? To
+    : IsExternalHref<To> extends true
+      ? To
+      : [RoutePatternOf<To>] extends [never]
+        ? `[furin] Unknown route "${To}". Use a route pattern, a path matching one, or an absolute URL.`
+        : To;
 
 /** `undefined` when a resolved contract field declares no keys. */
 type DeclaredFields<Fields> = [Fields] extends [never]
@@ -53,9 +124,7 @@ type RouteParamInput<Value> = Value extends number ? string | number : Value;
  * Falls back to `string` when furin-env.d.ts has not been generated yet.
  * The string fallback also accepts concrete paths and external URLs.
  */
-export type RouteTo = keyof RouteManifest extends never
-  ? string
-  : keyof RoutePatternMap | (string & {});
+export type RouteTo = keyof RouteManifest extends never ? string : RoutePattern | (string & {});
 
 /**
  * The typed search params for a given `to` pathname.
@@ -63,9 +132,9 @@ export type RouteTo = keyof RouteManifest extends never
  */
 export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
   ? SearchParamsInput
-  : To extends keyof RouteManifest | keyof RoutePatternMap
-    ? RouteSearchInput<RouteOf<To>>
-    : undefined;
+  : string extends To
+    ? SearchParamsInput
+    : RouteSearchInput<RouteOf<To>>;
 
 /**
  * URL values for a route's path params: schema numbers accept both `42` and
@@ -74,13 +143,13 @@ export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
  */
 export type RouteParamsOf<To extends RouteTo> = keyof RouteManifest extends never
   ? Record<string, string | number>
-  : To extends keyof RouteManifest | keyof RoutePatternMap
-    ? RouteParamsInput<RouteOf<To>> extends infer Params
+  : string extends To
+    ? Record<string, string | number>
+    : RouteParamsInput<RouteOf<To>> extends infer Params
       ? Params extends object
         ? { [Key in keyof Params]: RouteParamInput<Params[Key]> }
         : undefined
-      : undefined
-    : undefined;
+      : undefined;
 
 export type PreloadStrategy = false | "intent" | "viewport" | "render";
 
@@ -92,7 +161,7 @@ type LinkPathParamKeys<Path extends string> = Path extends `${infer Segment}/${i
       ? "*"
       : never;
 
-type LinkParams<To extends RouteTo> = [To] extends [keyof RoutePatternMap]
+type LinkParams<To extends RouteTo> = [To] extends [RoutePattern]
   ? LinkPathParamKeys<To> extends never
     ? { params?: RouteParamsOf<To> }
     : {
@@ -150,13 +219,34 @@ export interface LinkBaseProps<To extends RouteTo>
 
 export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> & LinkParams<To>;
 
-export type NavigationTo = keyof RouteManifest | keyof RoutePatternMap extends never
-  ? string
-  : keyof RoutePatternMap | keyof RouteManifest | `https://${string}` | `http://${string}`;
+/** Destinations accepted by structured navigation; validated by `CheckedRouteTo`. */
+export type NavigationTo = RouteTo;
 
-export type RouteTarget<To extends NavigationTo> = To extends NavigationTo
-  ? { to: To; hash?: string; search?: RouteSearch<NoInfer<To>> } & LinkParams<NoInfer<To>>
-  : never;
+/**
+ * Adds a required, self-describing property when `To` is an unknown internal
+ * literal, so the compile error names the problem instead of `never`.
+ */
+export type RouteToCheck<To extends string> =
+  CheckedRouteTo<To> extends To ? unknown : { readonly "~furinError": CheckedRouteTo<To> };
+
+/**
+ * Literal-shaped destinations (internal paths, scheme URLs). Distributing over
+ * this template keeps `to` literals un-widened during inference, so each
+ * union member stays paired with its own params and search.
+ */
+type DestinationLiteral = `/${string}` | `${string}:${string}`;
+
+export type RouteTarget<To extends NavigationTo> = To extends DestinationLiteral
+  ? { to: To; hash?: string; search?: RouteSearch<NoInfer<To>> } & LinkParams<NoInfer<To>> &
+      RouteToCheck<NoInfer<To>>
+  : string extends To
+    ? {
+        to: To;
+        hash?: string;
+        params?: Record<string, string | number>;
+        search?: SearchParamsInput;
+      }
+    : { to: To; hash?: string } & RouteToCheck<NoInfer<To>>;
 
 export interface NavigationOptions {
   replace?: boolean;

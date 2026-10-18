@@ -5,14 +5,6 @@ import "@teyik0/furin/routes";
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
-    [
-      path: `/board/${string}/card/${string}`
-    ]: typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
-    [path: `/board/${string}`]: typeof import("./src/pages/board/[boardId]/index").route;
-  }
-
-  interface RoutePatternMap {
-    "/": typeof import("./src/pages/index").route;
     "/board/:boardId": typeof import("./src/pages/board/[boardId]/index").route;
     "/board/:boardId/card/:cardId": typeof import("./src/pages/board/[boardId]/card/[cardId]").route;
   }
@@ -20,6 +12,6 @@ declare module "@teyik0/furin/routes" {
 
 declare module "@teyik0/furin" {
   interface FurinCacheTags {
-    cards: "cards";
+    cards: 'cards';
   }
 }

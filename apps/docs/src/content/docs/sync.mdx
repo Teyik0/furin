@@ -417,7 +417,7 @@ const { error } = await api.cards({ id: cardId }).patch(
 );
 ```
 
-The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RoutePatternMap` offers route completion and infers loader fields from the target. A route pattern updates the active URL, including its path and query parameters. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
+The page continues rendering its `initialCards` loader prop. No copied `useState(initialData)`, setter, rollback callback, or manual synchronization is needed. The generated `RouteMap` offers route completion and infers loader fields from the target. A route pattern updates the active URL, including its path and query parameters. The transform returns complete loader data for that route; `cache.update()` and `optimistic()` return `void`. Generate `furin-env.d.ts` before using typed optimistic targets.
 
 Only the active loaded snapshot is projected. A cache miss is a no-op. To target an exact query snapshot rather than the active route, use a typed URL target:
 

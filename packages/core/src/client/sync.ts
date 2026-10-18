@@ -5,7 +5,7 @@ import {
   type TreatyPlugin,
   treaty,
 } from "@elysia/eden";
-import type { RouteMap, RoutePatternMap } from "@teyik0/furin/routes";
+import type { RouteMap } from "@teyik0/furin/routes";
 import type { AnyElysia } from "elysia";
 import type { RouteLoaderData } from "../define-route.ts";
 import type { QueryIdentity } from "../shared/sync-query.ts";
@@ -26,7 +26,7 @@ import {
   type OptimisticRuntime,
   SYNC_REQUEST,
 } from "./router/optimistic.ts";
-import type { RouteSearch } from "./router/types.ts";
+import type { CheckedRouteTo, RouteOf, RouteSearch } from "./router/types.ts";
 
 export interface OptimisticCache {
   update: {
@@ -37,15 +37,13 @@ export interface OptimisticCache {
         ? [options?: NonNullable<Parameters<Method>[0]>]
         : [options: NonNullable<Parameters<Method>[0]>]
     ): void;
-    <Pattern extends keyof RoutePatternMap & string>(
+    <Pattern extends keyof RouteMap & string>(
       pattern: Pattern,
-      transform: (
-        loader: RouteLoaderData<RoutePatternMap[Pattern]>
-      ) => RouteLoaderData<RoutePatternMap[Pattern]>
+      transform: (loader: RouteLoaderData<RouteMap[Pattern]>) => RouteLoaderData<RouteMap[Pattern]>
     ): void;
-    <Path extends keyof RouteMap & string>(
-      target: Path | { path: Path; search?: RouteSearch<Path> },
-      transform: (loader: RouteLoaderData<RouteMap[Path]>) => RouteLoaderData<RouteMap[Path]>
+    <Path extends string>(
+      target: CheckedRouteTo<Path> | { path: CheckedRouteTo<Path>; search?: RouteSearch<Path> },
+      transform: (loader: RouteLoaderData<RouteOf<Path>>) => RouteLoaderData<RouteOf<Path>>
     ): void;
   };
 }

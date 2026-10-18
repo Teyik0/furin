@@ -48,7 +48,7 @@ function typeConsumerSource(version: "after" | "before"): string {
     "",
     `const params: RouteParamsOf<"/items/1"> = { id: ${value} };`,
     `const query: RouteSearch<"/items/1"> = { page: ${value} };`,
-    `const data: RouteLoaderData<RouteManifest["/items/1"]> = { message: ${value} };`,
+    `const data: RouteLoaderData<RouteManifest["/items/:id"]> = { message: ${value} };`,
     `const tag: CacheTag = "${version}";`,
     "",
     "void [params, query, data, tag];",

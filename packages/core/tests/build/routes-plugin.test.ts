@@ -392,27 +392,20 @@ describe("furin/routes type declaration", () => {
     ).toBe(`declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./pages/index").route;
-    [path: \`/boards/\${string}\`]: typeof import("./pages/boards/[id]").route;
-  }
-
-  interface RoutePatternMap {
-    "/": typeof import("./pages/index").route;
     "/boards/:id": typeof import("./pages/boards/[id]").route;
   }
 }`);
   });
 
-  test("escapes static template segments and normalizes wildcards", () => {
+  test("emits patterns as escaped string keys, wildcards included", () => {
     const declaration = routeMapDeclaration([
-      { importSpecifier: "./pages/docs", pattern: "/docs/`${literal}/:slug" },
+      { importSpecifier: "./pages/docs", pattern: '/docs/"${literal}/:slug' },
       { importSpecifier: "./pages/files", pattern: "/files/*" },
     ]);
 
     expect(declaration).toContain(
-      "[path: `/docs/\\`\\${literal}/${string}`]: typeof import(\"./pages/docs\").route;"
+      '"/docs/\\"${literal}/:slug": typeof import("./pages/docs").route;'
     );
-    expect(declaration).toContain(
-      "[path: `/files/${string}`]: typeof import(\"./pages/files\").route;"
-    );
+    expect(declaration).toContain('"/files/*": typeof import("./pages/files").route;');
   });
 });

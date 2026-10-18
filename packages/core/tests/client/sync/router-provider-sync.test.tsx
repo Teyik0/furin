@@ -22,7 +22,7 @@ interface PageProps {
 }
 
 declare module "@teyik0/furin/routes" {
-  interface RoutePatternMap {
+  interface RouteMap {
     "/optimistic-board/:boardId": { loader: () => { message: string } };
   }
 }

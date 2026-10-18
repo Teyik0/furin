@@ -88,13 +88,7 @@ declare const inheritedBoardRoute: ReturnType<typeof createInheritedBoardRoute>;
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
-    "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
-    "/elysia-orgs/:org/boards/:boardId": typeof inheritedBoardRoute;
-    "/elysia-products": typeof generatedRoute;
-    "/elysia-slugs/:slug": typeof generatedSlugRoute;
-  }
-  interface RoutePatternMap {
-    "/elysia-boards/:boardId": typeof generatedBoardRoute;
+    "/elysia-boards/new": typeof generatedRoute;
     "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
     "/elysia-orgs/:org/boards/:boardId": typeof inheritedBoardRoute;
     "/elysia-products": typeof generatedRoute;
@@ -133,6 +127,23 @@ const assertTypedLinkParams = () => {
   expectTypeOf<LinkProps<"/elysia-boards/:boardId">["params"]>().toEqualTypeOf<{
     boardId: string | number;
   }>();
+};
+
+const assertConcretePathResolution = (navigate: Navigate, slug: string) => {
+  // A concrete path resolves to the pattern it matches.
+  expectTypeOf<RouteSearch<"/elysia-boards/42">>().toEqualTypeOf<{ page: number }>();
+  // A static route wins over a dynamic sibling, as in the runtime router.
+  expectTypeOf<RouteSearch<"/elysia-boards/new">>().toEqualTypeOf<{
+    page: number;
+    tag?: string;
+  }>();
+  expectTypeOf<RouteParamsOf<"/elysia-boards/new">>().toEqualTypeOf<undefined>();
+  // Template paths resolve against `:param` segments.
+  expectTypeOf<RouteSearch<`/elysia-boards/${string}`>>().toEqualTypeOf<{ page: number }>();
+  navigate({ search: { page: 1 }, to: "/elysia-boards/42" });
+  navigate({ to: `/elysia-slugs/${slug}` });
+  // @ts-expect-error a `:param` matches exactly one segment
+  navigate({ to: "/elysia-boards/42/extra" });
 };
 
 const assertInheritedNavigation = (navigate: Navigate) => {
@@ -243,6 +254,9 @@ describe("Elysia RouteMap bridge", () => {
   });
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
+  test("resolves concrete paths against exact route patterns", () => {
+    expectTypeOf(assertConcretePathResolution).toBeFunction();
+  });
   test("inherits layout params and query in navigation", () => {
     expectTypeOf(assertInheritedNavigation).toBeFunction();
   });

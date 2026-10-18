@@ -72,8 +72,7 @@ test("generated navigation types use public URLs and preserve grouped source imp
     const declaration = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
 
     expect(declaration).toContain('"/users/:id": typeof import(');
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: asserts generated TypeScript syntax
-    expect(declaration).toContain("[path: `/users/${string}`]");
+    expect(declaration).not.toContain("[path:");
     expect(declaration).toContain("/(admin)/(settings)/users/[id]");
     expect(declaration).not.toContain('"/(admin)/users/:id"');
   } finally {
