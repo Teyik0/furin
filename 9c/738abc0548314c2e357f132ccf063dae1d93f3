@@ -1,0 +1,73 @@
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 114,128
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 3,115-118,121,129-132,135
+  s_3827fec5c7f2ed::t_5036ed4cd78850 122-123,136-137
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 8,14-15,371-372,375
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 12
+packages/core/tests/dev/hmr/dev-route-rebuild.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 2,7-8,94-95,99
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 6
+  s_3827fec5c7f2ed::t_193611bc782a21 100-101
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 3,17-18,159-161,163-164,168
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 15
+  s_3827fec5c7f2ed::t_0b74521353aaa3 162,169-170
+packages/core/tests/runtime/plugin/data-endpoint-logging.integration.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 5,55-56,74-75,77-78
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 54
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 2,45,52
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 44
+  s_3827fec5c7f2ed::t_ba85afcbdbb49d 47,53-54
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 384
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 21,385-386,432-433,437
+  s_3827fec5c7f2ed::t_62bec1f8e727e6 438-439
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 125
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 2,126,133
+  s_3827fec5c7f2ed::t_3468b7f7475c9d 128
+packages/core/tests/build/vercel-optional-sync.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 5,51-54
+  s_3827fec5c7f2ed::t_92085d1be5774f 42-43
+  s_3827fec5c7f2ed::t_6712c8aad06914 49-50
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 3,17-18,132-134,136-137,141
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 15
+  s_3827fec5c7f2ed::t_0b90295d2ecfd6 135
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 12
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 6,13-14,35-37
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_3827fec5c7f2ed::t_ceba3e5f540632 124,155,190,235,251,253,257-261,264-267
+  s_3827fec5c7f2ed::t_48ba2e493a1546 129,131,134-135,140-141
+  s_3827fec5c7f2ed::t_0765764a813c27 237,239
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 13,142,242,269
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3827fec5c7f2ed::t_67d6bdb2b7e857 17,255,289,302,305
+packages/core/tests/support/process.ts
+  s_3827fec5c7f2ed::t_eb314fe203a4ad 56-88
+packages/core/tests/routing/conventions/route-plugin.test.ts
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 2,7-8,106-107,111
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 6
+packages/core/tests/routing/conventions/plugin.test.ts
+  s_3827fec5c7f2ed::t_0e1f3bc92dc237 6
+  s_3827fec5c7f2ed::t_cb614a7b9e58cd 2,7-8,70-71,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c738abc0548314c2e357f132ccf063dae1d93f3",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
