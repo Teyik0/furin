@@ -1,15 +1,15 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-function run(command: string[], cwd: string): void {
-  const result = Bun.spawnSync({
+async function run(command: string[], cwd: string): Promise<void> {
+  const exitCode = await Bun.spawn({
     cmd: command,
     cwd,
     stderr: "inherit",
     stdout: "inherit",
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(`Performance report command failed (${result.exitCode}): ${command.join(" ")}`);
+  }).exited;
+  if (exitCode !== 0) {
+    throw new Error(`Performance report command failed (${exitCode}): ${command.join(" ")}`);
   }
 }
 
@@ -25,11 +25,11 @@ const measurementScript = join(import.meta.dirname, "measure-client-bundle.ts");
 const serverFilename = process.platform === "win32" ? "server.exe" : "server";
 mkdirSync(dirname(outputPath), { recursive: true });
 
-run(["bun", "install", "--frozen-lockfile"], projectDir);
-run(["bun", "run", "--cwd", "packages/core", "build"], projectDir);
-run(["bun", "run", "--cwd", "apps/docs", "build:analyze"], projectDir);
-run(["bun", "run", "--cwd", "examples/weather", "build"], projectDir);
-run(
+await run(["bun", "install", "--frozen-lockfile"], projectDir);
+await run(["bun", "run", "--cwd", "packages/core", "build"], projectDir);
+await run(["bun", "run", "--cwd", "apps/docs", "build:analyze"], projectDir);
+await run(["bun", "run", "--cwd", "examples/weather", "build"], projectDir);
+await run(
   [
     "bun",
     measurementScript,
