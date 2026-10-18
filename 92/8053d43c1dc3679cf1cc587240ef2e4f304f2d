@@ -1,0 +1,22 @@
+packages/core/package.json
+  s_3827fec5c7f2ed::t_93fdcf8a82c42e 189
+  s_3827fec5c7f2ed::t_d78793e9ae07fb 182-184
+bun.lock
+  s_3827fec5c7f2ed::t_a26c67d86cedf9 135-137,142,580,582,584,586,588,592,594,596,598,1120,1614,1710,1994,1996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "928053d43c1dc3679cf1cc587240ef2e4f304f2d",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
