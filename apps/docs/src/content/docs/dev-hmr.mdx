@@ -229,13 +229,19 @@ it clears on the save that fixes it.
 
 ## Loader and render-mode coherence
 
-Development SSR treats each render mode deliberately:
+Development and production pages go through the same dispatcher and render
+pipeline (`src/server/router/dispatch.ts`). Each runtime only supplies its
+ports: the route source (a live snapshot whose shell has no schemas, so edited
+schemas take effect, or the built manifest), the module loader (current source
+versions with the diagnostic overlay, or bundled modules) and the cache policy.
+Production serves SSG, ISR and PPR documents from the page cache. Development
+has no page cache and treats each render mode deliberately:
 
 | Mode | Loader behavior | HTML behavior |
 | --- | --- | --- |
 | SSR | Run the current loader chain for every request | Render from current source |
 | SSG | Cache synchronous loader data until a tracked source changes | Re-render HTML for every request |
-| ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first | Re-render HTML for every request |
+| ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first, keyed on the declared query params like production | Re-render HTML for every request |
 
 Only loader output is cached in development. HTML is always assembled again so
 the response can carry current code, document assets, and framework scripts.
@@ -429,7 +435,8 @@ edit-to-paint, and memory behavior.
 | `src/client/router/provider.tsx` | Perform HMR data refreshes and reject stale navigations |
 | `src/server/dev-page-plugin.ts` | Load versioned SSR modules, transform source, rewrite imports, and preserve React singletons |
 | `src/server/router/source-version.ts` | Compute source revisions and advance the explicit generation |
-| `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, run render modes, and publish server diagnostics |
+| `src/server/router/dispatch.ts` | Dispatch pages for both runtimes through their route source, module loader, and cache policy ports |
+| `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, and provide the development ports: current modules, the loader cache, and server diagnostics |
 | `src/server/cache/dev-loader.ts` | Cache loader output and invalidate it by route dependencies |
 | `src/plugin/routes.ts` | Generate Elysia route trees and watch route topology |
 | `src/server/render/template.ts` | Read current Bun document assets and inject framework clients |
