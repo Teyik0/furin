@@ -97,14 +97,18 @@ describe("generated projects", () => {
   for (const templateId of ["simple", "full"] as const) {
     it(`type-checks the untouched ${templateId} template`, async () => {
       const targetDir = await generateProject(templateId);
-      const result = Bun.spawnSync([TSC, "--noEmit", "-p", targetDir], {
+      const child = Bun.spawn([TSC, "--noEmit", "-p", targetDir], {
         cwd: targetDir,
         stderr: "pipe",
         stdout: "pipe",
       });
-      const output = `${result.stdout.toString()}${result.stderr.toString()}`;
-      expect(output).toBe("");
-      expect(result.exitCode).toBe(0);
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(`${stdout}${stderr}`).toBe("");
+      expect(exitCode).toBe(0);
     }, 60_000);
   }
 });

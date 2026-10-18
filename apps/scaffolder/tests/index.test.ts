@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
-const decoder = new TextDecoder();
 const appRoot = resolve(import.meta.dir, "..");
 const entrypoint = resolve(appRoot, "src/index.ts");
 
@@ -49,28 +48,38 @@ describe("create-furin CLI", () => {
   );
 
   it("reports the Furin version from the workspace core package", async () => {
-    const result = Bun.spawnSync(["bun", entrypoint, "--version"], {
+    const child = Bun.spawn(["bun", entrypoint, "--version"], {
       cwd: appRoot,
       stderr: "pipe",
       stdout: "pipe",
     });
+    const [exitCode, stdout] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
     const core: { version: string } = await Bun.file(
       resolve(appRoot, "../../packages/core/package.json")
     ).json();
 
-    expect(result.exitCode).toBe(0);
-    expect(decoder.decode(result.stdout).trim()).toBe(core.version);
+    expect(exitCode).toBe(0);
+    expect(stdout.trim()).toBe(core.version);
   });
 
-  it("formats parseArgs failures through the CLI error handler", () => {
-    const result = Bun.spawnSync(["bun", entrypoint, "--unknown-flag"], {
+  it("formats parseArgs failures through the CLI error handler", async () => {
+    const child = Bun.spawn(["bun", entrypoint, "--unknown-flag"], {
       cwd: appRoot,
       stderr: "pipe",
       stdout: "pipe",
     });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
 
-    const output = decoder.decode(result.stdout) + decoder.decode(result.stderr);
-    expect(result.exitCode).toBe(1);
+    const output = stdout + stderr;
+    expect(exitCode).toBe(1);
     expect(output).toContain('Unknown option "--unknown-flag"');
   });
 });
