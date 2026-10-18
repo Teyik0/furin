@@ -25,6 +25,22 @@ src/admin/users.tsx       → /admin/users
 - A non-root prefix starts with `/` and has no trailing slash after normalization.
 - Two instances cannot claim the same prefix.
 - Prefixes that would produce the same client-directory slug are also rejected.
+- The prefix is the full physical path. The client bundle is built for it, as with a Next.js or TanStack Start `basePath`, so Furin does not adapt to a prefix added by a parent Elysia instance.
+- Each `furin()` call serves one application. Call it again for another application instead of reusing the plugin or a container that holds it.
+
+Mount Furin on an Elysia instance without a prefix and repeat the parent path in `prefix`. Guards and hooks still apply from unprefixed parents:
+
+```ts
+const admin = new Elysia()
+  .onBeforeHandle(requireAdmin)
+  .use(await furin({ pagesDir: "./src/admin", prefix: "/backoffice/admin" }));
+
+new Elysia().use(admin).listen(3000);
+```
+
+Mounting `furin({ prefix: "/admin" })` under `new Elysia({ prefix: "/backoffice" })` fails at startup. The error shows the declared prefix and the path the app is served at, `/backoffice/admin`, which is the value to declare. Use the same prefix in `furin.config.ts` `apps` or `furin build --prefix`.
+
+The most specific prefix owns a request whatever the mount order, so `/admin/users` belongs to the `/admin` instance even when the root instance is mounted first.
 
 Everything an instance owns is physically prefixed: pages, `/_furin/*` endpoints, `/_client/*`, `/public/*`, and the favicon.
 
@@ -52,10 +68,10 @@ That intentionally loads the other document and browser bundle.
 | SSG, ISR, PPR, and dev loader caches | Per instance by default; public production artifacts can share one `pageCache` adapter |
 | Build ID and document template | Per instance |
 | Root/prefixed 404 handling | Per instance |
-| `revalidatePath()` | Applies the logical path across all mounted instances |
+| `revalidatePath()` | Applies the logical path across the instances mounted in the requesting application, or every live instance outside a request |
 | `revalidateTag()` | Finds tagged paths across instances, then evicts only from each owner |
 | Sync journal | Determined by the configured adapter and namespace |
-| CDN purge paths | Converted to physical prefixed URLs |
+| CDN purge paths | Converted to physical prefixed URLs and sent to each instance's `cachePurger` |
 
 Cross-instance path and tag invalidation is deliberate for applications sharing data. If two apps use the same logical path for unrelated content, prefer distinct tags and avoid broad path invalidation.
 

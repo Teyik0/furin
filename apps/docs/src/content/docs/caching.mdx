@@ -235,17 +235,18 @@ For other tabs and devices, configure [Sync & Invalidations](/docs/sync). Sync d
 
 ## CDN Purging
 
-Register one process-wide callback at server startup when a CDN needs explicit invalidation:
+Pass a purge callback to each `furin()` mount whose pages sit behind a CDN that needs explicit invalidation:
 
 ```ts
-import { setCachePurger } from "@teyik0/furin";
-
-setCachePurger(async (paths) => {
-  await cdn.purge(paths);
+await furin({
+  pagesDir: "./src/pages",
+  cachePurger: async (paths) => {
+    await cdn.purge(paths);
+  },
 });
 ```
 
-Furin batches and deduplicates physical paths for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
+Each callback receives only the physical (prefixed) paths of its own mount. `setCachePurger(callback)` from `@teyik0/furin` registers a process-wide fallback for mounts without their own `cachePurger`. Furin batches and deduplicates physical paths per callback for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
 
 An origin cache and a CDN cache must both be coherent. In a multi-replica Bun deployment, configure the shared page cache in addition to CDN purging. Purging only the CDN can allow another origin replica with a local cache to repopulate it with stale HTML.
 

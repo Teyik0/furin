@@ -152,13 +152,14 @@ await furin({
 | Field | Purpose |
 |---|---|
 | `pagesDir` | Runtime pages identity; defaults to `src/pages` |
-| `prefix` | Mount pages, framework endpoints, public assets, and client assets below a path |
+| `prefix` | Full physical path of pages, framework endpoints, public assets, and client assets; the client bundle is built for it |
 | `clientDir` | Override production client assets; build artifacts normally resolve this automatically |
 | `clientLogging` | Enable browser logging for this runtime/build context |
-| `logger` | evlog Elysia options plus global sampling |
+| `logger` | evlog Elysia options plus process-wide sampling; a second instance with a different `sampling` throws |
+| `cachePurger` | CDN purge hook for this instance; receives its physical paths and takes precedence over `setCachePurger()` |
 | `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
 | `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
 
-Keep the same `pagesDir` and `prefix` between the build and runtime mount. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
+Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
 
 For a single Bun process, omit `pageCache`. For multiple Bun replicas, create one `redisPageCache()` adapter at module scope and pass it to each `furin()` mount. On Vercel Build Output, omit it and use the cache integration installed by the deployment adapter. Vercel deployments reject a custom `pageCache` during application initialization so native and Redis caches cannot become competing sources of truth.
