@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Dependency security** — update compatible transitive dependencies and use the official selector-parser `7.1.6` fix. Local dependency patches are removed.
 
 ### Fixed
+- **Inherited params and query types** — a route's loader, head, page, `RouteParams`, `<Link>` and `navigate()` types now include the params and query schemas declared by its layouts. A child schema overrides a parent field with the same name, which matches how the runtime merges schemas.
 - **Composite Link navigation in development** — load Flight Link references through the public browser export so they share the application's router context, preserving SPA navigation and mount prefixes after hydration and HMR in published-package consumers. Production resolves both hydration and reference imports to the same source modules.
 - **Loader fallback layouts** — preserve successful ancestor data with each layout's scope during 404 and error rendering, including client navigation and hydration. Skip layouts whose loaders failed instead of invoking them with missing required props.
 - **Development HMR aliases** — refresh server-rendered components imported through TypeScript path aliases after edits, including ISR layouts, re-exports and dynamic imports, while preserving React and framework singleton modules.

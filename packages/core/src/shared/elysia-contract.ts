@@ -36,6 +36,13 @@ export function getSchemaValidator(schema: FurinSchema): FurinSchemaValidator | 
 
 export type FurinUnwrap<Schema extends FurinSchema | undefined> = UnwrapSchema<Schema>;
 
+/** Input side of a schema: what a caller may send before defaults and codecs apply. */
+export type FurinUnwrapInput<Schema extends FurinSchema | undefined> = UnwrapSchema<
+  Schema,
+  NonNullable<unknown>,
+  "input"
+>;
+
 export type ElysiaRoutes<App extends { "~Routes": unknown }> = App["~Routes"];
 
 export type ElysiaRouteLeaf<App> = App extends { "~Routes": infer Routes }

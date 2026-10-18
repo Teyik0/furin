@@ -2,12 +2,7 @@ import { type Context, Elysia, ValidationError } from "elysia";
 import type { RequestLogger } from "evlog";
 import type { HeadOptions, RenderingMode } from "./client.ts";
 import { applySchemaDefaults, coerceRouteInput } from "./server/router/schemas.ts";
-import type {
-  ElysiaRouteLeaf,
-  ElysiaRouteParams,
-  FurinSchema,
-  FurinUnwrap,
-} from "./shared/elysia-contract.ts";
+import type { FurinSchema, FurinUnwrap, FurinUnwrapInput } from "./shared/elysia-contract.ts";
 import { getSchemaValidator, isTypeBoxObjectSchema } from "./shared/elysia-contract.ts";
 import type { RemountDependency, RemountDeps } from "./shared/page-key.ts";
 
@@ -52,10 +47,14 @@ interface SchemaValues {
 type ParamsOf<Schema extends FurinSchema | undefined> = Schema extends FurinSchema
   ? FurinUnwrap<Schema>
   : NoFields;
+type SearchInputOf<Schema extends FurinSchema | undefined> = Schema extends FurinSchema
+  ? FurinUnwrapInput<Schema>
+  : NoFields;
 declare const privateFieldBrand: unique symbol;
 declare const ssrFieldBrand: unique symbol;
 declare const inheritedDataBrand: unique symbol;
 declare const loaderDataBrand: unique symbol;
+declare const routeContractBrand: unique symbol;
 declare const noRequestLoader: unique symbol;
 type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
 interface SsrField<Value> {
@@ -122,13 +121,6 @@ type DataOfRoute<Route> = WithoutParentDataConflicts<
     [Key in keyof RequestDataOfRoute<Route>]: PrivateField<Awaited<RequestDataOfRoute<Route>[Key]>>;
   }
 >;
-type ParamsOfRoute<Route> = Route extends {
-  component: (props: infer Props) => unknown;
-}
-  ? Props extends { params: infer Params }
-    ? Params
-    : NoFields
-  : NoFields;
 type PromisedData<Data extends LoaderData> = {
   [Key in keyof Data]: Promise<Awaited<Data[Key]>>;
 };
@@ -452,6 +444,8 @@ interface ChainState {
   requestData: LoaderData;
   /** Shape of the runtime `schemas` field exposed on the route terminal. */
   schemas: RouteSchemas | undefined;
+  /** Navigation input for the resolved query (schema input side). */
+  search: unknown;
 }
 
 type RouteSchemas =
@@ -465,6 +459,7 @@ type WithState<State extends ChainState, Patch extends Partial<ChainState>> = {
 interface InitialState<
   Params,
   Query,
+  Search,
   Schemas extends RouteSchemas | undefined,
   ParentData extends LoaderData,
   ParentParams,
@@ -479,7 +474,63 @@ interface InitialState<
   query: Query;
   requestData: NoRequestLoader;
   schemas: Schemas;
+  search: Search;
 }
+
+/**
+ * Resolved public contract of a route: its layouts' params/query merged with
+ * its own (child overrides parent, as `mergeRouteSchemas()` does at runtime),
+ * plus the navigation input side of the resolved query.
+ */
+interface RouteContract {
+  params: unknown;
+  query: unknown;
+  search: unknown;
+}
+
+interface EmptyContract {
+  params: NoFields;
+  query: NoFields;
+  search: NoFields;
+}
+
+type ContractOf<Route> = Route extends { readonly [routeContractBrand]?: infer Contract }
+  ? NonNullable<Contract> extends RouteContract
+    ? NonNullable<Contract>
+    : EmptyContract
+  : EmptyContract;
+
+type Flatten<Value> = { [Key in keyof Value]: Value[Key] };
+
+type MergeSchemaValues<Parent, Child> = Flatten<Omit<Parent, keyof Child> & Child>;
+
+type ResolvedConfig<
+  Parent extends RouteContract,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+> = ConfigFor<
+  MergeSchemaValues<Parent["params"], ParamsOf<ParamsSchema>>,
+  MergeSchemaValues<Parent["query"], ParamsOf<QuerySchema>>
+>;
+
+type ConfiguredRoute<
+  Parent extends RouteContract,
+  ParentData extends LoaderData,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+  Schemas extends RouteSchemas | undefined,
+  Mode extends RenderingMode,
+> = ConfiguredStage<
+  InitialState<
+    MergeSchemaValues<Parent["params"], ParamsOf<ParamsSchema>>,
+    MergeSchemaValues<Parent["query"], ParamsOf<QuerySchema>>,
+    MergeSchemaValues<Parent["search"], SearchInputOf<QuerySchema>>,
+    Schemas,
+    ParentData,
+    Parent["params"],
+    Mode
+  >
+>;
 
 interface ChainRuntime {
   head: unknown;
@@ -513,6 +564,11 @@ type RouteTerminal<State extends ChainState> = {
   mode: State["mode"];
   readonly [inheritedDataBrand]?: State["parentData"];
   readonly [loaderDataBrand]?: RenderLoaderData<State["parentData"], State["data"]>;
+  readonly [routeContractBrand]?: {
+    params: State["params"];
+    query: State["query"];
+    search: State["search"];
+  };
   remountDeps: RouteMetadata["remountDeps"];
   requestLoader: RequestLoader<State["params"], State["query"], State["requestData"]> | undefined;
   revalidate: number | undefined;
@@ -683,21 +739,19 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
  */
 class UnconfiguredRoute {
   config<LayoutRoute, QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, QuerySchema> & {
       layout: LayoutRoute;
       mode: Mode;
       params?: undefined;
       query: QuerySchema;
     }
-  ): ConfiguredStage<
-    InitialState<
-      NoFields,
-      ParamsOf<QuerySchema>,
-      { query: QuerySchema },
-      DataOfRoute<LayoutRoute>,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
+  ): ConfiguredRoute<
+    ContractOf<LayoutRoute>,
+    DataOfRoute<LayoutRoute>,
+    undefined,
+    QuerySchema,
+    { query: QuerySchema },
+    Mode
   >;
   config<
     LayoutRoute,
@@ -705,55 +759,49 @@ class UnconfiguredRoute {
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<ContractOf<LayoutRoute>, ParamsSchema, QuerySchema> & {
       layout: LayoutRoute;
       mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
     }
-  ): ConfiguredStage<
-    InitialState<
-      ParamsOf<ParamsSchema>,
-      ParamsOf<QuerySchema>,
-      { params: ParamsSchema; query: QuerySchema },
-      DataOfRoute<LayoutRoute>,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
+  ): ConfiguredRoute<
+    ContractOf<LayoutRoute>,
+    DataOfRoute<LayoutRoute>,
+    ParamsSchema,
+    QuerySchema,
+    { params: ParamsSchema; query: QuerySchema },
+    Mode
   >;
   config<LayoutRoute, ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
+    options: ResolvedConfig<ContractOf<LayoutRoute>, ParamsSchema, undefined> & {
       layout: LayoutRoute;
       mode: Mode;
       params: ParamsSchema;
       query?: undefined;
     }
-  ): ConfiguredStage<
-    InitialState<
-      ParamsOf<ParamsSchema>,
-      NoFields,
-      { params: ParamsSchema; query: undefined },
-      DataOfRoute<LayoutRoute>,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
+  ): ConfiguredRoute<
+    ContractOf<LayoutRoute>,
+    DataOfRoute<LayoutRoute>,
+    ParamsSchema,
+    undefined,
+    { params: ParamsSchema; query: undefined },
+    Mode
   >;
   config<LayoutRoute, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, NoFields> & {
+    options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, undefined> & {
       layout: LayoutRoute;
       mode: Mode;
       params?: undefined;
       query?: undefined;
     }
-  ): ConfiguredStage<
-    InitialState<
-      NoFields,
-      NoFields,
-      undefined,
-      DataOfRoute<LayoutRoute>,
-      ParamsOfRoute<LayoutRoute>,
-      Mode
-    >
+  ): ConfiguredRoute<
+    ContractOf<LayoutRoute>,
+    DataOfRoute<LayoutRoute>,
+    undefined,
+    undefined,
+    undefined,
+    Mode
   >;
   config(options: RouteMetadata & ConfigOptions): unknown {
     return configure(options);
@@ -766,57 +814,51 @@ class UnconfiguredRoute {
  */
 class UnconfiguredRootRoute {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<EmptyContract, undefined, QuerySchema> & {
       mode: Mode;
       params?: undefined;
       query: QuerySchema;
     }
-  ): ConfiguredStage<
-    InitialState<NoFields, ParamsOf<QuerySchema>, { query: QuerySchema }, NoFields, NoFields, Mode>
-  >;
+  ): ConfiguredRoute<EmptyContract, NoFields, undefined, QuerySchema, { query: QuerySchema }, Mode>;
   config<
     ParamsSchema extends FurinSchema,
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
   >(
-    options: ConfigFor<ParamsOf<ParamsSchema>, ParamsOf<QuerySchema>> & {
+    options: ResolvedConfig<EmptyContract, ParamsSchema, QuerySchema> & {
       mode: Mode;
       params: ParamsSchema;
       query: QuerySchema;
     }
-  ): ConfiguredStage<
-    InitialState<
-      ParamsOf<ParamsSchema>,
-      ParamsOf<QuerySchema>,
-      { params: ParamsSchema; query: QuerySchema },
-      NoFields,
-      NoFields,
-      Mode
-    >
+  ): ConfiguredRoute<
+    EmptyContract,
+    NoFields,
+    ParamsSchema,
+    QuerySchema,
+    { params: ParamsSchema; query: QuerySchema },
+    Mode
   >;
   config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
-    options: ConfigFor<ParamsOf<ParamsSchema>, NoFields> & {
+    options: ResolvedConfig<EmptyContract, ParamsSchema, undefined> & {
       mode: Mode;
       params: ParamsSchema;
       query?: undefined;
     }
-  ): ConfiguredStage<
-    InitialState<
-      ParamsOf<ParamsSchema>,
-      NoFields,
-      { params: ParamsSchema; query: undefined },
-      NoFields,
-      NoFields,
-      Mode
-    >
+  ): ConfiguredRoute<
+    EmptyContract,
+    NoFields,
+    ParamsSchema,
+    undefined,
+    { params: ParamsSchema; query: undefined },
+    Mode
   >;
   config<Mode extends RenderingMode>(
-    options: ConfigFor<NoFields, NoFields> & {
+    options: ResolvedConfig<EmptyContract, undefined, undefined> & {
       mode: Mode;
       params?: undefined;
       query?: undefined;
     }
-  ): ConfiguredStage<InitialState<NoFields, NoFields, undefined, NoFields, NoFields, Mode>>;
+  ): ConfiguredRoute<EmptyContract, NoFields, undefined, undefined, undefined, Mode>;
   config(options: RouteMetadata & ConfigOptions): unknown {
     return configure(options);
   }
@@ -830,9 +872,16 @@ export function defineRootRoute(): UnconfiguredRootRoute {
   return new UnconfiguredRootRoute();
 }
 
-export type RouteParams<Route> = Route extends { elysia: infer App }
-  ? ElysiaRouteParams<ElysiaRouteLeaf<App>>
+/** Resolved contract (inherited + own params/query, search input) of a route terminal. */
+export type RouteContractOf<Route> = Route extends {
+  readonly [routeContractBrand]?: infer Contract;
+}
+  ? NonNullable<Contract> extends RouteContract
+    ? NonNullable<Contract>
+    : never
   : never;
+
+export type RouteParams<Route> = RouteContractOf<Route>["params"];
 
 export type RouteLoaderData<Route> = Route extends {
   readonly [loaderDataBrand]?: infer Data;

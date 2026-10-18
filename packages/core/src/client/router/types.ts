@@ -1,6 +1,7 @@
 import type { RouteMap, RoutePatternMap } from "@teyik0/furin/routes";
 import type React from "react";
 import type { HeadOptions } from "../../client.ts";
+import type { RouteContractOf } from "../../define-route.ts";
 import type {
   ElysiaRouteLeaf,
   ElysiaRouteParams,
@@ -21,11 +22,29 @@ type RouteOf<To extends RouteTo> = To extends keyof RoutePatternMap
     ? RouteManifest[To]
     : never;
 
-type RouteSearchInput<Route> = Route extends { elysia: infer App }
-  ? unknown extends ElysiaRouteQuery<ElysiaRouteLeaf<App>>
+/** `undefined` when a resolved contract field declares no keys. */
+type DeclaredFields<Fields> = [Fields] extends [never]
+  ? undefined
+  : keyof Fields extends never
     ? undefined
-    : ElysiaRouteQuery<ElysiaRouteLeaf<App>>
-  : undefined;
+    : Fields;
+
+/**
+ * Builder routes carry a resolved contract (inherited + own schemas). Plain
+ * Elysia page modules fall back to their own route leaf.
+ */
+type ContractFields<Route> = [RouteContractOf<Route>] extends [never]
+  ? Route extends { elysia: infer App }
+    ? {
+        params: ElysiaRouteParams<ElysiaRouteLeaf<App>>;
+        query: ElysiaRouteQuery<ElysiaRouteLeaf<App>>;
+      }
+    : never
+  : RouteContractOf<Route>;
+
+type RouteSearchInput<Route> = DeclaredFields<ContractFields<Route>["query"]>;
+
+type RouteParamsInput<Route> = DeclaredFields<ContractFields<Route>["params"]>;
 
 type RouteParamInput<Value> = Value extends number ? string | number : Value;
 
@@ -56,16 +75,10 @@ export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
 export type RouteParamsOf<To extends RouteTo> = keyof RouteManifest extends never
   ? Record<string, string | number>
   : To extends keyof RouteManifest | keyof RoutePatternMap
-    ? RouteOf<To> extends { elysia: infer App }
-      ? unknown extends ElysiaRouteParams<ElysiaRouteLeaf<App>>
-        ? undefined
-        : keyof ElysiaRouteParams<ElysiaRouteLeaf<App>> extends never
-          ? undefined
-          : {
-              [Key in keyof ElysiaRouteParams<ElysiaRouteLeaf<App>>]: RouteParamInput<
-                ElysiaRouteParams<ElysiaRouteLeaf<App>>[Key]
-              >;
-            }
+    ? RouteParamsInput<RouteOf<To>> extends infer Params
+      ? Params extends object
+        ? { [Key in keyof Params]: RouteParamInput<Params[Key]> }
+        : undefined
       : undefined
     : undefined;
 

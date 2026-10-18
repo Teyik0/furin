@@ -68,16 +68,35 @@ declare const generatedSlugRoute: ReturnType<typeof createGeneratedSlugRoute>;
 
 declare const generatedRoute: ReturnType<typeof createGeneratedRoute>;
 
+const createOrgLayout = () =>
+  defineRoute()
+    .config({
+      layout: rootLayout,
+      mode: "ssr",
+      params: t.Object({ org: t.String() }),
+      query: t.Object({ lang: t.String() }),
+    })
+    .layout(({ children }) => children);
+declare const orgLayout: ReturnType<typeof createOrgLayout>;
+
+const createInheritedBoardRoute = () =>
+  defineRoute()
+    .config({ layout: orgLayout, mode: "ssr", params: t.Object({ boardId: t.Number() }) })
+    .page(({ params }) => String(params.boardId));
+declare const inheritedBoardRoute: ReturnType<typeof createInheritedBoardRoute>;
+
 declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
     "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
+    "/elysia-orgs/:org/boards/:boardId": typeof inheritedBoardRoute;
     "/elysia-products": typeof generatedRoute;
     "/elysia-slugs/:slug": typeof generatedSlugRoute;
   }
   interface RoutePatternMap {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
     "/elysia-optional-boards/:boardId": typeof generatedOptionalBoardRoute;
+    "/elysia-orgs/:org/boards/:boardId": typeof inheritedBoardRoute;
     "/elysia-products": typeof generatedRoute;
     "/elysia-slugs/:slug": typeof generatedSlugRoute;
   }
@@ -114,6 +133,27 @@ const assertTypedLinkParams = () => {
   expectTypeOf<LinkProps<"/elysia-boards/:boardId">["params"]>().toEqualTypeOf<{
     boardId: string | number;
   }>();
+};
+
+const assertInheritedNavigation = (navigate: Navigate) => {
+  expectTypeOf<RouteParamsOf<"/elysia-orgs/:org/boards/:boardId">>().toEqualTypeOf<{
+    org: string;
+    boardId: string | number;
+  }>();
+  expectTypeOf<RouteSearch<"/elysia-orgs/:org/boards/:boardId">>().toEqualTypeOf<{
+    lang: string;
+  }>();
+  navigate({
+    params: { boardId: 1, org: "furin" },
+    search: { lang: "fr" },
+    to: "/elysia-orgs/:org/boards/:boardId",
+  });
+  navigate({
+    // @ts-expect-error the layout's path param is part of the child's params
+    params: { boardId: 1 },
+    search: { lang: "fr" },
+    to: "/elysia-orgs/:org/boards/:boardId",
+  });
 };
 
 const assertLinkDestinations = () => {
@@ -203,6 +243,9 @@ describe("Elysia RouteMap bridge", () => {
   });
   test("projects generated route keys and query types into client routing", assertRouteMapBridge);
   test("projects path params into typed Link props", assertTypedLinkParams);
+  test("inherits layout params and query in navigation", () => {
+    expectTypeOf(assertInheritedNavigation).toBeFunction();
+  });
   test("requires params for named dynamic links", () => {
     expectTypeOf(assertLinkDestinations).toBeFunction();
   });
