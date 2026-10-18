@@ -9,6 +9,11 @@ permissions:
   contents: read
   pull-requests: write
 
+# Superseded pull request runs are cancelled; pushes to main always finish.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   distributed-sync:
     name: Distributed sync validation
