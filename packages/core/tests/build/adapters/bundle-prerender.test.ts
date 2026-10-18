@@ -59,6 +59,19 @@ test("package builds prerender SSG pages with the built package", async () => {
   expect(snapshot[""]["/blog/hello-world"].html).toContain("rendered-from-<!-- -->bundle");
 }, 60_000);
 
+test("static exports render without touching the process's runtime state", async () => {
+  const app = createTmpApp("cli-app");
+  tmpApps.push(app);
+
+  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
+
+  expect(await Bun.file(join(app.path, "dist/blog/hello-world/index.html")).text()).toContain(
+    "Blog post page"
+  );
+  expect(getProductionTemplate()).toBeNull();
+  expect(ssgRouteCache().size).toBe(0);
+}, 60_000);
+
 test("the Bun server serves the snapshot rendered at build time", async () => {
   const app = createOriginApp();
   process.env.FURIN_TEST_PHASE = "build";

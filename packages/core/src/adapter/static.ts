@@ -7,6 +7,7 @@ import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, StaticTargetBuildManifest } from "../build/types.ts";
 import { toLogical } from "../client/router/link-utils.ts";
 import type { StaticExportConfig } from "../config.ts";
+import { createInstance, withInstance } from "../server/instance.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderSSG } from "../server/render/ssg.ts";
@@ -416,16 +417,22 @@ export async function buildStaticTarget(
   const ssgRoutes = collectSsgRoutes(routes, onSSR, skippedRoutes);
   const searchRoutes = createSearchRouteMetadata(ssgRoutes);
 
+  // The export renders in its own runtime: templates and caches stay out of
+  // the build process's shared state.
+  const exportRuntime = createInstance("", dirname(root.path));
+
   // ── 2. Resolve and validate every output path before writing artifacts ────
-  const tasks = await buildTaskQueue(
-    ssgRoutes,
-    routes,
-    root,
-    outDir,
-    renderedRoutes,
-    skippedRoutes,
-    basePath,
-    searchRoutes
+  const tasks = await withInstance(exportRuntime, () =>
+    buildTaskQueue(
+      ssgRoutes,
+      routes,
+      root,
+      outDir,
+      renderedRoutes,
+      skippedRoutes,
+      basePath,
+      searchRoutes
+    )
   );
   assertNoStaticExportSkips(onSSR, skippedRoutes);
   // Snapshot after queue-building: routes skipped due to missing staticParams() are
@@ -462,12 +469,12 @@ export async function buildStaticTarget(
   const faviconHref = existsSync(publicFavicon) ? `${basePath}/favicon.ico` : undefined;
   const shellHtml = generateProdIndexHtml(entryChunk, cssChunks, undefined, faviconHref, true);
 
-  // ── 6. Prime the renderer with the production shell ──────────────────────
+  // ── 6. Prime the export runtime with the production shell ────────────────
   // Must be called before any prerenderSSG invocation.
   // prepareRender() checks getProductionTemplate() first (before IS_DEV), so
   // setting the content here is sufficient — no need to flip IS_DEV globally.
-  setProductionTemplateContent(shellHtml);
-  setProductionPreloadManifest(preloadManifest);
+  setProductionTemplateContent(shellHtml, exportRuntime);
+  setProductionPreloadManifest(preloadManifest, exportRuntime);
 
   // ── 7. Copy public/ → outDir/ ─────────────────────────────────────────────
   const publicSrcDir = join(rootDir, "public");
@@ -482,7 +489,9 @@ export async function buildStaticTarget(
   }
 
   // ── 9. Pre-render SSG routes ──────────────────────────────────────────────
-  await mapWithConcurrency(tasks, STATIC_CONCURRENCY, (task) => task());
+  await withInstance(exportRuntime, () =>
+    mapWithConcurrency(tasks, STATIC_CONCURRENCY, (task) => task())
+  );
 
   // Fail the build when onSSR="error" and any prerender task was recorded as skipped.
   assertNoPrerenderSkips(onSSR, skippedRoutes, afterQueueCount);
