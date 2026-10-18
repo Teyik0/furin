@@ -1,0 +1,114 @@
+packages/core/src/server/prod/runtime.ts
+  s_3827fec5c7f2ed::t_9062736f653e3b 1-144
+packages/core/src/server/dev/runtime.ts
+  s_3827fec5c7f2ed::t_73a5058787254d 2-86,89-91,102-114,116-206,208-277,279-282,284,286-304,306,308-310,316-318,320-339
+  s_3827fec5c7f2ed::t_1eb4708e800298 115,278,311-315,319
+  s_3827fec5c7f2ed::t_d4ac66fa2e0613 1,207,283,285,305,307
+  s_3827fec5c7f2ed::t_8e92050f64e9ee 87-88,92-101
+packages/core/src/server/render/not-found-plugin.ts
+  s_3827fec5c7f2ed::t_440fa02c0d82c0 1-62
+packages/core/src/server/evlog.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,10-15,21-27,33-35,61,64-68,92-124,126-132,135,137-138,140,145-155
+packages/core/src/server/render/ppr-request.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 97
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 31,40,56-57,60-61,94,105-107,111-115,126,134,137-139,143-158,160,166-168,171,173,182-185,189-198,200-205,207-208,214-216,219,221,232-245,247,360,380-381
+packages/core/src/server/dev/runtime.production.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 33-36
+packages/core/src/server/instance.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 4-9,19-20,27-35,38,42-43,46-48,62-63,84,91-97,100-102,106-107,111-115,117-122,124-125,127,129-155,159-162,165-167,169-170,172-174,177,179-181,183-184,188-189,192,196-198,201,206,209-215,217-220,228-229,233,235-237,239-240
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 27,43
+packages/core/src/server/cache/isr.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,24,29,33,37,41,45,49,61,66,70
+packages/core/tests/runtime/plugin/not-found-sequence.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 17,30,60
+packages/core/src/server/render/assemble.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 171-172,177,180-182
+packages/core/src/server/cache/invalidation.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 33-34,36,38,42-43,52,56-57,63-64,128,130,132-135,151,189
+packages/core/src/server/router/source-version.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 2,5-8
+packages/core/src/server/devtools/hub.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 29,38,49
+packages/core/src/server/auto-invalidate/runtime.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 132,134,136-141
+packages/core/src/server/sync/query-context.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 67
+packages/core/src/server/mode.ts
+  s_3827fec5c7f2ed::t_4037f46c861c58 1-21
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 36,39-40,54,94,100,106,172,186,192,241,247
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 29,46
+packages/core/src/server/assets/client-dir.ts
+  s_3827fec5c7f2ed::t_f70bbf5cf9c9e0 1-110
+packages/core/src/server/render/document.tsx
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 28-29,31-32,41
+packages/core/src/server/render/template.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 139,153,160,167,175,217,223,229
+packages/core/tests/runtime/plugin/furinjs-runtime.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 23-24,37-45,122,194,223,253,279,307,311,328,333,335-336,339-340,342-348,350-351,353-354,409,434
+packages/core/src/build/hydrate.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 208
+packages/core/src/server/internal.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 129-136,139-140,142-144,146-148,150-152
+packages/core/tests/runtime/plugin/evlog-response-lifecycle.integration.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 191,201
+packages/core/src/server/devtools/instrumentation.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,7,44,63-65
+packages/core/src/server/render/ppr-document.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 232
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 265-267
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1-4,8,16-19,21,49-50,83-88,112-118,144-165,168-169,171-196,198-199,204-206,208,211,214-216,218-231,233-234,236-243,245,247-272,275-277,279-286,288-293,295-315,317-320
+  s_3827fec5c7f2ed::t_5790032ccdeea5 170
+packages/core/src/server/router/dispatch.ts
+  s_3827fec5c7f2ed::t_a1670c3887a6cc 1,3-10,12-58,63,65-66,70-115,117-274
+  s_3827fec5c7f2ed::t_2b8f6f5140065a 59-62,64,68-69
+  s_3827fec5c7f2ed::t_7a060c1c4a56f7 2,11,116
+  s_3827fec5c7f2ed::t_daa8c1df487577 67
+packages/core/src/server/cache/page-cache-state.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,13
+packages/core/src/server/cache/registry.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,15,31
+packages/core/src/server/devtools/request-context.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 2-3,13-18,20-21,24,27,43-44,46-48,53,57,62,66,73-112,115-116,119-122
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 16,220-250
+  s_3827fec5c7f2ed::t_0d930960d32dd9 251-252
+packages/core/src/server/dev/diagnostics.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 12,240
+packages/core/tests/runtime/instance/instance.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 2-4,13,17-19,48,62-73,75-76,79-81,84-90,92-95,98-107,109-117,129,138,145-146,148-149,152,156-165
+packages/core/src/server/cache/purger.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1-2,5,9-12,17-23,29-48,55,58-60
+packages/core/src/server/auto-invalidate/registry.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 1,97,108,110-111,113
+packages/core/src/build/production-instrumentation.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 6
+  s_3827fec5c7f2ed::t_52bf3f3a67242b 12
+packages/core/src/server/cache/ssg.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 2,17,21-23,26,30
+packages/core/tests/dev/hmr/dev-hmr.integration.test.ts
+  s_3827fec5c7f2ed::t_c51ae4d0dfbb06 133-135,161,170
+packages/core/src/server/logging/ingest-plugin.ts
+  s_3827fec5c7f2ed::t_780f34c9978808 1-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0db598cc70e02b8ec6c624b39e3c54ce59bc5f48",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
