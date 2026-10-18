@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { Elysia, t } from "elysia";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
-import { waitForPendingISRRevalidations } from "../../../src/server/cache/isr.ts";
+import { isrCache, waitForPendingISRRevalidations } from "../../../src/server/cache/isr.ts";
 import { renderForPath } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
@@ -98,6 +98,59 @@ test("ISR cache keys include the query string and path invalidation clears every
   await app.handle(new Request("http://localhost/search?tenant=alpha"));
   await app.handle(new Request("http://localhost/search?tenant=beta"));
   expect(loaderCalls).toBe(4);
+});
+
+test("ISR cache keys ignore undeclared query params and canonicalise declared ones", async () => {
+  let loaderCalls = 0;
+  const route = defineRoute()
+    .config({
+      layout: rootTerminal,
+      mode: "isr",
+      query: t.Object({ sort: t.Optional(t.String()), tenant: t.Optional(t.String()) }),
+      revalidate: 60,
+    })
+    .loader(({ query }) => {
+      loaderCalls += 1;
+      return { tenant: query.tenant ?? "" };
+    })
+    .page(({ tenant }) => <main data-tenant={tenant}>{tenant}</main>);
+  const resolved = resolveRoute(route, "/search.tsx", "/search", root);
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+
+  for (const search of [
+    "?tenant=alpha&sort=new",
+    "?sort=new&tenant=alpha&junk=1",
+    "?junk=2&tenant=alpha&sort=new",
+    "?tenant=alpha&sort=new&utm_source=x",
+  ]) {
+    // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+    const response = await app.handle(new Request(`http://localhost/search${search}`));
+    expect(await response.text()).toContain("alpha");
+  }
+
+  expect(loaderCalls).toBe(1);
+  expect([...isrCache.keys()]).toEqual(["/search?sort=new&tenant=alpha"]);
+});
+
+test("ISR routes without a query schema key on the path and hide the raw query from loaders", async () => {
+  const observed: unknown[] = [];
+  const route = defineRoute()
+    .config({ layout: rootTerminal, mode: "isr", revalidate: 0 })
+    .loader(({ query }) => {
+      observed.push({ ...query });
+      return {};
+    })
+    .page(() => <main>static</main>);
+  const resolved = resolveRoute(route, "/plain.tsx", "/plain", root);
+  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+
+  const first = await app.handle(new Request("http://localhost/plain?x=attacker"));
+  expect(await first.text()).not.toContain("attacker");
+  await app.handle(new Request("http://localhost/plain?x=2"));
+  await waitForPendingISRRevalidations();
+
+  expect([...isrCache.keys()]).toEqual(["/plain"]);
+  expect(observed).toEqual([{}, {}]);
 });
 
 test("ISR cached loaders reject request-specific context", async () => {

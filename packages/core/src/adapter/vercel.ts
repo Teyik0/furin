@@ -20,7 +20,9 @@ import {
   resolveDocumentMode,
   resolveDocumentRevalidate,
 } from "../server/router/patterns.ts";
+import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
+import { isTypeBoxObjectSchema } from "../shared/elysia-contract.ts";
 import { physicalPath } from "../shared/prefix.ts";
 import {
   buildRuntimeAppsSequentially,
@@ -55,6 +57,7 @@ interface VercelBuildOutputConfig {
 }
 
 interface PrerenderConfig {
+  allowQuery?: string[];
   chain?: { outputPath: string; headers: { "x-furin-ppr-resume": string } };
   expiration: number | false;
   fallback?: string;
@@ -300,6 +303,24 @@ function createFunctionAlias(
   symlinkSync(target, aliasPath, process.platform === "win32" ? "junction" : "dir");
 }
 
+/**
+ * Query names Vercel may key a prerender on. Without `allowQuery` every unique
+ * query string becomes its own cache entry, so keep only the internal path
+ * param plus the route's declared query keys. Non-TypeBox query schemas cannot
+ * be enumerated; they keep Vercel's per-query caching rather than collapsing
+ * distinct declared values into one entry.
+ */
+function prerenderAllowQuery(route: ResolvedRoute): string[] | undefined {
+  const schema = mergeRouteSchemas(route.routeChain, "query");
+  if (schema === undefined) {
+    return [ISR_PATH_PARAM];
+  }
+  if (!isTypeBoxObjectSchema(schema)) {
+    return;
+  }
+  return [ISR_PATH_PARAM, ...Object.keys(schema.properties).toSorted()];
+}
+
 function createExactPrerenderSpec(
   prerender: RoutePrerender,
   routePath: string,
@@ -346,11 +367,13 @@ async function createPrerenderSpecs(
         config: {
           expiration: mode === "ssg" ? false : (resolveDocumentRevalidate(route) ?? 60),
           passQuery: true,
+          // PPR shells resume on __server with the request's query, which
+          // requestLoaders may read; keep Vercel's per-query caching there.
           ...(isPprRoute(app, route)
             ? {
                 chain: { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: "__server" },
               }
-            : {}),
+            : { allowQuery: prerenderAllowQuery(route) }),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
         functionName: functionNameForPath(physicalPattern, mode, names),
@@ -370,6 +393,7 @@ async function createPrerenderSpecs(
       const exactSpec = createExactPrerenderSpec(prerender, routePath, names);
       if (exactSpec !== undefined) {
         exactSpec.config.chain = spec.config.chain;
+        exactSpec.config.allowQuery = spec.config.allowQuery;
         spec = exactSpec;
         specs.set(exactSpec.source, exactSpec);
       }

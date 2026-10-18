@@ -240,6 +240,7 @@ export const route = defineRoute()
         readFileSync(join(functionsDir, "news-isr.prerender-config.json"), "utf8")
       );
       expect(newsPrerender.expiration).toBe(90);
+      expect(newsPrerender.allowQuery).toEqual(["__furin_path"]);
       expect(newsPrerender.fallback).toBe("news-isr.prerender-fallback.html");
       expect(newsPrerender.initialHeaders["vercel-cache-tag"]).toBe("/news,news%2Cworld");
       expect(readFileSync(join(functionsDir, newsPrerender.fallback), "utf8")).toContain("News");
@@ -247,14 +248,17 @@ export const route = defineRoute()
         readFileSync(join(functionsDir, "search-isr.prerender-config.json"), "utf8")
       );
       expect(searchPrerender.fallback).toBeUndefined();
+      expect(searchPrerender.allowQuery).toEqual(["__furin_path", "q"]);
       const offersPrerender = JSON.parse(
         readFileSync(join(functionsDir, "offers-ssg.prerender-config.json"), "utf8")
       );
       expect(offersPrerender.fallback).toBeUndefined();
+      expect(offersPrerender.allowQuery).toEqual(["__furin_path", "coupon"]);
       const eventPrerender = JSON.parse(
         readFileSync(join(functionsDir, "events/launch-isr.prerender-config.json"), "utf8")
       );
       expect(eventPrerender.expiration).toBe(90);
+      expect(eventPrerender.allowQuery).toEqual(["__furin_path"]);
       expect(eventPrerender.fallback).toBe("launch-isr.prerender-fallback.html");
       expect(
         JSON.parse(

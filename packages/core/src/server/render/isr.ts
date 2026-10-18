@@ -22,7 +22,7 @@ import type {
 } from "../cache/page-cache.ts";
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
-import { pathWithRequestSearch } from "../cache/route-cache.ts";
+import { pathWithCanonicalSearch } from "../cache/route-cache.ts";
 import { createLogger, getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance, withInstance } from "../instance.ts";
@@ -452,7 +452,14 @@ export async function handleISR(
   const revalidate = resolveDocumentRevalidate(route) ?? 60;
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
-  const cacheKey = pathWithRequestSearch(resolvedPath, ctx.request.url);
+  // Key on the validated query only: the schema strips undeclared params, and
+  // routes without a query schema render (and cache) as if no query was sent.
+  const hasQuerySchema = route.routeChain.some((entry) => entry.query !== undefined);
+  const cacheKey = pathWithCanonicalSearch(
+    resolvedPath,
+    ctx.request.url,
+    new Set(hasQuerySchema ? Object.keys(ctx.query ?? {}) : [])
+  );
   const externalPrerender = isExternalPrerenderRequest(ctx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   const pageCacheIdentity: PageCacheIdentity = {
@@ -525,7 +532,7 @@ export async function handleISR(
     buildId,
     cacheGeneration,
     cacheKey,
-    ctx,
+    ctx: canonicalISRContext(ctx, cacheKey, hasQuerySchema),
     externalPrerender,
     pageCache,
     pageCacheIdentity,
@@ -536,6 +543,20 @@ export async function handleISR(
     searchRoutes,
     sharedAvailable,
   });
+}
+
+/**
+ * The context an ISR miss renders with: its query and request URL carry only
+ * the canonical search encoded in `cacheKey`, so the cached document matches
+ * what any other URL sharing that key would have produced.
+ */
+function canonicalISRContext(ctx: Context, cacheKey: string, hasQuerySchema: boolean): Context {
+  const url = new URL(ctx.request.url);
+  url.search = new URL(cacheKey, url).search;
+  return Object.create(ctx, {
+    query: { enumerable: true, value: hasQuerySchema ? ctx.query : {} },
+    request: { enumerable: true, value: new Request(url, { headers: ctx.request.headers }) },
+  }) as Context;
 }
 
 function revalidateInBackground(
@@ -565,7 +586,8 @@ function revalidateInBackground(
   const cacheGeneration =
     sharedCache === undefined ? captureISRCacheGeneration(cacheKey) : undefined;
   const instance = currentInstance();
-  const { origin, search } = new URL(originalCtx.request.url);
+  const { origin } = new URL(originalCtx.request.url);
+  const { search } = new URL(cacheKey, origin);
 
   const input: BackgroundRevalidationInput = {
     cacheGeneration,

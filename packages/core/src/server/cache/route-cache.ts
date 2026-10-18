@@ -50,6 +50,27 @@ export function pathWithRequestSearch(path: string, requestUrl: string): string 
   return `${pathWithoutSearch(path)}${search}`;
 }
 
+/**
+ * Cache key for a request: the path plus only the query params named in
+ * `keys`, sorted by name. Undeclared or reordered params therefore share one
+ * entry instead of minting a new key per unique URL.
+ */
+export function pathWithCanonicalSearch(
+  path: string,
+  requestUrl: string,
+  keys: ReadonlySet<string>
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of new URL(requestUrl).searchParams) {
+    if (keys.has(key)) {
+      params.append(key, value);
+    }
+  }
+  params.sort();
+  const search = params.toString();
+  return search === "" ? pathWithoutSearch(path) : `${pathWithoutSearch(path)}?${search}`;
+}
+
 function matchesPath(urlPath: string, path: string, type: RevalidateType): boolean {
   if (type === "page") {
     return urlPath === path;
