@@ -21,6 +21,8 @@ bun install
 bun run dev
 ```
 
+Furin supports exactly Elysia `2.0.0-beta.32` while Elysia 2 is in beta; a weekly workflow tests upcoming `elysia@next` releases.
+
 For the shadcn/ui starter:
 
 ```bash
