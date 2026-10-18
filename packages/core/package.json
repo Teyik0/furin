@@ -179,14 +179,14 @@
     "yuku-parser": "0.12.0"
   },
   "devDependencies": {
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
-    "@prisma/client-runtime-utils": "7.10.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@prisma/client-runtime-utils": "7.10.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "drizzle-orm": "0.45.3",
     "expect-type": "^1.4.0",
-    "prisma": "7.10.0"
+    "prisma": "7.10.1"
   },
   "peerDependencies": {
     "drizzle-orm": "^0.45.3",
