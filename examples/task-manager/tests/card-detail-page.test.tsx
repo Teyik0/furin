@@ -4,9 +4,10 @@ import { treaty } from "@elysia/eden";
 import { withSync } from "@teyik0/furin/client";
 import { RouterContext, SSR_FALLBACK_ROUTER } from "@teyik0/furin/link";
 import { Elysia } from "elysia";
-import { buildPageElement } from "../../../packages/core/src/client/router/boundary-tree.tsx";
+import { resolveRouteElement } from "../../../packages/core/src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../packages/core/src/client/router/types.ts";
 import { adaptDefinedPage } from "../../../packages/core/src/server/router/defined-route.ts";
+import { collectRouteChainFromRoute } from "../../../packages/core/src/shared/utils/index.ts";
 import {
   installDom,
   resetDomState,
@@ -57,7 +58,15 @@ const match: LoadedClientRoute = {
 };
 
 function CardPage(props: Parameters<typeof route.page>[0]) {
-  return buildPageElement(match, null, props, undefined, undefined);
+  return resolveRouteElement({
+    boundaries: [],
+    boundaryOptions: undefined,
+    chain: collectRouteChainFromRoute(match.pageRoute),
+    data: props,
+    page: { component: match.component, pattern: match.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
 }
 
 afterEach(() => {
