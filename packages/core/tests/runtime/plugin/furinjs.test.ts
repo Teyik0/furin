@@ -513,21 +513,13 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   try {
     instance = await createTestApp({ pagesDir });
     instance.listen(0);
-    await Promise.resolve();
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+      timeoutMs: 3000,
+    });
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
     try {
-      writeAppFile(
-        app.path,
-        "src/pages/broken.tsx",
-        [
-          'import { defineRoute } from "@teyik0/furin";',
-          'import { route as rootRoute } from "./root";',
-          "const selectLayout = () => rootRoute;",
-          "export const route = defineRoute()",
-          '  .config({ layout: selectLayout(), mode: "ssr" })',
-          "  .page(() => null);",
-        ].join("\n")
-      );
+      // An error.tsx without a default export fails the snapshot refresh.
+      writeAppFile(app.path, "src/pages/error.tsx", "export const broken = true;\n");
       const deadline = Date.now() + 3000;
       while (
         !errorSpy.mock.calls.some(
@@ -558,7 +550,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   }
 });
 
-test.serial("furin() restores a removed route layout while the dev server is running", async () => {
+test.serial("furin() reports a removed route layout without rewriting the file", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   const routePath = join(pagesDir, "index.tsx");
@@ -567,18 +559,34 @@ test.serial("furin() restores a removed route layout while the dev server is run
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
-  await Promise.resolve();
+  await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+    timeoutMs: 3000,
+  });
+  const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
   try {
-    const source = readFileSync(routePath, "utf8");
-    writeAppFile(app.path, "src/pages/index.tsx", source.replace("layout: rootRoute, ", ""));
+    const source = readFileSync(routePath, "utf8").replace("layout: rootRoute, ", "");
+    writeAppFile(app.path, "src/pages/index.tsx", source);
 
-    await waitForFileContent(routePath, ".config({ layout: rootRoute, mode:");
+    const deadline = Date.now() + 3000;
+    while (
+      !errorSpy.mock.calls.some(([message]) =>
+        String(message).includes("config() must declare layout")
+      )
+    ) {
+      if (Date.now() >= deadline) {
+        throw new Error("Timed out waiting for the route config diagnostic");
+      }
+      // biome-ignore lint/performance/noAwaitInLoops: bounded polling waits for the topology watcher
+      await Bun.sleep(20);
+    }
+    expect(readFileSync(routePath, "utf8")).toBe(source);
   } finally {
+    errorSpy.mockRestore();
     await instance.stop();
   }
 });
 
-test.serial("furin() rejects an ambiguous route config at boot", async () => {
+test.serial("furin() boots with a computed layout reference and leaves it untouched", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   writeAppFile(
@@ -596,9 +604,11 @@ test.serial("furin() rejects an ambiguous route config at boot", async () => {
   __setDevMode(true);
   process.chdir(app.path);
 
-  await expect(furin({ pagesDir })).rejects.toThrow(
-    `${join(pagesDir, "index.tsx")}: use a static layout route reference`
-  );
+  const source = readFileSync(join(pagesDir, "index.tsx"), "utf8");
+
+  await furin({ pagesDir });
+
+  expect(readFileSync(join(pagesDir, "index.tsx"), "utf8")).toBe(source);
 });
 
 test.serial("furin() registers native routes in dev without replacing SSR responses", async () => {

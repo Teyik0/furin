@@ -290,8 +290,9 @@ try {
   ].join("\n"));
   writeAppFile(fixture.path, "src/pages/files/[slug].tsx", [
     'import { defineRoute } from "@teyik0/furin";',
+    'import { t } from "elysia";',
     'import { route as rootRoute } from "../root";',
-    'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })',
     '.loader(({ params }) => params).page(({ slug }) => <main>{slug}</main>);',
   ].join("\n"));
   const events = [];
