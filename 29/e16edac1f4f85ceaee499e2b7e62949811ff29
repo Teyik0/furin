@@ -1,0 +1,26 @@
+packages/core/tests/build/hydrate/strip-plugin.test.ts
+  s_3827fec5c7f2ed::t_e455c516f718f4 6
+  s_3827fec5c7f2ed::t_93336a0247c94d 65-99
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_3827fec5c7f2ed::t_81d32dc3f1fe84 528-549
+packages/core/src/plugin/transform-isomorphic.ts
+  s_3827fec5c7f2ed::t_4988635bea1189 23
+packages/core/src/plugin/strip-server.ts
+  s_3827fec5c7f2ed::t_c72e2318abfe17 4-5,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29e16edac1f4f85ceaee499e2b7e62949811ff29",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+packages/core/src/plugin/strip-server.ts
+  s_3827fec5c7f2ed::t_c68291955ac6eb 1-20
+packages/core/src/plugin/index.ts
+  s_3827fec5c7f2ed::t_7f00efc98a602b 5
+  s_3827fec5c7f2ed::t_c426072319fb0e 67
+  s_3827fec5c7f2ed::t_eecd543621ab84 99
+  s_3827fec5c7f2ed::t_65dcc4530ca334 4
+packages/core/src/build/client.ts
+  s_3827fec5c7f2ed::t_4ad47411e6a1f2 103,107-108
+  s_3827fec5c7f2ed::t_fcae3d01d01751 3,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0175a37abaf4d2b66feb62b07cfe1319e0427d62",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
