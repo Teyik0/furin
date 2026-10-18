@@ -1,0 +1,74 @@
+packages/core/src/rsc/codec.ts
+  s_a284901e399b13::t_d29e15f9f5e67c 6,90
+packages/core/src/rsc/client-references.ts
+  s_307302436e9f20::t_9d01883160e1e9 20,58,120-126,129,131-137,143,146,149
+  s_307302436e9f20::t_134f83139f88e1 29,64,71-77,80,92,107
+  s_307302436e9f20::t_343f8fa3c5690e 78
+  s_a284901e399b13::t_d29e15f9f5e67c 19,36,138-139,144-145,148
+  s_307302436e9f20::t_3aead9fe4768fd 1-2,4-6,21-23,26-28,30,45-49,57,59-63,65-70,79,81-91,93-106,108-109,147,150
+packages/core/src/rsc/build/client-references.ts
+  s_bc143c065ef794::t_2a381f94bd58ad 99-108,110-111
+  s_a284901e399b13::t_9577b1e08d504f 128,130-134
+  s_a284901e399b13::t_1adaf7e0ca05de 144
+  s_bc143c065ef794::t_8b8783b43e23ec 112-114,129
+  s_bc143c065ef794::t_33f2c9d6bc58c4 127,136-138,140-142
+  s_a284901e399b13::t_499204d62de987 115-117
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_bc143c065ef794::t_64e67f0f673243 438-440
+  s_bc143c065ef794::t_85f56ae7569af1 55
+  s_307302436e9f20::t_47a519f038e629 859,866
+  s_307302436e9f20::t_343f8fa3c5690e 856,860-863
+  s_3827fec5c7f2ed::t_0291b2083167f7 391,393-394,399,407-408,430
+  s_bc143c065ef794::t_d9fb426658e2a2 19,60-65,69,86,612,638-643,663-666,671-673,678,686
+  s_bc143c065ef794::t_70102acda5760e 88-91,93,441-451,457-460,465-491,667-670,674-677
+  s_a284901e399b13::t_0567fcbc4cc579 237-291
+  s_307302436e9f20::t_8f5efe7592863a 293,300-339
+  s_3827fec5c7f2ed::t_f32fdc286788c1 97-98
+  s_a284901e399b13::t_e37346c11bd129 340-349,355,357-385,452,464
+  s_bc143c065ef794::t_ba691d86f8967e 453,462
+  s_a284901e399b13::t_b390dd9137af8d 96,99-144
+  s_a284901e399b13::t_33ba1a6c518b51 386-390,392,395-398,400-406,428-429,431-432
+  s_307302436e9f20::t_c10774b8df408b 92,454,461,811-835,837-846,848-855,857-858,864-865,867-888,890-918
+  s_307302436e9f20::t_940185feafdd37 836,847,889
+  s_307302436e9f20::t_71c55b8074b471 87,94-95,292,455-456,463,492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3dceabe2048bea2f007b91ed1075af86257d8c07",
+  "prompts": {},
+  "sessions": {
+    "s_307302436e9f20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "026acbdc-5fdd-4061-8c2a-bfc94e94b078",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_a284901e399b13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0ea7d30-640a-46d4-8313-7b5ccb118294",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_bc143c065ef794": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a14e40-2538-73d1-a349-2c52e9933030",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
