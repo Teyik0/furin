@@ -13,6 +13,7 @@ afterAll(() => database.close());
 afterEach(() => setSystemTime());
 let conformanceNamespace = 0;
 const succeededResponseCheckPattern = /furin_sync_mutations_succeeded_response_check/;
+const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 testSyncAdapterConformance(() => {
   conformanceNamespace += 1;
@@ -118,6 +119,23 @@ test("persists and replays a completed mutation", async () => {
       principal: "user",
     })
   ).toEqual({ kind: "replay", response });
+});
+
+test("stores mutation keys as digests instead of raw principals and idempotency keys", async () => {
+  const namespace = "hashed-keys";
+  const adapter = sqliteSyncAdapter({ database, namespace });
+  await adapter.beginMutation({
+    fingerprint: "body",
+    key: "POST:/cards:client-key-91c2",
+    principal: "alice@example.com",
+  });
+  const rows = database
+    .query<{ mutation_key: string }, [string]>(
+      "SELECT mutation_key FROM furin_sync_mutations WHERE namespace = ?"
+    )
+    .all(namespace);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.mutation_key).toMatch(SHA256_HEX);
 });
 
 test("rejects succeeded mutations without replay data", () => {

@@ -106,6 +106,22 @@ function invalidationInputFromSync(
   return input;
 }
 
+const MAX_IDEMPOTENCY_KEY_LENGTH = 255;
+const PRINTABLE_ASCII = /^[\x20-\x7e]+$/;
+
+function invalidIdempotencyKeyResponse(): Response {
+  return Response.json(
+    {
+      code: "FURIN_INVALID_IDEMPOTENCY_KEY",
+      detail: `Idempotency-Key must be 1-${MAX_IDEMPOTENCY_KEY_LENGTH} printable ASCII characters.`,
+      status: 400,
+      title: "Bad Request",
+      type: "about:blank",
+    },
+    { headers: { "content-type": "application/problem+json" }, status: 400 }
+  );
+}
+
 function isMutationMethod(method: string): boolean {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
 }
@@ -216,6 +232,12 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         headers: { "content-type": "text/plain; charset=utf-8" },
         status: 428,
       });
+    }
+    if (
+      idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH ||
+      !PRINTABLE_ASCII.test(idempotencyKey)
+    ) {
+      return invalidIdempotencyKeyResponse();
     }
     if (!supportsReplayBody(ctx.request)) {
       return Response.json(

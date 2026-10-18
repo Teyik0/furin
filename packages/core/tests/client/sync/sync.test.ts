@@ -318,6 +318,52 @@ test("furinSync bypasses reads and synchronizes mutations implicitly", async () 
   }
 });
 
+test.each([
+  ["an oversized key", "k".repeat(256)],
+  ["a key with control characters", "card\tcreate"],
+  ["a non-ASCII key", "carte-créée"],
+])("furinSync rejects %s before reserving a mutation", async (_, key) => {
+  resetSyncTestState();
+  try {
+    let calls = 0;
+    const app = new Elysia().use(furinSync(testSync)).post("/cards", () => {
+      calls += 1;
+      return { calls };
+    });
+    const response = await app.handle(
+      new Request("http://localhost/cards", {
+        headers: { "Idempotency-Key": key },
+        method: "POST",
+      })
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toStartWith("application/problem+json");
+    expect(await response.json()).toMatchObject({
+      code: "FURIN_INVALID_IDEMPOTENCY_KEY",
+      status: 400,
+    });
+    expect(calls).toBe(0);
+  } finally {
+    resetSyncTestState();
+  }
+});
+
+test("furinSync accepts a 255-character printable Idempotency-Key", async () => {
+  resetSyncTestState();
+  try {
+    const app = new Elysia().use(furinSync(testSync)).post("/cards", () => ({ created: true }));
+    const response = await app.handle(
+      new Request("http://localhost/cards", {
+        headers: { "Idempotency-Key": `${"k".repeat(250)} ~!@#` },
+        method: "POST",
+      })
+    );
+    expect(response.status).toBe(200);
+  } finally {
+    resetSyncTestState();
+  }
+});
+
 test("furinSync enforces idempotent mutation semantics directly", async () => {
   resetSyncTestState();
   try {
