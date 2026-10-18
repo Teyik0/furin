@@ -1,0 +1,26 @@
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_3827fec5c7f2ed::t_9bda485a519a85 635-636
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_3827fec5c7f2ed::t_9bda485a519a85 293,295
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3827fec5c7f2ed::t_224aadd2eec786 521-522
+  s_3827fec5c7f2ed::t_eae9d078b50b99 607-611
+  s_3827fec5c7f2ed::t_5b836c6f573512 516-518
+  s_3827fec5c7f2ed::t_3866365ce558ca 553,562-565,567-582,584,589
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1b4ded9836b05ceddd62ae8b10219a0137cbb6c",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
