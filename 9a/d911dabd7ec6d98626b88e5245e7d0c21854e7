@@ -1,0 +1,33 @@
+packages/core/tests/runtime/plugin/browser-ingest.test.ts
+  s_3827fec5c7f2ed::t_43625b2a83fe7a 192-195
+packages/core/tests/runtime/plugin/browser-ingest-security.integration.test.ts
+  s_3827fec5c7f2ed::t_cf8d659cfd514f 20,22
+  s_3827fec5c7f2ed::t_dea53fded27be9 62
+  s_3827fec5c7f2ed::t_e9c3b510a38f64 6
+  s_3827fec5c7f2ed::t_c57fba4c702a60 70,72
+  s_3827fec5c7f2ed::t_2bb34c7bb1d26c 1-5,7-19,21,23-61,63-69,73-78
+  s_3827fec5c7f2ed::t_f7a8dd63fca562 71
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_cbc48205559021 284-288
+  s_3827fec5c7f2ed::t_121e37a9d0946d 402,406-408
+  s_3827fec5c7f2ed::t_f68e276fe885cf 335
+apps/docs/src/content/docs/logging.mdx
+  s_3827fec5c7f2ed::t_3737916d56fe55 141
+  s_3827fec5c7f2ed::t_3c7c7e3bb4c761 131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ad911dabd7ec6d98626b88e5245e7d0c21854e7",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
