@@ -1,0 +1,45 @@
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 162
+packages/core/tests/dev/hmr/dev-graph.test.ts
+  s_3827fec5c7f2ed::t_dbdd664f98ff37 37
+packages/core/tests/routing/conventions/plugin.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 72
+packages/core/tests/dev/hmr/dev-route-rebuild.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 96
+packages/core/tests/routing/layouts/schema-merge.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 434
+packages/core/tests/rendering/errors/render-root-not-found.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 119,138
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 302
+packages/core/tests/routing/cache/cache-headers.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 130
+packages/core/tests/support/http.test.ts
+  s_3827fec5c7f2ed::t_dbdd664f98ff37 13
+packages/core/tests/routing/conventions/route-plugin.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 108
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 129,141,243,268
+packages/core/tests/routing/discovery/route-dependencies.test.ts
+  s_3827fec5c7f2ed::t_74dc879477ff7c 49
+packages/core/tests/runtime/multi-instance/multi-instance.integration.test.ts
+  s_3827fec5c7f2ed::t_c458b7eea47a6a 374
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_3827fec5c7f2ed::t_5c4cea587922f8 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c53b539032cb2fb5c79c7d6d8461456f6dfb672",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
