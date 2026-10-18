@@ -3,20 +3,22 @@ import { ScaffolderError } from "../../errors.ts";
 import { initGitRepo } from "../../utils/git.ts";
 import type { PipelineContext } from "../context.ts";
 
-export function stage7Refinement(ctx: PipelineContext): void {
+export async function stage7Refinement(ctx: PipelineContext): Promise<void> {
   // ── bun install ────────────────────────────────────────────────────────
   if (ctx.install) {
     const s = spinner();
     s.start("Installing dependencies…");
 
-    const result = Bun.spawnSync(["bun", "install"], {
+    // Async spawn keeps the event loop free so the spinner keeps animating.
+    const child = Bun.spawn(["bun", "install"], {
       cwd: ctx.targetDir,
       stderr: "pipe",
-      stdout: "pipe",
+      stdout: "ignore",
     });
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
-    if (result.exitCode !== 0) {
-      const output = new TextDecoder().decode(result.stderr).trim();
+    if (exitCode !== 0) {
+      const output = stderr.trim();
       s.stop("Installation failed.");
       throw new ScaffolderError(`bun install failed${output ? `\n${output}` : ""}`);
     }
