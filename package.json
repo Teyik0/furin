@@ -24,15 +24,7 @@
   },
   "overrides": {
     "@esbuild-kit/core-utils>esbuild": "0.25.12",
-    "baseline-browser-mapping": "^2.11.27",
-    "brace-expansion": "^5.0.12",
-    "browserslist": "^4.29.3",
-    "fast-uri": "^3.1.8",
-    "js-yaml": "^4.3.2",
-    "minimatch": "^10.2.5",
-    "postcss-selector-parser": "7.1.6",
-    "smol-toml": "^1.9.0",
-    "source-map-js": "^1.2.2"
+    "postcss-selector-parser": "7.1.6"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
@@ -40,7 +32,7 @@
     "@commitlint/config-conventional": "^21.2.3",
     "@happy-dom/global-registrator": "^20.14.5",
     "@types/bun": "^1.4.2",
-    "knip": "^6.38.0",
+    "knip": "^6.41.0",
     "lefthook": "^2.1.14",
     "pkg-pr-new": "0.0.91",
     "react-doctor": "^0.9.17",
