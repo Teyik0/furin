@@ -368,7 +368,6 @@ try {
       `,
     ],
     cwd: coreDir,
-    env: { ...Bun.env, FURIN_RSC_CODEC_PATH: "./dist/rsc/server-codec.js" },
     stderr: "pipe",
     stdout: "pipe",
     timeout: 25_000,

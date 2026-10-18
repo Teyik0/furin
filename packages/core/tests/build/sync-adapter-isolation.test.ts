@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertDistFresh } from "../support/dist.ts";
 
 const fixtures = new URL("../fixtures/sync-bundles/", import.meta.url);
 const postgresMarker = "pg_advisory_xact_lock";
@@ -52,6 +53,9 @@ function dependencyNames(manifestValue: PackageManifest): string[] {
 }
 
 describe("sync adapter bundle isolation", () => {
+  // These tests inspect the published dist/ output; refuse to run on a stale build.
+  beforeAll(() => assertDistFresh("server/sync/index.js"));
+
   test("loads the built sync entrypoint without exposing test internals", async () => {
     const sync = await import("../../dist/server/sync/index.js");
     expect(sync.furinSync).toBeFunction();
