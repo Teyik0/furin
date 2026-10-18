@@ -388,7 +388,9 @@ export async function resolveCurrentDevRoute(
     }
     return { root: currentRoot, route: refreshed };
   }
-  const invalidExport = new Error(`${route.path} must provide a valid Furin page export`);
+  const invalidExport = new Error(
+    `${route.path} must provide a valid Furin page export: \`export const route = defineRoute().config({ layout, mode }).page(...)\``
+  );
   Reflect.set(invalidExport, "furinPosition", {
     column: 1,
     file: route.path,
