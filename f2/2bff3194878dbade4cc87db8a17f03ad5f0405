@@ -1,0 +1,23 @@
+packages/core/tests/build/measurement/measure-vercel-server-bundle.test.ts
+  s_3827fec5c7f2ed::t_4b6ee5ae60dc08 7,12,15
+packages/core/src/adapter/build.ts
+  s_3827fec5c7f2ed::t_4b6ee5ae60dc08 138
+scripts/measure-vercel-server-bundle.ts
+  s_3827fec5c7f2ed::t_4b6ee5ae60dc08 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f22bff3194878dbade4cc87db8a17f03ad5f0405",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/core/src/server/internal.ts
+  s_3827fec5c7f2ed::t_ac09291544aded 28-35,51-52
+packages/core/src/server/router/discovery.ts
+  s_3827fec5c7f2ed::t_ac09291544aded 69,79,91,175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "23790d6c9ae5c79b853f6b956510f26bdb6d1b4a",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
