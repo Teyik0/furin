@@ -155,7 +155,7 @@ Links and navigation APIs use the public URL, such as `/users/:id`, while genera
 
 ## Generated Route Types
 
-Furin writes `furin-env.d.ts` during development and builds. It augments the route map used by `<Link>`, `useNavigate()`, and `useSearch()`:
+Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `RouteMap` entry per route pattern, such as `"/blog/:slug"`, and that map types `<Link>`, `useNavigate()`, and `useSearch()`:
 
 ```tsx
 import { Link } from "@teyik0/furin/link";
@@ -194,4 +194,8 @@ TypeScript therefore reads schema and loader changes directly from the route
 module, while config changes that affect generated declarations, such as cache
 tags, trigger an atomic rewrite of `furin-env.d.ts`.
 
-Do not edit `furin-env.d.ts`. Commit it if your team wants route types available before the dev server runs; otherwise generate it in the local or CI workflow before type-checking.
+Do not edit `furin-env.d.ts`, and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change. Commit it if your team wants route types available before the dev server runs. Otherwise, run `furin typegen` before type-checking in local or CI workflows.
+
+The output is sorted by route pattern, so regenerating it with the same routes gives a byte-identical file.
+
+Only the root-mounted `furin()` instance (no `prefix`) writes `furin-env.d.ts`. The file is a single project-wide declaration, so prefixed instances such as `furin({ pagesDir: "./src/admin", prefix: "/admin" })` skip generation instead of overwriting the root app's routes. Their pages still work at runtime, but their route patterns aren't in `RouteMap`.

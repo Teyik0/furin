@@ -49,7 +49,7 @@ my-app/
 - `src/pages/index.tsx` maps to `/`.
 - `furin.config.ts` controls production builds.
 - `bunfig.toml` registers the client-side Bun plugins used by development.
-- `furin-env.d.ts` is generated from the route tree and should not be edited manually. Despite its name, it does not type environment variables: it registers every page's `route` export so `<Link to>`, `navigate()`, route params, and `getRouteApi()` are type-checked, and references Furin's ambient types for CSS and image imports. The dev server rewrites it when it starts and when pages change.
+- `furin-env.d.ts` is generated from the route tree and should not be edited manually. Despite its name, it does not type environment variables: it registers every page's `route` export so `<Link to>`, `navigate()`, route params, and `getRouteApi()` are type-checked, and references Furin's ambient types for CSS and image imports. The dev server rewrites it when it starts and when pages change; `furin build` and `furin typegen` write it too.
 
 ## The Server
 

@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { buildApp } from "../build/index.ts";
+import { buildApp, generateRouteTypes } from "../build/index.ts";
 import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
@@ -193,6 +193,32 @@ if (command === "preview") {
 
   const built = Object.keys(result.targets).join(", ") || "none";
   log(`Done: ${built} → .furin/build`);
+} else if (command === "typegen") {
+  let rawValues: ReturnType<typeof parseArgs>["values"];
+  try {
+    rawValues = parseArgs({
+      args: argv.slice(1),
+      options: {
+        config: { type: "string" },
+        pagesDir: { type: "string" },
+      },
+      strict: true,
+    }).values;
+  } catch (error) {
+    bail(error instanceof Error ? error.message : String(error));
+  }
+
+  const values = rawValues as { config?: string; pagesDir?: string };
+  const config = await loadCliConfig(process.cwd(), values.config);
+  const pagesDir = values.pagesDir ?? config.pagesDir;
+  await generateRouteTypes({
+    apps: pagesDir ? [{ pagesDir, prefix: "" }] : config.apps,
+    pagesDir: undefined,
+    plugins: config.plugins,
+    rootDir: config.rootDir,
+    serverEntry: config.serverEntry,
+  });
+  log("Route types written to furin-env.d.ts");
 } else if (!command || command === "help") {
   console.log(
     `Furin CLI
@@ -200,6 +226,7 @@ if (command === "preview") {
 USAGE
   furin build [options]
   furin preview [options]
+  furin typegen [options]
 
 BUILD OPTIONS
   --target    ${BUILD_TARGETS.join(" | ")} | all  (default: bun)
@@ -209,6 +236,11 @@ BUILD OPTIONS
   --config    Config file path
   --compile   server | embed  Compile to binary: "server" keeps client on disk, "embed" is self-contained
   --analyze   Write complete bundle metafiles to .furin/build/analysis
+
+TYPEGEN OPTIONS
+  Writes furin-env.d.ts for the root-mounted app (run it before tsc in CI)
+  --pagesDir  Pages directory (default: config apps, server.ts detection, then src/pages)
+  --config    Config file path
 
 PREVIEW OPTIONS
   --dir       Static export directory (default: static.outDir or dist)

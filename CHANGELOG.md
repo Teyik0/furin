@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Generated `RouteMap` uses exact route patterns** — `furin-env.d.ts` now declares one `RouteMap` entry per pattern (`"/weather/:city"`) instead of concrete-path index signatures, which failed with TS2411 under `skipLibCheck: false`. `RoutePatternMap` is removed. Concrete paths such as `/weather/paris` are resolved against the patterns by the client types, and static routes take precedence as they do at runtime. Regenerate `furin-env.d.ts` (`furin typegen` or the dev server) and replace `RouteManifest["/items/1"]`-style lookups with the pattern key. The output is sorted by pattern, so it's identical whatever the discovery order.
 
 ### Added
+- **`furin typegen`** — writes `furin-env.d.ts` for the root-mounted app without starting or building it, so CI can run it before `tsc`. `furin build` now writes the file too. Before, only the development server did, although the documentation said builds generated it.
 - **Composite client references** — support function components declared with `"use client"` inside server composites on Bun 1.4.2, including loader-only browser imports, React DOM hydration and `Link` navigation with router context.
 
 ### Changed

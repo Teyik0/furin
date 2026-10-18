@@ -13,6 +13,7 @@ import { scanPages } from "../server/router/discovery.ts";
 import { assertNoPrefixSlugCollisions } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
 import { scanFurinInstances } from "./scan-server";
+import { writeRouteTypes } from "./route-types";
 import { ensureDir, toBuildRouteManifestEntry, toPosixPath } from "./shared";
 import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
 
@@ -53,7 +54,7 @@ function registerIsomorphicRuntimePlugin(): void {
  * 4. the `src/pages` default.
  */
 function resolveAppSpecs(
-  options: BuildAppOptions,
+  options: RouteTypegenOptions,
   serverEntry: string | null,
   rootDir: string
 ): Array<{ pagesDir: string; prefix: string }> {
@@ -82,31 +83,15 @@ function resolveAppSpecs(
   return [{ pagesDir: resolve(rootDir, "src/pages"), prefix: "" }];
 }
 
-export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
-  return withProductionBuild(() => buildAppInternal(options));
-}
-
-async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
-  const rootDir = resolve(options.rootDir ?? process.cwd());
-  const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
-  const serverEntry = (() => {
-    // Static and package builds don't need a server entry point
-    if (options.target === "static" || options.target === "package") {
-      return null;
-    }
-    if (options.serverEntry) {
-      const resolved = resolve(rootDir, options.serverEntry);
-      if (existsSync(resolved)) {
-        return resolved;
-      }
-    }
-    const entry = resolve(rootDir, "src/server.ts");
-    if (!existsSync(entry)) {
-      throw new Error("[furin] Entrypoint server.ts not found");
-    }
-    return entry;
-  })();
-
+/**
+ * Registers runtime plugins, resolves the configured apps and scans their
+ * pages. Shared by `buildApp()` and `generateRouteTypes()`.
+ */
+async function scanApps(
+  options: RouteTypegenOptions,
+  serverEntry: string | null,
+  rootDir: string
+): Promise<RuntimeTargetApp[]> {
   // Register user plugins as runtime module loaders BEFORE scanPages.
   //
   // scanPages() calls import() on every page file, which triggers all their
@@ -150,6 +135,66 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
   // one's — reject before any target writes output.
   assertNoPrefixSlugCollisions(appSpecs.map((spec) => spec.prefix));
 
+  // scanPages throws if root.tsx is missing, so root is always defined per app.
+  const apps: RuntimeTargetApp[] = [];
+  for (const spec of appSpecs) {
+    const { root, routes } = await scanPages(spec.pagesDir);
+    apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
+  }
+  return apps;
+}
+
+function writeRootRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
+  const rootApp = apps.find((app) => app.prefix === "");
+  if (rootApp) {
+    writeRouteTypes(rootApp.routes, rootDir);
+  }
+}
+
+/** Options for `generateRouteTypes()`, a subset of the build options. */
+export type RouteTypegenOptions = Pick<
+  BuildAppOptions,
+  "apps" | "pagesDir" | "plugins" | "rootDir" | "serverEntry"
+>;
+
+/**
+ * Writes `furin-env.d.ts` for the root-mounted app without building, e.g.
+ * before `tsc` in CI. Prefixed apps are skipped, as in development.
+ */
+export function generateRouteTypes(options: RouteTypegenOptions): Promise<void> {
+  return withProductionBuild(async () => {
+    const rootDir = resolve(options.rootDir ?? process.cwd());
+    const entry = resolve(rootDir, options.serverEntry ?? "src/server.ts");
+    const apps = await scanApps(options, existsSync(entry) ? entry : null, rootDir);
+    writeRootRouteTypes(apps, rootDir);
+  });
+}
+
+export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult> {
+  return withProductionBuild(() => buildAppInternal(options));
+}
+
+async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
+  const rootDir = resolve(options.rootDir ?? process.cwd());
+  const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
+  const serverEntry = (() => {
+    // Static and package builds don't need a server entry point
+    if (options.target === "static" || options.target === "package") {
+      return null;
+    }
+    if (options.serverEntry) {
+      const resolved = resolve(rootDir, options.serverEntry);
+      if (existsSync(resolved)) {
+        return resolved;
+      }
+    }
+    const entry = resolve(rootDir, "src/server.ts");
+    if (!existsSync(entry)) {
+      throw new Error("[furin] Entrypoint server.ts not found");
+    }
+    return entry;
+  })();
+
   const requestedTargets =
     options.target === "all"
       ? [...IMPLEMENTED_TARGETS]
@@ -160,12 +205,10 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
           return target as BuildTarget;
         });
 
-  // scanPages throws if root.tsx is missing, so root is always defined per app.
-  const apps: RuntimeTargetApp[] = [];
-  for (const spec of appSpecs) {
-    const { root, routes } = await scanPages(spec.pagesDir);
-    apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
-  }
+  const apps = await scanApps(options, serverEntry, rootDir);
+  // furin-env.d.ts is one file at the project root, owned by the root-mounted
+  // app — the same rule as the dev server, so builds keep types current too.
+  writeRootRouteTypes(apps, rootDir);
   // The root-mounted app drives single-app manifest fields and the static target.
   const primaryApp = (apps.find((app) => app.prefix === "") ?? apps[0]) as RuntimeTargetApp;
 
