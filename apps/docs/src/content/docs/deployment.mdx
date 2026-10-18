@@ -154,7 +154,7 @@ bunx vercel deploy --prebuilt
 
 Fixed ISR routes are rendered during the build, like Next.js. Dynamic SSG and ISR URLs returned by `staticParams()` receive individual build-time fallbacks. Routes with a declared `query` schema remain on-demand so the fallback cannot ignore query-dependent input. For PPR routes, only the public shell is prerendered: `requestLoader` does not execute during this phase. `revalidatePath()` and `revalidateTag()` invalidate the corresponding `Vercel-Cache-Tag`, while `waitUntil()` keeps background ISR regeneration alive after the response is sent.
 
-The browser data endpoint `/_furin/data` stays behind the Bun Function, but successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
+SPA navigation data requests (`<page>?_furin=data`) are routed to the Bun Function instead of the prerendered document, and successful SSG/ISR payloads without a `requestLoader` are cached by the CDN with the document's revalidation window. JSON-only results use a compact envelope; rich values, shared references, deferred data, and RSC keep the lossless CrossJSON/Route Frame transports. The document and all query-specific navigation payloads share one cache tag, so `revalidatePath()` and `revalidateTag()` purge them together.
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
 
@@ -246,7 +246,7 @@ dist/
 └── 404.html
 ```
 
-Each rendered path also receives a route-data file so SPA navigation works without a runtime `/_furin/data` endpoint. Redirect loaders become portable HTML redirect pages.
+Each rendered path also receives a route-data file so SPA navigation works without the runtime `?_furin=data` requests. Redirect loaders become portable HTML redirect pages.
 
 Static export supports only SSG routes and rejects `requestLoader()`. Dynamic SSG routes require `staticParams()`. Keep `onSSR: "error"` unless another deployment deliberately owns the skipped SSR/ISR URLs.
 
@@ -350,7 +350,7 @@ Furin uses Bun's `external` mode, which does not add a public `sourceMappingURL`
 
 Deploy code and its matching client assets as one immutable release. Build and upload source maps, run compatible database migrations, and ensure shared Redis/PostgreSQL dependencies are reachable before adding the new replica to the load balancer. Wait for readiness, gradually shift traffic, then send `SIGTERM` to old replicas and leave the full drain window before `SIGKILL`. Roll back the code and matching assets together. Keep the page-cache namespace stable across replicas and releases; invalidate incompatible entries explicitly rather than encoding a replica ID in the namespace. CDN caches need their own purge/TTL policy for on-demand invalidation.
 
-At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable `/_furin/data` responses may follow their headers. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
+At the CDN, honor Furin's `Cache-Control` and include the full URL, including query string, and content encoding in the cache key. Do not cache personalized SSR, `requestLoader` results, errors, or Sync responses. Public SSG/ISR HTML and cacheable navigation data responses (`?_furin=data` on the page URL) may follow their headers; the query string keeps them in separate cache entries. On self-hosted Bun, `revalidatePath()` and `revalidateTag()` invalidate the origin cache, not an arbitrary external CDN; configure a separate CDN purge or bypass its HTML/data cache when immediate invalidation is required. Keep versioned client assets available while pages from the previous release can still reference them. Vercel's adapter handles its own CDN invalidation.
 
 Keep secrets in the deployment secret store; never put them in `FURIN_PUBLIC_*`, client build flags, source maps, or logs. Back up the authoritative PostgreSQL/Redis data, including Sync journals and any durable page-cache state you require, with point-in-time or AOF/snapshot recovery appropriate to the service. Test restoration and schema compatibility before relying on backups. An in-memory cache is disposable and should not be treated as a backup.
 
