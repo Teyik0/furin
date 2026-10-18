@@ -114,9 +114,10 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
   // at that point, Bun caches the raw/unprocessed result — and that cached
   // value is reused for every subsequent import(), including prerenderSSG().
   //
-  // Build-only plugins (e.g. bun-plugin-tailwind uses onBeforeParse which
-  // doesn't exist in the runtime context) are skipped silently — they only
-  // affect the Bun.build() client bundle, not server-side rendering.
+  // Plugins marked `buildOnly` (e.g. bun-plugin-tailwind uses onBeforeParse,
+  // which doesn't exist in the runtime context) only affect Bun.build()
+  // bundles. Any other registration failure would make route imports differ
+  // from the bundle, so it fails the build.
   for (const plugin of options.plugins ?? []) {
     const { buildOnly, ...runtimePlugin } = plugin as FurinPlugin;
     if (buildOnly) {
@@ -125,7 +126,12 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     try {
       Bun.plugin(runtimePlugin);
     } catch (err) {
-      console.debug("[furin] Skipped plugin at runtime:", err);
+      throw new Error(
+        `[furin] Plugin "${runtimePlugin.name}" could not be registered for server-side route imports: ${err instanceof Error ? err.message : String(err)}\n` +
+          "If it only transforms the client bundle (for example bun-plugin-tailwind), mark it build-only in furin.config.ts:\n" +
+          "  plugins: [{ ...plugin, buildOnly: true }]",
+        { cause: err }
+      );
     }
   }
   registerIsomorphicRuntimePlugin();

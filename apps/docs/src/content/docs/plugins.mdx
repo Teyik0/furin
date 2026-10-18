@@ -80,7 +80,7 @@ export default defineConfig({ plugins: [mdxPlugin] });
 
 ## `buildOnly`
 
-Set `buildOnly: true` when a plugin uses hooks unavailable to runtime `Bun.plugin()` or has no effect on server imports. Furin skips runtime registration but still passes it to production Bun builds.
+Set `buildOnly: true` when a plugin uses hooks unavailable to runtime `Bun.plugin()` or has no effect on server imports. Furin skips runtime registration but still passes it to production Bun builds. A plugin without `buildOnly` that fails to register at runtime fails `furin build` with the plugin name and this fix.
 
 Do not mark a loader for `.mdx`, custom source files, or other page dependencies as build-only if route discovery must import those files.
 
