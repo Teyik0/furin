@@ -5,6 +5,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import { furin } from "../../../src/furin.ts";
 import {
   __resetDevLoaderCacheState,
+  getAllDevISRLoaderEntries,
   getDevISRLoaderCache,
   getDevSSGLoaderCache,
   invalidateDevLoaderCacheByPath,
@@ -113,6 +114,24 @@ try {
     expect(outcome.isr).toBe(2);
     expect(scoped(() => getDevISRLoaderCache(alphaKey))).toBeUndefined();
     expect(scoped(() => getDevISRLoaderCache(betaKey))).toBeUndefined();
+  });
+
+  await runScenario(async () => {
+    const plain = timestampFrom(await requestText(app, "/isr-page"));
+    await Bun.sleep(20);
+    expect(timestampFrom(await requestText(app, "/isr-page?utm_source=mail"))).toBe(plain);
+
+    const alpha = timestampFrom(
+      await requestText(app, "/isr-query-page?tenant=alpha&utm_source=mail")
+    );
+    await Bun.sleep(20);
+    expect(
+      timestampFrom(await requestText(app, "/isr-query-page?utm_source=news&tenant=alpha"))
+    ).toBe(alpha);
+    expect(scoped(() => getAllDevISRLoaderEntries().map(([key]) => key)).toSorted()).toEqual([
+      `${rootPath}:/isr-page`,
+      `${rootPath}:/isr-query-page?tenant=alpha`,
+    ]);
   });
 
   await runScenario(async () => {

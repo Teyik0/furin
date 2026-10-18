@@ -13,7 +13,7 @@ import {
   setDevISRLoaderCache,
   setDevSSGLoaderCache,
 } from "../cache/dev-loader.ts";
-import { pathWithRequestSearch } from "../cache/route-cache.ts";
+import { canonicalCacheRequest } from "../cache/route-cache.ts";
 import { devDiagnosticStore, publishDevDiagnostic } from "../dev/diagnostics.ts";
 import { devGraph } from "../dev/graph.ts";
 import { renderDevDiagnosticResponse } from "../dev/plugin.ts";
@@ -478,8 +478,11 @@ async function renderDevWithLoaderCache(
 ): Promise<Response> {
   const cache = devLoaderCaches[mode];
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
-  const cachePath =
-    mode === "isr" ? pathWithRequestSearch(resolvedPath, ctx.request.url) : resolvedPath;
+  // ISR loader output is keyed, and computed, on the declared query only.
+  const { cacheKey: cachePath, ctx: loaderCtx } =
+    mode === "isr"
+      ? canonicalCacheRequest(route, resolvedPath, ctx)
+      : { cacheKey: resolvedPath, ctx };
   const cacheKey = `${root.path}:${cachePath}`;
   const cached = cache.get(cacheKey);
 
@@ -499,7 +502,7 @@ async function renderDevWithLoaderCache(
     );
   }
 
-  const result = await runDevLoaders(route, ctx);
+  const result = await runDevLoaders(route, loaderCtx);
   if (result.type === "data") {
     const entry: DevLoaderCacheEntry = {
       dependencies: computeRouteDependencies(route.path, root.path),
