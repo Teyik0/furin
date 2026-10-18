@@ -1,0 +1,29 @@
+packages/core/src/server/sync/plugin.ts
+  s_3827fec5c7f2ed::t_56d772c891e4d5 400-404
+  s_3827fec5c7f2ed::t_2bde9429adfe69 11
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_3827fec5c7f2ed::t_d9ceecaefa98a4 268-283
+packages/core/src/server/instance.ts
+  s_3827fec5c7f2ed::t_898b23d04a2a3a 142-155
+  s_3827fec5c7f2ed::t_224e3ed1973244 174
+  s_3827fec5c7f2ed::t_050a79c7766404 183
+packages/core/src/server/auto-invalidate/plugin.ts
+  s_3827fec5c7f2ed::t_af2ebe6028931c 2,13,19
+  s_3827fec5c7f2ed::t_56d772c891e4d5 14-18,20-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b643955fd32c2cbb8d90a489a20bc17f1c868eac",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
