@@ -46,6 +46,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Rendering and navigation** — preserve rich loader values through SSR/RSC hydration, stream deferred data progressively, release cancelled transports, retain error/404 markers and normalize links, route specificity, params and search selectors consistently.
 - **Sync and cache integrity** — share HTTP response finalization and replay semantics, restrict journal recovery to the current principal, encode invalidation paths safely and bound the memory cache. Existing PostgreSQL journals require the bundled idempotent migration to add `principal_hash`.
 - **Build and lifecycle safety** — copy symlinked assets into isolated outputs, fingerprint transitive server dependencies, avoid Vercel function-name collisions and run Elysia cleanup after graceful connection and background-work draining.
+- **Query-scoped cache keys** — PPR public shells and the cached public segments of mixed routes, such as an ISR layout around an SSR page, are now keyed on the route's declared query params in sorted order, like ISR documents. Undeclared params such as `?x=1` or `utm_*` no longer create cache entries, and reordered params share one. Public loaders and the shell see exactly the keyed query, so a route without a query schema gets an empty query there. `requestLoader` holes and SSR segments still receive the full request query.
 
 ## [0.7.0-alpha.3] — 2026-10-04
 
