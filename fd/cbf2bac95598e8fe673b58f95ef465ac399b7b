@@ -1,0 +1,23 @@
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  s_3827fec5c7f2ed::t_d0b2f54a4b94ef 10
+apps/scaffolder/templates/full/src/pages/index.tsx
+  s_3827fec5c7f2ed::t_d0b2f54a4b94ef 10-11
+apps/scaffolder/tests/scaffolded-project-typecheck.test.ts
+  s_3827fec5c7f2ed::t_377bd274212404 1-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fdcbf2bac95598e8fe673b58f95ef465ac399b7b",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

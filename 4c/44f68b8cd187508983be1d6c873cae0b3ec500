@@ -1,0 +1,27 @@
+apps/scaffolder/templates/shared/README.md.ejs
+  s_3827fec5c7f2ed::t_10f1decb561add 35-40
+  s_3827fec5c7f2ed::t_ed9d48cf234ecd 1-34,41-48
+apps/scaffolder/tests/templates.test.ts
+  s_3827fec5c7f2ed::t_6040acb375836b 326-349
+apps/scaffolder/templates/manifest.json
+  s_3827fec5c7f2ed::t_9787a5ad6781e6 60-64,150-154
+apps/scaffolder/tests/ejs-renderer.test.ts
+  s_3827fec5c7f2ed::t_b52c7377cb0161 65
+  s_3827fec5c7f2ed::t_b105f581520d6e 42-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c44f68b8cd187508983be1d6c873cae0b3ec500",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

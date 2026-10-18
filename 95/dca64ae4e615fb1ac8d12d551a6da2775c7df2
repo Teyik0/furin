@@ -1,0 +1,30 @@
+apps/scaffolder/templates/simple/furin-env.d.ts.ejs
+  s_3827fec5c7f2ed::t_6a833e078e4cb8 3,5-11
+apps/scaffolder/tests/templates.test.ts
+  s_3827fec5c7f2ed::t_6ed61bff033a88 11-12,285-287,290-293
+  s_3827fec5c7f2ed::t_be6802c3e900bb 3-5,281-284,288-289,294-307
+  s_3827fec5c7f2ed::t_2bb22df746ae6e 308-311
+  s_3827fec5c7f2ed::t_426f1077450b6f 312-331
+apps/scaffolder/templates/full/furin-env.d.ts.ejs
+  s_3827fec5c7f2ed::t_23d9bb082c8570 3,5-11
+apps/scaffolder/templates/full/src/server.ts.ejs
+  s_3827fec5c7f2ed::t_2e26c6f5bdb171 5-7,10-13,15
+apps/scaffolder/templates/simple/src/server.ts.ejs
+  s_3827fec5c7f2ed::t_497faede6d7fb6 11-17,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95dca64ae4e615fb1ac8d12d551a6da2775c7df2",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
