@@ -43,6 +43,7 @@ export {
 } from "./spa-response.ts";
 export type {
   CacheEntry,
+  CheckedRouteTo,
   ClientRoute,
   ClientSegmentBoundary,
   LinkProps,
@@ -52,6 +53,8 @@ export type {
   RootBoundaryOptions,
   RouteManifest,
   RouteParamsOf,
+  RoutePattern,
+  RoutePatternOf,
   Router,
   RouterContextValue,
   RouterNavigate,

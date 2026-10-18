@@ -434,7 +434,7 @@ describe("RouterProvider sync refresh", () => {
       currentCleanup = rendered.cleanup;
       expect(router).toBeDefined();
       await act(async () => {
-        router?.prefetch("/sidebar");
+        router?.prefetch("/sidebar" as string);
         await Bun.sleep(0);
       });
       expect(reads.get("/sidebar")).toBe(1);
@@ -445,7 +445,7 @@ describe("RouterProvider sync refresh", () => {
       });
       expect(rendered.container.textContent).toBe("/board:1");
       expect(reads.get("/board")).toBe(1);
-      await act(async () => router?.navigate("/sidebar"));
+      await act(async () => router?.navigate("/sidebar" as string));
       expect(reads.get("/sidebar")).toBe(2);
       expect(rendered.container.textContent).toBe("/sidebar:1");
     }

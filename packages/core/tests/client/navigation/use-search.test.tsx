@@ -147,7 +147,7 @@ describe("useSearch", () => {
 
   test("reads search for a named dynamic route", () => {
     function Page(): React.ReactElement {
-      const [search] = useSearch("/products/:productId");
+      const [search] = useSearch("/products/:productId" as string);
       return createElement("output", null, String(search.page));
     }
 

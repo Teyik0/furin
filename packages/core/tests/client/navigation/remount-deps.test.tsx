@@ -128,7 +128,7 @@ test("path parameter navigation resets the page but preserves its shared layout"
     });
     expect(app.container.textContent).toContain("Layout 1");
     expect(app.container.textContent).toContain("Page 1");
-    await act(() => app.router.navigate("/remount-doc/two/edit?view=grid"));
+    await act(() => app.router.navigate("/remount-doc/two/edit?view=grid" as string));
     expect(app.container.querySelector("output")?.textContent).toBe("two:edit:grid");
     expect(app.container.textContent).toContain("Layout 1");
     expect(app.container.textContent).toContain("Page 0");
@@ -141,10 +141,10 @@ test("custom dependencies preserve tab changes but reset on another document", a
   const app = await mountRouter(({ params }) => [params.documentId]);
   try {
     await act(() => app.container.querySelector<HTMLButtonElement>("main button")?.click());
-    await act(() => app.router.navigate("/remount-doc/one/preview?view=list"));
+    await act(() => app.router.navigate("/remount-doc/one/preview?view=list" as string));
     expect(app.container.querySelector("output")?.textContent).toBe("one:preview:list");
     expect(app.container.textContent).toContain("Page 1");
-    await act(() => app.router.navigate("/remount-doc/two/preview?view=list"));
+    await act(() => app.router.navigate("/remount-doc/two/preview?view=list" as string));
     expect(app.container.querySelector("output")?.textContent).toBe("two:preview:list");
     expect(app.container.textContent).toContain("Page 0");
   } finally {
@@ -161,9 +161,9 @@ test.each(["refresh", "search", "hash"])("%s preserves the active page state", a
         return app.router.refresh();
       }
       return app.router.navigate(
-        change === "search"
+        (change === "search"
           ? "/remount-doc/one/edit?view=list"
-          : "/remount-doc/one/edit?view=grid#section"
+          : "/remount-doc/one/edit?view=grid#section") as string
       );
     });
     expect(app.container.textContent).toContain("Page 1");
@@ -179,7 +179,7 @@ test("empty dependencies preserve the page across parameter changes", async () =
   const app = await mountRouter(() => []);
   try {
     await act(() => app.container.querySelector<HTMLButtonElement>("main button")?.click());
-    await act(() => app.router.navigate("/remount-doc/two/preview?view=list"));
+    await act(() => app.router.navigate("/remount-doc/two/preview?view=list" as string));
     expect(app.container.querySelector("output")?.textContent).toBe("two:preview:list");
     expect(app.container.textContent).toContain("Page 1");
   } finally {
@@ -191,7 +191,7 @@ test("query values can explicitly participate in custom page identity", async ()
   const app = await mountRouter(({ params, query }) => [params.documentId, query.view]);
   try {
     await act(() => app.container.querySelector<HTMLButtonElement>("main button")?.click());
-    await act(() => app.router.navigate("/remount-doc/one/edit?view=list"));
+    await act(() => app.router.navigate("/remount-doc/one/edit?view=list" as string));
     expect(app.container.querySelector("output")?.textContent).toBe("one:edit:list");
     expect(app.container.textContent).toContain("Page 0");
   } finally {

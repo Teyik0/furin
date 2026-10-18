@@ -9,7 +9,7 @@ import type {
   Router,
   RouteSearch,
 } from "@teyik0/furin/link";
-import type { useSearch } from "@teyik0/furin/search";
+import { useSearch } from "@teyik0/furin/search";
 import { expectTypeOf } from "expect-type";
 import { Link } from "../../src/client/link.tsx";
 import { getRouteApi } from "../../src/client.ts";
@@ -182,6 +182,29 @@ const assertLinkDestinations = () => {
   Link({ search: { page: "two" }, to: "/elysia-products" });
 };
 
+const assertStrictDestinations = (router: Router, href: string) => {
+  // External URLs and values typed as plain `string` stay accepted.
+  Link({ to: "https://example.com/docs" });
+  Link({ to: "mailto:team@example.com" });
+  Link({ to: "//cdn.example.com/file.pdf" });
+  Link({ to: href });
+  router.navigate(href);
+  router.prefetch(href);
+  router.navigate("/elysia-boards/42?page=2");
+  useSearch(href);
+  useSearch("/elysia-boards/42");
+  // @ts-expect-error <Link> rejects unknown internal destinations
+  Link({ to: "/not-a-route" });
+  // @ts-expect-error router.navigate(href) rejects unknown internal destinations
+  router.navigate("/typo");
+  // @ts-expect-error router.prefetch(href) rejects unknown internal destinations
+  router.prefetch("/typo", { staleTime: 1 });
+  // @ts-expect-error useSearch only reads known routes
+  useSearch("/not-a-route");
+  // @ts-expect-error an external URL has no route search
+  useSearch("https://example.com");
+};
+
 const assertTypedNavigate = (
   navigate: Navigate,
   to: "/elysia-boards/:boardId" | "/elysia-slugs/:slug"
@@ -259,6 +282,9 @@ describe("Elysia RouteMap bridge", () => {
   });
   test("inherits layout params and query in navigation", () => {
     expectTypeOf(assertInheritedNavigation).toBeFunction();
+  });
+  test("rejects unknown internal destinations everywhere", () => {
+    expectTypeOf(assertStrictDestinations).toBeFunction();
   });
   test("requires params for named dynamic links", () => {
     expectTypeOf(assertLinkDestinations).toBeFunction();

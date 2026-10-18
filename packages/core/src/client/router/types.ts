@@ -217,7 +217,9 @@ export interface LinkBaseProps<To extends RouteTo>
   to: To;
 }
 
-export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> & LinkParams<To>;
+export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> &
+  LinkParams<To> &
+  RouteToCheck<To>;
 
 /** Destinations accepted by structured navigation; validated by `CheckedRouteTo`. */
 export type NavigationTo = RouteTo;
@@ -256,13 +258,16 @@ export interface NavigationOptions {
 export type NavigateInput<To extends NavigationTo> = RouteTarget<To> & NavigationOptions;
 export type Navigate = <To extends NavigationTo>(next: NavigateInput<To>) => Promise<void>;
 
+/** An href string validated like a structured destination (see `CheckedRouteTo`). */
+export type CheckedHref<Href extends string> = Href & RouteToCheck<NoInfer<Href>>;
+
 export interface RouterNavigate {
-  (href: string, opts?: NavigationOptions): Promise<void>;
+  <Href extends string>(href: CheckedHref<Href>, opts?: NavigationOptions): Promise<void>;
   <To extends NavigationTo>(next: NavigateInput<To>): Promise<void>;
 }
 
 export interface Prefetch {
-  (href: string, opts?: { staleTime?: number }): void;
+  <Href extends string>(href: CheckedHref<Href>, opts?: { staleTime?: number }): void;
   <To extends NavigationTo>(next: RouteTarget<To> & { staleTime?: number }): void;
 }
 

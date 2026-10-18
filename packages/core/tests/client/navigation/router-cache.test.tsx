@@ -126,10 +126,10 @@ test("returning to a page refetches its cancelled deferred transport", async () 
     [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
     {}
   );
-  await act(() => router.navigate("/a"));
+  await act(() => router.navigate("/a" as string));
   expect(container.textContent).toBe("Pending");
-  await act(() => router.navigate("/b"));
-  await act(() => router.navigate("/a"));
+  await act(() => router.navigate("/b" as string));
+  await act(() => router.navigate("/a" as string));
   expect(reads).toBe(2);
   expect(container.textContent).toBe("Ready");
 });
@@ -172,11 +172,11 @@ test("the visible page keeps streaming deferred data until the next navigation c
     [route("/", Home), route("/a", Deferred as never), route("/b", Home)],
     {}
   );
-  await act(() => router.navigate("/a"));
+  await act(() => router.navigate("/a" as string));
   expect(container.textContent).toBe("Pending");
   let toB: Promise<void> | undefined;
   await act(async () => {
-    toB = router.navigate("/b");
+    toB = router.navigate("/b" as string);
     await Bun.sleep(0);
   });
   await act(async () => {
@@ -220,7 +220,7 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
   });
   expect(container.textContent).toBe("0");
   await act(async () => {
-    router.prefetch("/target");
+    router.prefetch("/target" as string);
     await Bun.sleep(0);
   });
   expect(prefetched).toBe(true);
@@ -228,7 +228,7 @@ test("a prefetched loader cannot overwrite a GET completed after that prefetch",
     await api.counter.get();
   });
   expect(container.textContent).toBe("1");
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/target" as string));
   expect(window.location.pathname).toBe("/target");
   expect(container.textContent).toBe("1");
 });
@@ -272,9 +272,9 @@ test.each(["page", "layout"] as const)(
       await act(() => router.navigate(href));
       expect(container.textContent).toBe("After");
     }
-    await act(() => router.navigate(child));
+    await act(() => router.navigate(child as string));
     expect(container.textContent).toBe(type === "layout" ? "After" : "Before");
-    await act(() => router.navigate(sibling));
+    await act(() => router.navigate(sibling as string));
     expect(container.textContent).toBe("Before");
     expect(reads).toBe(type === "layout" ? 7 : 6);
   }
@@ -309,7 +309,7 @@ test("a navigation snapshot invalidated while in flight is not cached", async ()
   const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
   let toTarget: Promise<void> | undefined;
   await act(async () => {
-    toTarget = router.navigate("/target");
+    toTarget = router.navigate("/target" as string);
     await Bun.sleep(0);
   });
   server.value = "After";
@@ -318,8 +318,8 @@ test("a navigation snapshot invalidated while in flight is not cached", async ()
     server.release[0]?.();
     await toTarget;
   });
-  await act(() => router.navigate("/"));
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/" as string));
+  await act(() => router.navigate("/target" as string));
   expect(server.reads).toBe(2);
   expect(container.textContent).toBe("After");
 });
@@ -329,8 +329,8 @@ test("a navigation awaiting a prefetch invalidated mid-flight refetches it", asy
   const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
   let toTarget: Promise<void> | undefined;
   await act(async () => {
-    router.prefetch("/target");
-    toTarget = router.navigate("/target");
+    router.prefetch("/target" as string);
+    toTarget = router.navigate("/target" as string);
     await Bun.sleep(0);
   });
   server.value = "After";
@@ -386,11 +386,11 @@ test("a failed prefetch does not poison the cache for the next navigation", asyn
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
   await act(async () => {
-    router.prefetch("/target");
+    router.prefetch("/target" as string);
     await Bun.sleep(0);
   });
   expect(reads).toBe(1);
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/target" as string));
   expect(reads).toBe(2);
   expect(window.location.pathname).toBe("/target");
   expect(container.textContent).toBe("Target");
@@ -414,11 +414,11 @@ test.each([
     return <main>{String(message ?? "Home")}</main>;
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/target" as string));
   expect(reads).toBe(1);
   expect(container.textContent).not.toContain("Target");
-  await act(() => router.navigate("/"));
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/" as string));
+  await act(() => router.navigate("/target" as string));
   expect(reads).toBe(2);
   expect(container.textContent).toBe("Target");
 });
@@ -438,10 +438,10 @@ test.each([
   }
   const container = await mount([route("/", Page), route("/target", Page)], {});
   await act(async () => {
-    router.prefetch("/target");
+    router.prefetch("/target" as string);
     await Bun.sleep(0);
   });
-  await act(() => router.navigate("/target"));
+  await act(() => router.navigate("/target" as string));
   expect(reads).toBe(2);
   expect(container.textContent).toBe("Target");
 });

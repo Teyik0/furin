@@ -115,13 +115,13 @@ test("unmounting one router keeps fetch revalidation working for the others", as
   const first = await mountRouter();
   const second = await mountRouter();
   await act(async () => {
-    second.router().prefetch("/target");
+    second.router().prefetch("/target" as string);
     await Bun.sleep(0);
   });
   expect(dataReads).toBe(1);
   await unmount(first.root);
   await window.fetch("/api/mutate");
-  await act(() => second.router().navigate("/target"));
+  await act(() => second.router().navigate("/target" as string));
   expect(dataReads).toBe(2);
 });
 

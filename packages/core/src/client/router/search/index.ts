@@ -1,4 +1,4 @@
-import type { RouteSearch, RouteTo } from "@teyik0/furin/link";
+import type { RouteManifest, RoutePatternOf, RouteSearch, RouteTo } from "@teyik0/furin/link";
 import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
@@ -13,6 +13,20 @@ import {
 } from "../search-store.ts";
 
 export type SearchRouteTo = RouteTo;
+
+/**
+ * `useSearch()` reads a known route: a pattern or a path matching one. A value
+ * typed as plain `string` cannot be checked statically and is accepted.
+ */
+export type SearchRouteCheck<To extends SearchRouteTo> = keyof RouteManifest extends never
+  ? unknown
+  : string extends To
+    ? unknown
+    : [RoutePatternOf<To>] extends [never]
+      ? {
+          readonly "~furinError": `[furin] useSearch("${To}") needs a route pattern or a path matching one.`;
+        }
+      : unknown;
 
 type SearchRouteSearch<To extends SearchRouteTo> = RouteSearch<To>;
 
@@ -81,10 +95,10 @@ function useSearchSelection<To extends SearchRouteTo, TSelected>(
 }
 
 export function useSearch<To extends SearchRouteTo>(
-  _from: To
+  _from: To & SearchRouteCheck<NoInfer<To>>
 ): [ResolvedRouteSearch<To>, SetSearch<To>];
 export function useSearch<To extends SearchRouteTo, TSelected>(
-  _from: To,
+  _from: To & SearchRouteCheck<NoInfer<To>>,
   selector: (search: ResolvedRouteSearch<To>) => TSelected
 ): [TSelected, SetSearch<To>];
 export function useSearch<To extends SearchRouteTo, TSelected>(

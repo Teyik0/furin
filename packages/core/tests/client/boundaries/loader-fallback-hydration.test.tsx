@@ -31,13 +31,13 @@ import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 const Missing = () => (
   <main>
     <h1>Missing resource</h1>
-    <Link to="/ok">Go home</Link>
+    <Link to={"/ok" as string}>Go home</Link>
   </main>
 );
 const Unavailable = () => (
   <main>
     <h1>Unavailable resource</h1>
-    <Link to="/ok">Go home</Link>
+    <Link to={"/ok" as string}>Go home</Link>
   </main>
 );
 
@@ -107,7 +107,7 @@ test.each([
           .page(() => (
             <main>
               <p>Ready</p>
-              <Link to="/missing">Open missing</Link>
+              <Link to={"/missing" as string}>Open missing</Link>
             </main>
           ));
         const page = adaptDefinedPage(definition, nested);
