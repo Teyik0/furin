@@ -15,7 +15,8 @@ import { flightLoaderPlugin } from "../../../src/rsc/build/flight-loader.ts";
 import { buildRscGraph } from "../../../src/rsc/build/index.ts";
 import { registerClientLoader, requireClientModule } from "../../../src/rsc/client-references.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
-import { getTestPort, waitForHttp } from "../../support/http.ts";
+import { getFreePort } from "../../support/hmr.ts";
+import { waitForHttp } from "../../support/http.ts";
 import { runCli, startProcess } from "../../support/process.ts";
 
 const temporaryDirectory = join(import.meta.dir, "../../../.tmp-tests");
@@ -658,7 +659,7 @@ export const route = defineRoute().config({ mode: "isr", revalidate: 300 })
         expect({ errors, status }).toEqual({ errors: "", status: 0 });
         expect(output).toContain("Production client build complete");
       }
-      const port = getTestPort();
+      const port = await getFreePort();
       const server = startProcess(
         mode === "compiled"
           ? [join(app.path, ".furin/build/bun/server")]

@@ -9,7 +9,8 @@ import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { evlogOptionsMock, initLoggerOptionsMock, resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../support/app-fixtures";
-import { getTestPort, waitForHttp } from "../../support/http";
+import { getFreePort } from "../../support/hmr.ts";
+import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
 const { furin, isFurinPageRequest } = await import("../../../src/furin");
@@ -694,7 +695,7 @@ test.serial(
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout);
     }
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([process.execPath, join(app.path, ".furin/build/bun/server.js")], {
       cwd: app.path,
       env: { PORT: String(port) },
@@ -732,7 +733,7 @@ test.serial(
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout);
     }
-    const port = getTestPort();
+    const port = await getFreePort();
     const serverFilename = process.platform === "win32" ? "server.exe" : "server";
     const server = startProcess([join(app.path, ".furin/build/bun", serverFilename)], {
       cwd: app.path,
@@ -775,7 +776,7 @@ test.serial(
         "  .page(({ summary, id }) => <main>{summary}:{id}</main>);",
       ].join("\n");
     writeAppFile(app.path, pagePath, pageSource("before"));
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([process.execPath, "--hot", join(app.path, "src/server.ts")], {
       cwd: app.path,
       env: { PORT: String(port) },

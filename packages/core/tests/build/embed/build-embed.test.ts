@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { generateCompileEntry } from "../../../src/build/compile-entry";
 import { createTmpApp, removeAppPath } from "../../support/app-fixtures";
-import { getTestPort, waitForHttp } from "../../support/http";
+import { getFreePort } from "../../support/hmr.ts";
+import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
 const tmpApps: Array<{ cleanup: () => void }> = [];
@@ -88,7 +89,7 @@ export default app;
       expect(existsSync(join(targetDir, file))).toBe(false);
     }
 
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([serverBin], {
       cwd: app.path,
       env: { PORT: String(port) },

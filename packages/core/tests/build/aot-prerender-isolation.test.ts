@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
-import { getTestPort, waitForHttp } from "../support/http.ts";
+import { getFreePort } from "../support/hmr.ts";
+import { waitForHttp } from "../support/http.ts";
 import { runCli, startProcess } from "../support/process.ts";
 
 function createApiPrerenderApp(mode: "isr" | "ssg") {
@@ -208,7 +209,7 @@ test("Bun builds and serves an API extended after an in-memory SSG loader reques
   try {
     const build = await runCli(["build", "--target", "bun"], { cwd: app.path });
     expect(build.exitCode, build.stderr).toBe(0);
-    const port = getTestPort();
+    const port = await getFreePort();
     const server = startProcess([process.execPath, ".furin/build/bun/server.js"], {
       cwd: app.path,
       env: { PORT: String(port) },
