@@ -39,7 +39,10 @@ describe("renderEjsFile — simple template", () => {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: security regression sentinel must remain literal.
     const projectName = "A&B <app> `${globalThis.compromised = true}`";
     const output = await renderEjsFile(src, { ...mockVars, projectName });
-    const statement = output.split("\n").find((line) => line.startsWith("console.log("));
+    const statement = output
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.startsWith("console.log("));
     if (statement === undefined) {
       throw new Error("Expected the generated server to log its URL");
     }

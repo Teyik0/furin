@@ -2,11 +2,14 @@ import { furin } from "@teyik0/furin";
 import { Elysia } from "elysia";
 import { getHelloPayload } from "./api/hello";
 
+const app = new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .get("/api/hello", () => getHelloPayload());
 export const port = Number(process.env.PORT ?? 3000);
 
-const app = new Elysia()
-	.use(await furin({ pagesDir: "./src/pages" }))
-	.get("/api/hello", () => getHelloPayload())
-	.listen(port);
+if (import.meta.main) {
+  app.listen(port);
+  console.log(`Furin running at http://localhost:${app.server?.port}`);
+}
 
-console.log(`Furin running at http://localhost:${app.server?.port}`);
+export default app;

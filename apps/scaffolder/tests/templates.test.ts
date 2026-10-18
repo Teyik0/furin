@@ -309,6 +309,26 @@ describe("generated furin-env.d.ts", () => {
   });
 });
 
+describe("generated server entry", () => {
+  // The Vercel adapter imports the server entry: it needs the app as default
+  // export and must not start a listener when imported.
+  it("exports the app and only listens when run directly", async () => {
+    for (const template of registry.templates) {
+      const serverFile = template.files.find((file) => file.dest === "src/server.ts");
+      if (!serverFile?.src) {
+        throw new Error(`Missing src/server.ts template for ${template.id}`);
+      }
+      const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, serverFile.src), MOCK_EJS_VARS);
+      const { exports } = new Bun.Transpiler({ loader: "ts" }).scan(rendered);
+      const [beforeGuard, guarded] = rendered.split("if (import.meta.main) {");
+
+      expect(exports, template.id).toContain("default");
+      expect(beforeGuard, template.id).not.toContain(".listen(");
+      expect(guarded, template.id).toContain(".listen(");
+    }
+  });
+});
+
 describe("full template UI files", () => {
   it("sets a safe default button type", async () => {
     const src = resolve(TEMPLATES_DIR, "full/src/components/ui/button.tsx");
