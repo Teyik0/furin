@@ -1,0 +1,25 @@
+apps/docs/src/content/docs/layouts.mdx
+  s_3827fec5c7f2ed::t_d4da7d70e9eb5f 81-82
+apps/docs/src/content/docs/routing.mdx
+  s_3827fec5c7f2ed::t_eeaba21eab2016 112-115
+packages/core/tests/client/navigation/multi-instance.test.tsx
+  s_3827fec5c7f2ed::t_4b3fc6967b4889 118,124
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_3827fec5c7f2ed::t_4b3fc6967b4889 175,179,312,321-322,332-333,389,393,417,420-421,441,444
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd6f99680494638cd48e7b2a3c04f47e439d6052",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
