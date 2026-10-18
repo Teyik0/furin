@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { isPackageModule, stripServerCode } from "../plugin/strip-server.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
@@ -14,7 +14,7 @@ import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shar
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
-const ROUTER_PROVIDER_PATH = resolve(import.meta.dir, "../client/router/provider.tsx");
+const ROUTER_DIR = `${resolve(import.meta.dir, "../client/router")}${sep}`;
 
 function resolveClientModuleSpecifiers(code: string): string {
   return code
@@ -114,7 +114,7 @@ export async function buildClient(
     name: "furin-client-router-logger",
     setup(build) {
       build.onResolve({ filter: /^evlog$/ }, ({ importer }) => {
-        if (importer === ROUTER_PROVIDER_PATH) {
+        if (importer.startsWith(ROUTER_DIR)) {
           return { namespace: "furin-client-router-logger", path: "router-logger" };
         }
       });
