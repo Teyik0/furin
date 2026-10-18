@@ -48,10 +48,15 @@ export function mergeQuerySeeds(target: QuerySeed[], incoming: readonly QuerySee
     const index = target.findIndex((existing) => existing.url === seed.url);
     const previous = target[index];
     const bindings = [...(seed.bindings ?? [])];
+    let { data } = seed;
     if (
       previous?.identity.session === seed.identity.session &&
       queryTag(previous.identity) === queryTag(seed.identity)
     ) {
+      // A dependency-only copy must not erase a body another loader field exposed whole.
+      if (data === undefined) {
+        ({ data } = previous);
+      }
       for (const binding of previous.bindings ?? []) {
         if (
           !bindings.some((next) => JSON.stringify(next.target) === JSON.stringify(binding.target))
@@ -60,7 +65,7 @@ export function mergeQuerySeeds(target: QuerySeed[], incoming: readonly QuerySee
         }
       }
     }
-    const merged = { ...seed, bindings };
+    const merged = { ...seed, data, bindings };
     if (index < 0) {
       target.push(merged);
     } else {

@@ -534,6 +534,10 @@ export class QueryStore {
 
   hydrate(seeds: readonly QuerySeed[], localOrigin?: string): void {
     for (const seed of seeds) {
+      // Dependency-only seeds carry no body: the loader output did not expose the whole response.
+      if (seed.data === undefined) {
+        continue;
+      }
       const url = this.seedUrl(seed, localOrigin);
       this.observe(
         url,

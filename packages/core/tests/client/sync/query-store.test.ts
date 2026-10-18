@@ -79,6 +79,20 @@ test("request-scoped seeds stay isolated when browser UUID APIs are unavailable"
   expect(globalThis.crypto.getRandomValues).toBe(originalRandom);
 });
 
+test("a dependency-only seed leaves its GET stale so consumers fetch the full response", async () => {
+  const store = new QueryStore(undefined);
+  let loads = 0;
+  store.bind(url, () => {
+    loads += 1;
+    return Promise.resolve(result(["Fresh"], "alice"));
+  });
+  store.hydrate([{ url, data: undefined, identity, bindings: [] }]);
+  expect(store.dehydrate()).toEqual([]);
+  await store.fetch(url);
+  expect(loads).toBe(1);
+  expect(store.snapshot(url).data).toEqual(["Fresh"]);
+});
+
 test("request-specific seeds retain isolated identities without serializing credentials", () => {
   const store = new QueryStore(undefined);
   const reference = { client: store, url, load: async () => result("Alice", "alice") };

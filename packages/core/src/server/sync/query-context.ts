@@ -22,6 +22,18 @@ setServerQueryEnvironment(() => contexts.getStore());
 const trackedQueryPaths = instanceSlot(() => new Set<string>());
 const deferredQueries = new WeakMap<Promise<unknown>, QuerySeed[]>();
 
+/**
+ * A response body may only travel when the loader output already contains it whole, by identity.
+ * Other reads keep their identity and bindings so cache tags and sync refreshes still apply.
+ */
+function transportableSeeds(seeds: readonly QuerySeed[]): QuerySeed[] {
+  return seeds.map((seed) =>
+    seed.bindings?.some((binding) => binding.source.length === 0)
+      ? seed
+      : { ...seed, data: undefined }
+  );
+}
+
 export function deferredQuerySeeds(promise: Promise<unknown>): QuerySeed[] | undefined {
   return deferredQueries.get(promise);
 }
@@ -63,7 +75,7 @@ export function captureQueryReads<Result extends LoaderResult>(
     const seeds = store.dehydrate();
     if (result.type === "data" && seeds.length > 0) {
       const captured = [...((result.syncData.__furinQueries as QuerySeed[] | undefined) ?? [])];
-      mergeQuerySeeds(captured, bindQueryData(result.syncData, seeds));
+      mergeQuerySeeds(captured, transportableSeeds(bindQueryData(result.syncData, seeds)));
       result.syncData = { ...result.syncData, __furinQueries: captured };
     }
     if (result.type === "data" && result.deferredPromises) {
@@ -73,7 +85,10 @@ export function captureQueryReads<Result extends LoaderResult>(
             const completed = store.dehydrate();
             if (completed.length > 0) {
               const captured = deferredQueries.get(promise) ?? [];
-              mergeQuerySeeds(captured, bindQueryData({ [key]: value }, completed));
+              mergeQuerySeeds(
+                captured,
+                transportableSeeds(bindQueryData({ [key]: value }, completed))
+              );
               deferredQueries.set(promise, captured);
             }
           })
