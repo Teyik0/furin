@@ -1,8 +1,8 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
-import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
-import { transformForClient } from "./transform-client.ts";
+import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
+import { isPackageModule, stripServerCode } from "./strip-server.ts";
 
 const ELYSIA_FILTER = /^elysia$/;
 const BUN_BUILTIN_FILTER = /^bun:/;
@@ -64,7 +64,7 @@ const plugin: Bun.BunPlugin = {
     // ── page file stripping ─────────────────────────────────────────────────
     build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
       const filePath = args.path.split("?")[0] as string;
-      if (filePath.includes("node_modules")) {
+      if (isPackageModule(filePath)) {
         return;
       }
 
@@ -95,14 +95,9 @@ const plugin: Bun.BunPlugin = {
           }
         }
       }
-      const result = transformForClient(source, filePath);
-      // Output is TS/TSX (yuku parses directly, no pre-transpile). Bun's
-      // bundler picks the loader from the file extension and applies the
-      // project tsconfig — including the JSX automatic runtime.
       const loaded = {
-        contents: result.code,
+        ...stripServerCode(filePath, source),
         isRouteModule: topologyPaths.has(filePath),
-        loader: detectLoaderFromPath(filePath),
       };
       loadedSources.set(filePath, loaded);
       return loaded;

@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { transformForClient } from "../plugin/transform-client";
+import { isPackageModule, stripServerCode } from "../plugin/strip-server.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
-import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
+import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateHydrateEntry } from "./hydrate";
@@ -100,21 +100,12 @@ export async function buildClient(
     setup(build) {
       build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
         const { path } = args;
-        if (path.includes("node_modules")) {
+        if (isPackageModule(path)) {
           return;
         }
 
-        const code = await Bun.file(path).text();
-        const result = transformForClient(code, path);
-        // transformForClient now emits TS/TSX directly (no pre-transpile),
-        // so JSX → React handling is delegated to Bun.build's loader, which
-        // applies the project tsconfig's automatic runtime by default.
-        const transformed = resolveClientModuleSpecifiers(result.code);
-
-        return {
-          contents: transformed,
-          loader: detectLoaderFromPath(path),
-        };
+        const stripped = stripServerCode(path, await Bun.file(path).text());
+        return { ...stripped, contents: resolveClientModuleSpecifiers(stripped.contents) };
       });
     },
   };
