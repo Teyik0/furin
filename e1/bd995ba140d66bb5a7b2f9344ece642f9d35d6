@@ -1,0 +1,25 @@
+packages/core/tests/build/adapters/adapter-package.test.ts
+  s_3827fec5c7f2ed::t_3d9f6533a3a4ed 1,41
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3827fec5c7f2ed::t_3d9f6533a3a4ed 1,118
+packages/core/tests/setup/global.ts
+  s_3827fec5c7f2ed::t_0ee380450da34f 1-3,7-33
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_3827fec5c7f2ed::t_ae0f9a70aecdbe 500,505-509,511,520,540
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1bd995ba140d66bb5a7b2f9344ece642f9d35d6",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

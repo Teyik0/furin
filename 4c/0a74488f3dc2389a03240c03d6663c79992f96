@@ -1,0 +1,23 @@
+packages/core/tests/runtime/multi-instance/nested-mount.integration.test.ts
+  s_3827fec5c7f2ed::t_aef764e671df98 2,11-12,15-18,36,48,50,103,139,180,221,223,278-279,383,432,479,529,531
+packages/core/tests/runtime/request-scope/request-scope-integration.test.ts
+  s_3827fec5c7f2ed::t_91679cbdfa9491 1-2,5-12,15,32-38,91,108,132
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3827fec5c7f2ed::t_91679cbdfa9491 1-2,5-12,15,28-34,52,73,94,124,138,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c0a74488f3dc2389a03240c03d6663c79992f96",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
