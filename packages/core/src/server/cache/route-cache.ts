@@ -1,3 +1,6 @@
+import type { Context } from "elysia";
+import type { ResolvedRoute } from "../router/types.ts";
+
 export type RevalidateType = "page" | "layout";
 
 export interface CacheInvalidationResult {
@@ -69,6 +72,35 @@ export function pathWithCanonicalSearch(
   params.sort();
   const search = params.toString();
   return search === "" ? pathWithoutSearch(path) : `${pathWithoutSearch(path)}?${search}`;
+}
+
+/**
+ * The cache key for a cached render of `path` and the context that render must
+ * use. The key keeps only the query params that survived route query
+ * validation (none when the route declares no query schema), and the context's
+ * query and request URL carry exactly that search, so every URL sharing the
+ * key would have rendered the same output.
+ */
+export function canonicalCacheRequest(
+  route: ResolvedRoute,
+  path: string,
+  ctx: Context
+): { cacheKey: string; ctx: Context } {
+  const hasQuerySchema = route.routeChain.some((entry) => entry.query !== undefined);
+  const cacheKey = pathWithCanonicalSearch(
+    path,
+    ctx.request.url,
+    new Set(hasQuerySchema ? Object.keys(ctx.query ?? {}) : [])
+  );
+  const url = new URL(ctx.request.url);
+  url.search = new URL(cacheKey, url).search;
+  return {
+    cacheKey,
+    ctx: Object.create(ctx, {
+      query: { enumerable: true, value: hasQuerySchema ? ctx.query : {} },
+      request: { enumerable: true, value: new Request(url, { headers: ctx.request.headers }) },
+    }) as Context,
+  };
 }
 
 function matchesPath(urlPath: string, path: string, type: RevalidateType): boolean {

@@ -22,7 +22,7 @@ import type {
 } from "../cache/page-cache.ts";
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
-import { pathWithCanonicalSearch } from "../cache/route-cache.ts";
+import { canonicalCacheRequest } from "../cache/route-cache.ts";
 import { createLogger, getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance, withInstance } from "../instance.ts";
@@ -558,14 +558,8 @@ async function resolveISR<T>(request: ISRRequest, responder: ISRResponder<T>): P
   const { buildId, ctx, externalPrerender, revalidate, root, route, searchRoutes } = request;
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
-  // Key on the validated query only: the schema strips undeclared params, and
-  // routes without a query schema render (and cache) as if no query was sent.
-  const hasQuerySchema = route.routeChain.some((entry) => entry.query !== undefined);
-  const cacheKey = pathWithCanonicalSearch(
-    resolvedPath,
-    ctx.request.url,
-    new Set(hasQuerySchema ? Object.keys(ctx.query ?? {}) : [])
-  );
+  const canonical = canonicalCacheRequest(route, resolvedPath, ctx);
+  const { cacheKey } = canonical;
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   const pageCacheIdentity: PageCacheIdentity = {
     buildId: buildId ?? "",
@@ -631,7 +625,7 @@ async function resolveISR<T>(request: ISRRequest, responder: ISRResponder<T>): P
     buildId,
     cacheGeneration,
     cacheKey,
-    ctx: canonicalISRContext(ctx, cacheKey, hasQuerySchema),
+    ctx: canonical.ctx,
     externalPrerender,
     pageCache,
     pageCacheIdentity,
@@ -643,20 +637,6 @@ async function resolveISR<T>(request: ISRRequest, responder: ISRResponder<T>): P
     sharedAvailable,
   });
   return responder.miss(outcome);
-}
-
-/**
- * The context an ISR miss renders with: its query and request URL carry only
- * the canonical search encoded in `cacheKey`, so the cached document matches
- * what any other URL sharing that key would have produced.
- */
-function canonicalISRContext(ctx: Context, cacheKey: string, hasQuerySchema: boolean): Context {
-  const url = new URL(ctx.request.url);
-  url.search = new URL(cacheKey, url).search;
-  return Object.create(ctx, {
-    query: { enumerable: true, value: hasQuerySchema ? ctx.query : {} },
-    request: { enumerable: true, value: new Request(url, { headers: ctx.request.headers }) },
-  }) as Context;
 }
 
 function revalidateInBackground(
