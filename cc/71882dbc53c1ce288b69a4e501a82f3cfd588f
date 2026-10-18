@@ -1,0 +1,30 @@
+packages/core/tests/rendering/ssr/isr-query-cache.test.tsx
+  s_3827fec5c7f2ed::t_6a0787bb8f0250 126
+  s_3827fec5c7f2ed::t_9e050a28a243d5 5,103-125,127-154
+  s_3827fec5c7f2ed::t_26e89b5b0c00e4 155
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3827fec5c7f2ed::t_87e349a7184c36 243,251,256,261
+packages/core/src/server/render/isr.ts
+  s_3827fec5c7f2ed::t_48a442f0ecaa26 25,455-462,535,548-561,589-590
+packages/core/src/server/cache/route-cache.ts
+  s_3827fec5c7f2ed::t_48a442f0ecaa26 53-73
+packages/core/src/adapter/vercel.ts
+  s_3827fec5c7f2ed::t_37644445da0fd4 23,25,60,306-323
+  s_3827fec5c7f2ed::t_22b582f755574b 370-371,376,396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc71882dbc53c1ce288b69a4e501a82f3cfd588f",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

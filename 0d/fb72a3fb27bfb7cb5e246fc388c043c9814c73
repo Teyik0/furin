@@ -1,0 +1,21 @@
+packages/core/src/server/cache/redis/index.ts
+  s_3827fec5c7f2ed::t_b9b1e1437a8f7a 2-9,67,73,248
+packages/core/src/server/cache/page-cache.ts
+  s_3827fec5c7f2ed::t_b9b1e1437a8f7a 131-132,136-137,155,168-170,220,241,265,285,296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0dfb72a3fb27bfb7cb5e246fc388c043c9814c73",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
