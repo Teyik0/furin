@@ -382,10 +382,17 @@ export function RouterProvider({
 
         // ── NDJSON data endpoint + JS chunk load (parallel) ──────────────────
         const dataEndpoint = buildDataEndpoint(basePath, logicalHref, staticMode);
-        const loadedModule = hmrRefresh ? Promise.resolve(undefined) : match.load();
+        // Production builds define NODE_ENV, which compiles the HMR branches out.
+        const loadedModule =
+          process.env.NODE_ENV !== "production" && hmrRefresh
+            ? Promise.resolve(undefined)
+            : match.load();
         const [res, loadedMod] = await Promise.all([
           fetch(dataEndpoint, {
-            headers: hmrRefresh ? { "x-furin-hmr-refresh": "1" } : undefined,
+            headers:
+              process.env.NODE_ENV !== "production" && hmrRefresh
+                ? { "x-furin-hmr-refresh": "1" }
+                : undefined,
             redirect: "manual",
             signal,
           }),
