@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { withBuildTestLock } from "./build-lock.ts";
 
 const CLI_ENTRY = resolve(import.meta.dir, "../../src/cli/index.ts");
+// Below the 30s timeout of CLI build tests so a hung build is killed (and its
+// lock released) before the test runner abandons the test.
+const CLI_TIMEOUT_MS = 25_000;
 
 export interface CliResult {
   exitCode: number;
@@ -27,21 +30,26 @@ export function runCli(
 ): Promise<CliResult> {
   return withBuildTestLock(async () => {
     const proc = startCli(args, options);
-    const exitCode = await Promise.race([
-      proc.exitCode,
-      new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          proc.kill();
-          reject(new Error(`CLI command timed out: ${args.join(" ")}`));
-        }, 30_000);
-      }),
-    ]);
+    let timer: Timer | undefined;
+    try {
+      const exitCode = await Promise.race([
+        proc.exitCode,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error(`CLI command timed out: ${args.join(" ")}`));
+          }, CLI_TIMEOUT_MS);
+        }),
+      ]);
 
-    return {
-      exitCode,
-      stderr: proc.getStderr(),
-      stdout: proc.getStdout(),
-    };
+      return {
+        exitCode,
+        stderr: proc.getStderr(),
+        stdout: proc.getStdout(),
+      };
+    } finally {
+      clearTimeout(timer);
+      proc.kill();
+    }
   });
 }
 
