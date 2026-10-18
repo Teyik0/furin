@@ -1,0 +1,29 @@
+apps/docs/src/content/docs/sync.mdx
+  s_3827fec5c7f2ed::t_6a62ca0773ae78 176-178
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_3827fec5c7f2ed::t_55e399bd326cf6 5,8,12-14,254-337
+  s_3827fec5c7f2ed::t_1e2a35cae58b7b 338-339
+packages/core/src/server/sync/query-context.ts
+  s_3827fec5c7f2ed::t_0ad9d955d00470 33
+  s_3827fec5c7f2ed::t_9cef8bb9cad3c8 26-27,29-32,34-46,50-52
+  s_3827fec5c7f2ed::t_8210402343d1ee 53-54
+packages/core/tests/rendering/ssr/query-seed-exposure.test.tsx
+  s_3827fec5c7f2ed::t_e20b3616582b00 24-36,45-46,150-169
+  s_3827fec5c7f2ed::t_c9214b4bda1b5b 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d84c0e8b3c3bdb4fc4946b84330d2c5d7042c139",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
