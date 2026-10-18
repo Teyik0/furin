@@ -132,6 +132,7 @@ try {
     env: { ...process.env, FURIN_TEST_FIXTURE_PATHS: JSON.stringify(fixtures.map((f) => f.path)) },
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 25_000,
   });
 
   if (proc.exitCode !== 0) {

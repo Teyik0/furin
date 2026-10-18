@@ -116,6 +116,7 @@ test("renderRootNotFound scenarios", () => {
     cwd: joinPath(import.meta.dir, "../../../../.."),
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 14_000,
   });
   if (proc.exitCode !== 0) {
     throw new Error(
@@ -134,6 +135,7 @@ test("renderRootNotFound fetches the dev template from the trusted listener orig
     cwd: joinPath(import.meta.dir, "../../../../.."),
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 14_000,
   });
   if (proc.exitCode !== 0) {
     throw new Error(

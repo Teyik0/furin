@@ -34,6 +34,7 @@ expect(developmentGraphs()).toHaveLength(0);
     cwd: resolve(import.meta.dir, "../../.."),
     stdout: "pipe",
     stderr: "pipe",
+    timeout: 14_000,
   });
   expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
   expect(proc.exitCode).toBe(0);

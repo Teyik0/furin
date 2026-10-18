@@ -371,6 +371,7 @@ try {
     env: { ...Bun.env, FURIN_RSC_CODEC_PATH: "./dist/rsc/server-codec.js" },
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 25_000,
   });
 
   if (proc.exitCode !== 0) {

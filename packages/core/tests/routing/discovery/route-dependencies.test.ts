@@ -46,6 +46,7 @@ test("computeRouteDependencies scenarios", () => {
     cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 14_000,
   });
 
   if (proc.exitCode !== 0) {

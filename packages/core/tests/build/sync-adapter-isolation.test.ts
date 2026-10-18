@@ -126,6 +126,7 @@ describe("sync adapter bundle isolation", () => {
         cwd: directory,
         stderr: "pipe",
         stdout: "pipe",
+        timeout: 25_000,
       });
       expect(install.exitCode).toBe(0);
       const client = Bun.spawnSync({
@@ -137,6 +138,7 @@ describe("sync adapter bundle isolation", () => {
         cwd: directory,
         stderr: "pipe",
         stdout: "pipe",
+        timeout: 25_000,
       });
       expect(client.stderr.toString()).toBe("");
       expect(client.exitCode).toBe(0);
@@ -238,6 +240,7 @@ function pack(packageDirectory: string, destination: string): string {
     cwd: packageDirectory,
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 25_000,
   });
   if (result.exitCode !== 0) {
     throw new Error(result.stderr.toString());
@@ -262,6 +265,7 @@ function installPackedPackage(directory: string, name: string, archive: string):
     cmd: ["tar", "-xzf", archive, "--strip-components=1", "-C", destination],
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 25_000,
   });
   if (result.exitCode !== 0) {
     throw new Error(result.stderr.toString());

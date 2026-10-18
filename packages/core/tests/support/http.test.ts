@@ -10,6 +10,7 @@ test("test ports stay below the ephemeral port range for high process IDs", () =
       "-e",
       `Object.defineProperty(process, "pid", { value: 35000 }); const { getTestPort } = await import(${JSON.stringify(helperUrl)}); console.log(getTestPort());`,
     ],
+    timeout: 14_000,
   });
 
   expect(result.exitCode).toBe(0);

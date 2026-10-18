@@ -302,6 +302,7 @@ describe("generateHydrateEntry", () => {
           cwd: join(import.meta.dir, "../.."),
           stderr: "pipe",
           stdout: "pipe",
+          timeout: 14_000,
         }
       );
 

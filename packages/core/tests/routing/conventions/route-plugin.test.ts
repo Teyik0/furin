@@ -105,6 +105,7 @@ process.exit(0);
     cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""),
     stderr: "pipe",
     stdout: "pipe",
+    timeout: 14_000,
   });
 
   if (proc.exitCode !== 0) {
