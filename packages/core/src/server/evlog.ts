@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Elysia } from "elysia";
 import type { RequestLogger } from "evlog";
 import {
@@ -6,16 +7,31 @@ import {
   defineFrameworkIntegration,
   shouldDeferEmitForResponse,
 } from "evlog/toolkit";
-import { type FurinInstance, instanceSlot } from "./instance.ts";
+import {
+  currentInstance,
+  type FurinInstance,
+  instanceSlot,
+  requestLogRuntime,
+} from "./instance.ts";
 
 interface EvlogRequestContext {
   request: Request;
+}
+
+type RequestLogHandle = ReturnType<typeof integration.start>;
+
+interface RequestLogSlot {
+  handle: RequestLogHandle | undefined;
+  options: FurinEvlogOptions | undefined;
 }
 
 const loggerStorage = createLoggerStorage(
   "Furin request context. Make sure the Furin plugin is registered before your routes.",
   "@teyik0/furin:evlog"
 );
+
+/** Opened by the wrap before routing; filled once the owning runtime is known. */
+const requestLogSlots = new AsyncLocalStorage<RequestLogSlot>();
 
 const integration = defineFrameworkIntegration<EvlogRequestContext>({
   attachLogger: () => undefined,
@@ -42,10 +58,14 @@ export function setFurinEvlogOptions(instance: FurinInstance, options: FurinEvlo
 }
 
 export function getFurinEvlogOptions(): FurinEvlogOptions | undefined {
-  return instanceOptions().options;
+  return instanceOptions(currentInstance()).options;
 }
 
-export const getRequestLogger = loggerStorage.useLogger;
+/** The request logger, or the child logger inside `log.fork()`. */
+export function getRequestLogger(): RequestLogger {
+  const logger = loggerStorage.storage.getStore() ?? requestLogSlots.getStore()?.handle?.logger;
+  return logger ?? loggerStorage.useLogger();
+}
 
 const runtimeWaitUntil = new Set<NonNullable<FurinEvlogOptions["waitUntil"]>>();
 
@@ -69,58 +89,68 @@ export function registerEmission(
   }
 }
 
-/** Elysia 2-native evlog integration built on evlog's public adapter toolkit. */
-export function createFurinEvlog(options: FurinEvlogOptions) {
-  const requestLoggers = new WeakMap<Request, RequestLogger>();
+async function finishRequestLog(
+  handle: RequestLogHandle,
+  options: FurinEvlogOptions | undefined,
+  response: Response | undefined
+): Promise<Response> {
+  if (response === undefined) {
+    await handle.finish({ status: 101 });
+    // Bun represents a successful WebSocket upgrade with `undefined`,
+    // while Elysia's beta wrap type still declares Response only.
+    return undefined as unknown as Response;
+  }
+  if (shouldDeferEmitForResponse(response)) {
+    return await handle.finishResponse(response);
+  }
+  // Elysia 2 runs afterResponse/defer before fetch resolves, so emit
+  // non-streaming events in the next task instead of delaying the response.
+  const { status } = response;
+  const emission = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      handle.finish({ status }).then(
+        () => resolve(),
+        (error: unknown) => {
+          console.error("[furin] Request log emission failed", error);
+          resolve();
+        }
+      );
+    }, 0);
+  });
+  // Register before the Vercel request context closes, even though the
+  // emission itself starts after this response is returned.
+  registerEmission(emission, options);
+  return response;
+}
 
+/**
+ * Elysia 2-native evlog integration built on evlog's public adapter toolkit.
+ * The wrap opens a slot before routing; `onRequest` starts the logger once
+ * every Furin wrap has claimed the request, so the owning runtime's options
+ * (exclusions, drain, enrichers) apply regardless of plugin mount order.
+ */
+export function createFurinEvlog(options: FurinEvlogOptions) {
   return new Elysia({ name: "furin-evlog" })
-    .derive("global", ({ request }) => {
-      const log = requestLoggers.get(request) ?? loggerStorage.useLogger();
-      if (log === undefined) {
-        throw new Error("[furin] Request logger was not initialized");
-      }
-      return { log };
-    })
     .wrap((fetch) => async (request, ...rest) => {
-      const requestOptions = getFurinEvlogOptions() ?? options;
-      const handle = integration.start({ request }, requestOptions);
-      requestLoggers.set(request, handle.logger);
+      const slot: RequestLogSlot = { handle: undefined, options: undefined };
       try {
-        const response = await handle.runWith(() => fetch(request, ...rest));
-        if (response === undefined) {
-          await handle.finish({ status: 101 });
-          // Bun represents a successful WebSocket upgrade with `undefined`,
-          // while Elysia's beta wrap type still declares Response only.
-          return undefined as unknown as Response;
-        }
-        if (shouldDeferEmitForResponse(response)) {
-          return await handle.finishResponse(response);
-        }
-        // Elysia 2 runs afterResponse/defer before fetch resolves, so emit
-        // non-streaming events in the next task instead of delaying the response.
-        const { status } = response;
-        const emission = new Promise<void>((resolve) => {
-          setTimeout(() => {
-            handle.finish({ status }).then(
-              () => resolve(),
-              (error: unknown) => {
-                console.error("[furin] Request log emission failed", error);
-                resolve();
-              }
-            );
-          }, 0);
-        });
-        // Register before the Vercel request context closes, even though the
-        // emission itself starts after this response is returned.
-        registerEmission(emission, requestOptions);
-        return response;
+        const response = await requestLogSlots.run(slot, () => fetch(request, ...rest));
+        return slot.handle ? await finishRequestLog(slot.handle, slot.options, response) : response;
       } catch (error) {
-        await handle.finish({
+        await slot.handle?.finish({
           error: error instanceof Error ? error : new Error(String(error)),
         });
         throw error;
-      } finally {
-        requestLoggers.delete(request);
       }
-    });
+    })
+    .onRequest(({ request }) => {
+      const slot = requestLogSlots.getStore();
+      if (slot === undefined || slot.handle !== undefined) {
+        return;
+      }
+      const runtime = requestLogRuntime();
+      slot.options = (runtime && instanceOptions(runtime).options) ?? options;
+      slot.handle = integration.start({ request }, slot.options);
+    })
+    .derive("global", () => ({ log: getRequestLogger() }));
 }

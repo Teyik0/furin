@@ -130,7 +130,9 @@ describe.serial("dev HMR", () => {
     );
   }, 30_000);
 
-  test("native HMR entry stays quiet with inherited application hooks", async () => {
+  // Elysia warns that inherited hooks do not run for natively served HTML bundles;
+  // Furin no longer strips them through Elysia internals, so only serving is asserted.
+  test("native HMR entry is served despite inherited application hooks", async () => {
     const hookedApp = createTmpApp("cli-app");
     const hookedPort = await getFreePort();
     writeAppFile(
@@ -149,9 +151,6 @@ describe.serial("dev HMR", () => {
     try {
       const response = await waitForHttp(`http://localhost:${hookedPort}/_bun_hmr_entry`, {});
       expect(await response.text()).toContain("data-bun-dev-server-script");
-      expect(hookedServer.getStderr()).not.toContain(
-        "is an HTML bundle served natively, hooks do not run for it"
-      );
     } finally {
       hookedServer.kill();
       await hookedServer.exitCode;
@@ -159,7 +158,7 @@ describe.serial("dev HMR", () => {
     }
   }, 30_000);
 
-  test("native HMR entry stays quiet with inherited hooks and nested prefixes", async () => {
+  test("native HMR entry is served under a declared nested prefix with inherited hooks", async () => {
     const hookedApp = createTmpApp("cli-app");
     const hookedPort = await getFreePort();
     writeAppFile(
@@ -168,7 +167,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia({ prefix: "/api" }).onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/admin" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/api/admin" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -181,9 +180,6 @@ describe.serial("dev HMR", () => {
         {}
       );
       expect(await response.text()).toContain("data-bun-dev-server-script");
-      expect(hookedServer.getStderr()).not.toContain(
-        "is an HTML bundle served natively, hooks do not run for it"
-      );
     } finally {
       hookedServer.kill();
       await hookedServer.exitCode;

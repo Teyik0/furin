@@ -13,7 +13,7 @@ import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
-const { furin, isFurinPageRequest } = await import("../../../src/furin");
+const { furin, isFurinPageRequest, revalidatePath } = await import("../../../src/furin");
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
 const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
@@ -215,6 +215,39 @@ test.serial("furin() initializes the process-wide logger only once", async () =>
   await createTestApp({ pagesDir, prefix: "/admin" });
 
   expect(initLoggerOptionsMock).toHaveBeenCalledTimes(1);
+});
+
+test.serial("each furin() instance purges its own physical paths", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+  const pagesDir = join(app.path, "src/pages");
+  const purged: { admin: string[][]; front: string[][] } = { admin: [], front: [] };
+
+  new Elysia()
+    .use(
+      await furin({
+        cachePurger: (paths) => {
+          purged.front.push(paths);
+          return Promise.resolve();
+        },
+        pagesDir,
+      })
+    )
+    .use(
+      await furin({
+        cachePurger: (paths) => {
+          purged.admin.push(paths);
+          return Promise.resolve();
+        },
+        pagesDir,
+        prefix: "/admin",
+      })
+    );
+  await revalidatePath("/x", "page");
+  await Bun.sleep(0);
+
+  expect(purged).toEqual({ admin: [["/admin/x"]], front: [["/x"]] });
 });
 
 test.serial(

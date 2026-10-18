@@ -129,21 +129,16 @@ export async function revalidateTag(tags: string | readonly string[]): Promise<b
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
   callCacheTagPurger(tagList);
+  const instances = allInstances();
   const results = await Promise.all(
-    allInstances().map((instance) => invalidateTagsForInstance(instance, tagList))
+    instances.map((instance) => invalidateTagsForInstance(instance, tagList))
   );
-  const purgedPaths = new Set<string>();
-  let deleted = false;
-  for (const result of results) {
-    deleted = result.deleted || deleted;
-    for (const path of result.purgedPaths) {
-      purgedPaths.add(path);
-    }
-  }
-  // One batched CDN purge — the CDN sits in front of every mounted app, so
-  // physical paths from all instances go out together, deduped.
-  callCachePurger([...purgedPaths]);
-  return deleted;
+  // Physical paths go to each runtime's purger; runtimes sharing one purger
+  // (e.g. a CDN in front of every mounted app) get a single deduped batch.
+  callCachePurger(
+    new Map(instances.map((instance, index) => [instance, results[index]?.purgedPaths ?? []]))
+  );
+  return results.some((result) => result.deleted);
 }
 
 export async function runInvalidationRules(input: InvalidationInput): Promise<boolean> {

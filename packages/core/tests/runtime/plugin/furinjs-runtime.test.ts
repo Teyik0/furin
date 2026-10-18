@@ -20,8 +20,9 @@ const { getProductionTemplate, __resetTemplateState } = await import(
 const { __setDevMode } = await import("../../../src/server/runtime-env");
 const { generateProdIndexHtml } = await import("../../../src/server/render/shell");
 
+const { allInstances, withInstance } = await import("../../../src/server/instance");
+
 const tmpApps: TmpApp[] = [];
-const HEAD_JSON_RE = /id="__FURIN_HEAD__"[^>]*>([\s\S]*?)<\/script>/;
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
 const originalPath = process.env.PATH;
@@ -31,6 +32,15 @@ const originalURL = globalThis.URL;
 function rememberTmpApp(app: TmpApp): TmpApp {
   tmpApps.push(app);
   return app;
+}
+
+/** Reads the state of the single runtime created by the test. */
+function inRuntime<T>(read: () => T): T {
+  const [runtime, ...others] = allInstances();
+  if (!runtime || others.length > 0) {
+    throw new Error(`Expected one Furin runtime, found ${others.length + (runtime ? 1 : 0)}`);
+  }
+  return withInstance(runtime, read);
 }
 
 async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
@@ -109,7 +119,7 @@ test.serial("furin() production loads client assets from FURIN_CLIENT_DIR", asyn
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("custom");
+  expect(inRuntime(getProductionTemplate)).toContain("custom");
 });
 
 test.serial("furin() production rejects missing FURIN_CLIENT_DIR assets", async () => {
@@ -181,7 +191,7 @@ test.serial("furin() production resolves client assets next to module URL", asyn
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("module-client");
+  expect(inRuntime(getProductionTemplate)).toContain("module-client");
 });
 
 test.serial("furin() production resolves client assets next to argv server path", async () => {
@@ -210,7 +220,7 @@ test.serial("furin() production resolves client assets next to argv server path"
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("argv-client");
+  expect(inRuntime(getProductionTemplate)).toContain("argv-client");
 });
 
 test.serial("furin() production resolves client assets from PATH binary", async () => {
@@ -240,7 +250,7 @@ test.serial("furin() production resolves client assets from PATH binary", async 
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("path-client");
+  expect(inRuntime(getProductionTemplate)).toContain("path-client");
 });
 
 test.serial("furin() production resolves fallback built client directory", async () => {
@@ -266,7 +276,7 @@ test.serial("furin() production resolves fallback built client directory", async
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("fallback-client");
+  expect(inRuntime(getProductionTemplate)).toContain("fallback-client");
 });
 
 test.serial("furin() production hydrates embedded SSG cache", async () => {
@@ -294,11 +304,11 @@ test.serial("furin() production hydrates embedded SSG cache", async () => {
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getSSGCache("/")?.html).toBe("<html>prebuilt</html>");
+  expect(inRuntime(() => getSSGCache("/"))?.html).toBe("<html>prebuilt</html>");
 });
 
 test.serial(
-  "prebuilt SSG documents preserve physical URLs under nested parent mounts",
+  "a declared nested prefix serves prebuilt documents through nested containers",
   async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     __setDevMode(false);
@@ -315,68 +325,33 @@ test.serial(
         '.loader(() => { runtimeLoaderReads += 1; throw new Error("Runtime loader forbidden"); }).page('
       )}\nexport let runtimeLoaderReads = 0;\n`
     );
+    const prefix = "/outer/inner/admin";
     const clientDir = join(app.path, "client");
     mkdirSync(clientDir, { recursive: true });
     writeFileSync(
       join(clientDir, "index.html"),
-      generateProdIndexHtml(
-        "/admin/_client/entry.js",
-        ["/admin/_client/style.css"],
-        "build",
-        undefined,
-        false
-      )
+      generateProdIndexHtml(`${prefix}/_client/entry.js`, [], "build", undefined, false)
     );
+    // The build already ran with the declared prefix as basePath.
+    const prebuilt = `<html><head><link rel="stylesheet" href="${prefix}/_client/style.css"></head><body>prebuilt<script type="module" src="${prefix}/_client/entry.js"></script></body></html>`;
     __setCompileContext({
       ...(await createCompileContext(app.path)),
-      prefix: "/admin",
-      ssgCache: {
-        "/": {
-          cachedAt: 123,
-          status: 200,
-          ndjson: "{}\n",
-          html: '<html><head><meta name="furin-base-path" content="/admin"><link rel="stylesheet" href="/admin/_client/style.css"><script src="/admin/_client/head.js"></script><link rel="icon" href="/admin/custom.ico"><link rel="modulepreload" href="/admin/custom-module.js"><link rel="alternate" href="/admin?mode=x#tab"><link rel="alternate" href="/admin#fragment"><link rel="alternate" href="https://example.org/admin?mode=x"></head><body>prebuilt<script id="__FURIN_DATA__" type="application/json">{"snapshot":"/admin/_client/private-value.js"}</script><script id="__FURIN_HEAD__" type="application/json">{"links":[{"rel":"stylesheet","href":"/admin/_client/style.css"},{"rel":"alternate","href":"/admin?mode=x#tab"},{"rel":"alternate","href":"/admin#fragment"},{"rel":"alternate","href":"https://example.org/admin?mode=x"}],"scripts":[{"src":"/admin/_client/head.js"},{"children":"window.snapshot=\\"/admin/_client/private-value.js\\";"}],"meta":[{"name":"furin-base-path","content":"/admin"},{"title":"Snapshot title"}]}</script><script id="__FURIN_SYNC__" type="application/json">{"path":"/sync"}</script><script>window.authorValue="/admin/_client/private-value.js";</script><script src="/admin/author.js"></script><script type="module" src="/admin/_client/entry.js"></script></body></html>',
-        },
-      },
+      prefix,
+      ssgCache: { "/": { cachedAt: 123, html: prebuilt, ndjson: "{}\n", status: 200 } },
     });
-    const plugin = await furin({
-      prefix: "/admin",
-      pagesDir: join(app.path, "src/pages"),
-      clientDir,
-    });
-    const composed = new Elysia({ prefix: "/outer" }).use(
-      new Elysia({ prefix: "/inner" }).use(plugin)
+    const guarded: string[] = [];
+    const composed = new Elysia().use(
+      new Elysia()
+        .onBeforeHandle(({ request }) => {
+          guarded.push(new URL(request.url).pathname);
+        })
+        .use(await furin({ clientDir, pagesDir: join(app.path, "src/pages"), prefix }))
     );
-    const response = await composed.handle(new Request("http://localhost/outer/inner/admin/"));
+
+    const response = await composed.handle(new Request(`http://localhost${prefix}/`));
     expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
-    expect(html).toContain('src="/outer/inner/admin/_client/entry.js"');
-    expect(html).toContain('href="/outer/inner/admin/_client/style.css"');
-    expect(html).toContain('{"snapshot":"/admin/_client/private-value.js"}');
-    expect(html).toContain('window.authorValue="/admin/_client/private-value.js";');
-    expect(html).toContain('src="/admin/author.js"');
-    expect(html).toContain('{"path":"/sync"}');
-    expect(html).toContain('"name":"furin-base-path","content":"/outer/inner/admin"');
-    expect(html).toContain('src="/outer/inner/admin/_client/head.js"');
-    expect(html).toContain('href="/outer/inner/admin/custom.ico"');
-    expect(html).toContain('href="/outer/inner/admin/custom-module.js"');
-    expect(html).toContain('href="/outer/inner/admin?mode=x#tab"');
-    expect(html).toContain('href="/outer/inner/admin#fragment"');
-    expect(html).toContain('href="https://example.org/admin?mode=x"');
-    const serializedHead = html.match(HEAD_JSON_RE)?.[1];
-    expect(JSON.parse(serializedHead ?? "{}")).toMatchObject({
-      links: [
-        { rel: "stylesheet", href: "/outer/inner/admin/_client/style.css" },
-        { rel: "alternate", href: "/outer/inner/admin?mode=x#tab" },
-        { rel: "alternate", href: "/outer/inner/admin#fragment" },
-        { rel: "alternate", href: "https://example.org/admin?mode=x" },
-      ],
-      scripts: [
-        { src: "/outer/inner/admin/_client/head.js" },
-        { children: 'window.snapshot="/admin/_client/private-value.js";' },
-      ],
-    });
+    expect(await response.text()).toBe(prebuilt);
+    expect(guarded).toEqual([`${prefix}/`]);
     expect((await import(indexPath)).runtimeLoaderReads).toBe(0);
   }
 );
@@ -431,7 +406,7 @@ test.serial("furin() production revalidates embedded SSG cache tags", async () =
   await furin({ pagesDir: join(app.path, "src/pages") });
 
   expect(await revalidateTag("boards")).toBe(true);
-  expect(ssgCache.has("/")).toBe(false);
+  expect(inRuntime(() => ssgCache.has("/"))).toBe(false);
 });
 
 test.serial("furin() production falls back to cwd client directory", async () => {
@@ -456,7 +431,7 @@ test.serial("furin() production falls back to cwd client directory", async () =>
   const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
 
   expect(instance).toBeInstanceOf(Elysia);
-  expect(getProductionTemplate()).toContain("cwd-client");
+  expect(inRuntime(getProductionTemplate)).toContain("cwd-client");
 });
 
 test.serial("furin() production rejects embedded context without HTML template", async () => {

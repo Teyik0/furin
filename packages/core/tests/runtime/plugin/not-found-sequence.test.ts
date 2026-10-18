@@ -14,7 +14,7 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 
 let tmpApp: TmpApp | undefined;
 
-async function createProductionContext(appPath: string): Promise<void> {
+async function createProductionContext(appPath: string, prefix: string): Promise<void> {
   const rootPath = join(appPath, "src/pages/root.tsx");
   const indexPath = join(appPath, "src/pages/index.tsx");
   const [rootMod, indexMod] = await Promise.all([import(rootPath), import(indexPath)]);
@@ -27,6 +27,7 @@ async function createProductionContext(appPath: string): Promise<void> {
     nativeRoutes: new Elysia().use(
       rootMod.route.elysia.use(new Elysia().use(indexMod.route.elysia))
     ),
+    prefix,
     rootConventions: {},
     rootPath,
     routeMetadata: { [indexPath]: { segmentBoundaries: [] } },
@@ -56,7 +57,7 @@ for (const prefix of ["", "/admin"]) {
     async () => {
       tmpApp = createTmpApp("cli-app");
       __setDevMode(false);
-      await createProductionContext(tmpApp.path);
+      await createProductionContext(tmpApp.path, prefix);
       const pagesDir = join(tmpApp.path, "src/pages");
       const app = new Elysia().use(await furin(prefix ? { pagesDir, prefix } : { pagesDir }));
 

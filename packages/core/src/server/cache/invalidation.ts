@@ -11,7 +11,6 @@ import {
   currentInstance,
   type FurinInstance,
   requestPendingInvalidations,
-  runWithInstanceScope,
   withInstance,
 } from "../instance.ts";
 import { clearMixedPublicCache } from "../render/mixed-cache.ts";
@@ -31,22 +30,17 @@ import type { RevalidateType } from "./route-cache";
 import { ssgRouteCache } from "./ssg";
 
 // ── Pending invalidations (server → client bridge) ───────────────────────────
-// The per-request set lives in the instance request scope (see instance.ts);
-// outside a request scope invalidations accumulate in a process-global set.
+// The per-request set lives in the request scope (see instance.ts). Outside a
+// request there is no response to report them on, so nothing is recorded.
 
-const _globalPendingInvalidations = new Set<string>();
-
-function _activeInvalidationSet(): Set<string> {
-  return requestPendingInvalidations() ?? _globalPendingInvalidations;
-}
-
+/** @internal test helper — runs `fn` with its own pending-invalidation set. */
 export function _runWithRequestInvalidationScope<T>(fn: () => T): T {
-  return runWithInstanceScope(currentInstance(), fn);
+  return withInstance(currentInstance(), fn);
 }
 
 export function consumePendingInvalidations(): string[] {
-  const set = _activeInvalidationSet();
-  if (set.size === 0) {
+  const set = requestPendingInvalidations();
+  if (set === undefined || set.size === 0) {
     return [];
   }
   const paths = [...set];
@@ -55,18 +49,19 @@ export function consumePendingInvalidations(): string[] {
 }
 
 export function peekPendingInvalidations(): string[] {
-  return [..._activeInvalidationSet()];
+  return [...(requestPendingInvalidations() ?? [])];
 }
 
 // ── CDN purger hook ───────────────────────────────────────────────────────────
-// Process-global on purpose: the CDN sits in front of every mounted app.
+// `furin({ cachePurger })` scopes a purger to one runtime; this process-wide
+// one remains the fallback for runtimes without their own.
 
 export function setCachePurger(fn: CachePurger): void {
   installPurger(fn);
 }
 
-export function callCachePurger(paths: string[]): void {
-  purgePaths(paths);
+export function callCachePurger(purges: ReadonlyMap<FurinInstance, readonly string[]>): void {
+  purgePaths(purges);
 }
 
 // ── revalidatePath ───────────────────────────────────────────────────────────
@@ -130,18 +125,14 @@ async function invalidateInstancePath(
  * (auto-invalidate unregistration) hit the owning instance's registry.
  */
 export async function revalidatePath(path: string, type: RevalidateType): Promise<boolean> {
-  let deleted = false;
-  const purgedPaths: string[] = [];
+  const instances = allInstances();
   const results = await Promise.all(
-    allInstances().map((instance) => invalidateInstancePath(instance, path, type))
+    instances.map((instance) => invalidateInstancePath(instance, path, type))
   );
-  for (const result of results) {
-    deleted = result.deleted || deleted;
-    purgedPaths.push(...result.purgedPaths);
-  }
-
-  callCachePurger(dedupePaths(purgedPaths));
-  return deleted;
+  callCachePurger(
+    new Map(instances.map((instance, index) => [instance, results[index]?.purgedPaths ?? []]))
+  );
+  return results.some((result) => result.deleted);
 }
 
 /**
@@ -157,7 +148,7 @@ export function revalidatePathForInstance(
   type: RevalidateType,
   emitPathEvent?: boolean
 ): { deleted: boolean; purgedPaths: string[] } {
-  _activeInvalidationSet().add(encodeInvalidationEntry(path, type));
+  requestPendingInvalidations()?.add(encodeInvalidationEntry(path, type));
 
   let deleted = false;
   const purgedPaths: string[] = [];
@@ -172,10 +163,6 @@ export function revalidatePathForInstance(
     }
   });
   return { deleted, purgedPaths };
-}
-
-function dedupePaths(paths: string[]): string[] {
-  return [...new Set(paths)];
 }
 
 /** @internal — resets all module state between tests */
@@ -199,7 +186,6 @@ export function __resetCacheState(): void {
   // Forget mounted instances (fresh furin() calls between tests must not hit
   // prefix collisions) but keep the default bucket — cache slots above are
   // cleared, while process-wide defaults like a beforeAll template survive.
+  resetCachePurgers(allStateBuckets());
   __clearInstanceRegistry();
-  _globalPendingInvalidations.clear();
-  resetCachePurgers();
 }

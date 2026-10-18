@@ -1,4 +1,4 @@
-import { type FurinInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 import type { PageCacheAdapter } from "./page-cache.ts";
 
 interface PageCacheAdapterState {
@@ -10,7 +10,7 @@ const instancePageCacheAdapter = instanceSlot<PageCacheAdapterState>(() => ({
 }));
 
 export function getPageCacheAdapter(instance?: FurinInstance): PageCacheAdapter | undefined {
-  return instancePageCacheAdapter(instance).adapter;
+  return instancePageCacheAdapter(instance ?? currentInstance()).adapter;
 }
 
 export function setPageCacheAdapter(instance: FurinInstance, adapter: PageCacheAdapter): void {

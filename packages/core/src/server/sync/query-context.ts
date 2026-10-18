@@ -64,7 +64,7 @@ export function captureQueryReads<Result extends LoaderResult>(
   const { origin } = new URL(ctx.request.url);
   const store = new QueryStore(origin);
   const registry = getAutoInvalidateRegistry();
-  const trackedPaths = trackedQueryPaths();
+  const trackedPaths = trackedQueryPaths(currentInstance());
   const requestUrl = new URL(ctx.request.url);
   const path = toLogical(requestUrl.pathname, currentInstance().prefix) + requestUrl.search;
   const onRead = () => {

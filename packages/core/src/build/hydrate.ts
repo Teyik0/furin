@@ -205,7 +205,7 @@ import { findRouteFailure, fromCrossJSON, parseDeferredNdjson } from "@teyik0/fu
 import type { SerovalNode } from "seroval";
 import { route as __furin_root_route } from ${JSON.stringify(resolvedRootLayout)};
 
-const __furinBasePath = document.querySelector('meta[name="furin-base-path"]')?.getAttribute("content") ?? ${basePathLiteral};
+const __furinBasePath = ${basePathLiteral};
 ${loggerSetup}
 
 if (import.meta.hot) {

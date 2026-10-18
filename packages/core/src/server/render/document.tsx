@@ -12,7 +12,6 @@ import { serializeRouteFrames } from "../../shared/route-frame.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { currentInstance } from "../instance.ts";
 import { getSyncPath } from "../sync/config.ts";
-import { rebaseAssetHref, rebaseDocumentHead } from "./asset-path.ts";
 import { safeJson } from "./shell.ts";
 
 export function withDocumentState(
@@ -23,27 +22,14 @@ export function withDocumentState(
   nonce?: string,
   jsonCompatible?: boolean
 ): ReactNode {
-  const instance = currentInstance();
-  const rebase = (href: string): string => rebaseAssetHref(href, instance);
-  const rebasedAssets =
-    instance.prefix === instance.declaredPrefix
-      ? assets
-      : {
-          ...assets,
-          entryModule: assets.entryModule === undefined ? undefined : rebase(assets.entryModule),
-          faviconHref: assets.faviconHref === undefined ? undefined : rebase(assets.faviconHref),
-          frameworkModules: assets.frameworkModules.map(rebase),
-          modulePreloads: assets.modulePreloads?.map(rebase),
-          stylesheets: assets.stylesheets.map(rebase),
-        };
   const syncPath = getSyncPath();
   const browserEventsClientPath = `${currentInstance().prefix}/_furin/events/client.js`;
   const resolvedAssets =
-    syncPath === undefined || rebasedAssets.frameworkModules.includes(browserEventsClientPath)
-      ? rebasedAssets
+    syncPath === undefined || assets.frameworkModules.includes(browserEventsClientPath)
+      ? assets
       : {
-          ...rebasedAssets,
-          frameworkModules: [browserEventsClientPath, ...rebasedAssets.frameworkModules],
+          ...assets,
+          frameworkModules: [browserEventsClientPath, ...assets.frameworkModules],
         };
   const routeFrames =
     data !== undefined && !(jsonCompatible ?? isJsonObject(data))
@@ -52,7 +38,7 @@ export function withDocumentState(
   const state: DocumentState = {
     assets: resolvedAssets,
     dataJson: data === undefined || routeFrames !== undefined ? undefined : safeJson(data),
-    head: rebaseDocumentHead(head, instance),
+    head,
     nonce,
     routeFrames,
     syncJson: syncPath === undefined ? undefined : safeJson({ path: syncPath }),

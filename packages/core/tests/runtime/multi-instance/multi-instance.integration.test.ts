@@ -262,8 +262,9 @@ try {
     process.chdir(app.path);
     const adminPagesDir = writeAdminPages(app.path);
     setProductionTemplateContent(TEST_TEMPLATE);
-    const parent = new Elysia({ prefix: "/host" })
-      .use(await furin({ pagesDir: adminPagesDir, prefix: "/admin" }));
+    // The full physical prefix is declared; the parent adds no prefix of its own.
+    const parent = new Elysia()
+      .use(new Elysia().use(await furin({ pagesDir: adminPagesDir, prefix: "/host/admin" })));
     const html = await parent.handle(new Request("http://furin/host/admin"));
     expect(html.status).toBe(200);
     expect(await html.text()).toContain("Admin home");

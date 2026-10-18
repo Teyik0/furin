@@ -9,7 +9,7 @@ import {
   type DevDiagnosticPhase,
   type DevSourceLocation,
 } from "../../shared/dev-diagnostics.ts";
-import { type FurinInstance, instanceSlot } from "../instance.ts";
+import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { devGraph } from "./graph.ts";
 import { symbolicateStack } from "./symbolicate.ts";
@@ -237,7 +237,7 @@ export class DevDiagnosticStore {
 const diagnosticStoreSlot = instanceSlot(() => new DevDiagnosticStore());
 
 export function devDiagnosticStore(instance?: FurinInstance): DevDiagnosticStore {
-  return diagnosticStoreSlot(instance);
+  return diagnosticStoreSlot(instance ?? currentInstance());
 }
 
 export function publishDevDiagnostic(

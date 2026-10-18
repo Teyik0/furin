@@ -126,72 +126,30 @@ export function __setCompileContext(ctx: CompileContext): void {
 }
 
 /**
- * Looks up the compile context for a (pagesDir, prefix) mount. Resolution
- * order, from most to least specific:
- * 1. exact (pagesDir, prefix) key — distinguishes the same app mounted twice;
- * 2. sole context registered for `pagesDir` — callers that don't pass a
- *    prefix, and contexts emitted before the prefix field existed;
- * 3. sole context registered for `prefix` — deployed binaries run from a
- *    different cwd than the build, so the absolute pagesDir key misses there,
- *    but the mount prefix is stable across machines;
- * 4. the sole registered context (single-app back-compat).
+ * Looks up the compile context of a mount. The declared prefix is the mount's
+ * build-time identity and is stable across machines, while the absolute
+ * pagesDir differs once a binary runs from another cwd: a sole context for
+ * the prefix answers, and pagesDir only disambiguates independent apps that
+ * share a prefix. A context built for another prefix never answers.
+ *
+ * Without a mount, route discovery resolves absolute module paths through the
+ * module table of the sole compiled app, if exactly one is registered.
  */
 export function getCompileContext(pagesDir?: string, prefix?: string): CompileContext | null {
-  if (pagesDir !== undefined) {
-    const dir = normalizeContextKey(pagesDir);
-    if (prefix !== undefined) {
-      const exact = _compileContexts.get(contextKey(dir, prefix));
-      if (exact) {
-        return exact;
-      }
-    }
-    const dirMatch = soleContextForPagesDir(dir);
-    if (dirMatch) {
-      return dirMatch;
-    }
+  if (pagesDir === undefined || prefix === undefined) {
+    return _compileContexts.size === 1 ? (_compileContexts.values().next().value ?? null) : null;
   }
-  if (prefix !== undefined) {
-    const prefixMatch = contextForPrefix(prefix);
-    if (prefixMatch) {
-      return prefixMatch;
-    }
+  const candidates = [..._compileContexts.values()].filter((ctx) => (ctx.prefix ?? "") === prefix);
+  if (candidates.length <= 1) {
+    return candidates[0] ?? null;
   }
-  if (_compileContexts.size === 1) {
-    return _compileContexts.values().next().value ?? null;
+  const exact = _compileContexts.get(contextKey(normalizeContextKey(pagesDir), prefix));
+  if (exact) {
+    return exact;
   }
-  return null;
-}
-
-/**
- * The sole context registered for `dir`, or null when none matches — or when
- * SEVERAL do (the same pagesDir mounted at two prefixes): guessing there
- * would hand one mount the other's assets/build ID.
- */
-function soleContextForPagesDir(dir: string): CompileContext | null {
-  let match: CompileContext | null = null;
-  for (const ctx of _compileContexts.values()) {
-    if (pagesDirOf(ctx) !== dir) {
-      continue;
-    }
-    if (match) {
-      return null;
-    }
-    match = ctx;
-  }
-  return match;
-}
-
-function contextForPrefix(prefix: string): CompileContext | null {
-  let match: CompileContext | null = null;
-  for (const ctx of _compileContexts.values()) {
-    if ((ctx.prefix ?? "") === prefix) {
-      if (match) {
-        return null;
-      }
-      match = ctx;
-    }
-  }
-  return match;
+  throw new Error(
+    `[furin] ${candidates.length} compiled apps are registered for prefix ${JSON.stringify(prefix || "/")} and none was built from ${JSON.stringify(pagesDir)}. Mount each compiled app with the pagesDir it was built from.`
+  );
 }
 
 /** All registered contexts, keyed by the composite (pagesDir, prefix) key. */

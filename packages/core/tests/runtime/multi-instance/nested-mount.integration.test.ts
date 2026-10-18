@@ -28,7 +28,7 @@ async function runFixtureScript(
         }, timeoutMs);
       }),
     ]);
-    return { exitCode, stderr: proc.getStderr() };
+    return { exitCode, stderr: proc.getStderr() || proc.getStdout() };
   } finally {
     clearTimeout(timer);
     proc.kill();
@@ -37,7 +37,7 @@ async function runFixtureScript(
   }
 }
 
-test("nested Elysia prefixes preserve Furin rendering and navigation", async () => {
+test("nested Elysia containers serve a declared full prefix", async () => {
   const proc = await runFixtureScript(
     `
 import { expect } from "bun:test";
@@ -53,19 +53,18 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   writeAppFile(fixture.path, "src/pages/not-found.tsx", 'export default () => <main>Nested missing</main>;');
-  const app = new Elysia({ prefix: "/outer" }).onRequest(({ request }) =>
-    request.headers.has("x-deny") && isFurinPageRequest(request, "/admin")
+  const app = new Elysia().onRequest(({ request }) =>
+    request.headers.has("x-deny") && isFurinPageRequest(request, "/outer/inner/admin")
       ? new Response("Blocked", { status: 403 }) : undefined
   ).use(
-    new Elysia({ prefix: "/inner" }).use(
-      await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" })
+    new Elysia().use(
+      await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/outer/inner/admin" })
     )
   );
   const response = await app.handle("/outer/inner/admin");
   expect(response.status).toBe(200);
   const html = await response.text();
   expect(html).toContain("Home page");
-  expect(html).toContain('name="furin-base-path" content="/outer/inner/admin"');
   const data = await app.handle("/outer/inner/admin/_furin/data?path=%2F");
   expect(data.status).toBe(200);
   expect(data.headers.get("content-type")).toContain("json");
@@ -92,7 +91,7 @@ try {
   expect(proc.exitCode).toBe(0);
 });
 
-test("a failed async Elysia plugin prevents Furin dispatch", async () => {
+test("mounting and serving Furin leaves Elysia's prototype untouched", async () => {
   const proc = await runFixtureScript(
     `
 import { expect } from "bun:test";
@@ -100,32 +99,121 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
+
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
+const descriptors = () => ["fetch", "handle"].map((name) => Object.getOwnPropertyDescriptor(Elysia.prototype, name)?.get);
+const before = descriptors();
+const symbols = Object.getOwnPropertySymbols(Elysia.prototype);
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
-  let rejectPlugin;
-  let dispatched = 0;
-  const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages") }))
-    .get("/probe", () => { dispatched++; return "unexpected"; })
-    .use(new Promise((resolve, reject) => { rejectPlugin = reject; }));
-  console.log("[fixture] awaiting plugin rejection");
-  const pending = app.handle("/probe");
-  rejectPlugin(new Error("plugin initialization failed"));
-  await expect(pending).rejects.toThrow("plugin initialization failed");
-  await expect(app.handle("/probe")).rejects.toThrow("plugin initialization failed");
-  await expect(app.fetch(new Request("http://localhost/probe"))).rejects.toThrow("plugin initialization failed");
-  expect(dispatched).toBe(0);
-  console.log("[fixture] all dispatches rejected");
+  const app = new Elysia().use(await furin({ pagesDir: join(fixture.path, "src/pages") }));
+  expect((await app.handle("/")).status).toBe(200);
+  expect((await app.fetch(new Request("http://localhost/"))).status).toBe(200);
+  expect(descriptors()).toEqual(before);
+  expect(Object.getOwnPropertySymbols(Elysia.prototype)).toEqual(symbols);
 } finally {
   process.chdir(originalCwd);
 }
 `,
     8000
   );
-  expect(proc.stderr).toContain("plugin initialization failed");
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
+});
+
+test("a prefix the parent composition does not match fails at startup", async () => {
+  const proc = await runFixtureScript(
+    `
+import { expect } from "bun:test";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "./src/furin.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
+const originalCwd = process.cwd();
+const failures = [];
+const consoleError = console.error;
+console.error = (...args) => failures.push(args.map(String).join(" "));
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  const app = new Elysia({ prefix: "/outer" }).use(
+    new Elysia({ prefix: "/inner" }).use(
+      await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" })
+    )
+  );
+  app.listen({ hostname: "127.0.0.1", port: 0 });
+  const deadline = Date.now() + 3000;
+  while (failures.length === 0 && Date.now() < deadline) await Bun.sleep(10);
+  console.error = consoleError;
+  const failure = failures.join("\\n");
+  expect(failure).toContain('furin({ prefix: "/admin" }) is served at "/outer/inner/admin"');
+  expect(failure).toContain('repeat the parent prefix in furin({ prefix: "/outer/inner/admin" })');
+  expect(app.server).toBeUndefined();
+  // Elysia reports a failed listen() through the exit code.
+  expect(process.exitCode).toBe(1);
+  process.exitCode = 0;
+} finally {
+  console.error = consoleError;
+  process.chdir(originalCwd);
+}
+`,
+    8000
+  );
+  if (proc.exitCode !== 0) {
+    throw new Error(proc.stderr);
+  }
+});
+
+test("one furin() plugin cannot serve two applications", async () => {
+  const proc = await runFixtureScript(
+    `
+import { expect } from "bun:test";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "./src/furin.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
+const originalCwd = process.cwd();
+const failures = [];
+const consoleError = console.error;
+console.error = (...args) => failures.push(args.map(String).join(" "));
+const apps = [];
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
+  new Elysia().use(plugin);
+  expect(() => new Elysia().use(plugin)).toThrow("call furin() again");
+
+  // Reusing a container that already holds the plugin shares one runtime.
+  const container = new Elysia().use(
+    await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/shared" })
+  );
+  for (const _ of [0, 1]) {
+    apps.push(new Elysia().use(container).listen({ hostname: "127.0.0.1", port: 0 }));
+  }
+  const deadline = Date.now() + 3000;
+  while (failures.length === 0 && Date.now() < deadline) await Bun.sleep(10);
+  console.error = consoleError;
+  expect(failures.join("\\n")).toContain("call furin() again");
+  expect(process.exitCode).toBe(1);
+  process.exitCode = 0;
+} finally {
+  for (const app of apps) await app.stop(true);
+  console.error = consoleError;
+  process.chdir(originalCwd);
+}
+`,
+    8000
+  );
+  if (proc.exitCode !== 0) {
+    throw new Error(proc.stderr);
+  }
 });
 
 test("fetch waits for async plugins and continues serving after they settle and compile", async () => {
@@ -158,211 +246,6 @@ try {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(path === "/async" ? "settled" : "Home page");
   }
-} finally {
-  process.chdir(originalCwd);
-}
-`,
-    8000
-  );
-  expect(proc.stderr).not.toContain("error:");
-  expect(proc.exitCode).toBe(0);
-});
-
-test("reading fetch observes failed reused-container preparation and preserves its rejection", async () => {
-  const proc = await runFixtureScript(
-    `
-import { expect } from "bun:test";
-import { renameSync } from "node:fs";
-import { join } from "node:path";
-import { Elysia } from "elysia";
-import { furin } from "./src/furin.ts";
-import { __setDevMode } from "./src/server/runtime-env.ts";
-const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
-const originalCwd = process.cwd();
-const unhandled = [];
-const onUnhandled = error => unhandled.push(error);
-process.on("unhandledRejection", onUnhandled);
-try {
-  process.chdir(fixture.path);
-  __setDevMode(true);
-  const pagesDir = join(fixture.path, "src/pages");
-  const child = new Elysia().use(await furin({ pagesDir, prefix: "/admin", logger: { drain: () => undefined } }));
-  const first = new Elysia({ prefix: "/one" }).use(child);
-  const response = await first.handle("/one/admin");
-  expect(response.status).toBe(200);
-  await response.text();
-  const second = new Elysia({ prefix: "/two" }).use(child);
-  await second.modules;
-  renameSync(pagesDir, pagesDir + ".missing");
-  const fetch = second.fetch;
-  await Bun.sleep(25);
-  expect(unhandled).toEqual([]);
-  renameSync(pagesDir + ".missing", pagesDir);
-  await expect(fetch(new Request("http://localhost/two/admin"))).rejects.toThrow("ENOENT");
-} finally {
-  process.off("unhandledRejection", onUnhandled);
-  process.chdir(originalCwd);
-}
-`,
-    8000
-  );
-  expect(proc.stderr).not.toContain("error:");
-  expect(proc.exitCode).toBe(0);
-});
-
-test("reusing a Furin plugin initializes independent loader caches and devtools streams", async () => {
-  const proc = await runFixtureScript(
-    String.raw`
-import { expect } from "bun:test";
-import { join } from "node:path";
-import { Elysia } from "elysia";
-import { furin } from "./src/furin.ts";
-import { __setDevMode } from "./src/server/runtime-env.ts";
-import { writeAppFile } from "./tests/support/app-fixtures.ts";
-
-const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
-const originalCwd = process.cwd();
-try {
-  process.chdir(fixture.path);
-  __setDevMode(true);
-  writeAppFile(fixture.path, "src/pages/index.tsx", [
-    'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
-    'export const route = defineRoute().config({ layout: rootRoute, mode: "ssg" })',
-    '.loader(() => ({ call: globalThis.furinReuseCalls = (globalThis.furinReuseCalls ?? 0) + 1 }))',
-    '.page(({ call }) => <main>{call}</main>);',
-  ].join("\n"));
-  const events = [];
-  const emissions = [];
-  const plugin = await furin({
-    pagesDir: join(fixture.path, "src/pages"), prefix: "/admin",
-    logger: { drain: ({ event }) => events.push(event), waitUntil: (task) => emissions.push(task) },
-  });
-  const first = new Elysia({ prefix: "/one" }).use(plugin);
-  const second = new Elysia({ prefix: "/two" }).use(plugin);
-  for (const [app, prefix, call] of [[first, "/one/admin", 1], [second, "/two/admin", 3]]) {
-    const response = await app.handle(prefix);
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain('<main>' + call + '</main>');
-    const data = await app.handle(prefix + "/_furin/data?path=%2F");
-    expect(data.status).toBe(200);
-    expect(await data.text()).toContain(prefix);
-    const snapshot = await app.handle(new Request("http://localhost" + prefix + "/_furin/devtools/snapshot"));
-    expect(snapshot.status).toBe(200);
-    const body = await snapshot.text();
-    expect(body).toContain(prefix);
-    expect(body).not.toContain(prefix === "/one/admin" ? "/two/admin" : "/one/admin");
-  }
-  await Promise.all(emissions);
-  expect(events.some(event => event.path === "/one/admin")).toBe(true);
-  expect(events.some(event => event.path === "/two/admin")).toBe(true);
-  expect(events.some(event => event.path.includes("/_furin/devtools/"))).toBe(false);
-} finally {
-  process.chdir(originalCwd);
-}
-`,
-    8000
-  );
-  expect(proc.stderr).not.toContain("error:");
-  expect(proc.exitCode).toBe(0);
-});
-
-test("reusing an Elysia container preserves independent Furin runtimes and child guards", async () => {
-  const proc = await runFixtureScript(
-    String.raw`
-import { expect } from "bun:test";
-import { join } from "node:path";
-import { Elysia } from "elysia";
-import { furin } from "./src/furin.ts";
-import { __setDevMode } from "./src/server/runtime-env.ts";
-import { writeAppFile } from "./tests/support/app-fixtures.ts";
-const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
-const originalCwd = process.cwd();
-try {
-  process.chdir(fixture.path);
-  __setDevMode(true);
-  writeAppFile(fixture.path, "src/pages/index.tsx", [
-    'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
-    'export const route = defineRoute().config({ layout: rootRoute, mode: "ssg" })',
-    '.loader(() => ({ call: globalThis.furinContainerCalls = (globalThis.furinContainerCalls ?? 0) + 1 }))',
-    '.page(({ call }) => <main>{call}</main>);',
-  ].join("\n"));
-  writeAppFile(fixture.path, "src/pages/files/[slug].tsx", [
-    'import { defineRoute } from "@teyik0/furin";',
-    'import { t } from "elysia";',
-    'import { route as rootRoute } from "../root";',
-    'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })',
-    '.loader(({ params }) => params).page(({ slug }) => <main>{slug}</main>);',
-  ].join("\n"));
-  const events = [];
-  const emissions = [];
-  const legacy = { handles: new WeakMap(), owners: new WeakMap(), wrappers: new WeakSet() };
-  for (const property of ["fetch", "handle"]) {
-    const descriptor = Object.getOwnPropertyDescriptor(Elysia.prototype, property);
-    Object.defineProperty(Elysia.prototype, property, { ...descriptor, get() {
-      const wrappers = Reflect.get(this, "~ext")?.hoc;
-      const owned = wrappers?.some(wrapper => legacy.wrappers.has(wrapper));
-      if (owned) legacy.owners.set(wrappers, this);
-      const original = descriptor.get.call(this);
-      if (property === "handle" && owned) {
-        let handle = legacy.handles.get(this);
-        if (!handle) {
-          handle = (...args) => original(...args);
-          legacy.handles.set(this, handle);
-        }
-        return handle;
-      }
-      return original;
-    }});
-  }
-  Object.defineProperty(Elysia.prototype, Symbol.for("@teyik0/furin/elysia-owner-bindings"), { value: legacy });
-  const child = new Elysia().onBeforeHandle(({ request }) =>
-    request.headers.has("x-deny") ? new Response("Blocked", { status: 403 }) : undefined
-  ).use(await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin",
-    logger: { sampling: { rates: { info: 100 } }, drain: ({ event }) => events.push(event), waitUntil: task => emissions.push(task) },
-  }));
-  const one = new Elysia({ prefix: "/one" }).use(child);
-  const two = new Elysia({ prefix: "/two" }).use(child);
-  const { getFurinEvlogOptions } = await import("./src/server/evlog.ts");
-  for (const app of [one, two]) app.get("/admin/options", () => getFurinEvlogOptions());
-  for (const [slug, decoded] of [["100%", "100%"], ["50%off", "50%off"], ["%E0%A4%A", "%E0%A4%A"], ["100%25", "100%"]]) {
-    const logical = "/files/" + slug;
-    const page = await one.handle("/one/admin" + logical);
-    expect(page.status).toBe(200);
-    expect(await page.text()).toContain("<main>" + decoded + "</main>");
-    const data = await one.handle("/one/admin/_furin/data?path=" + encodeURIComponent(logical));
-    expect(data.status).toBe(200);
-    expect(await data.text()).toContain('"slug":' + JSON.stringify(decoded));
-  }
-  for (const [app, prefix] of [[one, "/one/admin"], [two, "/two/admin"]]) {
-    const options = await app.handle(prefix + "/options");
-    expect(options.status).toBe(200);
-    expect(await options.json()).not.toHaveProperty("sampling");
-  }
-  for (const [app, prefix, call] of [[one, "/one/admin", 1], [two, "/two/admin", 2], [one, "/one/admin", 1]]) {
-    const response = await app.handle(prefix);
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("<main>" + call + "</main>");
-    expect(html).toContain('name="furin-base-path" content="' + prefix + '"');
-    for (const path of [prefix, prefix + "/_furin/data?path=%2F"]) {
-      expect((await app.handle(new Request("http://localhost" + path, { headers: { "x-deny": "1" } }))).status).toBe(403);
-    }
-  }
-  for (const [app, prefix] of [[one, "/one/admin"], [two, "/two/admin"], [one, "/one/admin"]]) {
-    const data = await app.fetch(new Request("http://localhost" + prefix + "/_furin/data?path=%2F"));
-    expect(data.status).toBe(200);
-    expect(await data.text()).toContain(prefix);
-    const snapshot = await app.handle(new Request("http://localhost" + prefix + "/_furin/devtools/snapshot"));
-    expect(snapshot.status).toBe(200);
-    const body = await snapshot.text();
-    expect(body).toContain(prefix);
-    expect(body).not.toContain(prefix === "/one/admin" ? "/two/admin" : "/one/admin");
-  }
-  await Promise.all(emissions);
-  expect(events.filter(event => event.path === "/one/admin").length).toBe(6);
-  expect(events.filter(event => event.path === "/two/admin").length).toBe(3);
 } finally {
   process.chdir(originalCwd);
 }
@@ -411,51 +294,6 @@ try {
   expect(second.some(event => event.path === "/one")).toBe(false);
   expect([...first, ...second].filter(event => event.path === "/api").length).toBe(1);
   expect([...first, ...second]).toHaveLength(5);
-} finally {
-  process.chdir(originalCwd);
-}
-`,
-    8000
-  );
-  expect(proc.stderr).not.toContain("error:");
-  expect(proc.exitCode).toBe(0);
-});
-
-test("one final Elysia app can mount a reused container at two nested prefixes", async () => {
-  const proc = await runFixtureScript(
-    `
-import { expect } from "bun:test";
-import { join } from "node:path";
-import { Elysia } from "elysia";
-import { furin } from "./src/furin.ts";
-import { __setDevMode } from "./src/server/runtime-env.ts";
-
-const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
-const originalCwd = process.cwd();
-try {
-  process.chdir(fixture.path);
-  __setDevMode(true);
-  const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
-  const child = new Elysia().use(plugin);
-  const app = new Elysia({ prefix: "/outer" })
-    .use(new Elysia({ prefix: "/left" }).use(child))
-    .use(new Elysia({ prefix: "/right" }).use(child));
-  const detached = app.handle;
-  expect(app.handle).toBe(detached);
-  const detachedFetch = app.fetch;
-  expect(app.fetch).toBe(detachedFetch);
-  console.log("[fixture] nested mounts composed");
-  for (const prefix of ["/outer/left/admin", "/outer/right/admin"]) {
-    const response = await detached(prefix);
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("Home page");
-    expect(html).toContain('name="furin-base-path" content="' + prefix + '"');
-    const data = await app.fetch(new Request("http://localhost" + prefix + "/_furin/data?path=%2F"));
-    expect(data.status).toBe(200);
-    expect(await data.text()).toContain(prefix);
-    console.log("[fixture] SSR and SPA rendered for " + prefix);
-  }
 } finally {
   process.chdir(originalCwd);
 }
@@ -519,7 +357,7 @@ try {
   expect(proc.exitCode).toBe(0);
 });
 
-test("reused containers keep independent browser streams and watchers when one server stops", async () => {
+test("runtimes keep independent browser streams and watchers when one server stops", async () => {
   const proc = await runFixtureScript(
     String.raw`
 import { expect } from "bun:test";
@@ -537,11 +375,10 @@ const fixtureDeadline = Number(process.env.FURIN_TEST_FIXTURE_DEADLINE);
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
-  const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
-  const child = new Elysia().use(plugin);
   const messages = [[], []];
   for (const prefix of ["/one", "/two"]) {
-    const app = new Elysia({ prefix }).use(child).listen({ hostname: "127.0.0.1", port: 0 });
+    const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: prefix + "/admin" });
+    const app = new Elysia().use(new Elysia().use(plugin)).listen({ hostname: "127.0.0.1", port: 0 });
     apps.push(app);
     const initial = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", app.server.url));
     expect(initial.status).toBe(200);

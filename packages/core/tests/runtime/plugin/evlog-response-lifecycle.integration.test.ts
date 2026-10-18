@@ -188,7 +188,7 @@ test("request logging selects the owning instance's drain", async () => {
   const result = await runFixture(`
 import { Elysia } from "elysia";
 import { createFurinEvlog, setFurinEvlogOptions } from "./src/server/evlog.ts";
-import { createInstance, runWithInstanceScope } from "./src/server/instance.ts";
+import { createInstance, enterRequestScope } from "./src/server/instance.ts";
 const a = createInstance("/a", "a");
 const b = createInstance("/b", "b");
 const events = { a: [], b: [] };
@@ -198,7 +198,7 @@ const optionsB = { drain: ({ event }) => events.b.push(event), waitUntil: promis
 setFurinEvlogOptions(a, optionsA);
 setFurinEvlogOptions(b, optionsB);
 const app = new Elysia().use(createFurinEvlog(optionsA)).get("/a", () => "a").get("/b", () => "b");
-await Promise.all([a, b].map(instance => runWithInstanceScope(instance, () => app.handle(new Request("http://localhost" + instance.prefix)))));
+await Promise.all([a, b].map(instance => { const request = new Request("http://localhost" + instance.prefix); return enterRequestScope(instance, request, () => app.handle(request)); }));
 await Promise.all(pending);
 process.stdout.write("__RESULT__" + JSON.stringify({ a: events.a.map(event => event.path), b: events.b.map(event => event.path) }));
 `);

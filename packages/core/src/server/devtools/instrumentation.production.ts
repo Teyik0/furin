@@ -56,14 +56,6 @@ export function currentInstrumentationRequest(): void {
   // Production instrumentation has no request-local state.
 }
 
-export function runWithRequestInstrumentation<T>(_request: Request, fn: () => T): T {
-  return fn();
-}
-
-export function shouldInstrumentRequest(_pathname: string, _prefix: string): boolean {
-  return false;
-}
-
 export function instrumentationLoggerExclusions(_prefix: string): string[] {
   return [];
 }

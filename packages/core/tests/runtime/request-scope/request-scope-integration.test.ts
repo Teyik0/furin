@@ -26,8 +26,8 @@ import { furin, revalidatePath } from "furin";
 import { __resetCacheState } from "./src/server/cache/index.ts";
 import { __resetCompileContext } from "./src/server/internal.ts";
 import {
+  __resetTemplateState,
   setProductionTemplateContent,
-  setProductionTemplatePath,
 } from "./src/server/render/template.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
 import { writeAppFile } from "./tests/support/app-fixtures.ts";
@@ -43,7 +43,7 @@ const originalCwd = process.cwd();
 
 function resetState() {
   __setDevMode(true);
-  setProductionTemplatePath(null);
+  __resetTemplateState();
   __resetCompileContext();
   process.chdir(originalCwd);
   __resetCacheState();

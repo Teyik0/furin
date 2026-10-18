@@ -24,7 +24,7 @@ import { join } from "node:path";
 import { Elysia, NotFound } from "elysia";
 import { furin } from "furin";
 import { __resetCompileContext } from "./src/server/internal.ts";
-import { setProductionTemplatePath } from "./src/server/render/template.ts";
+import { __resetTemplateState } from "./src/server/render/template.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
 import { writeAppFile } from "./tests/support/app-fixtures.ts";
 
@@ -40,7 +40,7 @@ const furinDataRe = /<script id="__FURIN_DATA__"[^>]*>([\\s\\S]*?)<\\/script>/;
 
 function resetNotFoundTestState() {
   __setDevMode(true);
-  setProductionTemplatePath(null);
+  __resetTemplateState();
   __resetCompileContext();
   process.chdir(originalCwd);
   while (tmpApps.length > 0) {

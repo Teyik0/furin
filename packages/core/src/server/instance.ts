@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { WeakRegistry } from "./weak-registry.ts";
 
-// ── Furin instance model ─────────────────────────────────────────────────────
-// Each `furin({ pagesDir, prefix })` call registers one instance. All
-// previously module-global state (build ID, caches, template, sync path, …)
-// hangs off the instance via `instanceSlot()` so several furin apps can be
-// mounted in one Elysia process without stomping each other.
+// ── Furin runtime model ──────────────────────────────────────────────────────
+// Each `furin({ pagesDir, prefix })` call creates one runtime. All per-app
+// state (build ID, caches, template, sync path, …) hangs off it via
+// `instanceSlot()` so several furin apps can be mounted in one Elysia process
+// without stomping each other. Plugins bind their runtime through closures;
+// render code reaches it through the request scope opened by those closures.
 //
 // This module is a dependency leaf with no imports from state modules. State
 // modules (cache/ssg.ts, render/template.ts, …) import it to declare their
@@ -13,38 +14,38 @@ import { WeakRegistry } from "./weak-registry.ts";
 
 export interface FurinInstance {
   buildId: string;
-  /** Prefix declared by the plugin, before composition with a parent. */
-  readonly declaredPrefix: string;
   /** Absolute pagesDir — also the compile-context key. */
   readonly pagesDir: string;
-  /** Mount prefix, `""` for the root app or `/admin`-style (no trailing slash). */
-  prefix: string;
+  /** Full physical mount prefix declared by `furin({ prefix })`, `""` for root. */
+  readonly prefix: string;
   /** Generic per-instance state bag backing `instanceSlot()`. */
   readonly state: Map<symbol, unknown>;
   /** Logical durable sync path (unprefixed) injected into HTML, or undefined. */
   syncPath: string | undefined;
 }
 
-interface RequestScope {
-  instance: FurinInstance;
-  instances: ReadonlyMap<string, FurinInstance> | undefined;
-  pending: Set<string>;
+interface RuntimeScope {
+  /** Runtimes composed into the application serving this request. */
+  readonly peers: FurinInstance[] | undefined;
+  /** Pending client-invalidation paths reported in the response. */
+  readonly pending: Set<string>;
+  /** Requests (original and rewritten) seen while Elysia applies its wraps. */
+  readonly requests: WeakSet<Request>;
+  /** Runtime with the longest prefix containing the request path, if any. */
+  runtime: FurinInstance | undefined;
 }
 
-const _requestScope = new AsyncLocalStorage<RequestScope>();
+const _scope = new AsyncLocalStorage<RuntimeScope>();
 
 const WHITESPACE_RE = /\s/;
 
-/** Live instances; owning applications retain their runtime buckets. */
-const _instances = new WeakRegistry<FurinInstance>();
-const _prepared = new WeakRegistry<FurinInstance>();
-const _tracked = new WeakRegistry<FurinInstance>();
-const _defaultRegistry = new Map<string, FurinInstance>();
+/** Live runtimes; owning applications retain them. */
+const _runtimes = new WeakRegistry<FurinInstance>();
 
 /**
- * Fallback bucket used when no instance was ever registered (unit tests
- * importing state modules directly, build-time rendering). Lazily created so
- * a plain `import` of a state module allocates nothing.
+ * Bucket for code running before any runtime exists (unit tests importing
+ * state modules directly, build-time rendering). Lazily created so a plain
+ * `import` of a state module allocates nothing.
  */
 let _defaultInstance: FurinInstance | null = null;
 
@@ -53,26 +54,17 @@ export function createInstance(prefix: string, pagesDir: string): FurinInstance 
     buildId: "",
     pagesDir,
     prefix,
-    declaredPrefix: prefix,
     state: new Map(),
     syncPath: undefined,
   };
 }
 
-function defaultInstance(): FurinInstance {
+/** The bucket used when no runtime has been created in this process. */
+export function defaultInstanceBucket(): FurinInstance {
   if (!_defaultInstance) {
     _defaultInstance = createInstance("", "");
   }
   return _defaultInstance;
-}
-
-/**
- * The process-wide fallback bucket. State written outside any instance scope
- * before the first `furin()` registration lands here — config-like readers
- * (e.g. the production template) treat it as a default.
- */
-export function defaultInstanceBucket(): FurinInstance {
-  return defaultInstance();
 }
 
 /**
@@ -89,215 +81,163 @@ export function normalizePrefix(prefix: string | undefined): string {
   }
   // Check the RAW value for "//" so "/admin//" is rejected instead of being
   // trimmed to "/admin/" — a trailing slash never matches the path-boundary
-  // checks in resolveInstanceByPath, i.e. every route would be unreachable.
+  // checks in isWithinPrefix, i.e. every route would be unreachable.
   if (prefix.includes("//") || WHITESPACE_RE.test(prefix)) {
     throw new Error(`[furin] invalid prefix "${prefix}".`);
   }
   return prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
 }
 
-/**
- * Rejects conflicting mounts in the same application. Independent servers
- * can use the same prefix without sharing runtime state.
- */
-export function assertPrefixAvailable(
-  prefix: string,
-  pagesDir: string,
-  registry?: ReadonlyMap<string, FurinInstance>
-): void {
-  const existing = (registry ?? _defaultRegistry).get(prefix);
-  if (existing && existing.pagesDir !== pagesDir) {
-    throw new Error(
-      `[furin] prefix "${prefix || "/"}" is already mounted by pagesDir "${existing.pagesDir}" ` +
-        `(attempted to mount "${pagesDir}"). Give each furin() instance a unique prefix.`
-    );
-  }
+/** Whether `pathname` lies under `prefix` on a path-segment boundary. */
+export function isWithinPrefix(pathname: string, prefix: string): boolean {
+  return (
+    prefix === "" ||
+    pathname === prefix ||
+    (pathname.startsWith(prefix) && pathname.charCodeAt(prefix.length) === 47)
+  );
 }
 
-/** Include prepared runtime state in resets without registering a mount. */
-export function trackInstance(instance: FurinInstance): void {
-  _tracked.add(instance);
-  _prepared.add(instance);
-}
-
-/** Registers an instance under its prefix (see assertPrefixAvailable). */
-export function registerInstance(
-  instance: FurinInstance,
-  registry?: Map<string, FurinInstance>
-): FurinInstance {
-  const target = registry ?? _defaultRegistry;
-  assertPrefixAvailable(instance.prefix, instance.pagesDir, target);
-  const previous = target.get(instance.prefix);
-  if (previous) {
-    _instances.delete(previous);
-  }
-  target.set(instance.prefix, instance);
-  _instances.add(instance);
-  _prepared.delete(instance);
-  _tracked.add(instance);
+/** Makes a runtime visible to process-wide helpers such as `revalidatePath()`. */
+export function registerInstance(instance: FurinInstance): FurinInstance {
+  _runtimes.add(instance);
   return instance;
 }
 
-export function unregisterInstance(
-  instance: FurinInstance,
-  registry: Map<string, FurinInstance>
-): void {
-  for (const [prefix, mounted] of registry) {
-    if (mounted === instance) {
-      registry.delete(prefix);
-    }
-  }
-  _instances.delete(instance);
-  _prepared.delete(instance);
-}
-
-function availableInstances(): FurinInstance[] {
-  const mounted = [..._instances.values()];
-  return mounted.length > 0 ? mounted : [..._prepared.values()];
+export function unregisterInstance(instance: FurinInstance): void {
+  _runtimes.delete(instance);
 }
 
 /**
- * Resolves the instance owning `pathname` by longest-prefix match on a path
- * boundary. Falls back to the root (`""`) instance when one is mounted, else
- * the default bucket — never an arbitrary prefixed sibling, whose template/
- * cache/build state would otherwise leak into parent-app routes.
+ * Opens or refines the request scope for `runtime`. Elysia applies every
+ * `.wrap()` of the composed application around the same request, outermost
+ * first, before routing starts. The first Furin wrap opens the scope; later
+ * ones only take ownership when their prefix is more specific, so the order in
+ * which sibling plugins were mounted is irrelevant.
  */
-export function resolveInstanceByPath(
-  pathname: string,
-  registry?: ReadonlyMap<string, FurinInstance>
-): FurinInstance {
-  let best: FurinInstance | null = null;
-  const instances = registry ?? _requestScope.getStore()?.instances;
-  for (const instance of instances?.values() ?? _instances.values()) {
-    const { prefix } = instance;
-    if (prefix === "") {
-      best ??= instance;
-      continue;
+export function enterRequestScope<T>(runtime: FurinInstance, request: Request, fn: () => T): T {
+  const scope = _scope.getStore();
+  const owns = isWithinPrefix(new URL(request.url).pathname, runtime.prefix);
+  if (scope?.peers && scope.requests.has(request)) {
+    if (!scope.peers.includes(runtime)) {
+      scope.peers.push(runtime);
     }
-    if (
-      (pathname === prefix ||
-        (pathname.startsWith(prefix) && pathname.charCodeAt(prefix.length) === 47)) &&
-      (!best || prefix.length > best.prefix.length || best.prefix === "")
-    ) {
-      best = instance;
+    if (owns && (!scope.runtime || scope.runtime.prefix.length < runtime.prefix.length)) {
+      scope.runtime = runtime;
     }
+    return fn();
   }
-  if (best) {
-    return best;
-  }
-  return defaultInstance();
+  return _scope.run(
+    {
+      // An in-process request issued while rendering shares its parent's
+      // pending invalidations, so they still reach the parent response.
+      pending: scope?.pending ?? new Set<string>(),
+      peers: [runtime],
+      requests: new WeakSet([request]),
+      runtime: owns ? runtime : undefined,
+    },
+    fn
+  );
+}
+
+/** Keeps a request rewritten by a wrap inside the scope that rewrote it. */
+export function adoptScopedRequest(request: Request): void {
+  _scope.getStore()?.requests.add(request);
+}
+
+/** Runtime whose logging options apply: the owner, else the outermost composed runtime. */
+export function requestLogRuntime(): FurinInstance | undefined {
+  const scope = _scope.getStore();
+  return scope?.runtime ?? scope?.peers?.[0];
+}
+
+/** The runtime owning the current request or `withInstance()` call, if any. */
+export function scopedInstance(): FurinInstance | undefined {
+  return _scope.getStore()?.runtime;
 }
 
 /**
- * The instance the current code runs for. Resolution order:
- * 1. request/render ALS scope, 2. sole mounted instance (or sole prepared
- * instance before any mount), 3. default bucket.
- * With ≥2 instances and no scope, state access is ambiguous — the default
- * bucket keeps out-of-request writes (e.g. build-time template setup)
- * self-consistent instead of leaking into an arbitrary app.
+ * The runtime the current code runs for. Furin binds it through the request
+ * scope or `withInstance()`; code running outside both only resolves to the
+ * default bucket while no runtime exists, so a missing binding fails loudly
+ * instead of silently reading or writing another app's state.
  */
 export function currentInstance(): FurinInstance {
-  const scope = _requestScope.getStore();
-  if (scope) {
-    return scope.instance;
+  const scope = _scope.getStore();
+  if (scope?.runtime) {
+    return scope.runtime;
   }
-  const instances = availableInstances();
-  const only = instances.length === 1 ? instances[0] : undefined;
-  if (only) {
-    return only;
+  if (scope === undefined && _runtimes.values().next().done) {
+    return defaultInstanceBucket();
   }
-  return defaultInstance();
+  throw new Error(
+    "[furin] No Furin runtime is bound here. Runtime state is only available while a Furin route handles a request, or inside withInstance()."
+  );
 }
 
-/** Mounted instances, or prepared instances before mounting, for invalidation. */
+/** Runtimes composed with the current request, else every live runtime. */
 export function allInstances(): FurinInstance[] {
-  const scoped = _requestScope.getStore()?.instances;
-  if (scoped) {
-    return [...scoped.values()];
+  const peers = _scope.getStore()?.peers;
+  if (peers) {
+    return [...peers];
   }
-  const instances = availableInstances();
-  if (instances.length === 0) {
-    return [defaultInstance()];
-  }
-  return instances;
+  const instances = [..._runtimes.values()];
+  return instances.length > 0 ? instances : [defaultInstanceBucket()];
 }
 
 /**
- * @internal Every prepared state bucket: tracked instances plus the default
- * fallback bucket. Reset helpers iterate this so state written outside any
- * registration (tests, config-before-mount) is covered too.
+ * @internal Every state bucket: live runtimes plus the default bucket. Reset
+ * helpers iterate this so state written before any runtime existed is covered.
  */
 export function allStateBuckets(): FurinInstance[] {
-  const buckets = [..._tracked.values()];
-  const fallback = defaultInstance();
-  if (!buckets.includes(fallback)) {
-    buckets.push(fallback);
-  }
-  return buckets;
+  return [..._runtimes.values(), defaultInstanceBucket()];
 }
 
 /**
- * @internal test-only — forgets registered instances (fresh mounts get a
- * clean registry) while PRESERVING the default bucket, so process-wide
- * defaults installed once (e.g. a test template in `beforeAll`) survive.
+ * @internal test-only — forgets live runtimes while PRESERVING the default
+ * bucket, so process-wide defaults installed once (e.g. a test template in
+ * `beforeAll`) survive.
  */
 export function __clearInstanceRegistry(): void {
-  _instances.clear();
-  _prepared.clear();
-  _tracked.clear();
-  _defaultRegistry.clear();
-}
-
-export function hasRequestScope(): boolean {
-  return _requestScope.getStore() !== undefined;
+  _runtimes.clear();
 }
 
 /** Pending client-invalidation paths for the current request, if any. */
 export function requestPendingInvalidations(): Set<string> | undefined {
-  return _requestScope.getStore()?.pending;
+  return _scope.getStore()?.pending;
 }
 
-/** Runs `fn` inside a fresh request scope bound to `instance`. */
-export function runWithInstanceScope<T>(
-  instance: FurinInstance,
-  fn: () => T,
-  instances?: ReadonlyMap<string, FurinInstance>
-): T {
-  return _requestScope.run(
+/**
+ * Runs `fn` bound to `instance` for work that is not a live request of that
+ * runtime — SSG cache warming, background ISR revalidation, watcher callbacks.
+ */
+export function withInstance<T>(instance: FurinInstance, fn: () => T): T {
+  const scope = _scope.getStore();
+  return _scope.run(
     {
-      instance,
-      instances: instances ?? _requestScope.getStore()?.instances,
-      pending: new Set<string>(),
+      pending: scope?.pending ?? new Set<string>(),
+      peers: scope?.peers,
+      requests: new WeakSet(),
+      runtime: instance,
     },
     fn
   );
 }
 
 /**
- * Runs `fn` bound to `instance` for synthetic (non-request) work — SSG cache
- * warming, background ISR revalidation kicked off outside a live request.
- */
-export function withInstance<T>(instance: FurinInstance, fn: () => T): T {
-  return runWithInstanceScope(instance, fn);
-}
-
-/**
  * Declares a lazily-initialized per-instance state slot. Returns an accessor
- * that resolves against the current instance (or an explicit one). This is
- * how state modules attach caches/registries to instances without this module
- * importing them (avoids import cycles).
+ * for an explicit runtime. This is how state modules attach caches and
+ * registries to runtimes without this module importing them.
  */
 export function instanceSlot<T>(
   init: (instance: FurinInstance) => T
-): (instance?: FurinInstance) => T {
+): (instance: FurinInstance) => T {
   const key = Symbol("furin-instance-slot");
-  return (instance?: FurinInstance) => {
-    const target = instance ?? currentInstance();
-    if (target.state.has(key)) {
-      return target.state.get(key) as T;
+  return (instance: FurinInstance) => {
+    if (instance.state.has(key)) {
+      return instance.state.get(key) as T;
     }
-    const value = init(target);
-    target.state.set(key, value);
+    const value = init(instance);
+    instance.state.set(key, value);
     return value;
   };
 }

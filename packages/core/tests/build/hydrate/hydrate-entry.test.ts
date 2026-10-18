@@ -33,11 +33,11 @@ function makeRoute(pattern: string, filePath: string): ResolvedRoute {
 const ROUTES = [makeRoute("/", "/app/src/pages/index.tsx")];
 const ROOT = "/app/src/pages/root.tsx";
 
-function hydratePathname(code: string, pathname: string, basePath: string | null): string {
+function hydratePathname(code: string, pathname: string): string {
   const declaration = code.match(/^const __furinBasePath = .*;$/m)?.[0] ?? "";
   const expression = code.match(/^const pathname = (.*);$/m)?.[1];
-  const readPathname = new Function("document", "window", `${declaration}\nreturn ${expression};`);
-  return readPathname({ querySelector: () => basePath === null ? null : { getAttribute: () => basePath } }, { location: { pathname } });
+  const readPathname = new Function("window", `${declaration}\nreturn ${expression};`);
+  return readPathname({ location: { pathname } });
 }
 
 // Biome's useTopLevelRegex: hoist Slice 10 regexes so repeated test runs
@@ -51,12 +51,8 @@ const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 describe("generateHydrateEntry", () => {
   test("hydrates a catch-all route whose tail is empty without changing its pathname", () => {
     const code = generateHydrateEntry([makeRoute("/docs/*", "/app/pages/docs/[...rest].tsx")], ROOT, "", false);
-    const path = hydratePathname(code, "/docs/", null);
+    const path = hydratePathname(code, "/docs/");
     expect(buildRouteMatcher([{ pattern: "/docs/*" }])(path)?.params).toEqual({ "*": "" });
-  });
-  test("uses the document's physical prefix when mounted beneath an Elysia parent", () => {
-    const code = generateHydrateEntry(ROUTES, ROOT, "/docs", true);
-    expect(hydratePathname(code, "/parent/docs/article/", "/parent/docs")).toBe("/article/");
   });
   test("generates valid source for quoted route filenames and patterns", () => {
     const code = generateHydrateEntry([
@@ -95,19 +91,19 @@ describe("generateHydrateEntry", () => {
   test("B12: without basePath — uses window.location.pathname directly", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     expect(code).toContain("window.location.pathname");
-    expect(code).toContain('getAttribute("content") ?? ""');
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("B12b: without basePath — log drain endpoint is the bare path", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", true);
     expect(code).toContain('endpoint: __furinBasePath + "/_furin/ingest"');
-    expect(code).toContain('getAttribute("content") ?? ""');
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("B12c: without basePath — RouterProvider has basePath: ''", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     expect(code).toContain('basePath: __furinBasePath');
-    expect(code).toContain('getAttribute("content") ?? ""');
+    expect(code).toContain('const __furinBasePath = "";');
   });
 
   test("emits query defaults into client route metadata", () => {
@@ -173,7 +169,7 @@ describe("generateHydrateEntry", () => {
 
   test("B13: with basePath='/furin' — code strips prefix before route matching", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
-    expect(code).toContain('getAttribute("content") ?? "/furin"');
+    expect(code).toContain('const __furinBasePath = "/furin";');
     expect(code).toContain('const b = __furinBasePath');
     expect(code).toContain("startsWith(b)");
     expect(code).toContain("p.slice(b.length)");
@@ -187,13 +183,13 @@ describe("generateHydrateEntry", () => {
 
   test("B13c: matches a trailing slash after stripping the base path", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
-    const path = hydratePathname(code, "/furin/docs/routing/", null);
+    const path = hydratePathname(code, "/furin/docs/routing/");
     expect(buildRouteMatcher([{ pattern: "/docs/routing" }])(path)).not.toBeNull();
   });
 
   test("B13d: without basePath — preserves the native route's trailing slash", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
-    expect(hydratePathname(code, "/docs/routing/", null)).toBe("/docs/routing/");
+    expect(hydratePathname(code, "/docs/routing/")).toBe("/docs/routing/");
   });
 
   test("route regexes escape static regex metacharacters", () => {
@@ -242,13 +238,13 @@ describe("generateHydrateEntry", () => {
   test("B14: with basePath — RouterProvider receives basePath prop", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/furin", false);
     expect(code).toContain('basePath: __furinBasePath');
-    expect(code).toContain('getAttribute("content") ?? "/furin"');
+    expect(code).toContain('const __furinBasePath = "/furin";');
   });
 
   test("B14b: different basePath value is correctly injected", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "/my-app", false);
     expect(code).toContain('basePath: __furinBasePath');
-    expect(code).toContain('getAttribute("content") ?? "/my-app"');
+    expect(code).toContain('const __furinBasePath = "/my-app";');
     expect(code).toContain("startsWith(b)");
   });
 

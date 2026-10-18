@@ -12,7 +12,6 @@ import { currentInstance } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { resolvePath } from "./assemble.ts";
-import { rebaseCachedDocument } from "./asset-path.ts";
 import { withDocumentState } from "./document.tsx";
 import {
   hasMixedLoaderModes,
@@ -230,7 +229,7 @@ export async function resumePprDocument(
   const encoder = new TextEncoder();
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   (async () => {
-    await writer.write(encoder.encode(rebaseCachedDocument(artifact.html, currentInstance())));
+    await writer.write(encoder.encode(artifact.html));
     if (artifact.state.postponed !== null) {
       const stream = await resume(tree, structuredClone(artifact.state.postponed), {
         nonce,
