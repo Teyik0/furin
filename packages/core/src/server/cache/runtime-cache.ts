@@ -17,6 +17,11 @@ export interface RuntimeCache {
 
 export interface RuntimeCacheProvider {
   getCache: (options: RuntimeCacheOptions | undefined) => RuntimeCache;
+  /**
+   * Deployment this provider serves. Framework-owned entries (PPR artifacts)
+   * include it in their keys, so deployments sharing one store stay apart.
+   */
+  scope?: string;
 }
 
 const MAX_MEMORY_ENTRIES = 1000;
@@ -239,6 +244,11 @@ export function setRuntimeCacheProvider(provider: RuntimeCacheProvider): void {
 export function hasExternalRuntimeCache(): boolean {
   const state = runtimeCacheState();
   return state.provider !== state.memoryProvider;
+}
+
+/** Deployment scope of the installed provider, if it declares one. */
+export function runtimeCacheScope(): string | undefined {
+  return runtimeCacheState().provider.scope;
 }
 
 export function resetRuntimeCacheProvider(): void {

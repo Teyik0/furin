@@ -33,6 +33,35 @@ export interface CompiledModule {
   readonly route?: unknown;
 }
 
+/**
+ * What a deployment platform provides. Adapters declare these once; the build
+ * and the production runtime read them instead of naming a platform.
+ */
+export interface AdapterCapabilities {
+  /**
+   * Who serves `/_client/*` and `public/` files: Furin from disk, Furin from
+   * files embedded in a standalone executable, or the platform before
+   * requests reach Elysia.
+   */
+  readonly assets: "filesystem" | "embedded" | "platform";
+  /**
+   * Who caches public SSG, ISR and PPR pages: Furin (process memory or
+   * `furin({ pageCache })`) or the platform's own cache.
+   */
+  readonly publicCache: "framework" | "platform";
+  /**
+   * Whether requests arrive through `Bun.serve()`, so browser events can
+   * upgrade to a WebSocket. Platforms invoking `app.handle(Request)` use SSE.
+   */
+  readonly websocket: boolean;
+}
+
+/** Deployment adapter a production build was made for. */
+export interface CompileContextAdapter {
+  readonly capabilities: AdapterCapabilities;
+  readonly name: string;
+}
+
 export interface CompileContextRoute {
   mode: "ssr" | "ssg" | "isr";
   path: string;
@@ -40,13 +69,13 @@ export interface CompileContextRoute {
 }
 
 export interface CompileContext {
+  /** Absent when the host application owns deployment (package builds). */
+  adapter?: CompileContextAdapter;
   buildId?: string;
   /** Runtime directory containing this app's disk-served client assets. */
   clientDir?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
-  /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
   embedded?: EmbeddedAppData;
   /** Bundled route modules, keyed by their absolute posix source path. */
   modules: { readonly [path: string]: CompiledModule };
@@ -74,8 +103,6 @@ export interface CompileContext {
     }
   >;
   routes: CompileContextRoute[];
-  /** False when a deployment platform serves client/public assets before Elysia. */
-  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
   /** Production HTML template embedded by filesystem-free deployment adapters. */
   templateHtml?: string;

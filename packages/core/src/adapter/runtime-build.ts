@@ -444,7 +444,20 @@ export async function buildRuntimeApp(
     entryApp: {
       buildId,
       clientLogging: options.clientLogging ?? false,
-      deploymentTarget: targetName === "vercel" ? "vercel" : undefined,
+      adapter:
+        targetName === "vercel"
+          ? {
+              capabilities: { assets: "platform", publicCache: "platform", websocket: false },
+              name: "vercel",
+            }
+          : {
+              capabilities: {
+                assets: options.compile === "embed" ? "embedded" : "filesystem",
+                publicCache: "framework",
+                websocket: true,
+              },
+              name: "bun",
+            },
       embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
       nativeRoutes: composableRouteModuleSpecifier(app),

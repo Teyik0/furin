@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SsgCacheEntry } from "../server/cache/index.ts";
+import type { CompileContextAdapter } from "../server/internal.ts";
 import type { ClientPreloadManifest } from "./preload-manifest.ts";
 
 // import.meta.resolve() runs at runtime (not inlined at bundle time), resolves
@@ -20,11 +21,11 @@ const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/server/runtime-env${_ext}`;
 
 /** One app's compile context payload — the generated entry can carry several. */
 export interface EntryAppContext {
+  /** Deployment adapter whose capabilities the runtime reads. */
+  adapter?: CompileContextAdapter;
   buildId?: string;
   /** Whether the emitted hydration client sends browser log batches. */
   clientLogging?: boolean;
-  /** Deployment adapter that owns public page caching for this build. */
-  deploymentTarget?: "vercel";
   /** Extra lines injected inside this app's `__setCompileContext({...})` call. */
   extraContext?: string[];
   /** Additional route modules such as filesystem-derived `_route` layouts. */
@@ -51,8 +52,6 @@ export interface EntryAppContext {
     }
   >;
   routes: Array<{ mode: "ssr" | "ssg" | "isr"; path: string; pattern: string }>;
-  /** False when the deployment platform serves client/public assets itself. */
-  serveAssets?: boolean;
   ssgCache?: Record<string, SsgCacheEntry>;
   /** In-memory production document template for filesystem-free runtimes. */
   templateHtml?: string;
@@ -161,12 +160,7 @@ function buildAppContextBlock(
   const routeMetadataLine = app.routeMetadata
     ? `  routeMetadata: ${JSON.stringify(app.routeMetadata)},`
     : "";
-  const deploymentTargetLine =
-    app.deploymentTarget === undefined
-      ? ""
-      : `  deploymentTarget: ${JSON.stringify(app.deploymentTarget)},`;
-  const serveAssetsLine =
-    app.serveAssets === undefined ? "" : `  serveAssets: ${JSON.stringify(app.serveAssets)},`;
+  const adapterLine = app.adapter === undefined ? "" : `  adapter: ${JSON.stringify(app.adapter)},`;
   const ssgCacheLine = app.ssgCache ? `  ssgCache: ${JSON.stringify(app.ssgCache)},` : "";
   const preloadManifestLine = app.preloadManifest
     ? `  preloadManifest: ${JSON.stringify(app.preloadManifest)},`
@@ -178,7 +172,7 @@ function buildAppContextBlock(
     "__setCompileContext({",
     `  buildId: ${JSON.stringify(app.buildId ?? "")},`,
     `  clientLogging: ${JSON.stringify(app.clientLogging ?? false)},`,
-    deploymentTargetLine,
+    adapterLine,
     `  prefix: ${JSON.stringify(app.prefix ?? "")},`,
     `  rootPath: ${JSON.stringify(app.rootPath.replace(/\\/g, "/"))},`,
     app.nativeRoutes ? `  nativeRoutes: ${nativeRoutesVar},` : "",
@@ -190,7 +184,6 @@ function buildAppContextBlock(
     ...routeEntries,
     "  ],",
     routeMetadataLine,
-    serveAssetsLine,
     ssgCacheLine,
     preloadManifestLine,
     templateHtmlLine,

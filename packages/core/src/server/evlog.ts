@@ -117,7 +117,7 @@ async function finishRequestLog(
       );
     }, 0);
   });
-  // Register before the Vercel request context closes, even though the
+  // Register before the platform request context closes, even though the
   // emission itself starts after this response is returned.
   registerEmission(emission, options);
   return response;

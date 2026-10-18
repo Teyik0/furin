@@ -42,16 +42,15 @@ const productionPagePorts: PagePorts = {
 
 async function createProductionBrowserEventsPlugin(
   sync: FurinSyncOption | undefined,
-  deploymentTarget: "vercel" | undefined
+  websocket: boolean
 ): Promise<AnyElysia> {
   if (!sync) {
     return new Elysia();
   }
   const browserEvents = await import("../browser-events/plugin.ts");
-  // Vercel invokes app.handle(Request), so Elysia's Bun.Server WebSocket upgrade is unavailable.
-  return deploymentTarget === "vercel"
-    ? browserEvents.createSseBrowserEventsPlugin({ sync })
-    : browserEvents.createBrowserEventsPlugin({ sync });
+  return websocket
+    ? browserEvents.createBrowserEventsPlugin({ sync })
+    : browserEvents.createSseBrowserEventsPlugin({ sync });
 }
 
 async function setupProdTemplate(
@@ -153,7 +152,7 @@ export async function createProdRuntime(
   const assets = await createProductionAssetsPlugin(ctx, embedded, clientDir);
   const browserEvents = await createProductionBrowserEventsPlugin(
     options.sync,
-    ctx.deploymentTarget
+    ctx.adapter?.capabilities.websocket ?? true
   );
 
   return {

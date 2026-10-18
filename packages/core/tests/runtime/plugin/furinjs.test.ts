@@ -1194,14 +1194,20 @@ test.serial("furin() serves embedded assets in production", async () => {
   expect(missPublic.status).toBe(404);
 });
 
-test.serial("furin() rejects a custom page cache in a Vercel deployment", async () => {
+const platformCapabilities = {
+  assets: "platform",
+  publicCache: "platform",
+  websocket: false,
+} as const;
+
+test.serial("furin() rejects a custom page cache when the platform caches pages", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(false);
   process.chdir(app.path);
 
   __setCompileContext({
     ...(await createBuiltRouteContext(app.path)),
-    deploymentTarget: "vercel",
+    adapter: { capabilities: platformCapabilities, name: "edge-cdn" },
   });
 
   await expect(
@@ -1210,8 +1216,60 @@ test.serial("furin() rejects a custom page cache in a Vercel deployment", async 
       pagesDir: join(app.path, "src/pages"),
     })
   ).rejects.toThrow(
-    "[furin] pageCache cannot be configured with the Vercel target. Vercel owns SSG, ISR, and PPR public caching."
+    '[furin] pageCache cannot be configured with the "edge-cdn" adapter: its platform caches public SSG, ISR, and PPR pages.'
   );
+});
+
+test.serial("furin() leaves assets to a platform that serves them", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(false);
+  process.chdir(app.path);
+  const clientDir = join(app.path, "client");
+  mkdirSync(clientDir);
+  writeFileSync(join(clientDir, "app.js"), "console.log('client');");
+
+  __setCompileContext({
+    ...(await createBuiltRouteContext(app.path)),
+    adapter: { capabilities: platformCapabilities, name: "edge-cdn" },
+    clientDir,
+    templateHtml: "<html><head></head><body><!--ssr-outlet--></body></html>",
+  });
+
+  const instance = await createTestApp({ pagesDir: join(app.path, "src/pages") });
+  const asset = await instance.handle(new Request("http://furin/_client/app.js"));
+
+  expect(asset.status).toBe(404);
+});
+
+test.serial("furin() streams browser events over SSE without WebSocket support", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(false);
+  process.chdir(app.path);
+
+  __setCompileContext({
+    ...(await createBuiltRouteContext(app.path)),
+    adapter: { capabilities: platformCapabilities, name: "edge-cdn" },
+    templateHtml: "<html><head></head><body><!--ssr-outlet--></body></html>",
+  });
+
+  const instance = await createTestApp({
+    pagesDir: join(app.path, "src/pages"),
+    sync: {
+      adapter: {
+        abortMutation: async () => undefined,
+        beginMutation: async () => ({ kind: "conflict", reason: "in-progress" }),
+        completeMutation: async () => ({ kind: "lost" }),
+        currentCursor: async () => "7",
+        readChanges: async () => ({ changes: [], cursor: "7", hasMore: false, reset: false }),
+        renewMutation: async () => "lost",
+        scope: "host-local",
+      },
+      principal: () => "test",
+    },
+  });
+  const client = await instance.handle(new Request("http://furin/_furin/events/client.js"));
+
+  expect(await client.text()).toContain("EventSource");
 });
 
 test.serial("furin() rejects dev pages without a root layout", async () => {

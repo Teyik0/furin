@@ -135,9 +135,9 @@ function configurePageCache(
   ctx: CompileContext | null,
   pageCache: PageCacheAdapter | undefined
 ): void {
-  if (pageCache !== undefined && ctx?.deploymentTarget === "vercel") {
+  if (pageCache !== undefined && ctx?.adapter?.capabilities.publicCache === "platform") {
     throw new Error(
-      "[furin] pageCache cannot be configured with the Vercel target. Vercel owns SSG, ISR, and PPR public caching."
+      `[furin] pageCache cannot be configured with the ${JSON.stringify(ctx.adapter.name)} adapter: its platform caches public SSG, ISR, and PPR pages.`
     );
   }
   if (pageCache !== undefined) {

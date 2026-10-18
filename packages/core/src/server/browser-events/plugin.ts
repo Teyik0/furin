@@ -327,7 +327,7 @@ export function createSseBrowserEventsPlugin({ sync }: { sync: FurinSyncOptions 
             finish();
             return;
           }
-          // Bun Vercel Functions do not expose request cancellation; bound the subscription.
+          // Platforms invoking app.handle() may not expose request cancellation; bound the subscription.
           lifetime = setTimeout(finish, SSE_CONNECTION_LIFETIME_MS);
           lifetime.unref?.();
           controller.enqueue(SSE_ENCODER.encode(": connected\n\n"));

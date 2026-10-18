@@ -14,7 +14,7 @@ import {
   pathWithRequestSearch,
   type RevalidateType,
 } from "../cache/route-cache.ts";
-import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
+import { getCache, hasExternalRuntimeCache, runtimeCacheScope } from "../cache/runtime-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
@@ -395,7 +395,7 @@ async function getPprArtifact(
   }
   if (hasExternalRuntimeCache()) {
     const { prefix } = currentInstance();
-    const key = JSON.stringify([process.env.VERCEL_DEPLOYMENT_ID, buildId, prefix, cacheKey]);
+    const key = JSON.stringify([runtimeCacheScope(), buildId, prefix, cacheKey]);
     const stored = externalPrerender ? undefined : await readPprArtifact(key, buildId);
     if (stored !== undefined) {
       return stored;

@@ -226,6 +226,39 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(2);
   });
 
+  test("keeps public artifacts of deployments sharing one provider store apart", async () => {
+    const values = new Map<string, unknown>();
+    const store = {
+      delete: () => Promise.resolve(),
+      expireTag: () => Promise.resolve(),
+      get: (key: string) => Promise.resolve(values.get(key) ?? null),
+      set: (key: string, value: unknown) => {
+        values.set(key, value);
+        return Promise.resolve();
+      },
+    };
+    let publicCalls = 0;
+    const resolved = resolveRoute(
+      defineRoute()
+        .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+        .requestLoader(() => ({ user: "alice" }))
+        .loader(() => ({ catalog: (publicCalls += 1) }))
+        .page(({ catalog }) => <main>{catalog}</main>)
+    );
+    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+    const render = async (scope: string) => {
+      setRuntimeCacheProvider({ getCache: () => store, scope });
+      clearPprRouteCache();
+      await app.handle(new Request("http://localhost/account")).then((r) => r.text());
+    };
+
+    await render("deployment-1");
+    await render("deployment-2");
+    await render("deployment-1");
+
+    expect(publicCalls).toBe(2);
+  });
+
   test("cross-instance invalidation removes tags from the cache-owning app", async () => {
     const route = defineRoute()
       .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })

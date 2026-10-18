@@ -394,7 +394,7 @@ export const route = defineRoute()
         )
     );
     await expect(buildApp({ rootDir: app.path, target: "vercel" })).rejects.toThrow(
-      "pageCache cannot be configured with the Vercel target"
+      'pageCache cannot be configured with the "vercel" adapter'
     );
   });
 
