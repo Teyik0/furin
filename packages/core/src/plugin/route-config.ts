@@ -470,6 +470,14 @@ export function formatRouteConfigIssue(issue: RouteConfigIssue): string {
   return `[furin] ${displayPath(issue.file)}:${issue.line}:${issue.column}: ${issue.message}`;
 }
 
+/** Build and typegen: fails before route modules are imported. */
+export function assertValidRouteConfig(pagesDir: string): void {
+  const issues = validateRouteConfig(pagesDir);
+  if (issues.length > 0) {
+    throw new Error(issues.map(formatRouteConfigIssue).join("\n\n"));
+  }
+}
+
 /** Diagnostic route label: clearing it can never hide another diagnostic. */
 const ROUTE_CONFIG_DIAGNOSTIC = "route config";
 

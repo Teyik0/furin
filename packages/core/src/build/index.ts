@@ -7,6 +7,7 @@ import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
 import { buildVercelTarget } from "../adapter/vercel";
 import { BUILD_TARGETS, type BuildTarget, type FurinPlugin } from "../config";
+import { assertValidRouteConfig } from "../plugin/route-config.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { scanPages } from "../server/router/discovery.ts";
@@ -138,6 +139,7 @@ async function scanApps(
   // scanPages throws if root.tsx is missing, so root is always defined per app.
   const apps: RuntimeTargetApp[] = [];
   for (const spec of appSpecs) {
+    assertValidRouteConfig(spec.pagesDir);
     const { root, routes } = await scanPages(spec.pagesDir);
     apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
   }
