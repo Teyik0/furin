@@ -1,0 +1,27 @@
+packages/core/tests/client/sync/sync.test.ts
+  s_3827fec5c7f2ed::t_1c819ccadc09bd 321-366
+packages/core/src/server/sync/sqlite/index.ts
+  s_3827fec5c7f2ed::t_b49cc8e06f624e 55,57-59
+packages/core/src/server/sync/plugin.ts
+  s_3827fec5c7f2ed::t_e459cbd2cc489e 109-124,236-240
+  s_3827fec5c7f2ed::t_27dc5282ab5ad7 241
+packages/core/tests/client/sync/adapters/sqlite-sync-adapter.test.ts
+  s_3827fec5c7f2ed::t_b49cc8e06f624e 16,138
+  s_3827fec5c7f2ed::t_4c37a72b00e0f5 124-137,139-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "451dde49f202a86ae411414f9f7b75de832436cc",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
