@@ -1,0 +1,21 @@
+packages/core/src/plugin/routes.ts
+  s_3827fec5c7f2ed::t_78fbeabb408e09 378-380
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_3827fec5c7f2ed::t_eabbe6b3bcb666 277-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a143906d3a5472f3a7d88a2af5b00e4a858e41aa",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
