@@ -1,0 +1,26 @@
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_ccecb48cedb4b0 14
+  s_3827fec5c7f2ed::t_f2d81f6628a56f 26
+  s_3827fec5c7f2ed::t_f75d35d96912aa 32
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_3827fec5c7f2ed::t_74ed24e6e67504 224-228
+apps/docs/src/content/docs/routing.mdx
+  s_3827fec5c7f2ed::t_90a45e524d52ef 71
+  s_3827fec5c7f2ed::t_4df5eafe5d943a 48-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54bd77ebb611dc54734f48886464cc8d5a6e6289",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
