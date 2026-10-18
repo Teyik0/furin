@@ -323,6 +323,30 @@ describe("generated furin-env.d.ts", () => {
   });
 });
 
+describe("generated README", () => {
+  it("documents commands, config ownership, type generation and deployment", async () => {
+    for (const template of registry.templates) {
+      const readmeFile = template.files.find((file) => file.dest === "README.md");
+      if (!readmeFile?.src) {
+        throw new Error(`Missing README.md template for ${template.id}`);
+      }
+      const readme = await renderEjsFile(resolve(TEMPLATES_DIR, readmeFile.src), MOCK_EJS_VARS);
+
+      expect(readme, template.id).toStartWith("# test-app\n");
+      for (const topic of [
+        "bun dev",
+        "bun run build",
+        "bunfig.toml",
+        "furin.config.ts",
+        "furin-env.d.ts",
+        "--target vercel",
+      ]) {
+        expect(readme, `${template.id} README mentions ${topic}`).toContain(topic);
+      }
+    }
+  });
+});
+
 describe("generated server entry", () => {
   // The Vercel adapter imports the server entry: it needs the app as default
   // export and must not start a listener when imported.
