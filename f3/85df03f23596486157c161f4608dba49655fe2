@@ -1,0 +1,19 @@
+packages/core/tests/build/routes-plugin.test.ts
+  s_3827fec5c7f2ed::t_56957cdc613eb8 4,16-24,66,69-70,72-77,79,129,168-169,172-173,179,181,183,222-223,225-227,259,262-264,269-273,326,329-331,333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f385df03f23596486157c161f4608dba49655fe2",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
