@@ -1,0 +1,21 @@
+packages/core/tests/build/measurement/live-benchmark-workflow.test.ts
+  s_3827fec5c7f2ed::t_f968a6332f2852 31
+.github/workflows/vercel-benchmark.yaml
+  s_3827fec5c7f2ed::t_952136d1351b5f 55,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "867f32976b07543b3a37d022d3b9e6349e063b4f",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
