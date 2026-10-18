@@ -8,7 +8,7 @@ import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
 import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { runBunBuild } from "./bun-build.ts";
-import { generateClientReferenceEntry, generateHydrateEntry } from "./hydrate";
+import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
@@ -85,7 +85,7 @@ export async function buildClient(
   );
   await registerServerBoundaries(boundaries);
   const hydrateCode = resolveClientModuleSpecifiers(
-    generateClientReferenceEntry(boundaries) + generateHydrateEntry(routes, rootLayout, basePath, clientLogging)
+    generateClientReferenceEntry(boundaries) + generateProductionHydrateEntry(routes, rootLayout, basePath, clientLogging)
   );
   const hydratePath = join(
     outDir,

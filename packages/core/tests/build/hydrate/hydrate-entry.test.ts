@@ -8,9 +8,12 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildClient } from "../../../src/build/client.ts";
 import { generateHydrateEntry } from "../../../src/build/hydrate.ts";
+import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { buildRouteMatcher } from "../../../src/server/router/patterns.ts";
+import { createTmpApp } from "../../support/app-fixtures.ts";
 
 // ── Minimal stub ──────────────────────────────────────────────────────────────
 
@@ -547,5 +550,31 @@ describe("generateHydrateEntry — HMR hardening", () => {
     expect(code).toContain('import.meta.hot.on("bun:ws:disconnect"');
     expect(code).toContain('import.meta.hot.on("bun:ws:connect"');
     expect(code).toContain("window.location.reload();");
+  });
+});
+
+describe("production hydrate entry", () => {
+  test("ships no absolute project paths in the client bundle", async () => {
+    const app = createTmpApp("cli-app");
+    try {
+      const { root, routes } = await scanPages(join(app.path, "src/pages"));
+      const outDir = join(app.path, "production-build");
+      await buildClient(routes, {
+        basePath: "",
+        clientLogging: false,
+        outDir,
+        publicPath: "/_client/",
+        rootLayout: root.path,
+      });
+      const clientDir = join(outDir, "client");
+      const code = readdirSync(clientDir)
+        .filter((file) => file.endsWith(".js"))
+        .map((file) => readFileSync(join(clientDir, file), "utf8"))
+        .join("\n");
+      expect(code.includes("__FURIN_DATA__")).toBe(true);
+      expect(code.includes(app.path)).toBe(false);
+    } finally {
+      app.cleanup();
+    }
   });
 });

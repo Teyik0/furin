@@ -48,6 +48,33 @@ export function generateHydrateEntry(
   basePath: string,
   clientLogging: boolean
 ): string {
+  // Dev HMR matches registry keys against each module's absolute path.
+  return hydrateEntry(routes, rootLayout, basePath, clientLogging, (path) => path);
+}
+
+/**
+ * Production variant of {@link generateHydrateEntry}. Without HMR the hot
+ * component keys only have to be distinct, so they are hashed instead of
+ * shipping absolute build paths to browsers.
+ */
+export function generateProductionHydrateEntry(
+  routes: ResolvedRoute[],
+  rootLayout: string,
+  basePath: string,
+  clientLogging: boolean
+): string {
+  return hydrateEntry(routes, rootLayout, basePath, clientLogging, (path) =>
+    Bun.hash(path).toString(16)
+  );
+}
+
+function hydrateEntry(
+  routes: ResolvedRoute[],
+  rootLayout: string,
+  basePath: string,
+  clientLogging: boolean,
+  modulePathKey: (path: string) => string
+): string {
   const rootDirectory = rootLayout.replaceAll("\\", "/").split("/").slice(0, -1).join("/");
   const getBoundaryIdent = (idents: Map<string, string>, filePath: string | undefined) => {
     if (!filePath) {
@@ -80,9 +107,9 @@ export function generateHydrateEntry(
       .slice(1)
       .filter((entry) => entry.layout && entry.sourcePath)
       .map((entry) => entry.sourcePath as string);
-    activeHotComponentKeys.add(`page:${resolvedPage}`);
+    activeHotComponentKeys.add(`page:${modulePathKey(resolvedPage)}`);
     for (const layoutPath of layoutPaths) {
-      activeHotComponentKeys.add(`layout:${layoutPath.replace(/\\/g, "/")}`);
+      activeHotComponentKeys.add(`layout:${modulePathKey(layoutPath.replace(/\\/g, "/"))}`);
     }
     const layoutIdents = layoutPaths.map((_, index) => `__furin_layout_${index}`);
 
@@ -118,7 +145,9 @@ export function generateHydrateEntry(
     const layoutAssignments = layoutPaths
       .map((filePath, index) => {
         const ident = layoutIdents[index];
-        const componentKey = JSON.stringify(`layout:${filePath.replace(/\\/g, "/")}`);
+        const componentKey = JSON.stringify(
+          `layout:${modulePathKey(filePath.replace(/\\/g, "/"))}`
+        );
         return `const __furin_layout_route_${index} = ${ident}.route; __furin_parent = { __type: "FURIN_ROUTE", layout: hotComponent(${componentKey}, __furin_layout_route_${index}.component), parent: __furin_parent };`;
       })
       .join(" ");
@@ -126,7 +155,7 @@ export function generateHydrateEntry(
       boundaryLiterals.length > 0
         ? `, segmentBoundaries: [${boundaryLiterals.join(", ")}]`
         : "";
-    const pageComponentKey = JSON.stringify(`page:${resolvedPage}`);
+    const pageComponentKey = JSON.stringify(`page:${modulePathKey(resolvedPage)}`);
     const loadBody = `Promise.all([${lazyImports.join(", ")}]).then(([${importIdents.join(", ")}]) => { const __furin_page_route = __furin_page.route; let __furin_parent = root; ${layoutAssignments} return { default: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE", parent: __furin_parent, remountDeps: __furin_page_route.remountDeps }, component: hotComponent(${pageComponentKey}, __furin_page_route.component) }${boundaryResult} }; })`;
 
     const searchDefaultsEntry = searchDefaults
@@ -164,8 +193,8 @@ export function generateHydrateEntry(
   const routerProviderDefaults = `\n      autoRefresh: true,\n      basePath: __furinBasePath,\n      defaultPreload: "intent",\n      defaultPreloadDelay: 50,\n      defaultPreloadStaleTime: 30000,\n      prefetchCacheSize: 50,\n      syncPath,`;
 
   const resolvedRootLayout = rootLayout.replace(/\\/g, "/");
-  const rootComponentKey = JSON.stringify(`root:${resolvedRootLayout}`);
-  activeHotComponentKeys.add(`root:${resolvedRootLayout}`);
+  const rootComponentKey = JSON.stringify(`root:${modulePathKey(resolvedRootLayout)}`);
+  activeHotComponentKeys.add(`root:${modulePathKey(resolvedRootLayout)}`);
   const activeHotComponentKeysLiteral = JSON.stringify([...activeHotComponentKeys]);
 
   return `import { hydrateRoot } from "react-dom/client";
