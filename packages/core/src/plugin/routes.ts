@@ -375,7 +375,9 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
           ]),
         ];
         await state.onRouteFilesTouched?.(changedSources);
-        state.routeFilesSignature = routeFilesSignature(state.instance);
+        // The signature read before the callback: a save that lands while it
+        // runs must trigger another refresh.
+        state.routeFilesSignature = signature;
         if (!state.closed) {
           replaceSourceWatchers(state);
         }
