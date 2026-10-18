@@ -217,6 +217,29 @@ test.serial("furin() initializes the process-wide logger only once", async () =>
   expect(initLoggerOptionsMock).toHaveBeenCalledTimes(1);
 });
 
+test.serial(
+  "furin() rejects a second instance whose logger sampling would be ignored",
+  async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    __setDevMode(true);
+    process.chdir(app.path);
+    const pagesDir = join(app.path, "src/pages");
+
+    await createTestApp({ logger: { sampling: { rates: { info: 10 } } }, pagesDir });
+    await createTestApp({
+      logger: { sampling: { rates: { info: 10 } } },
+      pagesDir,
+      prefix: "/same",
+    });
+    await createTestApp({ pagesDir, prefix: "/inherits" });
+
+    await expect(
+      createTestApp({ logger: { sampling: { rates: { info: 50 } } }, pagesDir, prefix: "/admin" })
+    ).rejects.toThrow("logger.sampling");
+    expect(initLoggerOptionsMock).toHaveBeenCalledTimes(1);
+  }
+);
+
 test.serial("furin() scaffolds empty root and index route files into a working app", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
