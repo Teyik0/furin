@@ -1,0 +1,33 @@
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_b43ef654c4627d 14
+packages/core/tests/routing/validation/route-config.test.ts
+  s_3827fec5c7f2ed::t_8e66d2edcd4de3 214,217,235,238-240,242-243,253,260
+packages/core/src/plugin/route-config.ts
+  s_3827fec5c7f2ed::t_e861ecf7fdc960 525
+  s_3827fec5c7f2ed::t_825ca8752ef58b 369,373,381
+  s_3827fec5c7f2ed::t_cef6a3bdf20c3e 415
+  s_3827fec5c7f2ed::t_9a97ee6d60a3c8 408
+  s_3827fec5c7f2ed::t_07616035bcab86 391,395,397
+  s_3827fec5c7f2ed::t_43390e5300aa7d 352-355
+  s_3827fec5c7f2ed::t_26f19e3920706b 537,542,549
+  s_3827fec5c7f2ed::t_f5ee734f6d50d4 426
+  s_3827fec5c7f2ed::t_c46ea70a39c819 440-442
+apps/docs/src/content/docs/routing.mdx
+  s_3827fec5c7f2ed::t_b43ef654c4627d 57,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9927f13f5d05bc77ed50b5ec3d228ba635e65107",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
