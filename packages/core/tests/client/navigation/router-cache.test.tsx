@@ -245,3 +245,28 @@ test("an intercepted native anchor scrolls to the fragment after rendering its d
     scrollIntoView.mockRestore();
   }
 });
+
+test("a failed prefetch does not poison the cache for the next navigation", async () => {
+  let reads = 0;
+  globalThis.fetch = Object.assign(() => {
+    reads += 1;
+    if (reads === 1) {
+      return Promise.reject(new TypeError("Failed to fetch"));
+    }
+    return Promise.resolve(response({ message: "Target" }));
+  }, originalFetch);
+  function Page({ message }: { message?: unknown }) {
+    router = useRouter();
+    return <main>{String(message ?? "Home")}</main>;
+  }
+  const container = await mount([route("/", Page), route("/target", Page)], {});
+  await act(async () => {
+    router.prefetch("/target");
+    await Bun.sleep(0);
+  });
+  expect(reads).toBe(1);
+  await act(() => router.navigate("/target"));
+  expect(reads).toBe(2);
+  expect(window.location.pathname).toBe("/target");
+  expect(container.textContent).toBe("Target");
+});

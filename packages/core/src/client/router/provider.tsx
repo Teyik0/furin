@@ -572,16 +572,18 @@ export function RouterProvider({
       if (existing && !shouldRefetch(existing)) {
         return;
       }
-      setPrefetchCacheEntry(
-        prefetchCache.current,
-        href,
-        {
-          createdAt: Date.now(),
-          promise: fetchPageState(href, undefined, false),
-          staleTime,
-        },
-        prefetchCacheSize
-      );
+      const entry: CacheEntry = {
+        createdAt: Date.now(),
+        promise: fetchPageState(href, undefined, false),
+        staleTime,
+      };
+      setPrefetchCacheEntry(prefetchCache.current, href, entry, prefetchCacheSize);
+      // A failed prefetch must not be served to later prefetches or navigations.
+      entry.promise.then((snapshot) => {
+        if (snapshot === null && prefetchCache.current.get(href) === entry) {
+          prefetchCache.current.delete(href);
+        }
+      });
     },
     [fetchPageState, defaultPreloadStaleTime, prefetchCacheSize]
   );
@@ -605,7 +607,8 @@ export function RouterProvider({
       }
       const revalidate =
         useCached &&
-        (isRedirectState(nextState) ||
+        (nextState === null ||
+          isRedirectState(nextState) ||
           (nextState && snapshotTransports.current.get(nextState)?.() === false) ||
           (nextState &&
             !optimisticRuntime.publishable(
