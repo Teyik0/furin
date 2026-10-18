@@ -109,6 +109,10 @@ Furin types the two sides of a query schema separately:
 
 The input side comes from the schema's input type. With Zod or another Standard Schema library, `z.number().default(1)` is optional in navigation input and a `number` in the output. TypeBox doesn't record `default` in its static type, so a TypeBox field with only `{ default }` stays required for navigation. Wrap it in `t.Optional(...)` so links can omit it. The default still applies at runtime, but the validated type then includes `undefined`.
 
+### Inherited params and query
+
+A child route inherits the `params` and `query` schemas of every layout above it. The runtime merges the schemas from root to leaf, and the types follow the same rule: if a child declares a field that a parent also declares, the child's version wins. A layout at `/orgs/:org` with `query: t.Object({ lang: t.String() })` gives its children `params.org` and `query.lang` in their loaders, heads and pages. `<Link>` and `navigate()` then require `org` and `lang` for those children too.
+
 By default, changing path parameters remounts the page, while query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
 
 ## Special Files
