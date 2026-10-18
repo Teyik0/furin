@@ -1,0 +1,27 @@
+apps/scaffolder/src/utils/git.ts
+  s_3827fec5c7f2ed::t_e81828b1986f0c 2,5-6,9,11,14-15,30-31,34,38
+apps/scaffolder/src/pipeline/stages/7-refinement.ts
+  s_3827fec5c7f2ed::t_e81828b1986f0c 33
+apps/scaffolder/tests/git.test.ts
+  s_3827fec5c7f2ed::t_c4e8af47921b6c 4,16,20,24,27,33-38
+apps/scaffolder/tests/disk.test.ts
+  s_3827fec5c7f2ed::t_2adc4a32b6b1f3 5,17-24,28,32,35,37-41,43,47,49-51,53,55,58-59,61,64-65,67
+apps/scaffolder/src/utils/disk.ts
+  s_3827fec5c7f2ed::t_e81828b1986f0c 24,27-28,31,33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c34026bfd25cf81dbf07f3f97d815f1a84d1b13",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
