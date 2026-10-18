@@ -71,9 +71,9 @@ if (response.status !== 200 || (await response.text()) !== "ok") process.exit(1)
 process.stdout.write("logger-active");
 `,
     ],
-    { cwd: join(import.meta.dir, "../../.."), env: { NODE_ENV: "test" }, timeoutMs: 30_000 }
+    { cwd: join(import.meta.dir, "../../.."), env: { NODE_ENV: "test" }, timeoutMs: 25_000 }
   );
 
   expect(result.exitCode, result.stderr).toBe(0);
   expect(result.stdout).toContain("logger-active");
-});
+}, 30_000);
