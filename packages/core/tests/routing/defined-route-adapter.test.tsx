@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "elysia";
-import { defineRoute } from "../../src/furin.ts";
+import { defineRoute, type FurinLayoutRoute } from "../../src/furin.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../src/server/router/defined-route.ts";
+
+// A runtime parent stub that also carries the type-only layout-route brand.
+function runtimeParent() {
+  return { __type: "FURIN_ROUTE" } as { __type: "FURIN_ROUTE" } & FurinLayoutRoute;
+}
 
 describe("defineRoute renderer adapter", () => {
   test("forwards the runtime render context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedProps: unknown;
     const route = defineRoute()
       .config({ layout: parent, mode: "ssr" })
@@ -23,7 +28,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("forwards the runtime layout context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedProps: unknown;
     const route = defineRoute()
       .config({ layout: parent, mode: "ssr" })
@@ -41,7 +46,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("forwards the runtime head context without copying it", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     let receivedContext: unknown;
     const route = defineRoute()
       .config({ layout: parent, mode: "ssr" })
@@ -61,7 +66,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("passes an empty render path through the runtime context", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     const route = defineRoute()
       .config({ layout: parent, mode: "ssr" })
       .loader(() => ({}))
@@ -77,7 +82,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("maps loader, head and structured component props to the runtime contract", async () => {
-    const root = { __type: "FURIN_ROUTE" as const };
+    const root = runtimeParent();
     const layout = defineRoute()
       .config({ layout: root, mode: "ssr" })
       .loader(() => ({ organization: "Furin" }))
@@ -105,7 +110,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("keeps static params on layout and page runtime entries", async () => {
-    const root = { __type: "FURIN_ROUTE" as const };
+    const root = runtimeParent();
     const layoutRoute = defineRoute()
       .config({ layout: root, mode: "ssg", params: t.Object({ category: t.String() }) })
       .staticParams(() => [{ category: "guides" }])
@@ -128,7 +133,7 @@ describe("defineRoute renderer adapter", () => {
   });
 
   test("keeps requestLoader data outside public loader data", async () => {
-    const parent = { __type: "FURIN_ROUTE" as const };
+    const parent = runtimeParent();
     const route = defineRoute()
       .config({ layout: parent, mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))

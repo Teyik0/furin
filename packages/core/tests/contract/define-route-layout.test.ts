@@ -63,7 +63,29 @@ const createLegacyParentKey = () =>
     )
     .page(() => "unused");
 
+const createPageRoute = () =>
+  defineRoute()
+    .config({ layout: createBoardLayout(), mode: "ssr" })
+    .page(() => null);
+
+const rejectNonLayoutReferences = () => {
+  defineRoute().config({
+    // @ts-expect-error — a layout reference must be a route built with `.layout()`.
+    layout: 42,
+    mode: "ssr",
+  });
+  defineRoute().config({
+    // @ts-expect-error — a page route cannot act as a layout.
+    layout: createPageRoute(),
+    mode: "ssr",
+  });
+};
+
 describe("defineRoute config({ layout })", () => {
+  test("layout only accepts layout routes", () => {
+    expectTypeOf(rejectNonLayoutReferences).toBeFunction();
+  });
+
   test("layout threads the layout loader data into the child's render context", () => {
     expectTypeOf<ReturnType<typeof createChildWithLayout>>().not.toBeNever();
   });

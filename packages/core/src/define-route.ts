@@ -55,6 +55,7 @@ declare const ssrFieldBrand: unique symbol;
 declare const inheritedDataBrand: unique symbol;
 declare const loaderDataBrand: unique symbol;
 declare const routeContractBrand: unique symbol;
+declare const layoutRouteBrand: unique symbol;
 declare const noRequestLoader: unique symbol;
 type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
 interface SsrField<Value> {
@@ -609,11 +610,17 @@ type PageTerminal<State extends ChainState> = RouteTerminal<State> & {
   page: PageComponentOf<State>;
 };
 
-type LayoutTerminal<State extends ChainState> = RouteTerminal<State> & {
-  component: LayoutComponentOf<State>;
-  elysia: ReturnType<typeof registerLayout>;
-  layout: LayoutComponentOf<State>;
-};
+/** Type-only brand: `config({ layout })` accepts routes built with `.layout()`. */
+export interface FurinLayoutRoute {
+  readonly [layoutRouteBrand]: true;
+}
+
+type LayoutTerminal<State extends ChainState> = RouteTerminal<State> &
+  FurinLayoutRoute & {
+    component: LayoutComponentOf<State>;
+    elysia: ReturnType<typeof registerLayout>;
+    layout: LayoutComponentOf<State>;
+  };
 
 function registerPage(
   paramsSchema: FurinSchema | undefined,
@@ -738,7 +745,11 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
  * before it — a route without an explicit rendering contract does not compile.
  */
 class UnconfiguredRoute {
-  config<LayoutRoute, QuerySchema extends FurinSchema, Mode extends RenderingMode>(
+  config<
+    LayoutRoute extends FurinLayoutRoute,
+    QuerySchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
     options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, QuerySchema> & {
       layout: LayoutRoute;
       mode: Mode;
@@ -754,7 +765,7 @@ class UnconfiguredRoute {
     Mode
   >;
   config<
-    LayoutRoute,
+    LayoutRoute extends FurinLayoutRoute,
     ParamsSchema extends FurinSchema,
     QuerySchema extends FurinSchema,
     Mode extends RenderingMode,
@@ -773,7 +784,11 @@ class UnconfiguredRoute {
     { params: ParamsSchema; query: QuerySchema },
     Mode
   >;
-  config<LayoutRoute, ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
+  config<
+    LayoutRoute extends FurinLayoutRoute,
+    ParamsSchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
     options: ResolvedConfig<ContractOf<LayoutRoute>, ParamsSchema, undefined> & {
       layout: LayoutRoute;
       mode: Mode;
@@ -788,7 +803,7 @@ class UnconfiguredRoute {
     { params: ParamsSchema; query: undefined },
     Mode
   >;
-  config<LayoutRoute, Mode extends RenderingMode>(
+  config<LayoutRoute extends FurinLayoutRoute, Mode extends RenderingMode>(
     options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, undefined> & {
       layout: LayoutRoute;
       mode: Mode;

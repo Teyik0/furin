@@ -120,6 +120,7 @@ export {
   type DefineRouteConfig,
   defineRootRoute,
   defineRoute,
+  type FurinLayoutRoute,
   type RequestLoaderContext,
   type RouteLoaderData,
   type RouteParams,
