@@ -276,6 +276,20 @@ describe("Furin page templates", () => {
       expect(page).not.toContain(".page(({ data");
     }
   });
+
+  it("call the shared service from the loader instead of fetching their own API", async () => {
+    for (const template of registry.templates) {
+      const pageFile = template.files.find((file) => file.dest === "src/pages/index.tsx");
+      if (!pageFile?.src) {
+        throw new Error(`Missing index page template for ${template.id}`);
+      }
+
+      const page = await Bun.file(resolve(TEMPLATES_DIR, pageFile.src)).text();
+
+      expect(page, template.id).toContain("getHelloPayload()");
+      expect(page, template.id).not.toContain("await fetch(");
+    }
+  });
 });
 
 describe("generated furin-env.d.ts", () => {
