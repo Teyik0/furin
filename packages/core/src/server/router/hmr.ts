@@ -417,10 +417,14 @@ export async function handleDevRequest(
     if (hasMixedLoaderModes(refreshedRoute)) {
       const loaderResult = await runDevLoaders(refreshedRoute, ctx);
       response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
-    } else if (refreshedRoute.mode === "isr") {
-      response = await renderDevISRWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
-    } else if (refreshedRoute.mode === "ssg") {
-      response = await renderDevSSGWithLoaderCache(refreshedRoute, ctx, currentRoot, searchRoutes);
+    } else if (refreshedRoute.mode === "isr" || refreshedRoute.mode === "ssg") {
+      response = await renderDevWithLoaderCache(
+        refreshedRoute,
+        ctx,
+        currentRoot,
+        refreshedRoute.mode,
+        searchRoutes
+      );
     } else {
       const loaderResult = await runDevLoaders(refreshedRoute, ctx);
       response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
@@ -439,82 +443,43 @@ export async function handleDevRequest(
   }
 }
 
+const devLoaderCaches = {
+  isr: {
+    get: getDevISRLoaderCache,
+    set: setDevISRLoaderCache,
+    source: "render:dev-isr-loader",
+  },
+  ssg: {
+    get: getDevSSGLoaderCache,
+    set: setDevSSGLoaderCache,
+    source: "render:dev-ssg-loader",
+  },
+} as const;
+
 /**
- * @internal Dev "Live ISR" — caches loader output, not assembled HTML.  On a
- * fresh cache hit the loader chain is skipped; the React render still runs so
- * the response embeds the latest dev shell (chunk URL, HMR runtime, …).  On
+ * @internal Dev "Live ISR/SSG" — caches loader output, not assembled HTML.  On
+ * a fresh cache hit the loader chain is skipped; the React render still runs
+ * so the response embeds the latest dev shell (chunk URL, HMR runtime, …).  On
  * miss, runs loaders normally and stores the merged data record.
+ *
+ * ISR entries are keyed by path + query and expire after `revalidate`.  SSG
+ * entries are keyed by path and tagged forever-fresh (`revalidate: Infinity`)
+ * so they survive until source-aware invalidation drops them — the loader runs
+ * ONCE per cache key, like production SSG, not on every refresh.
  */
-export async function renderDevISRWithLoaderCache(
+async function renderDevWithLoaderCache(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
-  searchRoutes?: SearchRouteMetadata[]
+  mode: "isr" | "ssg",
+  searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<Response> {
+  const cache = devLoaderCaches[mode];
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
-  const cacheKey = `${root.path}:${pathWithRequestSearch(resolvedPath, ctx.request.url)}`;
-  const cached = getDevISRLoaderCache(cacheKey);
-
-  if (cached && isDevLoaderCacheValid(cached)) {
-    const precomputed: LoaderResult = {
-      deferredPromises: undefined,
-      headers: cached.headers,
-      syncData: cached.loaderData,
-      type: "data",
-    };
-    return runDevRender(
-      route,
-      ctx,
-      root,
-      hasRequestLoader(route) ? await withRequestLoaderData(route, ctx, precomputed) : precomputed,
-      searchRoutes
-    );
-  }
-
-  const result = await runDevLoaders(route, ctx);
-  if (result.type === "data") {
-    const revalidate = resolveRouteRevalidate(route.page) ?? 60;
-    const entry: DevLoaderCacheEntry = {
-      dependencies: computeRouteDependencies(route.path, root.path),
-      generatedAt: Date.now(),
-      headers: result.headers,
-      loaderData: result.syncData,
-      mode: "isr",
-      revalidate,
-    };
-    setDevISRLoaderCache(cacheKey, entry);
-    autoInvalidateRegistry.registerLoaderTags(
-      pathWithRequestSearch(resolvedPath, ctx.request.url),
-      route.tags,
-      "render:dev-isr-loader"
-    );
-  }
-  return runDevRender(
-    route,
-    ctx,
-    root,
-    result.type === "data" && hasRequestLoader(route)
-      ? await withRequestLoaderData(route, ctx, result)
-      : result,
-    searchRoutes
-  );
-}
-
-/**
- * @internal Dev "Live SSG" — same shape as `renderDevISRWithLoaderCache`, but
- * the cached entry is tagged forever-fresh (`revalidate: Infinity`) so it
- * survives indefinitely until source-aware invalidation drops it.  This makes
- * dev SSG behave like production SSG: the loader runs ONCE per cache key,
- * not on every refresh.
- */
-export async function renderDevSSGWithLoaderCache(
-  route: ResolvedRoute,
-  ctx: Context,
-  root: RootLayout,
-  searchRoutes?: SearchRouteMetadata[]
-): Promise<Response> {
-  const cacheKey = `${root.path}:${resolvePath(route.pattern, ctx.params ?? {})}`;
-  const cached = getDevSSGLoaderCache(cacheKey);
+  const cachePath =
+    mode === "isr" ? pathWithRequestSearch(resolvedPath, ctx.request.url) : resolvedPath;
+  const cacheKey = `${root.path}:${cachePath}`;
+  const cached = cache.get(cacheKey);
 
   if (cached && isDevLoaderCacheValid(cached)) {
     const precomputed: LoaderResult = {
@@ -539,16 +504,12 @@ export async function renderDevSSGWithLoaderCache(
       generatedAt: Date.now(),
       headers: result.headers,
       loaderData: result.syncData,
-      mode: "ssg",
-      // SSG entries are forever-fresh — only source-aware invalidation drops them.
-      revalidate: Number.POSITIVE_INFINITY,
+      mode,
+      revalidate:
+        mode === "isr" ? (resolveRouteRevalidate(route.page) ?? 60) : Number.POSITIVE_INFINITY,
     };
-    setDevSSGLoaderCache(cacheKey, entry);
-    autoInvalidateRegistry.registerLoaderTags(
-      resolvePath(route.pattern, ctx.params ?? {}),
-      route.tags,
-      "render:dev-ssg-loader"
-    );
+    cache.set(cacheKey, entry);
+    autoInvalidateRegistry.registerLoaderTags(cachePath, route.tags, cache.source);
   }
   return runDevRender(
     route,
