@@ -78,6 +78,8 @@ export interface ServerBundlePluginsOptions {
   apps: RuntimeTargetApp[];
   /** Name of the adapter whose platform serves assets, when it does. */
   platformAssets: string | undefined;
+  /** Project root; relative furin() pagesDirs resolve against it. */
+  rootDir: string;
   userPlugins: Bun.BunPlugin[] | undefined;
 }
 
@@ -87,7 +89,7 @@ export interface ServerBundlePluginsOptions {
  * last so it compiles the fully transformed application.
  */
 export function serverBundlePlugins(options: ServerBundlePluginsOptions): Bun.BunPlugin[] {
-  const { appEntry, apps, platformAssets, userPlugins } = options;
+  const { appEntry, apps, platformAssets, rootDir, userPlugins } = options;
   return [
     ...(appEntry === undefined ? [] : [appSpecifierPlugin(appEntry)]),
     prerenderSnapshotPlugin(),
@@ -100,6 +102,6 @@ export function serverBundlePlugins(options: ServerBundlePluginsOptions): Bun.Bu
     clientReferencesPlugin(),
     isomorphicTransformPlugin("server"),
     environmentGuardPlugin("ssr"),
-    ...(appEntry === undefined ? [] : [elysiaAot(appEntry)]),
+    ...(appEntry === undefined ? [] : [elysiaAot(appEntry, { apps, rootDir })]),
   ];
 }

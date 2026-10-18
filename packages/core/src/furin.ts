@@ -17,6 +17,7 @@ import { type CompileContext, getCompileContext } from "./server/internal.ts";
 import { createLoggerPlugin, type FurinLoggerOptions } from "./server/logging/ingest-plugin.ts";
 import type { ModeOptions, ModeRuntime } from "./server/mode.ts";
 import { createProdRuntime } from "./server/prod/runtime.ts";
+import { recordFurinRegistration } from "./server/registrations.ts";
 import { createNotFoundHandling } from "./server/render/not-found-plugin.ts";
 import {
   createRequestScope,
@@ -202,6 +203,7 @@ async function createFurinApp(options: FurinOptions): Promise<{
   // In a deployed binary the cwd-resolved pagesDir may differ from the build
   // machine's; the compile context is found by the (stable) declared prefix.
   const paramPagesDir = resolve(cwd, pagesDir ?? "src/pages");
+  recordFurinRegistration({ pagesDir: pagesDir ?? "src/pages", prefix });
   const ctx = getCompileContext(paramPagesDir, prefix);
   const resolvedPagesDir = ctx?.rootPath ? dirname(ctx.rootPath) : paramPagesDir;
   const normalizedPagesDir = resolvedPagesDir.replaceAll("\\", "/");

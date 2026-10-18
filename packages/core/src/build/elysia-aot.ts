@@ -1,6 +1,9 @@
-import { dirname, join, resolve } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
+import type { RouteInstanceSpec } from "../plugin/routes.ts";
+import type { FurinRegistration } from "../server/registrations.ts";
 import type {
   AotWorkerOperation,
   AotWorkerRequest,
@@ -55,8 +58,53 @@ export function handleWSResponse(){return e()}
 `;
 }
 
+function mountLabel(rootDir: string, { pagesDir, prefix }: RouteInstanceSpec): string {
+  const absolute = resolve(rootDir, pagesDir);
+  const path = existsSync(absolute) ? realpathSync(absolute) : absolute;
+  return `prefix ${JSON.stringify(prefix || "/")} (pagesDir ${relative(rootDir, path) || "."})`;
+}
+
+/**
+ * The application evaluated by Elysia AOT is the one that will serve: every
+ * furin() it mounts must be an app the build produced, and vice versa. When
+ * evaluation failed, only an unbuilt mount explains it: the application may
+ * have thrown before reaching its furin() calls.
+ */
+function registrationMismatch(
+  build: AotBuildApps,
+  registrations: FurinRegistration[],
+  evaluated: boolean
+): Error | undefined {
+  const root = realpathSync(build.rootDir);
+  const built = new Set(build.apps.map((app) => mountLabel(root, app)));
+  const mounted = new Set(registrations.map((registration) => mountLabel(root, registration)));
+  const unbuilt = [...mounted].filter((label) => !built.has(label));
+  if (unbuilt.length === 0 && !evaluated) {
+    return;
+  }
+  const lines = [
+    ...unbuilt.map((label) => `  mounted but not built: ${label}`),
+    ...[...built]
+      .filter((label) => !mounted.has(label))
+      .map((label) => `  built but not mounted: ${label}`),
+  ];
+  if (lines.length === 0) {
+    return;
+  }
+  return new Error(
+    `[furin] furin() mounts in the server entry do not match config.apps:\n${lines.join("\n")}\n` +
+      "Build exactly the apps the server mounts: list each furin({ pagesDir, prefix }) in config.apps, or omit config.apps to detect them from the server entry."
+  );
+}
+
+/** The apps a build produced; relative furin() pagesDirs resolve against `rootDir`. */
+export interface AotBuildApps {
+  apps: RouteInstanceSpec[];
+  rootDir: string;
+}
+
 /** Elysia AOT evaluation has its own module cache, independent of prerender loaders. */
-export function elysiaAot(entry: string): Bun.BunPlugin {
+export function elysiaAot(entry: string, expected: AotBuildApps): Bun.BunPlugin {
   const entryPath = resolve(entry);
   return {
     name: "elysia-aot",
@@ -71,6 +119,7 @@ export function elysiaAot(entry: string): Bun.BunPlugin {
       >();
       let nextId = 0;
       let workerFailure: Error | undefined;
+      let registrations: FurinRegistration[] = [];
       const fail = (error: Error): void => {
         workerFailure = error;
         for (const request of pending.values()) {
@@ -81,6 +130,7 @@ export function elysiaAot(entry: string): Bun.BunPlugin {
       worker.on("message", (response: AotWorkerResponse) => {
         const request = pending.get(response.id);
         pending.delete(response.id);
+        registrations = response.registrations ?? registrations;
         if (response.ok) {
           request?.resolve(response);
         } else {
@@ -106,6 +156,10 @@ export function elysiaAot(entry: string): Bun.BunPlugin {
         ({ code: compiled, virtualType } = await request({ method: "start" }));
       } catch (error) {
         await worker.terminate();
+        const mismatch = registrationMismatch(expected, registrations, false);
+        if (mismatch) {
+          throw mismatch;
+        }
         if (
           error instanceof Error &&
           error.message.startsWith("[elysia-aot]") &&
@@ -115,6 +169,11 @@ export function elysiaAot(entry: string): Bun.BunPlugin {
           return;
         }
         throw error;
+      }
+      const mismatch = registrationMismatch(expected, registrations, true);
+      if (mismatch) {
+        await worker.terminate();
+        throw mismatch;
       }
       build.onEnd(async () => {
         try {

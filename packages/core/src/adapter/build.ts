@@ -124,6 +124,7 @@ async function bundleServer(
   adapter: FurinAdapter,
   apps: RuntimeTargetApp[],
   appEntry: string,
+  rootDir: string,
   targetDir: string,
   buildRoot: string,
   options: BuildAppOptions
@@ -140,6 +141,7 @@ async function bundleServer(
       appEntry,
       apps,
       platformAssets: adapter.capabilities.assets === "platform" ? adapter.name : undefined,
+      rootDir,
       userPlugins: options.plugins,
     }),
     sourcemap: options.serverSourceMaps ? "external" : "none",
@@ -223,7 +225,15 @@ export async function buildAdapterTarget(
   if (frameworkCache) {
     writePrerenderSnapshot(targetDir, []);
   }
-  const server = await bundleServer(adapter, apps, appEntry, targetDir, buildRoot, options);
+  const server = await bundleServer(
+    adapter,
+    apps,
+    appEntry,
+    rootDir,
+    targetDir,
+    buildRoot,
+    options
+  );
   const prerenders = await prerenderFromBundle(
     { kind: "app", path: join(targetDir, APP_MODULE) },
     rootDir,

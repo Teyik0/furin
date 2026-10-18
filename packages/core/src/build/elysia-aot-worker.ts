@@ -1,6 +1,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { aotFactory } from "elysia/plugin/aot/unplugin";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
+import { collectFurinRegistrations, type FurinRegistration } from "../server/registrations.ts";
 
 export type AotWorkerOperation =
   | { method: "start" | "end" }
@@ -10,12 +11,14 @@ export type AotWorkerRequest = AotWorkerOperation & { id: number };
 
 export interface AotWorkerResult {
   code?: string;
+  /** `furin()` calls made while the application was evaluated (start only). */
+  registrations?: FurinRegistration[];
   virtualType?: string;
 }
 
 export type AotWorkerResponse =
   | (AotWorkerResult & { id: number; ok: true })
-  | { error: Error; id: number; ok: false };
+  | { error: Error; id: number; ok: false; registrations?: FurinRegistration[] };
 
 const port = parentPort;
 if (!port) {
@@ -24,6 +27,7 @@ if (!port) {
 const { entry } = workerData as { entry: string };
 const hooks = aotFactory({ entry, strip: false, target: "bun" });
 Bun.plugin(isomorphicTransformPlugin("server"));
+const registrations = collectFurinRegistrations();
 
 port.on("message", async (request: AotWorkerRequest) => {
   try {
@@ -40,12 +44,19 @@ port.on("message", async (request: AotWorkerRequest) => {
     } else {
       hooks.buildEnd?.();
     }
-    port.postMessage({ code, id: request.id, ok: true, virtualType } satisfies AotWorkerResponse);
+    port.postMessage({
+      code,
+      id: request.id,
+      ok: true,
+      registrations: request.method === "start" ? registrations : undefined,
+      virtualType,
+    } satisfies AotWorkerResponse);
   } catch (error) {
     port.postMessage({
       error: error instanceof Error ? error : new Error(String(error)),
       id: request.id,
       ok: false,
+      registrations: request.method === "start" ? registrations : undefined,
     } satisfies AotWorkerResponse);
   }
 });

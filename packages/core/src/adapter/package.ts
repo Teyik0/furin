@@ -165,6 +165,7 @@ export async function buildPackageTarget(
         appEntry: undefined,
         apps: [app],
         platformAssets: undefined,
+        rootDir,
         userPlugins: options.plugins,
       }),
     ],
