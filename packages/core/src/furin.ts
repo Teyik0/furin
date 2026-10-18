@@ -1170,6 +1170,8 @@ async function createFurinRuntime({
     // not overwrite each other's hydrate entry (root keeps plain `.furin`).
     const instanceSlug = prefix === "" ? "" : prefixSlug(prefix);
     const furinDir = resolve(cwd, ".furin", instanceSlug);
+    const { warnIfStripPluginMissing } = await import("./plugin/preflight.ts");
+    warnIfStripPluginMissing(cwd);
     // Lazy import — build pipeline has native deps not available in compiled binaries
     const { devDiagnosticStore, publishDevDiagnostic } = await import(
       "./server/dev/diagnostics.ts"
