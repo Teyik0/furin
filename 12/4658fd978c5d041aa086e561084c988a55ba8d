@@ -1,0 +1,32 @@
+packages/core/src/client/router/navigation-controller.ts
+  s_3827fec5c7f2ed::t_6e57cc44043d25 1-7,9-11,13-27,35-172,174-246,249-273,278-436,443-463,465-489,494-506,543-544
+  s_3827fec5c7f2ed::t_68a5172cddbf5f 274-277
+  s_3827fec5c7f2ed::t_c0c0a15751728c 464
+  s_3827fec5c7f2ed::t_1be91eeba68df0 28-34
+  s_3827fec5c7f2ed::t_7eae3c2fc471aa 12,173,437-440,442
+  s_3827fec5c7f2ed::t_f169e4422d71a5 247-248
+  s_3827fec5c7f2ed::t_042209e4a2a7b6 490-493,507-542
+  s_3827fec5c7f2ed::t_4565124fcde219 8,441,545-547
+packages/core/tests/client/navigation/navigation-controller.test.ts
+  s_3827fec5c7f2ed::t_8728c993080301 1-79
+packages/core/src/client/router/provider.tsx
+  s_3827fec5c7f2ed::t_c8669c822e7fec 371
+  s_3827fec5c7f2ed::t_cab39419565c17 24,36-40,55,67-77,110-136,138-187,189-198,200-215,225,237-238,250,298-299,302,332,342,346,351,364,368-369,373,400,404-406,533-535,580
+  s_3827fec5c7f2ed::t_e86fdb1aee0e3b 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "124658fd978c5d041aa086e561084c988a55ba8d",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_3827fec5c7f2ed::t_499c952aaee757 283-345
+packages/core/src/client/router/provider.tsx
+  s_3827fec5c7f2ed::t_6eaeaf521c0bfe 566,571,577,580-584,586-591,593-595
+  s_3827fec5c7f2ed::t_32a8a4bb68b27a 660
+  s_3827fec5c7f2ed::t_4cf7b896b013a6 258-269
+  s_3827fec5c7f2ed::t_48e90eb0bb4034 1299-1307
+  s_3827fec5c7f2ed::t_30acc14758287c 622
+  s_3827fec5c7f2ed::t_0a0bf2a913924b 853-860
+  s_3827fec5c7f2ed::t_bec8f2528e1143 1251
+  s_3827fec5c7f2ed::t_458b5a7e9ca6d9 770-774
+  s_3827fec5c7f2ed::t_dd447e5e59685c 604,607-612
+  s_3827fec5c7f2ed::t_5eaaa0c2a73ed7 26,644
+packages/core/src/client/router/cache-generation.ts
+  s_3827fec5c7f2ed::t_49a002dd9353a9 1-30,32-37
+  s_3827fec5c7f2ed::t_c5fc2f3ef57acb 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "83d310f07a82b32a9a5832a64194974e2872cada",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
