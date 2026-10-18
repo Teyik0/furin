@@ -1,6 +1,6 @@
 # Configuration Reference
 
-Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file.
+Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), and every plugin must be an object with a `name` string and a `setup` function.
 
 ```ts
 // furin.config.ts
