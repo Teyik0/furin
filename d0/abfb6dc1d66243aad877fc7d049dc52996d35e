@@ -1,0 +1,24 @@
+packages/core/tests/build/route-config-build.test.ts
+  s_3827fec5c7f2ed::t_83aa2b10e3e75a 1-28
+packages/core/src/plugin/route-config.ts
+  s_3827fec5c7f2ed::t_d4da229d6b5822 473-480
+packages/core/src/build/index.ts
+  s_3827fec5c7f2ed::t_3a3f763fd68c2d 10
+  s_3827fec5c7f2ed::t_0ba8f10562eebc 142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0abfb6dc1d66243aad877fc7d049dc52996d35e",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
