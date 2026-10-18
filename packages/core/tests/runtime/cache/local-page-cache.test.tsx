@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { Elysia } from "elysia";
-import { buildRoutePrerenders } from "../../../src/build/ssg-cache.ts";
+import { buildRoutePrerenders, buildSSGCacheSnapshot } from "../../../src/build/ssg-cache.ts";
 import {
   defineRootRoute,
   defineRoute,
@@ -158,4 +158,24 @@ test("SSG build prerendering keeps a notFound page and its 404 status", async ()
     html: expect.stringContaining("Missing catalog"),
     status: 404,
   });
+});
+
+test("SSG cache snapshots skip staticParams paths owned by a more specific route", async () => {
+  const about = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssg" })
+    .loader(() => ({ owner: "static-about" }))
+    .page(({ owner }) => <main>{owner}</main>);
+  const slug = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssg" })
+    .staticParams(() => [{ slug: "about" }, { slug: "other" }])
+    .loader(({ params }) => ({ owner: `slug-${(params as { slug: string }).slug}` }))
+    .page(({ owner }) => <main>{owner}</main>);
+  const routes = [
+    { ...resolveRoute(slug), path: "/[slug].tsx", pattern: "/:slug" },
+    { ...resolveRoute(about), path: "/about.tsx", pattern: "/about" },
+  ];
+
+  const snapshot = await buildSSGCacheSnapshot(routes, root, "http://localhost");
+
+  expect(Object.keys(snapshot)).toEqual(["/other"]);
 });

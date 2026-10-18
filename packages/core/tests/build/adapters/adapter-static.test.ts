@@ -497,6 +497,34 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
     ),
   );
   expect(manifest.renderedRoutes).toEqual(["/a-fast", "/z-slow"]);
+
+  const aboutRoute: ResolvedRoute = {
+    ...baseRoute,
+    page: { ...baseRoute.page, loader: async () => ({ owner: "static-about" }) },
+    pattern: "/about",
+  };
+  const slugRoute: ResolvedRoute = {
+    ...baseRoute,
+    page: {
+      ...baseRoute.page,
+      loader: async ({ params }) => ({ owner: `slug-${(params as { slug: string }).slug}` }),
+      staticParams: () => [{ slug: "about" }, { slug: "other" }],
+    },
+    pattern: "/:slug",
+  };
+  manifest = await withBuildStub(() =>
+    buildStaticTarget(
+      [slugRoute, aboutRoute],
+      app.path,
+      join(app.path, ".furin/build"),
+      scanned.root,
+      { staticConfig: { outDir: scanned.distDir }, target: "static" },
+    ),
+  );
+  expect(manifest.renderedRoutes).toEqual(["/about", "/other"]);
+  const aboutData = readFileSync(join(scanned.distDir, "about/__furin_data.ndjson"), "utf8");
+  expect(aboutData).toContain("static-about");
+  expect(aboutData).not.toContain("slug-about");
 }
 
 function runScenarioWorker(): Promise<void> {

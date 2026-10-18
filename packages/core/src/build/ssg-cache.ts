@@ -1,9 +1,8 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: SSG cache generation runs routes sequentially for deterministic cache output
 import type { SsgCacheEntry } from "../server/cache/index.ts";
-import { resolvePath } from "../server/render/assemble.ts";
 import { prerenderRoute, prerenderSSG } from "../server/render/index.ts";
 import { hasRequestLoader } from "../server/render/loaders.ts";
-import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
+import { expandStaticPaths, hasStaticParams } from "../server/render/static-params.ts";
 import { buildRouteMatcher, resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -16,8 +15,6 @@ export interface RoutePrerender {
   result?: SsgCacheEntry | Response;
   route: ResolvedRoute;
 }
-
-const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 
 function hasRequestDependentInput(route: ResolvedRoute, root: RootLayout): boolean {
   return [root.route, ...route.routeChain].some(
@@ -53,20 +50,8 @@ export async function buildRoutePrerenders(
       continue;
     }
 
-    let paramSets: Record<string, string>[];
-    if (!DYNAMIC_SEGMENT_RE.test(route.pattern)) {
-      paramSets = [{}];
-    } else if (hasStaticParams(route)) {
-      paramSets = (await resolveStaticParams(route, origin)) ?? [];
-    } else {
-      continue;
-    }
-
-    for (const params of paramSets) {
-      const path = resolvePath(route.pattern, params);
-      if (matchRoute(path)?.route !== route) {
-        continue;
-      }
+    const paths = await expandStaticPaths(route, matchRoute, origin);
+    for (const { params, path } of paths ?? []) {
       if (deferRendering || root.route.requestLoader !== undefined || hasRequestLoader(route)) {
         prerenders.push({ path, route });
         continue;
@@ -98,6 +83,7 @@ export async function buildSSGCacheSnapshot(
 ): Promise<SSGCacheSnapshot> {
   const snapshot: SSGCacheSnapshot = {};
   const searchRoutes = createSearchRouteMetadata(routes);
+  const matchRoute = buildRouteMatcher(routes);
 
   for (const route of routes) {
     if (
@@ -107,8 +93,8 @@ export async function buildSSGCacheSnapshot(
     ) {
       continue;
     }
-    const paramSets = (await resolveStaticParams(route, origin)) ?? [];
-    for (const params of paramSets) {
+    const paths = await expandStaticPaths(route, matchRoute, origin);
+    for (const { params, path } of paths ?? []) {
       const result = await prerenderSSG(
         route,
         params,
@@ -118,7 +104,7 @@ export async function buildSSGCacheSnapshot(
         searchRoutes
       );
       if (!(result instanceof Response)) {
-        snapshot[resolvePath(route.pattern, params)] = result;
+        snapshot[path] = result;
       }
     }
   }

@@ -10,12 +10,12 @@ import type { StaticExportConfig } from "../config.ts";
 import { resolvePath } from "../server/render/assemble.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderSSG } from "../server/render/ssg.ts";
-import { hasStaticParams, resolveStaticParams } from "../server/render/static-params.ts";
+import { expandStaticPaths, type StaticPath } from "../server/render/static-params.ts";
 import {
   setProductionPreloadManifest,
   setProductionTemplateContent,
 } from "../server/render/template.ts";
-import { resolveDocumentMode } from "../server/router/patterns.ts";
+import { buildRouteMatcher, resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import type { SearchRouteMetadata } from "../shared/search-params.ts";
@@ -23,9 +23,6 @@ import { mapWithConcurrency } from "../shared/utils/index.ts";
 
 /** Maximum concurrent pre-render calls (mirrors warmSSGCache). */
 const STATIC_CONCURRENCY = 4;
-
-/** Pattern that identifies a dynamic route segment. */
-const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
 
 /** Strips all trailing slashes from a string. */
 const TRAILING_SLASHES_RE = /\/+$/;
@@ -261,6 +258,7 @@ function collectSsgRoutes(
  */
 async function buildTaskQueue(
   ssgRoutes: ResolvedRoute[],
+  allRoutes: ResolvedRoute[],
   root: RootLayout,
   outDir: string,
   renderedRoutes: string[],
@@ -270,46 +268,45 @@ async function buildTaskQueue(
 ): Promise<Array<() => Promise<void>>> {
   const tasks: Array<() => Promise<void>> = [];
 
-  type StaticParamsResult =
-    | { paramSets: Record<string, string>[] | null; route: ResolvedRoute }
-    | { error: unknown; paramSets: null; route: ResolvedRoute };
+  type StaticPathsResult =
+    | { paths: StaticPath[] | null; route: ResolvedRoute }
+    | { error: unknown; paths: null; route: ResolvedRoute };
 
-  const staticParamsResults: StaticParamsResult[] = await mapWithConcurrency(
+  // Ownership is decided against every route, exported or not, so a
+  // staticParams() value never overwrites the page of a more specific route.
+  const matchRoute = buildRouteMatcher(allRoutes);
+  const staticPathsResults: StaticPathsResult[] = await mapWithConcurrency(
     ssgRoutes,
     STATIC_CONCURRENCY,
     async (route) => {
-      if (!DYNAMIC_SEGMENT_RE.test(route.pattern)) {
-        return { paramSets: [{}], route };
-      }
-      if (!hasStaticParams(route)) {
-        console.warn(
-          `[furin] static: skipping dynamic route "${route.pattern}" — no staticParams() defined.`
-        );
-        skippedRoutes.push(route.pattern);
-        return { paramSets: null, route };
-      }
       try {
-        const paramSets = (await resolveStaticParams(route, STATIC_RENDER_ORIGIN)) ?? [];
-        return { paramSets, route };
+        const paths = await expandStaticPaths(route, matchRoute, STATIC_RENDER_ORIGIN);
+        if (paths === undefined) {
+          console.warn(
+            `[furin] static: skipping dynamic route "${route.pattern}" — no staticParams() defined.`
+          );
+          skippedRoutes.push(route.pattern);
+          return { paths: null, route };
+        }
+        return { paths, route };
       } catch (err) {
-        return { error: err, paramSets: null, route };
+        return { error: err, paths: null, route };
       }
     }
   );
 
-  for (const result of staticParamsResults) {
+  for (const result of staticPathsResults) {
     const { pattern } = result.route;
     if ("error" in result) {
       console.error(`[furin] static: staticParams() failed for "${pattern}":`, result.error);
       skippedRoutes.push(pattern);
       continue;
     }
-    if (result.paramSets === null) {
+    if (result.paths === null) {
       continue;
     }
-    for (const params of result.paramSets) {
-      const urlPath = resolvePath(pattern, params);
-      pathToOutputFile(urlPath, outDir, "index.html");
+    for (const { params, path } of result.paths) {
+      pathToOutputFile(path, outDir, "index.html");
       tasks.push(() =>
         prerenderAndWrite(
           result.route,
@@ -422,6 +419,7 @@ export async function buildStaticTarget(
   // ── 2. Resolve and validate every output path before writing artifacts ────
   const tasks = await buildTaskQueue(
     ssgRoutes,
+    routes,
     root,
     outDir,
     renderedRoutes,
