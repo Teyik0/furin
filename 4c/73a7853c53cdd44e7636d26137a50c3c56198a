@@ -1,0 +1,121 @@
+packages/core/src/adapter/server-bundle.ts
+  s_3827fec5c7f2ed::t_5f54bc8451408a 78-80
+  s_3827fec5c7f2ed::t_d60754386077fa 1-77,81-105
+packages/core/build.ts
+  s_3827fec5c7f2ed::t_14d42a0d80b4a9 45
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3827fec5c7f2ed::t_26990d41983497 242,304-308,310-313
+  s_3827fec5c7f2ed::t_6d98a8a3a53d42 6,175
+packages/core/tests/runtime/cache/local-page-cache.test.tsx
+  s_3827fec5c7f2ed::t_6d98a8a3a53d42 11,140,147,154,162,165,168-169,190
+packages/core/src/build/server-app-entry.ts
+  s_3827fec5c7f2ed::t_5f54bc8451408a 15,41
+examples/weather/furin.config.ts
+  s_3827fec5c7f2ed::t_5c1ec3045bfa06 1,7
+packages/core/package.json
+  s_3827fec5c7f2ed::t_14d42a0d80b4a9 70-74
+packages/core/src/adapter/prerender.ts
+  s_3827fec5c7f2ed::t_bbc824bb1e381d 1-56
+knip.config.ts
+  s_3827fec5c7f2ed::t_ae080c847cb73b 39-42
+packages/core/src/adapter/types.ts
+  s_3827fec5c7f2ed::t_12b9d936fd3db0 1-81,83-89
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 82
+packages/core/src/server/prod/runtime.ts
+  s_3827fec5c7f2ed::t_15f2aa1aeed2ff 122-123,127
+  s_3827fec5c7f2ed::t_04085340cee553 10,114
+packages/core/tests/build/adapters/bundle-prerender.test.ts
+  s_3827fec5c7f2ed::t_16fd3d5b99b30b 1-28,30-33,35-50,63,70-77,79-81,83
+  s_3827fec5c7f2ed::t_bbed36722e9170 29,34,62,64-69,78,82
+  s_3827fec5c7f2ed::t_ba73564ff37ec9 51-61
+packages/core/src/config.ts
+  s_3827fec5c7f2ed::t_77c1ddf49b7541 4-15,102,107-109,113-118
+packages/core/src/adapter/runtime-build.ts
+  s_3827fec5c7f2ed::t_f3e21308af3748 6
+  s_3827fec5c7f2ed::t_9f74d5c56228cc 370,381
+  s_3827fec5c7f2ed::t_50c2f54319aec3 30-37
+packages/core/src/build/compile-entry.ts
+  s_3827fec5c7f2ed::t_5f54bc8451408a 68
+packages/core/tests/support/with-build-stub.ts
+  s_3827fec5c7f2ed::t_89879052737be2 4-5,72-74
+packages/core/src/adapter/vercel.ts
+  s_3827fec5c7f2ed::t_b8561819ddd564 1-10,14-15,17-54,97-101,104-113,136-137,211-212,222-223,226-227,229,232,236,243,247,254,261-265,267-284,288-296,299-323,325-330,333-351,354,356,359,364,404-405,414-427,429-431,434-442,445-447,451,458-459,461,463,470,477,485,498,500-523,525-587
+packages/core/src/adapter/bun/server.ts
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 10-11
+  s_3827fec5c7f2ed::t_3a8cc66a3cea1e 1-9,14
+  s_3827fec5c7f2ed::t_35d78e5d4fb288 12-13
+packages/core/src/cli/index.ts
+  s_3827fec5c7f2ed::t_f5fe68c7533fbc 6,141-142,145-150,160-162,169,197
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 143-144,166-167
+  s_3827fec5c7f2ed::t_60c57201f4b0c7 163-165
+  s_3827fec5c7f2ed::t_1a5eb371899cde 152-156
+packages/core/src/build/types.ts
+  s_3827fec5c7f2ed::t_803d729d5f0b05 1-2,76,98-99,128-129,153
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_3827fec5c7f2ed::t_6d98a8a3a53d42 5,21-28
+  s_3827fec5c7f2ed::t_854af7f0457ad8 230-231,241,244,271
+  s_3827fec5c7f2ed::t_b1f34ec1834ddf 2,12-20,29,108,111,468
+packages/core/src/adapter/package.ts
+  s_3827fec5c7f2ed::t_9e818bf32ca94a 151-152
+  s_3827fec5c7f2ed::t_54b5ded95ca997 6,10,12-13,24,145,164-169,218-229
+  s_3827fec5c7f2ed::t_23b76c3b34ede0 230
+packages/core/src/adapter/vercel/handler.ts
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 95
+  s_3827fec5c7f2ed::t_59f1e5128276e9 1-94,96-129
+packages/core/src/server/prerender.ts
+  s_3827fec5c7f2ed::t_765b505cbfacbf 1-15,19-75,77-91,93-116,118-122
+  s_3827fec5c7f2ed::t_04085340cee553 76,92,117
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 16-18
+packages/core/src/server/internal.ts
+  s_3827fec5c7f2ed::t_04085340cee553 16,136-139
+  s_3827fec5c7f2ed::t_76f843780534f3 140
+packages/core/src/adapter/bun.ts
+  s_3827fec5c7f2ed::t_b173aa525feec3 4,6-7,9-10,12,14,20-26,28-44,46-50,53-54,56-63,65-67,69,71-102
+  s_3827fec5c7f2ed::t_6ad492a2fe593e 1-2
+packages/core/src/build/index.ts
+  s_3827fec5c7f2ed::t_5c7699e750621c 4-5,9-11,40-64,208,210,221-223,253-257,259-267,269-282,284-286,288-296
+packages/core/src/build/shared.ts
+  s_3827fec5c7f2ed::t_dec3ae9b127f97 6
+packages/core/src/adapter/vercel/bootstrap.ts
+  s_3827fec5c7f2ed::t_d68f9e36064587 1-10,12-85
+  s_3827fec5c7f2ed::t_c164f2bea0e903 11
+packages/core/tests/build/vercel-optional-sync.test.ts
+  s_3827fec5c7f2ed::t_f9f40748bae847 36,38-39
+packages/core/src/adapter/vercel/data.ts
+  s_3827fec5c7f2ed::t_14d6aab7a8ed50 1-21
+packages/core/tests/contract/vercel-regions.test.ts
+  s_3827fec5c7f2ed::t_883894a2681807 9-10,13-17
+  s_3827fec5c7f2ed::t_3d5239eefe34ec 2,4,6
+packages/core/src/adapter/furin-app.d.ts
+  s_3827fec5c7f2ed::t_19163c943742ca 1-14
+packages/core/tests/build/config/cli-config.test.ts
+  s_3827fec5c7f2ed::t_697e37f5edb028 56,63-64,70-72,75,77,79-81,84,90-91,95-102
+packages/core/src/cli/config.ts
+  s_3827fec5c7f2ed::t_2e36cb61298e33 6,10-15,95-112,152-153,173-182,199
+packages/core/src/adapter/build.ts
+  s_3827fec5c7f2ed::t_15f2aa1aeed2ff 68-71,82,84-91
+  s_3827fec5c7f2ed::t_563693cdb6ecca 1-38,45,48-50,64-67,72-81,83,92-95,97-191,193-204,206-252
+  s_3827fec5c7f2ed::t_b12e38a99b37a9 205
+  s_3827fec5c7f2ed::t_26990d41983497 39-44,46-47,51-63,192
+  s_3827fec5c7f2ed::t_1a5eb371899cde 96
+packages/core/src/build/entry-template.ts
+  s_3827fec5c7f2ed::t_5f54bc8451408a 20-21,75-79,131-132,170-172,220,231-233,274
+packages/core/src/adapter/README.md
+  s_3827fec5c7f2ed::t_2ebfa9cd1fa174 1-12,14-21,23-24,26-29,31-33,49-50,64,84-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c73a7853c53cdd44e7636d26137a50c3c56198a",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
