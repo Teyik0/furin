@@ -626,7 +626,8 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
   const nativeResponse = await nativeModule.furinApp.handle(new Request("http://furin/"));
   const ssrResponse = await instance.handle(new Request("http://furin/"));
 
-  expect(await nativeResponse.json()).toEqual({ title: "Native route" });
+  expect(nativeResponse.status).toBe(500);
+  expect(await nativeResponse.text()).not.toContain("Native route");
   expect(ssrResponse.headers.get("content-type")).toContain("text/html");
   expect(await ssrResponse.text()).toContain("Native route");
 });
@@ -658,8 +659,7 @@ test.serial("furin() lets a prefixed mount handle GET before a root catch-all pa
   expect(await response.text()).toBe("auth:/auth/session");
   expect(pageResponse.status).toBe(200);
   expect(await pageResponse.text()).toContain("Catch-all page");
-  expect(standaloneResponse.status).toBe(200);
-  expect(await standaloneResponse.json()).toEqual({});
+  expect(standaloneResponse.status).toBe(500);
 });
 
 test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", async () => {

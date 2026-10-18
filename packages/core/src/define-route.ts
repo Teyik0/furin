@@ -325,82 +325,30 @@ export function getFurinRenderer(context: object): FurinRouteDispatcher | undefi
   return typeof renderer === "function" ? (renderer as FurinRouteDispatcher) : undefined;
 }
 
-function registerPlain<
-  Params,
-  Query,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(loader: Loader<Params, Query, ParentData, Data, Mode> | undefined) {
-  return new Elysia().get("", async (context) => {
-    const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
-    }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: {} as Params,
-            query: {} as Query,
-          } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+const OUTSIDE_FURIN_ERROR =
+  "[furin] route.elysia must be mounted through furin(); it has no renderer outside the Furin plugin.";
+
+function renderRoute(context: object): unknown {
+  const renderer = getFurinRenderer(context);
+  if (!renderer) {
+    throw new Error(OUTSIDE_FURIN_ERROR);
+  }
+  return renderer(context as unknown as FurinNativeRouteContext);
+}
+
+function registerPlain() {
+  return new Elysia().get("", renderRoute);
 }
 
 function registerSchema<
-  Params,
-  Query,
   ParamsSchema extends FurinSchema,
   QuerySchema extends FurinSchema | undefined,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(
-  paramsSchema: ParamsSchema,
-  querySchema: QuerySchema,
-  loader: Loader<Params, Query, ParentData, Data, Mode> | undefined
-) {
-  return new Elysia().get("", { params: paramsSchema, query: querySchema }, async (context) => {
-    const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
-    }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: context.params as Params,
-            query: context.query as Query,
-          } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+>(paramsSchema: ParamsSchema, querySchema: QuerySchema) {
+  return new Elysia().get("", { params: paramsSchema, query: querySchema }, renderRoute);
 }
 
-function registerQuery<
-  Query,
-  QuerySchema extends FurinSchema,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(querySchema: QuerySchema, loader: Loader<NoFields, Query, ParentData, Data, Mode> | undefined) {
-  return new Elysia().get("", { query: querySchema }, async (context) => {
-    const renderer = getFurinRenderer(context);
-    if (renderer) {
-      return renderer(context as unknown as FurinNativeRouteContext);
-    }
-    return Response.json(
-      loader
-        ? await loader({
-            ...context,
-            params: {},
-            query: context.query as Query,
-          } as unknown as LoaderContext<NoFields, Query, ParentData, Mode>)
-        : {}
-    );
-  });
+function registerQuery<QuerySchema extends FurinSchema>(querySchema: QuerySchema) {
+  return new Elysia().get("", { query: querySchema }, renderRoute);
 }
 
 function schemaValues(value: unknown): SchemaValues {
@@ -442,39 +390,20 @@ async function validateLayoutSchema(
   return { ...schemaValues(value), ...schemaValues(parsed) };
 }
 
-function registerLayout<
-  Params,
-  Query,
-  ParentData extends LoaderData,
-  Data extends LoaderData,
-  Mode extends RenderingMode,
->(
+function registerLayout(
   paramsSchema: FurinSchema | undefined,
-  querySchema: FurinSchema | undefined,
-  loader: Loader<Params, Query, ParentData, Data, Mode> | undefined
+  querySchema: FurinSchema | undefined
 ) {
   const app = new Elysia();
-  if (paramsSchema || querySchema || loader) {
-    app.derive(async (context) => {
-      const params = paramsSchema
+  if (paramsSchema || querySchema) {
+    app.derive(async (context) => ({
+      params: paramsSchema
         ? await validateLayoutSchema("params", paramsSchema, context.params)
-        : context.params;
-      const query = querySchema
+        : context.params,
+      query: querySchema
         ? await validateLayoutSchema("query", querySchema, context.query)
-        : context.query;
-      if (getFurinRenderer(context)) {
-        return { params, query };
-      }
-      return {
-        ...(loader
-          ? await loader({
-              ...context,
-              params: params as Params,
-              query: query as Query,
-            } as unknown as LoaderContext<Params, Query, ParentData, Mode>)
-          : {}),
-      };
-    });
+        : context.query,
+    }));
   }
   return app;
 }
@@ -593,7 +522,7 @@ class NoSchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerPlain<Params, Query, ParentData, NoFields, Mode>(undefined),
+      elysia: registerPlain(),
       head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
@@ -605,11 +534,7 @@ class NoSchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerLayout<Params, Query, ParentData, NoFields, Mode>(
-        undefined,
-        undefined,
-        undefined
-      ),
+      elysia: registerLayout(undefined, undefined),
       head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
@@ -657,7 +582,7 @@ class LoadedNoSchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerPlain<Params, Query, ParentData, Data, Mode>(this.loaderFunction),
+      elysia: registerPlain(),
       head: this.headFunction,
       loader: this.loaderFunction,
       page: component,
@@ -670,11 +595,7 @@ class LoadedNoSchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
-        undefined,
-        undefined,
-        this.loaderFunction
-      ),
+      elysia: registerLayout(undefined, undefined),
       head: this.headFunction,
       layout: component,
       loader: this.loaderFunction,
@@ -772,10 +693,7 @@ class QuerySchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerQuery<Query, QuerySchema, ParentData, NoFields, Mode>(
-        this.querySchema,
-        undefined
-      ),
+      elysia: registerQuery(this.querySchema),
       head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
@@ -788,11 +706,7 @@ class QuerySchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerLayout<NoFields, Query, ParentData, NoFields, Mode>(
-        undefined,
-        this.querySchema,
-        undefined
-      ),
+      elysia: registerLayout(undefined, this.querySchema),
       head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
@@ -850,10 +764,7 @@ class LoadedQuerySchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerQuery<Query, QuerySchema, ParentData, Data, Mode>(
-        this.querySchema,
-        this.loaderFunction
-      ),
+      elysia: registerQuery(this.querySchema),
       head: this.headFunction,
       loader: this.loaderFunction,
       page: component,
@@ -867,11 +778,7 @@ class LoadedQuerySchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerLayout<NoFields, Query, ParentData, Data, Mode>(
-        undefined,
-        this.querySchema,
-        this.loaderFunction
-      ),
+      elysia: registerLayout(undefined, this.querySchema),
       head: this.headFunction,
       layout: component,
       loader: this.loaderFunction,
@@ -1001,11 +908,7 @@ class SchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, NoFields, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        undefined
-      ),
+      elysia: registerSchema(this.paramsSchema, this.querySchema),
       head: this.headFunction,
       page: component,
       requestLoader: this.requestLoaderFunction,
@@ -1018,11 +921,7 @@ class SchemaChain<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData>(this.metadata),
       component,
-      elysia: registerLayout<Params, Query, ParentData, NoFields, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        undefined
-      ),
+      elysia: registerLayout(this.paramsSchema, this.querySchema),
       head: this.headFunction,
       layout: component,
       requestLoader: this.requestLoaderFunction,
@@ -1086,11 +985,7 @@ class LoadedSchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerSchema<Params, Query, ParamsSchema, QuerySchema, ParentData, Data, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        this.loaderFunction
-      ),
+      elysia: registerSchema(this.paramsSchema, this.querySchema),
       head: this.headFunction,
       loader: this.loaderFunction,
       page: component,
@@ -1104,11 +999,7 @@ class LoadedSchema<
       __type: "FURIN_ROUTE" as const,
       ...withMetadata<Mode, ParentData, Data>(this.metadata),
       component,
-      elysia: registerLayout<Params, Query, ParentData, Data, Mode>(
-        this.paramsSchema,
-        this.querySchema,
-        this.loaderFunction
-      ),
+      elysia: registerLayout(this.paramsSchema, this.querySchema),
       head: this.headFunction,
       layout: component,
       loader: this.loaderFunction,

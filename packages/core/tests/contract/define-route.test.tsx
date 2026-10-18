@@ -32,7 +32,12 @@ const route = defineRoute()
     return `${boardTitle}:${id}:${tab ?? "none"}`;
   });
 
-const app = new Elysia().use(new Elysia({ prefix: "/boards/:id" }).use(route.elysia));
+const echoRenderer = (context: { params: unknown; query: unknown }) =>
+  Response.json({ params: context.params, query: context.query });
+
+const app = new Elysia()
+  .decorate("$furinRender", echoRenderer)
+  .use(new Elysia({ prefix: "/boards/:id" }).use(route.elysia));
 
 const queryRoute = defineRoute()
   .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })
@@ -42,7 +47,9 @@ const queryRoute = defineRoute()
   })
   .page(({ page, query }) => `${page}:${query.page}`);
 
-const queryApp = new Elysia().use(new Elysia({ prefix: "/search" }).use(queryRoute.elysia));
+const queryApp = new Elysia()
+  .decorate("$furinRender", echoRenderer)
+  .use(new Elysia({ prefix: "/search" }).use(queryRoute.elysia));
 
 describe("defineRoute", () => {
   test("delegates matched native routes to the Furin renderer when mounted", async () => {
@@ -64,11 +71,52 @@ describe("defineRoute", () => {
     expect(loaderCalls).toBe(0);
   });
 
+  test("refuses to serve a page when mounted outside furin()", async () => {
+    let loaderCalls = 0;
+    const page = defineRoute()
+      .config({ layout: rootRoute, mode: "ssr" })
+      .loader(() => {
+        loaderCalls += 1;
+        return { secret: "loader data" };
+      })
+      .page(({ secret }) => secret);
+
+    const response = await new Elysia().use(page.elysia).handle(new Request("http://localhost/"));
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).toContain("must be mounted through furin()");
+    expect(body).not.toContain("loader data");
+    expect(loaderCalls).toBe(0);
+  });
+
+  test("does not run layout loaders when mounted outside furin()", async () => {
+    let loaderCalls = 0;
+    const layout = defineRootRoute()
+      .config({ mode: "ssr" })
+      .loader(() => {
+        loaderCalls += 1;
+        return { secret: "layout data" };
+      })
+      .layout(({ children }) => children);
+    const child = defineRoute()
+      .config({ layout, mode: "ssr" })
+      .page(() => null);
+
+    const response = await new Elysia()
+      .use(layout.elysia.use(child.elysia))
+      .handle(new Request("http://localhost/"));
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("layout data");
+    expect(loaderCalls).toBe(0);
+  });
+
   test("builds a schema-validated Elysia route with Furin metadata", async () => {
     const response = await app.handle(new Request("http://localhost/boards/42?tab=activity"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ board: "Board 42", tab: "activity" });
+    expect(await response.json()).toEqual({ params: { id: 42 }, query: { tab: "activity" } });
     expect(route.mode).toBe("isr");
     expect(route.revalidate).toBe(60);
     expect(route.tags).toEqual(["boards"]);
@@ -94,7 +142,7 @@ describe("defineRoute", () => {
     const invalid = await queryApp.handle(new Request("http://localhost/search?page=nope"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ page: 2 });
+    expect(await response.json()).toMatchObject({ query: { page: 2 } });
     expect(invalid.status).toBe(422);
   });
 
@@ -358,18 +406,11 @@ describe("defineRoute", () => {
         const page: number = query.page;
         return `${accountName}:${organizationName}:${pageLabel}:${page}`;
       });
-    const nestedApp = new Elysia().use(
-      rootLayout.elysia.use(organizationLayout.elysia.use(child.elysia))
-    );
-
-    const response = await nestedApp.handle(new Request("http://localhost/?page=1"));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ label: "acme:acme:furin:1" });
     expect("parent" in child).toBe(false);
+    await Promise.resolve();
   });
 
-  test("passes dynamic child params to a layout loader", async () => {
+  test("validates dynamic layout params before the renderer", async () => {
     const layout = defineRootRoute()
       .config({ mode: "ssr", params: t.Object({ organizationId: t.Number() }) })
       .loader(({ params }) => ({ organizationId: params.organizationId }))
@@ -385,17 +426,22 @@ describe("defineRoute", () => {
         organizationId: (context as typeof context & { organizationId: number }).organizationId,
       }))
       .page(({ boardId, organizationId }) => `${organizationId}:${boardId}`);
-    const nestedApp = new Elysia().use(
-      new Elysia({ prefix: "/:organizationId" }).use(
-        layout.elysia.use(new Elysia({ prefix: "/boards/:boardId" }).use(child.elysia))
-      )
-    );
+    const nestedApp = new Elysia()
+      .decorate("$furinRender", echoRenderer)
+      .use(
+        new Elysia({ prefix: "/:organizationId" }).use(
+          layout.elysia.use(new Elysia({ prefix: "/boards/:boardId" }).use(child.elysia))
+        )
+      );
 
     const response = await nestedApp.handle(new Request("http://localhost/12/boards/42"));
     const invalid = await nestedApp.handle(new Request("http://localhost/nope/boards/42"));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ boardId: 42, organizationId: 12 });
+    expect(await response.json()).toEqual({
+      params: { boardId: 42, organizationId: 12 },
+      query: {},
+    });
     expect(invalid.status).toBe(422);
   });
 

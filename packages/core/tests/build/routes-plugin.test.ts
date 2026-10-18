@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { type AnyElysia, Elysia } from "elysia";
 import {
   composableRouteModuleSpecifier,
   createRoutesPlugin,
@@ -11,6 +12,15 @@ import {
 import { routeMapDeclaration } from "../../src/shared/route-map.ts";
 
 const FIXTURES = join(import.meta.dir, "../fixtures/routes-v2");
+
+// Route apps refuse to render outside furin(); echo what the renderer receives.
+function withEchoRenderer(furinApp: AnyElysia) {
+  return new Elysia()
+    .decorate("$furinRender", (context: { params: unknown; route: string }) =>
+      Response.json({ params: context.params, rendered: true, route: context.route })
+    )
+    .use(furinApp);
+}
 
 describe("furin/routes server plugin", () => {
   test("rejects conflicting dynamic URLs across route groups", async () => {
@@ -53,15 +63,20 @@ describe("furin/routes server plugin", () => {
         throw new Error("Expected a bundled entry point");
       }
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        furinApp: { handle(request: Request): Promise<Response> };
+        furinApp: AnyElysia;
       };
 
-      const admin = await built.furinApp.handle(new Request("http://localhost/users/42"));
+      const app = withEchoRenderer(built.furinApp);
+      const admin = await app.handle(new Request("http://localhost/users/42"));
       expect(admin.status).toBe(200);
-      expect(await admin.json()).toEqual({ group: "admin", id: "42" });
-      const marketing = await built.furinApp.handle(new Request("http://localhost/"));
+      expect(await admin.json()).toEqual({
+        params: { id: "42" },
+        rendered: true,
+        route: "/users/:id",
+      });
+      const marketing = await app.handle(new Request("http://localhost/"));
       expect(marketing.status).toBe(200);
-      expect(await marketing.json()).toEqual({ group: "marketing" });
+      expect(await marketing.json()).toMatchObject({ rendered: true });
       expect(
         (await built.furinApp.handle(new Request("http://localhost/(admin)/users/42"))).status
       ).toBe(404);
@@ -111,7 +126,7 @@ describe("furin/routes server plugin", () => {
         throw new Error("Expected a bundled entry point");
       }
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        furinApp: { handle(request: Request): Promise<Response> };
+        furinApp: AnyElysia;
       };
 
       const [hyphen, nested] = await Promise.all([
@@ -150,25 +165,22 @@ export { furinApp as composableApp } from ${JSON.stringify(composableRouteModule
         throw new Error("Expected a bundled entry point");
       }
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        furinApp: { handle(request: Request): Promise<Response> };
-        composableApp: { handle(request: Request): Promise<Response> };
+        furinApp: AnyElysia;
+        composableApp: AnyElysia;
       };
 
-      const response = await built.furinApp.handle(
-        new Request("http://localhost/docs/guides/routing")
-      );
+      const app = withEchoRenderer(built.furinApp);
+      const response = await app.handle(new Request("http://localhost/docs/guides/routing"));
       if (response.status !== 200) {
         throw new Error(await response.text());
       }
 
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ catchAllPath: "guides/routing" });
+      expect(await response.json()).toMatchObject({ params: { "*": "guides/routing" } });
 
-      const rootResponse = await built.furinApp.handle(
-        new Request("http://localhost/other/page")
-      );
+      const rootResponse = await app.handle(new Request("http://localhost/other/page"));
       expect(rootResponse.status).toBe(200);
-      expect(await rootResponse.json()).toEqual({ rootCatchAllPath: "other/page" });
+      expect(await rootResponse.json()).toMatchObject({ params: { "*": "other/page" } });
       expect(
         (await built.composableApp.handle(new Request("http://localhost/other/page"))).status
       ).toBe(404);
@@ -207,13 +219,12 @@ export { adminApp, rootApp };
       }
 
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        adminApp: { handle(request: Request): Promise<Response> };
-        rootApp: { handle(request: Request): Promise<Response> };
+        adminApp: AnyElysia;
+        rootApp: AnyElysia;
       };
-      expect(await (await built.rootApp.handle(new Request("http://localhost/"))).json()).toEqual({
-        home: true,
-        root: true,
-      });
+      expect(
+        await (await withEchoRenderer(built.rootApp).handle(new Request("http://localhost/"))).json()
+      ).toMatchObject({ rendered: true });
       expect(await (await built.adminApp.handle(new Request("http://localhost/"))).text()).toBe(
         "admin"
       );
@@ -245,15 +256,21 @@ export { adminApp, rootApp };
         throw new Error("Expected a bundled entry point");
       }
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        furinApp: { handle(request: Request): Promise<Response> };
+        furinApp: AnyElysia;
       };
 
-      const response = await built.furinApp.handle(new Request("http://localhost/boards/42"));
+      const response = await withEchoRenderer(built.furinApp).handle(
+        new Request("http://localhost/boards/42")
+      );
       if (response.status !== 200) {
         throw new Error(await response.text());
       }
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ board: "42", user: "teyik" });
+      expect(await response.json()).toEqual({
+        params: { id: "42" },
+        rendered: true,
+        route: "/boards/:id",
+      });
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
     }
@@ -306,12 +323,14 @@ export { adminApp, rootApp };
       }
 
       const built = (await import(`${output.path}?t=${Date.now()}`)) as {
-        furinApp: { handle(request: Request): Promise<Response> };
+        furinApp: AnyElysia;
       };
       // The regular page still routes.
-      const index = await built.furinApp.handle(new Request("http://localhost/"));
+      const index = await withEchoRenderer(built.furinApp).handle(
+        new Request("http://localhost/")
+      );
       expect(index.status).toBe(200);
-      expect(await index.text()).toContain("underscore-index");
+      expect(await index.json()).toMatchObject({ rendered: true });
       // Co-located private files and directories never become routes.
       const components = await built.furinApp.handle(new Request("http://localhost/_components"));
       expect(components.status).toBe(404);

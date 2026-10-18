@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Breaking
+- **`route.elysia` requires `furin()`** — a route's Elysia handler no longer falls back to `Response.json(loader(...))` when it's mounted without the Furin plugin. It now throws, and layout loaders no longer run outside Furin, so loader data can't be exposed as public JSON by accident.
+
 ### Added
 - **Composite client references** — support function components declared with `"use client"` inside server composites on Bun 1.4.2, including loader-only browser imports, React DOM hydration and `Link` navigation with router context.
 
