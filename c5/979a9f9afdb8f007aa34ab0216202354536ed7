@@ -1,0 +1,26 @@
+apps/docs/src/content/docs/defer.mdx
+  s_3827fec5c7f2ed::t_6d2862ab326ffe 33
+apps/docs/src/content/docs/api-routes.mdx
+  s_3827fec5c7f2ed::t_349fda69b6cafc 87
+apps/docs/src/content/docs/deployment.mdx
+  s_3827fec5c7f2ed::t_349fda69b6cafc 157,249,353
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_a96d5c18c11e0c 36
+  s_3827fec5c7f2ed::t_b978b5b6fade3d 10,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5979a9f9afdb8f007aa34ab0216202354536ed7",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
