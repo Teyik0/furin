@@ -7,7 +7,13 @@ import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cac
 import { waitForPageCacheEntry } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
-import { type Cache, createRouteCache, type RevalidateType } from "../cache/route-cache.ts";
+import {
+  type Cache,
+  canonicalCacheRequest,
+  createRouteCache,
+  pathWithRequestSearch,
+  type RevalidateType,
+} from "../cache/route-cache.ts";
 import { getCache, hasExternalRuntimeCache } from "../cache/runtime-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
@@ -345,17 +351,34 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
   return renderSharedPpr(input, identity, lease, revalidate);
 }
 
+/**
+ * The key and context the public shell renders with. Only the canonical query
+ * reaches the shell; resuming still hands the live request to requestLoader
+ * holes. External prerenders stay per-URL: the deployment caches them by URL
+ * and resumes their holes from the shell's recorded path.
+ */
+function pprShellRequest(
+  route: ResolvedRoute,
+  resolvedPath: string,
+  ctx: Context
+): { cacheKey: string; ctx: Context } {
+  return isExternalPrerenderRequest(ctx.request)
+    ? { cacheKey: pathWithRequestSearch(resolvedPath, ctx.request.url), ctx }
+    : canonicalCacheRequest(route, resolvedPath, ctx);
+}
+
 async function getPprArtifact(
   route: ResolvedRoute,
-  ctx: Context,
+  requestCtx: Context,
   root: RootLayout,
   buildId: string,
   searchRoutes: SearchRouteMetadata[] | undefined
 ): Promise<PprResult> {
-  const requestUrl = new URL(ctx.request.url);
-  const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
+  const resolvedPath = resolvePath(route.pattern, requestCtx.params ?? {});
   const documentMode = resolveDocumentMode(route);
-  const cacheKey = `${documentMode}:${resolvedPath}${requestUrl.search}`;
+  const shell = pprShellRequest(route, resolvedPath, requestCtx);
+  const { ctx } = shell;
+  const cacheKey = `${documentMode}:${shell.cacheKey}`;
   const externalPrerender = isExternalPrerenderRequest(ctx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   if (pageCache !== undefined) {

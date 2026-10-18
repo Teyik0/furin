@@ -1103,6 +1103,84 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(3);
   });
 
+  test("keys PPR public shells on declared query params only, in canonical order", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute()
+      .config({
+        layout: rootTerminal,
+        mode: "isr",
+        query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { view: query.view ?? "" };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ user, view }) => (
+      <main>
+        <h1>{view}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const app = new Elysia().use(createRoutePlugin(resolveRoute(page), root, "build-1"));
+
+    for (const search of [
+      "?view=alpha&sort=new",
+      "?sort=new&view=alpha&junk=1",
+      "?utm_source=x&view=alpha&sort=new",
+      "?view=beta&sort=new",
+    ]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      await app.handle(new Request(`http://localhost/account${search}`));
+    }
+
+    expect(observed).toEqual([
+      { sort: "new", view: "alpha" },
+      { sort: "new", view: "beta" },
+    ]);
+  });
+
+  test("PPR routes without a query schema share one shell while requestLoader holes see the raw query", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute()
+      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .requestLoader(({ query }) => ({ user: `ref:${Object.values(query).join()}` }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { catalog: "Shoes" };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ catalog, user }) => (
+      <main>
+        <h1>{catalog}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const app = new Elysia().use(createRoutePlugin(resolveRoute(page), root, "build-1"));
+
+    const first = await app
+      .handle(new Request("http://localhost/account?ref=attacker"))
+      .then((response) => response.text());
+    const second = await app
+      .handle(new Request("http://localhost/account?ref=newsletter"))
+      .then((response) => response.text());
+
+    expect(observed).toEqual([{}]);
+    expect(first).toContain("ref:attacker");
+    expect(second).toContain("ref:newsletter");
+    expect(second).not.toContain("attacker");
+  });
+
   test("revalidateTag invalidates a PPR public shell", async () => {
     let catalog = "Shoes";
     let publicCalls = 0;
