@@ -10,6 +10,8 @@ const config: KnipConfig = {
       entry: [
         "doctor.config.ts",
         "scripts/compare-vercel-framework-reports.ts",
+        // Run by hyperfine in ci.yaml, where knip cannot see the reference.
+        "scripts/probe-server-startup.ts",
         "scripts/startup-weather-preload.ts",
       ],
     },
