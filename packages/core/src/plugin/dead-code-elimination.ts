@@ -1,7 +1,8 @@
 import MagicString from "magic-string";
 import type { ImportDeclaration, Program, SourceLang } from "yuku-parser";
+import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
+import type { AstNode } from "../shared/utils/ast-walk.ts";
 
 const TYPE_SCOPE_NODES = new Set([
   "TSTypeAnnotation",
@@ -13,120 +14,370 @@ const TYPE_SCOPE_NODES = new Set([
   "TSClassImplements",
   "TSExpressionWithTypeArguments",
 ]);
+const TYPE_ASSERTION_NODES = new Set([
+  "TSAsExpression",
+  "TSSatisfiesExpression",
+  "TSTypeAssertion",
+]);
+const WALK_SKIPPED_KEYS = new Set(["type", "start", "end"]);
 
-function markTypeDescendants(node: unknown, excluded: Set<unknown>): void {
-  if (!node || typeof node !== "object") {
+export interface SourceRange {
+  end: number;
+  start: number;
+}
+
+/** A top-level statement, or one declarator of a top-level variable declaration. */
+interface ModuleUnit {
+  /** Variable declaration owning a declarator unit; null for other statements. */
+  declaration: AstNode | null;
+  exported: boolean;
+  /** Bindings the unit declares and DCE may remove. */
+  names: string[];
+  node: AstNode;
+  references: Set<string>;
+}
+
+interface ModuleReferences {
+  /** Every identifier name used outside import declarations. */
+  names: Set<string>;
+  units: ModuleUnit[];
+}
+
+/**
+ * One module being pruned: `program` is the AST of `source.original`, and
+ * every edit already applied to `source` that dropped code is in `removed`.
+ */
+export interface DeadCodeState {
+  /** References of the module before the transform stripped anything. */
+  before: ModuleReferences;
+  /** Bindings the transform knows to be server-only, whatever their initializer. */
+  forced: ReadonlySet<string>;
+  program: Program;
+  removed: SourceRange[];
+  /** Names referenced by code the transform inserted into `source`. */
+  retained: ReadonlySet<string>;
+  source: MagicString;
+}
+
+function isRemoved(node: SourceRange, removed: readonly SourceRange[]): boolean {
+  return removed.some((range) => range.start <= node.start && node.end <= range.end);
+}
+
+/** Identifiers a pattern declares are not reads; its default values are. */
+function excludeBindingIdentifiers(pattern: unknown, excluded: Set<unknown>): void {
+  if (!pattern || typeof pattern !== "object") {
     return;
   }
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      markTypeDescendants(item, excluded);
+  const node = pattern as AstNode;
+  if (node.type === "Identifier") {
+    excluded.add(node);
+  } else if (node.type === "AssignmentPattern") {
+    excludeBindingIdentifiers(node.left, excluded);
+  } else if (node.type === "RestElement") {
+    excludeBindingIdentifiers(node.argument, excluded);
+  } else if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    for (const element of node.elements) {
+      excludeBindingIdentifiers(element, excluded);
     }
-    return;
-  }
-  const astNode = node as AstNode;
-  if (astNode.type === "Identifier" || astNode.type === "JSXIdentifier") {
-    excluded.add(astNode);
-  }
-  for (const key of Object.keys(astNode)) {
-    if (key === "type" || key === "start" || key === "end") {
-      continue;
+  } else if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    for (const property of node.properties as AstNode[]) {
+      excludeBindingIdentifiers(property.type === "Property" ? property.value : property, excluded);
     }
-    markTypeDescendants(astNode[key], excluded);
   }
 }
 
-function excludeTypePositionIdentifiers(node: AstNode, excluded: Set<unknown>): void {
-  if (TYPE_SCOPE_NODES.has(node.type)) {
-    markTypeDescendants(node, excluded);
-    return;
-  }
-  if (
-    node.type === "TSAsExpression" ||
-    node.type === "TSSatisfiesExpression" ||
-    node.type === "TSTypeAssertion"
+function excludeDeclaredIdentifiers(node: AstNode, excluded: Set<unknown>): void {
+  if (node.type === "VariableDeclarator") {
+    excludeBindingIdentifiers(node.id, excluded);
+  } else if (
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "ArrowFunctionExpression"
   ) {
-    markTypeDescendants(node.typeAnnotation as unknown, excluded);
+    excludeBindingIdentifiers(node.id, excluded);
+    for (const parameter of node.params as unknown[]) {
+      excludeBindingIdentifiers(parameter, excluded);
+    }
+  } else if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
+    excludeBindingIdentifiers(node.id, excluded);
+  } else if (node.type === "CatchClause") {
+    excludeBindingIdentifiers(node.param, excluded);
   }
 }
 
-function collectReferencedNames(program: Program): Set<string> {
-  const refs = new Set<string>();
-  const excluded = new Set<unknown>();
-
-  for (const statement of program.body) {
-    if (statement.type === "ImportDeclaration") {
-      continue;
-    }
-    walkAST(statement, (node) => {
-      if (node.type === "Property" && !node.computed) {
-        excluded.add(node.key);
-      }
-      if (node.type === "MemberExpression" && !node.computed) {
-        excluded.add(node.property);
-      }
-      if (node.type === "JSXAttribute") {
-        excluded.add(node.name);
-      }
-      if (node.type === "JSXMemberExpression") {
-        excluded.add(node.property);
-      }
-      excludeTypePositionIdentifiers(node, excluded);
-    });
-  }
-
-  for (const statement of program.body) {
-    if (statement.type === "ImportDeclaration") {
-      continue;
-    }
-    walkAST(statement, (node) => {
-      if (excluded.has(node)) {
-        return;
-      }
-      if (
-        (node.type === "Identifier" || node.type === "JSXIdentifier") &&
-        typeof (node as AstNode & { name: string }).name === "string"
-      ) {
-        refs.add((node as AstNode & { name: string }).name);
-      }
-    });
-  }
-
-  return refs;
-}
-
-function preserveImportSideEffect(
-  transformed: MagicString,
-  code: string,
-  declaration: ImportDeclaration
+function collectReferences(
+  value: unknown,
+  removed: readonly SourceRange[],
+  excluded: Set<unknown>,
+  references: Set<string>
 ): void {
-  transformed.overwrite(
-    declaration.start,
-    declaration.end,
-    `import ${code.slice(declaration.source.start, declaration.source.end)};`
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectReferences(item, removed, excluded, references);
+    }
+    return;
+  }
+  const node = value as AstNode;
+  if (
+    typeof node.type !== "string" ||
+    excluded.has(node) ||
+    TYPE_SCOPE_NODES.has(node.type) ||
+    isRemoved(node, removed)
+  ) {
+    return;
+  }
+  if (node.type === "Property" && !node.computed) {
+    excluded.add(node.key);
+  }
+  if (node.type === "MemberExpression" && !node.computed) {
+    excluded.add(node.property);
+  }
+  if (node.type === "JSXAttribute") {
+    excluded.add(node.name);
+  }
+  if (node.type === "JSXMemberExpression") {
+    excluded.add(node.property);
+  }
+  if (TYPE_ASSERTION_NODES.has(node.type)) {
+    excluded.add(node.typeAnnotation);
+  }
+  excludeDeclaredIdentifiers(node, excluded);
+  if (
+    (node.type === "Identifier" || node.type === "JSXIdentifier") &&
+    typeof node.name === "string"
+  ) {
+    references.add(node.name);
+  }
+  for (const key of Object.keys(node)) {
+    if (!WALK_SKIPPED_KEYS.has(key)) {
+      collectReferences(node[key], removed, excluded, references);
+    }
+  }
+}
+
+/** Identifier names a node references, excluding property keys and types. */
+export function referencedNames(node: AstNode): Set<string> {
+  const references = new Set<string>();
+  collectReferences(node, [], new Set(), references);
+  return references;
+}
+
+function collectPatternNames(pattern: unknown, names: string[]): void {
+  if (!pattern || typeof pattern !== "object") {
+    return;
+  }
+  const node = pattern as AstNode;
+  if (node.type === "Identifier" && typeof node.name === "string") {
+    names.push(node.name);
+  } else if (node.type === "AssignmentPattern") {
+    collectPatternNames(node.left, names);
+  } else if (node.type === "RestElement") {
+    collectPatternNames(node.argument, names);
+  } else if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+    for (const element of node.elements) {
+      collectPatternNames(element, names);
+    }
+  } else if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
+    for (const property of node.properties as AstNode[]) {
+      collectPatternNames(property.type === "Property" ? property.value : property, names);
+    }
+  }
+}
+
+function moduleUnits(program: Program): Omit<ModuleUnit, "references">[] {
+  const units: Omit<ModuleUnit, "references">[] = [];
+  for (const statement of program.body as unknown as AstNode[]) {
+    if (statement.type === "ImportDeclaration") {
+      continue;
+    }
+    const exported =
+      statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration";
+    const declaration = exported ? (statement.declaration as AstNode | null) : statement;
+    if (declaration?.type === "VariableDeclaration") {
+      for (const declarator of declaration.declarations as AstNode[]) {
+        const names: string[] = [];
+        collectPatternNames(declarator.id, names);
+        units.push({ declaration, exported, names, node: declarator });
+      }
+      continue;
+    }
+    const id = declaration?.type === "FunctionDeclaration" ? (declaration.id as AstNode) : null;
+    units.push({
+      declaration: null,
+      exported,
+      names: typeof id?.name === "string" ? [id.name] : [],
+      node: statement,
+    });
+  }
+  return units;
+}
+
+export function collectModuleReferences(
+  program: Program,
+  removed: readonly SourceRange[]
+): ModuleReferences {
+  const names = new Set<string>();
+  const units = moduleUnits(program).map((unit) => {
+    const references = new Set<string>();
+    collectReferences(unit.node, removed, new Set(), references);
+    for (const name of references) {
+      names.add(name);
+    }
+    return { ...unit, references };
+  });
+  return { names, units };
+}
+
+function referencedOutsideDeclaration(references: ModuleReferences, name: string): boolean {
+  return references.units.some((unit) => !unit.names.includes(name) && unit.references.has(name));
+}
+
+function isSideEffectFree(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return true;
+  }
+  const node = unwrapTSExpression(value as AstNode) as AstNode;
+  switch (node.type) {
+    case "ArrowFunctionExpression":
+    case "FunctionExpression":
+    case "Identifier":
+    case "Literal":
+      return true;
+    case "TemplateLiteral":
+      return (node.expressions as unknown[]).every(isSideEffectFree);
+    case "ArrayExpression":
+      return (node.elements as (AstNode | null)[]).every(
+        (element) =>
+          element === null || (element.type !== "SpreadElement" && isSideEffectFree(element))
+      );
+    case "ObjectExpression":
+      return (node.properties as AstNode[]).every(
+        (property) =>
+          property.type === "Property" &&
+          (!property.computed || isSideEffectFree(property.key)) &&
+          isSideEffectFree(property.value)
+      );
+    default:
+      return false;
+  }
+}
+
+function isPatternSideEffectFree(pattern: unknown): boolean {
+  if (!pattern || typeof pattern !== "object") {
+    return true;
+  }
+  const node = pattern as AstNode;
+  switch (node.type) {
+    case "AssignmentPattern":
+      return isPatternSideEffectFree(node.left) && isSideEffectFree(node.right);
+    case "RestElement":
+      return isPatternSideEffectFree(node.argument);
+    case "ArrayPattern":
+      return (node.elements as unknown[]).every(isPatternSideEffectFree);
+    case "ObjectPattern":
+      return (node.properties as AstNode[]).every((property) =>
+        property.type === "Property"
+          ? (!property.computed || isSideEffectFree(property.key)) &&
+            isPatternSideEffectFree(property.value)
+          : isPatternSideEffectFree(property)
+      );
+    default:
+      return true;
+  }
+}
+
+function isDeadBinding(unit: ModuleUnit, after: ModuleReferences, state: DeadCodeState): boolean {
+  if (
+    unit.exported ||
+    unit.names.length === 0 ||
+    unit.names.some((name) => state.retained.has(name) || referencedOutsideDeclaration(after, name))
+  ) {
+    return false;
+  }
+  if (unit.names.some((name) => state.forced.has(name))) {
+    return true;
+  }
+  // A binding unused before the transform is kept: the user may rely on its
+  // initialization. Only bindings the transform orphaned are candidates.
+  return (
+    unit.names.some((name) => referencedOutsideDeclaration(state.before, name)) &&
+    (unit.declaration === null ||
+      (isPatternSideEffectFree(unit.node.id) && isSideEffectFree(unit.node.init)))
   );
 }
 
-function removeEntireImport(
-  transformed: MagicString,
-  code: string,
-  declaration: ImportDeclaration
-): void {
+function removeRange(state: DeadCodeState, start: number, end: number): void {
+  state.source.remove(start, end);
+  state.removed.push({ end, start });
+}
+
+function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
+  const { declaration, node } = unit;
+  if (!declaration) {
+    removeRange(state, node.start, node.end);
+    return;
+  }
+  const declarators = (declaration.declarations as AstNode[]).filter(
+    (declarator) => declarator === node || !isRemoved(declarator, state.removed)
+  );
+  if (declarators.length === 1) {
+    removeRange(state, declaration.start, declaration.end);
+    return;
+  }
+  const index = declarators.indexOf(node);
+  const next = declarators[index + 1];
+  const previous = declarators[index - 1] as AstNode;
+  removeRange(state, next ? node.start : previous.end, next ? next.start : node.end);
+}
+
+/**
+ * Removes top-level bindings the transform orphaned, repeating until no more
+ * become unreferenced (babel-dead-code-elimination's approach): a stripped
+ * `.loader(loadData)` must not leave `loadData` and its server imports behind.
+ */
+export function pruneDeadBindings(state: DeadCodeState): void {
+  for (;;) {
+    const after = collectModuleReferences(state.program, state.removed);
+    const dead = after.units.filter(
+      (unit) => !isRemoved(unit.node, state.removed) && isDeadBinding(unit, after, state)
+    );
+    if (dead.length === 0) {
+      return;
+    }
+    for (const unit of dead) {
+      removeUnit(unit, state);
+    }
+  }
+}
+
+function preserveImportSideEffect(source: MagicString, declaration: ImportDeclaration): void {
+  source.overwrite(
+    declaration.start,
+    declaration.end,
+    `import ${source.slice(declaration.source.start, declaration.source.end)};`
+  );
+}
+
+function removeEntireImport(source: MagicString, declaration: ImportDeclaration): void {
+  const code = source.original;
   let removeEnd = declaration.end;
   while (removeEnd < code.length && (code[removeEnd] === "\n" || code[removeEnd] === "\r")) {
     removeEnd += 1;
   }
-  transformed.remove(declaration.start, removeEnd);
+  source.remove(declaration.start, removeEnd);
 }
 
 function removeUnusedSpecifiers(
-  transformed: MagicString,
-  code: string,
+  source: MagicString,
   declaration: ImportDeclaration,
-  refs: Set<string>
+  references: ReadonlySet<string>
 ): void {
+  const code = source.original;
   const removedSpecifiers = declaration.specifiers.filter(
-    (specifier) => !refs.has(specifier.local.name)
+    (specifier) => !references.has(specifier.local.name)
   );
   for (const specifier of removedSpecifiers) {
     let removeStart = specifier.start;
@@ -140,34 +391,18 @@ function removeUnusedSpecifiers(
         removeStart -= 1;
       }
     }
-    transformed.remove(removeStart, removeEnd);
+    source.remove(removeStart, removeEnd);
   }
 }
 
-export function deadCodeElimination(
-  transformed: MagicString,
-  originalCode: string,
-  lang: SourceLang
-): MagicString {
-  const code = transformed.toString();
-  const { program, diagnostics } = parseSource(code, lang);
-  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (firstError) {
-    console.error("[furin] DCE: failed to parse transformed output:", firstError.message);
-    return transformed;
-  }
-
-  const pruned = new MagicString(code);
-  const refs = collectReferencedNames(program);
-  const originalParse = parseSource(originalCode, lang);
-  const originalRefs = originalParse.diagnostics.some(
-    (diagnostic) => diagnostic.severity === "error"
-  )
-    ? refs
-    : collectReferencedNames(originalParse.program);
-
-  for (let index = program.body.length - 1; index >= 0; index -= 1) {
-    const statement = program.body[index];
+/** Drops import specifiers no remaining code references. */
+export function pruneDeadImports(state: DeadCodeState): void {
+  const references = collectModuleReferences(state.program, state.removed).names.union(
+    state.retained
+  );
+  const { body } = state.program;
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    const statement = body[index];
     if (statement?.type !== "ImportDeclaration") {
       continue;
     }
@@ -177,7 +412,7 @@ export function deadCodeElimination(
     }
 
     const usedCount = declaration.specifiers.filter((specifier) =>
-      refs.has(specifier.local.name)
+      references.has(specifier.local.name)
     ).length;
     if (usedCount === 0) {
       const typeOnly =
@@ -186,17 +421,70 @@ export function deadCodeElimination(
           (specifier) => (specifier as unknown as AstNode).importKind === "type"
         );
       const wasUsedBeforeTransform = declaration.specifiers.some((specifier) =>
-        originalRefs.has(specifier.local.name)
+        state.before.names.has(specifier.local.name)
       );
       if (typeOnly || wasUsedBeforeTransform) {
-        removeEntireImport(pruned, code, declaration);
+        removeEntireImport(state.source, declaration);
       } else {
-        preserveImportSideEffect(pruned, code, declaration);
+        preserveImportSideEffect(state.source, declaration);
       }
     } else if (usedCount < declaration.specifiers.length) {
-      removeUnusedSpecifiers(pruned, code, declaration, refs);
+      removeUnusedSpecifiers(state.source, declaration, references);
     }
   }
+}
 
-  return pruned;
+function reparse(
+  transformed: MagicString,
+  originalCode: string,
+  lang: SourceLang
+): DeadCodeState | null {
+  const code = transformed.toString();
+  const { program, diagnostics } = parseSource(code, lang);
+  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (firstError) {
+    console.error("[furin] DCE: failed to parse transformed output:", firstError.message);
+    return null;
+  }
+  const originalParse = parseSource(originalCode, lang);
+  const before = originalParse.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+    ? collectModuleReferences(program, [])
+    : collectModuleReferences(originalParse.program, []);
+  return {
+    before,
+    forced: new Set(),
+    program,
+    removed: [],
+    retained: new Set(),
+    source: new MagicString(code),
+  };
+}
+
+/** Prunes imports the transform orphaned; top-level bindings are left untouched. */
+export function deadCodeElimination(
+  transformed: MagicString,
+  originalCode: string,
+  lang: SourceLang
+): MagicString {
+  const state = reparse(transformed, originalCode, lang);
+  if (!state) {
+    return transformed;
+  }
+  pruneDeadImports(state);
+  return state.source;
+}
+
+/** Prunes the top-level bindings, then the imports, the transform orphaned. */
+export function pruneDeadCode(
+  transformed: MagicString,
+  originalCode: string,
+  lang: SourceLang
+): MagicString {
+  const state = reparse(transformed, originalCode, lang);
+  if (!state) {
+    return transformed;
+  }
+  pruneDeadBindings(state);
+  pruneDeadImports(state);
+  return state.source;
 }

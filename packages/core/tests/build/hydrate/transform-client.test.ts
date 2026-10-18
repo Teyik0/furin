@@ -112,6 +112,40 @@ console.log(route.component);`);
     }
   });
 
+  test("a browser build leaves out the server module behind a named loader", async () => {
+    const app = createTmpApp("cli-app");
+    // Its own package.json: the fixture would otherwise inherit the core
+    // package's `sideEffects: false`, letting Bun drop the server module anyway.
+    const furinClient: Bun.BunPlugin = {
+      name: "furin-client-stub",
+      setup(build) {
+        build.onResolve({ filter: /^@teyik0\/furin\/client$/ }, () => ({ namespace: "stub", path: "furin" }));
+        build.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
+          contents: "export const defineRoute = () => ({ page: (component) => ({ component }) });",
+          loader: "js",
+        }));
+      },
+    };
+    try {
+      const entry = join(app.path, "src/pages/index.tsx");
+      writeAppFile(app.path, "package.json", '{ "name": "named-loader-app", "type": "module" }');
+      writeAppFile(app.path, "src/db.server.ts", `const url = "postgres://admin:SUPER_SECRET_PW@db.internal/app";
+globalThis.connections = [url];
+export const db = { query: (sql: string) => \`\${url}:\${sql}\` };`);
+      writeAppFile(app.path, "src/pages/index.tsx", `import { defineRoute } from "@teyik0/furin";
+import { db } from "../db.server";
+const loadData = async () => ({ x: String(await db.query("secret")) });
+export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);
+console.log(route.component);`);
+      const build = await Bun.build({ entrypoints: [entry], target: "browser", minify: true, plugins: [furinClient, strip] });
+      expect(build.success).toBe(true);
+      const browser = (await Promise.all(build.outputs.map((output) => output.text()))).join("\n");
+      expect(browser.includes("SUPER_SECRET_PW")).toBe(false);
+    } finally {
+      app.cleanup();
+    }
+  });
+
   test("rejects a conditional factory alias before a browser build can expose its loader", async () => {
     const app = createTmpApp("cli-app");
     try {
@@ -302,6 +336,90 @@ export const route = defineRoute()
     expect(result.code).toContain("import.meta.hot.accept");
     expect(result.code).toContain('"route.tsx"');
     expect(result.removedServerCode).toBe(true);
+  });
+
+  test.each([
+    {
+      name: "named const loader",
+      source: `import { db } from "../db.server";
+const query = "PRIVATE_QUERY";
+const loadData = async () => ({ x: String(await db.query(query)) });
+export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);`,
+    },
+    {
+      name: "function declaration head",
+      source: `import { db } from "../db.server";
+function head() { return { meta: [{ title: db.title("PRIVATE_QUERY") }] }; }
+export const route = defineRoute().head(head).page(() => null);`,
+    },
+    {
+      name: "object method request loader",
+      source: `import { db } from "../db.server";
+const api = { load: () => db.query("PRIVATE_QUERY"), label: "PRIVATE_QUERY" };
+export const route = defineRoute().requestLoader(api.load).page(() => null);`,
+    },
+    {
+      name: "destructured loader",
+      source: `import { db } from "../db.server";
+const { load } = { load: () => db.query("PRIVATE_QUERY") };
+export const route = defineRoute().loader(load).page(() => null);`,
+    },
+    {
+      name: "imported helper behind a local loader",
+      source: `import { readSecret } from "../db.server";
+async function loadData() { return { x: await readSecret("PRIVATE_QUERY") }; }
+export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);`,
+    },
+  ])("removes server code only reachable from a $name", ({ source }) => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";\n${source}`,
+      "route.tsx"
+    );
+    expect(result.code).not.toContain("PRIVATE_QUERY");
+    expect(result.code).not.toContain("db.server");
+    expect(result.code).toContain(".page(");
+  });
+
+  test("a local declaration reusing a stripped binding name does not retain it", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { db } from "../db.server";
+const loadData = () => db.query("PRIVATE_QUERY");
+function Page({ loadData }, [db] = []) {
+  try { return <p>public</p>; } catch (db) { return null; }
+}
+export const route = defineRoute().loader(loadData).page(Page);`,
+      "route.tsx"
+    );
+    expect(result.code).not.toContain("PRIVATE_QUERY");
+    expect(result.code).not.toContain("db.server");
+  });
+
+  test("keeps module bindings that were already unreferenced before stripping", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { register } from "./registry";
+const sideEffect = register("KEEP_SIDE_EFFECT");
+const unusedHelper = () => "KEEP_UNUSED_HELPER";
+const loadData = () => ({ value: "PRIVATE_VALUE" });
+export const route = defineRoute().loader(loadData).page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain("KEEP_SIDE_EFFECT");
+    expect(result.code).toContain("KEEP_UNUSED_HELPER");
+    expect(result.code).not.toContain("PRIVATE_VALUE");
+  });
+
+  test("keeps a stripped loader binding whose initializer may have side effects", () => {
+    const result = transformForClient(
+      `import { defineRoute } from "@teyik0/furin";
+import { createLoader } from "./loaders";
+const loadData = createLoader("KEEP_EFFECTFUL_INIT");
+export const route = defineRoute().loader(loadData).page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain('createLoader("KEEP_EFFECTFUL_INIT")');
+    expect(result.code).toContain('from "./loaders"');
   });
 
   test("annotates route components with their client hook signature", () => {

@@ -5,7 +5,14 @@ import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { FactoryBindings, fluentChain, hasShadowingDeclaration } from "./binding-scope.ts";
-import { deadCodeElimination } from "./dead-code-elimination.ts";
+import {
+  collectModuleReferences,
+  type DeadCodeState,
+  pruneDeadBindings,
+  pruneDeadImports,
+  referencedNames,
+  type SourceRange,
+} from "./dead-code-elimination.ts";
 import { hmrDependencySignature } from "./hmr-dependencies.ts";
 import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
 
@@ -308,11 +315,41 @@ function memberAccessStart(source: string, object: AstNode, property: AstNode): 
   return object.end + separator - (accessGap[separator - 1] === "?" ? 1 : 0);
 }
 
+interface StrippedCode {
+  /** Config bindings the stripped `.config()` calls referenced. */
+  configBindings: Set<string>;
+  removed: SourceRange[];
+  /** Names the retained remount policy references. */
+  retained: Set<string>;
+}
+
+/** Drops a server stage, keeping only a `.config()` call's remount policy. */
+function stripServerStage(
+  source: MagicString,
+  stripped: StrippedCode,
+  range: SourceRange,
+  remount: AstNode | null
+): void {
+  if (remount) {
+    source.update(
+      range.start,
+      range.end,
+      `.config({ ${source.original.slice(remount.start, remount.end)} })`
+    );
+    for (const name of referencedNames(remount)) {
+      stripped.retained.add(name);
+    }
+  } else {
+    source.remove(range.start, range.end);
+  }
+  stripped.removed.push(range);
+}
+
 function removeChainedServerCalls(
   source: MagicString,
   program: Program,
   bindings: FactoryBindings,
-  configBindings: Set<string>,
+  stripped: StrippedCode,
   filename: string
 ): boolean {
   let transformed = rewriteClientImports(source, program, bindings);
@@ -342,30 +379,22 @@ function removeChainedServerCalls(
       if (!object) {
         return;
       }
-      const accessStart = memberAccessStart(source.original, object, property);
+      let remount: AstNode | null = null;
       if (property.name === "config" && Array.isArray(call.arguments)) {
         const config = asAstNode(call.arguments[0]);
         if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
-          collectConfigBindings(config, declarations, configBindings);
-          const remount = resolveRemountProperty(
+          collectConfigBindings(config, declarations, stripped.configBindings);
+          remount = resolveRemountProperty(
             config,
             declarations,
-            configBindings,
+            stripped.configBindings,
             new Set(),
             filename
           );
-          if (remount) {
-            source.update(
-              accessStart,
-              call.end,
-              `.config({ ${source.original.slice(remount.start, remount.end)} })`
-            );
-            transformed = true;
-            return;
-          }
         }
       }
-      source.remove(accessStart, call.end);
+      const accessStart = memberAccessStart(source.original, object, property);
+      stripServerStage(source, stripped, { end: call.end, start: accessStart }, remount);
       transformed = true;
     },
   });
@@ -445,53 +474,6 @@ function resolveRemountProperty(
     }
   }
   return null;
-}
-
-function pruneUnusedConfigBindings(
-  source: MagicString,
-  filename: string,
-  names: Set<string>
-): MagicString {
-  let result = source;
-  let pruned = true;
-  while (pruned) {
-    pruned = false;
-    const code = result.toString();
-    const { program } = parseSource(code, detectLangFromPath(filename));
-    const references = new Set<string>();
-    walkWithAncestors(program, [], (node, ancestors) => {
-      if (
-        node.type === "Identifier" &&
-        typeof node.name === "string" &&
-        isReferenceIdentifier(node, ancestors)
-      ) {
-        references.add(node.name);
-      }
-    });
-    result = new MagicString(code);
-    for (const statement of program.body) {
-      if (statement.type !== "VariableDeclaration") {
-        continue;
-      }
-      const retained = statement.declarations.filter(
-        (declaration) =>
-          declaration.id.type !== "Identifier" ||
-          !names.has(declaration.id.name) ||
-          references.has(declaration.id.name)
-      );
-      if (retained.length !== statement.declarations.length) {
-        result.update(
-          statement.start,
-          statement.end,
-          retained.length
-            ? `${statement.kind} ${retained.map((node) => code.slice(node.start, node.end)).join(", ")};`
-            : ""
-        );
-        pruned = true;
-      }
-    }
-  }
-  return result;
 }
 
 function collectBindingNames(pattern: unknown, names: string[]): void {
@@ -1122,14 +1104,10 @@ function collectFunctionHookSignature(code: string, component: AstNode): string[
 
 function collectClientHookSignature(
   code: string,
-  filename: string
+  program: Program,
+  bindings: FactoryBindings
 ): string[] | ImportedRouteComponent | "external" | null {
-  const lang = detectLangFromPath(filename);
-  const { program } = parseSource(code, lang);
-  const componentExpression = routeComponentExpression(
-    program,
-    collectDefineRouteBindings(program)
-  );
+  const componentExpression = routeComponentExpression(program, bindings);
   if (!componentExpression) {
     return null;
   }
@@ -1164,6 +1142,15 @@ function collectClientHookSignature(
     : "external";
 }
 
+function parseOrThrow(code: string, filename: string): Program {
+  const { diagnostics, program } = parseSource(code, detectLangFromPath(filename));
+  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
+  if (firstError) {
+    throw new Error(`Failed to parse ${filename}: ${firstError.message}`);
+  }
+  return program;
+}
+
 export function transformForClient(code: string, filename: string): TransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
@@ -1172,36 +1159,41 @@ export function transformForClient(code: string, filename: string): TransformRes
 
   const isomorphicResult = transformIsomorphicFunctions(code, filename, "client");
   const clientSource = isomorphicResult.code;
-  const { diagnostics, program } = parseSource(clientSource, lang);
-  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (firstError) {
-    throw new Error(`Failed to parse ${filename}: ${firstError.message}`);
-  }
+  // Every step below edits this one AST and MagicString in clientSource
+  // coordinates; nothing is reparsed until Bun bundles the result.
+  const program = parseOrThrow(clientSource, filename);
+  const originalProgram = clientSource === code ? program : parseOrThrow(code, filename);
 
-  let source = new MagicString(clientSource);
+  const source = new MagicString(clientSource);
   const routeBindings = collectDefineRouteBindings(program);
   assertCompleteRouteChains(program, routeBindings, filename);
-  const configBindings = new Set<string>();
+  const stripped: StrippedCode = { configBindings: new Set(), removed: [], retained: new Set() };
   const removedRouteCode = removeChainedServerCalls(
     source,
     program,
     routeBindings,
-    configBindings,
+    stripped,
     filename
   );
   const removedServerCode = isomorphicResult.transformed || removedRouteCode;
   if (removedServerCode) {
-    if (configBindings.size > 0) {
-      source = pruneUnusedConfigBindings(source, filename, configBindings);
-    }
-    source = deadCodeElimination(source, code, lang);
+    const state: DeadCodeState = {
+      before: collectModuleReferences(originalProgram, []),
+      forced: stripped.configBindings,
+      program,
+      removed: stripped.removed,
+      retained: stripped.retained,
+      source,
+    };
+    pruneDeadBindings(state);
+    pruneDeadImports(state);
   }
-  const transformedCode = source.toString();
   let hookSignature =
-    routeBindings.size > 0 ? collectClientHookSignature(transformedCode, filename) : null;
+    routeBindings.size > 0
+      ? collectClientHookSignature(clientSource, program, routeBindings)
+      : null;
   if (hookSignature && typeof hookSignature === "object" && !Array.isArray(hookSignature)) {
     const createElementBinding = unusedIdentifier(program, "__furinCreateElement");
-    source = new MagicString(transformedCode);
     source.prepend(`import { createElement as ${createElementBinding} } from "react";\n`);
     source.update(
       hookSignature.start,
@@ -1211,17 +1203,10 @@ export function transformForClient(code: string, filename: string): TransformRes
     hookSignature = [];
   }
   if (routeBindings.size > 0 && hookSignature !== null) {
-    const originalParse = parseSource(code, lang);
-    const originalError = originalParse.diagnostics.find(
-      (diagnostic) => diagnostic.severity === "error"
-    );
-    if (originalError) {
-      throw new Error(`Failed to parse ${filename}: ${originalError.message}`);
-    }
     const hmrDataSignature = createHmrDataSignature(
       code,
-      originalParse.program,
-      collectDefineRouteBindings(originalParse.program),
+      originalProgram,
+      originalProgram === program ? routeBindings : collectDefineRouteBindings(originalProgram),
       filename
     );
     const signatureValue = Array.isArray(hookSignature)

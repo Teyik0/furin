@@ -15,7 +15,7 @@ import {
 import { parseSource } from "../shared/parser.ts";
 import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { hasShadowingDeclaration, lexicalBindingScope, varBindingScope } from "./binding-scope.ts";
-import { deadCodeElimination } from "./dead-code-elimination.ts";
+import { pruneDeadCode } from "./dead-code-elimination.ts";
 import { transformClientModuleSource } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
@@ -718,7 +718,7 @@ export function transformIsomorphicFunctions(
   const aliasesPruned = new MagicString(
     pruneFactoryAliases(transformed.toString(), filename, maps)
   );
-  const pruned = deadCodeElimination(aliasesPruned, source, lang);
+  const pruned = pruneDeadCode(aliasesPruned, source, lang);
   maps.push(pruned.generateMap({ hires: true, source: filename }));
   const nested = transformIsomorphicFunctions(pruned.toString(), filename, environment);
   if (nested.map) {

@@ -214,6 +214,25 @@ export const value = (() => {
     expect(result.code).not.toContain("SERVER_SECRET");
   });
 
+  test("drops a named implementation of the other environment with its imports", () => {
+    const source = `import { createIsomorphicFn } from "@teyik0/furin";
+import { db } from "./db.server";
+import { readCookie } from "./browser";
+const query = "PRIVATE_QUERY";
+const readServer = () => db.query(query);
+function readClient() { return readCookie("PUBLIC_COOKIE"); }
+export const read = createIsomorphicFn().server(readServer).client(readClient);`;
+
+    const client = transformIsomorphicFunctions(source, "shared.ts", "client").code;
+    expect(client).not.toContain("PRIVATE_QUERY");
+    expect(client).not.toContain("db.server");
+    expect(client).toContain("PUBLIC_COOKIE");
+
+    const server = transformIsomorphicFunctions(source, "shared.ts", "server").code;
+    expect(server).toContain("PRIVATE_QUERY");
+    expect(server).not.toContain("./browser");
+  });
+
   test("the last environment implementation wins", () => {
     const result = transformForClient(`import { createIsomorphicFn } from "furin";
       export const value = createIsomorphicFn().client(() => "first").client(() => "last");`, "shared.ts");
