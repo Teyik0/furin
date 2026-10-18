@@ -1,0 +1,211 @@
+packages/core/src/client/link.tsx
+  s_3827fec5c7f2ed::t_db89cf96956147 377
+packages/core/tests/rendering/ssr/page-identity.test.tsx
+  s_3827fec5c7f2ed::t_f0ee0f1b18f1c8 3,6
+  s_3827fec5c7f2ed::t_04b5a181702889 15-27
+  s_3827fec5c7f2ed::t_8ab069ea001a79 79,85
+  s_3827fec5c7f2ed::t_2aed650f107fbc 93-96,98-100
+  s_3827fec5c7f2ed::t_8754a16f36d153 86-87
+packages/core/src/client/router/types.ts
+  s_3827fec5c7f2ed::t_f8646fbc5963c0 406,436,473-474,491
+  s_3827fec5c7f2ed::t_ba434ee26375fd 368-370
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3827fec5c7f2ed::t_fb20a2ec87456c 45-46
+  s_3827fec5c7f2ed::t_c82eb693218553 443,452
+packages/core/src/client/router/boundary-tree.tsx
+  s_3827fec5c7f2ed::t_6ee5e004397836 2,4
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_3827fec5c7f2ed::t_9221a4e02d1f97 82-86
+  s_3827fec5c7f2ed::t_851d0bfbf56294 11
+  s_3827fec5c7f2ed::t_73466e08bfc35a 406-407,409-410,436-437,439-440
+  s_b3951d4fa40800::t_e3c04c050393cb 408,438
+packages/core/tests/client/boundaries/loader-fallback-hydration.test.tsx
+  s_3827fec5c7f2ed::t_3f0ab13b4d9892 14
+  s_3827fec5c7f2ed::t_aac5df8ef6366a 180,194-195,197
+  s_3827fec5c7f2ed::t_78a14dd1009d9a 124-129
+  s_3827fec5c7f2ed::t_42112d43dd01c4 94-99
+packages/core/src/server/render/element.tsx
+  s_3827fec5c7f2ed::t_e77c29058d1d8a 1
+  s_3827fec5c7f2ed::t_304d6f14dd8972 25
+packages/core/tests/rendering/deferred/deferred-loaders.test.ts
+  s_3827fec5c7f2ed::t_d9ad7afc5f1147 290-291
+packages/core/src/server/render/ppr-document.ts
+  s_3827fec5c7f2ed::t_ba6804011bc8d3 7
+  s_3827fec5c7f2ed::t_ae6297b022e148 143
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_3827fec5c7f2ed::t_2130df529b963d 14-15
+  s_3827fec5c7f2ed::t_fad640d9a16bc2 174
+  s_3827fec5c7f2ed::t_a3f0aef20c8169 148-156
+  s_3827fec5c7f2ed::t_e2dd6c8d2e2cd8 219-221,223-225
+  s_3827fec5c7f2ed::t_b9544a706a5221 222
+  s_3827fec5c7f2ed::t_8a9cad3b3d24b0 167
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_ced0d9b4894a11 1538
+packages/core/tests/rendering/errors/render-error.test.ts
+  s_3827fec5c7f2ed::t_a716e273125921 60-63
+  s_3827fec5c7f2ed::t_fb20a2ec87456c 491-496
+  s_3827fec5c7f2ed::t_9a2be42b9d7c3b 169-171
+  s_3827fec5c7f2ed::t_2e1c879e0da0f8 448,469
+  s_3827fec5c7f2ed::t_46e9d1f6ed4df0 222,230-232
+  s_3827fec5c7f2ed::t_b54a6e4d8bbcca 190-191
+packages/core/tests/routing/errors/furinjs-not-found.test.ts
+  s_3827fec5c7f2ed::t_fb20a2ec87456c 153
+packages/core/src/shared/route-matches.ts
+  s_3827fec5c7f2ed::t_085c1628c2f4a8 1-59
+packages/core/tests/rendering/errors/route-group-boundaries.test.tsx
+  s_3827fec5c7f2ed::t_9d20d0924ca396 6,11
+  s_3827fec5c7f2ed::t_981656f45387f6 66-74
+  s_3827fec5c7f2ed::t_97d5f6b645af15 48-58
+packages/core/src/server/render/ssr.ts
+  s_3827fec5c7f2ed::t_4330fc0c115478 607,866
+  s_3827fec5c7f2ed::t_5c2d9e9d7a90c2 490
+  s_3827fec5c7f2ed::t_7558ebcac7fd89 18-22
+  s_3827fec5c7f2ed::t_41c87d7cbca78c 474,479
+  s_3827fec5c7f2ed::t_f2bd3ec8d3b1a5 133,139-145,152-154
+  s_3827fec5c7f2ed::t_aef7066aaaf86e 394
+  s_3827fec5c7f2ed::t_b4fa2b9d7ee5ba 109-111
+  s_3827fec5c7f2ed::t_64ec84a3b45285 43
+  s_3827fec5c7f2ed::t_6d3085778c02e0 367,372,377-385,387-388,391-392,395,397-408,410-420
+  s_3827fec5c7f2ed::t_ed57b8b65c7b0f 922,929
+  s_3827fec5c7f2ed::t_712d86ead18c17 5,386
+packages/core/src/server/render/isr.ts
+  s_3827fec5c7f2ed::t_09a26b4f4f951b 393
+packages/core/tests/client/navigation/route-api.test.tsx
+  s_3827fec5c7f2ed::t_55bcb20ee6f2b3 2
+  s_3827fec5c7f2ed::t_4c68a8a4ccaac6 66,81-83,90
+  s_3827fec5c7f2ed::t_e2ef9d7c636e3b 106
+  s_3827fec5c7f2ed::t_91641f549f5ef4 52-63
+  s_3827fec5c7f2ed::t_4032fec13d83bd 8
+packages/core/tests/rendering/errors/render-element-boundaries.test.tsx
+  s_3827fec5c7f2ed::t_ddfe907e4acd4a 44,63-72
+  s_3827fec5c7f2ed::t_71839c16edc0d0 120,123,126,140,143,155,158,172,175,191,194,208,211,225,228
+  s_3827fec5c7f2ed::t_6b4516d2a70e52 2-3
+  s_3827fec5c7f2ed::t_cb1bfdb7cb2aa9 22
+  s_3827fec5c7f2ed::t_590163d4e25da8 23
+packages/core/tests/client/link/router-provider-not-found.test.tsx
+  s_3827fec5c7f2ed::t_2b26f9272df4ef 6
+  s_3827fec5c7f2ed::t_414d92b436c559 23-32
+packages/core/src/build/hydrate.ts
+  s_3827fec5c7f2ed::t_77f746228bbdec 373-375,390-392,394,405-408
+  s_3827fec5c7f2ed::t_01c516608145a6 204
+  s_3827fec5c7f2ed::t_9f3c3a3d052b76 250-255
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_3827fec5c7f2ed::t_8f234b03fc74b5 11
+  s_3827fec5c7f2ed::t_10ea76f9a08d96 38-46
+  s_3827fec5c7f2ed::t_3643ec2783acd6 191-199
+packages/core/tests/rendering/errors/render-not-found.test.ts
+  s_3827fec5c7f2ed::t_d029ff1db59231 400
+  s_3827fec5c7f2ed::t_c2c6da381ef125 82-85
+  s_3827fec5c7f2ed::t_57174141fc5e50 307-309
+  s_3827fec5c7f2ed::t_04c6c73160eca6 17
+  s_3827fec5c7f2ed::t_c165f9420f5746 419,423-426
+  s_3827fec5c7f2ed::t_ea34fbf19fe4d3 139-141
+  s_3827fec5c7f2ed::t_fb20a2ec87456c 354
+  s_3827fec5c7f2ed::t_a07ffe90580000 267
+packages/core/tests/client/boundaries/route-matches-hydration.test.tsx
+  s_3827fec5c7f2ed::t_ffdc27b3daad52 211-212
+  s_3827fec5c7f2ed::t_b319a1a16f8cc4 2-4,6-13,15-22,24-27,29-33,42,44-52,60-67,69-71,95,102,106-111,184-198,200,202-203,205-210,214-219,224-239,242-243,245-250,270,290,316-317,344,352
+  s_3827fec5c7f2ed::t_8932f5e76dade8 318-334
+  s_3827fec5c7f2ed::t_9081d42e4eb4a5 241
+  s_3827fec5c7f2ed::t_6c30de94329d00 291-296
+  s_3827fec5c7f2ed::t_5df3c0bd5958d5 1,5,14,23,28,34-41,43,53-59,68,72-94,96-101,103-105,112-183,199,201,204,213,220-223,240,244,251-269,271-289,297-315,335-343,345-351
+packages/core/tests/client/boundaries/error-boundary-navigation.test.tsx
+  s_3827fec5c7f2ed::t_5bef6bb39593c7 12
+  s_3827fec5c7f2ed::t_bd19dba33c3305 170-176
+packages/core/src/server/render/index.ts
+  s_3827fec5c7f2ed::t_ced0d9b4894a11 4
+packages/core/src/client/router/spa-response.ts
+  s_3827fec5c7f2ed::t_3c0be02ec0d895 1,3,9-12,23-25,27-28
+packages/core/src/client/router/page-fetch.ts
+  s_3827fec5c7f2ed::t_c43191318ed82d 81
+  s_3827fec5c7f2ed::t_f11002ead12c7b 198,201-209
+  s_3827fec5c7f2ed::t_2a6075d6ff3e10 4
+  s_3827fec5c7f2ed::t_927c486082c38b 233,237,241,247,251
+packages/core/src/client/route-element.tsx
+  s_3827fec5c7f2ed::t_efadbee807f84f 56-59,70-73
+  s_3827fec5c7f2ed::t_a0dc04bf92d557 5-41,50,63,69,101-145
+  s_3827fec5c7f2ed::t_bbbba6ce7ff2ef 66
+  s_3827fec5c7f2ed::t_853abd32a6edbe 2-4,42-49,51-55,60-62,64-65,67-68,74-83,85-100,146-150,152,154
+packages/core/src/server/router/plugin.ts
+  s_3827fec5c7f2ed::t_00e3288a3cd916 369-375
+  s_3827fec5c7f2ed::t_d418803d31d57a 9
+  s_3827fec5c7f2ed::t_34be2c9eac1aff 120-123
+  s_3827fec5c7f2ed::t_16e02572bb8111 569-571
+packages/core/tests/client/link/link.test.tsx
+  s_3827fec5c7f2ed::t_d87976ebc23123 936-940,947-951,953-954,961-962,967
+  s_3827fec5c7f2ed::t_9d0f6387dcddde 32,34
+  s_3827fec5c7f2ed::t_671ef441f2a932 1097
+  s_3827fec5c7f2ed::t_4aecf7c70cfabc 333,978,980,984-988,990-991,998-1005,1012-1020
+  s_3827fec5c7f2ed::t_54cd053bbf4a48 236,238,261
+  s_3827fec5c7f2ed::t_88f926e2fb9094 105-116
+  s_3827fec5c7f2ed::t_2aea391fa6d325 1028,1030-1033,1035,1038,1040-1048,1051-1059,1062-1070,1073-1077,1080-1085
+  s_3827fec5c7f2ed::t_e81265ef56a9aa 245,253,262,275-277,285-287,309,322,331
+  s_3827fec5c7f2ed::t_f1138017825136 26,332,952,989
+packages/core/src/client/router/provider.tsx
+  s_3827fec5c7f2ed::t_d4303595391cc7 387-389
+  s_3827fec5c7f2ed::t_0dfc3edb8f66fc 397
+  s_3827fec5c7f2ed::t_b4a9a467df8778 19
+  s_3827fec5c7f2ed::t_f96b1662f07e90 382-386,391-396,398,402-404
+  s_3827fec5c7f2ed::t_a796f984698a92 399-401
+  s_3827fec5c7f2ed::t_fee79c1a197fe3 20
+  s_d2d38b4af01653::t_071470c6df1ed3 36
+packages/core/src/server/render/not-found.ts
+  s_3827fec5c7f2ed::t_cde6faf872802f 103-106,108-109,111-117
+  s_3827fec5c7f2ed::t_c2fdd020c2fba4 3,8
+  s_3827fec5c7f2ed::t_83c7efb6a62235 18
+  s_3827fec5c7f2ed::t_15f4be7a61da5c 107
+  s_3827fec5c7f2ed::t_5dc2a2d64cea44 124-132
+packages/core/tests/client/link/link-boundaries.test.tsx
+  s_3827fec5c7f2ed::t_26398cf04919f7 333,335-339,341,346-356,358,360
+  s_3827fec5c7f2ed::t_f9762ed256d2f7 23-27,30,33-34
+  s_3827fec5c7f2ed::t_99df327c87751b 4-6
+  s_3827fec5c7f2ed::t_8992cbaa8e8bc8 145
+  s_3827fec5c7f2ed::t_d6a0f558169d3c 155,169,186,201,219,235,269,291,315
+  s_3827fec5c7f2ed::t_1b5ba508060ccb 116-131,134
+  s_3827fec5c7f2ed::t_1a616e163c607e 7-8
+packages/core/tests/rendering/deferred/deferred-endpoint.test.ts
+  s_3827fec5c7f2ed::t_6fed1048fb63a8 220,240,828,854,867,887
+  s_3827fec5c7f2ed::t_e033e5a36b571c 12
+  s_3827fec5c7f2ed::t_0930acc7dd1a54 17-21
+packages/core/src/server/render/loaders.ts
+  s_3827fec5c7f2ed::t_0653965c5e8ea0 731
+  s_3827fec5c7f2ed::t_f3756bcb2a6814 870-875,884-892,906
+  s_3827fec5c7f2ed::t_37aa558ed2de8f 745,750,752,758-760,762-763,774
+  s_3827fec5c7f2ed::t_74335e70d166c4 12
+  s_3827fec5c7f2ed::t_de87ae8638c4d2 317-331,343,350
+  s_3827fec5c7f2ed::t_a3fdc40851e9b2 469-475,477-482,484-487,489-492,494-495,499,509-530
+packages/core/src/client/router/index.ts
+  s_d2d38b4af01653::t_68136f4ff59c80 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c40612ed9f6911c4087168f22c305082b6fdd78",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_b3951d4fa40800": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9495a513-059b-4924-af52-b57f7d1eb0b4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_d2d38b4af01653": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a2c9e233d96046a17",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
