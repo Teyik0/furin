@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo } from "react";
+import { type Context, createContext, useCallback, useContext, useMemo } from "react";
 import { navigationHrefPolicy, type RuntimeRouteTarget, resolveRouteTarget } from "./link-utils.ts";
 import type {
   NavigationOptions,
@@ -8,7 +8,14 @@ import type {
   RouterNavigate,
 } from "./types.ts";
 
-export const RouterContext = createContext<RouterContextValue | null>(null);
+// Duplicate module copies (separate entrypoints, client references) must share
+// one context, or a Link rendered by another copy never sees the provider.
+const ROUTER_CONTEXT = Symbol.for("furin.router.context.v1");
+const contextGlobal = globalThis as typeof globalThis & {
+  [ROUTER_CONTEXT]?: Context<RouterContextValue | null>;
+};
+export const RouterContext = (contextGlobal[ROUTER_CONTEXT] ??=
+  createContext<RouterContextValue | null>(null));
 
 export const CLIENT_FALLBACK_ROUTER: RouterContextValue = {
   basePath: "",
