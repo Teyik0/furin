@@ -1364,36 +1364,50 @@ export function RouterProvider({
     );
   }
 
+  const routerContext = useMemo(
+    () => ({
+      basePath,
+      currentHref,
+      currentPattern: state.match?.pattern,
+      defaultPreload,
+      defaultPreloadDelay,
+      defaultPreloadStaleTime,
+      invalidatePrefetch,
+      isNavigating,
+      navigate,
+      prefetch,
+      refresh,
+      search: resolvedSearch,
+      searchRoutes: routes,
+    }),
+    [
+      basePath,
+      currentHref,
+      state.match?.pattern,
+      defaultPreload,
+      defaultPreloadDelay,
+      defaultPreloadStaleTime,
+      invalidatePrefetch,
+      isNavigating,
+      navigate,
+      prefetch,
+      refresh,
+      resolvedSearch,
+      routes,
+    ]
+  );
   const routerTree = (
     <SearchStoreContext.Provider value={searchStore}>
-      {buildRouterTree(
-        {
-          basePath,
-          currentHref,
-          currentPattern: state.match?.pattern,
-          defaultPreload,
-          defaultPreloadDelay,
-          defaultPreloadStaleTime,
-          invalidatePrefetch,
-          isNavigating,
-          navigate,
-          prefetch,
-          refresh,
-          search: resolvedSearch,
-          searchRoutes: routes,
+      {buildRouterTree(routerContext, pageElement, {
+        digest: initialDigest,
+        document: initialDocumentState !== null,
+        onReset: () => {
+          refresh(undefined).catch((err: unknown) => {
+            log.error({ action: "boundary_reset_failed", error: String(err) });
+          });
         },
-        pageElement,
-        {
-          digest: initialDigest,
-          document: initialDocumentState !== null,
-          onReset: () => {
-            refresh(undefined).catch((err: unknown) => {
-              log.error({ action: "boundary_reset_failed", error: String(err) });
-            });
-          },
-          resetKey: `${currentHref}:${boundaryResetVersion}`,
-        }
-      )}
+        resetKey: `${currentHref}:${boundaryResetVersion}`,
+      })}
     </SearchStoreContext.Provider>
   );
   if (initialDocumentState === null) {
