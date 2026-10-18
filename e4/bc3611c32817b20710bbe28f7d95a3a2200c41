@@ -1,0 +1,21 @@
+apps/docs/src/lib/docs-search.ts
+  s_3827fec5c7f2ed::t_306f71da9dbc1d 81-82
+apps/docs/tests/docs-search.test.ts
+  s_3827fec5c7f2ed::t_c09c6f63d469f9 44-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4bc3611c32817b20710bbe28f7d95a3a2200c41",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
