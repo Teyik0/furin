@@ -14,11 +14,31 @@ import {
   setProductionTemplatePath,
 } from "../render/template.ts";
 import { loadProdRoutes } from "../router/discovery.ts";
-import { bindRuntimeRoutes, createRouteRenderer } from "../router/dispatch.ts";
+import { bindRuntimeRoutes, createRouteRenderer, type PagePorts } from "../router/dispatch.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { createSearchRouteMetadata } from "../router/schemas.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 import type { FurinSyncOption } from "../sync/config.ts";
+
+/**
+ * Production's page ports: the built route manifest, whose native routes
+ * Elysia validates, its bundled modules, and the page cache.
+ */
+const productionPagePorts: PagePorts = {
+  cache: {
+    loaders: () => Promise.resolve(undefined),
+    pages: true,
+  },
+  modules: {
+    data: (route, root, serve) => serve({ root, route }),
+    document: (route, root, serve) => serve({ root, route }),
+    render: (route) => Promise.resolve(route),
+  },
+  routes: {
+    has: () => true,
+    validatesParams: true,
+  },
+};
 
 async function createProductionBrowserEventsPlugin(
   sync: FurinSyncOption | undefined,
@@ -102,8 +122,14 @@ export async function createProdRuntime(
   const routesByPage = new Map<object, ResolvedRoute>(
     routes.map((route) => [(ctx.modules[route.path] as { route: object }).route, route])
   );
-  const renderer = createRouteRenderer(instance, routes, root, prodBuildId, searchRoutes, (key) =>
-    typeof key === "string" ? undefined : routesByPage.get(key)
+  const renderer = createRouteRenderer(
+    instance,
+    routes,
+    root,
+    prodBuildId,
+    searchRoutes,
+    (key) => (typeof key === "string" ? undefined : routesByPage.get(key)),
+    productionPagePorts
   );
   bindRuntimeRoutes(instance, {
     matches: (path) => matchPage(path) !== null,

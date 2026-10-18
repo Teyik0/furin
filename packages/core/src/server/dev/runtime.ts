@@ -7,7 +7,7 @@ import { createInstrumentationPlugin } from "../devtools/instrumentation.ts";
 import { type FurinInstance, withInstance } from "../instance.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
 import { bindRuntimeRoutes, createRouteRenderer } from "../router/dispatch.ts";
-import { invalidateStampedRouteModules } from "../router/hmr.ts";
+import { developmentPagePorts, invalidateStampedRouteModules } from "../router/hmr.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { createSearchRouteMetadata } from "../router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
@@ -51,8 +51,14 @@ function createDevelopmentRouteSnapshot(
   // The development shell binds each page handler to its route pattern.
   const routesByPattern = new Map(routes.map((route) => [route.pattern, route]));
   return {
-    render: createRouteRenderer(instance, routes, root, "", searchRoutes, (key) =>
-      typeof key === "string" ? routesByPattern.get(key) : undefined
+    render: createRouteRenderer(
+      instance,
+      routes,
+      root,
+      "",
+      searchRoutes,
+      (key) => (typeof key === "string" ? routesByPattern.get(key) : undefined),
+      developmentPagePorts
     ),
     root,
     routes,

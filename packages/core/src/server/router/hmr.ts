@@ -2,7 +2,6 @@
 import { existsSync } from "node:fs";
 import type { Context } from "elysia";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
-import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import {
@@ -14,6 +13,7 @@ import {
   setDevSSGLoaderCache,
 } from "../cache/dev-loader.ts";
 import { canonicalCacheRequest } from "../cache/route-cache.ts";
+import { getLogger } from "../context-logger.ts";
 import { devDiagnosticStore, publishDevDiagnostic } from "../dev/diagnostics.ts";
 import { devGraph } from "../dev/graph.ts";
 import { renderDevDiagnosticResponse } from "../dev/plugin.ts";
@@ -30,7 +30,6 @@ import {
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
-import { renderSSR } from "../render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import {
   annotateScannedRequestKeys,
@@ -38,7 +37,9 @@ import {
   getSourceModuleCandidates,
   isModuleNotFoundError,
 } from "./discovery.ts";
+import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { collectIntermediateLayoutDirs, resolveMode, resolveRouteRevalidate } from "./patterns.ts";
+import { createRouteDataErrorResponse } from "./plugin.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
@@ -91,27 +92,14 @@ async function runDevLoaders(route: ResolvedRoute, ctx: Context): Promise<Loader
   return result;
 }
 
-async function runDevRender(
-  route: ResolvedRoute,
-  ctx: Context,
-  root: RootLayout,
-  result: LoaderResult,
-  searchRoutes: SearchRouteMetadata[] | undefined
-): Promise<Response> {
-  try {
-    let renderRoute = route;
-    if (result.type === "data") {
-      const loadRender = Reflect.get(route.page.component, Symbol.for("furin.dev.render"));
-      if (typeof loadRender === "function") {
-        const rendered = (await loadRender()) as { default: RuntimePage["component"] };
-        renderRoute = { ...route, page: { ...route.page, component: rendered.default } };
-      }
-    }
-    return await renderSSR(renderRoute, ctx, root, result, searchRoutes);
-  } catch (error) {
-    // biome-ignore lint/style/useErrorCause: the custom error forwards this value through ErrorOptions.cause.
-    throw new DevPhaseFailure(error, "render", { cause: error });
+/** The page with its render module, loaded once its loaders returned data. */
+async function loadDevRenderRoute(route: ResolvedRoute): Promise<ResolvedRoute> {
+  const loadRender = Reflect.get(route.page.component, Symbol.for("furin.dev.render"));
+  if (typeof loadRender !== "function") {
+    return route;
   }
+  const rendered = (await loadRender()) as { default: RuntimePage["component"] };
+  return { ...route, page: { ...route.page, component: rendered.default } };
 }
 
 function devFailure(error: unknown): {
@@ -127,13 +115,28 @@ function devFailure(error: unknown): {
   return { error, phase: "import" };
 }
 
-export function reportDevRouteFailure(error: unknown, route: ResolvedRoute): void {
+function reportDevRouteFailure(error: unknown, route: ResolvedRoute): void {
   const failure = devFailure(error);
   publishDevDiagnostic(failure.error, {
     entryPath: route.path,
     phase: failure.phase,
     route: route.pattern,
   });
+}
+
+/** Answers a failed page document with the diagnostic overlay. */
+function devFailureResponse(
+  route: ResolvedRoute,
+  error: unknown,
+  failure: ReturnType<typeof devFailure>
+): Response {
+  console.error(`[furin] Dev page load error for ${route.path}:`, error);
+  const event = publishDevDiagnostic(failure.error, {
+    entryPath: route.path,
+    phase: failure.phase,
+    route: route.pattern,
+  });
+  return renderDevDiagnosticResponse(event, currentInstance().prefix);
 }
 
 /**
@@ -292,7 +295,7 @@ export async function refreshLayoutChain(
  * `mode` reflects the CURRENT contents of the page module — not the value
  * captured at scan time.
  *
- * In dev, `handleDevRequest` resolves the current versioned page module on
+ * In dev, `resolveCurrentDevRoute` resolves the current versioned page module on
  * every request. Without this
  * function the spread `{ ...route, page, chain }` would carry over the stale
  * `route.mode` resolved at startup, so toggling `revalidate` or removing a
@@ -399,52 +402,6 @@ export async function resolveCurrentDevRoute(
   throw new DevTransformFailure(invalidExport, { cause: invalidExport });
 }
 
-/** @internal Handles a request in dev mode using the current source-version modules. */
-export async function handleDevRequest(
-  route: ResolvedRoute,
-  ctx: Context,
-  root: RootLayout,
-  searchRoutes?: SearchRouteMetadata[]
-): Promise<unknown> {
-  // Load the page via ?furin-server virtual namespace so it stays out of
-  // --hot's file watcher, then hand off to renderSSR which runs loaders,
-  // renders React to HTML, and injects __FURIN_DATA__.
-  try {
-    const { route: refreshedRoute, root: currentRoot } = await resolveCurrentDevRoute(route, root);
-
-    // Live ISR — the loader chain is short-circuited by the dev cache when
-    // a fresh entry exists.  HTML re-assembles every time so the dev shell
-    // chunk URL is always current.
-    let response: Response;
-    if (hasMixedLoaderModes(refreshedRoute)) {
-      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
-      response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
-    } else if (refreshedRoute.mode === "isr" || refreshedRoute.mode === "ssg") {
-      response = await renderDevWithLoaderCache(
-        refreshedRoute,
-        ctx,
-        currentRoot,
-        refreshedRoute.mode,
-        searchRoutes
-      );
-    } else {
-      const loaderResult = await runDevLoaders(refreshedRoute, ctx);
-      response = await runDevRender(refreshedRoute, ctx, currentRoot, loaderResult, searchRoutes);
-    }
-    devDiagnosticStore().markReady(route.pattern);
-    return response;
-  } catch (err) {
-    console.error(`[furin] Dev page load error for ${route.path}:`, err);
-    const failure = devFailure(err);
-    const event = publishDevDiagnostic(failure.error, {
-      entryPath: route.path,
-      phase: failure.phase,
-      route: route.pattern,
-    });
-    return renderDevDiagnosticResponse(event, currentInstance().prefix);
-  }
-}
-
 const devLoaderCaches = {
   isr: {
     get: getDevISRLoaderCache,
@@ -464,18 +421,18 @@ const devLoaderCaches = {
  * so the response embeds the latest dev shell (chunk URL, HMR runtime, …).  On
  * miss, runs loaders normally and stores the merged data record.
  *
- * ISR entries are keyed by path + query and expire after `revalidate`.  SSG
- * entries are keyed by path and tagged forever-fresh (`revalidate: Infinity`)
- * so they survive until source-aware invalidation drops them — the loader runs
- * ONCE per cache key, like production SSG, not on every refresh.
+ * ISR entries are keyed by path + declared query and expire after
+ * `revalidate`.  SSG entries are keyed by path and tagged forever-fresh
+ * (`revalidate: Infinity`) so they survive until source-aware invalidation
+ * drops them — the loader runs ONCE per cache key, like production SSG, not on
+ * every refresh.
  */
-async function renderDevWithLoaderCache(
+async function loadCachedDevLoaderData(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
-  mode: "isr" | "ssg",
-  searchRoutes: SearchRouteMetadata[] | undefined
-): Promise<Response> {
+  mode: "isr" | "ssg"
+): Promise<LoaderResult> {
   const cache = devLoaderCaches[mode];
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
   // ISR loader output is keyed, and computed, on the declared query only.
@@ -493,13 +450,7 @@ async function renderDevWithLoaderCache(
       syncData: cached.loaderData,
       type: "data",
     };
-    return runDevRender(
-      route,
-      ctx,
-      root,
-      hasRequestLoader(route) ? await withRequestLoaderData(route, ctx, precomputed) : precomputed,
-      searchRoutes
-    );
+    return hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed;
   }
 
   const result = await runDevLoaders(route, loaderCtx);
@@ -516,16 +467,74 @@ async function renderDevWithLoaderCache(
     cache.set(cacheKey, entry);
     autoInvalidateRegistry.registerLoaderTags(cachePath, route.tags, cache.source);
   }
-  return runDevRender(
-    route,
-    ctx,
-    root,
-    result.type === "data" && hasRequestLoader(route)
-      ? await withRequestLoaderData(route, ctx, result)
-      : result,
-    searchRoutes
-  );
+  return result.type === "data" && hasRequestLoader(route)
+    ? withRequestLoaderData(route, ctx, result)
+    : result;
 }
+
+/**
+ * Development's page ports. The route table is a live snapshot whose shell
+ * has no schemas, so edited schemas take effect; modules are imported at
+ * their current source version, and failures answer with the diagnostic
+ * overlay. Documents always render live, because their HTML embeds the Bun
+ * HMR client of the current client build; only loader output is cached.
+ */
+export const developmentPagePorts: PagePorts = {
+  cache: {
+    loaders: ({ root, route }, ctx) =>
+      !hasMixedLoaderModes(route) && (route.mode === "isr" || route.mode === "ssg")
+        ? loadCachedDevLoaderData(route, ctx, root, route.mode)
+        : runDevLoaders(route, ctx),
+    pages: false,
+  },
+  modules: {
+    data: async (route, root, serve) => {
+      let current: CurrentRoute;
+      try {
+        current = await resolveCurrentDevRoute(route, root);
+      } catch (error) {
+        getLogger().error(error instanceof Error ? error : new Error(String(error)));
+        reportDevRouteFailure(error, route);
+        return createRouteDataErrorResponse(
+          error,
+          "Something went wrong",
+          500,
+          undefined,
+          undefined,
+          undefined
+        );
+      }
+      return serve(current);
+    },
+    document: async (route, root, serve) => {
+      let current: CurrentRoute;
+      try {
+        current = await resolveCurrentDevRoute(route, root);
+      } catch (error) {
+        return devFailureResponse(route, error, devFailure(error));
+      }
+      try {
+        const response = await serve(current);
+        devDiagnosticStore().markReady(route.pattern);
+        return response;
+      } catch (error) {
+        return devFailureResponse(
+          route,
+          error,
+          error instanceof DevPhaseFailure
+            ? { error: error.error, phase: error.phase }
+            : { error, phase: "render" }
+        );
+      }
+    },
+    render: loadDevRenderRoute,
+  },
+  routes: {
+    // The mounted Elysia route can outlive its source file.
+    has: (route) => existsSync(route.path),
+    validatesParams: false,
+  },
+};
 
 /**
  * @internal Lists every source file whose contents can affect the render

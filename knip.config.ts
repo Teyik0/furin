@@ -45,7 +45,6 @@ const config: KnipConfig = {
         "src/server/dev-page-plugin.production.ts",
         "src/server/dev/runtime.production.ts",
         "src/server/devtools/instrumentation.production.ts",
-        "src/server/router/hmr.production.ts",
       ],
       ignoreIssues: {
         // discovery.ts loads this export through a runtime-computed module URL.

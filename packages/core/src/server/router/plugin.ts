@@ -6,7 +6,6 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import { containsRscSource, isRouteFrameLine } from "../../shared/route-frame.ts";
 import { failRouteMatches, loaderFailureIndex } from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { getLogger } from "../context-logger.ts";
 import {
   currentInstrumentationRequest,
   emitPayloadSerialized,
@@ -30,7 +29,7 @@ import { createDeferredRouteFrameStream } from "../render/route-frame-transport.
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
-import { handleDevRequest, reportDevRouteFailure, resolveCurrentDevRoute } from "./hmr.ts";
+import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
@@ -179,10 +178,11 @@ function applyNavigationDataCache(
   response: Response,
   result: LoaderResult,
   route: ResolvedRoute,
-  requestUrl: string
+  requestUrl: string,
+  pageCache: boolean
 ): Response {
   const cacheable =
-    !IS_DEV &&
+    pageCache &&
     resolveDocumentMode(route) !== "ssr" &&
     !hasRequestLoader(route) &&
     result.type === "data" &&
@@ -203,12 +203,13 @@ async function createLoaderDataResponse(
   result: LoaderResult,
   route: ResolvedRoute,
   requestUrl: string,
-  routeContext: RouteDataContext
+  routeContext: RouteDataContext,
+  pageCache: boolean
 ): Promise<Response> {
   const response = await serializeLoaderDataResponse(result, route, requestUrl, routeContext);
   return result.type === "redirect"
     ? response
-    : applyNavigationDataCache(response, result, route, requestUrl);
+    : applyNavigationDataCache(response, result, route, requestUrl, pageCache);
 }
 
 /**
@@ -254,8 +255,8 @@ async function readSSGRouteData(
  * Reads navigation data through the render cache that backs the document, so
  * SPA navigations to ISR/SSG pages reuse (or populate) the same entry instead
  * of re-running public loaders. Mirrors `renderResolvedRoute`: SSR documents,
- * requestLoader (PPR) routes and dev mode never take this path, so private
- * data is never served from a shared entry.
+ * requestLoader (PPR) routes and runtimes without a page cache never take this
+ * path, so private data is never served from a shared entry.
  */
 function readCachedRouteData(
   route: ResolvedRoute,
@@ -263,7 +264,7 @@ function readCachedRouteData(
   root: RootLayout,
   searchRoutes: SearchRouteMetadata[]
 ): Promise<CachedRouteData | undefined> | undefined {
-  if (IS_DEV || hasRequestLoader(route) || isExternalPrerenderRequest(ctx.request)) {
+  if (hasRequestLoader(route) || isExternalPrerenderRequest(ctx.request)) {
     return;
   }
   const documentMode = resolveDocumentMode(route);
@@ -296,26 +297,28 @@ function cachedRouteDataResponse(
 
 /** Serialise navigation data after Elysia has run the matched page's hooks. */
 export async function renderRouteData(
-  route: ResolvedRoute,
+  { root, route }: CurrentRoute,
   ctx: Context,
-  root: RootLayout,
   searchRoutes: SearchRouteMetadata[],
-  logicalHref: string
+  logicalHref: string,
+  ports: PagePorts
 ): Promise<Response> {
   const logicalContext = Object.create(ctx, {
     path: { enumerable: true, value: new URL(logicalHref, ctx.request.url).pathname },
   }) as Context;
   const requestUrl = new URL(logicalHref, ctx.request.url).href;
-  const cached = await readCachedRouteData(route, logicalContext, root, searchRoutes);
+  const cached = ports.cache.pages
+    ? await readCachedRouteData(route, logicalContext, root, searchRoutes)
+    : undefined;
   if (cached?.type === "payload") {
     return cachedRouteDataResponse(cached, requestUrl);
   }
   const result =
     cached?.result ?? (await runDataEndpointLoaders(route, logicalContext, root, searchRoutes));
-  return createLoaderDataResponse(result, route, requestUrl, logicalContext);
+  return createLoaderDataResponse(result, route, requestUrl, logicalContext, ports.cache.pages);
 }
 
-async function createRouteDataErrorResponse(
+export async function createRouteDataErrorResponse(
   error: unknown,
   message: string,
   status: number,
@@ -340,30 +343,6 @@ async function createRouteDataErrorResponse(
     headers: { "content-type": "application/x-ndjson" },
     status,
   });
-}
-
-/**
- * Development: the page's current modules for a navigation data request, or
- * the route-data error that answers a failed import.
- */
-export async function resolveDevDataRoute(
-  route: ResolvedRoute,
-  root: RootLayout
-): Promise<{ route: ResolvedRoute; root: RootLayout } | Response> {
-  try {
-    return await resolveCurrentDevRoute(route, root);
-  } catch (error) {
-    getLogger().error(error instanceof Error ? error : new Error(String(error)));
-    reportDevRouteFailure(error, route);
-    return createRouteDataErrorResponse(
-      error,
-      "Something went wrong",
-      500,
-      undefined,
-      undefined,
-      undefined
-    );
-  }
 }
 
 /** @internal Handles a production SSG route — sets ETags, Cache-Control, and Cache-Tag. */
@@ -424,39 +403,33 @@ async function handleSSGRequest(
   return injectSyncRuntimeScript(entry.html);
 }
 
-export function renderResolvedRoute(
-  route: ResolvedRoute,
+/**
+ * Renders a page document: SSG, ISR and PPR documents through the page cache
+ * when the runtime has one, every other document live with the loader result
+ * the runtime's cache policy supplies.
+ */
+export async function renderResolvedRoute(
+  current: CurrentRoute,
   ctx: Context,
-  root: RootLayout,
   buildId: string,
-  searchRoutes: SearchRouteMetadata[] | undefined
-): unknown {
-  // Dev mode: re-imports page + layouts on every request via the
-  // ?furin-server cache-buster. Only loader output is cached in dev; HTML is
-  // always reassembled with the latest Bun client chunk URL.
-  if (IS_DEV) {
-    return handleDevRequest(route, ctx, root, searchRoutes);
-  }
-
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  ports: PagePorts
+): Promise<unknown> {
+  const { root, route } = current;
   const documentMode = resolveDocumentMode(route);
-  if (documentMode === "ssr") {
-    return renderSSR(route, ctx, root, undefined, searchRoutes);
-  }
-
-  if (hasRequestLoader(route)) {
-    return renderPprRoute(route, ctx, root, buildId, searchRoutes);
-  }
-
-  if (documentMode === "ssg") {
-    return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
-  }
-
-  if (documentMode === "isr") {
+  if (ports.cache.pages && documentMode !== "ssr") {
+    if (hasRequestLoader(route)) {
+      return renderPprRoute(route, ctx, root, buildId, searchRoutes);
+    }
+    if (documentMode === "ssg") {
+      return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
+    }
     ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
     return handleISR(route, ctx, root, buildId, searchRoutes);
   }
-
-  return renderSSR(route, ctx, root, undefined, searchRoutes);
+  const loaderResult = await ports.cache.loaders(current, ctx);
+  const renderRoute = loaderResult?.type === "data" ? await ports.modules.render(route) : route;
+  return renderSSR(renderRoute, ctx, root, loaderResult, searchRoutes);
 }
 
 /**

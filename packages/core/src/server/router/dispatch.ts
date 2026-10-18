@@ -1,5 +1,4 @@
-import { existsSync } from "node:fs";
-import { type AnyElysia, problem } from "elysia";
+import { type AnyElysia, type Context, problem } from "elysia";
 import type {
   FurinNativeRouteContext,
   FurinRouteDispatcher,
@@ -18,18 +17,64 @@ import {
   normalizePrefix,
   scopedInstance,
 } from "../instance.ts";
+import type { LoaderResult } from "../render/loaders.ts";
 import { renderRootNotFound } from "../render/not-found.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { buildRouteMatcher } from "./patterns.ts";
-import {
-  renderResolvedRoute,
-  renderRouteData,
-  resolveDevDataRoute,
-  serializeNavigationRedirect,
-} from "./plugin.ts";
+import { renderResolvedRoute, renderRouteData, serializeNavigationRedirect } from "./plugin.ts";
 import { mergeRouteSchemas } from "./schema-merge.ts";
 import { type createSearchRouteMetadata, parseRouteParams, parseRouteQuery } from "./schemas.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
+
+/** A route and its root layout, with the modules current for one request. */
+export interface CurrentRoute {
+  root: RootLayout;
+  route: ResolvedRoute;
+}
+
+/**
+ * What a runtime plugs into the shared page pipeline. Development and
+ * production dispatch, validate and render pages through the same code: they
+ * differ only in where routes and modules come from and in what is cached.
+ */
+export interface PagePorts {
+  /** Cache policy. */
+  cache: {
+    /**
+     * The loader result of a live render, or `undefined` to let the renderer
+     * run the loaders.
+     */
+    loaders: (current: CurrentRoute, ctx: Context) => Promise<LoaderResult | undefined>;
+    /**
+     * Whether SSG, ISR and PPR documents, and their navigation data, are
+     * served through the page cache. Otherwise every document renders live.
+     */
+    pages: boolean;
+  };
+  /** Module loader. */
+  modules: {
+    /** Serves navigation data with the route's current modules. */
+    data: (
+      route: ResolvedRoute,
+      root: RootLayout,
+      serve: (current: CurrentRoute) => Promise<Response>
+    ) => Promise<Response>;
+    /** Serves a document with the route's current modules. */
+    document: (
+      route: ResolvedRoute,
+      root: RootLayout,
+      serve: (current: CurrentRoute) => Promise<unknown>
+    ) => Promise<unknown>;
+    /** The route to render once its loaders returned data. */
+    render: (route: ResolvedRoute) => Promise<ResolvedRoute>;
+  };
+  /** Route source. */
+  routes: {
+    /** Whether a route of the table still has its page module. */
+    has: (route: ResolvedRoute) => boolean;
+    /** Whether Elysia validated and decoded native page route params. */
+    validatesParams: boolean;
+  };
+}
 
 /** Renders the pages of one route table (production, or one development snapshot). */
 export interface RouteRenderer {
@@ -171,7 +216,8 @@ export function createRouteRenderer(
   root: RootLayout,
   buildId: string,
   searchRoutes: ReturnType<typeof createSearchRouteMetadata>,
-  resolve: (key: FurinRouteKey) => ResolvedRoute | undefined
+  resolve: (key: FurinRouteKey) => ResolvedRoute | undefined,
+  ports: PagePorts
 ): RouteRenderer {
   const { prefix } = instance;
   const matchRoute = buildRouteMatcher(routes);
@@ -199,26 +245,15 @@ export function createRouteRenderer(
     }
     context.params = parsedParams.params;
     context.query = parsedQuery.query;
+    const ctx = context as unknown as Context;
     if (isNavigationDataRequest()) {
       getLogger().set({ path: logicalPath + requestUrl.search, routePattern: route.pattern });
-      const current = IS_DEV ? await resolveDevDataRoute(route, root) : { root, route };
-      if (current instanceof Response) {
-        return current;
-      }
-      return renderRouteData(
-        current.route,
-        context as unknown as Parameters<typeof renderRouteData>[1],
-        current.root,
-        searchRoutes,
-        logicalPath + requestUrl.search
+      return ports.modules.data(route, root, (current) =>
+        renderRouteData(current, ctx, searchRoutes, logicalPath + requestUrl.search, ports)
       );
     }
-    return renderResolvedRoute(
-      route,
-      context as unknown as Parameters<typeof renderResolvedRoute>[1],
-      root,
-      buildId,
-      searchRoutes
+    return ports.modules.document(route, root, (current) =>
+      renderResolvedRoute(current, ctx, buildId, searchRoutes, ports)
     );
   };
 
@@ -228,7 +263,7 @@ export function createRouteRenderer(
       request.method === "GET"
         ? matchRoute(new URL(request.url).pathname.slice(prefix.length) || "/")
         : null;
-    if (matched && !(IS_DEV && !existsSync(matched.route.path))) {
+    if (matched && ports.routes.has(matched.route)) {
       return render(context, matched.route, matched.params, false);
     }
     // The router loads a URL without a page as a document, which renders the
@@ -245,14 +280,14 @@ export function createRouteRenderer(
     native: (context, routeKey) => {
       const route = resolve(routeKey);
       // Development: the mounted Elysia route can outlive its source file.
-      if (!route || (IS_DEV && !existsSync(route.path))) {
+      if (!(route && ports.routes.has(route))) {
         return notFound(context);
       }
       // Production's native route has already validated and decoded params;
       // the development shell is schema-free so it follows edited schemas.
       // Elysia leaves params undefined on static routes.
       const nativeParams = (context.params ?? {}) as { [key: string]: unknown };
-      return render(context, route, nativeParams, !IS_DEV);
+      return render(context, route, nativeParams, ports.routes.validatesParams);
     },
     notFound,
   };

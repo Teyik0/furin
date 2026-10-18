@@ -7,9 +7,8 @@ const DEV_RUNTIME_IMPORT =
 const DEV_BUILD_IMPORT =
   /(?:^|[/\\])(?:build[/\\]hydrate|plugin[/\\](?:route-config|transform-client))(?:\.ts|\.js)?$/;
 const DEV_RSC_BUILD_IMPORT = /(?:^|[/\\])rsc[/\\]build[/\\]discover(?:\.ts|\.js)?$/;
-const HMR_IMPORT = /(?:^|[/\\])server[/\\]router[/\\]hmr(?:\.ts|\.js)?$/;
 const PRODUCTION_BOUNDARY_IMPORT =
-  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|runtime|hmr|hydrate|route-config|transform-client|discover)(?:\.ts|\.js)?$/;
+  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|runtime|hydrate|route-config|transform-client|discover)(?:\.ts|\.js)?$/;
 const PRODUCTION_STUB_NAMESPACE = "furin-production-runtime-stub";
 const FURIN_RUNTIME_ROOT = resolve(import.meta.dir, "..");
 
@@ -53,9 +52,6 @@ export function productionInstrumentationPlugin(): Bun.BunPlugin {
         }
         if (DEV_RUNTIME_IMPORT.test(importPath)) {
           return { path: resolve(import.meta.dir, "../server/dev/runtime.production.ts") };
-        }
-        if (HMR_IMPORT.test(importPath)) {
-          return { path: resolve(import.meta.dir, "../server/router/hmr.production.ts") };
         }
         if (DEV_BUILD_IMPORT.test(importPath) || DEV_RSC_BUILD_IMPORT.test(importPath)) {
           return { namespace: PRODUCTION_STUB_NAMESPACE, path: importPath };
