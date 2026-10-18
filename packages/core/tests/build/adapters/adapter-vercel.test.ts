@@ -191,6 +191,19 @@ export const route = defineRoute()
       expect(config.version).toBe(3);
       expect(config.framework).toEqual({ name: "furin", version });
       expect(config.routes).toContainEqual({ handle: "filesystem" });
+      // Navigation data shares the page URL, so it must bypass prerendered
+      // documents (which ignore `_furin`) and reach the Bun function.
+      const dataRoute = config.routes.findIndex(
+        (rule: { has?: unknown }) => rule.has !== undefined
+      );
+      expect(config.routes[dataRoute]).toEqual({
+        dest: "/__server",
+        has: [{ key: "_furin", type: "query", value: "data" }],
+        src: "/(.*)",
+      });
+      expect(dataRoute).toBeLessThan(
+        config.routes.findIndex((rule: { handle?: string }) => rule.handle === "filesystem")
+      );
       expect(config.routes).toContainEqual({
         dest: "/news-isr?__furin_path=$__furin_path",
         src: "(?<__furin_path>/news)",
@@ -634,21 +647,21 @@ export const route = defineRoute()
       }));
       const fallbackResumeBody = await fallbackResume.text();
       const flight = await handler.fetch(new Request("http://furin.test/flight"));
-      const flightData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/flight"));
+      const flightData = await handler.fetch(new Request("http://furin.test/flight?_furin=data"));
       const api = await handler.fetch(new Request("http://furin.test/api/health"));
       const renderer = await handler.fetch(new Request("http://furin.test/api/renderer"));
-      const tagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/tagged"));
-      const untagged = await handler.fetch(new Request("http://furin.test/_furin/data?path=/blog/untagged"));
+      const tagged = await handler.fetch(new Request("http://furin.test/blog/tagged?_furin=data"));
+      const untagged = await handler.fetch(new Request("http://furin.test/blog/untagged?_furin=data"));
       const injected = await handler.fetch(new Request("http://furin.test/api/health?__furin_path=/news"));
       const ssgFirst = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const ssgSecond = await handler.fetch(new Request("http://furin.test/index-ssg?__furin_path=/"));
       const offers = await handler.fetch(new Request("http://furin.test/offers-ssg?__furin_path=/offers&coupon=SALE"));
-      const data = await handler.fetch(new Request("http://furin.test/_furin/data?path=%2F"));
+      const data = await handler.fetch(new Request("http://furin.test/?_furin=data"));
       const accountFirst = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=alice" } }));
       const accountFirstBody = await accountFirst.text();
       const accountSecond = await handler.fetch(new Request("http://furin.test/account", { headers: { cookie: "session=bob" } }));
       const accountSecondBody = await accountSecond.text();
-      const accountData = await handler.fetch(new Request("http://furin.test/_furin/data?path=/account"));
+      const accountData = await handler.fetch(new Request("http://furin.test/account?_furin=data"));
       const { parseDeferredNdjson } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dir, "../../../src/shared/deferred-ndjson.ts")).href)});
       const accountDataCount = (await parseDeferredNdjson(accountData.body, undefined)).syncData.count;
       const tagInvalidation = await handler.fetch(new Request("http://furin.test/api/revalidate-tag", { method: "POST" }));

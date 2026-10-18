@@ -7,7 +7,6 @@ import { setSSGCache } from "../cache/ssg.ts";
 import { type FurinInstance, withInstance } from "../instance.ts";
 import type { CompileContext, EmbeddedAppData } from "../internal.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
-import { createNotFoundHandling } from "../render/not-found-plugin.ts";
 import { warmSSGCache } from "../render/ssg.ts";
 import {
   setProductionPreloadManifest,
@@ -15,9 +14,10 @@ import {
   setProductionTemplatePath,
 } from "../render/template.ts";
 import { loadProdRoutes } from "../router/discovery.ts";
-import { bindRuntimeRoutes, createNativeRouteRenderer } from "../router/dispatch.ts";
+import { bindRuntimeRoutes, createRouteRenderer } from "../router/dispatch.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { createSearchRouteMetadata } from "../router/schemas.ts";
+import type { ResolvedRoute } from "../router/types.ts";
 import type { FurinSyncOption } from "../sync/config.ts";
 
 async function createProductionBrowserEventsPlugin(
@@ -97,11 +97,18 @@ export async function createProdRuntime(
   if (!ctx.nativeRoutes) {
     throw new Error("[furin] Production build is missing the composed Elysia route app.");
   }
-  const matchNavigationData = buildRouteMatcher(routes);
+  const matchPage = buildRouteMatcher(routes);
+  // Each page's native handler is bound to its route terminal.
+  const routesByPage = new Map<object, ResolvedRoute>(
+    routes.map((route) => [(ctx.modules[route.path] as { route: object }).route, route])
+  );
+  const renderer = createRouteRenderer(instance, routes, root, prodBuildId, searchRoutes, (key) =>
+    typeof key === "string" ? undefined : routesByPage.get(key)
+  );
   bindRuntimeRoutes(instance, {
-    matches: (path) => matchNavigationData(path) !== null,
+    matches: (path) => matchPage(path) !== null,
     refresh: undefined,
-    render: createNativeRouteRenderer(instance, routes, root, prodBuildId, searchRoutes),
+    renderer: () => renderer,
   });
   instance.buildId = prodBuildId;
   // Init-time writes target THIS instance explicitly — with several mounted
@@ -125,10 +132,9 @@ export async function createProdRuntime(
 
   return {
     nativeRoutes: ctx.nativeRoutes,
-    notFound: createNotFoundHandling(instance.prefix, routes, root, undefined),
     plugins: (app) =>
       app
-        .use(options.requestHooks(() => root))
+        .use(options.requestHooks)
         .onStart(async ({ server }) => {
           if (ctx.ssgCache) {
             return;

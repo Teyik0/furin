@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
-import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { currentInstance, type FurinInstance } from "../instance.ts";
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../lang-detect.ts";
+import type { RouteRenderer } from "../router/dispatch.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { WeakRegistry } from "../weak-registry.ts";
 
@@ -24,7 +24,7 @@ export interface DevErrorPayload {
 }
 
 export interface DevelopmentRouteSnapshot {
-  render: FurinRouteDispatcher;
+  render: RouteRenderer;
   root: RootLayout;
   routes: ResolvedRoute[];
 }

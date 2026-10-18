@@ -1,14 +1,16 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
-import { Elysia, t } from "elysia";
+import { t } from "elysia";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
 import { isrCache, waitForPendingISRRevalidations } from "../../../src/server/cache/isr.ts";
+import { withInstance } from "../../../src/server/instance.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { renderForPath } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
 
 (globalThis as typeof globalThis & { __FURIN_SKIP_DOM_RESET?: boolean }).__FURIN_SKIP_DOM_RESET =
   true;
@@ -49,6 +51,14 @@ function resolveRoute(
   };
 }
 
+function mountPage(
+  pattern: string,
+  route: Parameters<typeof mountProductionApp>[0]["pages"][number]["route"],
+  buildId: string
+) {
+  return mountProductionApp({ buildId, pages: [{ pattern, route }], root: rootTerminal });
+}
+
 beforeAll((done) => {
   __setDevMode(false);
   __resetCacheState();
@@ -57,6 +67,7 @@ beforeAll((done) => {
 
 afterEach((done) => {
   __resetCacheState();
+  __resetCompileContext();
   done();
 });
 
@@ -79,8 +90,7 @@ test("ISR cache keys include the query string and path invalidation clears every
       return { tenant: query.tenant ?? "" };
     })
     .page(({ tenant }) => <main data-tenant={tenant}>{tenant}</main>);
-  const resolved = resolveRoute(route, "/search.tsx", "/search", root);
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const { app } = await mountPage("/search", route, "build-1");
 
   const alpha = await app
     .handle(new Request("http://localhost/search?tenant=alpha"))
@@ -114,8 +124,7 @@ test("ISR cache keys ignore undeclared query params and canonicalise declared on
       return { tenant: query.tenant ?? "" };
     })
     .page(({ tenant }) => <main data-tenant={tenant}>{tenant}</main>);
-  const resolved = resolveRoute(route, "/search.tsx", "/search", root);
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const { app, instance } = await mountPage("/search", route, "build-1");
 
   for (const search of [
     "?tenant=alpha&sort=new",
@@ -129,7 +138,9 @@ test("ISR cache keys ignore undeclared query params and canonicalise declared on
   }
 
   expect(loaderCalls).toBe(1);
-  expect([...isrCache.keys()]).toEqual(["/search?sort=new&tenant=alpha"]);
+  expect(withInstance(instance, () => [...isrCache.keys()])).toEqual([
+    "/search?sort=new&tenant=alpha",
+  ]);
 });
 
 test("ISR routes without a query schema key on the path and hide the raw query from loaders", async () => {
@@ -141,15 +152,14 @@ test("ISR routes without a query schema key on the path and hide the raw query f
       return {};
     })
     .page(() => <main>static</main>);
-  const resolved = resolveRoute(route, "/plain.tsx", "/plain", root);
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const { app, instance } = await mountPage("/plain", route, "build-1");
 
   const first = await app.handle(new Request("http://localhost/plain?x=attacker"));
   expect(await first.text()).not.toContain("attacker");
   await app.handle(new Request("http://localhost/plain?x=2"));
-  await waitForPendingISRRevalidations();
+  await withInstance(instance, waitForPendingISRRevalidations);
 
-  expect([...isrCache.keys()]).toEqual(["/plain"]);
+  expect(withInstance(instance, () => [...isrCache.keys()])).toEqual(["/plain"]);
   expect(observed).toEqual([{}, {}]);
 });
 
@@ -167,8 +177,7 @@ test("ISR cached loaders reject request-specific context", async () => {
       tenant: context.query.tenant ?? "",
     }))
     .page(({ tenant }) => <main>{tenant}</main>);
-  const resolved = resolveRoute(route, "/private.tsx", "/private", root);
-  const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
+  const { app } = await mountPage("/private", route, "build-1");
 
   const alice = await app.handle(
     new Request("http://localhost/private?tenant=alpha", { headers: { cookie: "session=alice" } })
@@ -201,14 +210,14 @@ test("a thrown Eden problem reaches the error boundary without entering the ISR 
       throw error;
     })
     .page(() => <main>content</main>);
-  const rootWithError = {
-    ...root,
-    error: ({ error: boundaryError }) => (
+  const { app } = await mountProductionApp({
+    buildId: "build-1",
+    pages: [{ pattern: "/content", route }],
+    root: rootTerminal,
+    rootError: ({ error: boundaryError }) => (
       <main>{`${boundaryError.status}: ${boundaryError.message}`}</main>
     ),
-  } satisfies RootLayout;
-  const resolved = resolveRoute(route, "/content.tsx", "/content", rootWithError);
-  const app = new Elysia().use(createRoutePlugin(resolved, rootWithError, "build-1"));
+  });
 
   const first = await app.handle(new Request("http://localhost/content"));
   const second = await app.handle(new Request("http://localhost/content"));
@@ -260,15 +269,14 @@ test("ISR regeneration preserves query coercion and schema defaults", async () =
       return { value };
     })
     .page(({ value }) => <main>{value}</main>);
-  const route = resolveRoute(terminal, "/typed.tsx", "/typed", root);
-  const app = new Elysia().use(createRoutePlugin(route, root, "build"));
+  const { app, instance } = await mountPage("/typed", terminal, "build");
 
   await app.handle(new Request("http://localhost/typed?count=2"));
   await app.handle(new Request("http://localhost/typed?count=2"));
-  await waitForPendingISRRevalidations();
+  await withInstance(instance, waitForPendingISRRevalidations);
   await app.handle(new Request("http://localhost/typed"));
   await app.handle(new Request("http://localhost/typed"));
-  await waitForPendingISRRevalidations();
+  await withInstance(instance, waitForPendingISRRevalidations);
 
   expect(values).toEqual([3, 3, 2, 2]);
 });
@@ -303,16 +311,15 @@ test("an invalid ISR root document is not cached as a successful render", async 
   const invalidRootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
     .layout(({ children }) => <main data-invalid-root="">{children}</main>);
-  const invalidRoot = {
-    path: "/root.tsx",
-    route: adaptDefinedLayout(invalidRootTerminal, undefined),
-  } satisfies RootLayout;
   const route = defineRoute()
     .config({ layout: invalidRootTerminal, mode: "isr", revalidate: 60 })
     .loader(() => ({}))
     .page(() => <p>invalid ISR content</p>);
-  const resolved = resolveRoute(route, "/isr.tsx", "/isr", invalidRoot);
-  const app = new Elysia().use(createRoutePlugin(resolved, invalidRoot, "build-1"));
+  const { app } = await mountProductionApp({
+    buildId: "build-1",
+    pages: [{ pattern: "/isr", route }],
+    root: invalidRootTerminal,
+  });
 
   const first = await app.handle(new Request("http://localhost/isr"));
   const second = await app.handle(new Request("http://localhost/isr"));

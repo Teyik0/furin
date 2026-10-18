@@ -1,5 +1,4 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
-import { Elysia } from "elysia";
 import { buildRoutePrerenders, buildSSGCacheSnapshot } from "../../../src/build/ssg-cache.ts";
 import {
   defineRootRoute,
@@ -9,11 +8,12 @@ import {
   Scripts,
 } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp, type ProductionPage } from "../../support/production-app.ts";
 
 const originalDevMode = IS_DEV;
 const rootTerminal = defineRootRoute()
@@ -47,7 +47,19 @@ function resolveRoute(terminal: Parameters<typeof adaptDefinedPage>[0]): Resolve
 }
 
 beforeAll(() => __setDevMode(false));
-afterEach(() => __resetCacheState());
+afterEach(() => {
+  __resetCacheState();
+  __resetCompileContext();
+});
+
+async function mountCatalog(page: Omit<ProductionPage, "pattern">) {
+  const { app } = await mountProductionApp({
+    buildId: "build",
+    pages: [{ ...page, pattern: "/catalog" }],
+    root: rootTerminal,
+  });
+  return app;
+}
 afterAll(() => __setDevMode(originalDevMode));
 
 test("SSG invalidation during the first render prevents caching old data", async () => {
@@ -63,7 +75,7 @@ test("SSG invalidation during the first render prevents caching old data", async
       return { value: "old" };
     })
     .page(({ value }) => <main>{value}</main>);
-  const app = new Elysia().use(createRoutePlugin(resolveRoute(terminal), root, "build"));
+  const app = await mountCatalog({ route: terminal });
   const first = app.handle(new Request("http://localhost/catalog"));
   await started.promise;
   await revalidatePath("/catalog", "page");
@@ -89,8 +101,7 @@ test("PPR invalidation during the first render prevents caching the old shell", 
       return { value: "old" };
     })
     .page(({ value }) => <main>{value}</main>);
-  const route = { ...resolveRoute(terminal), requestKeys: ["user"] };
-  const app = new Elysia().use(createRoutePlugin(route, root, "build"));
+  const app = await mountCatalog({ requestKeys: ["user"], route: terminal });
   const first = app.handle(new Request("http://localhost/catalog"));
   await started.promise;
   await revalidatePath("/", "layout");
@@ -113,7 +124,7 @@ test("SSG shell failures return 500 without caching the error page", async () =>
       }
       return <main>recovered</main>;
     });
-  const app = new Elysia().use(createRoutePlugin(resolveRoute(terminal), root, "build"));
+  const app = await mountCatalog({ route: terminal });
   const failed = await app.handle(new Request("http://localhost/catalog"));
 
   expect(failed.status).toBe(500);

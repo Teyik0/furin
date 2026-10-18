@@ -2,18 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file } from "elysia";
-import type { FurinRouteDispatcher } from "../../define-route.ts";
 import { prefixSlug } from "../../shared/prefix.ts";
 import { createInstrumentationPlugin } from "../devtools/instrumentation.ts";
-import { type FurinInstance, scopedInstance, withInstance } from "../instance.ts";
+import { type FurinInstance, withInstance } from "../instance.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
-import { createNotFoundHandling } from "../render/not-found-plugin.ts";
-import {
-  bindRuntimeRoutes,
-  createNativeRouteRenderer,
-  dispatchNativeRoute,
-  hasRuntimeRoutes,
-} from "../router/dispatch.ts";
+import { bindRuntimeRoutes, createRouteRenderer } from "../router/dispatch.ts";
 import { invalidateStampedRouteModules } from "../router/hmr.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { createSearchRouteMetadata } from "../router/schemas.ts";
@@ -55,8 +48,12 @@ function createDevelopmentRouteSnapshot(
   routes: ResolvedRoute[]
 ): DevelopmentRouteSnapshot {
   const searchRoutes = createSearchRouteMetadata(routes);
+  // The development shell binds each page handler to its route pattern.
+  const routesByPattern = new Map(routes.map((route) => [route.pattern, route]));
   return {
-    render: createNativeRouteRenderer(instance, routes, root, "", searchRoutes),
+    render: createRouteRenderer(instance, routes, root, "", searchRoutes, (key) =>
+      typeof key === "string" ? routesByPattern.get(key) : undefined
+    ),
     root,
     routes,
   };
@@ -118,7 +115,7 @@ export async function createDevRuntime(
     refresh: async () => {
       await routeTopologyWatcher?.refresh();
     },
-    render: (context) => currentSnapshot().render(context),
+    renderer: () => currentSnapshot().render,
   });
 
   const { writeDevFiles } = await import("../../build/hydrate.ts");
@@ -257,18 +254,6 @@ export async function createDevRuntime(
 
   return {
     nativeRoutes: nativeRoutesApp,
-    notFound: createNotFoundHandling(prefix, routes, root, async (notFoundContext) => {
-      // Dev topology: try the (watcher-refreshed) native renderer before
-      // the root not-found page, so hot-added routes are served without
-      // a restart. Instances outside this pathname's prefix are skipped.
-      const owner = scopedInstance();
-      if (!(owner && hasRuntimeRoutes(owner))) {
-        return;
-      }
-      return await dispatchNativeRoute(
-        notFoundContext as unknown as Parameters<FurinRouteDispatcher>[0]
-      );
-    }),
     // Routes registered below are LOGICAL — Elysia's `prefix` makes them
     // physical when this plugin is merged into the parent app (child prefixes
     // like staticPlugin's compose underneath).
@@ -299,9 +284,9 @@ export async function createDevRuntime(
             onTopologyChange: async (sourcePaths) => {
               // Bun --hot cannot be triggered from generated artifacts (its
               // watch graph is the entry's static imports), so topology changes
-              // are served by swapping the dispatcher's route matcher. Hot-added
-              // routes then resolve through the NOT_FOUND fallback below;
-              // removed routes 404 through the renderer's miss path.
+              // are served by swapping the dispatcher's route table. Hot-added
+              // and removed routes then resolve through the runtime's
+              // not-found path, which matches the current table.
               scaffoldEmptyRoutes(resolvedPagesDir);
               await refreshDevelopmentRoutes(sourcePaths);
               reportRouteConfig();
@@ -320,7 +305,7 @@ export async function createDevRuntime(
         })
         .get("/_bun_hmr_entry/index.html", hmrEntry)
         .get("/_bun_hmr_entry", hmrEntry)
-        .use(options.requestHooks(() => currentSnapshot().root))
+        .use(options.requestHooks)
         .use(publicAssets)
         .get(
           "/favicon.ico",

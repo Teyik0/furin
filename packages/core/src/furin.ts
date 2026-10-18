@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { type AnyElysia, Elysia, NotFound } from "elysia";
 import type { RequestLogger } from "evlog";
-import { FURIN_RENDER_DECORATOR } from "./define-route.ts";
+import { FURIN_RENDER_DECORATOR, type FurinNativeRouteContext } from "./define-route.ts";
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
@@ -17,8 +17,12 @@ import { type CompileContext, getCompileContext } from "./server/internal.ts";
 import { createLoggerPlugin, type FurinLoggerOptions } from "./server/logging/ingest-plugin.ts";
 import type { ModeOptions, ModeRuntime } from "./server/mode.ts";
 import { createProdRuntime } from "./server/prod/runtime.ts";
-import { renderRootNotFound } from "./server/render/not-found.ts";
-import { createRequestScope, dispatchNativeRoute } from "./server/router/dispatch.ts";
+import { createNotFoundHandling } from "./server/render/not-found-plugin.ts";
+import {
+  createRequestScope,
+  dispatchNativeRoute,
+  renderNotFound,
+} from "./server/router/dispatch.ts";
 import { IS_DEV } from "./server/runtime-env.ts";
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
 import { bindSyncValidation } from "./server/sync/validation.ts";
@@ -218,12 +222,12 @@ async function createFurinApp(options: FurinOptions): Promise<{
   const development = IS_DEV;
   const modeOptions: ModeOptions = {
     clientLogging,
-    requestHooks: (root) => (runtimeApp) =>
+    requestHooks: (runtimeApp) =>
       (runtimeApp as Elysia)
         .use(loggerPlugin)
         // Local scope keeps hooks isolated from sibling Furin mounts.
-        .onError(NotFound, async ({ request, server }) =>
-          renderRootNotFound(root(), request, server?.url.origin)
+        .onError(NotFound, (context) =>
+          renderNotFound(instance, context as unknown as FurinNativeRouteContext)
         )
         .onAfterHandle(({ set }) => {
           const pending = consumePendingInvalidations();
@@ -268,7 +272,7 @@ async function createFurinApp(options: FurinOptions): Promise<{
     )
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(mode.nativeRoutes)
-    .use(mode.notFound);
+    .use(createNotFoundHandling(instance));
   return { app, hasSync: Boolean(sync), instance };
 }
 

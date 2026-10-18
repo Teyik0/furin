@@ -6,6 +6,7 @@ import { toCrossJSON } from "seroval";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ async function flushReactUpdates(): Promise<void> {
   });
 }
 
-/** Returns a single-line NDJSON response (CrossJSON-serialised) for the /_furin/data endpoint. */
+/** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
 function makeNdjsonResponse(data: Record<string, unknown>): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
   return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
@@ -180,14 +181,13 @@ describe("scroll restoration on browser back", () => {
       }
     }) as typeof win.scrollTo;
 
-    // Mock fetch to return valid NDJSON with loader data for /_furin/data
+    // Mock fetch to return valid NDJSON with loader data for `?_furin=data` requests
     globalThis.fetch = mock((input: RequestInfo | URL) => {
       const url = new URL(
         input.toString(),
         (globalThis as unknown as Window & typeof globalThis).location.origin
       );
-      const logicalPath =
-        url.pathname === "/_furin/data" ? (url.searchParams.get("path") ?? "") : url.pathname;
+      const logicalPath = navigationDataPath(url, window.location.origin) ?? url.pathname;
 
       if (logicalPath === "/page-a") {
         return makeNdjsonResponse({ message: "page-a" });

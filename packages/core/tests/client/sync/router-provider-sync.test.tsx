@@ -15,6 +15,7 @@ import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 interface PageProps {
   message?: unknown;
@@ -402,8 +403,8 @@ describe("RouterProvider sync refresh", () => {
           hasMore: false,
           reset: recovery === "reset",
         }))
-        .get("/_furin/data", ({ request }) => {
-          const path = new URL(request.url).searchParams.get("path") ?? "/";
+        .get("/*", ({ request }) => {
+          const path = new URL(request.url).pathname;
           reads.set(path, (reads.get(path) ?? 0) + 1);
           return makeNdjsonResponse({ message: `${path}:${revision}` });
         });
@@ -637,7 +638,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -685,7 +686,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -738,7 +739,7 @@ describe("RouterProvider sync refresh", () => {
           })
         );
       }
-      if (url.pathname === "/_furin/data") {
+      if (url.searchParams.get("_furin") === "data") {
         requested.data += 1;
         return Promise.resolve(makeNdjsonResponse({ message: "fresh" }));
       }
@@ -1194,7 +1195,7 @@ describe("Eden optimistic loader projection", () => {
       return { ok: true };
     });
     globalThis.fetch = ((input: RequestInfo | URL) => {
-      const path = new URL(input.toString(), window.location.origin).searchParams.get("path");
+      const path = navigationDataPath(input, window.location.origin);
       return Promise.resolve(
         makeNdjsonResponse({ message: path === "/other" ? "other" : "confirmed" })
       );
@@ -1258,7 +1259,7 @@ describe("Eden optimistic loader projection", () => {
         return { ok: true };
       });
       globalThis.fetch = ((input: RequestInfo | URL) => {
-        const path = new URL(input.toString(), window.location.origin).searchParams.get("path");
+        const path = navigationDataPath(input, window.location.origin);
         paths.push(path);
         if (path === "/other" && paths.length === 1) {
           navigationStarted.resolve();

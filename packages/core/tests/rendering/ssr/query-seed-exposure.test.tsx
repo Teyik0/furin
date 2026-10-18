@@ -2,13 +2,12 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import { createClient } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
-import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { defer } from "../../../src/shared/defer.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
-import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
 
 const SECRET = "reset-token-7f3a91";
 const identity = { id: "account", scope: {}, session: "alice" };
@@ -17,7 +16,10 @@ beforeEach(() => {
   previousDevMode = IS_DEV;
   __setDevMode(false);
 });
-afterEach(() => __setDevMode(previousDevMode));
+afterEach(() => {
+  __resetCompileContext();
+  __setDevMode(previousDevMode);
+});
 
 function accountApi() {
   return createClient(
@@ -70,29 +72,18 @@ function routeFor(
     .config({ layout, mode: "ssr" })
     .loader(() => loader(api))
     .page(() => <main>Account</main>);
-  const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
-  const page = adaptDefinedPage(definition, root.route);
-  const route = {
-    mode: "ssr" as const,
-    page,
-    path: "/account.tsx",
-    pattern: "/account",
-    routeChain: collectRouteChainFromRoute(page._route),
-    segmentBoundaries: [],
-  };
-  return { root, route };
+  return { definition, layout };
 }
 
 async function transports(loader: Parameters<typeof routeFor>[0]) {
-  const { root, route } = routeFor(loader);
-  const html = await (
-    await new Elysia()
-      .use(createRoutePlugin(route, root, "test"))
-      .handle(new Request("http://localhost/account"))
-  ).text();
-  const navigation = await new Elysia()
-    .use(createDataEndpoint([route], root))
-    .handle(new Request("http://localhost/_furin/data?path=/account"));
+  const { definition, layout } = routeFor(loader);
+  const { app } = await mountProductionApp({
+    buildId: "test",
+    pages: [{ pattern: "/account", route: definition }],
+    root: layout,
+  });
+  const html = await (await app.handle(new Request("http://localhost/account"))).text();
+  const navigation = await app.handle(new Request("http://localhost/account?_furin=data"));
   const payload = await navigation.text();
   const { body } = new Response(payload);
   if (!body) {

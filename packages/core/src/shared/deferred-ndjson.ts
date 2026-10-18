@@ -29,7 +29,7 @@ function makeAbortError(reason: unknown): Error {
 }
 
 /**
- * Parses an NDJSON stream produced by `/_furin/data`.
+ * Parses an NDJSON stream produced for `?_furin=data` navigation requests.
  *
  * Single-line, all-resolved payloads use either a compact JSON envelope for
  * ordinary JSON data or CrossJSON when richer JavaScript semantics must be

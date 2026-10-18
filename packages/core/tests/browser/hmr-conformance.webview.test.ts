@@ -2287,7 +2287,7 @@ browserTest(
     expect(
       (await harness.view.evaluate(`
         performance.getEntriesByType("resource")
-          .filter((entry) => entry.name.includes("/_furin/data"))
+          .filter((entry) => entry.name.includes("_furin=data"))
           .length
       `)) as number
     ).toBe(0);
@@ -2338,7 +2338,7 @@ export const route = defineRootRoute()
     await Bun.sleep(300);
     expect(
       (await harness.view.evaluate(`performance.getEntriesByType("resource")
-        .filter((entry) => entry.name.includes("/_furin/data")).length`)) as number
+        .filter((entry) => entry.name.includes("_furin=data")).length`)) as number
     ).toBe(0);
     await waitForElementText(harness.view, '[data-testid="root-data"]', "loader-stable");
     expect((await readSnapshot(harness.view)).count).toBe("1");
@@ -2485,7 +2485,7 @@ browserTest(
       window.__furinHmrDataRequests = 0;
       const originalFetch = window.fetch.bind(window);
       window.fetch = (...args) => {
-        if (String(args[0]).includes("/_furin/data")) {
+        if (String(args[0]).includes("_furin=data")) {
           window.__furinHmrDataRequests += 1;
         }
         return originalFetch(...args);

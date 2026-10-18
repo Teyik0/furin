@@ -73,7 +73,7 @@ export interface RenderResult {
   /**
    * NDJSON payload (one CrossJSON-serialised line) carrying the loader's
    * resolved sync + deferred data. Identical in shape to the body the live
-   * `/_furin/data` endpoint emits, so the SPA client can consume both
+   * navigation data (`?_furin=data`) emits, so the SPA client can consume both
    * interchangeably.
    */
   ndjson: string;
@@ -818,7 +818,7 @@ function waitForDeferred(
 
 /**
  * Serialises a loader's `syncData` + `deferredPromises` into the same one-line
- * NDJSON shape the live `/_furin/data` endpoint emits.
+ * NDJSON shape live navigation data requests (`?_furin=data`) receive.
  */
 export async function serializeLoaderDataNdjson(
   syncData: Record<string, unknown>,

@@ -1,3 +1,5 @@
+import { navigationDataHref } from "../../shared/navigation-data.ts";
+import { physicalPath } from "../../shared/prefix.ts";
 import { findRouteFailure } from "../../shared/route-matches.ts";
 import { TRAILING_SLASHES_RE, toLogical } from "./link-utils.ts";
 import type { SpaResponseKind } from "./types.ts";
@@ -59,7 +61,7 @@ export async function parsePageResponse(
  *
  * Two transports are supported:
  *
- *   • **Runtime (SSR/ISR/dev)** — `${basePath}/_furin/data?path=<logicalHref>`.
+ *   • **Runtime (SSR/ISR/dev)** — the page URL with `_furin=data` appended.
  *   • **Static export** — `${basePath}<logicalPathname>/__furin_data.ndjson`.
  *
  * @internal Exported for unit testing.
@@ -69,10 +71,10 @@ export function buildDataEndpoint(
   logicalHref: string,
   staticMode: boolean
 ): string {
-  if (!staticMode) {
-    return `${basePath}/_furin/data?path=${encodeURIComponent(logicalHref)}`;
-  }
   const parsed = new URL(logicalHref, "http://x");
+  if (!staticMode) {
+    return navigationDataHref(physicalPath(basePath, parsed.pathname) + parsed.search);
+  }
   const pathname = parsed.pathname.replace(TRAILING_SLASHES_RE, "");
   return `${basePath}${pathname}/__furin_data.ndjson`;
 }

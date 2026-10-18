@@ -23,7 +23,7 @@ beforeEach(() => {
   dataReads = 0;
   const base = (input: RequestInfo | URL) => {
     const url = new URL(String(input), window.location.origin);
-    if (url.pathname === "/_furin/data") {
+    if (url.searchParams.get("_furin") === "data") {
       dataReads += 1;
       return Promise.resolve(
         new Response(`${JSON.stringify(toCrossJSON({ message: `read ${dataReads}` }))}\n`, {

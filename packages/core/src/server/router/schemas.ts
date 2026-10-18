@@ -70,35 +70,6 @@ function parseQueryFromURL(search: string, arrayKeys?: QueryKeyMap): UnknownObje
   return query;
 }
 
-/**
- * Parses the `?path=` argument of `/_furin/data`, rejecting absolute /
- * protocol-relative inputs that would let a caller smuggle a foreign origin
- * into the synthetic loader request.
- *
- * Returns `{ url, pathname }` on success, or `undefined` when the input is
- * unsafe (the caller should reply 400). `new URL(rawPath, base)` ignores the
- * base when `rawPath` is itself absolute, so without these prefix and origin
- * checks a value like `https://evil.com/foo` would propagate to
- * `syntheticRequest.url`.
- *
- * @internal Exported for unit testing.
- */
-export function parseDataEndpointPath(rawPath: string): { url: URL; pathname: string } | undefined {
-  if (rawPath.includes("://") || rawPath.startsWith("//")) {
-    return;
-  }
-  let url: URL;
-  try {
-    url = new URL(rawPath, "http://localhost");
-  } catch {
-    return;
-  }
-  if (url.origin !== "http://localhost") {
-    return;
-  }
-  return { pathname: url.pathname, url };
-}
-
 function isObjectSchema(schema: unknown): schema is UnknownObject {
   return !!schema && typeof schema === "object";
 }
@@ -283,9 +254,8 @@ async function validateRouteInput(
 }
 
 /**
- * Parses and validates a logical route URL's search string for the synthetic
- * `/_furin/data` request path. This keeps SPA navigations aligned with the
- * Elysia guard used by the full SSR route.
+ * Parses and validates a route URL's search string against the merged route
+ * chain schema, so SPA navigations and documents see the same query.
  *
  * @internal Exported for unit testing.
  */
@@ -308,9 +278,9 @@ export async function parseRouteQuery(
 }
 
 /**
- * Validates and coerces path params for the synthetic `/_furin/data` request
- * path. This mirrors the composed Elysia route schema so SPA loaders receive
- * the same values as full SSR loaders.
+ * Validates and coerces path params against the merged route chain schema
+ * where Elysia has not already done so (the development shell, pages served
+ * through the not-found path).
  *
  * @internal Exported for unit testing.
  */
@@ -343,7 +313,7 @@ export function createSearchRouteMetadata(
 
 /**
  * Applies top-level `default` values from a TypeBox TObject schema to a
- * values record. Used in the `/_furin/data` endpoint so loaders see the same
+ * values record, so schema-validated route input sees the same
  * defaulted query objects that the SSR path produces via Elysia's guard.
  */
 export function applySchemaDefaults(

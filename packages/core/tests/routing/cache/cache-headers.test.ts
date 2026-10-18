@@ -1,138 +1,105 @@
-import { expect, test } from "bun:test";
-import { runProcess } from "../../support/process.ts";
-
-const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
-
-const CACHE_HEADER_SCENARIOS = String.raw`
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { Elysia } from "elysia";
-import { __resetCacheState } from "./src/server/cache/index.ts";
-import { scanPages } from "./src/server/router/discovery.ts";
-import { createRoutePlugin } from "./src/server/router/plugin.ts";
-import { __setDevMode } from "./src/server/runtime-env.ts";
+// The fixture root is typed through the package entry, so its page must be too.
+import { defineRoute } from "@teyik0/furin";
+import { createElement } from "react";
+import { __resetCacheState } from "../../../src/server/cache/index.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
+import { route as fixtureRoot } from "../../fixtures/pages/default/root.tsx";
+import { mountProductionApp, mountProductionPages } from "../../support/production-app.ts";
 
-const fixturesDir = join(process.cwd(), "tests/fixtures/pages/default");
+const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
 const etagPattern = /^"testbuild:\d+"$/;
+const originalDevMode = IS_DEV;
 
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function assertEqual(actual, expected, message) {
-  if (actual !== expected) {
-    throw new Error(message + ": expected " + String(expected) + ", got " + String(actual));
-  }
-}
-
-async function getRoute(pattern) {
-  const result = await scanPages(fixturesDir);
-  const route = result.routes.find((candidate) => candidate.pattern === pattern);
-  if (!route) {
-    throw new Error("Route " + pattern + " not found in fixtures");
-  }
-  return { root: result.root, route };
-}
-
-async function routeResponse(pattern, buildId) {
+beforeEach(() => {
+  __setDevMode(false);
   __resetCacheState();
-  const { root, route } = await getRoute(pattern);
-  const app = new Elysia().use(createRoutePlugin(route, root, buildId));
-  return app.handle(new Request("http://localhost" + pattern));
-}
+});
 
-__setDevMode(false);
-
-let response = await routeResponse("/isr-page", undefined);
-assertEqual(response.status, 200, "ISR response should return 200");
-let cacheControl = response.headers.get("cache-control") ?? "";
-for (const directive of ["max-age=0", "public", "s-maxage=", "stale-while-revalidate"]) {
-  assert(cacheControl.includes(directive), "ISR Cache-Control should include " + directive);
-}
-assert(
-  cacheControl.includes("stale-while-revalidate=60"),
-  "ISR Cache-Control should use the route revalidate value"
-);
-assertEqual(response.headers.get("cache-tag"), "/isr-page", "ISR cache-tag should match path");
-
-{
+afterEach(() => {
   __resetCacheState();
-  const { root, route } = await getRoute("/isr-page");
-  route.page.revalidate = 17;
-  const app = new Elysia().use(createRoutePlugin(route, root, undefined));
+  __resetCompileContext();
+  __setDevMode(originalDevMode);
+});
+
+async function routeResponse(path: string, buildId: string): Promise<Response> {
+  const { app } = await mountProductionPages(fixturesDir, buildId);
+  return app.handle(new Request(`http://localhost${path}`));
+}
+
+test("ISR responses are publicly cacheable with the route revalidate window", async () => {
+  const response = await routeResponse("/isr-page", "");
+  expect(response.status).toBe(200);
+  const cacheControl = response.headers.get("cache-control") ?? "";
+  for (const directive of ["max-age=0", "public", "s-maxage=", "stale-while-revalidate"]) {
+    expect(cacheControl).toContain(directive);
+  }
+  expect(cacheControl).toContain("stale-while-revalidate=60");
+  expect(response.headers.get("cache-tag")).toBe("/isr-page");
+});
+
+test("ISR Cache-Control preserves a non-default route revalidate value", async () => {
+  const { app } = await mountProductionApp({
+    buildId: "",
+    pages: [
+      {
+        pattern: "/isr-page",
+        route: defineRoute()
+          .config({ layout: fixtureRoot, mode: "isr", revalidate: 17 })
+          .loader(() => ({ timestamp: Date.now() }))
+          .page(({ timestamp }) =>
+            createElement("div", { "data-timestamp": String(timestamp) }, "ISR Page")
+          ),
+      },
+    ],
+    root: fixtureRoot,
+  });
   const configured = await app.handle(new Request("http://localhost/isr-page"));
-  assert(
-    (configured.headers.get("cache-control") ?? "").includes("stale-while-revalidate=17"),
-    "ISR Cache-Control should preserve a non-default route revalidate value"
-  );
-  assert(
-    (configured.headers.get("cache-control") ?? "").includes("s-maxage=17"),
-    "ISR shared max-age should preserve a non-default route revalidate value"
-  );
-}
+  const cacheControl = configured.headers.get("cache-control") ?? "";
+  expect(cacheControl).toContain("stale-while-revalidate=17");
+  expect(cacheControl).toContain("s-maxage=17");
+});
 
-response = await routeResponse("/isr-page", "testbuild");
-const etag = response.headers.get("etag");
-assert(etag !== null, "ISR response should include ETag when buildId is set");
-assert(etagPattern.test(etag), "ISR ETag should match testbuild timestamp format");
+test("ISR ETags follow the build ID", async () => {
+  const response = await routeResponse("/isr-page", "testbuild");
+  const etag = response.headers.get("etag");
+  expect(etag).not.toBeNull();
+  expect(etag ?? "").toMatch(etagPattern);
 
-response = await routeResponse("/isr-page", "");
-assert(response.headers.get("etag") === null, "ISR response should omit ETag when buildId is empty");
+  const withoutBuild = await routeResponse("/isr-page", "");
+  expect(withoutBuild.headers.get("etag")).toBeNull();
+});
 
-{
-  __resetCacheState();
-  const { root, route } = await getRoute("/isr-page");
-  const app = new Elysia().use(createRoutePlugin(route, root, "testbuild"));
+test("ISR revalidates conditional requests against the current ETag", async () => {
+  const { app } = await mountProductionPages(fixturesDir, "testbuild");
   const first = await app.handle(new Request("http://localhost/isr-page"));
   const firstEtag = first.headers.get("etag");
-  assert(firstEtag !== null, "first ISR response should include ETag");
+  expect(firstEtag).not.toBeNull();
   const second = await app.handle(
-    new Request("http://localhost/isr-page", { headers: { "if-none-match": firstEtag } })
+    new Request("http://localhost/isr-page", { headers: { "if-none-match": firstEtag ?? "" } })
   );
-  assertEqual(second.status, 304, "matching If-None-Match should return 304");
-}
+  expect(second.status).toBe(304);
 
-{
-  __resetCacheState();
-  const { root, route } = await getRoute("/isr-page");
-  const app = new Elysia().use(createRoutePlugin(route, root, "testbuild"));
   const stale = await app.handle(
     new Request("http://localhost/isr-page", { headers: { "if-none-match": '"stale-build:0"' } })
   );
-  assertEqual(stale.status, 200, "stale If-None-Match should return 200");
-}
+  expect(stale.status).toBe(200);
+});
 
-response = await routeResponse("/ssg-page", undefined);
-assertEqual(response.headers.get("cache-tag"), "/ssg-page", "SSG cache-tag should match path");
-cacheControl = response.headers.get("cache-control") ?? "";
-for (const directive of ["s-maxage=31536000", "must-revalidate", "public", "max-age=0"]) {
-  assert(cacheControl.includes(directive), "SSG Cache-Control should include " + directive);
-}
-
-response = await routeResponse("/ssr-page", undefined);
-assertEqual(
-  response.headers.get("cache-control"),
-  "no-store, no-cache, must-revalidate",
-  "SSR Cache-Control should be no-store"
-);
-assert(response.headers.get("cache-tag") === null, "SSR response should omit cache-tag");
-assert(response.headers.get("etag") === null, "SSR response should omit etag");
-
-process.exit(0);
-`;
-
-test("route cache header scenarios", async () => {
-  const proc = await runProcess(["bun", "-e", CACHE_HEADER_SCENARIOS], {
-    cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
-    timeoutMs: 14_000,
-  });
-
-  if (proc.exitCode !== 0) {
-    throw new Error(
-      [`cache header subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join("\n")
-    );
+test("SSG responses are cached by the CDN for a year and tagged by path", async () => {
+  const response = await routeResponse("/ssg-page", "");
+  expect(response.headers.get("cache-tag")).toBe("/ssg-page");
+  const cacheControl = response.headers.get("cache-control") ?? "";
+  for (const directive of ["s-maxage=31536000", "must-revalidate", "public", "max-age=0"]) {
+    expect(cacheControl).toContain(directive);
   }
+});
 
-  expect(proc.exitCode).toBe(0);
+test("SSR responses are never cached", async () => {
+  const response = await routeResponse("/ssr-page", "");
+  expect(response.headers.get("cache-control")).toBe("no-store, no-cache, must-revalidate");
+  expect(response.headers.get("cache-tag")).toBeNull();
+  expect(response.headers.get("etag")).toBeNull();
 });

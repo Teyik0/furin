@@ -25,6 +25,8 @@ export interface FurinInstance {
 }
 
 interface RuntimeScope {
+  /** Whether the request is a `?_furin=data` SPA navigation data request. */
+  navigationData: boolean;
   /** Runtimes composed into the application serving this request. */
   readonly peers: FurinInstance[] | undefined;
   /** Pending client-invalidation paths reported in the response. */
@@ -128,6 +130,7 @@ export function enterRequestScope<T>(runtime: FurinInstance, request: Request, f
   }
   return _scope.run(
     {
+      navigationData: false,
       // An in-process request issued while rendering shares its parent's
       // pending invalidations, so they still reach the parent response.
       pending: scope?.pending ?? new Set<string>(),
@@ -148,7 +151,13 @@ export function ensureRequestScope<T>(fn: () => T): T {
     return fn();
   }
   return _scope.run(
-    { pending: new Set<string>(), peers: undefined, requests: new WeakSet(), runtime: undefined },
+    {
+      navigationData: false,
+      pending: new Set<string>(),
+      peers: undefined,
+      requests: new WeakSet(),
+      runtime: undefined,
+    },
     fn
   );
 }
@@ -156,6 +165,19 @@ export function ensureRequestScope<T>(fn: () => T): T {
 /** Keeps a request rewritten by a wrap inside the scope that rewrote it. */
 export function adoptScopedRequest(request: Request): void {
   _scope.getStore()?.requests.add(request);
+}
+
+/** Marks the current request as a navigation data request. */
+export function markNavigationDataRequest(): void {
+  const scope = _scope.getStore();
+  if (scope) {
+    scope.navigationData = true;
+  }
+}
+
+/** Whether the current request asked for navigation data instead of a document. */
+export function isNavigationDataRequest(): boolean {
+  return _scope.getStore()?.navigationData === true;
 }
 
 /** Runtime whose logging options apply: the owner, else the outermost composed runtime. */
@@ -228,6 +250,7 @@ export function withInstance<T>(instance: FurinInstance, fn: () => T): T {
   const scope = _scope.getStore();
   return _scope.run(
     {
+      navigationData: false,
       pending: scope?.pending ?? new Set<string>(),
       peers: scope?.peers,
       requests: new WeakSet(),

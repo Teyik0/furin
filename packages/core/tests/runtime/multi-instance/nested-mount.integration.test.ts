@@ -65,10 +65,10 @@ try {
   expect(response.status).toBe(200);
   const html = await response.text();
   expect(html).toContain("Home page");
-  const data = await app.handle("/outer/inner/admin/_furin/data?path=%2F");
+  const data = await app.handle("/outer/inner/admin?_furin=data");
   expect(data.status).toBe(200);
   expect(data.headers.get("content-type")).toContain("json");
-  for (const path of ["/outer/inner/admin", "/outer/inner/admin/_furin/data?path=%2F"]) {
+  for (const path of ["/outer/inner/admin", "/outer/inner/admin?_furin=data"]) {
     const denied = await app.handle(new Request("http://localhost" + path, { headers: { "x-deny": "1" } }));
     expect(denied.status).toBe(403);
   }
@@ -280,7 +280,7 @@ try {
     .get("/api", ({ log }) => { log.set({ parent: true }); return "parent"; });
   for (const prefix of ["/one", "/two"]) {
     expect((await app.handle(prefix)).status).toBe(200);
-    const data = await app.handle(prefix + "/_furin/data?path=%2F");
+    const data = await app.handle(prefix + "/?_furin=data");
     expect(data.status).toBe(200);
     await data.text();
   }
@@ -380,7 +380,7 @@ try {
     const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: prefix + "/admin" });
     const app = new Elysia().use(new Elysia().use(plugin)).listen({ hostname: "127.0.0.1", port: 0 });
     apps.push(app);
-    const initial = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", app.server.url));
+    const initial = await fetch(new URL(prefix + "/admin?_furin=data", app.server.url));
     expect(initial.status).toBe(200);
     await initial.text();
     console.log("[fixture] server rendered " + prefix);
@@ -395,7 +395,7 @@ try {
     console.log("[fixture] browser stream opened " + prefix);
   }
   for (const [index, prefix] of [[0, "/one"], [1, "/two"]]) {
-    const response = await fetch(new URL(prefix + "/admin/_furin/data?path=%2F", apps[index].server.url));
+    const response = await fetch(new URL(prefix + "/admin?_furin=data", apps[index].server.url));
     await response.text();
   }
   const eventDeadline = Math.min(fixtureDeadline, Date.now() + 2000);
@@ -413,7 +413,7 @@ try {
     ].join("\n"));
   }
   async function waitForPage(app, prefix, name) {
-    const url = new URL(prefix + "/admin/_furin/data?path=%2F" + name, app.server.url);
+    const url = new URL(prefix + "/admin/" + name + "?_furin=data", app.server.url);
     const deadline = Math.min(fixtureDeadline, Date.now() + 4000);
     while (Date.now() < deadline) {
       const response = await fetch(url);

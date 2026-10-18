@@ -1,16 +1,16 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import "../../setup/evlog-mock";
 
-import { type AnyElysia, Elysia, t } from "elysia";
+import { type AnyElysia, t } from "elysia";
+import { createElement } from "react";
 import { defer } from "../../../src/client";
-import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
-import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
-import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import type { HeadOptions } from "../../../src/client.ts";
+import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { findRouteFailure } from "../../../src/shared/route-matches.ts";
-import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp, type ProductionPage } from "../../support/production-app.ts";
 
 const DIGEST_RE = /^[0-9a-f]{10}$/;
 
@@ -19,262 +19,184 @@ function routeError(data: { [key: string]: unknown }): unknown {
   return failure?.status === "error" ? failure.error : undefined;
 }
 
-function cloneResolvedRoute(route: ResolvedRoute): ResolvedRoute {
-  const cloned: ResolvedRoute = {
-    ...route,
-    page: { ...route.page },
-    routeChain: route.routeChain.map((entry) => ({ ...entry })),
-    segmentBoundaries: route.segmentBoundaries.map((boundary) => ({ ...boundary })),
-  };
-  if (route.isrCache !== undefined) {
-    cloned.isrCache = { ...route.isrCache };
-  }
-  if (route.tags !== undefined) {
-    cloned.tags = [...route.tags];
-  }
-  return cloned;
-}
-
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
   .layout(({ children }) => children);
-const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
-const queryDefaultRoute = defineRoute()
-  .config({
-    layout: rootTerminal,
-    mode: "ssr",
-    query: t.Object({
-      city: t.Optional(t.String({ default: "Paris" })),
-    }),
-  })
-  .page(() => null);
-const queryTypesRoute = defineRoute()
-  .config({
-    layout: rootTerminal,
-    mode: "ssr",
-    query: t.Object({
-      active: t.Boolean(),
-      filter: t.Optional(t.Object({ category: t.String() })),
-      page: t.Number(),
-      tags: t.Optional(t.Array(t.String())),
-    }),
-  })
-  .loader(({ query }) => ({ queryFromLoader: query }))
-  .page(() => null);
-const withLoaderLayout = defineRoute()
-  .config({ layout: rootTerminal, mode: "ssr" })
-  .loader(({ cookie, headers, path, request, set }) => {
-    set.headers["x-loader-ran"] = "true";
-    return {
-      cookieValue: cookie.test?.value as string | undefined,
-      currentPath: path,
-      hasHeaders: Boolean(headers),
-      layoutData: "from-layout",
-      requestUrl: request.url,
-    };
-  })
-  .layout(({ children }) => children);
-const withLoaderRuntime = adaptDefinedLayout(withLoaderLayout, rootRoute);
 
-function resolveRoute(
-  route: Parameters<typeof adaptDefinedPage>[0],
-  parent: Parameters<typeof adaptDefinedPage>[1],
-  path: string,
-  pattern: string
-): ResolvedRoute {
-  const page = adaptDefinedPage(route, parent);
+/** A replacement loader; route builders only see it through `never` casts. */
+type TestLoader = (context: never) => unknown;
+
+interface LayoutLoaderContext {
+  cookie: { test?: { value: unknown } };
+  headers: unknown;
+  path: string;
+  request: Request;
+  set: { headers: { [key: string]: string } };
+}
+
+function defaultLayoutLoader({ cookie, headers, path, request, set }: LayoutLoaderContext) {
+  set.headers["x-loader-ran"] = "true";
   return {
-    mode: page.mode ?? "ssr",
-    page,
-    path,
-    pattern,
-    requestKeys: pattern === "/ppr-account" ? ["user"] : [],
-    routeChain: collectRouteChainFromRoute(page._route),
-    segmentBoundaries: [],
+    cookieValue: cookie.test?.value as string | undefined,
+    currentPath: path,
+    hasHeaders: Boolean(headers),
+    layoutData: "from-layout",
+    requestUrl: request.url,
   };
 }
 
-const BASE_ROUTES: ResolvedRoute[] = [
-  resolveRoute(queryDefaultRoute, rootRoute, "/query-default", "/query-default"),
-  resolveRoute(queryTypesRoute, rootRoute, "/query-types", "/query-types"),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: withLoaderLayout, mode: "ssr" })
-      .loader(async () => ({ pageData: "from-page" }))
-      .page(() => null),
-    withLoaderRuntime,
-    "/with-loader",
-    "/with-loader"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
-      .loader(async () =>
-        defer({
-          stats: Promise.resolve(42),
-          title: "deferred page",
-        })
-      )
-      .page(() => null),
-    rootRoute,
-    "/defer-page",
-    "/defer-page"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
-      .page(() => null),
-    rootRoute,
-    "/ssr-page",
-    "/ssr-page"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.String() }) })
-      .loader(() => ({ pageData: "from-dynamic" }))
-      .page(() => null),
-    rootRoute,
-    "/dynamic/[id]",
-    "/dynamic/:id"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.Number() }) })
-      .loader(({ params }) => ({ paramsFromLoader: params }))
-      .page(() => null),
-    rootRoute,
-    "/number/[id]",
-    "/number/:id"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
-      .loader(() => ({ pageData: "from-static-specific" }))
-      .page(() => null),
-    rootRoute,
-    "/dynamic/specific",
-    "/dynamic/specific"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
-      .loader(({ redirect }) => {
-        throw redirect("?tab=billing");
-      })
-      .page(() => null),
-    rootRoute,
-    "/account",
-    "/account"
-  ),
-  resolveRoute(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ slug: t.String() }) })
-      .loader(({ params }) =>
-        defer({
-          post: Promise.resolve({ title: `Post for ${params.slug}` }),
-          slug: params.slug,
-        })
-      )
-      .page(() => null),
-    rootRoute,
-    "/dynamic-defer/[slug]",
-    "/dynamic-defer/:slug"
-  ),
-];
-
-function createDataTestApp(): { app: AnyElysia; routes: ResolvedRoute[] } {
-  const routes = BASE_ROUTES.map(cloneResolvedRoute);
-  return { app: new Elysia().use(createDataEndpoint(routes)), routes };
+/** `/with-loader` under its loader layout, with optional replacement loaders and head. */
+function withLoaderPage(
+  pageLoader: TestLoader | undefined,
+  head: ((context: never) => HeadOptions) | undefined,
+  layoutLoader: TestLoader | undefined
+): ProductionPage {
+  const layout = defineRoute()
+    .config({ layout: rootTerminal, mode: "ssr" })
+    .loader((layoutLoader ?? defaultLayoutLoader) as never)
+    .layout(({ children }) => children);
+  const loaded = defineRoute()
+    .config({ layout, mode: "ssr" })
+    .loader((pageLoader ?? (async () => ({ pageData: "from-page" }))) as never);
+  return {
+    layout: { route: layout, segment: "with-loader-layout" },
+    pattern: "/with-loader",
+    route: head ? loaded.head(head as never).page(() => null) : loaded.page(() => null),
+  };
 }
 
-__setDevMode(false);
+function deferPage(loader: TestLoader): ProductionPage {
+  return {
+    pattern: "/defer-page",
+    route: defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr" })
+      .loader(loader as never)
+      .page(() => null),
+  };
+}
 
-describe("GET /_furin/data", () => {
-  test("returns 400 if the path parameter is missing", async () => {
-    const app = new Elysia().use(createDataEndpoint([]));
+function numberPage(loader: TestLoader): ProductionPage {
+  return {
+    pattern: "/number/:id",
+    route: defineRoute()
+      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.Number() }) })
+      .loader(loader as never)
+      .page(() => null),
+  };
+}
 
-    const res = await app.handle(new Request("http://localhost/_furin/data"));
+function basePages(): ProductionPage[] {
+  return [
+    {
+      pattern: "/query-default",
+      route: defineRoute()
+        .config({
+          layout: rootTerminal,
+          mode: "ssr",
+          query: t.Object({
+            city: t.Optional(t.String({ default: "Paris" })),
+          }),
+        })
+        .page(() => null),
+    },
+    {
+      pattern: "/query-types",
+      route: defineRoute()
+        .config({
+          layout: rootTerminal,
+          mode: "ssr",
+          query: t.Object({
+            active: t.Boolean(),
+            filter: t.Optional(t.Object({ category: t.String() })),
+            page: t.Number(),
+            tags: t.Optional(t.Array(t.String())),
+          }),
+        })
+        .loader(({ query }) => ({ queryFromLoader: query }))
+        .page(() => null),
+    },
+    withLoaderPage(undefined, undefined, undefined),
+    deferPage(() =>
+      defer({
+        stats: Promise.resolve(42),
+        title: "deferred page",
+      })
+    ),
+    {
+      pattern: "/ssr-page",
+      route: defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr" })
+        .page(() => null),
+    },
+    {
+      pattern: "/dynamic/:id",
+      route: defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.String() }) })
+        .loader(() => ({ pageData: "from-dynamic" }))
+        .page(() => null),
+    },
+    numberPage(({ params }: { params: { id: number } }) => ({ paramsFromLoader: params })),
+    {
+      pattern: "/dynamic/specific",
+      route: defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr" })
+        .loader(() => ({ pageData: "from-static-specific" }))
+        .page(() => null),
+    },
+    {
+      pattern: "/account",
+      route: defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr" })
+        .loader(({ redirect }) => {
+          throw redirect("?tab=billing");
+        })
+        .page(() => null),
+    },
+    {
+      pattern: "/dynamic-defer/:slug",
+      route: defineRoute()
+        .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ slug: t.String() }) })
+        .loader(({ params }) =>
+          defer({
+            post: Promise.resolve({ title: `Post for ${params.slug}` }),
+            slug: params.slug,
+          })
+        )
+        .page(() => null),
+    },
+  ];
+}
 
-    expect(res.status).toBe(400);
-    expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      detail: "Missing required query param: path",
-      status: 400,
-      title: "Bad Request",
-      type: "about:blank",
-    });
-  });
+/** Mounts the base pages through `furin()`, replacing those named in `overrides`. */
+async function createDataTestApp(overrides: readonly ProductionPage[]): Promise<AnyElysia> {
+  const pages = basePages().map(
+    (page) => overrides.find((override) => override.pattern === page.pattern) ?? page
+  );
+  const { app } = await mountProductionApp({ buildId: "", pages, root: rootTerminal });
+  return app;
+}
 
-  test("returns a route-data error when resolving dynamic routes fails", async () => {
-    const app = new Elysia().use(
-      createDataEndpoint(() => Promise.reject(new Error("route refresh failed")))
-    );
+async function mountPage(page: ProductionPage): Promise<AnyElysia> {
+  const { app } = await mountProductionApp({ buildId: "", pages: [page], root: rootTerminal });
+  return app;
+}
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+const originalDevMode = IS_DEV;
 
-    expect(res.status).toBe(500);
-    const { syncData } = await parseDeferredNdjson(
-      res.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
-      undefined
-    );
-    expect(routeError(syncData)).toEqual({
-      digest: expect.stringMatching(DIGEST_RE),
-      message: "Something went wrong",
-      status: 500,
-    });
-  });
+beforeEach(() => {
+  __setDevMode(false);
+});
 
-  test("returns a route-data error when refreshing a matched route fails", async () => {
-    const { routes } = createDataTestApp();
-    const app = new Elysia().use(
-      createDataEndpoint(routes, undefined, () => Promise.reject(new Error("route import failed")))
-    );
+afterEach(() => {
+  __resetCompileContext();
+  __setDevMode(originalDevMode);
+});
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
-
-    expect(res.status).toBe(500);
-    const { syncData } = await parseDeferredNdjson(
-      res.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
-      undefined
-    );
-    expect(routeError(syncData)).toEqual({
-      digest: expect.stringMatching(DIGEST_RE),
-      message: "Something went wrong",
-      status: 500,
-    });
-  });
-
-  test("rejects an absolute URL passed in ?path= (open-redirect prevention)", async () => {
-    const app = new Elysia().use(createDataEndpoint([]));
-
-    // Without the prefix/origin guard, `new URL("https://evil.com/foo", base)`
-    // ignores the base and the attacker-controlled origin would propagate to
-    // `syntheticRequest.url`.
-    const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=https%3A%2F%2Fevil.com%2Ffoo")
-    );
-
-    expect(res.status).toBe(400);
-    expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({ detail: "Invalid path", status: 400 });
-  });
-
-  test("rejects a protocol-relative path `//host/foo`", async () => {
-    const app = new Elysia().use(createDataEndpoint([]));
-
-    const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2F%2Fevil.com%2Ffoo")
-    );
-
-    expect(res.status).toBe(400);
-    expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({ detail: "Invalid path", status: 400 });
-  });
-
+describe("SPA navigation data (?_furin=data)", () => {
   test("resolves query defaults without emitting a redirect sentinel", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fquery-default"));
+    const res = await app.handle(new Request("http://localhost/query-default?_furin=data"));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-ndjson");
@@ -288,9 +210,9 @@ describe("GET /_furin/data", () => {
   });
 
   test("resolves search-only redirects against the logical route URL", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Faccount"));
+    const res = await app.handle(new Request("http://localhost/account?_furin=data"));
 
     expect(res.status).toBe(200);
 
@@ -303,11 +225,11 @@ describe("GET /_furin/data", () => {
   });
 
   test("passes schema-coerced query values to loaders during SPA navigation", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
     const res = await app.handle(
       new Request(
-        "http://localhost/_furin/data?path=%2Fquery-types%3Fpage%3D2%26active%3Dtrue%26tags%3Dreact%26tags%3Dfurin"
+        "http://localhost/query-types?page=2&active=true&tags=react&tags=furin&_furin=data"
       )
     );
 
@@ -327,13 +249,13 @@ describe("GET /_furin/data", () => {
   });
 
   test("passes JSON object query values to loaders during SPA navigation", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
     const res = await app.handle(
       new Request(
-        `http://localhost/_furin/data?path=${encodeURIComponent(
-          '/query-types?page=2&active=true&filter={"category":"framework"}'
-        )}`
+        `http://localhost/query-types?page=2&active=true&filter=${encodeURIComponent(
+          '{"category":"framework"}'
+        )}&_furin=data`
       )
     );
 
@@ -353,46 +275,31 @@ describe("GET /_furin/data", () => {
   });
 
   test("rejects invalid schema query values before running loaders during SPA navigation", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
     const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fquery-types%3Fpage%3Dnope%26active%3Dtrue")
+      new Request("http://localhost/query-types?page=nope&active=true&_furin=data")
     );
 
     expect(res.status).toBe(422);
     expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      detail: "Invalid query",
-      status: 422,
-      title: "Unprocessable Content",
-      type: "about:blank",
-    });
+    // The page's own Elysia route validates the query before any loader runs.
+    expect(await res.json()).toMatchObject({ on: "query", status: 422 });
   });
 
-  test("returns 404 if no route matches the path", async () => {
-    const { app } = createDataTestApp();
+  test("answers an unknown path with an empty uncacheable 404", async () => {
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Froute-inexistante")
-    );
+    const res = await app.handle(new Request("http://localhost/route-inexistante?_furin=data"));
 
     expect(res.status).toBe(404);
-    expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      detail: "Route not found",
-      status: 404,
-      title: "Not Found",
-      type: "about:blank",
-    });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.text()).toBe("");
   });
 
   test("returns NDJSON for a route with a synchronous loader", async () => {
-    const { app, routes } = createDataTestApp();
-    const withLoaderRoute = routes.find((r) => r.pattern === "/with-loader");
-    if (!withLoaderRoute) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+    const app = await createDataTestApp([]);
+    const res = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-ndjson");
@@ -406,12 +313,8 @@ describe("GET /_furin/data", () => {
   });
 
   test("returns route frames with Promise for a route using defer()", async () => {
-    const { app, routes } = createDataTestApp();
-    const deferRoute = routes.find((r) => r.pattern === "/defer-page");
-    if (!deferRoute) {
-      throw new Error("No /defer-page route in fixtures — add defer-page.tsx");
-    }
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fdefer-page"));
+    const app = await createDataTestApp([]);
+    const res = await app.handle(new Request("http://localhost/defer-page?_furin=data"));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-furin-route");
@@ -427,16 +330,31 @@ describe("GET /_furin/data", () => {
   });
 
   test("streams request fields for an ISR route during SPA navigation", async () => {
+    // The public part of a PPR route is a prerendered shell: it needs a
+    // complete root HTML document.
+    const documentRoot = defineRootRoute()
+      .config({ mode: "ssr" })
+      .layout(({ children }) =>
+        createElement(
+          "html",
+          { lang: "en" },
+          createElement("head", null, createElement(HeadContent)),
+          createElement("body", null, children, createElement(Scripts))
+        )
+      );
     const routeDefinition = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      .config({ layout: documentRoot, mode: "isr", revalidate: 60 })
       .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
       .loader(() => ({ catalog: "Shoes" }))
       .page(() => null);
-    const route = resolveRoute(routeDefinition, rootRoute, "/ppr-account", "/ppr-account");
-    const app = new Elysia().use(createDataEndpoint([route]));
+    const { app } = await mountProductionApp({
+      buildId: "",
+      pages: [{ pattern: "/ppr-account", requestKeys: ["user"], route: routeDefinition }],
+      root: documentRoot,
+    });
 
     const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fppr-account", {
+      new Request("http://localhost/ppr-account?_furin=data", {
         headers: { cookie: "session=alice" },
       })
     );
@@ -459,11 +377,10 @@ describe("GET /_furin/data", () => {
         cookieHeader: request.headers.get("cookie"),
       }))
       .page(() => null);
-    const route = resolveRoute(routeDefinition, rootRoute, "/protected", "/protected");
-    const app = new Elysia().use(createDataEndpoint([route]));
+    const app = await mountPage({ pattern: "/protected", route: routeDefinition });
 
     const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fprotected", {
+      new Request("http://localhost/protected?_furin=data", {
         headers: { authorization: "Bearer token-123", cookie: "session=alice" },
       })
     );
@@ -478,30 +395,19 @@ describe("GET /_furin/data", () => {
   });
 
   test("returns the response before deferred Promises have resolved", async () => {
-    const { app, routes } = createDataTestApp();
-    const deferRoute = routes.find((r) => r.pattern === "/defer-page");
-    if (!deferRoute?.page) {
-      throw new Error("No /defer-page route in fixtures — add defer-page.tsx");
-    }
     let resolveStats: ((value: number) => void) | undefined;
     const stats = new Promise<number>((resolve) => {
       resolveStats = resolve;
     });
-
-    // Replace `.page` with a shallow copy instead of mutating the shared
-    // module export — `scanPages` returns routes whose `.page` is the cached
-    // import, so in-place mutation would leak into other tests.
-    deferRoute.page = {
-      ...deferRoute.page,
-      loader: () =>
+    const app = await createDataTestApp([
+      deferPage(() =>
         defer({
           stats,
           title: "deferred page",
-        }),
-    };
-    const responsePromise = app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fdefer-page")
-    );
+        })
+      ),
+    ]);
+    const responsePromise = app.handle(new Request("http://localhost/defer-page?_furin=data"));
 
     const res = await Promise.race([
       responsePromise,
@@ -527,26 +433,18 @@ describe("GET /_furin/data", () => {
   });
 
   test("emits the resolved page head for SPA navigation", async () => {
-    // During SPA navigation the client fetches /_furin/data (NDJSON) — head()
-    // never runs in the browser, so the endpoint must resolve the page title
-    // server-side and ship it as the reserved __furinTitle field. Without this,
-    // the client has to rely on a loader returning a magic `title` field.
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/with-loader");
-    if (!route) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    // Shallow-copy `.page` rather than mutating the shared module export.
-    route.page = {
-      ...route.page,
-      head: (ctx) => {
-        const { pageData } = ctx as { pageData: string };
-        return {
-          meta: [{ title: `Page: ${pageData}` }],
-        };
-      },
-    };
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+    // During SPA navigation the client fetches `?_furin=data` (NDJSON) — head()
+    // never runs in the browser, so the server must resolve the page title
+    // and ship it as the reserved __furinTitle field. Without this, the client
+    // has to rely on a loader returning a magic `title` field.
+    const app = await createDataTestApp([
+      withLoaderPage(
+        undefined,
+        ({ pageData }: { pageData: string }) => ({ meta: [{ title: `Page: ${pageData}` }] }),
+        undefined
+      ),
+    ]);
+    const res = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
 
     const { syncData } = await parseDeferredNdjson(
       res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
@@ -559,22 +457,18 @@ describe("GET /_furin/data", () => {
   });
 
   test("does not let oversized head metadata break SPA navigation", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((candidate) => candidate.pattern === "/with-loader");
-    if (!route) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    route.page = {
-      ...route.page,
-      head: () => ({
-        meta: [{ title: "Large head" }],
-        styles: [{ children: "x".repeat(1024 * 1024) }],
-      }),
-    };
+    const app = await createDataTestApp([
+      withLoaderPage(
+        undefined,
+        () => ({
+          meta: [{ title: "Large head" }],
+          styles: [{ children: "x".repeat(1024 * 1024) }],
+        }),
+        undefined
+      ),
+    ]);
 
-    const response = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fwith-loader")
-    );
+    const response = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
     const { syncData } = await parseDeferredNdjson(
       response.body ??
         new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
@@ -589,12 +483,8 @@ describe("GET /_furin/data", () => {
   test("does not set __furinStatus for a route without a loader", async () => {
     // SSR route without loader doesn't trigger notFound.
     // We test the ssr-page which has no loader — data should be empty.
-    const { app, routes } = createDataTestApp();
-    const ssrRoute = routes.find((r) => r.pattern === "/ssr-page");
-    if (!ssrRoute) {
-      throw new Error("No /ssr-page route in fixtures");
-    }
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fssr-page"));
+    const app = await createDataTestApp([]);
+    const res = await app.handle(new Request("http://localhost/ssr-page?_furin=data"));
 
     expect(res.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
@@ -606,9 +496,9 @@ describe("GET /_furin/data", () => {
   });
 
   test("returns params in NDJSON for dynamic routes", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fdynamic%2F42"));
+    const res = await app.handle(new Request("http://localhost/dynamic/42?_furin=data"));
 
     expect(res.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
@@ -620,9 +510,9 @@ describe("GET /_furin/data", () => {
   });
 
   test("passes schema-coerced params to loaders during SPA navigation", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnumber%2F42"));
+    const res = await app.handle(new Request("http://localhost/number/42?_furin=data"));
 
     expect(res.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
@@ -634,30 +524,20 @@ describe("GET /_furin/data", () => {
   });
 
   test("rejects invalid schema params before running loaders during SPA navigation", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/number/:id");
-    if (!route) {
-      throw new Error("No /number/:id route in fixtures");
-    }
     let loaderRuns = 0;
-    route.page = {
-      ...route.page,
-      loader: () => {
+    const app = await createDataTestApp([
+      numberPage(() => {
         loaderRuns += 1;
         return { pageData: "should-not-run" };
-      },
-    };
+      }),
+    ]);
 
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnumber%2Fnope"));
+    const res = await app.handle(new Request("http://localhost/number/nope?_furin=data"));
 
     expect(res.status).toBe(422);
     expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      detail: "Invalid params",
-      status: 422,
-      title: "Unprocessable Content",
-      type: "about:blank",
-    });
+    // The page's own Elysia route validates params before any loader runs.
+    expect(await res.json()).toMatchObject({ on: "params", status: 422 });
     expect(loaderRuns).toBe(0);
   });
 
@@ -665,11 +545,9 @@ describe("GET /_furin/data", () => {
     // `/dynamic/specific` (static) and `/dynamic/:id` (dynamic) both match the
     // path `/dynamic/specific`. The endpoint must pick the static route — the
     // dynamic one would otherwise shadow it (its dir `[id]` is scanned first).
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
-    const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fdynamic%2Fspecific")
-    );
+    const res = await app.handle(new Request("http://localhost/dynamic/specific?_furin=data"));
 
     expect(res.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
@@ -682,27 +560,15 @@ describe("GET /_furin/data", () => {
   });
 
   test("layout loader returning defer() streams its deferred field through the NDJSON endpoint", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/with-loader");
-    if (!route) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    const layoutEntry = route.routeChain.find((r) => Boolean(r.loader));
-    if (!layoutEntry) {
-      throw new Error("No layout loader in /with-loader routeChain");
-    }
-    // Shallow-copy the routeChain entry so the deferred loader does not leak
-    // into other tests sharing the same scanPages cache.
-    const patched = {
-      ...layoutEntry,
-      loader: () =>
+    const app = await createDataTestApp([
+      withLoaderPage(undefined, undefined, () =>
         defer({
           asyncWidget: Promise.resolve(["item-a", "item-b"]),
           layoutData: "from-layout-defer",
-        }),
-    };
-    route.routeChain = route.routeChain.map((r) => (r === layoutEntry ? patched : r));
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+        })
+      ),
+    ]);
+    const res = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
 
     expect(res.status).toBe(200);
     const { syncData, deferredPromises } = await parseDeferredNdjson(
@@ -715,33 +581,22 @@ describe("GET /_furin/data", () => {
   });
 
   test("layout defer + page defer → both deferred Promises arrive as separate route frames", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/with-loader");
-    if (!route?.page) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    const layoutEntry = route.routeChain.find((r) => Boolean(r.loader));
-    if (!layoutEntry) {
-      throw new Error("No layout loader in /with-loader routeChain");
-    }
-    const patchedLayout = {
-      ...layoutEntry,
-      loader: () =>
-        defer({
-          asyncWidget: Promise.resolve("widget-ok"),
-          layoutData: "from-layout",
-        }),
-    };
-    route.routeChain = route.routeChain.map((r) => (r === layoutEntry ? patchedLayout : r));
-    route.page = {
-      ...route.page,
-      loader: () =>
-        defer({
-          asyncStats: Promise.resolve(99),
-          pageData: "from-page",
-        }),
-    };
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+    const app = await createDataTestApp([
+      withLoaderPage(
+        () =>
+          defer({
+            asyncStats: Promise.resolve(99),
+            pageData: "from-page",
+          }),
+        undefined,
+        () =>
+          defer({
+            asyncWidget: Promise.resolve("widget-ok"),
+            layoutData: "from-layout",
+          })
+      ),
+    ]);
+    const res = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
 
     expect(res.status).toBe(200);
     const text = await new Response(res.body).text();
@@ -759,11 +614,6 @@ describe("GET /_furin/data", () => {
     // SECOND but resolves FIRST. The on-the-wire stream MUST emit the fast key
     // first — otherwise streaming is cosmetic and a fast field is held hostage
     // by a slow sibling. This is the whole reason defer() exists.
-    const { app, routes } = createDataTestApp();
-    const deferRoute = routes.find((r) => r.pattern === "/defer-page");
-    if (!deferRoute?.page) {
-      throw new Error("No /defer-page route in fixtures");
-    }
     let resolveFast: ((value: string) => void) | undefined;
     let resolveSlow: ((value: string) => void) | undefined;
     const fast = new Promise<string>((resolve) => {
@@ -772,17 +622,16 @@ describe("GET /_furin/data", () => {
     const slow = new Promise<string>((resolve) => {
       resolveSlow = resolve;
     });
-    // Shallow-copy `.page` rather than mutating the shared module export.
-    deferRoute.page = {
-      ...deferRoute.page,
-      loader: () =>
+    const app = await createDataTestApp([
+      deferPage(() =>
         defer({
           fast,
           slow,
           title: "deferred page",
-        }),
-    };
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fdefer-page"));
+        })
+      ),
+    ]);
+    const res = await app.handle(new Request("http://localhost/defer-page?_furin=data"));
 
     const textPromise = new Response(res.body).text();
     if (resolveFast === undefined || resolveSlow === undefined) {
@@ -802,10 +651,10 @@ describe("GET /_furin/data", () => {
   });
 
   test("defer() on a dynamic route: params are in syncData and deferred Promises stream", async () => {
-    const { app } = createDataTestApp();
+    const app = await createDataTestApp([]);
 
     const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fdynamic-defer%2Fhello-world")
+      new Request("http://localhost/dynamic-defer/hello-world?_furin=data")
     );
 
     expect(res.status).toBe(200);
@@ -826,20 +675,17 @@ describe("GET /_furin/data", () => {
 
   // ── Slice 3 — SPA error sentinel ───────────────────────────────────────────
   test("loader throwing Response(403) returns HTTP 403 with an error route match", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/with-loader");
-    if (!route) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    // Shallow-copy `.page` so the throwing loader does not leak to other tests.
-    route.page = {
-      ...route.page,
-      loader: () => {
-        throw new Response("Forbidden", { status: 403 });
-      },
-    };
+    const app = await createDataTestApp([
+      withLoaderPage(
+        () => {
+          throw new Response("Forbidden", { status: 403 });
+        },
+        undefined,
+        undefined
+      ),
+    ]);
     const res = await app.handle(
-      new Request("http://localhost/_furin/data?path=%2Fwith-loader%3Ftab%3Ddetails")
+      new Request("http://localhost/with-loader?tab=details&_furin=data")
     );
 
     // The HTTP status of the data response matches the loader's Response.status —
@@ -865,19 +711,16 @@ describe("GET /_furin/data", () => {
   });
 
   test("loader throwing plain Error returns HTTP 500 with an error route match", async () => {
-    const { app, routes } = createDataTestApp();
-    const route = routes.find((r) => r.pattern === "/with-loader");
-    if (!route) {
-      throw new Error("No /with-loader route in fixtures");
-    }
-    // Shallow-copy `.page` so the throwing loader does not leak to other tests.
-    route.page = {
-      ...route.page,
-      loader: () => {
-        throw new Error("kaboom");
-      },
-    };
-    const res = await app.handle(new Request("http://localhost/_furin/data?path=%2Fwith-loader"));
+    const app = await createDataTestApp([
+      withLoaderPage(
+        () => {
+          throw new Error("kaboom");
+        },
+        undefined,
+        undefined
+      ),
+    ]);
+    const res = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
 
     expect(res.status).toBe(500);
     const { syncData } = await parseDeferredNdjson(

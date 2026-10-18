@@ -5,7 +5,7 @@ export interface ISRCacheEntry {
   generatedAt: number;
   html: string;
   /**
-   * Navigation payload rendered with `html`, served by `/_furin/data` so SPA
+   * Navigation payload rendered with `html`, served for `?_furin=data` requests so SPA
    * navigations share the document's cache entry and revalidation.
    */
   ndjson: string;
@@ -16,7 +16,7 @@ export interface SsgCacheEntry {
   cachedAt: number;
   html: string;
   /**
-   * NDJSON payload identical in shape to what the live `/_furin/data` endpoint
+   * NDJSON payload identical in shape to what live `?_furin=data` requests
    * emits. Persisted alongside the HTML by the static adapter so SPA navigation
    * on a static-hosted deployment can fetch loader data without going through
    * a runtime endpoint that does not exist on a file server.

@@ -72,12 +72,12 @@ test("refreshing one app keeps another app's route source version", () => {
   const firstGraph = devGraph(first);
   const secondGraph = devGraph(second);
   firstGraph.commit({
-    render: () => undefined,
+    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
     root: { path: firstPath } as DevelopmentRouteSnapshot["root"],
     routes: [],
   });
   secondGraph.commit({
-    render: () => undefined,
+    render: { native: () => undefined, notFound: () => Promise.resolve(undefined) },
     root: { path: secondPath } as DevelopmentRouteSnapshot["root"],
     routes: [],
   });

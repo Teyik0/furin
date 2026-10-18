@@ -83,7 +83,7 @@ function createLoggerOptions(
       `${prefix}/_bun_hmr_entry/**`,
       ...instrumentationLoggerExclusions(prefix),
       ...(syncPath ? [`${prefix}${syncPath}/**`] : []),
-      // Note: /_furin/data is logged with the logical page path, so SPA navigations
+      // Note: `?_furin=data` is logged with the logical page path, so SPA navigations
       // appear as "GET /board/123 200" — same shape as a normal SSR nav.
       // /_furin/ingest remains loggable when browser logging is explicitly
       // enabled so browser-side events show up.

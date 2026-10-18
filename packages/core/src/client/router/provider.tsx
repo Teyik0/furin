@@ -131,7 +131,7 @@ export function RouterProvider({
   );
   /**
    * Cached at boot from `<meta name="furin-mode">`. Drives the SPA-nav data
-   * fetch URL: runtime `/_furin/data` for SSR/ISR/dev, per-route
+   * fetch URL: the page URL with `?_furin=data` for SSR/ISR/dev, per-route
    * `__furin_data.ndjson` for static exports.
    */
   const [staticMode] = useState(detectStaticMode);

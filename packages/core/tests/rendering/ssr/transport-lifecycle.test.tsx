@@ -4,9 +4,9 @@ import { Suspense } from "react";
 import { QueryStore } from "../../../src/client/query-store.ts";
 import { createClient } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { type RenderResult, renderSSR, renderToHTML } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { Await } from "../../../src/shared/await.tsx";
 import { defer } from "../../../src/shared/defer.ts";
@@ -15,6 +15,7 @@ import { type NotFoundProps, notFound } from "../../../src/shared/not-found.ts";
 import { findRouteFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
 
 let previousDevMode: boolean;
 const DATA_SCRIPT = /<script[^>]*id="__FURIN_DATA__"[^>]*>([\s\S]*?)<\/script>/;
@@ -23,7 +24,10 @@ beforeEach(() => {
   previousDevMode = IS_DEV;
   __setDevMode(false);
 });
-afterEach(() => __setDevMode(previousDevMode));
+afterEach(() => {
+  __resetCompileContext();
+  __setDevMode(previousDevMode);
+});
 
 function parseData(payload: string) {
   const { body } = new Response(payload);
@@ -89,9 +93,18 @@ test.each(["deferred", "request"] as const)(
       .handle(new Request("http://localhost/missing"));
     expect(response.status).toBe(404);
     expect(await response.text()).toContain("Welcome home");
-    const navigation = await new Elysia()
-      .use(createDataEndpoint([route], root))
-      .handle(new Request("http://localhost/_furin/data?path=/missing"));
+    const { app } = await mountProductionApp({
+      buildId: "test",
+      pages: [
+        {
+          pattern: "/missing",
+          requestKeys: kind === "request" ? ["greeting"] : undefined,
+          route: pageDefinition,
+        },
+      ],
+      root: definition,
+    });
+    const navigation = await app.handle(new Request("http://localhost/missing?_furin=data"));
     const parsed = await parseData(await navigation.text());
     expect(await parsed.deferredPromises.greeting).toBe("Welcome home");
   }
@@ -165,9 +178,18 @@ test.each([404, 503])(
     expect(html).toContain('<section data-theme="ocean">');
     expect(html).toContain("Library");
     expect(html).toContain(status === 404 ? "Missing resource" : "Resource unavailable");
-    const navigation = await new Elysia()
-      .use(createDataEndpoint([route], root))
-      .handle(new Request("http://localhost/_furin/data?path=/missing"));
+    const { app } = await mountProductionApp({
+      buildId: "test",
+      pages: [
+        {
+          layout: { route: nestedDefinition, segment: "library" },
+          pattern: "/missing",
+          route: definition,
+        },
+      ],
+      root: rootDefinition,
+    });
+    const navigation = await app.handle(new Request("http://localhost/missing?_furin=data"));
     const parsed = await parseData(await navigation.text());
     expect(parsed.syncData.dashboard).toEqual({ settings: { theme: "ocean" } });
     expect(parsed.syncData.section).toBe("Library");
@@ -255,19 +277,12 @@ test("SSR hydration preserves rich loader values and escapes document delimiters
         {date.getUTCFullYear()} {String(big)}
       </main>
     ));
-  const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
-  const page = adaptDefinedPage(definition, root.route);
-  const route = {
-    mode: "ssr" as const,
-    page,
-    path: "/rich.tsx",
-    pattern: "/rich",
-    routeChain: collectRouteChainFromRoute(page._route),
-    segmentBoundaries: [],
-  };
-  const response = await new Elysia()
-    .use(createRoutePlugin(route, root, "test"))
-    .handle(new Request("http://localhost/rich"));
+  const { app } = await mountProductionApp({
+    buildId: "test",
+    pages: [{ pattern: "/rich", route: definition }],
+    root: layout,
+  });
+  const response = await app.handle(new Request("http://localhost/rich"));
   expect(response.status).toBe(200);
   const html = await response.text();
   expect(html).toContain("2026");
@@ -304,19 +319,12 @@ test("SSR document framing preserves raw script and comment closing-tag literals
     .config({ layout, mode: "ssr" })
     .loader(() => ({ rich: new Date("2026-01-01") }))
     .page(() => <main>Ready</main>);
-  const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
-  const page = adaptDefinedPage(definition, root.route);
-  const route = {
-    mode: "ssr" as const,
-    page,
-    path: "/raw.tsx",
-    pattern: "/raw",
-    routeChain: collectRouteChainFromRoute(page._route),
-    segmentBoundaries: [],
-  };
-  const response = await new Elysia()
-    .use(createRoutePlugin(route, root, "test"))
-    .handle(new Request("http://localhost/raw"));
+  const { app } = await mountProductionApp({
+    buildId: "test",
+    pages: [{ pattern: "/raw", route: definition }],
+    root: layout,
+  });
+  const response = await app.handle(new Request("http://localhost/raw"));
   const html = await response.text();
   expect(html).toContain(rawScript);
   expect(html).toContain(rawComment);
@@ -353,19 +361,12 @@ test("SSR query seeds preserve opaque variants without exposing credentials or a
       ).data,
     }))
     .page(({ person }) => <main>{person?.name}</main>);
-  const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
-  const page = adaptDefinedPage(definition, root.route);
-  const route = {
-    mode: "ssr" as const,
-    page,
-    path: "/person.tsx",
-    pattern: "/person",
-    routeChain: collectRouteChainFromRoute(page._route),
-    segmentBoundaries: [],
-  };
-  const response = await new Elysia()
-    .use(createRoutePlugin(route, root, "test"))
-    .handle(new Request("http://localhost/person"));
+  const { app } = await mountProductionApp({
+    buildId: "test",
+    pages: [{ pattern: "/person", route: definition }],
+    root: layout,
+  });
+  const response = await app.handle(new Request("http://localhost/person"));
   const html = await response.text();
   expect(html).toContain("Alice");
   expect(html).not.toContain("confidential-test-token");

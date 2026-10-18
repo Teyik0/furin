@@ -14,7 +14,7 @@ const { __setDevMode } = await import("../../../src/server/runtime-env");
 
 const originalCwd = process.cwd();
 const tmpApps: TmpApp[] = [];
-const dataRequest = () => new Request("http://furin/_furin/data?path=%2F");
+const dataRequest = () => new Request("http://furin/?_furin=data");
 
 interface LoaderCounter {
   [key: string]: number | undefined;
@@ -36,8 +36,8 @@ afterEach(() => {
 
 /**
  * Mounts a real production `furin()` whose `/` page runs `mode` and counts
- * loader executions under a unique global key. `/_furin/data` requests take
- * the production rewrite into the compiled native route.
+ * loader executions under a unique global key. `?_furin=data` requests are
+ * served by the compiled native route itself.
  */
 async function mountProduction(
   mode: "isr" | "ssg",
@@ -75,12 +75,7 @@ async function mountProduction(
     join(clientDir, "index.html"),
     '<html><head><!--furin-head--></head><body><div id="root"><!--ssr-outlet--></div></body></html>'
   );
-  const nativeRoutes = new Elysia().get("/", (routeContext) => {
-    const { $furinRender } = routeContext as typeof routeContext & {
-      $furinRender: (ctx: typeof routeContext) => unknown;
-    };
-    return $furinRender(routeContext);
-  });
+  const nativeRoutes = new Elysia().use((indexMod.route as { elysia: AnyElysia }).elysia);
   __setCompileContext({
     embedded: { clientDir },
     modules: { [indexPath]: indexMod, [rootPath]: rootMod },

@@ -1,8 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type Context, Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { act, createElement } from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import {
@@ -14,13 +11,10 @@ import {
 import { findRouteFailure, Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
-import { renderSSR } from "../../../src/server/render/ssr.ts";
-import {
-  documentAssetsFromTemplate,
-  setProductionTemplatePath,
-} from "../../../src/server/render/template.ts";
+import { furin } from "../../../src/furin.ts";
+import { __resetCompileContext, __setCompileContext } from "../../../src/server/internal.ts";
+import { documentAssetsFromTemplate } from "../../../src/server/render/template.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
@@ -40,6 +34,69 @@ const Unavailable = () => (
   </main>
 );
 
+interface RouteTerminal {
+  elysia: AnyElysia;
+}
+
+/**
+ * Serves `/missing` and `/ok` through a production `furin()`. Both pages sit
+ * under a `library/` layout; the root and the library directory each declare
+ * `error.tsx` and `not-found.tsx`, as the build would record them.
+ */
+async function mountBoundaryApp(
+  template: string,
+  root: RouteTerminal,
+  library: RouteTerminal,
+  pages: ReadonlyMap<string, RouteTerminal>
+): Promise<AnyElysia> {
+  const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
+  const libraryDir = `${pagesDir}/library`;
+  const modules: { [path: string]: unknown } = {
+    [`${libraryDir}/_route.tsx`]: { route: library },
+    [`${libraryDir}/error.tsx`]: { default: Unavailable },
+    [`${libraryDir}/not-found.tsx`]: { default: Missing },
+    [`${pagesDir}/error.tsx`]: { default: Unavailable },
+    [`${pagesDir}/not-found.tsx`]: { default: Missing },
+    [`${pagesDir}/root.tsx`]: { route: root },
+  };
+  const segmentBoundaries = [
+    {
+      depth: 0,
+      errorPath: `${pagesDir}/error.tsx`,
+      notFoundPath: `${pagesDir}/not-found.tsx`,
+      path: pagesDir,
+    },
+    {
+      depth: 1,
+      errorPath: `${libraryDir}/error.tsx`,
+      notFoundPath: `${libraryDir}/not-found.tsx`,
+      path: libraryDir,
+    },
+  ];
+  const nativeRoutes = new Elysia();
+  const routes = [...pages].map(([pattern, route]) => {
+    const path = `${libraryDir}${pattern}.tsx`;
+    modules[path] = { route };
+    nativeRoutes.use(new Elysia({ prefix: pattern }).use(route.elysia));
+    return { mode: "ssr" as const, path, pattern };
+  });
+  __setCompileContext({
+    buildId: "",
+    modules,
+    nativeRoutes,
+    rootConventions: {
+      errorPath: `${pagesDir}/error.tsx`,
+      notFoundPath: `${pagesDir}/not-found.tsx`,
+    },
+    rootPath: `${pagesDir}/root.tsx`,
+    routeMetadata: Object.fromEntries(routes.map(({ path }) => [path, { segmentBoundaries }])),
+    routes,
+    serveAssets: false,
+    templateHtml: template,
+  });
+  return new Elysia().use(await furin({ pagesDir }));
+}
+
 test.each([
   [404, false],
   [503, false],
@@ -51,11 +108,7 @@ test.each([
     const previousDevMode = IS_DEV;
     const originalFetch = globalThis.fetch;
     let hydrated: Root | undefined;
-    const directory = mkdtempSync(join(tmpdir(), "furin-loader-hydration-"));
     const template = "<!DOCTYPE html><html><head></head><body></body></html>";
-    const templatePath = join(directory, "index.html");
-    await Bun.write(templatePath, template);
-    setProductionTemplatePath(templatePath);
     __setDevMode(false);
     installDom();
     resetDomState();
@@ -98,6 +151,7 @@ test.each([
         route: adaptDefinedLayout(layout, undefined),
       };
       const nested = adaptDefinedLayout(nestedDefinition, root.route);
+      const definitions = new Map<string, RouteTerminal>();
       const routes = ["/missing", "/ok"].map((pattern) => {
         const definition = defineRoute()
           .config({ layout: nestedDefinition, mode: "ssr" })
@@ -114,6 +168,7 @@ test.each([
               <Link to={"/missing" as string}>Open missing</Link>
             </main>
           ));
+        definitions.set(pattern, definition);
         const page = adaptDefinedPage(definition, nested);
         return {
           mode: "ssr" as const,
@@ -135,9 +190,7 @@ test.each([
       if (!missing) {
         throw new Error("Missing test route");
       }
-      const app = new Elysia()
-        .use(createDataEndpoint(routes, root))
-        .get("/missing", (context: Context) => renderSSR(missing, context, root, undefined));
+      const app = await mountBoundaryApp(template, layout, nestedDefinition, definitions);
       const response = await app.handle(new Request("http://localhost:3000/missing"));
       expect(response.status).toBe(status);
       const html = await response.text();
@@ -244,8 +297,7 @@ test.each([
       }
       globalThis.fetch = originalFetch;
       __setDevMode(previousDevMode);
-      setProductionTemplatePath(null);
-      rmSync(directory, { recursive: true, force: true });
+      __resetCompileContext();
       await uninstallDom();
     }
   }

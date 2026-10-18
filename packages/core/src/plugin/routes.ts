@@ -942,7 +942,7 @@ async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | un
             if (!renderer) {
               throw new Error("[furin] No route renderer is registered.");
             }
-            return renderer(context as unknown as FurinNativeRouteContext);
+            return renderer(context as unknown as FurinNativeRouteContext, route.path);
           }),
   };
 }

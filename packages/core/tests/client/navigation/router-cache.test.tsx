@@ -11,6 +11,7 @@ import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/r
 import { ROUTE_MATCHES_KEY, type RouteMatchFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 let root: Root | undefined;
 let originalFetch: typeof fetch;
@@ -99,7 +100,7 @@ test("returning to a page refetches its cancelled deferred transport", async () 
     );
   }
   globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
-    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    const path = navigationDataPath(input, window.location.origin);
     if (path === "/a") {
       reads += 1;
       if (reads === 1) {
@@ -156,7 +157,7 @@ test("the visible page keeps streaming deferred data until the next navigation c
     );
   }
   globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
-    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    const path = navigationDataPath(input, window.location.origin);
     if (path === "/a") {
       return Promise.resolve(
         new Response(
@@ -289,7 +290,7 @@ test.each(["page", "layout"] as const)(
 function heldTargetFetch() {
   const state = { value: "Before", reads: 0, release: [] as Array<() => void> };
   globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
-    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    const path = navigationDataPath(input, window.location.origin);
     if (path !== "/target") {
       return Promise.resolve(response({}));
     }
@@ -411,7 +412,7 @@ test.each([
 ] as const)("a %s snapshot is not served from the cache", async (_kind, failure) => {
   let reads = 0;
   globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
-    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    const path = navigationDataPath(input, window.location.origin);
     if (path !== "/target") {
       return Promise.resolve(response({}));
     }

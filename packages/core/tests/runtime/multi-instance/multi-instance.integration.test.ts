@@ -196,7 +196,7 @@ try {
       const html = await parent.handle(new Request("http://furin/item/" + path));
       expect(html.status).toBe(200);
       expect(await html.text()).toContain("<main>" + expected + "</main>");
-      const data = await parent.handle(new Request("http://furin/_furin/data?path=" + encodeURIComponent("/item/" + path)));
+      const data = await parent.handle(new Request("http://furin/item/" + path + "?_furin=data"));
       expect(data.status).toBe(200);
       const parsed = await parseDeferredNdjson(data.body);
       expect(parsed.syncData.id).toBe(expected);
@@ -268,7 +268,7 @@ try {
     const html = await parent.handle(new Request("http://furin/host/admin"));
     expect(html.status).toBe(200);
     expect(await html.text()).toContain("Admin home");
-    const data = await parent.handle(new Request("http://furin/host/admin/_furin/data?path=%2Fusers"));
+    const data = await parent.handle(new Request("http://furin/host/admin/users?_furin=data"));
     expect(data.status).toBe(200);
     expect(data.headers.get("content-type")).toContain("application/x-ndjson");
     expect(await data.text()).toContain("admin");
@@ -327,7 +327,7 @@ try {
   await runScenario(async () => {
     const { parent } = await mountBothApps();
 
-    const res = await parent.handle(new Request("http://furin/admin/_furin/data?path=%2Fusers"));
+    const res = await parent.handle(new Request("http://furin/admin/users?_furin=data"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/x-ndjson");
     expect(await res.text()).toContain("admin");

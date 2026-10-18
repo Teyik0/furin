@@ -1,62 +1,31 @@
-import { Elysia, NotFound } from "elysia";
-import type { FurinRouteDispatcher } from "../../define-route.ts";
-import { dispatchNativeRoute } from "../router/dispatch.ts";
-import { renderRootNotFound } from "./not-found.ts";
+import { type AnyElysia, Elysia, NotFound } from "elysia";
+import type { FurinNativeRouteContext } from "../../define-route.ts";
+import type { FurinInstance } from "../instance.ts";
+import { renderNotFound } from "../router/dispatch.ts";
 
 /**
- * 404 handling per mount position:
+ * Routes unmatched requests to the runtime's single not-found path
+ * (`renderNotFound`), identical in development and production, for documents
+ * and navigation data requests alike. Only the entry point depends on the
+ * mount position:
  *
  * - ROOT instance (`prefix === ""`): a global `NotFound` handler owns the root
- *   scope, and a parent `.onError()`
- *   registered BEFORE `.use(furin)` still wins (documented escape hatch for
- *   JSON API 404s).
+ *   scope, and a parent `.onError()` registered BEFORE `.use(furin)` still
+ *   wins (documented escape hatch for JSON API 404s).
  * - PREFIXED instance: a global hook would leak onto sibling apps, and a
  *   local one never sees unmatched paths (they belong to no route). Instead
  *   the instance registers a lowest-priority catch-all under its own prefix;
  *   the router prefers every more-specific route, so this only fires for
- *   paths no page matched. Skipped when the app defines its own `[...rest]`
- *   catch-all page.
+ *   paths no page matched.
  */
-export function createNotFoundHandling(
-  prefix: string,
-  routes: Array<{ pattern: string }>,
-  root: Parameters<typeof renderRootNotFound>[0],
-  tryNativeDispatch: ((context: { request: Request }) => Promise<unknown>) | undefined
-): Elysia {
+export function createNotFoundHandling(instance: FurinInstance): AnyElysia {
   const app = new Elysia();
-  const dispatch =
-    tryNativeDispatch ??
-    (routes.some((route) => route.pattern === "/*")
-      ? async (context: { request: Request }): Promise<unknown> => {
-          if (context.request.method !== "GET") {
-            return;
-          }
-          return await dispatchNativeRoute(context as Parameters<FurinRouteDispatcher>[0]);
-        }
-      : undefined);
-  if (prefix === "") {
-    app.onError("global", NotFound, async (context) => {
-      // Dev topology: the native renderer is rebuilt by the watcher on route
-      // add/remove, so a hot-added route (no mounted Elysia route yet) can
-      // still be served here. Production also renders root catch-all pages here.
-      if (dispatch) {
-        const rendered = await dispatch(context);
-        if (rendered !== undefined && rendered !== null) {
-          return rendered;
-        }
-      }
-      return await renderRootNotFound(root, context.request, context.server?.url.origin);
-    });
-    return app;
+  if (instance.prefix === "") {
+    return app.onError("global", NotFound, (context) =>
+      renderNotFound(instance, context as unknown as FurinNativeRouteContext)
+    );
   }
-  app.get("/*", async (context) => {
-    if (dispatch) {
-      const rendered = await dispatch(context);
-      if (rendered !== undefined && rendered !== null) {
-        return rendered;
-      }
-    }
-    return renderRootNotFound(root, context.request, context.server?.url.origin);
-  });
-  return app;
+  return app.get("/*", (context) =>
+    renderNotFound(instance, context as unknown as FurinNativeRouteContext)
+  );
 }

@@ -193,8 +193,8 @@ async function prerenderAndWrite(
     ensureDir(dirname(htmlOutputFile));
     writeFileSync(htmlOutputFile, entry.html);
     // Persist the loader payload at a static-friendly URL: SPA navigation on
-    // file-server deployments (GitHub Pages, S3, …) fetches this file instead
-    // of the runtime `/_furin/data?path=…` endpoint, which doesn't exist there.
+    // file-server deployments (GitHub Pages, S3, …) fetches this file instead of
+    // sending `?_furin=data` requests, which no server answers there.
     writeFileSync(dataOutputFile, entry.ndjson);
     renderedRoutes.push(urlPath);
     console.log(`[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)}`);

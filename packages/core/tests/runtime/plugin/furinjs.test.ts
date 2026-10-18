@@ -301,7 +301,7 @@ test.serial("furin() refreshes route types after a topology change", async () =>
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
   try {
-    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
       timeoutMs: 3000,
     });
     writeAppFile(
@@ -342,7 +342,7 @@ test.serial("a failed route import keeps its tags while healthy route types upda
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
   try {
-    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
       timeoutMs: 3000,
     });
     await waitForFileContent(typesPath, "fragile: 'fragile';");
@@ -389,8 +389,8 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
     (globalThis as typeof globalThis & { [key: string]: unknown })[importCountKey]
   );
 
-  const first = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
-  const second = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+  const first = await instance.handle(new Request("http://furin/?_furin=data"));
+  const second = await instance.handle(new Request("http://furin/?_furin=data"));
 
   expect(first.status).toBe(200);
   expect(second.status).toBe(200);
@@ -451,9 +451,7 @@ test.serial(
       .guard({ adminArea: true })
       .use(await furin({ pagesDir, prefix: "/admin" }));
 
-    const denied = await instance.handle(
-      new Request("http://furin/admin/_furin/data?path=%2Fsecret")
-    );
+    const denied = await instance.handle(new Request("http://furin/admin/secret?_furin=data"));
     expect(denied.status).toBe(200);
     expect(denied.headers.get("content-type")).toContain("application/x-ndjson");
     expect(denied.headers.get("location")).toBeNull();
@@ -468,14 +466,12 @@ test.serial(
     expect(deniedDocument.status).toBe(302);
     expect(deniedDocument.headers.get("location")).toBe("/admin/login#section");
 
-    const login = await instance.handle(
-      new Request("http://furin/admin/_furin/data?path=%2Flogin")
-    );
+    const login = await instance.handle(new Request("http://furin/admin/login?_furin=data"));
     expect(login.status).toBe(200);
     expect(login.headers.get("content-type")).toContain("application/x-ndjson");
 
     const allowed = await instance.handle(
-      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D2", {
+      new Request("http://furin/admin/secret?page=2&_furin=data", {
         headers: { "x-test-user": "admin" },
       })
     );
@@ -485,7 +481,7 @@ test.serial(
     expect(allowedBody).toContain('"page":2');
     expect(allowedBody).toContain('"logicalPath":"/secret"');
     const redirected = await instance.handle(
-      new Request("http://furin/admin/_furin/data?path=%2Fsecret%3Fpage%3D3", {
+      new Request("http://furin/admin/secret?page=3&_furin=data", {
         headers: { "x-test-user": "admin" },
       })
     );
@@ -514,9 +510,7 @@ test.serial("page authorization leaves public assets accessible", async () => {
   const document = await instance.handle(new Request("http://furin/admin/"));
   expect(document.status).toBe(401);
 
-  expect(isFurinPageRequest(new Request("http://furin/admin/_furin/data?path=%2F"), "/admin")).toBe(
-    true
-  );
+  expect(isFurinPageRequest(new Request("http://furin/admin?_furin=data"), "/admin")).toBe(true);
   expect(isFurinPageRequest(new Request("http://furin/admin/", { method: "POST" }), "/admin")).toBe(
     false
   );
@@ -524,7 +518,7 @@ test.serial("page authorization leaves public assets accessible", async () => {
   expect(mutation.status).toBe(200);
   expect(await mutation.text()).toBe("mutation");
 
-  const navigation = await instance.handle(new Request("http://furin/admin/_furin/data?path=%2F"));
+  const navigation = await instance.handle(new Request("http://furin/admin?_furin=data"));
   expect(navigation.status).toBe(401);
 
   const asset = await instance.handle(new Request("http://furin/admin/public/logo.txt"));
@@ -532,19 +526,43 @@ test.serial("page authorization leaves public assets accessible", async () => {
   expect(await asset.text()).toBe("logo");
 });
 
-test.serial("SPA data does not dispatch an API path without a matching page", async () => {
+test.serial("SPA data for an API path is answered by that route, never a page", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   __setDevMode(true);
   process.chdir(app.path);
 
   const instance = new Elysia()
-    .get("/api/private", () => ({ secret: true }))
+    .get("/api/private", ({ request }) => ({ url: request.url }))
     .use(await furin({ pagesDir: join(app.path, "src/pages") }));
 
-  const response = await instance.handle(
-    new Request("http://furin/_furin/data?path=%2Fapi%2Fprivate")
+  const response = await instance.handle(new Request("http://furin/api/private?_furin=data"));
+  expect(response.headers.get("content-type")).toContain("application/json");
+  expect(await response.json()).toEqual({ url: "http://furin/api/private" });
+});
+
+test.serial("dev navigation data reports a page module that fails to import", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  const pagesDir = join(app.path, "src/pages");
+  __setDevMode(true);
+  process.chdir(app.path);
+  const instance = await createTestApp({ pagesDir });
+  const ready = await instance.handle(new Request("http://furin/?_furin=data"));
+  expect(ready.status).toBe(200);
+
+  writeAppFile(
+    app.path,
+    "src/pages/index.tsx",
+    'throw new Error("page import failed");\nexport const route = undefined;\n'
   );
-  expect(response.status).toBe(404);
+  const response = await instance.handle(new Request("http://furin/?_furin=data"));
+
+  expect(response.status).toBe(500);
+  expect(response.headers.get("content-type")).toContain("application/x-ndjson");
+  const { syncData } = await parseDeferredNdjson(
+    response.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
+    undefined
+  );
+  expect(JSON.stringify(syncData)).toContain('"status":"error"');
 });
 
 test.serial("furin() preserves route data while an edited route is invalid", async () => {
@@ -569,7 +587,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   try {
     instance = await createTestApp({ pagesDir });
     instance.listen(0);
-    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+    await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
       timeoutMs: 3000,
     });
     const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
@@ -589,7 +607,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
         await Bun.sleep(20);
       }
 
-      const response = await instance.handle(new Request("http://furin/_furin/data?path=%2F"));
+      const response = await instance.handle(new Request("http://furin/?_furin=data"));
       const { syncData } = await parseDeferredNdjson(
         response.body ??
           new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
@@ -615,7 +633,7 @@ test.serial("furin() reports a removed route layout without rewriting the file",
 
   const instance = await createTestApp({ pagesDir });
   instance.listen(0);
-  await waitForHttp(`http://127.0.0.1:${instance.server?.port}/_furin/data?path=%2F`, {
+  await waitForHttp(`http://127.0.0.1:${instance.server?.port}/?_furin=data`, {
     timeoutMs: 3000,
   });
   const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
@@ -848,7 +866,7 @@ test.serial(
       env: { PORT: String(port) },
     });
     const origin = `http://127.0.0.1:${port}`;
-    const navigationPath = (path: string) => `/_furin/data?path=${encodeURIComponent(path)}`;
+    const navigationPath = (path: string) => `${path}&_furin=data`;
     try {
       const ready = await waitForHttp(`${origin}/_bun_hmr_entry`, { timeoutMs: 10_000 });
       await ready.arrayBuffer();

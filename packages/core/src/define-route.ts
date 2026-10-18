@@ -17,7 +17,17 @@ export interface FurinNativeRouteContext {
   [key: string]: unknown;
 }
 
-export type FurinRouteDispatcher = (context: FurinNativeRouteContext) => unknown;
+/**
+ * Identifies the page a native route handler serves, bound when the handler is
+ * created: the page's route terminal in a production composition, the route
+ * pattern in the development shell.
+ */
+export type FurinRouteKey = object | string;
+
+export type FurinRouteDispatcher = (
+  context: FurinNativeRouteContext,
+  route: FurinRouteKey
+) => unknown;
 
 interface LoaderData {
   [key: string]: unknown;
@@ -323,27 +333,33 @@ export function getFurinRenderer(context: object): FurinRouteDispatcher | undefi
 const OUTSIDE_FURIN_ERROR =
   "[furin] route.elysia must be mounted through furin(); it has no renderer outside the Furin plugin.";
 
-function renderRoute(context: object): unknown {
-  const renderer = getFurinRenderer(context);
-  if (!renderer) {
-    throw new Error(OUTSIDE_FURIN_ERROR);
-  }
-  return renderer(context as unknown as FurinNativeRouteContext);
+/** A page's native handler, bound to the page it renders. */
+function routeHandler(route: FurinRouteKey) {
+  return (context: object): unknown => {
+    const renderer = getFurinRenderer(context);
+    if (!renderer) {
+      throw new Error(OUTSIDE_FURIN_ERROR);
+    }
+    return renderer(context as unknown as FurinNativeRouteContext, route);
+  };
 }
 
-function registerPlain() {
-  return new Elysia().get("", renderRoute);
+function registerPlain(route: FurinRouteKey) {
+  return new Elysia().get("", routeHandler(route));
 }
 
 function registerSchema<
   ParamsSchema extends FurinSchema,
   QuerySchema extends FurinSchema | undefined,
->(paramsSchema: ParamsSchema, querySchema: QuerySchema) {
-  return new Elysia().get("", { params: paramsSchema, query: querySchema }, renderRoute);
+>(route: FurinRouteKey, paramsSchema: ParamsSchema, querySchema: QuerySchema) {
+  return new Elysia().get("", { params: paramsSchema, query: querySchema }, routeHandler(route));
 }
 
-function registerQuery<QuerySchema extends FurinSchema>(querySchema: QuerySchema) {
-  return new Elysia().get("", { query: querySchema }, renderRoute);
+function registerQuery<QuerySchema extends FurinSchema>(
+  route: FurinRouteKey,
+  querySchema: QuerySchema
+) {
+  return new Elysia().get("", { query: querySchema }, routeHandler(route));
 }
 
 function schemaValues(value: unknown): SchemaValues {
@@ -650,13 +666,14 @@ type LayoutTerminal<State extends ChainState> = RouteTerminal<State> &
   };
 
 function registerPage(
+  route: FurinRouteKey,
   paramsSchema: FurinSchema | undefined,
   querySchema: FurinSchema | undefined
 ): unknown {
   if (paramsSchema !== undefined) {
-    return registerSchema(paramsSchema, querySchema);
+    return registerSchema(route, paramsSchema, querySchema);
   }
-  return querySchema === undefined ? registerPlain() : registerQuery(querySchema);
+  return querySchema === undefined ? registerPlain(route) : registerQuery(route, querySchema);
 }
 
 function schemaFields(paramsSchema: FurinSchema | undefined, querySchema: FurinSchema | undefined) {
@@ -729,12 +746,14 @@ class RouteChain<State extends ChainState> {
   ): PageTerminal<State> {
     const { metadata, paramsSchema, querySchema, requestLoader } = this.runtime;
     assertPageRequestLoaderMode(metadata, requestLoader);
-    return {
+    const terminal = {
       ...terminalFields(this.runtime),
       component,
-      elysia: registerPage(paramsSchema, querySchema),
+      elysia: undefined as unknown,
       page: component,
-    } as unknown as PageTerminal<State>;
+    };
+    terminal.elysia = registerPage(terminal, paramsSchema, querySchema);
+    return terminal as unknown as PageTerminal<State>;
   }
 
   layout(component: LayoutComponentOf<State>): LayoutTerminal<State> {

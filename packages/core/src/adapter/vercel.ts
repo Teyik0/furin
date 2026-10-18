@@ -46,6 +46,7 @@ interface VercelRoute {
   continue?: boolean;
   dest?: string;
   handle?: "filesystem";
+  has?: { key: string; type: "query"; value: string }[];
   headers?: { "cache-control": string };
   src?: string;
 }
@@ -422,7 +423,6 @@ function vercelEntrySource(
     `/${spec.functionName}`,
     `^(?:${spec.source})$`,
   ]);
-  const dataEndpointPaths = builds.map(({ entryApp }) => `${entryApp.prefix}/_furin/data`);
   const pprBuilds = apps
     .map((app, index) => ({
       buildId: (builds[index] as RuntimeAppBuild).buildId,
@@ -462,7 +462,6 @@ import {
 const prerenderAliases = new Map(
   ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
 );
-const dataEndpointPaths = new Set(${JSON.stringify(dataEndpointPaths)});
 ${
   pprBuilds.length === 0
     ? ""
@@ -527,13 +526,7 @@ async function exposeVercelCacheTag(response, request) {
   if (cacheTag === null) {
     return response;
   }
-  const requestPath = new URL(request.url).pathname;
-  const dataSuffix = "/_furin/data";
-  const prefix = dataEndpointPaths.has(requestPath)
-    ? requestPath.slice(0, -dataSuffix.length)
-    : null;
-  const physicalCacheTag =
-    prefix === null ? requestPath : cacheTag === "/" ? prefix || "/" : prefix + cacheTag;
+  const physicalCacheTag = new URL(request.url).pathname;
   const semanticTags =
     cacheTagRules.find(([pattern]) => pattern.test(physicalCacheTag))?.[1] ?? [];
   const tags = [physicalCacheTag, ...semanticTags].map(encodeCacheTag);
@@ -898,6 +891,9 @@ export async function buildVercelTarget(
     framework: { name: "furin", version: frameworkVersion() },
     routes: [
       ...assetRoutes,
+      // Navigation data shares the page URL (`?_furin=data`); prerendered
+      // documents ignore that param, so data requests go to the function.
+      { dest: "/__server", has: [{ key: "_furin", type: "query", value: "data" }], src: "/(.*)" },
       { handle: "filesystem" },
       ...pageRoutes.map(({ dest, src }) => ({ dest, src })),
       { dest: "/__server", src: "/(.*)" },

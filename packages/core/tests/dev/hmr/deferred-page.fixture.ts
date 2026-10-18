@@ -130,7 +130,7 @@ try {
   expect(contentLoads).toBe(0);
   const invalid = await app.handle(new Request("http://localhost/heavy?q=x"));
   expect(invalid.status).toBe(422);
-  const data = await app.handle(new Request("http://localhost/_furin/data?path=/heavy"));
+  const data = await app.handle(new Request("http://localhost/heavy?_furin=data"));
   expect(data.status).toBe(200);
   expect(await data.text()).toContain("loader intact");
   expect(Reflect.get(globalThis, "furinHeavyLoads")).toBeUndefined();

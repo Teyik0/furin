@@ -69,3 +69,30 @@ for (const prefix of ["", "/admin"]) {
     }
   );
 }
+
+for (const mode of ["development", "production"] as const) {
+  for (const prefix of ["", "/admin"]) {
+    test.serial(
+      `${mode} mount "${prefix || "/"}" answers unknown documents and navigation data with 404`,
+      async () => {
+        tmpApp = createTmpApp("cli-app");
+        __setDevMode(mode === "development");
+        if (mode === "production") {
+          await createProductionContext(tmpApp.path, prefix);
+        }
+        const pagesDir = join(tmpApp.path, "src/pages");
+        const app = new Elysia().use(await furin(prefix ? { pagesDir, prefix } : { pagesDir }));
+
+        const document = await app.handle(new Request(`http://localhost${prefix}/missing`));
+        const data = await app.handle(new Request(`http://localhost${prefix}/missing?_furin=data`));
+
+        expect(document.status).toBe(404);
+        expect(document.headers.get("content-type")).toContain("text/html");
+        // The router loads the URL as a document, so data gets no 404 render.
+        expect(data.status).toBe(404);
+        expect(data.headers.get("cache-control")).toBe("private, no-store");
+        expect(await data.text()).toBe("");
+      }
+    );
+  }
+}

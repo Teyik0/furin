@@ -1,5 +1,5 @@
 import { expect } from "bun:test";
-import { type Context, Elysia } from "elysia";
+import type { Context, Elysia } from "elysia";
 import { defer } from "furin/client";
 import {
   act,
@@ -12,16 +12,17 @@ import {
 import { createRoot } from "react-dom/client";
 import { renderToReadableStream } from "react-dom/server";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { renderSSR } from "../../../src/server/render/index.ts";
 import { renderForPath, serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint, createRoutePlugin } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
+import { mountProductionApp } from "../../support/production-app.ts";
 import "../../setup/global.ts";
 
 process.env.FURIN_RSC_CODEC_PATH = "";
@@ -103,16 +104,34 @@ function ToolbarAction({ label }: { label: string }): ReactNode {
   return <button type="button">{label}</button>;
 }
 
-function createRscRoute(renderServerComponent: RenderServerComponent): {
-  resolved: ResolvedRoute;
-  root: RootLayout;
-} {
+function createRscRoute(renderServerComponent: RenderServerComponent) {
   const route = defineRoute()
     .config({ layout: rootTerminal, mode: "ssr" })
     .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
     .page(({ article }) => <main>{article}</main>);
-  const resolved = resolveRoute(route, "/rsc.tsx", "/rsc");
-  return { resolved, root };
+  return { root, route };
+}
+
+/**
+ * Serves one request through a production `furin()` mounting `route` at
+ * `pattern`, then forgets the runtime so direct render calls below keep using
+ * the default state bucket.
+ */
+async function handleWithFurin(
+  route: Parameters<typeof adaptDefinedPage>[0],
+  pattern: string,
+  url: string
+): Promise<Response> {
+  const { app } = await mountProductionApp({
+    buildId: "",
+    pages: [{ pattern, route: route as unknown as { elysia: Elysia } }],
+    root: rootTerminal,
+  });
+  try {
+    return await app.handle(new Request(url));
+  } finally {
+    __resetCompileContext();
+  }
 }
 
 function createMockContext(path: string): Context {
@@ -235,8 +254,9 @@ try {
   expect(await renderHtml(parsedFrames.syncData.article)).toBe("<h1>Cyclic Flight article</h1>");
 
   let routeFixture = createRscRoute(renderServerComponent);
-  let app = new Elysia().use(createRoutePlugin(routeFixture.resolved, routeFixture.root));
-  let html = await app.handle(new Request("http://localhost/rsc")).then((res) => res.text());
+  let html = await handleWithFurin(routeFixture.route, "/rsc", "http://localhost/rsc").then((res) =>
+    res.text()
+  );
   expect(html).toContain("Flight article");
   expect(html).toContain('id="__FURIN_ROUTE_FRAMES__"');
 
@@ -260,8 +280,7 @@ try {
   expect(await renderHtml(nestedSsrContent.article)).toBe("<h1>SSR Nested Flight article</h1>");
 
   routeFixture = createRscRoute(renderServerComponent);
-  app = new Elysia().use(createDataEndpoint([routeFixture.resolved]));
-  response = await app.handle(new Request("http://localhost/_furin/data?path=%2Frsc"));
+  response = await handleWithFurin(routeFixture.route, "/rsc", "http://localhost/rsc?_furin=data");
   parsedNdjson = await parseDeferredNdjson(responseBody(response), undefined);
   expect(await renderHtml(parsedNdjson.syncData.article)).toBe("<h1>Flight article</h1>");
 
@@ -278,9 +297,7 @@ try {
       })
     )
     .page(() => null);
-  const resolved = resolveRoute(route, "/nested-rsc.tsx", "/nested-rsc");
-  app = new Elysia().use(createDataEndpoint([resolved]));
-  response = await app.handle(new Request("http://localhost/_furin/data?path=%2Fnested-rsc"));
+  response = await handleWithFurin(route, "/nested-rsc", "http://localhost/nested-rsc?_furin=data");
 
   expect(response.headers.get("content-type")).toBe("application/x-furin-route");
   const parsedRace = await withTimeout(
@@ -305,9 +322,11 @@ try {
       })
     )
     .page(() => null);
-  const deferredRscResolved = resolveRoute(deferredRscRoute, "/deferred-rsc.tsx", "/deferred-rsc");
-  app = new Elysia().use(createDataEndpoint([deferredRscResolved]));
-  response = await app.handle(new Request("http://localhost/_furin/data?path=%2Fdeferred-rsc"));
+  response = await handleWithFurin(
+    deferredRscRoute,
+    "/deferred-rsc",
+    "http://localhost/deferred-rsc?_furin=data"
+  );
   parsedNdjson = await parseDeferredNdjson(responseBody(response), undefined);
   expect(await renderHtml(parsedNdjson.syncData.readyArticle)).toBe(
     "<h1>Ready Flight article</h1>"

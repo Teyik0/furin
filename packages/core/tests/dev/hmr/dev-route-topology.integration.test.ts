@@ -171,9 +171,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(status).toBe(200);
     expect(html).toContain('data-about="v1"');
 
-    const dataResponse = await fetch(
-      `http://localhost:${port}/_furin/data?path=${encodeURIComponent("/about")}`
-    );
+    const dataResponse = await fetch(`http://localhost:${port}/about?_furin=data`);
     expect(dataResponse.status).toBe(200);
     const { syncData } = await parseDeferredNdjson(
       dataResponse.body ??
@@ -215,9 +213,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(gone).toBe(true);
     expect(status).toBe(404);
 
-    const dataResponse = await fetch(
-      `http://localhost:${port}/_furin/data?path=${encodeURIComponent("/about")}`
-    );
+    const dataResponse = await fetch(`http://localhost:${port}/about?_furin=data`);
     expect(dataResponse.status).toBe(404);
 
     const removedFromSnapshot = await pollUntil(
@@ -322,9 +318,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect(refreshed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
       expect((await fetch(`http://localhost:${port}/${page}?view=before`)).status).toBe(422);
 
-      const dataResponse = await fetch(
-        `http://localhost:${port}/_furin/data?path=${encodeURIComponent(`/${page}?view=after`)}`
-      );
+      const dataResponse = await fetch(`http://localhost:${port}/${page}?view=after&_furin=data`);
       expect(dataResponse.status).toBe(200);
       const { syncData } = await parseDeferredNdjson(
         dataResponse.body ??

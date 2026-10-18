@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import "../../setup/evlog-mock";
 
+import { join } from "node:path";
 import { Elysia } from "elysia";
 import { applyRevalidateHeader } from "../../../src/client/router/link-utils.ts";
 import {
@@ -8,7 +9,10 @@ import {
   furinInvalidate,
   revalidateTag,
 } from "../../../src/server/auto-invalidate/index.ts";
-import { AutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import {
+  AutoInvalidateRegistry,
+  getAutoInvalidateRegistry,
+} from "../../../src/server/auto-invalidate/registry.ts";
 import {
   __resetCacheState,
   __resetDevLoaderCacheState,
@@ -25,10 +29,18 @@ import {
   setSSGCache,
   ssgCache,
 } from "../../../src/server/cache/index.ts";
-import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
-import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
-import type { ResolvedRoute } from "../../../src/server/router/types.ts";
+import {
+  allInstances,
+  createInstance,
+  registerInstance,
+  withInstance,
+} from "../../../src/server/instance.ts";
+import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { createTmpApp, writeAppFile } from "../../support/app-fixtures";
 import { flushMicrotasks } from "../../support/microtasks";
+
+const { furin } = await import("../../../src/furin.ts");
 
 afterEach(async () => {
   __resetCacheState();
@@ -328,31 +340,43 @@ describe("furinInvalidate macro", () => {
     expect(response.headers.get("x-furin-revalidate")).toBeNull();
   });
 
-  test("data endpoint does not retain uncached dynamic paths", async () => {
-    const route = {
-      mode: "isr",
-      page: {
-        _route: {},
-        loader: () => ({ pageData: "from-page" }),
-      },
-      path: "/items/[id].tsx",
-      pattern: "/items/:id",
-      routeChain: [],
-      segmentBoundaries: [],
-      tags: ["boards"],
-    } as unknown as ResolvedRoute;
+  test("navigation data does not retain uncached dynamic paths", async () => {
+    const tmpApp = createTmpApp("cli-app");
+    writeAppFile(
+      tmpApp.path,
+      "src/pages/items/[id].tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
+        'import { route as rootRoute } from "../root";',
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["boards"],',
+        "    params: t.Object({ id: t.String() }) })",
+        '  .loader(() => ({ pageData: "from-page" }))',
+        "  .page(({ pageData }) => <main>{pageData}</main>);",
+      ].join("\n")
+    );
+    const originalCwd = process.cwd();
+    __setDevMode(true);
+    process.chdir(tmpApp.path);
+    try {
+      const pagesDir = join(tmpApp.path, "src/pages");
+      const app = new Elysia().use(await furin({ pagesDir }));
+      const instance = allInstances().find((candidate) => candidate.pagesDir === pagesDir);
+      for (let index = 0; index < 200; index += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: requests verify cardinality across paths.
+        const response = await app.handle(
+          new Request(`http://localhost/items/${index}?_furin=data`)
+        );
+        expect(response.status).toBe(200);
+      }
 
-    autoInvalidateRegistry.reset();
-    const app = new Elysia().use(createDataEndpoint([route]));
-    for (let index = 0; index < 200; index += 1) {
-      // biome-ignore lint/performance/noAwaitInLoops: requests verify cardinality across paths.
-      const response = await app.handle(
-        new Request(`http://localhost/_furin/data?path=/items/${index}`)
-      );
-      expect(response.status).toBe(200);
+      expect(getAutoInvalidateRegistry(instance).pathsForTags(["boards"])).toEqual([]);
+    } finally {
+      process.chdir(originalCwd);
+      __resetCompileContext();
+      tmpApp.cleanup();
     }
-
-    expect(autoInvalidateRegistry.pathsForTags(["boards"])).toEqual([]);
   });
 
   test("two plugins both calling furinInvalidate() + DELETE → header still set (task-manager replica)", async () => {

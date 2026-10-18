@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type AnyElysia, type Context, Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { act, createElement } from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import {
@@ -14,19 +11,19 @@ import {
 import { findRouteFailure, Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
-import { renderSSR } from "../../../src/server/render/ssr.ts";
+import { furin } from "../../../src/furin.ts";
 import {
-  documentAssetsFromTemplate,
-  setProductionTemplatePath,
-} from "../../../src/server/render/template.ts";
+  __resetCompileContext,
+  __setCompileContext,
+  type CompileContext,
+} from "../../../src/server/internal.ts";
+import { documentAssetsFromTemplate } from "../../../src/server/render/template.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
-import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import type { ErrorProps } from "../../../src/shared/error.ts";
 import { type NotFoundProps, notFound } from "../../../src/shared/not-found.ts";
-import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
 const TEMPLATE = "<!DOCTYPE html><html><head></head><body></body></html>";
@@ -93,13 +90,20 @@ const BOUNDARIES = [
   { depth: 1, error: ShopError, notFound: ShopNotFound, path: "/pages/shop" },
 ];
 
+interface RouteTerminal {
+  elysia: AnyElysia;
+}
+
 interface TestRoute {
   client: LoadedClientRoute;
-  server: ResolvedRoute;
+  definition: RouteTerminal;
+  pattern: string;
+  segmentBoundaries: ResolvedRoute["segmentBoundaries"];
 }
 
 function toTestRoute(
   pattern: string,
+  definition: RouteTerminal,
   page: ReturnType<typeof adaptDefinedPage>,
   segmentBoundaries: ResolvedRoute["segmentBoundaries"]
 ): TestRoute {
@@ -111,14 +115,9 @@ function toTestRoute(
   };
   return {
     client: { ...client, component: page.component, pageRoute: page._route },
-    server: {
-      mode: "ssr",
-      page,
-      path: `/pages${pattern}.tsx`,
-      pattern,
-      routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries,
-    },
+    definition,
+    pattern,
+    segmentBoundaries,
   };
 }
 
@@ -136,21 +135,16 @@ function shopPage(pattern: string): TestRoute {
       return { title: "Page title" };
     })
     .page(({ title }) => <p data-page="shop">{title}</p>);
-  return toTestRoute(pattern, adaptDefinedPage(definition, shop), BOUNDARIES);
+  return toTestRoute(pattern, definition, adaptDefinedPage(definition, shop), BOUNDARIES);
 }
 
-let directory: string;
 let previousDevMode: boolean;
 let originalFetch: typeof fetch;
 let hydrated: Root | undefined;
 
-beforeEach(async () => {
+beforeEach(() => {
   previousDevMode = IS_DEV;
   originalFetch = globalThis.fetch;
-  directory = mkdtempSync(join(tmpdir(), "furin-route-matches-"));
-  const templatePath = join(directory, "index.html");
-  await Bun.write(templatePath, TEMPLATE);
-  setProductionTemplatePath(templatePath);
   __setDevMode(false);
   installDom();
   resetDomState();
@@ -163,24 +157,64 @@ afterEach(async () => {
   }
   globalThis.fetch = originalFetch;
   __setDevMode(previousDevMode);
-  setProductionTemplatePath(null);
-  rmSync(directory, { force: true, recursive: true });
+  __resetCompileContext();
   await uninstallDom();
 });
 
-function createApp(routes: TestRoute[]): AnyElysia {
-  return routes.reduce<AnyElysia>(
-    (app, route) =>
-      app.get(route.server.pattern, (context: Context) =>
-        renderSSR(route.server, context, root, undefined)
-      ),
-    new Elysia().use(
-      createDataEndpoint(
-        routes.map((route) => route.server),
-        root
-      )
-    )
-  );
+/**
+ * Serves `routes` through a production `furin()`. `/shop/*` pages sit under the
+ * `shop/` layout; each boundary is recorded as the build would, with its
+ * directory's `error.tsx` / `not-found.tsx` modules.
+ */
+async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
+  const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
+  const modules: { [path: string]: unknown } = {
+    [`${pagesDir}/root.tsx`]: { route: rootDefinition },
+    [`${pagesDir}/shop/_route.tsx`]: { route: shopDefinition },
+  };
+  const conventionPath = (directory: string, name: string, component: unknown) => {
+    if (component === undefined) {
+      return;
+    }
+    const path = `${pagesDir}${directory}/${name}.tsx`;
+    modules[path] = { default: component };
+    return path;
+  };
+  const nativeRoutes = new Elysia();
+  const routeMetadata: NonNullable<CompileContext["routeMetadata"]> = {};
+  const compiledRoutes = routes.map(({ definition, pattern, segmentBoundaries }) => {
+    // `.page.tsx` keeps `/shop/error` apart from the directory's `error.tsx`.
+    const path = `${pagesDir}${pattern}.page.tsx`;
+    modules[path] = { route: definition };
+    routeMetadata[path] = {
+      segmentBoundaries: segmentBoundaries.map((boundary) => {
+        const directory = boundary.path.slice("/pages".length);
+        return {
+          depth: boundary.depth,
+          errorPath: conventionPath(directory, "error", boundary.error),
+          notFoundPath: conventionPath(directory, "not-found", boundary.notFound),
+          path: `${pagesDir}${directory}`,
+        };
+      }),
+    };
+    nativeRoutes.use(new Elysia({ prefix: pattern }).use(definition.elysia));
+    return { mode: "ssr" as const, path, pattern };
+  });
+  __setCompileContext({
+    buildId: "",
+    modules,
+    nativeRoutes,
+    rootConventions: {
+      errorPath: conventionPath("", "error", root.error),
+      notFoundPath: conventionPath("", "not-found", root.notFound),
+    },
+    rootPath: `${pagesDir}/root.tsx`,
+    routeMetadata,
+    routes: compiledRoutes,
+    serveAssets: false,
+    templateHtml: TEMPLATE,
+  });
+  return new Elysia().use(await furin({ pagesDir }));
 }
 
 async function documentData(): Promise<Record<string, unknown>> {
@@ -201,7 +235,7 @@ async function serverRenderAndHydrate(
   routes: TestRoute[],
   href: string
 ): Promise<{ recoverable: unknown[]; serverBody: string; status: number }> {
-  const app = createApp(routes);
+  const app = await createApp(routes);
   const response = await app.handle(new Request(`http://localhost:3000${href}`));
   const html = await response.text();
   window.history.replaceState(null, "", href);
@@ -210,7 +244,7 @@ async function serverRenderAndHydrate(
   const data = await documentData();
   const failure = findRouteFailure(data);
   const error = failure?.status === "error" ? failure.error : undefined;
-  const initialMatch = routes.find((route) => route.server.pattern === href)?.client ?? null;
+  const initialMatch = routes.find((route) => route.pattern === href)?.client ?? null;
   const documentState: DocumentState = {
     assets: documentAssetsFromTemplate(TEMPLATE),
     dataJson: document.getElementById("__FURIN_DATA__")?.textContent ?? undefined,
@@ -322,7 +356,12 @@ describe("route matches", () => {
         throw new Error("head exploded");
       })
       .page(() => <p>never</p>);
-    const route = toTestRoute("/shop/head", adaptDefinedPage(definition, shop), BOUNDARIES);
+    const route = toTestRoute(
+      "/shop/head",
+      definition,
+      adaptDefinedPage(definition, shop),
+      BOUNDARIES
+    );
 
     const result = await serverRenderAndHydrate([route], "/shop/head");
 
@@ -338,7 +377,7 @@ describe("route matches", () => {
       .page(() => {
         throw new Error("render exploded");
       });
-    const broken = toTestRoute("/broken", adaptDefinedPage(definition, root.route), [
+    const broken = toTestRoute("/broken", definition, adaptDefinedPage(definition, root.route), [
       { depth: 0, error: RootError, path: "/pages" },
     ]);
 

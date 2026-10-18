@@ -159,9 +159,7 @@ test.serial("native DevTools records serialized route payload bytes", async () =
   __setDevMode(true);
   const app = await createTestApp(false);
 
-  const dataResponse = await app.handle(
-    new Request("http://localhost/_furin/data?path=/with-loader")
-  );
+  const dataResponse = await app.handle(new Request("http://localhost/with-loader?_furin=data"));
   expect(dataResponse.status).toBe(200);
   await dataResponse.text();
 

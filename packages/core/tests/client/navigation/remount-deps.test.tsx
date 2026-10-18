@@ -8,6 +8,7 @@ import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { useDomTests } from "../../support/dom.ts";
+import { navigationDataPath } from "../../support/navigation-data.ts";
 
 useDomTests();
 
@@ -71,9 +72,8 @@ async function mountRouter(
   window.history.replaceState(null, "", "/remount-doc/one/edit?view=grid");
   const originalFetch = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL) => {
-    const request = new URL(String(input), window.location.origin);
     const target = new URL(
-      request.searchParams.get("path") ?? request.href,
+      navigationDataPath(input, window.location.origin) ?? String(input),
       window.location.origin
     );
     const [, , documentId, tab] = target.pathname.split("/");

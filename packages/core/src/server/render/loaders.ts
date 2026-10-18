@@ -30,7 +30,7 @@ export type LoaderResult =
       /**
        * Promise-valued fields from a `defer()` return. `undefined` when the page
        * loader did not call `defer()`. Streamed as late `<script>` resolution
-       * chunks (SSR) or as NDJSON chunks via `/_furin/data` (SPA nav).
+       * chunks (SSR) or as NDJSON chunks via `?_furin=data` (SPA nav).
        */
       deferredPromises: Record<string, Promise<unknown>> | undefined;
       headers: Record<string, string>;
