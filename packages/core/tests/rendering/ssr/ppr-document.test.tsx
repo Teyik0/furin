@@ -125,7 +125,7 @@ test("a serialized public shell resumes independently for two sessions", async (
           `default-src 'self'; script-src 'self'${nonce ? ` 'nonce-${nonce}'` : " 'unsafe-inline'"}`,
       })
     )
-    .beforeHandle("global", ({ request, set }) => {
+    .onBeforeHandle("global", ({ request, set }) => {
       const session = new URLSearchParams(request.headers.get("cookie") ?? "").get("session");
       set.headers["set-cookie"] = `session=${session}; Path=/; HttpOnly`;
     })

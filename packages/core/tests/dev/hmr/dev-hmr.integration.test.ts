@@ -152,7 +152,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia().beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
+        'new Elysia().onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {
@@ -181,7 +181,7 @@ describe.serial("dev HMR", () => {
       [
         'import { furin } from "@teyik0/furin";',
         'import Elysia from "elysia";',
-        'new Elysia({ prefix: "/api" }).beforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/admin" })).listen(Number(process.env.PORT));',
+        'new Elysia({ prefix: "/api" }).onBeforeHandle("global", () => {}).use(await furin({ pagesDir: import.meta.dir + "/pages", prefix: "/admin" })).listen(Number(process.env.PORT));',
       ].join("\n")
     );
     const hookedServer = startProcess(["bun", "--hot", join(hookedApp.path, "src/server.ts")], {

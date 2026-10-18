@@ -46,7 +46,7 @@ try {
   process.chdir(fixture.path);
   __setDevMode(true);
   writeAppFile(fixture.path, "src/pages/not-found.tsx", 'export default () => <main>Nested missing</main>;');
-  const app = new Elysia({ prefix: "/outer" }).request(({ request }) =>
+  const app = new Elysia({ prefix: "/outer" }).onRequest(({ request }) =>
     request.headers.has("x-deny") && isFurinPageRequest(request, "/admin")
       ? new Response("Blocked", { status: 403 }) : undefined
   ).use(
@@ -317,7 +317,7 @@ try {
     }});
   }
   Object.defineProperty(Elysia.prototype, Symbol.for("@teyik0/furin/elysia-owner-bindings"), { value: legacy });
-  const child = new Elysia().beforeHandle(({ request }) =>
+  const child = new Elysia().onBeforeHandle(({ request }) =>
     request.headers.has("x-deny") ? new Response("Blocked", { status: 403 }) : undefined
   ).use(await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin",
     logger: { sampling: { rates: { info: 100 } }, drain: ({ event }) => events.push(event), waitUntil: task => emissions.push(task) },

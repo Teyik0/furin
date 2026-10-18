@@ -18,7 +18,7 @@ export function bindSyncValidation(app: Elysia): void {
     applications.set(createContext(app), app);
     return fetch;
   });
-  app.setup((root) => {
+  app.onStart((root) => {
     applications.set(createContext(root), root);
   });
 }

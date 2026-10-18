@@ -772,7 +772,7 @@ function createFurinMount(
   if (anchor) {
     furinMountMarkers.set(marker, mount);
   }
-  mount.app = new Elysia().beforeHandle(marker).use(app);
+  mount.app = new Elysia().onBeforeHandle(marker).use(app);
   return mount;
 }
 
@@ -839,8 +839,8 @@ function createFurinPlugin(mount: FurinMount) {
       const pending = prepareFinalMounts(owner);
       return pending ? pending.then(execute) : execute();
     };
-    app.setup((owner) => lifecycle(owner, "setup"));
-    app.cleanup((owner) => lifecycle(owner, "cleanup"));
+    app.onStart((owner) => lifecycle(owner, "setup"));
+    app.onStop((owner) => lifecycle(owner, "cleanup"));
     const ownedExtension = Reflect.get(app, "~ext") as typeof extension;
     ownedExtension.setup?.splice(0, mount.setup.length);
     ownedExtension.cleanup?.splice(0, mount.cleanup.length);
@@ -1150,10 +1150,10 @@ async function createFurinRuntime({
     application
       .use(loggerPlugin)
       // Local scope keeps hooks isolated from sibling Furin mounts.
-      .error(NotFound, async ({ request, server }) =>
+      .onError(NotFound, async ({ request, server }) =>
         renderRootNotFound(getRoot(), request, server?.url.origin)
       )
-      .afterHandle(({ set }) => {
+      .onAfterHandle(({ set }) => {
         const pending = consumePendingInvalidations();
         if (pending.length > 0) {
           set.headers["x-furin-revalidate"] = serializeInvalidationPaths(pending);
@@ -1368,7 +1368,7 @@ async function createFurinRuntime({
     // physical when this plugin is merged into the parent app (child prefixes
     // like staticPlugin's compose underneath).
     app
-      .setup((owner) => {
+      .onStart((owner) => {
         routeTopologyWatcher = registerDevRouteTopologyWatcher({
           instance: routeInstance,
           owner: { app: owner.server ?? owner, prefix: instance.prefix },
@@ -1399,7 +1399,7 @@ async function createFurinRuntime({
           },
         });
       })
-      .cleanup(() => {
+      .onStop(() => {
         releaseDevGraph(instance);
         routeTopologyWatcher?.close();
         routeTopologyWatcher = undefined;
@@ -1470,7 +1470,7 @@ async function createFurinRuntime({
 
     app
       .use(requestHooks(() => root))
-      .setup(async ({ server }) => {
+      .onStart(async ({ server }) => {
         if (ctx.ssgCache) {
           return;
         }
@@ -1507,7 +1507,7 @@ async function createFurinRuntime({
  * 404 handling per mount position:
  *
  * - ROOT instance (`prefix === ""`): a global `NotFound` handler owns the root
- *   scope, and a parent `.error()`
+ *   scope, and a parent `.onError()`
  *   registered BEFORE `.use(furin)` still wins (documented escape hatch for
  *   JSON API 404s).
  * - PREFIXED instance: a global hook would leak onto sibling apps, and a
@@ -1535,7 +1535,7 @@ function createNotFoundHandling(
         }
       : undefined);
   if (prefix === "") {
-    app.error("global", NotFound, async (context) => {
+    app.onError("global", NotFound, async (context) => {
       // Dev topology: the native renderer is rebuilt by the watcher on route
       // add/remove, so a hot-added route (no mounted Elysia route yet) can
       // still be served here. Production also renders root catch-all pages here.

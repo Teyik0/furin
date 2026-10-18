@@ -377,7 +377,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
     .derive("global", (ctx) => ({
       mutation: (requestOwners.get(ctx.request) ?? owner).mutationFor(ctx) as SyncMutation<Adapter>,
     }))
-    .beforeHandle("global", (context) => {
+    .onBeforeHandle("global", (context) => {
       if (
         requestOwners.get(context.request) === owner &&
         isMutationMethod(context.request.method) &&
@@ -386,7 +386,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
         prepareMutationHandler(context, () => beginMutation(context));
       }
     })
-    .afterHandle(
+    .onAfterHandle(
       "global",
       hideTransportResponse((context: CompletionContext) =>
         requestOwners.get(context.request) === owner
@@ -394,7 +394,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
           : Promise.resolve(undefined)
       )
     )
-    .afterHandle("global", async (ctx) => {
+    .onAfterHandle("global", async (ctx) => {
       if (requestOwners.get(ctx.request) !== owner) {
         return;
       }
@@ -424,14 +424,14 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       queryTag(identity);
       ctx.set.headers["x-furin-query"] = serializeQueryHeader(identity);
     })
-    .error(
+    .onError(
       "global",
       MutationLeaseLost,
       hideTransportResponse(({ request }: { request: Request }) =>
         Promise.resolve(requestOwners.get(request) === owner ? leaseLostResponse() : undefined)
       )
     )
-    .error(
+    .onError(
       "global",
       hideTransportResponse(async ({ request }: { request: Request }) => {
         if (requestOwners.get(request) !== owner) {
@@ -455,7 +455,7 @@ export function furinSync<Adapter extends SyncAdapter>(options: SyncRuntimeOptio
       syncOwners.set(options, owner);
     }
     const routeOwner = owner;
-    app.transform(({ request }) => {
+    app.onTransform(({ request }) => {
       requestOwners.set(request, routeOwner);
     });
     installMutationHandlers(app);

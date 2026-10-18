@@ -388,7 +388,7 @@ test("replays short-circuit a generic application error fallback", async () => {
   const adapter = drizzleSyncAdapter({ db, namespace: "error-fallback" });
   let calls = 0;
   const app = new Elysia()
-    .error("global", () => Response.json({ error: "fallback" }, { status: 500 }))
+    .onError("global", () => Response.json({ error: "fallback" }, { status: 500 }))
     .use(furinSync({ adapter, principal: () => "user" }))
     .post("/mutation", ({ mutation }) =>
       mutation(() => {
@@ -819,7 +819,7 @@ test("a business failure releases its key even with an application error fallbac
   const adapter = drizzleSyncAdapter({ db, namespace: "rollback" });
   const failures = new Set(["business"]);
   const app = new Elysia()
-    .error("global", () => Response.json({ error: "fallback" }, { status: 500 }))
+    .onError("global", () => Response.json({ error: "fallback" }, { status: 500 }))
     .use(furinSync({ adapter, principal: () => "user" }))
     .get("/counter", () => db.select().from(counter).all())
     .post("/counter", { sync: { invalidate: { tags: ["counter"] } } }, ({ mutation }) =>

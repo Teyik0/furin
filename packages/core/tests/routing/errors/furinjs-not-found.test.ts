@@ -88,7 +88,7 @@ try {
 
   plugin = await furin({ pagesDir: join(app.path, "src/pages") });
   parent = new Elysia()
-    .error(NotFound, ({ path }) => {
+    .onError(NotFound, ({ path }) => {
       if (path.startsWith("/api/")) {
         return new Response(JSON.stringify({ error: "not_found" }), {
           headers: { "Content-Type": "application/json" },

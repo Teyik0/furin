@@ -539,7 +539,7 @@ test.each([false, true])(
     });
     const app = new Elysia()
       .use(furinSync(options))
-      .beforeHandle(({ status }) => {
+      .onBeforeHandle(({ status }) => {
         if (!authorized) {
           return status(403);
         }

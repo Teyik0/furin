@@ -107,7 +107,7 @@ describe("Bun production lifecycle", () => {
     let cleanups = 0;
     const app = new Elysia()
       .get("/", () => "ok")
-      .cleanup(() => {
+      .onStop(() => {
         cleanups += 1;
       });
     const lifecycle = startProductionServer({
@@ -288,7 +288,7 @@ test("waits for deferred log drains before application resource cleanup", async 
       })
     )
     .get("/", () => "ok")
-    .cleanup(() => {
+    .onStop(() => {
       order.push("cleanup");
     });
   const lifecycle = startProductionServer({
@@ -345,7 +345,7 @@ test("closes Furin browser-event WebSockets before stopping Bun", async () => {
 
 test("the configured shutdown deadline bounds an unacknowledged browser-event close", async () => {
   const { promise: stopped, resolve: markStopped } = Promise.withResolvers<void>();
-  const app = new Elysia().cleanup(() => markStopped());
+  const app = new Elysia().onStop(() => markStopped());
   let lateCleanup = false;
   const lifecycle = startProductionServer({
     app,
@@ -569,7 +569,7 @@ test("a forced shutdown closes shared Sync state after its peer has stopped", as
 test("forcing transport shutdown keeps pending Elysia cleanup bounded", async () => {
   const { promise: release, resolve } = Promise.withResolvers<void>();
   let cleanupStarted = false;
-  const app = new Elysia().cleanup(() => {
+  const app = new Elysia().onStop(() => {
     cleanupStarted = true;
     return release;
   });

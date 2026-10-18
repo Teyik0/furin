@@ -80,7 +80,7 @@ test.each(["ssg", "isr"] as const)(
         `import { furin } from "@teyik0/furin";
 import { api } from "./api";
 export default api
-  .beforeHandle(({ path, status }) => {
+  .onBeforeHandle(({ path, status }) => {
     if (path === "/") return status(404, "not found");
   })
   .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
@@ -98,18 +98,18 @@ export default api
   30_000
 );
 
-test.each(["use", "setup"] as const)(
+test.each(["use", "onStart"] as const)(
   "Vercel builds an API extended with .%s() after an in-memory ISR loader request",
   async (method) => {
     const app = createApiPrerenderApp("isr");
     try {
-      if (method === "setup") {
+      if (method === "onStart") {
         writeAppFile(
           app.path,
           "src/server.ts",
           `import { furin } from "@teyik0/furin";
 import { api } from "./api";
-export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
         );
       }
 
@@ -238,11 +238,11 @@ test("Vercel still rejects an API sealed inside the server entry itself", async 
       `import { furin } from "@teyik0/furin";
 import { api } from "./api";
 await api.handle(new Request("http://localhost/api/message"));
-export default api.setup(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+export default api.onStart(() => {}).use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
     );
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode).toBe(1);
-    expect(build.stderr).toContain("[Elysia] .setup() called after the app was sealed");
+    expect(build.stderr).toContain("[Elysia] .onStart() called after the app was sealed");
   } finally {
     app.cleanup();
   }

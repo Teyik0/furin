@@ -72,7 +72,7 @@ test("SSR emits a fresh CSP nonce on framework and authored scripts", async () =
       })
     )
     .use(createRoutePlugin(route, root, "build-1"))
-    .error("global", NotFound, ({ request }) => renderRootNotFound(root, request));
+    .onError("global", NotFound, ({ request }) => renderRootNotFound(root, request));
 
   const [first, second] = await Promise.all([
     app.handle(new Request("http://localhost/account")),

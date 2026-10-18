@@ -22,9 +22,9 @@ function mapSqliteProblem(code: string) {
 }
 
 export const dbErrors = new Elysia({ name: "db-errors" })
-  .error("global", DrizzleQueryError, ({ error }) => mapSqliteProblem(sqliteCode(error)))
-  .error("global", DrizzleError, () => problem(500, { detail: "Database operation failed" }))
-  .error("global", ({ error }) => {
+  .onError("global", DrizzleQueryError, ({ error }) => mapSqliteProblem(sqliteCode(error)))
+  .onError("global", DrizzleError, () => problem(500, { detail: "Database operation failed" }))
+  .onError("global", ({ error }) => {
     const code = sqliteCode(error);
     if (!code.startsWith("SQLITE")) {
       return;
