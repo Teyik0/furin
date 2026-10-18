@@ -20,14 +20,8 @@ import { wrapLoaderLayouts } from "../loader-layouts.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
-import { CacheGeneration } from "./cache-generation.ts";
 import { observeWindowFetch } from "./fetch-observers.ts";
-import {
-  generateHistoryKey,
-  getHistoryKey,
-  SCROLL_STORAGE_KEY,
-  saveScrollPosition,
-} from "./history.ts";
+import { SCROLL_STORAGE_KEY } from "./history.ts";
 import { registerHmrRefresh } from "./hmr-refresh.ts";
 import {
   applyRevalidateEntries,
@@ -37,10 +31,13 @@ import {
   normalizeHref,
   shouldAutoRefreshPath,
   shouldInterceptClick,
-  shouldRefetch,
-  stripHashFromHref,
   toLogical,
 } from "./link-utils.ts";
+import {
+  NavigationController,
+  type NavigationControllerConfig,
+  type NavigationSnapshot,
+} from "./navigation-controller.ts";
 import { createOptimisticRuntime, registerOptimisticRuntime, SYNC_REQUEST } from "./optimistic.ts";
 import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
@@ -55,72 +52,29 @@ import {
   type SyncChangePagePayload,
 } from "./sync-catch-up.ts";
 import type {
-  CacheEntry,
+  ClientRoute,
   ClientSegmentBoundary,
-  LoadedClientRoute,
   RouterProviderProps,
   RouterState,
 } from "./types.ts";
 
 const EMPTY_SEARCH: SearchParamsInput = {};
 
-function isRedirectState(state: RouterState | null): state is RouterState & { finalHref: string } {
-  return Boolean(state?.finalHref && !state.match && !state.notFound);
-}
-
-/** Failures, errors and not-found pages are transient: never serve them from the prefetch cache. */
-function isCacheableState(state: RouterState | null): state is RouterState {
-  return state !== null && !(state.error || state.notFound);
-}
-
-function getHistoryStateObject(): object {
-  const value = history.state;
-  return value !== null && typeof value === "object" ? value : {};
-}
-
-interface PendingUserNavigationRef {
-  current: Promise<void> | null;
-}
-
 interface HmrTransactionState {
   dataInvalidated: boolean;
 }
 
-function beginUserNavigation(ref: PendingUserNavigationRef): () => void {
-  let resolveNavigation: () => void = () => undefined;
-  const navigation = new Promise<void>((resolve) => {
-    resolveNavigation = resolve;
-  });
-  ref.current = navigation;
-  return () => {
-    if (ref.current === navigation) {
-      ref.current = null;
-    }
-    resolveNavigation();
-  };
-}
-
-async function waitForUserNavigation(ref: PendingUserNavigationRef): Promise<void> {
-  while (ref.current) {
-    // biome-ignore lint/performance/noAwaitInLoops: superseded user navigations must settle in sequence before HMR may refresh the final URL
-    await ref.current;
-  }
-}
-
-export function setPrefetchCacheEntry(
-  cache: Map<string, CacheEntry>,
-  href: string,
-  entry: CacheEntry,
-  maxSize: number
-): void {
-  if (cache.has(href)) {
-    cache.delete(href);
-  }
-  cache.set(href, entry);
-  if (cache.size > maxSize) {
-    const oldest = cache.keys().next().value;
-    if (typeof oldest === "string") {
-      cache.delete(oldest);
+/**
+ * Root-owned boundary for the "no client route matched" 404 path. When an
+ * unknown URL is navigated to, the server's `renderRootNotFound` handles it —
+ * the root `not-found.tsx` (depth 0) is the correct component to render inline
+ * instead of doing a full-page reload.
+ */
+function findRootBoundaries(routes: ClientRoute[]): ClientSegmentBoundary[] | undefined {
+  for (const route of routes) {
+    const depth0 = route.segmentBoundaries?.find((b) => b.depth === 0 && b.isRoot !== false);
+    if (depth0) {
+      return [depth0];
     }
   }
 }
@@ -153,86 +107,39 @@ export function RouterProvider({
     );
     return store;
   });
-  // Initial state. When `initialMatch` is `null`, `initialNotFound` MUST be set —
-  // the provider boots into the inline not-found UI.
-  const [state, setState] = useState<RouterState>(() => ({
-    data: Object.fromEntries(
-      Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
-    ),
-    querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
-    hydrateQueries: queries.captureHydration(),
-    error: initialError
-      ? {
-          ...initialError,
-          message: initialError.message || "Something went wrong",
-        }
-      : undefined,
-    head: initialDocumentState?.head,
-    match: initialMatch,
-    notFound: initialNotFound,
+  // Initial snapshot. When `initialMatch` is `null`, `initialNotFound` MUST be
+  // set — the provider boots into the inline not-found UI.
+  const [initialSnapshot] = useState<NavigationSnapshot>(() => ({
+    // The LOGICAL path (basePath stripped) so Link active-state detection works
+    // with route patterns that never include the basePath prefix.
+    href:
+      typeof window === "undefined"
+        ? "/"
+        : normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search,
+    isNavigating: false,
+    resetVersion: 0,
+    state: {
+      data: Object.fromEntries(
+        Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
+      ),
+      querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
+      hydrateQueries: queries.captureHydration(),
+      error: initialError
+        ? {
+            ...initialError,
+            message: initialError.message || "Something went wrong",
+          }
+        : undefined,
+      head: initialDocumentState?.head,
+      match: initialMatch,
+      notFound: initialNotFound,
+    },
   }));
-  const [boundaryResetVersion, setBoundaryResetVersion] = useState(0);
-  const currentState = useRef(state);
-  useLayoutEffect(() => {
-    currentState.current = state;
-  }, [state]);
-  useLayoutEffect(() => {
-    state.hydrateQueries?.(
-      state.querySeeds ?? [],
-      typeof window === "undefined" ? undefined : window.location.origin
-    );
-  }, [state.hydrateQueries, state.querySeeds]);
-  const resolvedQueries = useRef(new WeakMap<Promise<unknown>, DeferredQueryValue>());
-  const [deferredRevision, setDeferredRevision] = useState(0);
-  useEffect(() => {
-    const snapshot = currentState.current;
-    const hydrated = new Set(snapshot.querySeeds?.map((seed) => seed.url));
-    let disposed = false;
-    for (const promise of Object.values(state.data)) {
-      if (!(promise instanceof Promise)) {
-        continue;
-      }
-      promise.then(
-        (value: unknown) => {
-          if (disposed) {
-            return;
-          }
-          resolvedQueries.current.set(promise, { value });
-          const seeds = (snapshot.querySeeds ?? []).filter((seed) => !hydrated.has(seed.url));
-          snapshot.hydrateQueries?.(seeds, window.location.origin);
-          for (const seed of seeds) {
-            hydrated.add(seed.url);
-          }
-          setDeferredRevision((revision) => revision + 1);
-        },
-        () => undefined
-      );
-    }
-    return () => {
-      disposed = true;
-    };
-  }, [queries, state.data]);
-  const [isNavigating, setIsNavigating] = useState(false);
-  // currentHref stores the LOGICAL path (basePath stripped) so Link active-state
-  // detection works with route patterns that never include the basePath prefix.
-  const [currentHref, setCurrentHref] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return "/";
-    }
-    return normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search;
-  });
   const optimisticSnapshot = useRef({
-    href: currentHref,
-    loaded: state.match !== null,
-    pattern: state.match?.pattern,
+    href: initialSnapshot.href,
+    loaded: initialSnapshot.state.match !== null,
+    pattern: initialSnapshot.state.match?.pattern,
   });
-  useLayoutEffect(() => {
-    optimisticSnapshot.current = {
-      href: currentHref,
-      loaded: state.match !== null && !(state.error || state.notFound),
-      pattern: state.match?.pattern,
-    };
-  }, [currentHref, state.match, state.error, state.notFound]);
   const syncResponse = useRef<
     ((response: Response | undefined, optimistic: boolean) => void) | undefined
   >(undefined);
@@ -244,422 +151,117 @@ export function RouterProvider({
       onResponse: (response, optimistic) => syncResponse.current?.(response, optimistic),
     })
   );
-  useSyncExternalStore(optimisticRuntime.subscribe, optimisticRuntime.revision, () => 0);
-  const queryRevision = useSyncExternalStore(queries.subscribeAll, queries.revision, () => 0);
-  useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
-  const snapshotVersions = useRef(new WeakMap<RouterState, number>());
-  const prefetchCache = useRef(new Map<string, CacheEntry>());
-  const snapshotTransports = useRef(new WeakMap<RouterState, () => boolean>());
-  const [cacheGeneration] = useState(() => new CacheGeneration());
-  /** Cache generation at which each snapshot's fetch started. */
-  const snapshotGenerations = useRef(new WeakMap<RouterState, number>());
-  const isFreshSnapshot = useCallback(
-    (href: string, snapshot: RouterState) =>
-      cacheGeneration.isFresh(
-        href,
-        snapshot,
-        snapshotGenerations.current.get(snapshot) ?? cacheGeneration.current
-      ),
-    [cacheGeneration]
-  );
-  /** Monotonic counter to discard stale navigations (race condition guard). */
-  const navVersion = useRef(0);
-  /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
-  const hmrVersion = useRef(0);
-  const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
-  const pendingUserNavigation = useRef<Promise<void> | null>(null);
-  /**
-   * AbortController for the in-flight navigation. Cancelled when a newer
-   * navigation starts, or when this one ends without committing, so its
-   * `parseDeferredNdjson` releases pending deferred promises and frees the reader.
-   */
-  const navAbortRef = useRef<AbortController | null>(null);
-  /**
-   * AbortController owning the visible page's deferred stream. Cancelled only
-   * when another navigation commits, so a failed or cancelled navigation never
-   * strands the current page's pending deferred data.
-   */
-  const committedAbortRef = useRef<AbortController | null>(null);
-  /**
-   * Deferred scroll instruction consumed by the layout effect tied to `currentHref`.
-   * This replaces the fragile double-requestAnimationFrame pattern with a render-
-   * synchronous scroll that fires immediately after React commits the new route.
-   */
-  const pendingScrollRef = useRef<
-    { type: "restore"; key: string } | { type: "reset"; href: string } | null
-  >(null);
-  const renderedHistoryKey = useRef<string | undefined>(undefined);
-  /**
-   * Tracks the last successfully rendered match for use in the no-route 404 path.
-   * `null` on the initial render when the URL didn't match any route and the
-   * provider booted directly into the not-found state; flips to a real match as
-   * soon as the user navigates away via `navigate()` or the back button.
-   */
-  const currentMatchRef = useRef<LoadedClientRoute | null>(initialMatch);
   /**
    * Cached at boot from `<meta name="furin-mode">`. Drives the SPA-nav data
    * fetch URL: runtime `/_furin/data` for SSR/ISR/dev, per-route
    * `__furin_data.ndjson` for static exports.
    */
   const [staticMode] = useState(detectStaticMode);
-  const resolvedSearch = (state.data.query as SearchParamsInput | undefined) ?? EMPTY_SEARCH;
-
-  /**
-   * Root-owned boundary for the "no client route matched" 404
-   * path. When an unknown URL is navigated to, the server's `renderRootNotFound`
-   * handles it — the root `not-found.tsx` (depth 0) is the correct component to
-   * render inline instead of doing a full-page reload.
-   */
-  const rootBoundaries = useMemo<ClientSegmentBoundary[] | undefined>(() => {
-    for (const route of routes) {
-      const depth0 = route.segmentBoundaries?.find((b) => b.depth === 0 && b.isRoot !== false);
-      if (depth0) {
-        return [depth0];
-      }
-    }
-  }, [routes]);
-
-  /** Adapts typed page results to the router's snapshot shape. */
-  const fetchPage = useCallback(
-    async (
-      href: string,
-      signal: AbortSignal | undefined,
-      hmrRefresh: boolean
-    ): Promise<RouterState | null> => {
-      const result = await fetchPageState(
-        {
-          basePath,
-          captureHydration: () => queries.captureHydration(),
-          currentMatch: () => currentMatchRef.current,
-          rootBoundaries,
-          routes,
-          staticMode,
-        },
-        href,
-        signal,
-        hmrRefresh
-      );
-      if (result.kind === "redirect") {
-        return { data: {}, finalHref: result.href, match: null, title: "" };
-      }
-      if (result.kind === "hardNavigate" || result.kind === "aborted") {
-        return null;
-      }
-      snapshotTransports.current.set(result.state, result.reusable);
-      return result.state;
-    },
-    [routes, basePath, rootBoundaries, queries, staticMode]
-  );
-
-  const fetchConfirmedPageState = useCallback(
-    async (href: string, signal: AbortSignal | undefined, hmrRefresh: boolean) => {
-      for (;;) {
-        try {
-          // biome-ignore lint/performance/noAwaitInLoops: a snapshot must be read after local writes settle.
-          await optimisticRuntime.wait(href, signal);
-        } catch (error) {
-          if (signal?.aborted) {
-            return null;
-          }
-          throw error;
-        }
-        const version = optimisticRuntime.revision(href);
-        const generation = cacheGeneration.current;
-        const snapshot = await fetchPage(href, signal, hmrRefresh);
-        if (optimisticRuntime.publishable(href, version)) {
-          if (snapshot) {
-            snapshotVersions.current.set(snapshot, version);
-            snapshotGenerations.current.set(snapshot, generation);
-          }
-          return snapshot;
-        }
-      }
-    },
-    [fetchPage, optimisticRuntime, cacheGeneration]
-  );
-
-  const invalidatePrefetch = useCallback(
-    (path: string, type: "page" | "layout") => {
-      const normalizedPath = normalizeHref(new URL(path, "http://furin.local").pathname);
-      const affects = (href: string) =>
-        shouldAutoRefreshPath(normalizeHref(stripHashFromHref(href)), [
-          { path: normalizedPath, type },
-        ]);
-      cacheGeneration.bump(affects);
-      for (const key of [...prefetchCache.current.keys()]) {
-        if (affects(key)) {
-          prefetchCache.current.delete(key);
-        }
-      }
-    },
-    [cacheGeneration]
-  );
-
-  const prefetch = useCallback(
-    (href: string, opts: { staleTime?: number } | undefined) => {
-      const staleTime = opts?.staleTime ?? defaultPreloadStaleTime;
-      const existing = prefetchCache.current.get(href);
-      if (existing && !shouldRefetch(existing)) {
-        return;
-      }
-      const generation = cacheGeneration.current;
-      const entry: CacheEntry = {
-        createdAt: Date.now(),
-        promise: fetchPage(href, undefined, false).then((snapshot) => {
-          if (snapshot) {
-            snapshotGenerations.current.set(snapshot, generation);
-          }
-          return snapshot;
-        }),
-        staleTime,
-      };
-      setPrefetchCacheEntry(prefetchCache.current, href, entry, prefetchCacheSize);
-      entry.promise.then((snapshot) => {
-        if (!isCacheableState(snapshot) && prefetchCache.current.get(href) === entry) {
-          prefetchCache.current.delete(href);
-        }
-      });
-    },
-    [fetchPage, defaultPreloadStaleTime, prefetchCacheSize, cacheGeneration]
-  );
-
-  const readNavigationState = useCallback(
-    async (
-      href: string,
-      myVersion: number,
-      signal: AbortSignal | undefined,
-      hmrRefresh: boolean
-    ): Promise<{ state: RouterState | null; fetched: boolean }> => {
-      const cached = prefetchCache.current.get(href);
-      const useCached =
-        cached !== undefined && !shouldRefetch(cached) && !optimisticRuntime.has(href);
-      let nextState =
-        useCached && cached
-          ? await cached.promise
-          : await fetchConfirmedPageState(href, signal, hmrRefresh);
-      if (navVersion.current !== myVersion) {
-        return { state: null, fetched: false };
-      }
-      const revalidate =
-        useCached &&
-        (!(isCacheableState(nextState) && isFreshSnapshot(href, nextState)) ||
-          isRedirectState(nextState) ||
-          (nextState && snapshotTransports.current.get(nextState)?.() === false) ||
-          (nextState &&
-            !optimisticRuntime.publishable(
-              href,
-              snapshotVersions.current.get(nextState) ?? optimisticRuntime.revision(href)
-            )));
-      if (revalidate) {
-        nextState = await fetchConfirmedPageState(href, signal, hmrRefresh);
-      }
-      return {
-        state: navVersion.current === myVersion ? nextState : null,
-        fetched: !useCached || Boolean(revalidate),
-      };
-    },
-    [fetchConfirmedPageState, optimisticRuntime, isFreshSnapshot]
-  );
-
-  async function followRedirects(
-    initialState: RouterState,
-    initialHref: string,
-    myVersion: number,
-    signal: AbortSignal | undefined
-  ): Promise<{ href: string; state: RouterState } | null> {
-    let redirectState = initialState;
-    let href = initialHref;
-    const visited = new Set([href]);
-    for (let count = 0; isRedirectState(redirectState); count += 1) {
-      href = normalizeHref(redirectState.finalHref);
-      if (count >= 10 || visited.has(href)) {
-        return null;
-      }
-      visited.add(href);
-      // biome-ignore lint/performance/noAwaitInLoops: each redirect target depends on the previous response.
-      const { state: next } = await readNavigationState(href, myVersion, signal, false);
-      if (!next) {
-        return null;
-      }
-      redirectState = next;
-    }
-    return { href, state: redirectState };
-  }
-
-  function startNavigationAbort(): AbortController {
-    navAbortRef.current?.abort();
-    const controller = new AbortController();
-    navAbortRef.current = controller;
-    return controller;
-  }
-
-  function settleNavigationAbort(controller: AbortController, committed: boolean): void {
-    if (navAbortRef.current === controller) {
-      navAbortRef.current = null;
-    }
-    if (!committed) {
-      controller.abort();
-      return;
-    }
-    committedAbortRef.current?.abort();
-    committedAbortRef.current = controller;
-  }
-
-  function publishPageState(
-    nextState: RouterState,
-    href: string,
-    beforePublish: (() => void) | undefined
-  ): boolean {
-    if (
-      !optimisticRuntime.publishable(
-        href,
-        snapshotVersions.current.get(nextState) ?? optimisticRuntime.revision(href)
-      )
-    ) {
-      return false;
-    }
-    if (!(nextState.error || nextState.notFound)) {
-      optimisticRuntime.commit(href);
-    }
-    beforePublish?.();
-    currentMatchRef.current = nextState.match;
-    if (!nextState.error) {
-      setBoundaryResetVersion((version) => version + 1);
-    }
-    setState(nextState);
-    if (nextState.title) {
-      document.title = nextState.title;
-    }
-    return true;
-  }
-
-  const navigate = useCallback(
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — redirect follow, history management, and scroll handling require this depth
-    async function navigateTo(
-      rawLogicalHref: string,
-      opts:
-        | {
-            beforeCommit?: () => void;
-            hmrRefresh?: boolean;
-            replace?: boolean;
-            resetScroll?: boolean;
-            shouldCommit?: () => boolean;
-          }
-        | undefined
-    ) {
-      const logicalHref = normalizeHref(rawLogicalHref);
-      const beforeCommit = opts?.beforeCommit;
-      const finishUserNavigation =
-        opts?.hmrRefresh === true ? undefined : beginUserNavigation(pendingUserNavigation);
-      navVersion.current += 1;
-      const myVersion = navVersion.current;
-      const navAbort = startNavigationAbort();
-      const navSignal = navAbort.signal;
-      let committed = false;
-      setIsNavigating(true);
-      try {
-        const loaded = await readNavigationState(
-          logicalHref,
-          myVersion,
-          navSignal,
-          opts?.hmrRefresh === true
-        );
-        let newState = loaded.state;
-        if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
-          return;
-        }
-        if (
-          isCacheableState(newState) &&
-          loaded.fetched &&
-          isFreshSnapshot(logicalHref, newState)
-        ) {
-          setPrefetchCacheEntry(
-            prefetchCache.current,
-            logicalHref,
-            {
-              createdAt: Date.now(),
-              promise: Promise.resolve(newState),
-              staleTime: defaultPreloadStaleTime,
-            },
-            prefetchCacheSize
-          );
-        }
-        if (!newState) {
-          log.warn({
-            action: "navigate_fallback",
-            href: logicalHref,
-            reason: "prefetch_returned_null",
-          });
-          window.location.href = basePath + logicalHref;
-          return;
-        }
-
-        const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
-        if (navVersion.current !== myVersion) {
-          return;
-        }
-        if (!resolved) {
-          if (navVersion.current === myVersion) {
-            window.location.href = basePath + logicalHref;
-          }
-          return;
-        }
-        newState = resolved.state;
-
-        if (opts?.shouldCommit?.() === false) {
-          return;
-        }
-        const publicationHref = newState.finalHref ?? resolved.href;
-        const effectiveLogical = newState.finalHref ?? resolved.href;
-        const physicalEffective = basePath + effectiveLogical;
-        if (
-          !publishPageState(newState, publicationHref, () => {
-            beforeCommit?.();
-            if (opts?.resetScroll ?? true) {
-              pendingScrollRef.current = { href: physicalEffective, type: "reset" };
-            }
-          })
-        ) {
-          return;
-        }
-        committed = true;
-        if (opts?.replace) {
-          window.history.replaceState(
-            {
-              ...getHistoryStateObject(),
-              _furinKey: getHistoryKey(history.state) ?? generateHistoryKey(),
-            },
-            "",
-            physicalEffective
-          );
-        } else {
-          const currentKey = renderedHistoryKey.current;
-          if (currentKey) {
-            saveScrollPosition(currentKey);
-          }
-          window.history.pushState({ _furinKey: generateHistoryKey() }, "", physicalEffective);
-        }
-        renderedHistoryKey.current = getHistoryKey(history.state);
-        const effectiveUrl = new URL(physicalEffective, window.location.origin);
-        const logicalPath = normalizeHref(toLogical(effectiveUrl.pathname, basePath));
-        setCurrentHref(logicalPath + effectiveUrl.search);
-      } finally {
-        settleNavigationAbort(navAbort, committed);
-        finishUserNavigation?.();
-        if (navVersion.current === myVersion) {
-          setIsNavigating(false);
-        }
-      }
-    },
+  const rootBoundaries = useMemo(() => findRootBoundaries(routes), [routes]);
+  const navigationConfig = useMemo<NavigationControllerConfig>(
+    () => ({
+      basePath,
+      defaultStaleTime: defaultPreloadStaleTime,
+      fetchPage: ({ currentMatch, hmrRefresh, href, signal }) =>
+        fetchPageState(
+          {
+            basePath,
+            captureHydration: () => queries.captureHydration(),
+            currentMatch,
+            rootBoundaries,
+            routes,
+            staticMode,
+          },
+          href,
+          signal,
+          hmrRefresh
+        ),
+      maxCacheSize: prefetchCacheSize,
+    }),
     [
       basePath,
-      readNavigationState,
       defaultPreloadStaleTime,
       prefetchCacheSize,
-      optimisticRuntime,
-      isFreshSnapshot,
+      queries,
+      rootBoundaries,
+      routes,
+      staticMode,
     ]
   );
+  const [controller] = useState(
+    () =>
+      new NavigationController({
+        config: navigationConfig,
+        initial: initialSnapshot,
+        optimistic: optimisticRuntime,
+      })
+  );
+  useLayoutEffect(() => {
+    controller.configure(navigationConfig);
+  }, [controller, navigationConfig]);
+  const navigation = useSyncExternalStore(
+    controller.subscribe,
+    controller.getSnapshot,
+    controller.getSnapshot
+  );
+  const { href: currentHref, isNavigating, resetVersion: boundaryResetVersion, state } = navigation;
+  const { navigate, refresh, invalidatePath: invalidatePrefetch } = controller;
+  const prefetch = useCallback(
+    (href: string, opts: { staleTime?: number } | undefined) => {
+      controller.prefetch(href, opts?.staleTime);
+    },
+    [controller]
+  );
+
+  useLayoutEffect(() => {
+    state.hydrateQueries?.(
+      state.querySeeds ?? [],
+      typeof window === "undefined" ? undefined : window.location.origin
+    );
+  }, [state.hydrateQueries, state.querySeeds]);
+  const resolvedQueries = useRef(new WeakMap<Promise<unknown>, DeferredQueryValue>());
+  const [deferredRevision, setDeferredRevision] = useState(0);
+  useEffect(() => {
+    const hydrated = new Set(state.querySeeds?.map((seed) => seed.url));
+    let disposed = false;
+    for (const promise of Object.values(state.data)) {
+      if (!(promise instanceof Promise)) {
+        continue;
+      }
+      promise.then(
+        (value: unknown) => {
+          if (disposed) {
+            return;
+          }
+          resolvedQueries.current.set(promise, { value });
+          const seeds = (state.querySeeds ?? []).filter((seed) => !hydrated.has(seed.url));
+          state.hydrateQueries?.(seeds, window.location.origin);
+          for (const seed of seeds) {
+            hydrated.add(seed.url);
+          }
+          setDeferredRevision((revision) => revision + 1);
+        },
+        () => undefined
+      );
+    }
+    return () => {
+      disposed = true;
+    };
+  }, [state.data, state.querySeeds, state.hydrateQueries]);
+  useLayoutEffect(() => {
+    optimisticSnapshot.current = {
+      href: currentHref,
+      loaded: state.match !== null && !(state.error || state.notFound),
+      pattern: state.match?.pattern,
+    };
+  }, [currentHref, state.match, state.error, state.notFound]);
+  useSyncExternalStore(optimisticRuntime.subscribe, optimisticRuntime.revision, () => 0);
+  const queryRevision = useSyncExternalStore(queries.subscribeAll, queries.revision, () => 0);
+  useEffect(() => registerOptimisticRuntime(optimisticRuntime), [optimisticRuntime]);
+  /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
+  const hmrVersion = useRef(0);
+  const hmrState = useRef<HmrTransactionState>({ dataInvalidated: false });
+  const resolvedSearch = (state.data.query as SearchParamsInput | undefined) ?? EMPTY_SEARCH;
 
   const [searchStore] = useState(() =>
     createSearchStore({
@@ -686,30 +288,6 @@ export function RouterProvider({
     searchStore.flush();
   }, [searchStore, searchSnapshot]);
 
-  const refresh = useCallback(
-    async (
-      opts:
-        | {
-            beforeCommit?: () => void;
-            hmrRefresh?: boolean;
-            resetScroll?: boolean;
-            shouldCommit?: () => boolean;
-          }
-        | undefined
-    ) => {
-      const logicalPath = toLogical(window.location.pathname, basePath);
-      const logicalHref = logicalPath + window.location.search;
-      invalidatePrefetch(logicalHref, "page");
-      await navigate(logicalHref, {
-        beforeCommit: opts?.beforeCommit,
-        hmrRefresh: opts?.hmrRefresh,
-        replace: true,
-        resetScroll: opts?.resetScroll ?? false,
-        shouldCommit: opts?.shouldCommit,
-      });
-    },
-    [navigate, invalidatePrefetch, basePath]
-  );
   const invalidationRefresh = useMemo(
     () =>
       createInvalidationRefresh({
@@ -717,11 +295,11 @@ export function RouterProvider({
           log.warn({ action: "sync_refresh_failed", error: String(error) });
         },
         refresh: async () => {
-          await waitForUserNavigation(pendingUserNavigation);
-          await refresh(undefined);
+          await controller.waitForUserNavigation();
+          await controller.refresh(undefined);
         },
       }),
-    [refresh]
+    [controller]
   );
 
   useLayoutEffect(() => {
@@ -751,7 +329,7 @@ export function RouterProvider({
 
   // Expose a transactional refresh to the HMR handler in _hydrate.tsx. The
   // callback swaps the hot component only after fresh data is ready and just
-  // before setState publishes the complete router snapshot.
+  // before the controller publishes the complete router snapshot.
   // Production builds define NODE_ENV, so the whole registration is compiled out.
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -761,16 +339,16 @@ export function RouterProvider({
         const shouldRefreshData = hmrState.current.dataInvalidated || dataChanged !== false;
         if (!shouldRefreshData) {
           beforeCommit?.();
-          setState((current) => ({ ...current }));
+          controller.rerender();
           return;
         }
         hmrState.current.dataInvalidated = true;
-        await waitForUserNavigation(pendingUserNavigation);
+        await controller.waitForUserNavigation();
         if (hmrVersion.current !== myHmrVersion) {
           return;
         }
         let didCommit = false;
-        await refresh({
+        await controller.refresh({
           beforeCommit: () => {
             didCommit = true;
             beforeCommit?.();
@@ -783,98 +361,19 @@ export function RouterProvider({
         }
       });
     }
-  }, [refresh]);
-
-  const handlePopState = useCallback(() => {
-    const finishUserNavigation = beginUserNavigation(pendingUserNavigation);
-    if (renderedHistoryKey.current) {
-      saveScrollPosition(renderedHistoryKey.current);
-    }
-    const destKey = getHistoryKey(history.state);
-    const logicalPath = normalizeHref(toLogical(window.location.pathname, basePath));
-    const logicalHref = logicalPath + window.location.search;
-    navVersion.current += 1;
-    const myVersion = navVersion.current;
-    const navAbort = startNavigationAbort();
-    const navSignal = navAbort.signal;
-    let committed = false;
-    setIsNavigating(true);
-
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: popstate handler — cache check, redirect follow, and scroll restoration require this depth
-    (async () => {
-      try {
-        let { state: newState } = await readNavigationState(
-          logicalHref,
-          myVersion,
-          navSignal,
-          false
-        );
-        if (navVersion.current !== myVersion) {
-          return;
-        }
-        if (!newState) {
-          log.warn({
-            action: "popstate_fallback",
-            href: logicalHref,
-            reason: "fetchPageState_returned_null",
-          });
-          window.location.reload();
-          return;
-        }
-
-        const resolved = await followRedirects(newState, logicalHref, myVersion, navSignal);
-        if (navVersion.current !== myVersion) {
-          return;
-        }
-        if (!resolved) {
-          if (navVersion.current === myVersion) {
-            window.location.reload();
-          }
-          return;
-        }
-        newState = resolved.state;
-        const publicationHref = newState.finalHref ?? resolved.href;
-        if (!publishPageState(newState, publicationHref, undefined)) {
-          return;
-        }
-        committed = true;
-        const effectiveLogical = newState.finalHref ?? resolved.href;
-        if (effectiveLogical !== logicalHref) {
-          window.history.replaceState(history.state, "", basePath + effectiveLogical);
-        }
-        renderedHistoryKey.current = destKey;
-        setCurrentHref(normalizeHref(effectiveLogical));
-        if (destKey) {
-          pendingScrollRef.current = { key: destKey, type: "restore" };
-        } else {
-          window.scrollTo({ behavior: "instant", top: 0 });
-        }
-      } finally {
-        settleNavigationAbort(navAbort, committed);
-        finishUserNavigation();
-        if (navVersion.current === myVersion) {
-          setIsNavigating(false);
-        }
-      }
-    })();
-  }, [readNavigationState, basePath, optimisticRuntime]);
+  }, [controller]);
 
   // Disable native scroll restoration and assign a key to the initial history entry.
   useEffect(() => {
-    history.scrollRestoration = "manual";
-    if (!getHistoryKey(history.state)) {
-      history.replaceState({ ...getHistoryStateObject(), _furinKey: generateHistoryKey() }, "");
-    }
-    renderedHistoryKey.current = getHistoryKey(history.state);
-  }, []);
+    controller.adoptHistoryEntry();
+  }, [controller]);
 
-  // Render-synchronous scroll restoration.
+  // Render-synchronous scroll restoration, after every committed snapshot.
   useLayoutEffect(() => {
-    const instruction = pendingScrollRef.current;
+    const instruction = controller.takeScrollInstruction();
     if (!instruction) {
       return;
     }
-    pendingScrollRef.current = null;
 
     if (instruction.type === "restore") {
       try {
@@ -898,13 +397,13 @@ export function RouterProvider({
     } else {
       window.scrollTo({ behavior: "instant", top: 0 });
     }
-  }, [currentHref, state]);
+  }, [controller, navigation]);
 
   // Handle browser back/forward
   useEffect(() => {
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [handlePopState]);
+    window.addEventListener("popstate", controller.popState);
+    return () => window.removeEventListener("popstate", controller.popState);
+  }, [controller]);
 
   // Intercept clicks on native <a> tags so that internal links (including
   // those rendered by MDX, CMS content, or third-party components) participate
@@ -1031,18 +530,9 @@ export function RouterProvider({
         queries.invalidate(identities);
         const tags = new Set(identities.map(queryTag));
         const affected = (snapshot: RouterState) =>
-          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity)));
-        cacheGeneration.bump((_href, snapshot) => affected(snapshot) === true);
-        for (const [href, entry] of prefetchCache.current) {
-          entry.promise
-            .then((snapshot) => {
-              if (snapshot && affected(snapshot) && prefetchCache.current.get(href) === entry) {
-                prefetchCache.current.delete(href);
-              }
-            })
-            .catch(() => undefined);
-        }
-        if (autoRefresh && affected(currentState.current)) {
+          snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity))) === true;
+        controller.invalidateQueries(affected);
+        if (autoRefresh && affected(controller.getSnapshot().state)) {
           invalidationRefresh.run();
         }
       },
@@ -1087,7 +577,7 @@ export function RouterProvider({
     invalidationRefresh,
     autoRefresh,
     queries,
-    cacheGeneration,
+    controller,
   ]);
 
   const queryData = useMemo(
