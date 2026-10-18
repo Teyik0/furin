@@ -2600,7 +2600,7 @@ for (const importKind of ["static", "dynamic", "circular", "route-export"] as co
     `editing a ${importKind} server-only composite helper refreshes the browser while preserving client state`,
     async () => {
       const helper = (version: string): string =>
-        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }${importKind === "route-export" ? '\nimport { defineRoute } from "@teyik0/furin";\nimport { route as rootRoute } from "./root";\nexport const route = defineRoute().config({ layout: rootRoute }).page(() => <main>Helper route</main>);' : ""}`;
+        `${importKind === "circular" ? 'import { seed } from "../pages/index";\n' : ""}export function ServerCard() { return <article data-testid="rsc-value" ${importKind === "circular" ? "data-seed={seed}" : ""}>${version}</article>; }${importKind === "route-export" ? '\nimport { defineRoute } from "@teyik0/furin";\nimport { route as rootRoute } from "./root";\nexport const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => <main>Helper route</main>);' : ""}`;
       const helperPath =
         importKind === "route-export" ? "src/pages/helper.tsx" : "src/components/server-card.tsx";
       let page = rscPageSource("server-helper")
