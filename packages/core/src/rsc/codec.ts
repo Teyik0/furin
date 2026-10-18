@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isProductionBuild } from "../shared/production-build.ts";
+import { markClientModules } from "./client-references.ts";
 import { drainFlight, type FlightRenderSession } from "./flight-drain.ts";
 import type { RscRenderOperation } from "./render-error.ts";
 
@@ -86,5 +87,6 @@ export async function encodeFlight(
   operation: RscRenderOperation
 ): Promise<Uint8Array> {
   const codec = await loadServerCodec();
+  markClientModules();
   return drainFlight(codec.renderFlight(model, signal), operation);
 }

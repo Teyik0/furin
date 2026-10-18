@@ -96,12 +96,25 @@ export function clientReferencesPlugin(): Bun.BunPlugin {
       }));
       build.onLoad({ filter: /.*/, namespace: "furin-client-implementation" }, async ({ path }) => {
         const sourcePath = path.slice(0, -IMPLEMENTATION.length);
+        const source = transformIsomorphicFunctions(
+          await Bun.file(sourcePath).text(),
+          sourcePath,
+          "server"
+        ).code;
+        // Generated bindings share the module scope with the source.
+        let prefix = "__furin";
+        while (source.includes(prefix)) {
+          prefix += "_";
+        }
         return {
-          contents: transformIsomorphicFunctions(
-            await Bun.file(sourcePath).text(),
-            sourcePath,
-            "server"
-          ).code,
+          // Keep registration with the implementation: sideEffects: false can
+          // let the bundler bypass a module that only reexports its bindings.
+          contents: isCommonJsModule(source, sourcePath)
+            ? source
+            : `${source}
+import * as ${prefix}Implementation from ${JSON.stringify(path)};
+import { registerClientModule as ${prefix}RegisterClientModule } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};
+${prefix}RegisterClientModule(${JSON.stringify(clientModuleId(sourcePath))}, ${prefix}Implementation);`,
           loader: detectLoaderFromPath(sourcePath),
           resolveDir: dirname(sourcePath),
         };
@@ -111,16 +124,24 @@ export function clientReferencesPlugin(): Bun.BunPlugin {
         if (!isClientModule(source, path)) {
           return;
         }
-        const names = new Bun.Transpiler({ loader: detectLoaderFromPath(path) }).scan(
-          source
-        ).exports;
-        const hasDefault = names.includes("default") || isCommonJsModule(source, path);
+        // CommonJS needs the completed interop namespace from the wrapper.
+        // Name its exports: Bun bypasses a CommonJS `export *` wrapper.
+        const commonJs = isCommonJsModule(source, path);
+        const names = commonJs
+          ? await exportedNames(source, path, new Set())
+          : new Bun.Transpiler({ loader: detectLoaderFromPath(path) })
+              .scan(source)
+              .exports.filter((name) => name === "default");
         return {
-          contents: `import * as implementation from ${JSON.stringify(path + IMPLEMENTATION)};
+          contents: `${
+            commonJs
+              ? `import * as implementation from ${JSON.stringify(path + IMPLEMENTATION)};
 import { registerClientModule } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};
-registerClientModule(${JSON.stringify(clientModuleId(path))}, implementation);
+registerClientModule(${JSON.stringify(clientModuleId(path))}, implementation);`
+              : ""
+          }
 export * from ${JSON.stringify(path + IMPLEMENTATION)};
-${hasDefault ? `export { default } from ${JSON.stringify(path + IMPLEMENTATION)};` : ""}`,
+${names.length > 0 ? `export { ${names.map((name) => JSON.stringify(name)).join(", ")} } from ${JSON.stringify(path + IMPLEMENTATION)};` : ""}`,
           loader: "js",
           resolveDir: dirname(path),
         };
