@@ -21,19 +21,19 @@ function resolveDiskCheckPath(dir: string): string {
  * Checks that at least `minBytes` of disk space are available at `dir`.
  * Fails open (returns true) if the check cannot be performed.
  */
-export function checkDiskSpace(dir: string, minBytes: number): boolean {
+export async function checkDiskSpace(dir: string, minBytes: number): Promise<boolean> {
   try {
     const target = resolveDiskCheckPath(dir);
-    const result = Bun.spawnSync(["df", "-k", target], {
-      stderr: "pipe",
+    const child = Bun.spawn(["df", "-k", target], {
+      stderr: "ignore",
       stdout: "pipe",
     });
+    const [exitCode, output] = await Promise.all([child.exited, new Response(child.stdout).text()]);
 
-    if (result.exitCode !== 0) {
+    if (exitCode !== 0) {
       return true;
     }
 
-    const output = new TextDecoder().decode(result.stdout);
     const lines = output.trim().split("\n");
     const dataLine = lines.at(-1);
 

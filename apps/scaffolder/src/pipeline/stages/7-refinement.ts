@@ -30,7 +30,7 @@ export async function stage7Refinement(ctx: PipelineContext): Promise<void> {
   // ── git init ───────────────────────────────────────────────────────────
   const s = spinner();
   s.start("Initializing git repository…");
-  const gitInit = initGitRepo(ctx.targetDir);
+  const gitInit = await initGitRepo(ctx.targetDir);
   ctx.gitInitRan = gitInit.initialized;
   let gitMessage = "Skipped git init (git not available).";
   if (gitInit.initialized) {

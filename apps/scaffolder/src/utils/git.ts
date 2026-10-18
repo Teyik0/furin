@@ -1,17 +1,18 @@
 /**
- * Runs a git command synchronously in the given directory.
+ * Runs a git command in the given directory without blocking the event loop.
  * Returns whether the command succeeded and any captured stderr output.
  */
-function runGit(cwd: string, args: string[]): { ok: boolean; stderr: string } {
-  const result = Bun.spawnSync(["git", ...args], {
+async function runGit(cwd: string, args: string[]): Promise<{ ok: boolean; stderr: string }> {
+  const child = Bun.spawn(["git", ...args], {
     cwd,
     stderr: "pipe",
-    stdout: "pipe",
+    stdout: "ignore",
   });
+  const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
 
   return {
-    ok: result.exitCode === 0,
-    stderr: new TextDecoder().decode(result.stderr).trim(),
+    ok: exitCode === 0,
+    stderr: stderr.trim(),
   };
 }
 
@@ -26,15 +27,15 @@ export interface GitInitResult {
   message?: string;
 }
 
-export function initGitRepo(targetDir: string): GitInitResult {
-  if (!runGit(targetDir, ["init"]).ok) {
+export async function initGitRepo(targetDir: string): Promise<GitInitResult> {
+  if (!(await runGit(targetDir, ["init"])).ok) {
     return { committed: false, initialized: false };
   }
-  if (!runGit(targetDir, ["add", "-A"]).ok) {
+  if (!(await runGit(targetDir, ["add", "-A"])).ok) {
     return { committed: false, initialized: true };
   }
 
-  const commitResult = runGit(targetDir, [
+  const commitResult = await runGit(targetDir, [
     "commit",
     "-m",
     "chore: initial scaffold",

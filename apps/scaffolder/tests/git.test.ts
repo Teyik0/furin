@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { initGitRepo } from "../src/utils/git";
 
-const originalSpawnSync = Bun.spawnSync;
+const originalSpawn = Bun.spawn;
 
 function getCommand(args: unknown): string[] {
   if (Array.isArray(args)) {
@@ -13,32 +13,29 @@ function getCommand(args: unknown): string[] {
     return [...cmd];
   }
 
-  throw new Error("Unexpected Bun.spawnSync arguments");
+  throw new Error("Unexpected Bun.spawn arguments");
 }
 
 afterEach(() => {
-  Bun.spawnSync = originalSpawnSync;
+  Bun.spawn = originalSpawn;
 });
 
 describe("initGitRepo", () => {
-  it("keeps a successful git init when the initial commit fails", () => {
-    const encoder = new TextEncoder();
+  it("keeps a successful git init when the initial commit fails", async () => {
     const callOrder: string[] = [];
 
-    Bun.spawnSync = ((args) => {
+    Bun.spawn = ((args) => {
       const gitArgs = getCommand(args).slice(1); // drop "git"
       callOrder.push(gitArgs[0] ?? "");
 
       const isCommit = gitArgs[0] === "commit";
       return {
-        exitCode: isCommit ? 1 : 0,
-        stderr: isCommit ? encoder.encode("Author identity unknown") : new Uint8Array(),
-        stdout: new Uint8Array(),
-        success: !isCommit,
-      } as ReturnType<typeof Bun.spawnSync>;
-    }) as typeof Bun.spawnSync;
+        exited: Promise.resolve(isCommit ? 1 : 0),
+        stderr: new Response(isCommit ? "Author identity unknown" : "").body,
+      } as unknown as ReturnType<typeof Bun.spawn>;
+    }) as typeof Bun.spawn;
 
-    const result = initGitRepo("/tmp/project");
+    const result = await initGitRepo("/tmp/project");
 
     // Commands must fire in the right sequence
     expect(callOrder).toEqual(["init", "add", "commit"]);
