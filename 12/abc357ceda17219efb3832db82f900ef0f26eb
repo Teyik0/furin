@@ -1,0 +1,22 @@
+packages/core/src/server/cache/route-cache.ts
+  s_3827fec5c7f2ed::t_4edb028cea390e 1-3,77-103
+  s_3827fec5c7f2ed::t_8f175c535236b4 104-105
+packages/core/src/server/render/isr.ts
+  s_3827fec5c7f2ed::t_4edb028cea390e 25,561-562,628
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "12abc357ceda17219efb3832db82f900ef0f26eb",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
