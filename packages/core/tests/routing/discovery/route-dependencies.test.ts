@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { runProcess } from "../../support/process.ts";
 
 const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
@@ -40,22 +41,17 @@ assert(deps.some((path) => resolve(path) === pagePath), "existing page dependenc
 process.exit(0);
 `;
 
-test("computeRouteDependencies scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: ["bun", "-e", ROUTE_DEPENDENCY_SCENARIOS],
+test("computeRouteDependencies scenarios", async () => {
+  const proc = await runProcess(["bun", "-e", ROUTE_DEPENDENCY_SCENARIOS], {
     cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 14_000,
+    timeoutMs: 14_000,
   });
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `route dependency subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`route dependency subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 

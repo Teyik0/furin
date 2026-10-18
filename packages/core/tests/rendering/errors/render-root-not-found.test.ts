@@ -1,5 +1,6 @@
 import { test } from "bun:test";
 import { join as joinPath } from "node:path";
+import { runProcess } from "../../support/process.ts";
 
 const script = `
 await import("./packages/core/tests/setup/evlog-mock.ts");
@@ -110,40 +111,30 @@ if (fetchedUrl !== "http://127.0.0.1:4321/_bun_hmr_entry") {
 }
 `;
 
-test("renderRootNotFound scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: ["bun", "--preload", "./packages/core/tests/setup/global.ts", "-e", script],
-    cwd: joinPath(import.meta.dir, "../../../../.."),
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 14_000,
-  });
+test("renderRootNotFound scenarios", async () => {
+  const proc = await runProcess(
+    ["bun", "--preload", "./packages/core/tests/setup/global.ts", "-e", script],
+    { cwd: joinPath(import.meta.dir, "../../../../.."), timeoutMs: 14_000 }
+  );
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `renderRootNotFound subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`renderRootNotFound subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 });
 
-test("renderRootNotFound fetches the dev template from the trusted listener origin", () => {
-  const proc = Bun.spawnSync({
-    cmd: ["bun", "--preload", "./packages/core/tests/setup/global.ts", "-e", trustedOriginScript],
-    cwd: joinPath(import.meta.dir, "../../../../.."),
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 14_000,
-  });
+test("renderRootNotFound fetches the dev template from the trusted listener origin", async () => {
+  const proc = await runProcess(
+    ["bun", "--preload", "./packages/core/tests/setup/global.ts", "-e", trustedOriginScript],
+    { cwd: joinPath(import.meta.dir, "../../../../.."), timeoutMs: 14_000 }
+  );
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `renderRootNotFound subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`renderRootNotFound subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 });

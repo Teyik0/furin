@@ -18,6 +18,7 @@ import { mergeRouteSchemas } from "../../../src/server/router/schema-merge.ts";
 import { createSearchRouteMetadata, parseRouteQuery } from "../../../src/server/router/schemas.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { buildSearchParams, findSearchDefaults } from "../../../src/shared/search-params.ts";
+import { runProcess } from "../../support/process.ts";
 
 const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
 
@@ -380,9 +381,9 @@ describe("collectRouteTags", () => {
 // ── Integration: HTTP requests resolve defaults from all ancestors ────────────
 
 describe("schema merge — parent + child both declare query schemas", () => {
-  test("HTTP requests resolve merged query defaults", () => {
-    const proc = Bun.spawnSync({
-      cmd: [
+  test("HTTP requests resolve merged query defaults", async () => {
+    const proc = await runProcess(
+      [
         "bun",
         "-e",
         `
@@ -428,19 +429,14 @@ try {
 process.exit(0);
 `,
       ],
-      cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""),
-      stderr: "pipe",
-      stdout: "pipe",
-      timeout: 14_000,
-    });
+      { cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""), timeoutMs: 14_000 }
+    );
 
     if (proc.exitCode !== 0) {
       throw new Error(
-        [
-          `schema merge subprocess exited with ${proc.exitCode}`,
-          new TextDecoder().decode(proc.stdout),
-          new TextDecoder().decode(proc.stderr),
-        ].join("\n")
+        [`schema merge subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+          "\n"
+        )
       );
     }
 

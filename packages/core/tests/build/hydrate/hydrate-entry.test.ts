@@ -14,6 +14,7 @@ import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { buildRouteMatcher } from "../../../src/server/router/patterns.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
+import { runProcess } from "../../support/process.ts";
 
 // ── Minimal stub ──────────────────────────────────────────────────────────────
 
@@ -251,7 +252,7 @@ describe("generateHydrateEntry", () => {
     expect(code).toContain("startsWith(b)");
   });
 
-  test("client bundle keeps shared router contexts when a page imports Link", () => {
+  test("client bundle keeps shared router contexts when a page imports Link", async () => {
     const tmpRoot = mkdtempSync(join(import.meta.dir, ".tmp-hydrate-entry-"));
     const outDir = join(tmpRoot, "out");
     mkdirSync(outDir, { recursive: true });
@@ -285,7 +286,7 @@ describe("generateHydrateEntry", () => {
         generateHydrateEntry([makeRoute("/", pagePath)], rootPath, "", false)
       );
 
-      const result = Bun.spawnSync(
+      const result = await runProcess(
         [
           "bun",
           "build",
@@ -298,15 +299,10 @@ describe("generateHydrateEntry", () => {
           "--target",
           "browser",
         ],
-        {
-          cwd: join(import.meta.dir, "../.."),
-          stderr: "pipe",
-          stdout: "pipe",
-          timeout: 14_000,
-        }
+        { cwd: join(import.meta.dir, "../.."), timeoutMs: 14_000 }
       );
 
-      expect(result.exitCode, result.stderr.toString()).toBe(0);
+      expect(result.exitCode, result.stderr).toBe(0);
 
       const chunks: string[] = [];
       for (const file of readdirSync(outDir)) {

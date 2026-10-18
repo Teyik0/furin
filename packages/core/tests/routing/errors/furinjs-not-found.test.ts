@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures.ts";
+import { runProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 // Fixtures are owned by the parent so they are removed even if the child dies.
@@ -11,10 +12,10 @@ afterEach(() => {
   }
 });
 
-test("furin() catch-all 404 scenarios", () => {
+test("furin() catch-all 404 scenarios", async () => {
   fixtures.push(...Array.from({ length: 5 }, () => createTmpApp("cli-app")));
-  const proc = Bun.spawnSync({
-    cmd: [
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -155,20 +156,18 @@ try {
 }
 `,
     ],
-    cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
-    env: { ...process.env, FURIN_TEST_FIXTURE_PATHS: JSON.stringify(fixtures.map((f) => f.path)) },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 25_000,
-  });
+    {
+      cwd: import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, ""),
+      env: { FURIN_TEST_FIXTURE_PATHS: JSON.stringify(fixtures.map((f) => f.path)) },
+      timeoutMs: 25_000,
+    }
+  );
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `furin not-found subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`furin not-found subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 

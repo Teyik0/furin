@@ -5,13 +5,14 @@
  * collision guard, per-instance 404s, and the data endpoint under a prefix.
  */
 import { expect, test } from "bun:test";
+import { runProcess } from "../../support/process.ts";
 
 const TESTS_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
-test("multi-instance furin composition", () => {
+test("multi-instance furin composition", async () => {
   const coreDir = import.meta.dir.replace(TESTS_DIR_SUFFIX_RE, "");
-  const proc = Bun.spawnSync({
-    cmd: [
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -367,18 +368,11 @@ try {
 }
       `,
     ],
-    cwd: coreDir,
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 25_000,
-  });
+    { cwd: coreDir, timeoutMs: 25_000 }
+  );
 
   if (proc.exitCode !== 0) {
-    throw new Error(
-      ["multi-instance subprocess failed", proc.stdout.toString(), proc.stderr.toString()].join(
-        "\n"
-      )
-    );
+    throw new Error(["multi-instance subprocess failed", proc.stdout, proc.stderr].join("\n"));
   }
 
   expect(proc.exitCode).toBe(0);

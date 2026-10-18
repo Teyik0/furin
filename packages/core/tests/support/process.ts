@@ -53,6 +53,39 @@ export function runCli(
   });
 }
 
+/**
+ * Runs `command` to completion without blocking the event loop, so the test
+ * runner can still enforce its own timeout. The child is killed after
+ * `timeoutMs`; both pipes are drained concurrently so a full pipe cannot
+ * stall it.
+ */
+export async function runProcess(
+  command: string[],
+  options: {
+    cwd: string;
+    env?: Record<string, string | undefined>;
+    timeoutMs: number;
+  }
+): Promise<CliResult> {
+  const proc = Bun.spawn(command, {
+    cwd: options.cwd,
+    env: {
+      ...process.env,
+      ...options.env,
+    },
+    stderr: "pipe",
+    stdout: "pipe",
+    timeout: options.timeoutMs,
+  });
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  return { exitCode, stderr, stdout };
+}
+
 async function collectStream(
   stream: ReadableStream<Uint8Array> | null | undefined,
   onChunk: (chunk: string) => void

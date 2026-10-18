@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { runProcess } from "../../support/process.ts";
 
 const CORE_DIR_SUFFIX_RE = /[\\/]tests(?:[\\/].*)?$/;
 
@@ -121,22 +122,15 @@ assert(response.headers.get("etag") === null, "SSR response should omit etag");
 process.exit(0);
 `;
 
-test("route cache header scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: ["bun", "-e", CACHE_HEADER_SCENARIOS],
+test("route cache header scenarios", async () => {
+  const proc = await runProcess(["bun", "-e", CACHE_HEADER_SCENARIOS], {
     cwd: import.meta.dir.replace(CORE_DIR_SUFFIX_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 14_000,
+    timeoutMs: 14_000,
   });
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `cache header subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`cache header subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join("\n")
     );
   }
 

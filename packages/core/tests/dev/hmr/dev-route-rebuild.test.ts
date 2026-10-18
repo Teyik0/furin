@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
+import { runProcess } from "../../support/process.ts";
 
 const ROUTER_TESTS_DIR_RE = /[\\/]tests(?:[\\/].*)?$/;
 
-test("rebuildDevRoute scenarios", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
+test("rebuildDevRoute scenarios", async () => {
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -90,19 +91,14 @@ expect(result.mode).toBe("isr");
 process.exit(0);
 `,
     ],
-    cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""),
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 14_000,
-  });
+    { cwd: import.meta.dir.replace(ROUTER_TESTS_DIR_RE, ""), timeoutMs: 14_000 }
+  );
 
   if (proc.exitCode !== 0) {
     throw new Error(
-      [
-        `dev route rebuild subprocess exited with ${proc.exitCode}`,
-        new TextDecoder().decode(proc.stdout),
-        new TextDecoder().decode(proc.stderr),
-      ].join("\n")
+      [`dev route rebuild subprocess exited with ${proc.exitCode}`, proc.stdout, proc.stderr].join(
+        "\n"
+      )
     );
   }
 

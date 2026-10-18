@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
+import { runProcess } from "../../support/process.ts";
 
 const { scanPages } = await import("../../../src/server/router/discovery.ts");
 const { createDataEndpoint } = await import("../../../src/server/router/plugin.ts");
@@ -50,9 +51,9 @@ test("GET /_furin/data enriches not-found route events", async () => {
   expect(enrichingCall).toBeDefined();
 });
 
-test("the real Elysia integration exposes a request-scoped logger", () => {
-  const result = Bun.spawnSync({
-    cmd: [
+test("the real Elysia integration exposes a request-scoped logger", async () => {
+  const result = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -70,13 +71,9 @@ if (response.status !== 200 || (await response.text()) !== "ok") process.exit(1)
 process.stdout.write("logger-active");
 `,
     ],
-    cwd: join(import.meta.dir, "../../.."),
-    env: { ...process.env, NODE_ENV: "test" },
-    stderr: "pipe",
-    stdout: "pipe",
-    timeout: 30_000,
-  });
+    { cwd: join(import.meta.dir, "../../.."), env: { NODE_ENV: "test" }, timeoutMs: 30_000 }
+  );
 
-  expect(result.exitCode, result.stderr.toString()).toBe(0);
-  expect(result.stdout.toString()).toContain("logger-active");
+  expect(result.exitCode, result.stderr).toBe(0);
+  expect(result.stdout).toContain("logger-active");
 });

@@ -3,14 +3,15 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DevGraph, resolveDevSourceImports } from "../../../src/server/dev/graph.ts";
+import { runProcess } from "../../support/process.ts";
 
 interface TestSnapshot {
   value: string;
 }
 
-test("legacy graph registries release unowned graphs after a hot upgrade", () => {
-  const proc = Bun.spawnSync({
-    cmd: [
+test("legacy graph registries release unowned graphs after a hot upgrade", async () => {
+  const proc = await runProcess(
+    [
       "bun",
       "-e",
       `
@@ -31,12 +32,9 @@ expect(released.deref()).toBeUndefined();
 expect(developmentGraphs()).toHaveLength(0);
 `,
     ],
-    cwd: resolve(import.meta.dir, "../../.."),
-    stdout: "pipe",
-    stderr: "pipe",
-    timeout: 14_000,
-  });
-  expect(new TextDecoder().decode(proc.stderr)).not.toContain("error:");
+    { cwd: resolve(import.meta.dir, "../../.."), timeoutMs: 14_000 }
+  );
+  expect(proc.stderr).not.toContain("error:");
   expect(proc.exitCode).toBe(0);
 });
 
