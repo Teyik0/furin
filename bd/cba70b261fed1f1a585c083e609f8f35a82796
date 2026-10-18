@@ -1,0 +1,47 @@
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_3827fec5c7f2ed::t_f66f13fdd76f63 1197-1203,1210,1219,1223-1273
+  s_3827fec5c7f2ed::t_2eb21b15a0ffff 1274
+packages/core/src/server/internal.ts
+  s_3827fec5c7f2ed::t_71cbe1d0d9ba3e 36-64,72-73
+packages/core/src/server/assets/production.ts
+  s_3827fec5c7f2ed::t_71cbe1d0d9ba3e 74
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_3827fec5c7f2ed::t_c8332dc30e70df 397
+packages/core/src/build/entry-template.ts
+  s_3827fec5c7f2ed::t_b71478e942405c 5,24-25,163,175
+packages/core/src/adapter/vercel.ts
+  s_3827fec5c7f2ed::t_39c0b55ae2a658 483
+packages/core/src/server/browser-events/plugin.ts
+  s_3827fec5c7f2ed::t_88450b74404440 330
+packages/core/src/server/cache/runtime-cache.ts
+  s_3827fec5c7f2ed::t_610e09966c52f1 20-24,249-251
+  s_3827fec5c7f2ed::t_ef36874396dfb8 252-253
+packages/core/src/server/evlog.ts
+  s_3827fec5c7f2ed::t_88450b74404440 120
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_3827fec5c7f2ed::t_c3581e0c5e399d 229-261
+packages/core/src/adapter/runtime-build.ts
+  s_3827fec5c7f2ed::t_568d6f723a379c 447-460
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_71cbe1d0d9ba3e 138,140
+packages/core/src/server/prod/runtime.ts
+  s_3827fec5c7f2ed::t_71cbe1d0d9ba3e 25,31-33,129
+packages/core/src/server/render/ppr-route.ts
+  s_3827fec5c7f2ed::t_610e09966c52f1 17,398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bdcba70b261fed1f1a585c083e609f8f35a82796",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
