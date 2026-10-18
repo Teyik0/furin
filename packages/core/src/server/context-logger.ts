@@ -14,10 +14,16 @@ export { createLogger };
  * (not in a live request, not in a synthetic render scope).
  */
 const noopLogger: RequestLogger = {
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  debug: () => {},
   emit: () => null,
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   error: () => {},
-  fork: (_label, fn) => fn() as undefined,
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  fatal: () => {},
+  fork: async (_label, fn) => {
+    await fn();
+  },
   getContext: () => ({}),
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   info: () => {},
@@ -25,6 +31,8 @@ const noopLogger: RequestLogger = {
   set: () => {},
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   setLevel: () => {},
+  // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
+  trace: () => {},
   // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op
   warn: () => {},
 };

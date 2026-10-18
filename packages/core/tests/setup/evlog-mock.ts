@@ -24,13 +24,18 @@ let setHandler: EvlogMockSet = evlogSetMock;
 
 function createUseLoggerMock(): RequestLogger {
   return {
+    debug: noop,
     emit: () => null,
     error: evlogErrorMock,
-    fork: (_label: string, fn: () => unknown) => fn(),
+    fatal: noop,
+    fork: async (_label: string, fn: () => void | Promise<void>) => {
+      await fn();
+    },
     getContext: () => ({}),
     info: noop,
     set: (entry: EvlogMockFields) => setHandler(entry),
     setLevel: noop,
+    trace: noop,
     warn: (message: string) => evlogWarnMock(message),
   };
 }
