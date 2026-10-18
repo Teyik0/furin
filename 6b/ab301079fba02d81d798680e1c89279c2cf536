@@ -1,0 +1,27 @@
+packages/core/tests/contract/define-route-layout.test.ts
+  s_3827fec5c7f2ed::t_8495e90f02abc9 66-83,85-88
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_e0d682825d0ffd 123
+packages/core/src/define-route.ts
+  s_3827fec5c7f2ed::t_0cf16267ac9965 58,613-623,748-752,768,787-791,806
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_b75ec83a6fd74e 11
+packages/core/tests/routing/defined-route-adapter.test.tsx
+  s_3827fec5c7f2ed::t_e0d682825d0ffd 3,6-10,13,31,49,69,85,113,136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6bab301079fba02d81d798680e1c89279c2cf536",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

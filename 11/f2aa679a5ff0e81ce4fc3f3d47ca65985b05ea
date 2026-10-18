@@ -1,0 +1,41 @@
+packages/core/tests/contract/elysia-route-manifest-types.type.test.ts
+  s_3827fec5c7f2ed::t_6abfcaa357aaaa 12,185-207,286-287
+  s_3827fec5c7f2ed::t_ec86f092b230a2 288
+packages/core/tests/client/navigation/remount-deps.test.tsx
+  s_3827fec5c7f2ed::t_190ad17b25bc07 131,144,147,164,166,182,194
+apps/docs/src/content/docs/link-navigation.mdx
+  s_3827fec5c7f2ed::t_809f0ab60914d6 21-34,40,141,161,185
+packages/core/tests/client/boundaries/loader-fallback-hydration.test.tsx
+  s_3827fec5c7f2ed::t_190ad17b25bc07 34,40,110
+packages/core/src/client/router/types.ts
+  s_3827fec5c7f2ed::t_c3ce2abcdd6177 220-222,261-263,265,270
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_a40359b4f940a6 13
+packages/core/tests/client/navigation/use-search.test.tsx
+  s_3827fec5c7f2ed::t_190ad17b25bc07 150
+packages/core/tests/client/sync/router-provider-sync.test.tsx
+  s_3827fec5c7f2ed::t_190ad17b25bc07 437,448
+packages/core/src/client/router/search/index.ts
+  s_3827fec5c7f2ed::t_c3ce2abcdd6177 1,17-26,28-30,98,101
+  s_3827fec5c7f2ed::t_d03107da52685d 27
+packages/core/src/client/router/index.ts
+  s_3827fec5c7f2ed::t_c3ce2abcdd6177 46,56-57
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_3827fec5c7f2ed::t_190ad17b25bc07 129,131-132,223,231,275,277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "11f2aa679a5ff0e81ce4fc3f3d47ca65985b05ea",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
