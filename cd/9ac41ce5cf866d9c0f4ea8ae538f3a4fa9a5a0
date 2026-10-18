@@ -1,0 +1,22 @@
+packages/core/tests/build/sync-adapter-isolation.test.ts
+  s_3827fec5c7f2ed::t_4cac7db7f8d1af 1,12,56-58
+packages/core/tests/support/dist.ts
+  s_3827fec5c7f2ed::t_f6b48f10ddd6b0 15-18
+  s_3827fec5c7f2ed::t_243ea3faa14a12 1-14,19-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd9ac41ce5cf866d9c0f4ea8ae538f3a4fa9a5a0",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

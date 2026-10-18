@@ -1,0 +1,20 @@
+packages/core/tests/support/build-lock.ts
+  s_3827fec5c7f2ed::t_65db0918c9875f 19,21,23,25-27,30
+  s_3827fec5c7f2ed::t_a5d723a19a2322 2,8-18,20,22,24,28-29,31-32,53,55,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c239d1f199e019ae36a3e1d6b41b6338b8ce635",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
