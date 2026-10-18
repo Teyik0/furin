@@ -23,6 +23,7 @@ import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
+import { CacheGeneration } from "./cache-generation.ts";
 import {
   generateHistoryKey,
   getHistoryKey,
@@ -254,6 +255,18 @@ export function RouterProvider({
   const snapshotVersions = useRef(new WeakMap<RouterState, number>());
   const prefetchCache = useRef(new Map<string, CacheEntry>());
   const snapshotTransports = useRef(new WeakMap<RouterState, () => boolean>());
+  const [cacheGeneration] = useState(() => new CacheGeneration());
+  /** Cache generation at which each snapshot's fetch started. */
+  const snapshotGenerations = useRef(new WeakMap<RouterState, number>());
+  const isFreshSnapshot = useCallback(
+    (href: string, snapshot: RouterState) =>
+      cacheGeneration.isFresh(
+        href,
+        snapshot,
+        snapshotGenerations.current.get(snapshot) ?? cacheGeneration.current
+      ),
+    [cacheGeneration]
+  );
   /** Monotonic counter to discard stale navigations (race condition guard). */
   const navVersion = useRef(0);
   /** Monotonic counter that supersedes only HMR transactions, not user navigation. */
@@ -550,30 +563,36 @@ export function RouterProvider({
           throw error;
         }
         const version = optimisticRuntime.revision(href);
+        const generation = cacheGeneration.current;
         const snapshot = await fetchPageState(href, signal, hmrRefresh);
         if (optimisticRuntime.publishable(href, version)) {
           if (snapshot) {
             snapshotVersions.current.set(snapshot, version);
+            snapshotGenerations.current.set(snapshot, generation);
           }
           return snapshot;
         }
       }
     },
-    [fetchPageState, optimisticRuntime]
+    [fetchPageState, optimisticRuntime, cacheGeneration]
   );
 
-  const invalidatePrefetch = useCallback((path: string, type: "page" | "layout") => {
-    const normalizedPath = normalizeHref(new URL(path, "http://furin.local").pathname);
-    for (const key of [...prefetchCache.current.keys()]) {
-      if (
-        shouldAutoRefreshPath(normalizeHref(stripHashFromHref(key)), [
+  const invalidatePrefetch = useCallback(
+    (path: string, type: "page" | "layout") => {
+      const normalizedPath = normalizeHref(new URL(path, "http://furin.local").pathname);
+      const affects = (href: string) =>
+        shouldAutoRefreshPath(normalizeHref(stripHashFromHref(href)), [
           { path: normalizedPath, type },
-        ])
-      ) {
-        prefetchCache.current.delete(key);
+        ]);
+      cacheGeneration.bump(affects);
+      for (const key of [...prefetchCache.current.keys()]) {
+        if (affects(key)) {
+          prefetchCache.current.delete(key);
+        }
       }
-    }
-  }, []);
+    },
+    [cacheGeneration]
+  );
 
   const prefetch = useCallback(
     (href: string, opts: { staleTime?: number } | undefined) => {
@@ -582,9 +601,15 @@ export function RouterProvider({
       if (existing && !shouldRefetch(existing)) {
         return;
       }
+      const generation = cacheGeneration.current;
       const entry: CacheEntry = {
         createdAt: Date.now(),
-        promise: fetchPageState(href, undefined, false),
+        promise: fetchPageState(href, undefined, false).then((snapshot) => {
+          if (snapshot) {
+            snapshotGenerations.current.set(snapshot, generation);
+          }
+          return snapshot;
+        }),
         staleTime,
       };
       setPrefetchCacheEntry(prefetchCache.current, href, entry, prefetchCacheSize);
@@ -594,7 +619,7 @@ export function RouterProvider({
         }
       });
     },
-    [fetchPageState, defaultPreloadStaleTime, prefetchCacheSize]
+    [fetchPageState, defaultPreloadStaleTime, prefetchCacheSize, cacheGeneration]
   );
 
   const readNavigationState = useCallback(
@@ -616,7 +641,7 @@ export function RouterProvider({
       }
       const revalidate =
         useCached &&
-        (!isCacheableState(nextState) ||
+        (!(isCacheableState(nextState) && isFreshSnapshot(href, nextState)) ||
           isRedirectState(nextState) ||
           (nextState && snapshotTransports.current.get(nextState)?.() === false) ||
           (nextState &&
@@ -632,7 +657,7 @@ export function RouterProvider({
         fetched: !useCached || Boolean(revalidate),
       };
     },
-    [fetchConfirmedPageState, optimisticRuntime]
+    [fetchConfirmedPageState, optimisticRuntime, isFreshSnapshot]
   );
 
   async function followRedirects(
@@ -742,7 +767,11 @@ export function RouterProvider({
         if (navVersion.current !== myVersion || opts?.shouldCommit?.() === false) {
           return;
         }
-        if (isCacheableState(newState) && loaded.fetched) {
+        if (
+          isCacheableState(newState) &&
+          loaded.fetched &&
+          isFreshSnapshot(logicalHref, newState)
+        ) {
           setPrefetchCacheEntry(
             prefetchCache.current,
             logicalHref,
@@ -821,7 +850,14 @@ export function RouterProvider({
         }
       }
     },
-    [basePath, readNavigationState, defaultPreloadStaleTime, prefetchCacheSize, optimisticRuntime]
+    [
+      basePath,
+      readNavigationState,
+      defaultPreloadStaleTime,
+      prefetchCacheSize,
+      optimisticRuntime,
+      isFreshSnapshot,
+    ]
   );
 
   const [searchStore] = useState(() =>
@@ -1212,6 +1248,7 @@ export function RouterProvider({
         const tags = new Set(identities.map(queryTag));
         const affected = (snapshot: RouterState) =>
           snapshot.querySeeds?.some((seed) => tags.has(queryTag(seed.identity)));
+        cacheGeneration.bump((_href, snapshot) => affected(snapshot) === true);
         for (const [href, entry] of prefetchCache.current) {
           entry.promise
             .then((snapshot) => {
@@ -1259,7 +1296,15 @@ export function RouterProvider({
       disposed = true;
       unsubscribe?.();
     };
-  }, [syncPath, basePath, invalidatePrefetch, invalidationRefresh, autoRefresh, queries]);
+  }, [
+    syncPath,
+    basePath,
+    invalidatePrefetch,
+    invalidationRefresh,
+    autoRefresh,
+    queries,
+    cacheGeneration,
+  ]);
 
   const queryData = useMemo(
     () =>

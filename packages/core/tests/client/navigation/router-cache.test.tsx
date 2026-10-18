@@ -280,6 +280,69 @@ test.each(["page", "layout"] as const)(
   }
 );
 
+function heldTargetFetch() {
+  const state = { value: "Before", reads: 0, release: [] as Array<() => void> };
+  globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
+    const path = new URL(String(input), window.location.origin).searchParams.get("path");
+    if (path !== "/target") {
+      return Promise.resolve(response({}));
+    }
+    state.reads += 1;
+    const message = state.value;
+    if (state.reads > 1) {
+      return Promise.resolve(response({ message }));
+    }
+    return new Promise<Response>((resolve) => {
+      state.release.push(() => resolve(response({ message })));
+    });
+  }, originalFetch);
+  return state;
+}
+
+function MessagePage({ message }: { message?: unknown }) {
+  router = useRouter();
+  return <main>{String(message ?? "Home")}</main>;
+}
+
+test("a navigation snapshot invalidated while in flight is not cached", async () => {
+  const server = heldTargetFetch();
+  const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
+  let toTarget: Promise<void> | undefined;
+  await act(async () => {
+    toTarget = router.navigate("/target");
+    await Bun.sleep(0);
+  });
+  server.value = "After";
+  router.invalidatePrefetch("/target", "page");
+  await act(async () => {
+    server.release[0]?.();
+    await toTarget;
+  });
+  await act(() => router.navigate("/"));
+  await act(() => router.navigate("/target"));
+  expect(server.reads).toBe(2);
+  expect(container.textContent).toBe("After");
+});
+
+test("a navigation awaiting a prefetch invalidated mid-flight refetches it", async () => {
+  const server = heldTargetFetch();
+  const container = await mount([route("/", MessagePage), route("/target", MessagePage)], {});
+  let toTarget: Promise<void> | undefined;
+  await act(async () => {
+    router.prefetch("/target");
+    toTarget = router.navigate("/target");
+    await Bun.sleep(0);
+  });
+  server.value = "After";
+  router.invalidatePrefetch("/target", "page");
+  await act(async () => {
+    server.release[0]?.();
+    await toTarget;
+  });
+  expect(server.reads).toBe(2);
+  expect(container.textContent).toBe("After");
+});
+
 test("an intercepted native anchor scrolls to the fragment after rendering its destination", async () => {
   globalThis.fetch = Object.assign(() => Promise.resolve(response({})), originalFetch);
   function Page() {
