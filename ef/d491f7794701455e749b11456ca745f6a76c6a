@@ -1,0 +1,55 @@
+packages/core/src/server/render/navigation-head.ts
+  s_3827fec5c7f2ed::t_38ea57fd86eab2 1-33
+packages/core/src/server/router/plugin.ts
+  s_3827fec5c7f2ed::t_6a8c28b30af297 8,18,28,251-333,345-352
+  s_3827fec5c7f2ed::t_90349e9ded7d7a 723
+packages/core/tests/runtime/invalidation/render-revalidate-background.test.ts
+  s_3827fec5c7f2ed::t_80ab0022a2cbaa 96-99,101,123-126,128,150-153,155,182,283-286,288
+  s_3827fec5c7f2ed::t_6629c894756fc8 100
+  s_3827fec5c7f2ed::t_0b851776cbe5f2 127
+  s_3827fec5c7f2ed::t_22d40b21ac326e 154
+  s_3827fec5c7f2ed::t_3130828e4b3694 287
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_3827fec5c7f2ed::t_80ab0022a2cbaa 71-74,76,78-81,83,121-124,126,144,148,170-173,175,197,249-252,254,269-272,274,292-295,297,347,374,405,431,448-451,453
+  s_3827fec5c7f2ed::t_5280d3c31b892a 75
+  s_3827fec5c7f2ed::t_4d88b842288e9f 82
+  s_3827fec5c7f2ed::t_4c816c44853cda 125
+  s_3827fec5c7f2ed::t_fe97d98a2e5df8 174
+  s_3827fec5c7f2ed::t_fa3e6df5a032fb 253
+  s_3827fec5c7f2ed::t_efeb8312ffdc1c 273
+  s_3827fec5c7f2ed::t_2ee280c2e6065b 296
+  s_3827fec5c7f2ed::t_55cc0ad962de28 452
+packages/core/tests/runtime/plugin/data-endpoint-render-cache.test.ts
+  s_3827fec5c7f2ed::t_de1297eded4d6b 1-163
+packages/core/src/server/render/ssr.ts
+  s_3827fec5c7f2ed::t_90349e9ded7d7a 562-564
+  s_3827fec5c7f2ed::t_8cf5fe80e3ef84 56
+packages/core/tests/runtime/cache/page-cache-isr.test.ts
+  s_3827fec5c7f2ed::t_e7d28dce8147ad 257,268,313,325,370
+  s_3827fec5c7f2ed::t_36c6573ee6d8b8 32-34
+packages/core/src/server/cache/isr-ssg.ts
+  s_3827fec5c7f2ed::t_45a603fdfa3bca 7-11
+packages/core/src/server/render/isr.ts
+  s_3827fec5c7f2ed::t_caae64afed3794 38-43,50
+  s_3827fec5c7f2ed::t_6549d0f6a3b82a 355-371,387,389,391,405,418-423,429,437,443-501,507-565,589-600,602,613,632,637,652
+  s_3827fec5c7f2ed::t_597378562f5dbf 587-588,601
+  s_3827fec5c7f2ed::t_d3b499ede5c2cd 857-862,870-874,879
+  s_3827fec5c7f2ed::t_a6dc031aa4c2ee 70-71,73-74,76,78,172-193,196-197,283-285,314,319-323,336
+  s_3827fec5c7f2ed::t_decc4193b5b3bb 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "efd491f7794701455e749b11456ca745f6a76c6a",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

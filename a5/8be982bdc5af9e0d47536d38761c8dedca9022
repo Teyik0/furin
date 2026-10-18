@@ -1,0 +1,29 @@
+packages/core/src/adapter/static.ts
+  s_3827fec5c7f2ed::t_e5842704519071 13,18,261,271-273,275-278,283-291,293,298,305,308-309,422
+packages/core/src/server/render/static-params.ts
+  s_3827fec5c7f2ed::t_ff87a95122856c 21-26,181-206
+packages/core/tests/build/adapters/adapter-static.test.ts
+  s_3827fec5c7f2ed::t_a8e4ee4035d460 500-527
+packages/core/tests/runtime/cache/local-page-cache.test.tsx
+  s_3827fec5c7f2ed::t_e6631f02f490de 171
+  s_3827fec5c7f2ed::t_b3af850e802c1d 3,162-170,172-180
+  s_3827fec5c7f2ed::t_2df1f2bd9985bf 181
+packages/core/src/build/ssg-cache.ts
+  s_3827fec5c7f2ed::t_8dba1e47bbdf16 5,53-54,86,96-97,107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a58be982bdc5af9e0d47536d38761c8dedca9022",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
