@@ -9,7 +9,8 @@ interface VercelFrameworkReport {
   serverHandlerBytes: number;
 }
 
-const CHUNK_FILE = /^chunk-.*\.js$/;
+// Split chunks and the application entry the handler imports.
+const CHUNK_FILE = /^(?:chunk-.*|_furin-app)\.js$/;
 
 export function measureServerBundleBytes(functionDir: string): number {
   return readdirSync(functionDir)

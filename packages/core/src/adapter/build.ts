@@ -135,7 +135,7 @@ async function bundleServer(
     format: "esm",
     metafile: options.analyze,
     minify: true,
-    naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
+    naming: { chunk: "chunk-[hash].[ext]", entry: "[name].[ext]" },
     outdir: targetDir,
     plugins: serverBundlePlugins({
       appEntry,
