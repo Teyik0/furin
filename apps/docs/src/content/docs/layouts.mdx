@@ -64,6 +64,8 @@ export const route = defineRoute()
 
 Ancestor loader fields are exposed directly as props on descendant components. In descendant loaders, each ancestor field is an individual promise, so unrelated work can start in parallel and a child only awaits what it needs.
 
+A layout receives its own loader fields, its ancestors' fields, `params`, `path` and `query`. It never receives a descendant's fields, so its props are the same whether the page renders, fails or is not found. When a page returns a field with the same name as a layout field, the page sees its own value and the layout keeps its own. See [Error Handling](/docs/error-handling) for which layouts stay rendered around a failure.
+
 ## Multiple Levels
 
 ```text

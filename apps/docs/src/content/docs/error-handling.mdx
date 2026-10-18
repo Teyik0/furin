@@ -62,9 +62,21 @@ return { content };
 
 The nearest `error.tsx` handles this failure, including a 404 API response. Use `notFound()` when the page itself should render `not-found.tsx`. Failed ISR renders are not cached.
 
-Without an authored boundary, Furin renders its built-in safe error screen. If the root document itself cannot render, a framework-owned minimal document is the last resort.
+Without an authored boundary, Furin renders its built-in safe error screen inside the root layout. If the root document itself cannot render, a framework-owned minimal document is the last resort.
 
-When a loader fails or calls `notFound()`, successful ancestor layouts keep their loader data. Each layout receives only its own data and data inherited from its successful ancestors; failed loaders and descendants do not contribute data. Furin does not rerun these loaders. If the root loader fails, its layout is skipped and the boundary renders inside the framework's minimal document. Hydration and client navigation follow the same contract. For an unmatched URL, a root layout that depends on an unexecuted loader is also skipped.
+## Boundary Scope
+
+A directory's `error.tsx` and `not-found.tsx` render inside that directory's layout. They handle failures of the directory's pages and deeper layouts, but not of the layout beside them: when `blog/_route.tsx` fails, the boundary in the parent directory handles it. This is the `error.tsx` scope of the Next.js App Router.
+
+| What failed | What renders |
+|---|---|
+| A page loader, `head()` or `notFound()` in a page | The nearest boundary, inside every layout above it |
+| A layout loader | The nearest boundary in a parent directory, inside the layouts above it |
+| The root loader, or the document shell during rendering | The root `error.tsx` / `not-found.tsx` inside the framework's minimal document |
+
+The root boundary also handles any failure that no deeper boundary declares, inside the root layout. A shell render failure cannot be traced to one segment, so the server and the client both render it as a root failure.
+
+The layouts that stay rendered keep their loader data. Furin does not rerun their loaders, and failed loaders and their descendants do not contribute data. Hydration and client navigation render the same tree as the server. For an unmatched URL, a root layout that depends on an unexecuted loader is skipped.
 
 ## Not Found
 
