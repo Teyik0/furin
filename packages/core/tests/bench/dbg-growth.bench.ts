@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: benchmark
 
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import type { FurinOptions } from "../../src/furin";
@@ -11,6 +11,8 @@ if (globalThis.gc === undefined) {
 }
 
 const benchRoot = mkdtempSync(join(import.meta.dir, "../../.tmp-tests/", "dbg-growth-"));
+// Benches run as plain scripts (not bun test), where "exit" does fire.
+process.on("exit", () => rmSync(benchRoot, { force: true, recursive: true }));
 const pagesDir = join(benchRoot, "pages");
 mkdirSync(join(pagesDir, "posts"), { recursive: true });
 writeFileSync(
