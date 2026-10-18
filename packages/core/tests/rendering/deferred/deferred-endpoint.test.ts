@@ -9,9 +9,15 @@ import { createDataEndpoint } from "../../../src/server/router/plugin.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
+import { findRouteFailure } from "../../../src/shared/route-matches.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const DIGEST_RE = /^[0-9a-f]{10}$/;
+
+function routeError(data: { [key: string]: unknown }): unknown {
+  const failure = findRouteFailure(data);
+  return failure?.status === "error" ? failure.error : undefined;
+}
 
 function cloneResolvedRoute(route: ResolvedRoute): ResolvedRoute {
   const cloned: ResolvedRoute = {
@@ -211,7 +217,7 @@ describe("GET /_furin/data", () => {
       res.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
       undefined
     );
-    expect(syncData.__furinError).toEqual({
+    expect(routeError(syncData)).toEqual({
       digest: expect.stringMatching(DIGEST_RE),
       message: "Something went wrong",
       status: 500,
@@ -231,7 +237,7 @@ describe("GET /_furin/data", () => {
       res.body ?? new ReadableStream<Uint8Array>({ start: (controller) => controller.close() }),
       undefined
     );
-    expect(syncData.__furinError).toEqual({
+    expect(routeError(syncData)).toEqual({
       digest: expect.stringMatching(DIGEST_RE),
       message: "Something went wrong",
       status: 500,
@@ -819,7 +825,7 @@ describe("GET /_furin/data", () => {
   });
 
   // ── Slice 3 — SPA error sentinel ───────────────────────────────────────────
-  test("loader throwing Response(403) returns HTTP 403 with __furinError NDJSON sentinel", async () => {
+  test("loader throwing Response(403) returns HTTP 403 with an error route match", async () => {
     const { app, routes } = createDataTestApp();
     const route = routes.find((r) => r.pattern === "/with-loader");
     if (!route) {
@@ -845,7 +851,7 @@ describe("GET /_furin/data", () => {
       res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
       undefined
     );
-    const furinError = syncData.__furinError as
+    const furinError = routeError(syncData) as
       | { status: number; message: string; digest: string }
       | undefined;
     expect(furinError).toBeDefined();
@@ -858,7 +864,7 @@ describe("GET /_furin/data", () => {
     expect(syncData.query).toEqual({ tab: "details" });
   });
 
-  test("loader throwing plain Error returns HTTP 500 with __furinError NDJSON sentinel", async () => {
+  test("loader throwing plain Error returns HTTP 500 with an error route match", async () => {
     const { app, routes } = createDataTestApp();
     const route = routes.find((r) => r.pattern === "/with-loader");
     if (!route) {
@@ -878,7 +884,7 @@ describe("GET /_furin/data", () => {
       res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
       undefined
     );
-    const furinError = syncData.__furinError as
+    const furinError = routeError(syncData) as
       | { status: number; message: string; digest: string }
       | undefined;
     expect(furinError).toBeDefined();

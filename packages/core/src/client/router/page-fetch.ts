@@ -1,6 +1,7 @@
 import { log } from "evlog";
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
+import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { isAbortError } from "./abort.ts";
 import { isStaleDeployResponse } from "./history.ts";
@@ -73,12 +74,11 @@ async function fetchNoMatchPage(
   if (kind.kind !== "not-found") {
     return { kind: "hardNavigate", reason: "unexpected-response" };
   }
-  const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = data ?? {};
   return {
     kind: "notFound",
     reusable: ALWAYS_REUSABLE,
     state: {
-      data: cleanData,
+      data: data ?? {},
       finalHref,
       match: context.currentMatch(),
       notFound: kind.error,
@@ -195,30 +195,18 @@ export async function fetchPageState(
     const reusable = trackDeferredTransport(deferredPromises, signal);
 
     // Special fields injected by the server into syncData:
-    //   __furinStatus   — 404 signal
-    //   __furinNotFound — not-found payload
+    //   __furinMatches  — per-segment matches; a failed one signals error / 404
     //   __furinRedirect — server-side redirect target (logical path)
-    //   __furinError    — error sentinel (digest, message, status)
     //   __furinTitle    — document title resolved server-side from head()
-    const {
-      __furinHead,
-      __furinStatus,
-      __furinNotFound,
-      __furinRedirect,
-      __furinError,
-      __furinTitle,
-      __furinQueries,
-      ...cleanSyncData
-    } = syncData as {
-      __furinStatus?: number;
-      __furinNotFound?: { data?: unknown; message?: string };
-      __furinRedirect?: string;
-      __furinError?: { digest: string; message: string; status: number };
-      __furinHead?: HeadOptions;
-      __furinTitle?: string;
-      __furinQueries?: QuerySeed[];
-      [key: string]: unknown;
-    };
+    const { __furinHead, __furinRedirect, __furinTitle, __furinQueries, ...cleanSyncData } =
+      syncData as {
+        __furinRedirect?: string;
+        __furinHead?: HeadOptions;
+        __furinTitle?: string;
+        __furinQueries?: QuerySeed[];
+        [key: string]: unknown;
+      };
+    const failure = findRouteFailure(syncData);
 
     if (typeof __furinRedirect === "string") {
       return resolveRedirect(context, __furinRedirect);
@@ -242,29 +230,25 @@ export async function fetchPageState(
     }
 
     // Loader threw a non-redirect Response (or an Error).
-    if (__furinError) {
+    if (failure?.status === "error") {
       return {
         kind: "error",
         reusable,
-        state: { data, error: __furinError, head: __furinHead, match: loadedMatch, title },
+        state: { data, error: failure.error, head: __furinHead, match: loadedMatch, title },
       };
     }
 
-    // Non-2xx without sentinel and not 404 → opaque server error.
+    // Non-2xx without a failed match and not 404 → opaque server error.
     if (!res.ok && res.status !== 404) {
       log.warn({ action: "navigate_server_error", href: physicalHref, status: res.status });
       return { kind: "hardNavigate", reason: "server-error" };
     }
 
-    if (__furinStatus === 404) {
-      const notFound =
-        __furinNotFound !== null && typeof __furinNotFound === "object"
-          ? (__furinNotFound as { data?: unknown; message?: string })
-          : {};
+    if (failure?.status === "notFound") {
       return {
         kind: "notFound",
         reusable,
-        state: { data, head: __furinHead, match: loadedMatch, notFound, title },
+        state: { data, head: __furinHead, match: loadedMatch, notFound: failure.error, title },
       };
     }
 

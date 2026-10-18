@@ -14,6 +14,7 @@ import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { type NotFoundComponent, notFound } from "../../../src/shared/not-found.ts";
+import { findRouteFailure } from "../../../src/shared/route-matches.ts";
 
 const FURIN_DATA_SCRIPT_RE =
   /<script id="__FURIN_DATA__" type="application\/json">([\s\S]*?)<\/script>/;
@@ -69,7 +70,6 @@ function createTestRoute(options: {
 }): ResolvedRoute {
   return {
     mode: "ssr",
-    notFound: options.notFound,
     page: {
       __type: "FURIN_PAGE",
       _route: ROOT_ROUTE,
@@ -79,7 +79,10 @@ function createTestRoute(options: {
     path: `/test-pages${options.pattern}/index.tsx`,
     pattern: options.pattern,
     routeChain: [ROOT_ROUTE],
-    segmentBoundaries: [],
+    // The page's own directory boundary, inside the root layout.
+    segmentBoundaries: options.notFound
+      ? [{ depth: 0, notFound: options.notFound, path: `/test-pages${options.pattern}` }]
+      : [],
     tags: [],
   };
 }
@@ -133,7 +136,9 @@ describe("renderToHTML — not-found handling", () => {
       result
     );
     expect(response.status).toBe(404);
-    expect(await response.text()).toContain("Blog 404");
+    // The root segment has no data, so its own not-found renders in the
+    // minimal document: the page's boundary sits inside the skipped layout.
+    expect(await response.text()).toContain("Root 404");
     expect(layoutCalls).toBe(0);
     expect(requestCalls).toBe(0);
   });
@@ -259,7 +264,7 @@ describe("renderToHTML — not-found handling", () => {
     expect(html).toContain("Root 404");
     expect(layoutCalls).toBe(0);
     expect(loaderCalls).toBe(0);
-    expect((await documentData(html)).__furinLayouts).toEqual([]);
+    expect(findRouteFailure(await documentData(html))?.index).toBe(0);
   });
 
   test.each([404, 500])(
@@ -299,7 +304,9 @@ describe("renderToHTML — not-found handling", () => {
       expect(layoutCalls).toBe(0);
       expect(html).toContain("<!DOCTYPE html>");
       expect(html).not.toContain("Must not be exposed");
-      expect(html).toContain(status === 404 ? "Blog 404" : "500 — ERROR");
+      // A root failure renders the root's own boundary, not the page's.
+      expect(html).toContain(status === 404 ? "Root 404" : "500 — ERROR");
+      expect(html).not.toContain("Blog 404");
     }
   );
 
@@ -344,7 +351,7 @@ describe("renderToHTML — not-found handling", () => {
     expect(rootCalls).toBe(1);
     const payload = await documentData(html);
     expect(payload.dashboard).toEqual({ settings: { theme: "forest" } });
-    expect(payload.__furinError).toBeUndefined();
+    expect(findRouteFailure(payload)?.status).toBe("notFound");
   });
 
   test("renders the nearest not-found component when loader throws notFound()", async () => {
@@ -390,7 +397,7 @@ describe("renderToHTML — not-found handling", () => {
     expect(body).toContain("Blog 404");
   });
 
-  test("renderSSR injects __furinStatus=404 into __FURIN_DATA__ for SPA nav detection (Slice 8)", async () => {
+  test("renderSSR marks the failed segment as notFound in __FURIN_DATA__ for SPA nav detection", async () => {
     const routeWithNotFound = createTestRoute({
       component: () => createElement("div", { "data-testid": "blog-index" }, "Blog"),
       loader: () => {
@@ -409,15 +416,14 @@ describe("renderToHTML — not-found handling", () => {
 
     expect(response.status).toBe(404);
     const body = await response.text();
-    // The payload MUST carry __furinStatus so the client's `classifySpaResponse`
+    // The payload MUST carry the failed match so the client's `classifySpaResponse`
     // can distinguish a loader-thrown notFound() from a generic 5xx.
     const match = body.match(FURIN_DATA_SCRIPT_RE);
     expect(match).not.toBeNull();
-    const payload = JSON.parse(match?.[1] ?? "{}");
-    expect(payload.__furinStatus).toBe(404);
-    expect(payload.__furinNotFound).toMatchObject({
-      data: { reason: "deleted" },
-      message: "missing",
+    expect(findRouteFailure(JSON.parse(match?.[1] ?? "{}"))).toEqual({
+      error: { data: { reason: "deleted" }, message: "missing" },
+      index: 1,
+      status: "notFound",
     });
   });
 

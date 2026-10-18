@@ -9,6 +9,7 @@ import { isFurinRscRenderError } from "../../rsc/render-error.ts";
 import { isDeferred } from "../../shared/defer.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
+import { ROUTE_MATCHES_KEY, type SerializedRouteMatch } from "../../shared/route-matches.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
@@ -313,6 +314,21 @@ function observeLoader<T extends object>(
   );
 }
 
+function requestLoaderIndexes(route: ResolvedRoute): number[] {
+  return route.routeChain.flatMap((entry, index) => (entry.requestLoader ? [index] : []));
+}
+
+/** Request field names declared by each route-chain entry, in chain order. */
+function requestKeysBySegment(route: ResolvedRoute): string[][] | undefined {
+  const loaderIndexes = requestLoaderIndexes(route);
+  if (route.requestKeysByLoader !== undefined || loaderIndexes.length !== 1) {
+    return route.requestKeysByLoader;
+  }
+  return route.routeChain.map((_, index) =>
+    index === loaderIndexes[0] ? (route.requestKeys ?? []) : []
+  );
+}
+
 export function runRequestLoaderFields(
   route: ResolvedRoute,
   ctx: Context
@@ -324,22 +340,14 @@ export function runRequestLoaderFields(
       resultsByLoader: (Promise<RuntimeData> | undefined)[];
     }
   | undefined {
-  const loaderIndexes = route.routeChain.flatMap((entry, index) =>
-    entry.requestLoader ? [index] : []
-  );
+  const loaderIndexes = requestLoaderIndexes(route);
   if (loaderIndexes.length === 0) {
     return;
   }
   if (route.requestKeys === undefined) {
     throw new Error(`[furin] Missing requestLoader field metadata for ${route.pattern}.`);
   }
-  const declarations =
-    route.requestKeysByLoader ??
-    (loaderIndexes.length === 1
-      ? route.routeChain.map((_, index) =>
-          index === loaderIndexes[0] ? (route.requestKeys ?? []) : []
-        )
-      : undefined);
+  const declarations = requestKeysBySegment(route);
   if (declarations?.length !== route.routeChain.length) {
     throw new Error(`[furin] Missing per-loader request field metadata for ${route.pattern}.`);
   }
@@ -458,24 +466,37 @@ export function withRequestLoaderData(
   );
 }
 
+interface SegmentData {
+  deferred: Record<string, Promise<unknown>>;
+  sync: Record<string, unknown>;
+}
+
+const NO_SEGMENT_DATA: SegmentData = { deferred: {}, sync: {} };
+
 /**
- * Merges per-loader results into the unified sync / deferred maps used by
- * `runLoaders`. `results` is ordered ancestor-most → page, so later loaders
- * overwrite earlier ones on key collision.
+ * Flattens per-segment loader data (root → page) into the page's sync and
+ * deferred maps, where later segments overwrite earlier ones on key collision,
+ * and serializes one success match per segment.
  *
- * Cross-map cleanup: when a later loader contributes a key, drop any stale
- * entry from the opposite map. Without this, a key that switches between sync
- * and deferred across loaders would leave both maps populated, and the wire
- * would carry two contradictory values for the same field.
+ * Cross-map cleanup: when a later segment contributes a key, drop any stale
+ * entry from the opposite map so the wire never carries two values for it.
+ *
+ * A match names the flat key holding each of its fields. When a deeper segment
+ * overwrote a field, the segment's own value moves to a `__furinMatch` slot so
+ * its layout still receives it. Request fields are referenced by name: their
+ * promises are attached (or postponed by PPR) after the public loaders run.
  */
-function mergeLoaderResults(results: unknown[]): {
-  allSync: Record<string, unknown>;
+function flattenSegments(
+  segments: SegmentData[],
+  requestKeys: string[][] | undefined
+): {
   allDeferred: Record<string, Promise<unknown>>;
+  allSync: Record<string, unknown>;
+  matches: SerializedRouteMatch[];
 } {
   const allSync: Record<string, unknown> = {};
   const allDeferred: Record<string, Promise<unknown>> = {};
-  for (const result of results) {
-    const { sync, deferred } = splitOneLoaderResult(result as Record<string, unknown>);
+  for (const { sync, deferred } of segments) {
     for (const k of Object.keys(sync)) {
       delete allDeferred[k];
     }
@@ -485,7 +506,28 @@ function mergeLoaderResults(results: unknown[]): {
     Object.assign(allSync, sync);
     Object.assign(allDeferred, deferred);
   }
-  return { allDeferred, allSync };
+  const matches = segments.map(({ sync, deferred }, index): SerializedRouteMatch => {
+    const fields: { [field: string]: string } = {};
+    for (const [values, flat] of [
+      [sync, allSync],
+      [deferred, allDeferred],
+    ] as const) {
+      for (const [field, value] of Object.entries(values)) {
+        if (Object.is(flat[field], value)) {
+          fields[field] = field;
+        } else {
+          const slot = `__furinMatch${index}:${field}`;
+          (flat as Record<string, unknown>)[slot] = value;
+          fields[field] = slot;
+        }
+      }
+    }
+    for (const field of requestKeys?.[index] ?? []) {
+      fields[field] ??= field;
+    }
+    return { fields, status: "success" };
+  });
+  return { allDeferred, allSync, matches };
 }
 
 /**
@@ -686,10 +728,7 @@ async function recoverLoaderError(
   requestFields: ReturnType<typeof runRequestLoaderFields>
 ): Promise<Exclude<LoaderResult, { type: "data" }>> {
   let failure = error;
-  const parents: RuntimeData[] = [];
-  const deferredByLayout: { [key: string]: string }[] = [];
-  const deferredPromises: { [key: string]: Promise<unknown> } = {};
-  const merged: RuntimeData = {};
+  const segments: SegmentData[] = [];
   for (const [index, segment] of route.routeChain.entries()) {
     if (
       (segment.loader && !loaderMap.has(segment)) ||
@@ -703,41 +742,25 @@ async function recoverLoaderError(
         loaderMap.get(segment),
         requestFields?.resultsByLoader[index],
       ]);
-      const own = publicData ?? {};
-      const { sync, deferred } = splitOneLoaderResult(own);
+      const own = splitOneLoaderResult(publicData ?? {});
       if (requestData) {
         const fields = Object.fromEntries(
           Object.entries(requestData).map(([key, value]) => [key, Promise.resolve(value)])
         );
-        Object.assign(deferred, requestFieldPromises(route, fields, sync, deferred));
+        Object.assign(own.deferred, requestFieldPromises(route, fields, own.sync, own.deferred));
       }
-      const references: { [key: string]: string } = {};
-      for (const [key, promise] of Object.entries(deferred)) {
-        // Stream each layout's value under its own slot so descendant collisions
-        // cannot replace a parent's promise during navigation or hydration.
-        const slot = `__furinLayout${index}:${key}`;
-        references[key] = slot;
-        deferredPromises[slot] = promise;
-        deferredPromises[key] = promise;
-        delete merged[key];
-      }
-      for (const key of Object.keys(sync)) {
-        delete deferredPromises[key];
-      }
-      Object.assign(merged, sync);
-      parents.push(sync);
-      deferredByLayout.push(references);
+      segments.push(own);
     } catch (parentError) {
       failure = parentError;
       break;
     }
   }
+  // Only the segments before the failure keep data; the renderer appends the
+  // failed segment's match.
+  const { allSync, allDeferred, matches } = flattenSegments(segments, undefined);
   const syncData = {
-    ...merged,
-    __furinLayouts: parents,
-    ...(Object.keys(deferredPromises).length > 0
-      ? { __furinLayoutDeferred: deferredByLayout }
-      : {}),
+    ...allSync,
+    [ROUTE_MATCHES_KEY]: matches,
     params: ctx.params,
     path: ctx.path,
     query: ctx.query,
@@ -748,7 +771,7 @@ async function recoverLoaderError(
     failure,
     headers,
     syncData,
-    Object.keys(deferredPromises).length > 0 ? deferredPromises : undefined
+    Object.keys(allDeferred).length > 0 ? allDeferred : undefined
   );
 }
 
@@ -844,11 +867,12 @@ async function runLoadersInternal(
         )
       : Promise.resolve({});
 
-    // Await everything in parallel. `results` is ordered layout1 → … → page;
-    // the per-loader split preserves that order so later loaders (page last)
-    // overwrite earlier ones on key collision — same semantic as the previous
-    // non-deferred `Object.assign({}, ...results)` flat merge.
-    const results = await Promise.all([...loaderMap.values(), pagePromise]);
+    // Await everything in parallel. Segments are ordered root → … → page so
+    // later loaders (page last) overwrite earlier ones on key collision.
+    const [pageResult, ...chainResults] = await Promise.all([
+      pagePromise,
+      ...route.routeChain.map((entry) => loaderMap.get(entry)),
+    ]);
     await requestFields?.noFieldCompletion;
     const headers: Record<string, string> = {};
     Object.assign(headers, ctx.set.headers);
@@ -857,7 +881,15 @@ async function runLoadersInternal(
     // Promise-valued fields to `allDeferred` and its scalars to `allSync`.
     // Non-deferred loaders keep everything in `allSync` — even Promise values,
     // since only an explicit `defer()` opts into streaming.
-    const { allSync, allDeferred } = mergeLoaderResults(results);
+    const { allSync, allDeferred, matches } = flattenSegments(
+      [
+        ...chainResults.map((result) =>
+          result === undefined ? NO_SEGMENT_DATA : splitOneLoaderResult(result)
+        ),
+        splitOneLoaderResult(pageResult),
+      ],
+      requestKeysBySegment(route)
+    );
     if (requestFields !== undefined) {
       Object.assign(
         allDeferred,
@@ -871,6 +903,7 @@ async function runLoadersInternal(
     allSync.params = ctx.params;
     allSync.path = ctx.path;
     allSync.query = ctx.query;
+    allSync[ROUTE_MATCHES_KEY] = matches;
     return {
       deferredPromises: Object.keys(allDeferred).length > 0 ? allDeferred : undefined,
       headers,

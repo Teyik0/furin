@@ -11,9 +11,8 @@ import {
   HeadContent,
   Scripts,
 } from "../../../src/client/document.tsx";
-import { Link, RouterProvider } from "../../../src/client/link.tsx";
+import { findRouteFailure, Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/types.ts";
-import type { FurinServerErrorPayload } from "../../../src/client/server-error.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
 import { renderSSR } from "../../../src/server/render/ssr.ts";
 import {
@@ -92,7 +91,12 @@ test.each([
         .config({ layout, mode: "ssr" })
         .loader(() => ({ section: "Library" }))
         .layout(({ children, section }) => <section data-section={section}>{children}</section>);
-      const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
+      const root = {
+        error: Unavailable,
+        notFound: Missing,
+        path: "/root.tsx",
+        route: adaptDefinedLayout(layout, undefined),
+      };
       const nested = adaptDefinedLayout(nestedDefinition, root.route);
       const routes = ["/missing", "/ok"].map((pattern) => {
         const definition = defineRoute()
@@ -117,7 +121,12 @@ test.each([
           path: `${pattern}.tsx`,
           pattern,
           routeChain: collectRouteChainFromRoute(page._route),
-          segmentBoundaries: [{ depth: 0, path: "/", error: Unavailable, notFound: Missing }],
+          // The nested boundary sits inside the library layout, so a page
+          // failure keeps both layouts.
+          segmentBoundaries: [
+            { depth: 0, path: "/", error: Unavailable, notFound: Missing },
+            { depth: 1, path: "/library", error: Unavailable, notFound: Missing },
+          ],
           error: Unavailable,
           notFound: Missing,
         };
@@ -168,6 +177,7 @@ test.each([
         syncJson: undefined,
       };
       const recoverable: unknown[] = [];
+      const failure = findRouteFailure(data);
       await act(() => {
         hydrated = hydrateRoot(
           document,
@@ -181,10 +191,10 @@ test.each([
               defaultPreloadDelay: 50,
               defaultPreloadStaleTime: 30_000,
               initialData: data,
-              initialDigest: data.__furinError?.digest,
-              initialError: data.__furinError as FurinServerErrorPayload | undefined,
+              initialDigest: failure?.status === "error" ? failure.error.digest : undefined,
+              initialError: failure?.status === "error" ? failure.error : undefined,
               initialMatch,
-              initialNotFound: status === 404 ? data.__furinNotFound : undefined,
+              initialNotFound: failure?.status === "notFound" ? failure.error : undefined,
               prefetchCacheSize: 50,
               root: root.route,
               routes: clientRoutes,

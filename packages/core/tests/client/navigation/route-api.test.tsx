@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { act, createElement } from "react";
+import { act, createElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { toCrossJSON } from "seroval";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { getRouteApi } from "../../../src/client.ts";
 import { defineRoute as createRoute, defineRootRoute } from "../../../src/define-route.ts";
-import { buildElement } from "../../../src/server/render/element.tsx";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { useDomTests, waitForDom } from "../../support/dom.ts";
 
@@ -49,9 +49,21 @@ const route: ResolvedRoute = {
   segmentBoundaries: [],
 };
 
+function routeTree(target: ResolvedRoute, data: { [key: string]: unknown }): ReactNode {
+  return resolveRouteElement({
+    boundaries: target.segmentBoundaries,
+    boundaryOptions: undefined,
+    chain: target.routeChain,
+    data,
+    page: { component: target.page.component, pattern: target.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
+}
+
 describe("getRouteApi", () => {
   test("reads the active loader and validated params during SSR without fetching", () => {
-    const element = buildElement(route, { params: { boardId: 42 }, title: "SSR board" }, pageRoute);
+    const element = routeTree(route, { params: { boardId: 42 }, title: "SSR board" });
 
     expect(renderToStaticMarkup(element)).toBe("<output>42:SSR board</output>");
   });
@@ -66,16 +78,16 @@ describe("getRouteApi", () => {
   });
 
   test("rejects a snapshot from a different active route", () => {
-    expect(() =>
-      renderToStaticMarkup(buildElement({ ...route, pattern: "/other" }, {}, pageRoute))
-    ).toThrow('getRouteApi("/route-api-board/:boardId")');
+    expect(() => renderToStaticMarkup(routeTree({ ...route, pattern: "/other" }, {}))).toThrow(
+      'getRouteApi("/route-api-board/:boardId")'
+    );
   });
 
   test("does not expose reserved render props as loader fields", () => {
     function Keys() {
       return createElement("output", null, Object.keys(board.useLoaderData()).sort().join(","));
     }
-    const element = buildElement(
+    const element = routeTree(
       { ...route, page: { ...route.page, component: Keys } },
       {
         __furinQueries: [],
@@ -91,8 +103,7 @@ describe("getRouteApi", () => {
         path: "/board/42",
         query: { page: 1 },
         title: "Board",
-      },
-      pageRoute
+      }
     );
     expect(renderToStaticMarkup(element)).toBe("<output>title</output>");
   });

@@ -117,7 +117,6 @@ async function renderISRNon200(
   const fallbackProps = { ...prepared.componentProps, ...renderPayload(prepared, undefined) };
   const { stream: reactStream, shellError } = await renderPreparedDocument(
     prepared,
-    route,
     root,
     fallbackProps,
     fallbackProps
@@ -391,13 +390,7 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<ISRMissOutc
       return { loaderResult, prepared, renderStart, type: "uncached" };
     }
 
-    const { shellError, stream } = await renderPreparedDocument(
-      prepared,
-      input.route,
-      input.root,
-      syncData,
-      {}
-    );
+    const { shellError, stream } = await renderPreparedDocument(prepared, input.root, syncData, {});
     if (shellError) {
       prepared.status = 500;
       prepared.errorDigest = shellError.digest;

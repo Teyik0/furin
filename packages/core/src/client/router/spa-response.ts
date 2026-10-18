@@ -1,31 +1,15 @@
-import type React from "react";
-import { createElement } from "react";
-import type { NotFoundComponent } from "../../shared/not-found.ts";
-import { DefaultErrorFallback, DefaultNotFoundScreen } from "../default-screens.tsx";
-import type { FurinServerErrorPayload } from "../server-error.ts";
+import { findRouteFailure } from "../../shared/route-matches.ts";
 import { TRAILING_SLASHES_RE, toLogical } from "./link-utils.ts";
-import type { ClientSegmentBoundary, SpaResponseKind } from "./types.ts";
-
-function isFurinErrorPayload(
-  value: unknown
-): value is { digest: string; message: string; status: number } {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const v = value as { digest?: unknown; message?: unknown; status?: unknown };
-  return (
-    typeof v.digest === "string" && typeof v.message === "string" && typeof v.status === "number"
-  );
-}
+import type { SpaResponseKind } from "./types.ts";
 
 /**
  * Pure classifier for an SPA-nav fetch result. Takes the HTTP status and the
  * already-parsed `__FURIN_DATA__` payload.
  *
- * Sentinels (`__furinError`, `__furinStatus`) are trusted over the raw HTTP
- * status — proxies / CDNs sometimes rewrite the status code but pass the body
- * through untouched. A non-2xx response without any sentinel triggers a bail
- * so the browser handles it (could be an error page, redirect, etc.).
+ * A failed route match is trusted over the raw HTTP status — proxies / CDNs
+ * sometimes rewrite the status code but pass the body through untouched. A
+ * non-2xx response without a failed match triggers a bail so the browser
+ * handles it (could be an error page, redirect, etc.).
  *
  * @internal Exported for unit testing only.
  */
@@ -36,62 +20,17 @@ export function classifySpaResponse(
   if (!data) {
     return { kind: "bail" };
   }
-  if (isFurinErrorPayload(data.__furinError)) {
-    return { error: data.__furinError, kind: "error" };
+  const failure = findRouteFailure(data);
+  if (failure?.status === "error") {
+    return { error: failure.error, kind: "error" };
   }
-  if (((status >= 200 && status < 300) || status === 404) && data.__furinStatus === 404) {
-    const notFound = data.__furinNotFound as { data?: unknown; message?: string } | undefined;
-    return { error: notFound ?? {}, kind: "not-found" };
+  if (((status >= 200 && status < 300) || status === 404) && failure?.status === "notFound") {
+    return { error: failure.error, kind: "not-found" };
   }
   if (status >= 200 && status < 300) {
     return { kind: "ok" };
   }
   return { kind: "bail" };
-}
-
-/**
- * Picks the deepest not-found component declared on the match's boundary chain.
- *
- * @internal Exported for unit testing only.
- */
-export function pickDeepestNotFound(
-  boundaries: ClientSegmentBoundary[] | undefined
-): NotFoundComponent | undefined {
-  if (!boundaries) {
-    return;
-  }
-  for (let i = boundaries.length - 1; i >= 0; i -= 1) {
-    const seg = boundaries[i];
-    if (seg?.notFound) {
-      return seg.notFound;
-    }
-  }
-}
-
-const DefaultClientNotFoundFallback: NotFoundComponent = ({ error }) =>
-  createElement(DefaultNotFoundScreen, { message: error.message });
-
-/**
- * Builds the bare not-found element rendered inline by RouterProvider on SPA
- * navigation when the server signalled a 404.
- *
- * @internal Exported for unit testing only.
- */
-export function buildNotFoundPageElement(
-  boundaries: ClientSegmentBoundary[] | undefined,
-  error: { data?: unknown; message?: string }
-): React.ReactNode {
-  const Fallback = pickDeepestNotFound(boundaries) ?? DefaultClientNotFoundFallback;
-  return createElement(Fallback, { error });
-}
-
-export function buildErrorPageElement(
-  boundaries: ClientSegmentBoundary[] | undefined,
-  error: FurinServerErrorPayload,
-  reset: () => void
-): React.ReactNode {
-  const Fallback = boundaries?.findLast((segment) => segment.error)?.error ?? DefaultErrorFallback;
-  return createElement(Fallback, { error, reset });
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
 import { toCrossJSON, toCrossJSONAsync } from "seroval";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
-import { wrapLoaderLayouts } from "../../client/loader-layouts.tsx";
+import { resolveRouteElement, selectRouteBoundary } from "../../client/route-element.tsx";
 import { RouterContext } from "../../client/router/context.ts";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import {
@@ -14,15 +14,18 @@ import type { RouterContextValue } from "../../client/router/types.ts";
 import type { HeadOptions } from "../../client.ts";
 import { isJsonObject, serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
-import { isProductionBuild } from "../../shared/production-build.ts";
 import { containsRscSource, serializeRouteFrames } from "../../shared/route-frame.ts";
+import {
+  failRouteMatches,
+  loaderFailureIndex,
+  type RouteMatchFailure,
+} from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger, runInSyntheticRenderScope } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
 import { mergeRouteSchemas } from "../router/schema-merge.ts";
 import { parseRouteParams, parseRouteQuery } from "../router/schemas.ts";
-// FurinNotFoundError is used indirectly via buildNotFoundElement in element.tsx
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
@@ -37,13 +40,7 @@ import {
   streamToString,
 } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import {
-  buildElement,
-  buildErrorElement,
-  buildNotFoundElement,
-  errorMessageForRender,
-  wrapRootLayout,
-} from "./element.tsx";
+import { buildErrorElement, errorMessageForRender, SERVER_RESET_NOOP } from "./element.tsx";
 import {
   hasMixedLoaderModes,
   hasSsrLoaderAncestor,
@@ -106,17 +103,12 @@ export interface PreparedRender {
   headData: HeadOptions | undefined;
   headers: Record<string, string>;
   loader_ms: number;
-  /**
-   * Populated only when the loader threw `notFound()`. Mirrored into
-   * `__FURIN_DATA__.__furinNotFound` so the client-side can render the
-   * not-found UI inline on SPA navigation.
-   */
-  notFoundError?: { data?: unknown; message?: string };
   ssrContext: RouterContextValue;
   status: number;
   /**
-   * JSON-serialisable subset of `componentProps`. For deferred renders this
-   * excludes the Promise fields (those are streamed separately).
+   * JSON-serialisable subset of `componentProps`, including the route matches
+   * (with the failed segment on error and not-found renders). For deferred
+   * renders this excludes the Promise fields (those are streamed separately).
    */
   syncData: Record<string, unknown>;
 }
@@ -138,44 +130,28 @@ interface ShellFallbackResult {
   /**
    * Set when the primary element threw synchronously during render and a
    * fallback error UI was streamed instead. Carries the digest so the caller
-   * can surface it in logs and the `__furinError` payload.
+   * can surface it in logs and the route-match payload.
    */
   shellError: { digest: string; message: string } | undefined;
   stream: Awaited<ReturnType<typeof renderToReadableStream>>;
 }
 
-function serializedErrorPayload(
-  digest: string | undefined,
-  message: string | undefined,
-  status: number
-): { digest: string; message: string; status: number } | undefined {
-  return digest !== undefined && message !== undefined ? { digest, message, status } : undefined;
+/**
+ * A shell failure can come from any segment, so it is reported on the root
+ * segment: client and server then both render the root boundary inside the
+ * minimal document, without re-rendering layouts that may have thrown.
+ */
+function shellErrorPayload(digest: string, message: string): { [key: string]: unknown } {
+  return failRouteMatches({}, 0, { error: { digest, message, status: 500 }, status: "error" });
 }
 
 export function renderPayload(
   prepared: PreparedRender,
   shellError: { digest: string; message: string } | undefined
 ): { [key: string]: unknown } {
-  const payload: { [key: string]: unknown } = shellError ? {} : { ...prepared.syncData };
-  const status = shellError ? 500 : prepared.status;
-  const error = serializedErrorPayload(
-    shellError?.digest ?? prepared.errorDigest,
-    shellError?.message ?? prepared.errorMessage,
-    status
-  );
-  if (error) {
-    payload.__furinError = error;
-  }
-  if (status === 404 && !shellError) {
-    payload.__furinStatus = 404;
-    if (prepared.notFoundError) {
-      payload.__furinNotFound = prepared.notFoundError;
-    }
-  }
-  if (shellError) {
-    payload.__furinStatus = 500;
-  }
-  return payload;
+  return shellError
+    ? shellErrorPayload(shellError.digest, shellError.message)
+    : { ...prepared.syncData };
 }
 
 function hasDocumentMarkers(html: string): boolean {
@@ -341,48 +317,6 @@ function currentHrefFromContext(ctx: Context, basePath: string): string {
   );
 }
 
-/**
- * Builds the success-path element and head injection. `head()` is user code
- * that runs synchronously, outside the render pipeline's shell-error handling,
- * so a throw is converted into a 500 error render that surfaces through the
- * framework error UI instead of escaping `prepareRender` and crashing the
- * request. Re-throws when `throwOnFailure` is set (build-time SSG) so CI fails
- * loudly.
- */
-function buildSuccessRender(
-  route: ResolvedRoute,
-  root: RootLayout,
-  componentProps: Record<string, unknown>,
-  headContext: Record<string, unknown>,
-  throwOnFailure: boolean
-): {
-  element: ReactNode;
-  errorDigest: string | undefined;
-  errorMessage: string | undefined;
-  headData: HeadOptions | undefined;
-  status: number;
-} {
-  try {
-    const headData = route.page.head?.({ ...headContext });
-    const element = buildElement(route, componentProps, root.route);
-    return { element, errorDigest: undefined, errorMessage: undefined, headData, status: 200 };
-  } catch (headError) {
-    if (throwOnFailure) {
-      throw headError;
-    }
-    const errorDigest = computeErrorDigest(headError);
-    const errorMessage = errorMessageForRender(route.error ?? root.error, headError, undefined);
-    const element = buildErrorElement(
-      route.error ?? root.error,
-      headError,
-      errorDigest,
-      errorMessage,
-      500
-    );
-    return { element, errorDigest, errorMessage, headData: undefined, status: 500 };
-  }
-}
-
 function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentAssets> {
   const productionAssets = getProductionDocumentAssets();
   if (productionAssets !== null) {
@@ -430,55 +364,60 @@ export async function prepareRender(
     throw loaderResult.error;
   }
 
-  const isNotFound = loaderResult.type === "not-found";
-  const isError = loaderResult.type === "error";
-  const isFallback = isNotFound || isError;
-  const { syncData, deferredPromises } = loaderResult;
+  const { deferredPromises, headers } = loaderResult;
   assertDeferredModeAllowed(route, deferredPromises);
 
-  const { headers } = loaderResult;
-  const componentProps =
-    deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
-
   const assets = withRouteModulePreloads(await resolveDocumentAssets(ctx), route.pattern);
-  const errorComponent = route.error ?? root.error;
 
-  let element: ReactNode;
+  let { syncData } = loaderResult;
   let headData: HeadOptions | undefined;
   let status = 200;
   let errorDigest: string | undefined;
   let errorMessage: string | undefined;
-  let notFoundError: { data?: unknown; message?: string } | undefined;
+  const failSegment = (index: number, failure: RouteMatchFailure) => {
+    syncData = failRouteMatches(syncData, index, failure);
+  };
+  const failWithError = (index: number, error: unknown, message: string | undefined) => {
+    const { component } = selectRouteBoundary(route.segmentBoundaries, root, index, "error");
+    errorDigest = computeErrorDigest(error);
+    errorMessage = errorMessageForRender(component, error, message);
+    failSegment(index, {
+      error: { digest: errorDigest, message: errorMessage, status },
+      status: "error",
+    });
+  };
   if (loaderResult.type === "not-found") {
-    element = buildNotFoundElement(route.notFound ?? root.notFound, loaderResult.error);
     status = 404;
-    notFoundError = { data: loaderResult.error.data, message: loaderResult.error.message };
+    const { data, message } = loaderResult.error;
+    failSegment(loaderFailureIndex(syncData), { error: { data, message }, status: "notFound" });
   } else if (loaderResult.type === "error") {
-    const { status: errorStatus } = loaderResult;
-    errorDigest = computeErrorDigest(loaderResult.error);
-    errorMessage = errorMessageForRender(errorComponent, loaderResult.error, loaderResult.message);
-    element = buildErrorElement(
-      errorComponent,
-      loaderResult.error,
-      errorDigest,
-      errorMessage,
-      errorStatus
-    );
-    status = errorStatus;
+    ({ status } = loaderResult);
+    failWithError(loaderFailureIndex(syncData), loaderResult.error, loaderResult.message);
   } else {
-    ({ element, errorDigest, errorMessage, headData, status } = buildSuccessRender(
-      route,
-      root,
-      componentProps,
-      syncData,
-      throwOnFailure
-    ));
+    // `head()` is user code that runs outside the render pipeline's shell-error
+    // handling: a throw fails the page segment with a 500 instead of escaping
+    // `prepareRender`. Build-time SSG rethrows so CI fails loudly.
+    try {
+      headData = route.page.head?.({ ...syncData });
+    } catch (headError) {
+      if (throwOnFailure) {
+        throw headError;
+      }
+      status = 500;
+      failWithError(route.routeChain.length, headError, undefined);
+    }
   }
-  if (isFallback || status !== 200) {
-    element = isFallback
-      ? wrapLoaderLayouts(element, route.routeChain, componentProps)
-      : wrapRootLayout(element, componentProps, root.route);
-  }
+  const componentProps =
+    deferredPromises === undefined ? syncData : { ...syncData, ...deferredPromises };
+  let element = resolveRouteElement({
+    boundaries: route.segmentBoundaries,
+    boundaryOptions: undefined,
+    chain: route.routeChain,
+    data: componentProps,
+    page: { component: route.page.component, pattern: route.pattern },
+    reset: SERVER_RESET_NOOP,
+    rootBoundary: root,
+  });
 
   // Explicit basePath (static export) wins; otherwise resolve the mount
   // prefix of the instance serving this render so SSR'd <Link> hrefs match
@@ -515,7 +454,6 @@ export async function prepareRender(
     headData,
     headers,
     loader_ms,
-    notFoundError,
     ssrContext,
     status,
     syncData,
@@ -526,7 +464,6 @@ export async function prepareRender(
 
 export function renderPreparedDocument(
   prepared: PreparedRender,
-  route: ResolvedRoute,
   root: RootLayout,
   data: object,
   fallbackData: object
@@ -534,25 +471,23 @@ export function renderPreparedDocument(
   const { assets, element, headData } = prepared;
   return renderElementWithShellFallback(
     withDocumentState(element, assets, headData, data),
-    route.error ?? root.error,
+    root.error,
     prepared.ssrContext,
     (fallback, digest, message) =>
       withDocumentState(createElement(FurinDocumentFallback, null, fallback), assets, headData, {
         ...fallbackData,
-        __furinError: { digest, message, status: 500 },
-        __furinStatus: 500,
+        ...shellErrorPayload(digest, message),
       })
   );
 }
 
 async function renderBufferedResult(
   prepared: PreparedRender,
-  route: ResolvedRoute,
   root: RootLayout
 ): Promise<RenderResult> {
   const { deferredPromises, headers, syncData } = prepared;
   const payload = renderPayload(prepared, undefined);
-  const { shellError, stream } = await renderPreparedDocument(prepared, route, root, payload, {});
+  const { shellError, stream } = await renderPreparedDocument(prepared, root, payload, {});
   await stream.allReady;
   const html = await streamToString(stream);
   return {
@@ -669,7 +604,7 @@ export function renderForPath(
         },
       });
 
-      return renderBufferedResult(prepared, route, root);
+      return renderBufferedResult(prepared, root);
     },
     { render: mode, route: route.pattern }
   );
@@ -928,7 +863,7 @@ export async function renderToHTML(
     throw prepared;
   }
 
-  return renderBufferedResult(prepared, route, root);
+  return renderBufferedResult(prepared, root);
 }
 
 export async function renderSSR(
@@ -984,17 +919,14 @@ export async function renderSSR(
       nonce,
       jsonCompatible
     ),
-    route.error ?? root.error,
+    root.error,
     prepared.ssrContext,
     (fallback, digest, message) =>
       withDocumentState(
         createElement(FurinDocumentFallback, null, fallback),
         assets,
         headData,
-        {
-          __furinError: { digest, message, status: 500 },
-          __furinStatus: 500,
-        },
+        shellErrorPayload(digest, message),
         nonce,
         true
       ),
@@ -1015,16 +947,6 @@ export async function renderSSR(
   }
 
   const dataPayload = renderPayload(prepared, shellError);
-  if (
-    !isProductionBuild() &&
-    dataPayload.__furinError !== undefined &&
-    dataPayload.__furinNotFound !== undefined
-  ) {
-    throw new Error(
-      "[furin] internal invariant violated: __furinError and __furinNotFound were both set on the same SSR payload."
-    );
-  }
-
   const hasDeferred = !shellErrored && deferredPromises !== undefined;
 
   const deferredKeys = hasDeferred ? Object.keys(deferredPromises) : [];

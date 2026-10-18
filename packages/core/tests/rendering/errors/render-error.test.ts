@@ -47,7 +47,6 @@ function createTestRoute(options: {
   pattern: string;
 }): ResolvedRoute {
   return {
-    error: options.error,
     mode: "ssr",
     page: {
       __type: "FURIN_PAGE",
@@ -58,7 +57,10 @@ function createTestRoute(options: {
     path: `/test-pages${options.pattern}/index.tsx`,
     pattern: options.pattern,
     routeChain: [ROOT_ROUTE],
-    segmentBoundaries: [],
+    // The page's own directory boundary, inside the root layout.
+    segmentBoundaries: options.error
+      ? [{ depth: 0, error: options.error, path: `/test-pages${options.pattern}` }]
+      : [],
     tags: [],
   };
 }
@@ -164,7 +166,9 @@ describe("renderToHTML — error handling", () => {
     expect(rendered.html).toContain("An unexpected error occurred.");
   });
 
-  test("renderSSR returns 500 with nearest error.tsx when shell render throws", async () => {
+  // A shell failure cannot be attributed to a segment, so it renders the root
+  // error.tsx in the minimal document — the same tree the client hydrates.
+  test("renderSSR returns 500 with the root error.tsx when shell render throws", async () => {
     const routeWithShellError = createTestRoute({
       component: () => {
         throw new Error("shell-boom");
@@ -183,7 +187,8 @@ describe("renderToHTML — error handling", () => {
 
     expect(response.status).toBe(500);
     const body = await response.text();
-    expect(body).toContain("Blog error");
+    expect(body).toContain("Root error");
+    expect(body).not.toContain("Blog error");
   });
 
   test("renderSSR falls back to built-in 500 when shell render throws and no error.tsx exists", async () => {
@@ -214,9 +219,7 @@ describe("renderToHTML — error handling", () => {
       component: () => {
         throw new Error("primary-boom");
       },
-      error: () => {
-        throw new Error("error-tsx-boom");
-      },
+      error: undefined,
       loader: undefined,
       pattern: "/blog",
     });
@@ -224,7 +227,9 @@ describe("renderToHTML — error handling", () => {
     const response = await renderSSR(
       routeWithDoubleFailure,
       createMockLoaderContext({ path: "/blog" }),
-      createTestRoot(RootError),
+      createTestRoot(() => {
+        throw new Error("error-tsx-boom");
+      }),
       undefined
     );
 
@@ -440,7 +445,7 @@ describe("renderToHTML — digest", () => {
 });
 
 describe("renderSSR — digest", () => {
-  test("__FURIN_DATA__ blob contains a digest under __furinError on 500 response", async () => {
+  test("__FURIN_DATA__ blob carries the digest in the failed route match on 500 response", async () => {
     const routeWithError = createTestRoute({
       component: () => createElement("div", { "data-testid": "blog-index" }, "Blog"),
       error: BlogError,
@@ -461,7 +466,7 @@ describe("renderSSR — digest", () => {
       { path: "/blog" }
     );
     const body = await response.text();
-    expect(body).toContain("__furinError");
+    expect(body).toContain("__furinMatches");
     expect(body).toMatch(FURIN_ERROR_DIGEST_RE);
     expect(body).toContain('"message":"Something went wrong"');
   });
@@ -483,7 +488,12 @@ describe("renderSSR — digest", () => {
         headers: {},
         message: "",
         status: 500,
-        syncData: { __furinLayouts: [{}], params: {}, path: "/blog", query: {} },
+        syncData: {
+          __furinMatches: [{ fields: {}, status: "success" }],
+          params: {},
+          path: "/blog",
+          query: {},
+        },
         type: "error",
       }
     );

@@ -150,7 +150,7 @@ try {
   const match = body.match(furinDataRe);
   expect(match).not.toBeNull();
   const data = JSON.parse(match?.[1] ?? "{}");
-  expect(data.__furinStatus).toBe(404);
+  expect(data.__furinMatches.at(-1).status).toBe("notFound");
 } finally {
   resetNotFoundTestState();
 }

@@ -16,22 +16,22 @@ import type {
 import {
   applyRevalidateHeader,
   buildHref,
-  buildNotFoundPageElement,
-  buildPageElement,
   buildRouterTree,
   classifySpaResponse,
   Link,
-  pickDeepestNotFound,
   RouterContext,
   shouldAutoRefreshPath,
   shouldRefetch,
 } from "../../../src/client/link.tsx";
+import { resolveRouteElement, selectRouteBoundary } from "../../../src/client/route-element.tsx";
 import {
   encodeInvalidationEntry,
   serializeInvalidationPaths,
 } from "../../../src/shared/invalidation-header.ts";
 import type { NotFoundComponent } from "../../../src/shared/not-found.ts";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { findSearchDefaults } from "../../../src/shared/search-params.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 const PRODUCTS_RE = /^\/products$/;
 const PRODUCT_DETAIL_RE = /^\/products\/([^/]+)$/;
@@ -100,6 +100,18 @@ function makeMatch(
     pattern: p,
     regex: new RegExp(`^${p}$`),
   };
+}
+
+function pageTree(match: LoadedClientRoute, data: { [key: string]: unknown }): React.ReactNode {
+  return resolveRouteElement({
+    boundaries: [],
+    boundaryOptions: undefined,
+    chain: collectRouteChainFromRoute(match.pageRoute),
+    data,
+    page: { component: match.component, pattern: match.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
 }
 
 function makeCacheEntry(msSinceCreated: number, staleTime: number): CacheEntry {
@@ -221,18 +233,16 @@ describe("findSearchDefaults", () => {
   });
 });
 
-// ── buildPageElement ──────────────────────────────────────────────────────────
+// ── resolveRouteElement ───────────────────────────────────────────────────────
 
-describe("buildPageElement", () => {
+describe("resolveRouteElement", () => {
   const data = { title: "test" };
 
   const Page: React.FC<Record<string, unknown>> = () => createElement("p", null, "page");
 
   test("no layout — returns the page element directly", () => {
     const match = makeMatch(Page, makeRoute(undefined), undefined);
-    expect(renderToStaticMarkup(buildPageElement(match, null, data, undefined, undefined))).toBe(
-      "<p>page</p>"
-    );
+    expect(renderToStaticMarkup(pageTree(match, data))).toBe("<p>page</p>");
   });
 
   test("one layout in pageRoute (no root) — wraps the page", () => {
@@ -240,9 +250,7 @@ describe("buildPageElement", () => {
       createElement("main", null, children);
 
     const match = makeMatch(Page, makeRoute({ layout: Layout }), undefined);
-    expect(renderToStaticMarkup(buildPageElement(match, null, data, undefined, undefined))).toBe(
-      "<main><p>page</p></main>"
-    );
+    expect(renderToStaticMarkup(pageTree(match, data))).toBe("<main><p>page</p></main>");
   });
 
   test("root layout only (no nested layout) — root wraps the page", () => {
@@ -250,10 +258,8 @@ describe("buildPageElement", () => {
       createElement("body", null, children);
 
     const root = makeRoute({ layout: Root });
-    const match = makeMatch(Page, makeRoute(undefined), undefined); // pageRoute has no layout
-    expect(renderToStaticMarkup(buildPageElement(match, root, data, undefined, undefined))).toBe(
-      "<body><p>page</p></body>"
-    );
+    const match = makeMatch(Page, makeRoute({ parent: root }), undefined); // pageRoute has no layout
+    expect(renderToStaticMarkup(pageTree(match, data))).toBe("<body><p>page</p></body>");
   });
 
   test("root + nested layout — root wraps nested which wraps page", () => {
@@ -266,9 +272,9 @@ describe("buildPageElement", () => {
     const pageRoute = makeRoute({ layout: Nav, parent: rootRoute });
     const match = makeMatch(Page, pageRoute, "/dashboard");
 
-    expect(
-      renderToStaticMarkup(buildPageElement(match, rootRoute, data, undefined, undefined))
-    ).toBe('<section data-root="true"><nav><p>page</p></nav></section>');
+    expect(renderToStaticMarkup(pageTree(match, data))).toBe(
+      '<section data-root="true"><nav><p>page</p></nav></section>'
+    );
   });
 
   test("passes loader data to the page component as props", () => {
@@ -276,11 +282,9 @@ describe("buildPageElement", () => {
       createElement("h1", null, String(title));
 
     const match = makeMatch(DataPage, makeRoute(undefined), undefined);
-    expect(
-      renderToStaticMarkup(
-        buildPageElement(match, null, { title: "Hello World" }, undefined, undefined)
-      )
-    ).toBe("<h1>Hello World</h1>");
+    expect(renderToStaticMarkup(pageTree(match, { title: "Hello World" }))).toBe(
+      "<h1>Hello World</h1>"
+    );
   });
 
   test("exposes request fields as stable promises to pages and layouts", async () => {
@@ -302,9 +306,7 @@ describe("buildPageElement", () => {
     const match = makeMatch(PrivatePage, route, undefined);
     const user = Promise.resolve("Alice");
 
-    expect(
-      renderToStaticMarkup(buildPageElement(match, null, { user }, undefined, undefined))
-    ).toBe("<main><p>page</p></main>");
+    expect(renderToStaticMarkup(pageTree(match, { user }))).toBe("<main><p>page</p></main>");
     expect(pageUser).toBe(layoutUser);
     expect(pageHasRequestData).toBe(false);
     expect(await pageUser).toBe("Alice");
@@ -317,9 +319,7 @@ describe("buildPageElement", () => {
       return createElement("p", null, "page");
     };
     const match = makeMatch(PageWithOptional, makeRoute(undefined), undefined);
-    renderToStaticMarkup(
-      buildPageElement(match, null, { user: Promise.resolve("Alice") }, undefined, undefined)
-    );
+    renderToStaticMarkup(pageTree(match, { user: Promise.resolve("Alice") }));
     expect(optional).toBeUndefined();
   });
 
@@ -328,11 +328,9 @@ describe("buildPageElement", () => {
       createElement("div", { "data-title": String(title) }, children as React.ReactNode);
 
     const match = makeMatch(Page, makeRoute({ layout: Layout }), undefined);
-    expect(
-      renderToStaticMarkup(
-        buildPageElement(match, null, { title: "My Blog" }, undefined, undefined)
-      )
-    ).toBe('<div data-title="My Blog"><p>page</p></div>');
+    expect(renderToStaticMarkup(pageTree(match, { title: "My Blog" }))).toBe(
+      '<div data-title="My Blog"><p>page</p></div>'
+    );
   });
 });
 
@@ -935,37 +933,38 @@ describe("shouldAutoRefreshPath", () => {
 // Pure classifier used by `fetchPageState` to decide whether a fetch response
 // represents a normal page (→ render), a server-signalled 404 (→ render
 // not-found inline), or an unrecoverable state (→ bail to full-page reload).
-// The signal is `__FURIN_DATA__.__furinStatus === 404` — same pattern as the
-// existing `__furinError.digest` channel for 500s.
+// The signal is a failed match in `__FURIN_DATA__.__furinMatches`.
+
+function failedMatches(failure: { [key: string]: unknown }): { [key: string]: unknown } {
+  return { [ROUTE_MATCHES_KEY]: [{ fields: {}, status: "success" }, failure] };
+}
 
 describe("classifySpaResponse", () => {
   test("2xx response with valid data → ok", () => {
     expect(classifySpaResponse(200, { foo: "bar" })).toEqual({ kind: "ok" });
   });
 
-  test("404 with __furinStatus=404 → not-found with empty error when __furinNotFound is absent", () => {
-    const result = classifySpaResponse(404, { __furinStatus: 404 });
-    expect(result).toEqual({ error: {}, kind: "not-found" });
-  });
-
-  test("404 with __furinStatus=404 AND __furinNotFound → carries message + data", () => {
-    const result = classifySpaResponse(404, {
-      __furinNotFound: { data: { id: "abc" }, message: "Post not found" },
-      __furinStatus: 404,
-    });
+  test("404 with a notFound match → not-found carrying message + data", () => {
+    const result = classifySpaResponse(
+      404,
+      failedMatches({
+        error: { data: { id: "abc" }, message: "Post not found" },
+        status: "notFound",
+      })
+    );
     expect(result).toEqual({
       error: { data: { id: "abc" }, message: "Post not found" },
       kind: "not-found",
     });
   });
 
-  test("404 WITHOUT __furinStatus → bail (unknown 404 payload without SPA signal)", () => {
-    // renderRootNotFound now always embeds __furinStatus: 404 in __FURIN_DATA__,
+  test("404 WITHOUT a failed match → bail (unknown 404 payload without SPA signal)", () => {
+    // renderRootNotFound always embeds a notFound match in __FURIN_DATA__,
     // but a 404 without the signal still bails (e.g. proxy-rewritten responses).
     expect(classifySpaResponse(404, {})).toEqual({ kind: "bail" });
   });
 
-  test("500 response without __furinError sentinel → bail (full reload)", () => {
+  test("500 response without an error match → bail (full reload)", () => {
     // No sentinel means an opaque server error (e.g. crash before the data
     // endpoint formed a response) — fall back to a full-page navigation so
     // the browser shows whatever the server sent.
@@ -976,39 +975,49 @@ describe("classifySpaResponse", () => {
     expect(classifySpaResponse(200, null)).toEqual({ kind: "bail" });
   });
 
-  test("200 with __furinStatus=404 trusts the payload signal over HTTP status", () => {
+  test("200 with a notFound match trusts the payload signal over HTTP status", () => {
     // Guards against odd proxy/CDN setups that rewrite the status but preserve HTML.
-    const result = classifySpaResponse(200, { __furinStatus: 404 });
+    const result = classifySpaResponse(200, failedMatches({ error: {}, status: "notFound" }));
     expect(result).toEqual({ error: {}, kind: "not-found" });
   });
 
-  // ── Slice 3 — error sentinel ─────────────────────────────────────────────
-  test("500 with __furinError sentinel → error kind carrying the payload", () => {
-    const result = classifySpaResponse(500, {
-      __furinError: { digest: "abc1234567", message: "Boom", status: 500 },
-    });
+  test("500 with an error match → error kind carrying the payload", () => {
+    const result = classifySpaResponse(
+      500,
+      failedMatches({
+        error: { digest: "abc1234567", message: "Boom", status: 500 },
+        status: "error",
+      })
+    );
     expect(result).toEqual({
       error: { digest: "abc1234567", message: "Boom", status: 500 },
       kind: "error",
     });
   });
 
-  test("403 with __furinError sentinel → error kind carrying the original status", () => {
-    const result = classifySpaResponse(403, {
-      __furinError: { digest: "deadbeef00", message: "Forbidden", status: 403 },
-    });
+  test("403 with an error match → error kind carrying the original status", () => {
+    const result = classifySpaResponse(
+      403,
+      failedMatches({
+        error: { digest: "deadbeef00", message: "Forbidden", status: 403 },
+        status: "error",
+      })
+    );
     expect(result).toEqual({
       error: { digest: "deadbeef00", message: "Forbidden", status: 403 },
       kind: "error",
     });
   });
 
-  test("200 with __furinError sentinel still classifies as error (proxy-rewrite guard)", () => {
-    // Mirrors the __furinStatus=404 / 200 trust pattern: trust the payload
-    // sentinel over the HTTP status to handle proxies that rewrite codes.
-    const result = classifySpaResponse(200, {
-      __furinError: { digest: "feed00face", message: "Server error", status: 500 },
-    });
+  test("200 with an error match still classifies as error (proxy-rewrite guard)", () => {
+    // Trust the payload over the HTTP status to handle proxies that rewrite codes.
+    const result = classifySpaResponse(
+      200,
+      failedMatches({
+        error: { digest: "feed00face", message: "Server error", status: 500 },
+        status: "error",
+      })
+    );
     expect(result).toEqual({
       error: { digest: "feed00face", message: "Server error", status: 500 },
       kind: "error",
@@ -1016,94 +1025,64 @@ describe("classifySpaResponse", () => {
   });
 });
 
-// ── pickDeepestNotFound (Slice 8) ─────────────────────────────────────────────
+// ── selectRouteBoundary ───────────────────────────────────────────────────────
 //
-// Mirror of the server-side `route.notFound ?? root.notFound` selection:
-// segmentBoundaries is ordered shallow→deep, so the deepest entry with a
-// `notFound` wins.
+// A failure at segment `index` (route-chain index; the page comes after the
+// chain) is handled by the deepest boundary declared ABOVE that segment: a
+// boundary sits inside the layout of its own depth, so it cannot catch that
+// layout's failure (Next.js `error.tsx` scope).
 
-describe("pickDeepestNotFound", () => {
+describe("selectRouteBoundary", () => {
   const NF1: NotFoundComponent = () => createElement("p", null, "nf1");
   const NF2: NotFoundComponent = () => createElement("p", null, "nf2");
+  const E2 = (() => null) as never;
 
-  test("undefined boundaries → undefined", () => {
-    expect(pickDeepestNotFound(undefined)).toBeUndefined();
+  test("a page failure picks the deepest boundary declaring the kind", () => {
+    const boundaries = [
+      { depth: 0, notFound: NF1 },
+      { depth: 2, notFound: NF2 },
+    ];
+    expect(selectRouteBoundary(boundaries, undefined, 4, "notFound")).toEqual({
+      component: NF2,
+      depth: 2,
+    });
   });
 
-  test("empty boundaries → undefined", () => {
-    expect(pickDeepestNotFound([])).toBeUndefined();
+  test("a deeper boundary without the kind falls back to a shallower one", () => {
+    const boundaries = [
+      { depth: 0, notFound: NF1 },
+      { depth: 2, error: E2 },
+    ];
+    expect(selectRouteBoundary(boundaries, undefined, 4, "notFound")).toEqual({
+      component: NF1,
+      depth: 0,
+    });
   });
 
-  test("single entry with notFound → returns it", () => {
-    expect(pickDeepestNotFound([{ depth: 0, notFound: NF1 }])).toBe(NF1);
+  test("a layout failure skips the boundary declared in its own directory", () => {
+    const boundaries = [
+      { depth: 0, notFound: NF1 },
+      { depth: 2, notFound: NF2 },
+    ];
+    expect(selectRouteBoundary(boundaries, undefined, 2, "notFound")).toEqual({
+      component: NF1,
+      depth: 0,
+    });
   });
 
-  test("multiple entries → deepest notFound wins", () => {
-    expect(
-      pickDeepestNotFound([
-        { depth: 0, notFound: NF1 },
-        { depth: 2, notFound: NF2 },
-      ])
-    ).toBe(NF2);
+  test("without an authored boundary the built-in screen renders inside the root layout", () => {
+    expect(selectRouteBoundary([], undefined, 3, "error")).toEqual({
+      component: undefined,
+      depth: 0,
+    });
   });
 
-  test("deepest entry has no notFound → falls back to the next shallower one", () => {
-    // Only error declared at the deepest level; notFound is only at depth 0.
-    expect(
-      pickDeepestNotFound([
-        { depth: 0, notFound: NF1 },
-        { depth: 2, error: (() => null) as never },
-      ])
-    ).toBe(NF1);
-  });
-
-  test("boundaries with only error declarations → undefined", () => {
-    expect(
-      pickDeepestNotFound([
-        { depth: 0, error: (() => null) as never },
-        { depth: 1, error: (() => null) as never },
-      ])
-    ).toBeUndefined();
-  });
-});
-
-// ── buildNotFoundPageElement (Slice 8) ────────────────────────────────────────
-//
-// Inline 404 renderer used by RouterProvider when `state.notFound` is set.
-// Matches server's `buildNotFoundElement`: no layouts, no boundary wrappers,
-// just the deepest user-declared not-found (or built-in default).
-
-describe("buildNotFoundPageElement", () => {
-  test("renders the deepest user-declared not-found bare (no layouts)", () => {
-    const NF: NotFoundComponent = ({ error }) =>
-      createElement("h1", null, `custom 404: ${error.message ?? ""}`);
-    const boundaries = [{ depth: 0, notFound: NF }];
-
-    const html = renderToStaticMarkup(buildNotFoundPageElement(boundaries, { message: "boom" }));
-    // No <main> (root layout) or <section> (nested layout) should appear.
-    expect(html).toBe("<h1>custom 404: boom</h1>");
-  });
-
-  test("falls back to built-in 404 when boundaries is empty", () => {
-    const html = renderToStaticMarkup(buildNotFoundPageElement([], {}));
-    expect(html).toContain("404");
-  });
-
-  test("falls back to built-in 404 when boundaries is undefined", () => {
-    const html = renderToStaticMarkup(buildNotFoundPageElement(undefined, {}));
-    expect(html).toContain("404");
-  });
-
-  test("forwards error.message and error.data to the NotFound component", () => {
-    const seen: Array<{ message?: string; data?: unknown }> = [];
-    const NF: NotFoundComponent = ({ error }) => {
-      seen.push({ data: error.data, message: error.message });
-      return createElement("div", null, "ok");
-    };
-    const boundaries = [{ depth: 0, notFound: NF }];
-
-    renderToStaticMarkup(buildNotFoundPageElement(boundaries, { data: { id: 42 }, message: "m" }));
-    expect(seen).toEqual([{ data: { id: 42 }, message: "m" }]);
+  test("a root failure uses the root boundary inside the minimal document", () => {
+    const boundaries = [{ depth: 0, notFound: NF2 }];
+    expect(selectRouteBoundary(boundaries, { notFound: NF1 }, 0, "notFound")).toEqual({
+      component: NF1,
+      depth: -1,
+    });
   });
 });
 
@@ -1115,7 +1094,7 @@ describe("buildNotFoundPageElement", () => {
 // surfaces a graceful fallback instead of crashing to a blank page.
 //
 // The `initialDigest` prop (Slice 10) carries the server-logged error id
-// from __FURIN_DATA__.__furinError.digest — letting client fallback UIs
+// from the failed route match in __FURIN_DATA__ — letting client fallback UIs
 // show the same id a user would find in server logs.
 
 describe("buildRouterTree", () => {

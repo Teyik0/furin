@@ -1,10 +1,11 @@
 import { createElement } from "react";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
-import { wrapLoaderLayouts } from "../../client/loader-layouts.tsx";
+import { resolveRouteElement } from "../../client/route-element.tsx";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { FurinNotFoundError } from "../../shared/not-found.ts";
+import { ROUTE_MATCHES_KEY, type SerializedRouteMatch } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstance } from "../instance.ts";
@@ -14,7 +15,7 @@ import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
-import { buildNotFoundElement } from "./element.tsx";
+import { buildNotFoundElement, SERVER_RESET_NOOP } from "./element.tsx";
 import { renderToReadableStream } from "./react-stream.ts";
 import { generateIndexHtml } from "./shell.ts";
 import { withSSRRouterContext } from "./ssr.ts";
@@ -99,18 +100,36 @@ export async function renderRootNotFound(
     },
   });
 
-  const rootData = { params: {}, path: logicalPath, query };
+  // No page matched, so no loader ran. A root layout that needs loader data
+  // cannot render: the not-found then belongs to the root segment and renders
+  // inside the minimal document.
+  const failure: SerializedRouteMatch = {
+    error: { message: notFoundError.message },
+    status: "notFound",
+  };
   const data = {
-    ...rootData,
-    __furinLayouts: root.route.loader || root.route.requestLoader ? [] : [{}],
-    __furinStatus: 404,
+    params: {},
+    path: logicalPath,
+    query,
+    [ROUTE_MATCHES_KEY]:
+      root.route.loader || root.route.requestLoader
+        ? [failure]
+        : [{ fields: {}, status: "success" }, failure],
   };
   let reactStream: Awaited<ReturnType<typeof renderToReadableStream>>;
   try {
     reactStream = await renderToReadableStream(
       withDocumentState(
         withSSRRouterContext(
-          wrapLoaderLayouts(buildNotFoundElement(root.notFound, notFoundError), [root.route], data),
+          resolveRouteElement({
+            boundaries: [{ depth: 0, error: root.error, notFound: root.notFound }],
+            boundaryOptions: undefined,
+            chain: [root.route],
+            data,
+            page: undefined,
+            reset: SERVER_RESET_NOOP,
+            rootBoundary: root,
+          }),
           notFoundContext
         ),
         assets,

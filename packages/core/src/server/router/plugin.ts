@@ -6,6 +6,7 @@ import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { containsRscSource, isRouteFrameLine } from "../../shared/route-frame.ts";
+import { failRouteMatches, loaderFailureIndex } from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
 import {
@@ -116,11 +117,10 @@ async function serializeLoaderDataResponse(
   }
   if (result.type === "not-found") {
     const body = await serializeLoaderDataNdjson(
-      {
-        ...result.syncData,
-        __furinNotFound: { data: result.error.data, message: result.error.message },
-        __furinStatus: 404,
-      },
+      failRouteMatches(result.syncData, loaderFailureIndex(result.syncData), {
+        error: { data: result.error.data, message: result.error.message },
+        status: "notFound",
+      }),
       result.deferredPromises
     );
     return new Response(body, {
@@ -360,16 +360,19 @@ async function createRouteDataErrorResponse(
   data: RuntimeData | undefined,
   deferredPromises: { [key: string]: Promise<unknown> } | undefined
 ): Promise<Response> {
-  const __furinError = { digest: computeErrorDigest(error), message, status };
   const payload = {
     ...data,
     ...(routeContext
       ? { params: routeContext.params, path: routeContext.path, query: routeContext.query }
       : {}),
-    __furinError,
-    __furinLayouts: data?.__furinLayouts ?? [],
   };
-  const body = await serializeLoaderDataNdjson(payload, deferredPromises);
+  const body = await serializeLoaderDataNdjson(
+    failRouteMatches(payload, loaderFailureIndex(payload), {
+      error: { digest: computeErrorDigest(error), message, status },
+      status: "error",
+    }),
+    deferredPromises
+  );
   return new Response(body, {
     headers: { "content-type": "application/x-ndjson" },
     status,
@@ -563,9 +566,9 @@ export function renderResolvedRoute(
  * both route frames and legacy NDJSON sentinels.
  *
  * Special fields emitted alongside data:
- *   - `__furinStatus: 404` — when the loader called `notFound()`
- *   - `__furinNotFound`    — not-found payload
- *   - `__furinRedirect`    — logical path after a server-side redirect
+ *   - `__furinMatches`  — per-segment matches, with the failed segment on
+ *                         error and `notFound()`
+ *   - `__furinRedirect` — logical path after a server-side redirect
  */
 export function createDataEndpoint(
   routesSource: DataResolvedRoutesSource,

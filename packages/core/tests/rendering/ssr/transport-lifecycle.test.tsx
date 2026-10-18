@@ -11,7 +11,8 @@ import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { Await } from "../../../src/shared/await.tsx";
 import { defer } from "../../../src/shared/defer.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
-import { notFound } from "../../../src/shared/not-found.ts";
+import { type NotFoundProps, notFound } from "../../../src/shared/not-found.ts";
+import { findRouteFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
@@ -144,8 +145,15 @@ test.each([404, 503])(
       path: "/missing.tsx",
       pattern: "/missing",
       routeChain: collectRouteChainFromRoute(page._route),
-      segmentBoundaries: [],
-      error: () => <p>Resource unavailable</p>,
+      // Declared beside the nested layout, so it renders inside that layout.
+      segmentBoundaries: [
+        {
+          depth: 1,
+          error: () => <p>Resource unavailable</p>,
+          notFound: ({ error }: NotFoundProps) => <p>{error.message}</p>,
+          path: "/library",
+        },
+      ],
     };
     const response = await new Elysia()
       .get("/missing", (context) => renderSSR(route, context, root, undefined))
@@ -156,14 +164,14 @@ test.each([404, 503])(
     expect(html).toContain('<body data-theme="forest">');
     expect(html).toContain('<section data-theme="ocean">');
     expect(html).toContain("Library");
-    expect(html).toContain(status === 404 ? "404 — NOT FOUND" : "Resource unavailable");
+    expect(html).toContain(status === 404 ? "Missing resource" : "Resource unavailable");
     const navigation = await new Elysia()
       .use(createDataEndpoint([route], root))
       .handle(new Request("http://localhost/_furin/data?path=/missing"));
     const parsed = await parseData(await navigation.text());
     expect(parsed.syncData.dashboard).toEqual({ settings: { theme: "ocean" } });
     expect(parsed.syncData.section).toBe("Library");
-    expect(parsed.syncData.__furinLayouts).toEqual((await documentData(html)).__furinLayouts);
+    expect(parsed.syncData.__furinMatches).toEqual((await documentData(html)).__furinMatches);
   }
 );
 
@@ -208,11 +216,13 @@ test("buffered not-found documents carry the same status and payload as navigati
     throw new Error("Buffered render result missing");
   }
   const parsed = await parseData(result.ndjson);
-  expect(parsed.syncData.__furinStatus).toBe(404);
-  expect(parsed.syncData.__furinNotFound).toEqual({ message: "Missing", data: { slug: "gone" } });
-  const data = await documentData(result.html);
-  expect(data.__furinStatus).toBe(404);
-  expect(data.__furinNotFound).toEqual({ message: "Missing", data: { slug: "gone" } });
+  const expected = {
+    error: { message: "Missing", data: { slug: "gone" } },
+    index: 2,
+    status: "notFound" as const,
+  };
+  expect(findRouteFailure(parsed.syncData)).toEqual(expected);
+  expect(findRouteFailure(await documentData(result.html))).toEqual(expected);
 });
 
 test("SSR hydration preserves rich loader values and escapes document delimiters", async () => {

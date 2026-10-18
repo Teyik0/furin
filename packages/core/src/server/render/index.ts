@@ -1,7 +1,7 @@
 // biome-ignore-all lint/performance/noBarrelFile: intentional barrel for public API
 
 export { type LoaderContext, streamToString } from "./assemble.ts";
-export { buildElement, buildErrorElement } from "./element.tsx";
+export { buildErrorElement } from "./element.tsx";
 export { handleISR } from "./isr.ts";
 export {
   hasRequestLoader,

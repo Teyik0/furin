@@ -374,3 +374,4 @@ export function Link<To extends RouteTo>(props: LinkProps<To>): React.ReactEleme
 // apps to add "seroval" as a direct dependency.
 export { fromCrossJSON } from "seroval";
 export { parseDeferredNdjson } from "../shared/deferred-ndjson.ts";
+export { findRouteFailure } from "../shared/route-matches.ts";

@@ -365,9 +365,9 @@ export interface ClientRoute {
   searchDefaults?: SearchParamsInput;
   /**
    * Per-segment boundary chain, ordered shallow→deep. Each `depth` maps 1:1
-   * to the route-chain index used on the server side, so `buildPageElement`
-   * can interleave boundaries at the exact same positions that the server
-   * used in `buildElement` — guaranteeing hydration consistency.
+   * to the route-chain index used on the server side, so the shared
+   * `resolveRouteElement` interleaves boundaries at the same positions on
+   * both sides — guaranteeing hydration consistency.
    */
   segmentBoundaries?: ClientSegmentBoundary[];
 }
@@ -403,7 +403,7 @@ export interface RouterProviderProps {
   initialData: Record<string, unknown>;
   /**
    * Slice 10 — server-logged error digest threaded from
-   * `__FURIN_DATA__.__furinError.digest`. Forwarded onto the root-level
+   * the failed route match in `__FURIN_DATA__`. Forwarded onto the root-level
    * `FurinErrorBoundary` so that if a client-side error escapes the
    * per-segment boundaries (root layout crash, hydration mismatch, …), the
    * fallback UI surfaces the id a user would find in server logs.
@@ -433,7 +433,7 @@ export interface RouterProviderProps {
 export interface RouterState {
   data: Record<string, unknown>;
   /**
-   * Set when the server's NDJSON payload carried an `__furinError` sentinel.
+   * Set when the server's payload carried a route match that failed with an error.
    */
   error?: FurinServerErrorPayload;
   /** The canonical href after server-side redirects (e.g. query-default redirect). */
@@ -470,8 +470,8 @@ export interface CacheEntry {
  * pure `classifySpaResponse` so `fetchPageState` stays a thin orchestrator.
  *
  * - `ok` — 2xx response with usable loader data; render normally.
- * - `not-found` — server signalled `__FURIN_DATA__.__furinStatus === 404`.
- * - `error` — server signalled `__FURIN_DATA__.__furinError`.
+ * - `not-found` — a route match in `__FURIN_DATA__` failed with `notFound`.
+ * - `error` — a route match in `__FURIN_DATA__` failed with an error.
  * - `bail` — any other non-2xx without sentinels.
  *
  * @internal Exported for unit testing only.
@@ -488,7 +488,7 @@ export type SpaResponseKind =
  */
 export interface RootBoundaryOptions {
   /**
-   * Server-logged error id propagated from `__FURIN_DATA__.__furinError.digest`.
+   * Server-logged error id propagated from the failed route match.
    */
   digest?: string;
   /** @internal Render the root fallback as a complete document. */

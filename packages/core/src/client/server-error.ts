@@ -13,9 +13,6 @@
  *   digest instead of recomputing one client-side (the latter would produce a
  *   different hash because the public message + synthetic stack differ from the
  *   original server-side error).
- * - SPA navigation: `RouterProvider` throws this during render of the route
- *   position when `__furinError` was sentinelled into the NDJSON payload, so
- *   the nearest error boundary catches it without forcing a full-page reload.
  */
 const SERVER_ERROR_BRAND = "FURIN_SERVER_ERROR" as const;
 

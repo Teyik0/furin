@@ -4,6 +4,7 @@ import { prerender } from "react-dom/static.edge";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { parseRouteFrameLines, serializeRouteFrames } from "../../shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY } from "../../shared/route-matches.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { getLogger } from "../context-logger.ts";
@@ -139,7 +140,7 @@ export async function prerenderPprDocument(
       headers: prepared.headers,
       message: "Something went wrong",
       status: prepared.status,
-      syncData: { ...prepared.syncData, __furinLayouts: [] },
+      syncData: { ...prepared.syncData, [ROUTE_MATCHES_KEY]: [] },
       type: "error",
     };
   }

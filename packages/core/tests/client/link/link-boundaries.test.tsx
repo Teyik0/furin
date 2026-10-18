@@ -1,11 +1,11 @@
 /**
  * Client-side boundary interleaving for SPA navigation.
  *
- * `buildPageElement` (link.tsx) must produce the same interleaved React tree
- * as the server's `buildElement` (element.tsx) — otherwise a navigation to a
- * page that errors would either fail to catch (missing boundary) or
- * mismatch hydration (different structure). The transport for this is the
- * `segmentBoundaries` field added to `ClientRoute`: the build step attaches
+ * The client builds its tree with the same `resolveRouteElement` as the server,
+ * from the route chain it reconstructs and the boundaries the build attached to
+ * the route — otherwise a navigation to a page that errors would either fail to
+ * catch (missing boundary) or mismatch hydration (different structure). The
+ * transport for this is the `segmentBoundaries` field on `ClientRoute`: the build step attaches
  * a statically-imported boundary component list to each route, mirroring the
  * server-side `SegmentBoundary[]` derived from `collectSegmentBoundaries`.
  */
@@ -20,12 +20,18 @@ import React, {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { FurinErrorBoundary, FurinNotFoundBoundary } from "../../../src/client/boundaries.tsx";
+import {
+  type BoundaryOptions,
+  FurinErrorBoundary,
+  FurinNotFoundBoundary,
+} from "../../../src/client/boundaries.tsx";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import type { ClientSegmentBoundary, LoadedClientRoute } from "../../../src/client/link.tsx";
-import { buildPageElement } from "../../../src/client/link.tsx";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
 import type { NotFoundComponent } from "../../../src/shared/not-found.ts";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
+import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";
 
 // ── Helpers (mirrors render-element-boundaries.test.tsx) ─────────────────────
 
@@ -107,9 +113,25 @@ function typeChain(node: ReactNode): string[] {
   return chain;
 }
 
+function clientTree(
+  match: LoadedClientRoute,
+  data: { [key: string]: unknown },
+  boundaryOptions: BoundaryOptions | undefined
+): ReactNode {
+  return resolveRouteElement({
+    boundaries: match.segmentBoundaries ?? [],
+    boundaryOptions,
+    chain: collectRouteChainFromRoute(match.pageRoute),
+    data,
+    page: { component: match.component, pattern: match.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe("buildPageElement — client-side boundary interleaving", () => {
+describe("resolveRouteElement — client-side boundary interleaving", () => {
   test.each([
     memo(namedLayout("Layout")),
     forwardRef<HTMLDivElement, { children?: ReactNode }>((props, ref) =>
@@ -120,13 +142,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     Object.defineProperty(layout, "displayName", { value: "WrappedLayout" });
     const rootRoute = makeRoute({ layout });
     const pageRoute = makeRoute({ parent: rootRoute });
-    const element = buildPageElement(
-      makeMatch(pageRoute, undefined),
-      rootRoute,
-      {},
-      undefined,
-      undefined
-    );
+    const element = clientTree(makeMatch(pageRoute, undefined), {}, undefined);
 
     expect(typeChain(element)).toEqual(["WrappedLayout", "Page"]);
   });
@@ -136,7 +152,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ layout: namedLayout("L1"), parent: rootRoute });
     const match = makeMatch(pageRoute, undefined);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     const chain = typeChain(element);
     expect(chain).not.toContain("FurinErrorBoundary");
     expect(chain).not.toContain("FurinNotFoundBoundary");
@@ -150,7 +166,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ layout: namedLayout("L1"), parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E, notFound: NF }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     expect(typeChain(element)).toEqual([
       "Root",
       "FurinErrorBoundary",
@@ -167,7 +183,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ layout: namedLayout("L2"), parent: l1Route });
     const match = makeMatch(pageRoute, [{ depth: 1, error: E }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     expect(typeChain(element)).toEqual(["Root", "L1", "FurinErrorBoundary", "L2", "Page"]);
   });
 
@@ -182,7 +198,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
       { depth: 2, notFound: NF },
     ]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     expect(typeChain(element)).toEqual([
       "Root",
       "FurinErrorBoundary",
@@ -200,7 +216,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E, notFound: NF }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     const chain = typeChain(element);
     const errIdx = chain.indexOf("FurinErrorBoundary");
     const nfIdx = chain.indexOf("FurinNotFoundBoundary");
@@ -216,7 +232,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E, notFound: NF }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
     let node: ReactNode = element;
     let err: ReactElement | null = null;
     let nf: ReactElement | null = null;
@@ -250,7 +266,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const onReset = () => {
       /* test callback */
     };
-    const element = buildPageElement(match, rootRoute, {}, { onReset }, undefined);
+    const element = clientTree(match, {}, { onReset });
 
     let node: ReactNode = element;
     let err: ReactElement | null = null;
@@ -272,7 +288,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E, notFound: NF }]);
 
-    const element = buildPageElement(match, rootRoute, {}, { resetKey: "/blog" }, undefined);
+    const element = clientTree(match, {}, { resetKey: "/blog" });
 
     let node: ReactNode = element;
     let err: ReactElement | null = null;
@@ -296,7 +312,7 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     const pageRoute = makeRoute({ parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, undefined);
+    const element = clientTree(match, {}, undefined);
 
     let node: ReactNode = element;
     let err: ReactElement | null = null;
@@ -314,32 +330,34 @@ describe("buildPageElement — client-side boundary interleaving", () => {
     expect(props.resetKey).toBeUndefined();
   });
 
-  // ── Slice 3 — error injection at page slot ─────────────────────────────────
+  // ── Failed page match ──────────────────────────────────────────────────────
   //
-  // When the SPA-nav payload carried `__furinError`, RouterProvider passes the
-  // sentinel as the 5th arg to buildPageElement. The page component is replaced
-  // by an internal RouteErrorThrower that throws a FurinServerError during
-  // render so the deepest <FurinErrorBoundary> catches it. We verify the tree
-  // shape: the layouts and boundaries are still in place; rendering it actually
-  // surfaces the user's error.tsx (not the page component).
+  // When the payload marks the page segment as failed, the selected error.tsx
+  // replaces the subtree of its boundary: it renders inside the layouts above
+  // the boundary, without the deeper layouts or the page.
 
-  test("error sentinel replaces the page slot with the throwing shim, boundaries still wrap", () => {
+  test("a failed page match renders the selected error.tsx inside the boundary's layout", () => {
     const E: ErrorComponent = () => createElement("p", null, "err");
+    Object.defineProperty(E, "name", { value: "E" });
     const rootRoute = makeRoute({ layout: namedLayout("Root") });
     const pageRoute = makeRoute({ layout: namedLayout("L1"), parent: rootRoute });
     const match = makeMatch(pageRoute, [{ depth: 0, error: E }]);
 
-    const element = buildPageElement(match, rootRoute, {}, undefined, {
-      digest: "abc1234567",
-      message: "Forbidden",
-      status: 403,
-    });
+    const element = clientTree(
+      match,
+      {
+        [ROUTE_MATCHES_KEY]: [
+          { fields: {}, status: "success" },
+          { fields: {}, status: "success" },
+          { error: { digest: "abc1234567", message: "Forbidden", status: 403 }, status: "error" },
+        ],
+      },
+      undefined
+    );
 
-    // Boundary chain is preserved at depth 0 — when RouteErrorThrower throws
-    // during render, the surrounding FurinErrorBoundary catches it.
-    expect(typeChain(element)).toEqual(["Root", "FurinErrorBoundary", "L1", "RouteErrorThrower"]);
+    expect(typeChain(element)).toEqual(["Root", "E"]);
 
-    // Verify the deepest element is the shim and carries the sentinel payload.
+    // Verify the deepest element is the error.tsx and carries the payload.
     let node: ReactNode = element;
     let deepest: ReactElement | null = null;
     while (isValidElement(node)) {

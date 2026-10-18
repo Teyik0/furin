@@ -8,6 +8,7 @@ import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { Await, createClient, useQuery } from "../../../src/client.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY, type RouteMatchFailure } from "../../../src/shared/route-matches.ts";
 import type { QuerySeed } from "../../../src/shared/sync-query.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
 
@@ -76,6 +77,11 @@ function response(data: object): Response {
   return new Response(`${JSON.stringify(toCrossJSON(data))}\n`, {
     headers: { "Content-Type": "application/x-ndjson" },
   });
+}
+
+/** A payload whose page segment failed (chain = [pageRoute], page = index 1). */
+function failedMatch(failure: RouteMatchFailure): object {
+  return { [ROUTE_MATCHES_KEY]: [{ fields: {}, status: "success" }, failure] };
 }
 
 test("returning to a page refetches its cancelled deferred transport", async () => {
@@ -397,8 +403,11 @@ test("a failed prefetch does not poison the cache for the next navigation", asyn
 });
 
 test.each([
-  ["error", { __furinError: { digest: "d1", message: "Boom", status: 500 } }],
-  ["not-found", { __furinStatus: 404, __furinNotFound: { message: "Missing" } }],
+  [
+    "error",
+    failedMatch({ error: { digest: "d1", message: "Boom", status: 500 }, status: "error" }),
+  ],
+  ["not-found", failedMatch({ error: { message: "Missing" }, status: "notFound" })],
 ] as const)("a %s snapshot is not served from the cache", async (_kind, failure) => {
   let reads = 0;
   globalThis.fetch = Object.assign((input: RequestInfo | URL) => {
@@ -424,8 +433,11 @@ test.each([
 });
 
 test.each([
-  ["error", { __furinError: { digest: "d1", message: "Boom", status: 500 } }],
-  ["not-found", { __furinStatus: 404, __furinNotFound: { message: "Missing" } }],
+  [
+    "error",
+    failedMatch({ error: { digest: "d1", message: "Boom", status: 500 }, status: "error" }),
+  ],
+  ["not-found", failedMatch({ error: { message: "Missing" }, status: "notFound" })],
 ] as const)("a prefetched %s snapshot is refetched on navigation", async (_kind, failure) => {
   let reads = 0;
   globalThis.fetch = Object.assign(() => {

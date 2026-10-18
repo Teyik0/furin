@@ -1,7 +1,6 @@
 import { log } from "evlog";
 import type React from "react";
 import {
-  createElement,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -15,10 +14,10 @@ import type { SearchParamsInput } from "../../shared/search-params.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
 import { DocumentProvider, useDocumentState } from "../document.tsx";
-import { wrapLoaderLayouts } from "../loader-layouts.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
-import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
+import { resolveRouteElement } from "../route-element.tsx";
+import { buildRouterTree } from "./boundary-tree.tsx";
 import {
   applyRevalidateHeader,
   normalizeHref,
@@ -34,11 +33,7 @@ import {
 import { createOptimisticRuntime, registerOptimisticRuntime } from "./optimistic.ts";
 import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
-import {
-  buildErrorPageElement,
-  buildNotFoundPageElement,
-  detectStaticMode,
-} from "./spa-response.ts";
+import { detectStaticMode } from "./spa-response.ts";
 import { createInvalidationRefresh } from "./sync-catch-up.ts";
 import type { ClientRoute, ClientSegmentBoundary, RouterProviderProps } from "./types.ts";
 import { useFetchInterception } from "./use-fetch-interception.ts";
@@ -63,7 +58,6 @@ function findRootBoundaries(routes: ClientRoute[]): ClientSegmentBoundary[] | un
   }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the router coordinates success, legacy fallbacks and scoped loader fallbacks in one render.
 export function RouterProvider({
   routes,
   root,
@@ -385,44 +379,29 @@ export function RouterProvider({
     [queries, state.data, state.querySeeds, queryRevision, deferredRevision]
   );
   const renderedData = optimisticRuntime.project(queryData, currentHref);
-  let pageElement: React.ReactNode;
-  const hasLoaderLayouts = renderedData.__furinLayouts !== undefined;
-  if (state.notFound || !state.match || (state.error && hasLoaderLayouts)) {
-    const boundaries = state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries;
-    const fallback = state.error
-      ? buildErrorPageElement(boundaries, state.error, () => {
-          refresh(undefined).catch((error: unknown) =>
-            log.error({ action: "boundary_reset_failed", error: String(error) })
-          );
-        })
-      : buildNotFoundPageElement(boundaries, state.notFound ?? {});
-    if (hasLoaderLayouts) {
-      let chain = root ? [root] : [];
-      if (state.match) {
-        chain = collectRouteChainFromRoute(state.match.pageRoute);
-      }
-      pageElement = wrapLoaderLayouts(fallback, chain, renderedData);
-    } else {
-      pageElement = root?.layout
-        ? createElement(root.layout as React.ElementType, renderedData, fallback)
-        : fallback;
-    }
-  } else {
-    pageElement = buildPageElement(
-      state.match,
-      root,
-      renderedData,
-      {
-        onReset: () => {
-          refresh(undefined).catch((err: unknown) => {
-            log.error({ action: "boundary_reset_failed", error: String(err) });
-          });
-        },
-        resetKey: `${currentHref}:${boundaryResetVersion}`,
-      },
-      state.error
-    );
+  const resetRoute = () => {
+    refresh(undefined).catch((err: unknown) => {
+      log.error({ action: "boundary_reset_failed", error: String(err) });
+    });
+  };
+  let chain = root ? [root] : [];
+  if (state.match) {
+    chain = collectRouteChainFromRoute(state.match.pageRoute);
   }
+  const pageElement = resolveRouteElement({
+    boundaries: state.notFoundBoundaries ?? state.match?.segmentBoundaries ?? rootBoundaries ?? [],
+    boundaryOptions: {
+      onReset: resetRoute,
+      resetKey: `${currentHref}:${boundaryResetVersion}`,
+    },
+    chain,
+    data: renderedData,
+    page: state.match
+      ? { component: state.match.component, pattern: state.match.pattern }
+      : undefined,
+    reset: resetRoute,
+    rootBoundary: rootBoundaries?.[0],
+  });
 
   const routerContext = useMemo(
     () => ({

@@ -1,12 +1,10 @@
 import { expect, test } from "bun:test";
 import { t } from "elysia";
-import { act, useState } from "react";
+import { act, type ReactNode, useState } from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { buildPageElement } from "../../../src/client/router/boundary-tree.tsx";
-import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
-import { buildElement } from "../../../src/server/render/element.tsx";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import type { RemountDeps } from "../../../src/shared/page-key.ts";
@@ -14,8 +12,20 @@ import { useDomTests } from "../../support/dom.ts";
 
 useDomTests();
 
+/** Server and client build the page tree with the same resolver. */
+function routeTree(route: ResolvedRoute, data: { [key: string]: unknown }): ReactNode {
+  return resolveRouteElement({
+    boundaries: route.segmentBoundaries,
+    boundaryOptions: undefined,
+    chain: route.routeChain,
+    data,
+    page: { component: route.page.component, pattern: route.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
+}
+
 type Identity = RemountDeps<{ id: number; tab: string }, { view: string }>;
-const DOCUMENT_PATTERN = /^\/identity\/[^/]+\/[^/]+$/;
 const policies: Array<{ name: string; remountDeps: Identity | undefined }> = [
   { name: "default", remountDeps: undefined },
   { name: "default schema edit", remountDeps: undefined },
@@ -58,13 +68,6 @@ test.each(policies)(
       routeChain: [rootLayout, page._route],
       segmentBoundaries: [],
     };
-    const match: LoadedClientRoute = {
-      component: page.component,
-      load: () => Promise.resolve({ default: page }),
-      pageRoute: page._route,
-      pattern: route.pattern,
-      regex: DOCUMENT_PATTERN,
-    };
     const negativeZero = name.startsWith("negative zero");
     const refreshedId = name === "default schema edit" ? "42" : 42;
     const data = {
@@ -73,38 +76,28 @@ test.each(policies)(
       title: "SSR",
     };
     const container = document.createElement("div");
-    container.innerHTML = renderToString(buildElement(route, data, rootLayout));
+    container.innerHTML = renderToString(routeTree(route, data));
     document.body.appendChild(container);
     const errors: unknown[] = [];
     let root: Root | undefined;
     try {
       await act(() => {
-        root = hydrateRoot(
-          container,
-          buildPageElement(match, rootLayout, data, undefined, undefined),
-          {
-            onRecoverableError: (error) => errors.push(error),
-          }
-        );
+        root = hydrateRoot(container, routeTree(route, data), {
+          onRecoverableError: (error) => errors.push(error),
+        });
       });
       await act(() => container.querySelector<HTMLButtonElement>("button")?.click());
       expect(container.textContent).toBe("SSR 1");
       await act(() =>
         root?.render(
-          buildPageElement(
-            match,
-            rootLayout,
-            {
-              params: {
-                tab: "edit",
-                id: negativeZero ? 0 : refreshedId,
-              },
-              query: { view: "list" },
-              title: "Refreshed",
+          routeTree(route, {
+            params: {
+              tab: "edit",
+              id: negativeZero ? 0 : refreshedId,
             },
-            undefined,
-            undefined
-          )
+            query: { view: "list" },
+            title: "Refreshed",
+          })
         )
       );
       expect(container.textContent).toBe(negativeZero ? "Refreshed 0" : "Refreshed 1");

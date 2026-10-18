@@ -1,6 +1,6 @@
 /**
- * buildElement interleaves FurinErrorBoundary + FurinNotFoundBoundary into
- * the server-rendered React tree at each segment depth that declared a
+ * resolveRouteElement interleaves FurinErrorBoundary + FurinNotFoundBoundary
+ * into the rendered React tree at each segment depth that declared a
  * convention file. The resulting tree matches Next.js's semantics:
  *
  *   <Root>
@@ -19,7 +19,8 @@ import { describe, expect, test } from "bun:test";
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import { FurinErrorBoundary, FurinNotFoundBoundary } from "../../../src/client/boundaries.tsx";
 import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
-import { buildElement, buildErrorElement } from "../../../src/server/render/element.tsx";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
+import { buildErrorElement } from "../../../src/server/render/element.tsx";
 import type { ResolvedRoute, SegmentBoundary } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
@@ -40,8 +41,7 @@ function makeLayout(label: string): RuntimeRoute["layout"] {
 }
 
 function makeRouteChain(layoutLabels: (string | null)[]): RuntimeRoute[] {
-  // layoutLabels[0] corresponds to routeChain[0] (skipped by buildElement).
-  // layoutLabels[i] for i>=1 becomes a RuntimeRoute.layout.
+  // layoutLabels[0] is the root layout; a null label is a segment without layout.
   return layoutLabels.map((label) => ({
     __type: "FURIN_ROUTE",
     layout: label ? makeLayout(label) : undefined,
@@ -60,8 +60,16 @@ function makeRoute(overrides: Partial<ResolvedRoute>): ResolvedRoute {
   return { ...defaults, ...overrides };
 }
 
-function makeRootLayout(label: string | null): RuntimeRoute {
-  return { __type: "FURIN_ROUTE", layout: label ? makeLayout(label) : undefined };
+function routeTree(route: ResolvedRoute): ReactNode {
+  return resolveRouteElement({
+    boundaries: route.segmentBoundaries,
+    boundaryOptions: undefined,
+    chain: route.routeChain,
+    data: {},
+    page: { component: route.page.component, pattern: route.pattern },
+    reset: () => undefined,
+    rootBoundary: undefined,
+  });
 }
 
 function firstValidChild(kids: ReactNode): ReactElement | null {
@@ -109,13 +117,13 @@ function typeChain(node: ReactNode): string[] {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe("buildElement — boundary interleaving", () => {
+describe("resolveRouteElement — boundary interleaving", () => {
   test("no segmentBoundaries → tree has no boundary wrappers (current behavior preserved)", () => {
     const route = makeRoute({
-      routeChain: makeRouteChain([null, "L1", "L2"]),
+      routeChain: makeRouteChain(["Root", "L1", "L2"]),
       segmentBoundaries: [],
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     expect(chain).not.toContain("FurinErrorBoundary");
     expect(chain).not.toContain("FurinNotFoundBoundary");
@@ -129,10 +137,10 @@ describe("buildElement — boundary interleaving", () => {
       { depth: 0, error: ErrorFallback, notFound: NotFoundFallback, path: "/pages" },
     ];
     const route = makeRoute({
-      routeChain: makeRouteChain([null, "L1"]),
+      routeChain: makeRouteChain(["Root", "L1"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     // Root wraps Err wraps NF wraps L1 wraps Page.
     expect(chain).toEqual(["Root", "FurinErrorBoundary", "FurinNotFoundBoundary", "L1", "Page"]);
@@ -144,10 +152,10 @@ describe("buildElement — boundary interleaving", () => {
       { depth: 1, error: ErrorFallback, path: "/pages/nested" },
     ];
     const route = makeRoute({
-      routeChain: makeRouteChain([null, "L1", "L2"]),
+      routeChain: makeRouteChain(["Root", "L1", "L2"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     // L1 renders; boundary (error only — no notFound) is inside L1, wrapping L2 and Page.
     expect(chain).toEqual(["Root", "L1", "FurinErrorBoundary", "L2", "Page"]);
@@ -161,10 +169,10 @@ describe("buildElement — boundary interleaving", () => {
       { depth: 2, notFound: NF, path: "/pages/a/b" },
     ];
     const route = makeRoute({
-      routeChain: makeRouteChain([null, "L1", "L2"]),
+      routeChain: makeRouteChain(["Root", "L1", "L2"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     expect(chain).toEqual([
       "Root",
@@ -180,10 +188,10 @@ describe("buildElement — boundary interleaving", () => {
     const NF: NotFoundComponent = () => <p>404</p>;
     const boundaries: SegmentBoundary[] = [{ depth: 0, notFound: NF, path: "/pages" }];
     const route = makeRoute({
-      routeChain: makeRouteChain([null, "L1"]),
+      routeChain: makeRouteChain(["Root", "L1"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     expect(chain).toEqual(["Root", "FurinNotFoundBoundary", "L1", "Page"]);
   });
@@ -197,10 +205,10 @@ describe("buildElement — boundary interleaving", () => {
     const NF: NotFoundComponent = () => <p>404</p>;
     const boundaries: SegmentBoundary[] = [{ depth: 0, error: E, notFound: NF, path: "/pages" }];
     const route = makeRoute({
-      routeChain: makeRouteChain([null]),
+      routeChain: makeRouteChain(["Root"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
     const chain = typeChain(element);
     const errIdx = chain.indexOf("FurinErrorBoundary");
     const nfIdx = chain.indexOf("FurinNotFoundBoundary");
@@ -214,10 +222,10 @@ describe("buildElement — boundary interleaving", () => {
     const NF: NotFoundComponent = () => <p>404</p>;
     const boundaries: SegmentBoundary[] = [{ depth: 0, error: E, notFound: NF, path: "/pages" }];
     const route = makeRoute({
-      routeChain: makeRouteChain([null]),
+      routeChain: makeRouteChain(["Root"]),
       segmentBoundaries: boundaries,
     });
-    const element = buildElement(route, {}, makeRootLayout("Root"));
+    const element = routeTree(route);
 
     // Walk to the FurinErrorBoundary and inspect its props.
     let node: ReactNode = element;

@@ -8,9 +8,9 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createElement, createContext as mainCreateContext, useState as mainUseState } from "react";
 import { renderToString } from "react-dom/server";
+import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import { registerDevPagePlugin } from "../../../src/server/dev-page-plugin.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
-import { buildElement } from "../../../src/server/render/element.tsx";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { requireTmpPath, withTmpFiles, withTmpPage } from "../../support/tmp-files";
 
@@ -35,18 +35,15 @@ describe("furin-dev-page React singleton", () => {
         const first = await import(`${pagePath}?furin-server&t=${timestamp}`);
         const second = await import(`${pagePath}?furin-server&t=${timestamp + 1}`);
         const makeElement = (component: typeof first.default, boardId: string, title: string) =>
-          buildElement(
-            {
-              mode: "ssr",
-              page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component },
-              path: pagePath,
-              pattern: "/hmr-board/:boardId",
-              routeChain: [],
-              segmentBoundaries: [],
-            },
-            { params: { boardId }, title },
-            { __type: "FURIN_ROUTE" }
-          );
+          resolveRouteElement({
+            boundaries: [],
+            boundaryOptions: undefined,
+            chain: [],
+            data: { params: { boardId }, title },
+            page: { component, pattern: "/hmr-board/:boardId" },
+            reset: () => undefined,
+            rootBoundary: undefined,
+          });
         const firstTree = makeElement(first.default, "a", "First");
         const secondTree = makeElement(second.default, "b", "Second");
 
@@ -191,14 +188,15 @@ describe("furin-dev-page React singleton", () => {
         const layout = adaptDefinedLayout(routeMod.route, root);
         const page = adaptDefinedPage(pageMod.route, layout);
 
-        const element = buildElement(
-          {
-            page,
-            routeChain: [root, layout, page._route],
-          } as Parameters<typeof buildElement>[0],
-          {},
-          root
-        );
+        const element = resolveRouteElement({
+          boundaries: [],
+          boundaryOptions: undefined,
+          chain: [root, layout, page._route],
+          data: {},
+          page: { component: page.component, pattern: "/" },
+          reset: () => undefined,
+          rootBoundary: undefined,
+        });
 
         expect(() =>
           renderToString(

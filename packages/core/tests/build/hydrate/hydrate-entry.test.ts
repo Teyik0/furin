@@ -42,8 +42,8 @@ function hydratePathname(code: string, pathname: string, basePath: string | null
 
 // Biome's useTopLevelRegex: hoist Slice 10 regexes so repeated test runs
 // don't reconstruct them inside the callback.
-const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*loaderData\.__furinError\?\.digest/;
-const LOADER_DIGEST_CHAIN_RE = /loaderData\.__furinError\?\.digest/;
+const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*initialError\?\.digest/;
+const LOADER_DIGEST_CHAIN_RE = /findRouteFailure\(loaderData\)/;
 const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 
 // ── B12: no basePath — generated code is unchanged ───────────────────────────
@@ -440,7 +440,7 @@ describe("generateHydrateEntry — boundary chain emission", () => {
 
 // ── Slice 10 — Digest rehydration ─────────────────────────────────────────────
 //
-// The server embeds `__FURIN_DATA__.__furinError.digest` in the initial HTML
+// The server embeds the failed route match (with its digest) in the initial HTML
 // whenever the loader or shell-render threw. The hydrate entry must forward
 // that id onto RouterProvider as `initialDigest`, which in turn passes it to
 // the root FurinErrorBoundary. That way, any client-side error that bubbles
@@ -449,7 +449,7 @@ describe("generateHydrateEntry — boundary chain emission", () => {
 // server log entry.
 
 describe("generateHydrateEntry — digest rehydration (Slice 10)", () => {
-  test("reads __furinError.digest off the parsed loader data", () => {
+  test("reads the failed route match off the parsed loader data", () => {
     const code = generateHydrateEntry(ROUTES, ROOT, "", false);
     // The generated code must *extract* the digest from loaderData before
     // passing it to RouterProvider. We tolerate minor formatting (optional

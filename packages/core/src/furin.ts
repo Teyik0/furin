@@ -1535,7 +1535,7 @@ export { HeadContent, Scripts } from "./client/document.tsx";
 export type { InvalidationInput, InvalidationRule } from "./server/auto-invalidate/index.ts";
 export { furinInvalidate, revalidateTag } from "./server/auto-invalidate/index.ts";
 export { revalidatePath, setCachePurger } from "./server/cache/invalidation.ts";
-export { buildElement, buildErrorElement, renderRootNotFound } from "./server/render/index.ts";
+export { buildErrorElement, renderRootNotFound } from "./server/render/index.ts";
 export {
   type FurinSyncOption,
   type FurinSyncOptions,

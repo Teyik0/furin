@@ -287,7 +287,8 @@ describe("runLoaders — DeferredData", () => {
       return;
     }
     expect(result.syncData.stats).toBe(42);
-    expect(result.deferredPromises).toBeUndefined();
+    // The layout keeps its own promise in a separate match slot, never under `stats`.
+    expect(result.deferredPromises).not.toHaveProperty("stats");
   });
 
   test("key switching from layout-sync to page-deferred → page-deferred wins exclusively (stale sync is dropped)", async () => {

@@ -201,7 +201,7 @@ function hydrateEntry(
 import { createElement, type ReactNode } from "react";
 ${loggingImports}import { DocumentProvider, type DocumentState, type HotComponentRegistry, reconcileHotComponentRegistry, updateHotComponent } from "@teyik0/furin/client";
 import { RouterProvider } from "@teyik0/furin/link";
-import { fromCrossJSON, parseDeferredNdjson } from "@teyik0/furin/link";
+import { findRouteFailure, fromCrossJSON, parseDeferredNdjson } from "@teyik0/furin/link";
 import type { SerovalNode } from "seroval";
 import { route as __furin_root_route } from ${JSON.stringify(resolvedRootLayout)};
 
@@ -247,11 +247,12 @@ const _match = routes.find((r) => r.regex.test(pathname));
 
 // Parse the server-embedded loader payload up front. It carries:
 //   - normal loader props under arbitrary keys,
-//   - __furinError.digest when SSR caught an error,
-//   - __furinStatus: 404 when the server rendered the catch-all not-found
-//     (direct load to an unknown URL, emitted by renderRootNotFound) OR when
-//     a matched loader threw notFound(). The latter still has a _match; the
-//     former does not — so the two cases fork on _match below.
+//   - __furinMatches, one match per route segment. A failed match carries the
+//     error digest when SSR caught an error, or the not-found payload when the
+//     server rendered the catch-all not-found (direct load to an unknown URL,
+//     emitted by renderRootNotFound) OR a matched loader threw notFound(). The
+//     latter still has a _match; the former does not — so the two cases fork
+//     on _match below.
 const dataEl = document.getElementById("__FURIN_DATA__");
 const frameTemplate = document.getElementById("__FURIN_ROUTE_FRAMES__") as HTMLTemplateElement | null;
 let loaderData = dataEl ? JSON.parse(dataEl.textContent || "{}") : {};
@@ -369,6 +370,9 @@ if (__deferred && __deferred._chunks) {
     loaderData = { ...parsed.syncData, ...parsed.deferredPromises };
   }
   let app;
+  const failure = findRouteFailure(loaderData);
+  const initialError = failure?.status === "error" ? failure.error : undefined;
+  const initialNotFound = failure?.status === "notFound" ? failure.error : undefined;
   if (_match) {
     const _mod = await _match.load();
     const match = {
@@ -378,34 +382,30 @@ if (__deferred && __deferred._chunks) {
       segmentBoundaries: _mod.segmentBoundaries ?? _match.segmentBoundaries,
     };
 
-    const isNotFound = loaderData.__furinStatus === 404;
-
     app = createElement(RouterProvider, {
       routes,
       root,
       initialMatch: match,
       initialData: { ...loaderData, ...deferredData },
-      initialDigest: loaderData.__furinError?.digest,
-      initialError: loaderData.__furinError,
-      initialNotFound: isNotFound ? (loaderData.__furinNotFound ?? loaderData) : undefined,${routerProviderDefaults}
+      initialDigest: initialError?.digest,
+      initialError,
+      initialNotFound,${routerProviderDefaults}
     } as any);
-  } else if (loaderData.__furinStatus === 404) {
+  } else if (initialNotFound) {
     // Direct load to an unknown URL. The server sent the root not-found UI
     // already rendered into the DOM. Mount RouterProvider with a null match
     // so the provider boots into its not-found branch, hydrating that exact
     // tree INSIDE a live RouterContext. Without this, Links in the 404 UI
     // (e.g. the default screen's "Go Home" button) hit the useRouter()
     // fallback that does a full window.location assignment — a jarring reload.
-    // Strip the server-only signal keys before handing data to components.
-    const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = loaderData;
     app = createElement(RouterProvider, {
       routes,
       root,
       initialMatch: null,
-      initialData: cleanData,
-      initialDigest: loaderData.__furinError?.digest,
-      initialError: loaderData.__furinError,
-      initialNotFound: loaderData.__furinNotFound ?? {},${routerProviderDefaults}
+      initialData: loaderData,
+      initialDigest: undefined,
+      initialError: undefined,
+      initialNotFound,${routerProviderDefaults}
     } as any);
   } else {
     // A removed active route has no match in the new development manifest.
