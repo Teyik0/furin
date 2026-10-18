@@ -46,6 +46,20 @@ describe("create-furin CLI", () => {
     30_000
   );
 
+  it("reports the Furin version from the workspace core package", async () => {
+    const result = Bun.spawnSync(["bun", entrypoint, "--version"], {
+      cwd: appRoot,
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    const core: { version: string } = await Bun.file(
+      resolve(appRoot, "../../packages/core/package.json")
+    ).json();
+
+    expect(result.exitCode).toBe(0);
+    expect(decoder.decode(result.stdout).trim()).toBe(core.version);
+  });
+
   it("formats parseArgs failures through the CLI error handler", () => {
     const result = Bun.spawnSync(["bun", entrypoint, "--unknown-flag"], {
       cwd: appRoot,

@@ -19,14 +19,8 @@ try {
   }
 
   if (args.version) {
-    const { getPackageCatalog } = await import("./package-catalog.ts");
-    const catalog = getPackageCatalog();
-    const pkg = catalog["@teyik0/furin"];
-    if (pkg === undefined) {
-      cancel("package not found in catalog");
-      process.exit(1);
-    }
-    console.log(pkg);
+    const { BUNDLED_FURIN_VERSION } = await import("./furin-version.ts");
+    console.log(BUNDLED_FURIN_VERSION);
     process.exit(0);
   }
 

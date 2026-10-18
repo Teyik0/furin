@@ -155,11 +155,12 @@ Edit `src/generated/package-catalog.json` — templates automatically pick up ne
 
 ```json
 {
-  "@teyik0/furin": "0.1.0-alpha.4",
   "elysia": "2.0.0-beta.32",
   "react": "^19.2.4"
 }
 ```
+
+`@teyik0/furin` is resolved from npm at scaffold time. When the registry is unreachable, the scaffolder falls back to the version in `packages/core/package.json`, which `bun build` inlines into `dist/`.
 
 ### Adding a template
 
