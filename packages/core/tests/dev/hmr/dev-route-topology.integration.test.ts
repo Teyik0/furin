@@ -430,46 +430,31 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     expect(removed, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
   }, 30_000);
 
-  test("hot-editing a legacy root layout applies the document layout autofix", async () => {
-    const rootPath = join(app.path, "src/pages/root.tsx");
-    writeAppFile(
-      app.path,
-      "src/pages/root.tsx",
-      [
-        'import { defineRootRoute } from "@teyik0/furin";',
-        "",
-        "export const route = defineRootRoute()",
-        '  .config({ mode: "ssr" })',
-        "  .layout(({ children }) => children);",
-      ].join("\n")
-    );
+  test("hot-adding an empty page writes a starter route and serves it", async () => {
+    const starterPath = join(app.path, "src/pages/starter.tsx");
+    writeAppFile(app.path, "src/pages/starter.tsx", "");
+    try {
+      const scaffolded = await pollUntil(
+        async () => readFileSync(starterPath, "utf8").length > 0,
+        40,
+        250
+      );
+      expect(scaffolded, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+      expect(readFileSync(starterPath, "utf8")).toBe(`import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
 
-    const fixed = await pollUntil(
-      async () =>
-        readFileSync(rootPath, "utf8").includes("<HeadContent />") &&
-        readFileSync(rootPath, "utf8").includes("<Scripts />"),
-      40,
-      250
-    );
-
-    expect(fixed).toBe(true);
-    let lastDocument = "";
-    const served = await pollUntil(
-      async () => {
-        const response = await fetch(`http://localhost:${port}/`);
-        const html = await response.text();
-        lastDocument = `${response.status}: ${html}`;
-        return (
-          response.status === 200 &&
-          html.startsWith("<!DOCTYPE html><html") &&
-          html.includes('data-furin-head=""') &&
-          html.includes('data-furin-scripts=""')
-        );
-      },
-      40,
-      250
-    );
-    expect(served, `${lastDocument}\n${server.getStdout()}\n${server.getStderr()}`).toBe(true);
-    expect(server.getStderr()).not.toContain("ENOENT");
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => null);
+`);
+      const served = await pollUntil(
+        async () => (await fetch(`http://localhost:${port}/starter`)).status === 200,
+        40,
+        250
+      );
+      expect(served, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
+    } finally {
+      removeAppPath(app.path, "src/pages/starter.tsx");
+    }
   }, 20_000);
 });

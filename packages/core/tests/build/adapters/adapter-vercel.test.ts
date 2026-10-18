@@ -588,7 +588,7 @@ export const route = defineRoute()
     expect(serverInputs.some((path) => path.endsWith("/src/build/hydrate.ts"))).toBe(true);
     expect(serverInputs.some((path) => path.endsWith("/plugin/transform-client.ts"))).toBe(false);
     expect(
-      serverInputs.some((path) => path.endsWith("/plugin/route-config-autofix.ts"))
+      serverInputs.some((path) => path.endsWith("/plugin/route-config.ts"))
     ).toBe(false);
     expect(
       serverInputs.some((path) => path.endsWith("/server/dev-page-plugin.ts"))

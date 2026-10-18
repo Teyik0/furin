@@ -5,11 +5,11 @@ const DEV_PAGE_PLUGIN_IMPORT = /(?:^|[/\\])server[/\\]dev-page-plugin(?:\.ts|\.j
 const DEV_RUNTIME_IMPORT =
   /(?:^|[/\\])server[/\\]dev[/\\](?:browser-events|diagnostics|graph|plugin)(?:\.ts|\.js)?$/;
 const DEV_BUILD_IMPORT =
-  /(?:^|[/\\])(?:build[/\\]hydrate|plugin[/\\](?:route-config-autofix|transform-client))(?:\.ts|\.js)?$/;
+  /(?:^|[/\\])(?:build[/\\]hydrate|plugin[/\\](?:route-config|transform-client))(?:\.ts|\.js)?$/;
 const DEV_RSC_BUILD_IMPORT = /(?:^|[/\\])rsc[/\\]build[/\\]discover(?:\.ts|\.js)?$/;
 const HMR_IMPORT = /(?:^|[/\\])server[/\\]router[/\\]hmr(?:\.ts|\.js)?$/;
 const PRODUCTION_BOUNDARY_IMPORT =
-  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|hmr|hydrate|route-config-autofix|transform-client|discover)(?:\.ts|\.js)?$/;
+  /(?:browser-events|instrumentation|dev-page-plugin|diagnostics|graph|plugin|hmr|hydrate|route-config|transform-client|discover)(?:\.ts|\.js)?$/;
 const PRODUCTION_STUB_NAMESPACE = "furin-production-runtime-stub";
 const FURIN_RUNTIME_ROOT = resolve(import.meta.dir, "..");
 
@@ -29,7 +29,9 @@ function devBuildExports(path: string): readonly string[] {
   if (path.includes("transform-client")) {
     return ["getHmrDataSignature"];
   }
-  return [path.includes("route-config-autofix") ? "fixRouteConfigLayout" : "writeDevFiles"];
+  return path.includes("route-config")
+    ? ["createRouteConfigReporter", "scaffoldEmptyRoutes"]
+    : ["writeDevFiles"];
 }
 
 export function productionInstrumentationPlugin(): Bun.BunPlugin {

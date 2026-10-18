@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { staticPlugin } from "@elysia/static";
@@ -1169,45 +1169,21 @@ async function createFurinRuntime({
     const { createDevelopmentBrowserEventSources } = await import("./server/dev/browser-events.ts");
     const { registerDevPagePlugin } = await import("./server/dev-page-plugin.ts");
     registerDevPagePlugin();
-    const {
-      registerDevRoutesPlugin,
-      registerDevRouteTopologyWatcher,
-      routeModuleSpecifier,
-      routeSourcePaths,
-    } = await import("./plugin/routes.ts");
+    const { registerDevRoutesPlugin, registerDevRouteTopologyWatcher, routeModuleSpecifier } =
+      await import("./plugin/routes.ts");
     const routeInstance = { pagesDir: resolvedPagesDir, prefix };
     registerDevRoutesPlugin([routeInstance]);
 
-    // TanStack-style config auto-fix: verify each route file's `layout`
-    // reference against the file-system tree and rewrite missing/misplaced
-    // ones. Idempotent and content-diff safe — the watcher resynchronizes the
-    // route-file signature after a rewrite, so the auto-fix cannot loop.
-    const { fixRouteConfigLayout } = await import("./plugin/route-config-autofix.ts");
-    const applyRouteConfigAutofix = (): boolean => {
-      let changed = false;
-      const sourcePaths = [
-        join(resolvedPagesDir, "root.tsx"),
-        ...routeSourcePaths(routeInstance),
-      ].filter((sourcePath) => existsSync(sourcePath));
-      for (const sourcePath of sourcePaths) {
-        let source: string;
-        try {
-          source = readFileSync(sourcePath, "utf8");
-        } catch (error) {
-          console.warn(
-            `[furin] Could not read ${sourcePath} for route config autofix: ${error instanceof Error ? error.message : String(error)}`
-          );
-          continue;
-        }
-        const fixed = fixRouteConfigLayout(source, sourcePath, resolvedPagesDir);
-        if (fixed !== null && fixed !== source) {
-          writeFileSync(sourcePath, fixed);
-          changed = true;
-        }
-      }
-      return changed;
-    };
-    applyRouteConfigAutofix();
+    // Furin never rewrites route sources: it only fills empty route files and
+    // reports config mistakes in the terminal and the error overlay.
+    const { createRouteConfigReporter, scaffoldEmptyRoutes } = await import(
+      "./plugin/route-config.ts"
+    );
+    const reportRouteConfig = createRouteConfigReporter(
+      resolvedPagesDir,
+      devDiagnosticStore(instance)
+    );
+    scaffoldEmptyRoutes(resolvedPagesDir);
 
     const graph = devGraph(instance);
     const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
@@ -1307,6 +1283,7 @@ async function createFurinRuntime({
     };
     await writeCurrentDevFiles(initialSnapshot, []);
     graph.commit(initialSnapshot);
+    reportRouteConfig();
     const hmrEntry = (await import(join(furinDir, "index.html"))).default;
     const refreshDevelopmentRoutes = (changedSources: readonly string[]): Promise<void> =>
       withInstance(instance, async () => {
@@ -1363,8 +1340,9 @@ async function createFurinRuntime({
           instance: routeInstance,
           owner: { app: owner.server ?? owner, prefix: instance.prefix },
           onRouteFilesTouched: async (sourcePaths) => {
-            applyRouteConfigAutofix();
+            scaffoldEmptyRoutes(resolvedPagesDir);
             await refreshDevelopmentRoutes(sourcePaths);
+            reportRouteConfig();
           },
           onSourceError: (error, sourcePath) => {
             const route = currentSnapshot().routes.find((candidate) =>
@@ -1384,8 +1362,9 @@ async function createFurinRuntime({
             // are served by swapping the dispatcher's route matcher. Hot-added
             // routes then resolve through the NOT_FOUND fallback below;
             // removed routes 404 through the renderer's miss path.
-            applyRouteConfigAutofix();
+            scaffoldEmptyRoutes(resolvedPagesDir);
             await refreshDevelopmentRoutes(sourcePaths);
+            reportRouteConfig();
           },
         });
       })

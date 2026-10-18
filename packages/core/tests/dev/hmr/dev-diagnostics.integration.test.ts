@@ -1,6 +1,6 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: integration polling waits for the dev server
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { DevDiagnosticEvent } from "../../../src/shared/dev-diagnostics.ts";
@@ -353,9 +353,10 @@ throw new Error("recovery exploded");`
       "src/pages/blog/[slug].tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
+        'import { t } from "elysia";',
         'import { route as rootRoute } from "../root";',
         "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        '  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })',
         "  .page(() => <main>Dynamic client page</main>);",
       ].join("\n")
     );
@@ -561,5 +562,44 @@ throw new Error("recovery exploded");`
     expect(state?.event.diagnostic.phase).toBe("transform");
     expect(state?.event.diagnostic.message).toContain("valid Furin page export");
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
+  }, 20_000);
+
+  test("a route config mistake is reported without rewriting the file, then cleared", async () => {
+    writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Config baseline"));
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`http://localhost:${port}/`);
+      if (response.ok && (await response.text()).includes("Config baseline")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+    const events = await openDiagnosticSocket(port);
+    const missingMode = healthyPage("Missing mode").replace(
+      '{ layout: rootRoute, mode: "ssr" }',
+      "{ layout: rootRoute }"
+    );
+    writeAppFile(app.path, "src/pages/index.tsx", missingMode);
+    // Skip the replayed state of earlier tests.
+    let errorEvent = await events.next("error");
+    while (errorEvent.type === "error" && !errorEvent.diagnostic.message.includes("config()")) {
+      errorEvent = await events.next("error");
+    }
+    if (errorEvent.type !== "error") {
+      throw new Error(`Expected an error diagnostic, received ${errorEvent.type}`);
+    }
+    expect(errorEvent.diagnostic.message).toContain(
+      'src/pages/index.tsx:5:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".'
+    );
+    expect(errorEvent.diagnostic.location?.line).toBe(5);
+    expect(readFileSync(join(app.path, "src/pages/index.tsx"), "utf8")).toBe(missingMode);
+    expect(server.getStderr()).toContain('config() must declare mode ("ssg", "ssr" or "isr")');
+
+    writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Config fixed"));
+    let readyEvent = await events.next("ready");
+    while (readyEvent.id < errorEvent.id) {
+      readyEvent = await events.next("ready");
+    }
+    expect(readyEvent.revision).toBeGreaterThan(errorEvent.revision);
+    events.close();
   }, 20_000);
 });
