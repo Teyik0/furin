@@ -216,9 +216,16 @@ test.each([
   expect(packageStep).not.toContain("bun link");
   expect(installStep).toContain("bun pm pkg set");
   expect(installStep).toContain('"dependencies.@teyik0/furin=$FURIN_HEAD_TARBALL"');
-  expect(installStep).toContain("dependencies.elysia=2.0.0-beta.32");
-  expect(installStep).toContain("dependencies.exact-mirror=1.2.6");
-  expect(installStep).toContain("dependencies.typebox=1.3.34");
+  // Kiana dependency versions come from the root catalog, never hardcoded.
+  for (const [name, catalogKey, variable] of [
+    ["elysia", "pkg.catalog.elysia", "elysia_version"],
+    ["evlog", "pkg.catalog.evlog", "evlog_version"],
+    ["exact-mirror", 'pkg.catalog["exact-mirror"]', "exact_mirror_version"],
+    ["typebox", "pkg.catalog.typebox", "typebox_version"],
+  ]) {
+    expect(installStep).toContain(catalogKey);
+    expect(installStep).toContain(`"dependencies.${name}=$${variable}"`);
+  }
   expect(installStep).toContain("bun install --lockfile-only");
   expect(installStep).toContain("bun install --frozen-lockfile");
   expect(installStep).not.toContain("bun install --force");
