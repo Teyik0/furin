@@ -4,6 +4,11 @@ import { type Cache, createRouteCache, pathWithoutSearch } from "./route-cache";
 export interface ISRCacheEntry {
   generatedAt: number;
   html: string;
+  /**
+   * Navigation payload rendered with `html`, served by `/_furin/data` so SPA
+   * navigations share the document's cache entry and revalidation.
+   */
+  ndjson: string;
   revalidate: number;
 }
 

@@ -93,7 +93,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   const isrRoute: ResolvedRoute = { ...matchedIsrRoute, mode: "isr" };
 
   let staleHtml = "<html>stale-redirect</html>";
-  isrCache.set("/isr-page/redirect", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/redirect", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   let revalidationAttempts = 0;
   let route = createISRRoute(isrRoute, {
     loader: () => {
@@ -115,7 +120,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
 
   __resetCacheState();
   staleHtml = "<html>stale-error</html>";
-  isrCache.set("/isr-page/error", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/error", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   revalidationAttempts = 0;
   route = createISRRoute(isrRoute, {
     loader: () => {
@@ -137,7 +147,12 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
 
   __resetCacheState();
   staleHtml = "<html>stale-not-found</html>";
-  isrCache.set("/isr-page/not-found", { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set("/isr-page/not-found", {
+    generatedAt: 0,
+    html: staleHtml,
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   route = createISRRoute(isrRoute, {
     loader: () => notFound({ message: "gone" }),
     pattern: "/isr-page/not-found",
@@ -164,7 +179,7 @@ async function runISRBackgroundRevalidationScenarios(): Promise<void> {
   const cacheKey = "/isr-page/race";
   const gate = createDeferred();
   let loaderReleased = false;
-  isrCache.set(cacheKey, { generatedAt: 0, html: staleHtml, revalidate: 60 });
+  isrCache.set(cacheKey, { generatedAt: 0, html: staleHtml, ndjson: "{}\n", revalidate: 60 });
   revalidationAttempts = 0;
   route = createISRRoute(isrRoute, {
     loader: async () => {
@@ -265,7 +280,12 @@ async function runNotFoundGenerationRace(source: "head" | "loader"): Promise<voi
       pattern: cacheKey,
     }
   );
-  isrCache.set(cacheKey, { generatedAt: 0, html: "<html>old</html>", revalidate: 60 });
+  isrCache.set(cacheKey, {
+    generatedAt: 0,
+    html: "<html>old</html>",
+    ndjson: "{}\n",
+    revalidate: 60,
+  });
   let freshHtml: string | undefined;
   try {
     await handleISR(oldRoute, createMockLoaderContext({ path: cacheKey }), root, "");

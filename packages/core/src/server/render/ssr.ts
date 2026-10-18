@@ -53,6 +53,7 @@ import {
   runSegmentPublicLoaders,
   serializeDeferredRejection,
 } from "./loaders.ts";
+import { withNavigationHead } from "./navigation-head.ts";
 import { renderToReadableStream } from "./react-stream.ts";
 import { serializeDeferredRouteFrame } from "./route-frame-transport.ts";
 import { generateIndexHtml, safeJson } from "./shell.ts";
@@ -558,7 +559,9 @@ async function renderBufferedResult(
     headers,
     html,
     ndjson: await serializeLoaderDataNdjson(
-      shellError ? renderPayload(prepared, shellError) : payload,
+      shellError
+        ? renderPayload(prepared, shellError)
+        : withNavigationHead(payload, prepared.headData),
       shellError ? undefined : deferredPromises
     ),
     ...(shellError ? {} : { queryTags: queryTagsFromData(syncData) }),

@@ -29,6 +29,9 @@ import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
 
+// Shared ISR entries store the document and its navigation data together.
+const STALE_PAYLOAD = JSON.stringify({ html: "<html>stale</html>", ndjson: "{}\n" });
+
 function createContext(path: string): Context {
   return {
     cookie: {},
@@ -251,7 +254,7 @@ test("background discovery cannot drop query tags from a shared ISR entry", asyn
     lease,
     entry: {
       cachedAt: 0,
-      payload: "<html>stale</html>",
+      payload: STALE_PAYLOAD,
       revalidate: 60,
     },
   });
@@ -262,7 +265,7 @@ test("background discovery cannot drop query tags from a shared ISR entry", asyn
     );
     await waitForPendingISRRevalidations();
     expect(reads).toBe(1);
-    expect((await cache.read(identity))?.payload).toBe("<html>stale</html>");
+    expect((await cache.read(identity))?.payload).toBe(STALE_PAYLOAD);
     await cache.invalidate({ kind: "tags", scope: "", tags: [queryTag(query)] });
     expect(await cache.read(identity)).toBeNull();
   } finally {
@@ -307,7 +310,7 @@ async function runStaleISRRefresh(): Promise<void> {
     throw new Error("Expected the stale-entry lease");
   }
   await cache.commit({
-    entry: { cachedAt: 0, payload: "<html>stale</html>", revalidate: 60 },
+    entry: { cachedAt: 0, payload: STALE_PAYLOAD, revalidate: 60 },
     identity,
     lease,
   });
@@ -319,7 +322,7 @@ async function runStaleISRRefresh(): Promise<void> {
     );
     expect(html).toBe("<html>stale</html>");
     await waitForPendingISRRevalidations();
-    expect((await cache.read(identity))?.payload).not.toBe("<html>stale</html>");
+    expect((await cache.read(identity))?.payload).not.toBe(STALE_PAYLOAD);
   } finally {
     resetPageCacheAdapter(instance);
     __resetCacheState();
@@ -364,7 +367,7 @@ async function runBackgroundInvalidationFailure(): Promise<void> {
     throw new Error("Expected the stale-entry lease");
   }
   await memory.commit({
-    entry: { cachedAt: 0, payload: "<html>stale</html>", revalidate: 60 },
+    entry: { cachedAt: 0, payload: STALE_PAYLOAD, revalidate: 60 },
     identity,
     lease,
   });

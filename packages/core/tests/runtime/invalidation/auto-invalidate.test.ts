@@ -68,9 +68,19 @@ describe("revalidateTag", () => {
   });
 
   test("invalidates every production cache path registered under a tag", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     setSSGCache("/", { cachedAt: Date.now(), html: "home", ndjson: "{}\n", status: 200 });
-    setISRCache("/untagged", { generatedAt: Date.now(), html: "other", revalidate: 60 });
+    setISRCache("/untagged", {
+      generatedAt: Date.now(),
+      html: "other",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
 
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
@@ -108,7 +118,12 @@ describe("revalidateTag", () => {
   });
 
   test("unregisters tag mappings when cached paths are evicted", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
     await revalidateTag("board");
@@ -126,11 +141,11 @@ describe("revalidateTag", () => {
     const b = registerInstance(createInstance("/b", "/apps/b"));
 
     withInstance(a, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", ndjson: "{}\n", revalidate: 60 });
       autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
     });
     withInstance(b, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "b:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "b:x", ndjson: "{}\n", revalidate: 60 });
     });
 
     const deleted = await revalidateTag("shared");
@@ -152,7 +167,12 @@ describe("revalidateTag", () => {
     });
 
     withInstance(admin, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "admin:x", revalidate: 60 });
+      setISRCache("/x", {
+        generatedAt: Date.now(),
+        html: "admin:x",
+        ndjson: "{}\n",
+        revalidate: 60,
+      });
       autoInvalidateRegistry.registerLoaderTags("/x", ["shared"]);
     });
 
@@ -174,7 +194,7 @@ describe("revalidateTag", () => {
     registerInstance(createInstance("/b", "/apps/b"));
 
     withInstance(a, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", revalidate: 60 });
+      setISRCache("/x", { generatedAt: Date.now(), html: "a:x", ndjson: "{}\n", revalidate: 60 });
       setDevISRLoaderCache("/apps/a/src/pages/root.tsx:/y", {
         dependencies: [],
         generatedAt: Date.now(),
@@ -226,7 +246,12 @@ describe("revalidatePath", () => {
     });
 
     withInstance(admin, () => {
-      setISRCache("/x", { generatedAt: Date.now(), html: "admin:x", revalidate: 60 });
+      setISRCache("/x", {
+        generatedAt: Date.now(),
+        html: "admin:x",
+        ndjson: "{}\n",
+        revalidate: 60,
+      });
     });
 
     const deleted = await revalidatePath("/x", "page");
@@ -241,7 +266,12 @@ describe("revalidatePath", () => {
 
 describe("furinInvalidate macro", () => {
   test("runs invalidation rules on successful mutation responses", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
     const app = new Elysia()
@@ -259,7 +289,12 @@ describe("furinInvalidate macro", () => {
   });
 
   test("does not invalidate failed mutation responses", async () => {
-    setISRCache("/board/123", { generatedAt: Date.now(), html: "board", revalidate: 60 });
+    setISRCache("/board/123", {
+      generatedAt: Date.now(),
+      html: "board",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
     autoInvalidateRegistry.registerLoaderTags("/board/123", ["board"]);
 
     const app = new Elysia()
@@ -309,7 +344,7 @@ describe("furinInvalidate macro", () => {
     // `.use(furinInvalidate())`. Both Elysia instances share the same plugin
     // name `furin-invalidate`. This test verifies the second plugin still
     // sees the macro applied to its DELETE route.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const boardPlugin = new Elysia()
@@ -336,7 +371,7 @@ describe("furinInvalidate macro", () => {
     // Reproduces the exact AsyncLocalStorage wrapping pattern used by
     // `wrapWithRequestScope` in furin.ts to confirm that `app.wrap` preserves
     // the request-scoped invalidation set across the macro afterHandle.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const inner = new Elysia()
@@ -367,7 +402,7 @@ describe("furinInvalidate macro", () => {
     // Mirrors the task-manager structure exactly: a nested plugin that calls
     // furinInvalidate() and is mounted under a prefix, with a DELETE that has
     // a dynamic param. This is the configuration that was reported as broken.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const boardPlugin = new Elysia()
@@ -393,7 +428,7 @@ describe("furinInvalidate macro", () => {
     // the home page caches under tag "boards"; deleting a board should bust
     // it and ship x-furin-revalidate: / on the DELETE response so the client
     // refreshes the home page.
-    setISRCache("/", { generatedAt: Date.now(), html: "home", revalidate: 10 });
+    setISRCache("/", { generatedAt: Date.now(), html: "home", ndjson: "{}\n", revalidate: 10 });
     autoInvalidateRegistry.registerLoaderTags("/", ["boards"]);
 
     const app = new Elysia()
@@ -410,7 +445,12 @@ describe("furinInvalidate macro", () => {
   });
 
   test("supports path-based invalidation rules", async () => {
-    setISRCache("/blog/post", { generatedAt: Date.now(), html: "post", revalidate: 60 });
+    setISRCache("/blog/post", {
+      generatedAt: Date.now(),
+      html: "post",
+      ndjson: "{}\n",
+      revalidate: 60,
+    });
 
     const app = new Elysia()
       .use(furinInvalidate())

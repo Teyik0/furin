@@ -34,13 +34,20 @@ import {
   resolvePath,
   streamToString,
 } from "./assemble.ts";
-import { hasMixedLoaderModes, runPublicLoaders, runSegmentPublicLoaders } from "./loaders.ts";
+import {
+  hasMixedLoaderModes,
+  type LoaderResult,
+  runPublicLoaders,
+  runSegmentPublicLoaders,
+} from "./loaders.ts";
+import { withNavigationHead } from "./navigation-head.ts";
 import {
   type PreparedRender,
   prepareRender,
   renderForPath,
   renderPayload,
   renderPreparedDocument,
+  serializeLoaderDataNdjson,
 } from "./ssr.ts";
 
 /**
@@ -60,36 +67,15 @@ function isrEtag(buildId: string | undefined, generatedAt: number): string | nul
 }
 
 /**
- * Serves a response from an existing ISR cache entry.
- * Handles stale-while-revalidate background refresh and ETag conditional requests.
+ * Serves a document from an existing ISR cache entry, honouring ETag
+ * conditional requests.
  */
-function serveISRCacheHit(
+function serveISRDocumentHit(
+  request: ISRRequest,
   cached: ISRCacheEntry,
-  ctx: Context,
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  cacheKey: string,
-  revalidate: number,
-  root: RootLayout,
-  buildId: string | undefined,
-  sharedCache: SharedPageCacheContext | undefined,
-  searchRoutes?: SearchRouteMetadata[]
+  isFresh: boolean
 ): string | undefined {
-  const isFresh = Date.now() - cached.generatedAt < revalidate * 1000;
-
-  if (!isFresh) {
-    revalidateInBackground(
-      route,
-      params,
-      cacheKey,
-      revalidate,
-      root,
-      ctx,
-      sharedCache,
-      searchRoutes
-    );
-  }
-
+  const { buildId, ctx, revalidate, route } = request;
   const etag = isrEtag(buildId, cached.generatedAt);
   if (etag && ctx.request.headers.get("if-none-match") === etag) {
     ctx.set.status = 304;
@@ -183,10 +169,32 @@ async function renderISRNon200(
   return html;
 }
 
-function toISRCacheEntry(entry: PageCacheEntry, revalidate: number): ISRCacheEntry {
+/** Shared page cache payload: the document and its navigation data, rendered together. */
+function serializeISRPayload(entry: ISRCacheEntry): string {
+  return JSON.stringify({ html: entry.html, ndjson: entry.ndjson });
+}
+
+function toISRCacheEntry(entry: PageCacheEntry, revalidate: number): ISRCacheEntry | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(entry.payload);
+  } catch {
+    return;
+  }
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("html" in value) ||
+    typeof value.html !== "string" ||
+    !("ndjson" in value) ||
+    typeof value.ndjson !== "string"
+  ) {
+    return;
+  }
   return {
     generatedAt: entry.cachedAt,
-    html: entry.payload,
+    html: value.html,
+    ndjson: value.ndjson,
     revalidate: entry.revalidate ?? revalidate,
   };
 }
@@ -272,12 +280,9 @@ async function coordinateConcurrentISRUntil(
   }
   try {
     const entry = await waitForPageCacheEntry(pageCache, identity, SHARED_ISR_WAIT_SLICE_MS);
-    if (entry !== null) {
-      return {
-        cached: toISRCacheEntry(entry, revalidate),
-        lease: null,
-        sharedAvailable: true,
-      };
+    const cached = entry === null ? undefined : toISRCacheEntry(entry, revalidate);
+    if (cached !== undefined) {
+      return { cached, lease: null, sharedAvailable: true };
     }
   } catch {
     getLogger().warn("ISR shared page cache wait failed; rendering fresh with no-store");
@@ -306,16 +311,16 @@ interface ISRCacheMissInput {
   sharedAvailable: boolean;
 }
 
-async function storeRenderedISR(
-  input: ISRCacheMissInput,
-  html: string,
-  generatedAt: number
-): Promise<boolean> {
+async function storeRenderedISR(input: ISRCacheMissInput, entry: ISRCacheEntry): Promise<boolean> {
   if (input.pageCache !== undefined && input.pageCacheLease !== null && input.sharedAvailable) {
     try {
       return (
         (await input.pageCache.commit({
-          entry: { cachedAt: generatedAt, payload: html, revalidate: input.revalidate },
+          entry: {
+            cachedAt: entry.generatedAt,
+            payload: serializeISRPayload(entry),
+            revalidate: input.revalidate,
+          },
           identity: input.pageCacheIdentity,
           lease: input.pageCacheLease,
         })) === "stored"
@@ -328,11 +333,7 @@ async function storeRenderedISR(
   if (input.cacheGeneration === undefined) {
     return false;
   }
-  return setISRCacheIfGenerationUnchanged(
-    input.cacheKey,
-    { generatedAt, html, revalidate: input.revalidate },
-    input.cacheGeneration
-  );
+  return setISRCacheIfGenerationUnchanged(input.cacheKey, entry, input.cacheGeneration);
 }
 
 async function releaseISRRenderLocks(input: ISRCacheMissInput): Promise<void> {
@@ -351,7 +352,23 @@ async function releaseISRRenderLocks(input: ISRCacheMissInput): Promise<void> {
   }
 }
 
-async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | string> {
+type ISRMissOutcome =
+  | { loaderResult: LoaderResult; response: Response; type: "redirect" }
+  | { loaderResult: LoaderResult; prepared: PreparedRender; renderStart: number; type: "uncached" }
+  | {
+      cacheStored: boolean;
+      entry: ISRCacheEntry;
+      headers: { [key: string]: string };
+      loaderResult: LoaderResult;
+      type: "rendered";
+    };
+
+/**
+ * Renders the document and its navigation data for a cache miss and stores
+ * both in one entry. Non-200 renders come back `uncached` so the caller can
+ * answer with an error document or the raw loader result.
+ */
+async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<ISRMissOutcome> {
   try {
     const renderStart = Date.now();
     const loaderResult = await (hasMixedLoaderModes(input.route)
@@ -367,18 +384,11 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
       input.searchRoutes
     );
     if (prepared instanceof Response) {
-      return prepared;
+      return { loaderResult, response: prepared, type: "redirect" };
     }
-    const { headers, syncData, status } = prepared;
+    const { headData, headers, syncData, status } = prepared;
     if (status !== 200) {
-      return renderISRNon200(
-        prepared,
-        input.route,
-        input.ctx,
-        input.root,
-        renderStart,
-        input.buildId
-      );
+      return { loaderResult, prepared, renderStart, type: "uncached" };
     }
 
     const { shellError, stream } = await renderPreparedDocument(
@@ -392,14 +402,7 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
       prepared.status = 500;
       prepared.errorDigest = shellError.digest;
       prepared.errorMessage = shellError.message;
-      return renderISRNon200(
-        prepared,
-        input.route,
-        input.ctx,
-        input.root,
-        renderStart,
-        input.buildId
-      );
+      return { loaderResult, prepared, renderStart, type: "uncached" };
     }
     await stream.allReady;
     const html = await streamToString(stream);
@@ -412,12 +415,18 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
         route: input.route.pattern,
       },
     });
+    const entry: ISRCacheEntry = {
+      generatedAt,
+      html,
+      ndjson: await serializeLoaderDataNdjson(withNavigationHead(syncData, headData), undefined),
+      revalidate: input.revalidate,
+    };
     const discoveredTags = queryTagsFromData(syncData);
     const identityTags = new Set(input.pageCacheIdentity.tags);
     const cacheStored =
       input.pageCache !== undefined && discoveredTags.some((tag) => !identityTags.has(tag))
         ? false
-        : await storeRenderedISR(input, html, generatedAt);
+        : await storeRenderedISR(input, entry);
     if (cacheStored && input.pageCache === undefined) {
       autoInvalidateRegistry.registerLoaderTags(
         input.cacheKey,
@@ -425,31 +434,135 @@ async function renderISRCacheMiss(input: ISRCacheMissInput): Promise<Response | 
         "render:isr-html"
       );
     }
-
-    for (const [key, value] of Object.entries(headers)) {
-      input.ctx.set.headers[key] = value;
-    }
-    input.ctx.set.headers["content-type"] = "text/html; charset=utf-8";
-    input.ctx.set.headers["cache-control"] =
-      input.externalPrerender || cacheStored ? isrCacheControl(true, input.revalidate) : "no-store";
-    const etag = isrEtag(input.buildId, generatedAt);
-    if (etag) {
-      input.ctx.set.headers.etag = etag;
-    }
-    return html;
+    return { cacheStored, entry, headers, loaderResult, type: "rendered" };
   } finally {
     await releaseISRRenderLocks(input);
   }
 }
 
-export async function handleISR(
+interface ISRRequest {
+  buildId: string | undefined;
+  ctx: Context;
+  externalPrerender: boolean;
+  revalidate: number;
+  root: RootLayout;
+  route: ResolvedRoute;
+  searchRoutes: SearchRouteMetadata[] | undefined;
+}
+
+/** How one ISR request turns a cache hit or a miss render into its response. */
+interface ISRResponder<T> {
+  hit: (cached: ISRCacheEntry, isFresh: boolean) => T;
+  miss: (outcome: ISRMissOutcome) => T | Promise<T>;
+}
+
+function createISRRequest(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId: string | undefined,
+  searchRoutes: SearchRouteMetadata[] | undefined
+): ISRRequest {
+  return {
+    buildId,
+    ctx,
+    externalPrerender: isExternalPrerenderRequest(ctx.request),
+    revalidate: resolveDocumentRevalidate(route) ?? 60,
+    root,
+    route,
+    searchRoutes,
+  };
+}
+
+function serveISRDocumentMiss(
+  request: ISRRequest,
+  outcome: ISRMissOutcome
+): Response | string | Promise<string> {
+  const { buildId, ctx, externalPrerender, revalidate, root, route } = request;
+  if (outcome.type === "redirect") {
+    return outcome.response;
+  }
+  if (outcome.type === "uncached") {
+    return renderISRNon200(outcome.prepared, route, ctx, root, outcome.renderStart, buildId);
+  }
+  for (const [key, value] of Object.entries(outcome.headers)) {
+    ctx.set.headers[key] = value;
+  }
+  ctx.set.headers["content-type"] = "text/html; charset=utf-8";
+  ctx.set.headers["cache-control"] =
+    externalPrerender || outcome.cacheStored ? isrCacheControl(true, revalidate) : "no-store";
+  const etag = isrEtag(buildId, outcome.entry.generatedAt);
+  if (etag) {
+    ctx.set.headers.etag = etag;
+  }
+  return outcome.entry.html;
+}
+
+export function handleISR(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
   buildId: string | undefined,
   searchRoutes?: SearchRouteMetadata[]
-) {
-  const revalidate = resolveDocumentRevalidate(route) ?? 60;
+): Promise<Response | string | undefined> {
+  const request = createISRRequest(route, ctx, root, buildId, searchRoutes);
+  return resolveISR<Response | string | undefined>(request, {
+    hit: (cached, isFresh) => serveISRDocumentHit(request, cached, isFresh),
+    miss: (outcome) => serveISRDocumentMiss(request, outcome),
+  });
+}
+
+/**
+ * Navigation data for an ISR or SSG route, read from (or rendered into) the
+ * same cache entry as the document. `cacheControl` is undefined when the
+ * payload must not be shared; non-200 renders fall back to the loader result.
+ */
+export type CachedRouteData =
+  | {
+      cacheControl: string | undefined;
+      headers: { [key: string]: string };
+      ndjson: string;
+      type: "payload";
+    }
+  | { result: LoaderResult; type: "loader" };
+
+export function handleISRData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  buildId: string | undefined,
+  searchRoutes: SearchRouteMetadata[] | undefined
+): Promise<CachedRouteData> {
+  const request = createISRRequest(route, ctx, root, buildId, searchRoutes);
+  return resolveISR<CachedRouteData>(request, {
+    hit: (cached, isFresh) => {
+      getLogger().set({
+        furin: { cache: isFresh ? "hit" : "stale", render: "isr", route: route.pattern },
+      });
+      return {
+        cacheControl: isrCacheControl(isFresh, request.revalidate),
+        headers: {},
+        ndjson: cached.ndjson,
+        type: "payload",
+      };
+    },
+    miss: (outcome) =>
+      outcome.type === "rendered"
+        ? {
+            cacheControl:
+              request.externalPrerender || outcome.cacheStored
+                ? isrCacheControl(true, request.revalidate)
+                : undefined,
+            headers: outcome.headers,
+            ndjson: outcome.entry.ndjson,
+            type: "payload",
+          }
+        : { result: outcome.loaderResult, type: "loader" },
+  });
+}
+
+async function resolveISR<T>(request: ISRRequest, responder: ISRResponder<T>): Promise<T> {
+  const { buildId, ctx, externalPrerender, revalidate, root, route, searchRoutes } = request;
   const params = ctx.params ?? {};
   const resolvedPath = resolvePath(route.pattern, params);
   // Key on the validated query only: the schema strips undeclared params, and
@@ -460,7 +573,6 @@ export async function handleISR(
     ctx.request.url,
     new Set(hasQuerySchema ? Object.keys(ctx.query ?? {}) : [])
   );
-  const externalPrerender = isExternalPrerenderRequest(ctx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   const pageCacheIdentity: PageCacheIdentity = {
     buildId: buildId ?? "",
@@ -472,6 +584,22 @@ export async function handleISR(
       ...new Set([...(route.tags ?? []), ...getAutoInvalidateRegistry().tagsForPath(cacheKey)]),
     ],
   };
+  const serveHit = (entry: ISRCacheEntry): T => {
+    const isFresh = Date.now() - entry.generatedAt < revalidate * 1000;
+    if (!isFresh) {
+      revalidateInBackground(
+        route,
+        params,
+        cacheKey,
+        revalidate,
+        root,
+        ctx,
+        pageCache === undefined ? undefined : { adapter: pageCache, identity: pageCacheIdentity },
+        searchRoutes
+      );
+    }
+    return responder.hit(entry, isFresh);
+  };
 
   const lookup = await lookupISRCache(
     pageCache,
@@ -482,18 +610,7 @@ export async function handleISR(
   );
   const { cached, sharedAvailable: initialSharedAvailable } = lookup;
   if (cached !== undefined) {
-    return serveISRCacheHit(
-      cached,
-      ctx,
-      route,
-      params,
-      cacheKey,
-      revalidate,
-      root,
-      buildId,
-      pageCache === undefined ? undefined : { adapter: pageCache, identity: pageCacheIdentity },
-      searchRoutes
-    );
+    return serveHit(cached);
   }
 
   let pageCacheLease: PageCacheLease | null = null;
@@ -512,23 +629,12 @@ export async function handleISR(
     sharedAvailable = concurrentAvailable;
     pageCacheLease = concurrentLease;
     if (concurrentCached !== undefined) {
-      return serveISRCacheHit(
-        concurrentCached,
-        ctx,
-        route,
-        params,
-        cacheKey,
-        revalidate,
-        root,
-        buildId,
-        { adapter: pageCache, identity: pageCacheIdentity },
-        searchRoutes
-      );
+      return serveHit(concurrentCached);
     }
   }
   const cacheGeneration =
     externalPrerender || pageCache !== undefined ? undefined : captureISRCacheGeneration(cacheKey);
-  return renderISRCacheMiss({
+  const outcome = await renderISRCacheMiss({
     buildId,
     cacheGeneration,
     cacheKey,
@@ -543,6 +649,7 @@ export async function handleISR(
     searchRoutes,
     sharedAvailable,
   });
+  return responder.miss(outcome);
 }
 
 /**
@@ -747,6 +854,12 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
       logRevalidationSkipped(input.route, "non_200_render", result.status);
       return;
     }
+    const entry: ISRCacheEntry = {
+      generatedAt: Date.now(),
+      html: result.html,
+      ndjson: result.ndjson,
+      revalidate: input.revalidate,
+    };
     if (input.sharedCache !== undefined && lease !== null) {
       const { identity } = input.sharedCache;
       const identityTags = new Set(identity.tags);
@@ -754,16 +867,16 @@ async function performBackgroundRevalidation(input: BackgroundRevalidationInput)
         return;
       }
       await input.sharedCache.adapter.commit({
-        entry: { cachedAt: Date.now(), payload: result.html, revalidate: input.revalidate },
+        entry: {
+          cachedAt: entry.generatedAt,
+          payload: serializeISRPayload(entry),
+          revalidate: input.revalidate,
+        },
         identity: input.sharedCache.identity,
         lease,
       });
     } else if (input.cacheGeneration !== undefined) {
-      const stored = setISRCacheIfGenerationUnchanged(
-        input.cacheKey,
-        { generatedAt: Date.now(), html: result.html, revalidate: input.revalidate },
-        input.cacheGeneration
-      );
+      const stored = setISRCacheIfGenerationUnchanged(input.cacheKey, entry, input.cacheGeneration);
       if (stored) {
         autoInvalidateRegistry.registerLoaderTags(
           input.cacheKey,

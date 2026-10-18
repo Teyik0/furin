@@ -5,7 +5,7 @@ import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import type { FurinSchema } from "../../shared/elysia-contract.ts";
 import { physicalPath } from "../../shared/prefix.ts";
-import { containsRscSource } from "../../shared/route-frame.ts";
+import { containsRscSource, isRouteFrameLine } from "../../shared/route-frame.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
 import {
@@ -15,7 +15,7 @@ import {
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
 import { currentInstance } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
-import { handleISR } from "../render/isr.ts";
+import { type CachedRouteData, handleISR, handleISRData } from "../render/isr.ts";
 import {
   hasMixedLoaderModes,
   hasRequestLoader,
@@ -25,9 +25,9 @@ import {
   runPublicLoaders,
   withRequestLoaderData,
 } from "../render/loaders.ts";
+import { withNavigationHead } from "../render/navigation-head.ts";
 import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
-import { extractTitle } from "../render/shell.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
@@ -41,8 +41,6 @@ import {
   parseRouteQuery,
 } from "./schemas.ts";
 import type { ResolvedRoute, ResolvedRoutesSource, RootLayout } from "./types.ts";
-
-const MAX_NAVIGATION_HEAD_BYTES = 64 * 1024;
 
 type DataResolvedRoutesSource =
   | ResolvedRoutesSource
@@ -250,6 +248,89 @@ async function createLoaderDataResponse(
   return applyNavigationDataCache(response, result, route, requestUrl);
 }
 
+/**
+ * SSG navigation data from the same cache entry as the document. A loader
+ * failure falls back to the live loader path so the client receives the
+ * regular error payload.
+ */
+async function readSSGRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<CachedRouteData | undefined> {
+  let runtimeResult: Awaited<ReturnType<typeof prerenderRuntimeSSG>>;
+  try {
+    runtimeResult = await prerenderRuntimeSSG(
+      route,
+      ctx.params ?? {},
+      root,
+      new URL(ctx.request.url).origin,
+      currentInstance().buildId,
+      searchRoutes
+    );
+  } catch {
+    return;
+  }
+  const { cacheStored, entry } = runtimeResult;
+  if (entry instanceof Response) {
+    return { result: { response: entry, type: "redirect" }, type: "loader" };
+  }
+  if (entry.status !== 200) {
+    return;
+  }
+  return {
+    cacheControl: cacheStored ? navigationDataCacheControl(route) : undefined,
+    headers: {},
+    ndjson: entry.ndjson,
+    type: "payload",
+  };
+}
+
+/**
+ * Reads navigation data through the render cache that backs the document, so
+ * SPA navigations to ISR/SSG pages reuse (or populate) the same entry instead
+ * of re-running public loaders. Mirrors `renderResolvedRoute`: SSR documents,
+ * requestLoader (PPR) routes and dev mode never take this path, so private
+ * data is never served from a shared entry.
+ */
+function readCachedRouteData(
+  route: ResolvedRoute,
+  ctx: Context,
+  root: RootLayout,
+  searchRoutes: SearchRouteMetadata[]
+): Promise<CachedRouteData | undefined> | undefined {
+  if (IS_DEV || hasRequestLoader(route) || isExternalPrerenderRequest(ctx.request)) {
+    return;
+  }
+  const documentMode = resolveDocumentMode(route);
+  if (documentMode === "isr") {
+    return handleISRData(route, ctx, root, currentInstance().buildId, searchRoutes);
+  }
+  if (documentMode === "ssg") {
+    return readSSGRouteData(route, ctx, root, searchRoutes);
+  }
+}
+
+function cachedRouteDataResponse(
+  payload: Extract<CachedRouteData, { type: "payload" }>,
+  requestUrl: string
+): Response {
+  const firstLine = payload.ndjson.slice(0, payload.ndjson.indexOf("\n"));
+  const headers = new Headers(payload.headers);
+  headers.set(
+    "content-type",
+    isRouteFrameLine(firstLine) ? "application/x-furin-route" : "application/x-ndjson"
+  );
+  if (payload.cacheControl === undefined) {
+    headers.set("cache-control", "private, no-store");
+  } else {
+    headers.set("cache-control", payload.cacheControl);
+    headers.set("cache-tag", new URL(requestUrl).pathname);
+  }
+  return new Response(payload.ndjson, { headers });
+}
+
 /** Serialise navigation data after Elysia has run the matched page's hooks. */
 export async function renderRouteData(
   route: ResolvedRoute,
@@ -261,13 +342,14 @@ export async function renderRouteData(
   const logicalContext = Object.create(ctx, {
     path: { enumerable: true, value: new URL(logicalHref, ctx.request.url).pathname },
   }) as Context;
-  const result = await runDataEndpointLoaders(route, logicalContext, root, searchRoutes);
-  return createLoaderDataResponse(
-    result,
-    route,
-    new URL(logicalHref, ctx.request.url).href,
-    logicalContext
-  );
+  const requestUrl = new URL(logicalHref, ctx.request.url).href;
+  const cached = await readCachedRouteData(route, logicalContext, root, searchRoutes);
+  if (cached?.type === "payload") {
+    return cachedRouteDataResponse(cached, requestUrl);
+  }
+  const result =
+    cached?.result ?? (await runDataEndpointLoaders(route, logicalContext, root, searchRoutes));
+  return createLoaderDataResponse(result, route, requestUrl, logicalContext);
 }
 
 async function createRouteDataErrorResponse(
@@ -638,17 +720,5 @@ function withResolvedHead(
   } catch {
     return syncData;
   }
-  const title = extractTitle(headOptions.meta);
-  let includeHead = false;
-  try {
-    includeHead =
-      new TextEncoder().encode(JSON.stringify(headOptions)).byteLength <= MAX_NAVIGATION_HEAD_BYTES;
-  } catch {
-    // Invalid or cyclic metadata must not break an otherwise valid navigation.
-  }
-  return {
-    ...syncData,
-    ...(includeHead ? { __furinHead: headOptions } : {}),
-    ...(title === undefined ? {} : { __furinTitle: title }),
-  };
+  return withNavigationHead(syncData, headOptions);
 }
