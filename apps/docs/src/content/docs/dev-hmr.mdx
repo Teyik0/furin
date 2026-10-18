@@ -221,9 +221,11 @@ This makes hot addition and removal work for pages, `error` files, and
 Elysia not-found fallback; a removed active page resolves to the current
 not-found boundary.
 
-Route config auto-fix runs before each snapshot refresh. Because generated files
-are content-diffed and watcher signatures are resynchronized after a rewrite,
-the fix cannot create its own update loop.
+Furin never rewrites a route file that has content. Before each snapshot
+refresh, an empty or whitespace-only route file receives a starter route. After
+the refresh, the [route config checks](/docs/routing#route-config-checks) run;
+the first issue is printed in the terminal and shown in the error overlay, and
+it clears on the save that fixes it.
 
 ## Loader and render-mode coherence
 

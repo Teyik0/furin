@@ -45,9 +45,30 @@ defineRoute()
 
 An SSR page cannot declare its own `requestLoader()`; use its `loader()` for request data. Shared layouts may still use `requestLoader()` so their private fields reach nested pages.
 
+### Route config checks
+
+Furin never rewrites a route file that has content. When you create an empty route file, or one with only whitespace, the development server writes a starter route into it, with the nearest layout and the params of its dynamic segments.
+
+The development server and `furin build` check every route file for mistakes that TypeScript can't see because they depend on where the file sits in `pages`:
+
+- `root.tsx` uses `defineRootRoute()`, and other route files use `defineRoute()`.
+- `defineRoute()` is followed by `config()` with a `mode`.
+- `config({ layout })` references the nearest layout: the closest `_route.tsx` in a parent directory, or `root.tsx`. A layout imported through a path alias isn't checked.
+- Every dynamic segment of a page is declared by its `params` schema or by a layout above it.
+
+Each issue names the file, line and column and gives the code to write:
+
+```text
+[furin] src/pages/blog/index.tsx:5:21: config({ layout }) must reference the nearest layout, blog/_route.tsx. Import it and pass it:
+  import { route as blogRoute } from "./_route";
+  .config({ layout: blogRoute, ... })
+```
+
+In development, the first issue is printed in the terminal and shown in the error overlay until you fix it. `furin build` and `furin typegen` fail and list every issue. Files that don't parse are skipped, because the transform already reports syntax errors.
+
 ## Dynamic Parameters
 
-Filename brackets declare a parameter. Add a TypeBox schema to validate it at runtime and infer it everywhere else:
+Filename brackets declare a parameter. Declare it in a TypeBox `params` schema, on the page or on a layout above it, to validate it at runtime and infer it everywhere else. The [route config checks](#route-config-checks) report a segment that no schema declares:
 
 ```tsx
 // src/pages/blog/[slug].tsx
