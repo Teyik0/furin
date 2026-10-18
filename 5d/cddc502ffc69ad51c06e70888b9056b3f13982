@@ -1,0 +1,21 @@
+packages/core/tests/client/navigation/production-build.test.ts
+  s_3827fec5c7f2ed::t_f78c8c5446fa94 1-30
+packages/core/src/client/router/provider.tsx
+  s_3827fec5c7f2ed::t_7f3b65fa4157c2 385-389,392-395
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5dcddc502ffc69ad51c06e70888b9056b3f13982",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
