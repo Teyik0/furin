@@ -1,0 +1,29 @@
+packages/core/tests/build/hydrate/hydrate-entry.test.ts
+  s_3827fec5c7f2ed::t_2c068ac0a3cff2 574
+  s_3827fec5c7f2ed::t_36b7162d460e5c 11,13,16
+  s_3827fec5c7f2ed::t_3db69e731f9d10 555-573,575-580
+packages/core/src/build/client.ts
+  s_3827fec5c7f2ed::t_4dfbb6370d3441 11,88
+packages/core/src/build/hydrate.ts
+  s_3827fec5c7f2ed::t_885354c06e7b8a 110,112
+  s_3827fec5c7f2ed::t_f9097cab216914 50-76
+  s_3827fec5c7f2ed::t_7cfaad37aeb590 196-197
+  s_3827fec5c7f2ed::t_0df0bef7c55037 148-150
+  s_3827fec5c7f2ed::t_243a86bfecb29a 158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "639dd95c3b9ea1849e04e7044d9cb08e187f8e4a",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
