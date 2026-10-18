@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { scanPages } from "../../../src/server/router/discovery.ts";
@@ -38,7 +38,7 @@ function cleanupTmpApps(): void {
   }
 }
 
-process.on("exit", cleanupTmpApps);
+afterEach(cleanupTmpApps);
 
 async function runBuildPackageTargetScenarios(): Promise<void> {
   {

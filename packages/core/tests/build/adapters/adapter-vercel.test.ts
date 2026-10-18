@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -115,7 +115,7 @@ function cleanupTmpApps(): void {
   }
 }
 
-process.on("exit", cleanupTmpApps);
+afterEach(cleanupTmpApps);
 
 describe.serial("Vercel deployment adapter", () => {
   test("emits CDN assets, a Bun catch-all function, and native SSG/ISR prerenders", (done) => {

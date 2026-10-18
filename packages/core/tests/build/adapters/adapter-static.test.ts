@@ -42,8 +42,6 @@ function cleanupTmpApps(): void {
   }
 }
 
-process.on("exit", cleanupTmpApps);
-
 async function scanApp(app: TmpApp) {
   const scanned = await scanPages(join(app.path, "src/pages"));
   return { ...scanned, distDir: join(app.path, "dist") };
@@ -527,12 +525,18 @@ async function runBuildStaticTargetScenarios(): Promise<void> {
   expect(aboutData).not.toContain("slug-about");
 }
 
-function runScenarioWorker(): Promise<void> {
+function runScenarioWorker(timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(import.meta.path, {
       env: { ...process.env, [RUN_SCENARIOS_ENV]: "1" },
     });
+    // Terminate before the test timeout so a hung build never outlives the test.
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error(`buildStaticTarget scenarios timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     worker.onmessage = (event: MessageEvent<ScenarioWorkerResult>) => {
+      clearTimeout(timer);
       worker.terminate();
       if (event.data.error === null) {
         resolve();
@@ -541,6 +545,7 @@ function runScenarioWorker(): Promise<void> {
       reject(new Error(event.data.error));
     };
     worker.onerror = (event) => {
+      clearTimeout(timer);
       worker.terminate();
       reject(event.error ?? new Error(event.message));
     };
@@ -560,6 +565,6 @@ if (process.env[RUN_SCENARIOS_ENV] === "1") {
   }
 } else {
   test("buildStaticTarget scenarios", (done) => {
-    runScenarioWorker().then(() => done(), done);
+    runScenarioWorker(28_000).then(() => done(), done);
   }, 30_000);
 }
