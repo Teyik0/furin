@@ -1,0 +1,22 @@
+packages/core/src/adapter/static.ts
+  s_3827fec5c7f2ed::t_7150a1af3e01d7 10,420-421,423,425-435,472,476-477,492-494
+  s_3827fec5c7f2ed::t_1224fdab842a60 422
+packages/core/tests/build/adapters/bundle-prerender.test.ts
+  s_3827fec5c7f2ed::t_e20895ecd129dd 62-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2b21898c2700ca6fcd7623c8be74f892c60d9ee5",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
