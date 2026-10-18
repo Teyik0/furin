@@ -551,6 +551,86 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
   });
 
+  for (const declared of [false, true]) {
+    test(`an ISR layout around an SSR page keys on ${declared ? "declared" : "no"} query params`, async () => {
+      const publicQueries: unknown[] = [];
+      const privateQueries: unknown[] = [];
+      const mixedRoot = defineRootRoute()
+        .config({ mode: "isr", revalidate: 60 })
+        .loader(({ query }) => {
+          publicQueries.push({ ...query });
+          return { catalog: "Coffee" };
+        })
+        .layout(({ children, catalog }) => (
+          <html lang="en">
+            <head>
+              <HeadContent />
+            </head>
+            <body>
+              <aside>{catalog}</aside>
+              {children}
+              <Scripts />
+            </body>
+          </html>
+        ));
+      const mixedRootRoute = adaptDefinedLayout(mixedRoot, undefined);
+      const recordPrivateQuery = ({ query }: { query: object }) => {
+        privateQueries.push({ ...query });
+        return {};
+      };
+      const mixedPage = declared
+        ? defineRoute()
+            .config({
+              layout: mixedRoot,
+              mode: "ssr",
+              query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
+            })
+            .loader(recordPrivateQuery)
+            .page(() => <main>menu</main>)
+        : defineRoute()
+            .config({ layout: mixedRoot, mode: "ssr" })
+            .loader(recordPrivateQuery)
+            .page(() => <main>menu</main>);
+      const page = adaptDefinedPage(mixedPage, mixedRootRoute);
+      page.mode = undefined;
+      const resolved: ResolvedRoute = {
+        mode: "ssr",
+        page,
+        path: "/menu.tsx",
+        pattern: "/menu",
+        routeChain: collectRouteChainFromRoute(page._route),
+        segmentBoundaries: [],
+      };
+      const app = new Elysia().use(
+        createRoutePlugin(resolved, { path: "/root.tsx", route: mixedRootRoute }, "build-1")
+      );
+
+      for (const search of [
+        "?view=alpha&sort=new",
+        "?sort=new&view=alpha&junk=1",
+        "?utm_source=x&view=alpha&sort=new",
+        "?view=beta&sort=new",
+      ]) {
+        // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+        const response = await app.handle(new Request(`http://localhost/menu${search}`));
+        expect(response.status).toBe(200);
+      }
+
+      expect(publicQueries).toEqual(
+        declared
+          ? [
+              { sort: "new", view: "alpha" },
+              { sort: "new", view: "beta" },
+            ]
+          : [{}]
+      );
+      expect(privateQueries).toHaveLength(4);
+      if (!declared) {
+        expect(privateQueries[1]).toEqual({ junk: "1", sort: "new", view: "alpha" });
+      }
+    });
+  }
+
   test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
     let publicCalls = 0;
     let requestCalls = 0;

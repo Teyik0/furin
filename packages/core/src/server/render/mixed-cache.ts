@@ -10,7 +10,7 @@ import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-inval
 import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { registerCacheInvalidator } from "../cache/registry.ts";
-import { createRouteCache } from "../cache/route-cache.ts";
+import { canonicalCacheRequest, createRouteCache } from "../cache/route-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
@@ -261,11 +261,11 @@ export async function cacheMixedPublicLoader(
   const declaredTags = route.tags ?? [];
   const mode = segment.mode ?? route.mode;
   const revalidate = mode === "isr" ? (segment.revalidate ?? 60) : Number.POSITIVE_INFINITY;
-  const requestUrl = new URL(ctx.request.url);
-  const path = toLogical(new URL(ctx.path, requestUrl).pathname, instance.prefix);
+  const path = toLogical(new URL(ctx.path, ctx.request.url).pathname, instance.prefix);
+  const pathWithSearch = canonicalCacheRequest(route, path, ctx).cacheKey;
   const sourcePath = "sourcePath" in segment ? segment.sourcePath : route.path;
   const sourceVersion = IS_DEV && sourcePath ? routeModuleSourceVersion(sourcePath) : "";
-  const key = `${route.path}:${instance.buildId}:${index}:${sourceVersion}|${path}${requestUrl.search}`;
+  const key = `${route.path}:${instance.buildId}:${index}:${sourceVersion}|${pathWithSearch}`;
   const shared = IS_DEV ? undefined : getPageCacheAdapter(instance);
   const localState = shared === undefined ? localCache() : undefined;
   const generation = localState?.generation;
@@ -281,10 +281,7 @@ export async function cacheMixedPublicLoader(
     path,
     scope: instance.prefix,
     tags: [
-      ...new Set([
-        ...declaredTags,
-        ...getAutoInvalidateRegistry().tagsForPath(`${path}${requestUrl.search}`),
-      ]),
+      ...new Set([...declaredTags, ...getAutoInvalidateRegistry().tagsForPath(pathWithSearch)]),
     ],
   };
   const stored =
@@ -311,7 +308,7 @@ export async function cacheMixedPublicLoader(
       localState,
       generation,
       key,
-      `${path}${requestUrl.search}`,
+      pathWithSearch,
       [...declaredTags, ...capturedQueryTags()],
       cached
     );

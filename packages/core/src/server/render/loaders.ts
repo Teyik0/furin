@@ -10,6 +10,7 @@ import { isDeferred } from "../../shared/defer.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { type FurinNotFoundError, isNotFoundError } from "../../shared/not-found.ts";
 import { ROUTE_MATCHES_KEY, type SerializedRouteMatch } from "../../shared/route-matches.ts";
+import { canonicalCacheRequest } from "../cache/route-cache.ts";
 import { getLogger } from "../context-logger.ts";
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
 import { resolveRouteRevalidate } from "../router/patterns.ts";
@@ -792,7 +793,10 @@ async function runLoadersInternal(
     const ctxRecord = includeRequestData
       ? Object.assign(Object.create(Object.getPrototypeOf(ctx)), ctx, { log: getLogger() })
       : createPublicLoaderContext(ctx);
-    const publicCtxRecord = mixed ? createPublicLoaderContext(ctx) : ctxRecord;
+    // Cached public segments see only the query their cache key carries.
+    const publicCtxRecord = mixed
+      ? createPublicLoaderContext(canonicalCacheRequest(route, ctx.path, ctx).ctx)
+      : ctxRecord;
 
     // All loaders in the chain start immediately. Each receives a Proxy where
     // parent-data fields are individually-awaitable Promises. The loader opts
