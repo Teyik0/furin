@@ -1,9 +1,10 @@
 # Configuration Reference
 
-Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), and every plugin must be an object with a `name` string and a `setup` function.
+Production builds read the first `furin.config.ts`, `furin.config.js`, or `furin.config.mjs` in the working directory. `defineConfig()` provides inference; Furin validates serializable fields when the CLI loads the file. Unknown keys fail with their path and the closest valid key (for example, `reactCompilor` suggests `reactCompiler`), every plugin must be an object with a `name` string and a `setup` function, and every target must be a built-in name or a deployment adapter.
 
 ```ts
 // furin.config.ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
 import { defineConfig } from "@teyik0/furin/config";
 import tailwind from "bun-plugin-tailwind";
 
@@ -15,7 +16,7 @@ export default defineConfig({
   reactCompiler: true,
   plugins: [{ ...tailwind, buildOnly: true }],
   bun: { compile: "embed" },
-  vercel: { regions: ["cdg1"] },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
@@ -35,11 +36,12 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `plugins` | `FurinPlugin[]` | None | Bun build and route-import plugins |
 | `preload.routeChunks` | `boolean` | `true` | Emit `<link rel="modulepreload">` for the current route's chunks |
 | `bun.compile` | `"server" \| "embed"` | No executable | Compile the Bun server |
-| `vercel.regions` | `VercelRegion[]` | Vercel project default | Function compute regions |
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
-| `targets` | `BuildTarget[]` | None | Reserved schema field; the current CLI selects targets with `--target` |
+| `targets` | `(BuildTarget \| FurinAdapter)[]` | `["bun"]` | What `furin build` builds without `--target`; also where adapters receive their options |
 
 `apps` takes precedence over `pagesDir` and server-entry scanning. When neither is configured, a server build statically scans literal `furin({ pagesDir, prefix })` calls in `src/server.ts`, then falls back to `src/pages`.
+
+Server builds then check the result against the application itself: Elysia AOT already evaluates the server entry, and Furin records every `furin({ pagesDir, prefix })` call it makes. A mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Relative `pagesDir` values resolve against `rootDir`. Applications using `.mount()` skip AOT and therefore this check.
 
 ```ts
 export default defineConfig({
@@ -101,17 +103,19 @@ export default defineConfig({ bun: { compile: "server" } });
 
 The CLI `--compile` flag wins over this field.
 
-## Vercel Regions
+## Targets And Adapters
 
 ```ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
+
 export default defineConfig({
-  vercel: {
-    regions: ["cdg1"],
-  },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
-Place compute close to the application's database or upstream service. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list). The list must contain at least one unique supported region code; unsupported values fail configuration loading.
+`furin build` builds every entry of `targets`. `furin build --target vercel` builds the configured entry named `vercel`, so its options apply; a name missing from `targets` uses the built-in target with default options.
+
+`vercel({ regions })` places the Function close to the application's database or upstream service. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list); an empty list, duplicates, and unsupported codes fail while the configuration loads. See [Deployment](/docs/deployment#adapters) for the adapter contract.
 
 ## Static Export
 

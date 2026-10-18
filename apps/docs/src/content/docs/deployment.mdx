@@ -41,6 +41,36 @@ Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, comp
 
 No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
 
+## Adapters
+
+The `bun` and `vercel` targets are deployment adapters. An adapter is a plain object, in the spirit of the Next.js adapter API, that `targets` in `furin.config.ts` accepts:
+
+```ts
+import type { FurinAdapter } from "@teyik0/furin/config";
+
+const adapter: FurinAdapter = {
+  name: "my-platform",
+  capabilities: { assets: "platform", publicCache: "platform", websocket: false },
+  runtimeModule: new URL("./runtime.ts", import.meta.url).pathname,
+  async onBuildComplete(output) {
+    // Copy output.server.files and each app's clientDir, write platform config.
+    return { buildId: output.buildId, generatedAt: new Date().toISOString() };
+  },
+};
+```
+
+| Field | Meaning |
+|---|---|
+| `capabilities.assets` | Who serves `/_client/*` and `public/`: Furin from disk (`filesystem`), Furin from files embedded in an executable (`embedded`), or the platform (`platform`) |
+| `capabilities.publicCache` | Who caches public SSG, ISR and PPR pages: Furin (`framework`, process memory or `pageCache`) or the platform (`platform`) |
+| `capabilities.websocket` | Whether requests reach `Bun.serve()`, so browser events can use a WebSocket; otherwise they stream over SSE |
+| `runtimeModule` | Typed module bundled as the server entry. It imports the application from `furin:app`; its file name names the emitted entry |
+| `onBuildComplete(output)` | Receives data only: each app's prefix, build ID, client directory, routes (mode, revalidation, tags, PPR, declared query keys) and known prerender paths, plus the server bundle files |
+
+Furin owns the rest of the build: client bundles, the one ordered server plugin chain, Elysia AOT and the prerender pass. Capabilities are baked into the build, so the runtime never checks for a platform name: it picks the browser-event transport, skips asset serving and rejects `furin({ pageCache })` from them.
+
+Prerendering always runs **inside the built server bundle**, in a child process. That pass lists the SSG and ISR URLs known at build time and, when Furin caches public pages, renders the SSG documents into `furin-prerender.json` next to the bundle. The build never renders pages from source in its own process.
+
 ## Bun Server Bundle
 
 ```sh
@@ -48,7 +78,7 @@ furin build --target bun
 bun .furin/build/bun/server.js
 ```
 
-The target directory contains `server.js`, one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
+The target directory contains the `server.js` entry, the listener-free `_furin-app.js` application module and their shared `chunk-*.js` files, `furin-prerender.json` (the SSG documents the bundle rendered during the build), one client directory per Furin instance, and copied `public/` assets. `.furin/build/manifest.json` records the exact paths and build IDs.
 
 Deploy the whole `.furin/build/bun` directory. `server.js` resolves client assets beside itself; `FURIN_CLIENT_DIR` can override the root instance's directory when a platform mounts assets elsewhere.
 
@@ -62,7 +92,7 @@ furin build --target bun --compile server
 furin build --target bun --compile embed
 ```
 
-Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
+Both commands write `.furin/build/bun/server` on macOS/Linux and `.furin/build/bun/server.exe` on Windows. The executable is compiled from the finished JavaScript bundle, so it carries the SSG documents that bundle prerendered; the intermediate JavaScript files are removed afterwards. In `server` mode, deploy the executable together with its asset directories. In `embed` mode, Furin removes the external client directories after embedding them.
 
 Use `embed` for the simplest single-artifact rollout. Use disk mode when a CDN, container layer, or packaged child application should serve or replace assets independently.
 
@@ -119,6 +149,8 @@ The build writes a deployable artifact to `.vercel/output`:
 └── functions/
     ├── __server.func/
     │   ├── index.js
+    │   ├── handler.js
+    │   ├── furin-vercel.json
     │   └── .vc-config.json
     ├── index-ssg.func -> __server.func
     └── index-ssg.prerender-config.json
@@ -158,6 +190,8 @@ SPA navigation data requests (`<page>?_furin=data`) are routed to the Bun Functi
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
 
+`index.js` and `handler.js` are typed runtime modules of the adapter (`adapter/vercel/bootstrap.ts` and `adapter/vercel/handler.ts`). The build only writes data for them: `furin-vercel.json` holds the Prerender Function aliases, cache-tag rules, PPR routes and the chain key.
+
 PPR stores the public HTML shell, React's opaque postponed state, and the public loader snapshot as one coherent artifact. The build generates known PPR shells using the **actual production bundle**, so minification cannot change the component tree between prerender and resume.
 
 Vercel serves the public shell from its native cache and chains it to a Function that runs `requestLoader` and resumes the suspended boundaries. Both parts form one HTTP response; the browser does not fetch a separate continuation. Resume requests are authenticated with a build-scoped chain key and checked against the build and mounted route. The state is not included in the browser's HTML.
@@ -172,19 +206,18 @@ SSR payloads, request-specific loaders, deferred streams, redirects, not-found r
 
 ### Function region
 
-Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source through `furin.config.ts`:
+Functions use Vercel's project default region (typically `iad1`). Place compute close to the application's data source by configuring the adapter in `furin.config.ts`:
 
 ```ts
+import { vercel } from "@teyik0/furin/adapters/vercel";
 import { defineConfig } from "@teyik0/furin/config";
 
 export default defineConfig({
-  vercel: {
-    regions: ["cdg1"],
-  },
+  targets: ["bun", vercel({ regions: ["cdg1"] })],
 });
 ```
 
-The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail config validation.
+`furin build --target vercel` then builds this configured adapter. The editor suggests [Vercel's supported compute regions](https://vercel.com/docs/regions#region-list), such as `cdg1`, `fra1`, or `iad1`. An empty list, duplicates, and unsupported identifiers fail while the configuration loads.
 
 ### Cold-start diagnostics
 

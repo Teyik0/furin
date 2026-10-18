@@ -19,7 +19,7 @@ furin build [options]
 
 | Flag | Value | Default | Meaning |
 |---|---|---|---|
-| `--target` | `bun`, `vercel`, `static`, `package`, or `all` | `bun` | Select output |
+| `--target` | `bun`, `vercel`, `static`, `package`, `all`, or a configured adapter name | Every config `targets` entry, else `bun` | Select output |
 | `--pagesDir` | Path | Config or auto-detected | Build one explicit app |
 | `--prefix` | URL prefix | `""` | Prefix paired with the explicit pages directory |
 | `--config` | Path | Auto-discovered | Use another config file |
@@ -48,7 +48,7 @@ furin build --target package --pagesDir ./src/admin --prefix /admin
 furin build --target all
 ```
 
-`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app.
+`all` means the deploy targets `bun`, `vercel`, and `static`; it deliberately excludes `package`, which is an alternative packaging of one app. A `--target` name that matches an entry of the config `targets` builds that entry, with its adapter options.
 
 ### Target Status
 
