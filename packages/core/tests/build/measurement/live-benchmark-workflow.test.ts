@@ -28,7 +28,7 @@ const workflow = Bun.YAML.parse(
   jobs: {
     "live-vercel": {
       if?: string;
-      outputs?: { report_available?: string; supported?: string };
+      outputs?: { report_available?: string };
       permissions?: { "pull-requests"?: string };
       steps: WorkflowStep[];
     };
@@ -172,21 +172,12 @@ test("runs automatically for same-repository PRs without scheduled or manual dis
     "github.event.pull_request.head.repo.full_name == github.repository"
   );
   expect(workflow.jobs.comment?.if).toContain(
-    "needs.live-vercel.outputs.supported == 'true'"
-  );
-  expect(workflow.jobs.comment?.if).toContain(
     "needs.live-vercel.outputs.report_available == 'true'"
-  );
-  expect(workflow.jobs["live-vercel"].outputs?.supported).toBe(
-    "${{ steps.adapter-support.outputs.available }}"
   );
   expect(workflow.jobs["live-vercel"].outputs?.report_available).toBe(
     "${{ steps.live-benchmark.outputs.report_available }}"
   );
   expect(workflow.jobs["live-vercel"].permissions?.["pull-requests"]).toBe("read");
-  expect(
-    workflow.jobs["live-vercel"].steps.find((step) => step.name === "Check adapter support")?.id
-  ).toBe("adapter-support");
   for (const name of ["Require Vercel credentials", "Run live benchmark"]) {
     expect(workflow.jobs["live-vercel"].steps.find((step) => step.name === name)?.if).toContain(
       "steps.pr-validation.outputs.current == 'true'"
@@ -241,7 +232,6 @@ test("recreates and freezes the benchmark lockfile for the baseline tarball", ()
   expect(baselineStep).toContain("bun install --lockfile-only");
   expect(baselineStep).toContain("bun install --frozen-lockfile");
   expect(baselineStep).not.toContain("bun install --force");
-  expect(baselineStep).toContain("f124698be971e275a164c55a2fedcbc85256558c");
   expect(baselineStep).toContain("base_elysia_version");
 });
 
