@@ -149,6 +149,15 @@ function resolveCompiledRuntimePage(
   return adaptDefinedPage(module.route, parent);
 }
 
+function invalidNestedLayoutError(layoutPath: string): Error {
+  return new Error(
+    `[furin] ${layoutPath}: _route.tsx must export \`route = defineRoute().config({ layout: parentRoute, mode }).layout(({ children }) => ...)\`. For example:
+  export const route = defineRoute()
+    .config({ layout: parentRoute, mode: "ssr" })
+    .layout(({ children }) => <section>{children}</section>);`
+  );
+}
+
 function resolveCompiledLayoutParent(
   pagePath: string,
   pagesDir: string,
@@ -171,9 +180,10 @@ function resolveCompiledLayoutParent(
         continue;
       }
       const layout = layoutModule.route;
-      if (isDefinedRouteTerminal(layout) && typeof layout.layout === "function") {
-        parent = adaptDefinedLayout(layout, parent, candidate);
+      if (!isDefinedRouteTerminal(layout) || typeof layout.layout !== "function") {
+        throw invalidNestedLayoutError(candidate);
       }
+      parent = adaptDefinedLayout(layout, parent, candidate);
       break;
     }
   }
@@ -214,21 +224,45 @@ export async function scanPages(pagesDir: string): Promise<{
   return { root, routes };
 }
 
+const ROOT_EXAMPLE = `  export const route = defineRootRoute()
+    .config({ mode: "ssr" })
+    .layout(({ children }) => (
+      <html lang="en">
+        <head><HeadContent /></head>
+        <body>{children}<Scripts /></body>
+      </html>
+    ));`;
+
+const CONVENTION_EXAMPLES = {
+  error: `  export default function ErrorPage({ error, reset }: ErrorProps) {
+    return <button onClick={reset}>{error.message}</button>;
+  }`,
+  "not-found": `  export default function NotFound() {
+    return <h1>Page not found</h1>;
+  }`,
+} as const;
+
 export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   const rootPath = `${pagesDir}/root.tsx`;
   const ctx = getCompileContext();
   if (!(existsSync(rootPath) || ctx?.modules[rootPath])) {
-    throw new Error("[furin] root.tsx: not found.");
+    throw new Error(
+      `[furin] root.tsx: not found in ${pagesDir}. Every pages directory needs a root layout:\n${ROOT_EXAMPLE}`
+    );
   }
 
   const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as Record<string, unknown>;
   const rootExport = mod.route;
   if (!isDefinedRouteTerminal(rootExport)) {
-    throw new Error("[furin] root.tsx: defineRoute() export not found.");
+    throw new Error(
+      `[furin] ${rootPath}: root.tsx must export \`route = defineRootRoute().config({ mode }).layout(...)\`:\n${ROOT_EXAMPLE}`
+    );
   }
 
   if (!rootExport.layout) {
-    throw new Error("[furin] root.tsx: defineRoute() has no layout.");
+    throw new Error(
+      `[furin] ${rootPath}: root.tsx: defineRootRoute() must end with .layout(({ children }) => ...):\n${ROOT_EXAMPLE}`
+    );
   }
   const rootRoute = adaptDefinedLayout(rootExport, undefined, rootPath);
 
@@ -268,7 +302,7 @@ interface ConventionLookup<T> {
 
 async function loadConventionComponent<T>(
   dir: string,
-  name: string
+  name: (typeof CONVENTION_FILE_NAMES)[number]
 ): Promise<ConventionLookup<T> | undefined> {
   const ctx = getCompileContext();
   for (const filePath of getSourceModuleCandidates(dir, name)) {
@@ -283,6 +317,10 @@ async function loadConventionComponent<T>(
       if (mod.default) {
         return { component: mod.default, path: filePath };
       }
+      const exportNames = Object.keys(mod).join(", ") || "none";
+      throw new Error(
+        `[furin] ${filePath}: ${name}.tsx must default-export a React component (found exports: ${exportNames}). For example:\n${CONVENTION_EXAMPLES[name]}`
+      );
     }
   }
 }
@@ -415,9 +453,10 @@ async function resolveDefinedLayoutParent(
         IS_DEV ? `${candidate}?furin-server&t=${routeModuleSourceVersion(candidate)}` : candidate
       )) as { route?: unknown };
       const layout = layoutModule.route;
-      if (isDefinedRouteTerminal(layout) && typeof layout.layout === "function") {
-        parent = adaptDefinedLayout(layout, parent, candidate);
+      if (!isDefinedRouteTerminal(layout) || typeof layout.layout !== "function") {
+        throw invalidNestedLayoutError(candidate);
       }
+      parent = adaptDefinedLayout(layout, parent, candidate);
       break;
     }
   }
@@ -510,7 +549,7 @@ async function collectSegmentBoundaries(
 async function resolveNearestConvention<T>(
   pageAbsolutePath: string,
   pagesDir: string,
-  conventionName: string,
+  conventionName: (typeof CONVENTION_FILE_NAMES)[number],
   cache: Map<string, ConventionLookup<T> | undefined>,
   rootFallback: T | undefined
 ): Promise<T | undefined> {
