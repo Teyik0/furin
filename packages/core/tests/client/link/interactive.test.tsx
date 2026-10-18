@@ -10,7 +10,7 @@ import {
 } from "../../../src/client/link.tsx";
 import { setPrefetchCacheEntry } from "../../../src/client/router/provider.tsx";
 import type { CacheEntry } from "../../../src/client/router/types.ts";
-import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
+import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -887,7 +887,7 @@ describe("LinkInteractive — client-side behaviour", () => {
     );
 
     expect(calls.length).toBe(0);
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForDom(() => calls.length > 0, undefined);
     expect(calls.length).toBe(1);
     const [firstCall] = calls;
     if (!firstCall) {
