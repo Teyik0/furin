@@ -13,6 +13,7 @@ import {
 import { setRuntimeEvlogWaitUntil as installRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { markExternalPrerenderRequest as markExternalPrerender } from "./external-prerender.ts";
 import { __clearInstanceRegistry } from "./instance.ts";
+import { type AppPrerender, collectPrerenders as collect } from "./prerender.ts";
 import { restorePprResumeRequest as restoreResumeRequest } from "./render/ppr-request.ts";
 
 // ── Compile-time context for compiled binaries ──────────────────────────────
@@ -131,6 +132,11 @@ export function setCacheTagPurger(purger: (tags: string[]) => Promise<void>): vo
 }
 
 export const restorePprResumeRequest = restoreResumeRequest;
+
+/** Build-time prerender pass, run by the build inside the production bundle. */
+export function collectPrerenders(render: boolean): Promise<AppPrerender[]> {
+  return collect(render);
+}
 
 // Contexts are keyed by (pagesDir, prefix) — pagesDir being the directory
 // containing root.tsx, normalized to posix separators. The SAME pagesDir may

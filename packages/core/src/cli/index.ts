@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { buildApp, generateRouteTypes } from "../build/index.ts";
-import { BUILD_TARGETS, type BuildTarget } from "../config.ts";
+import { BUILD_TARGETS, type FurinTarget } from "../config.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { loadCliConfig } from "./config.ts";
 import { normalizeStaticPreviewBasePath, startStaticPreview } from "./preview.ts";
@@ -138,28 +138,35 @@ if (command === "preview") {
     config?: string;
   };
 
-  const target = values.target ?? "bun";
+  const config = await loadCliConfig(process.cwd(), values.config);
+  const configTargets = config.targets ?? ["bun"];
+  const targetName = (entry: FurinTarget): string =>
+    typeof entry === "string" ? entry : entry.name;
+  // --target names a configured target (so adapter options apply), else a built-in one.
+  const target: FurinTarget | FurinTarget[] | "all" =
+    values.target === undefined || values.target === "all"
+      ? (values.target ?? configTargets)
+      : (configTargets.find((entry) => targetName(entry) === values.target) ??
+        (values.target as FurinTarget));
 
-  if (target !== "all" && !(BUILD_TARGETS as readonly string[]).includes(target)) {
+  if (
+    typeof target === "string" &&
+    target !== "all" &&
+    !(BUILD_TARGETS as readonly string[]).includes(target)
+  ) {
     bail(`Unsupported build target "${target}". Valid: ${BUILD_TARGETS.join(", ")}, all`);
   }
 
-  const config = await loadCliConfig(process.cwd(), values.config);
+  const resolvedServerEntry = config.serverEntry
+    ? resolve(config.rootDir, config.serverEntry)
+    : undefined;
+  if (resolvedServerEntry !== undefined && !existsSync(resolvedServerEntry)) {
+    throw new Error(`[furin] Entrypoint ${config.serverEntry} not found`);
+  }
+  const targets = Array.isArray(target) || target === "all" ? target : [target];
+  const targetLabel = targets === "all" ? targets : targets.map(targetName).join(", ");
 
-  const isServerlessTarget = target === "static" || target === "package";
-
-  const resolvedServerEntry = isServerlessTarget
-    ? undefined
-    : (() => {
-        const entry = resolve(config.rootDir, config.serverEntry ?? "src/server.ts");
-        if (!existsSync(entry)) {
-          const expected = config.serverEntry ?? "src/server.ts";
-          throw new Error(`[furin] Entrypoint ${expected} not found`);
-        }
-        return entry;
-      })();
-
-  log(`Building Furin for ${target}…`);
+  log(`Building Furin for ${targetLabel}…`);
 
   const result = await buildApp({
     analyze: values.analyze,
@@ -187,8 +194,7 @@ if (command === "preview") {
     serverEntry: resolvedServerEntry,
     serverSourceMaps: config.serverSourceMaps,
     staticConfig: config.static,
-    target: target as BuildTarget | "all",
-    vercelConfig: config.vercel,
+    target,
   });
 
   const built = Object.keys(result.targets).join(", ") || "none";

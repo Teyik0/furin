@@ -3,24 +3,12 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildClient } from "../build/client.ts";
-import type { BuildEntryOptions, EntryAppContext } from "../build/entry-template.ts";
+import type { EntryAppContext } from "../build/entry-template.ts";
 import { toPosixPath } from "../build/shared.ts";
-import {
-  buildRoutePrerenders,
-  buildSSGCacheSnapshot,
-  type RoutePrerender,
-  type SSGCacheSnapshot,
-} from "../build/ssg-cache.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
-import { buildRscGraph } from "../rsc/build/index.ts";
-import { ssgRouteCache } from "../server/cache/ssg.ts";
 import { hasMixedLoaderModes, hasRequestLoader } from "../server/render/loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import {
-  setProductionPreloadManifest,
-  setProductionTemplateContent,
-} from "../server/render/template.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
@@ -39,6 +27,14 @@ const _pkgSrcDir = existsSync(join(_pkgRoot, "src", "furin.ts"))
 // are never emitted to `dist/` as `.js`, so detecting the extension off the dist
 // copy would point at files that don't exist and silently weaken the build ID.
 const _ext = ".ts";
+
+/**
+ * Typed runtime modules are bundled from the TypeScript sources the package
+ * always ships, also when this module runs from `dist/`.
+ */
+export function frameworkSourceModule(path: string): string {
+  return join(_pkgRoot, "src", path);
+}
 const PPR_ROUTE_IMPORT_RE = /ppr-route(?:\.ts)?$/;
 const MIXED_CACHE_IMPORT_RE = /mixed-cache(?:\.ts)?$/;
 const ANY_MODULE_RE = /.*/;
@@ -371,9 +367,8 @@ function isFrameworkRuntimeImporter(importer: string): boolean {
 export interface RuntimeAppBuild {
   buildId: string;
   clientDir: string;
-  entryApp: BuildEntryOptions["apps"][number];
+  entryApp: EntryAppContext;
   indexHtml: string;
-  prerenders: RoutePrerender[];
 }
 
 /** Builds one app's client bundle and compile-context payload. */
@@ -383,7 +378,7 @@ export async function buildRuntimeApp(
   targetDir: string,
   serverEntry: string | null,
   options: BuildAppOptions,
-  targetName: "bun" | "vercel"
+  targetName: string
 ): Promise<RuntimeAppBuild> {
   const { prefix, root, routes } = app;
   const modulePaths = routeSourcePaths(app);
@@ -422,19 +417,6 @@ export async function buildRuntimeApp(
   const indexHtml = generateProdIndexHtml(entryChunk, cssChunks, buildId, undefined, false);
   writeFileSync(join(clientDir, "index.html"), indexHtml);
 
-  setProductionTemplateContent(indexHtml);
-  setProductionPreloadManifest(preloadManifest);
-  ssgRouteCache().clear();
-  let ssgCache: SSGCacheSnapshot | undefined;
-  let prerenders: RoutePrerender[] = [];
-  if (serverEntry) {
-    if (targetName === "vercel") {
-      prerenders = await buildRoutePrerenders(routes, root, "http://localhost", prefix, true);
-    } else {
-      ssgCache = await buildSSGCacheSnapshot(routes, root, "http://localhost", prefix);
-    }
-  }
-
   const { rootConventions, routeMetadata } = buildCompileMetadata(root, routes);
   console.log(`[furin] Built ${label} (buildId ${buildId})`);
 
@@ -444,21 +426,6 @@ export async function buildRuntimeApp(
     entryApp: {
       buildId,
       clientLogging: options.clientLogging ?? false,
-      adapter:
-        targetName === "vercel"
-          ? {
-              capabilities: { assets: "platform", publicCache: "platform", websocket: false },
-              name: "vercel",
-            }
-          : {
-              capabilities: {
-                assets: options.compile === "embed" ? "embedded" : "filesystem",
-                publicCache: "framework",
-                websocket: true,
-              },
-              name: "bun",
-            },
-      embed: options.compile === "embed" ? { clientDir } : undefined,
       modulePaths,
       nativeRoutes: composableRouteModuleSpecifier(app),
       prefix,
@@ -471,48 +438,7 @@ export async function buildRuntimeApp(
         path: route.path,
         pattern: route.pattern,
       })),
-      ssgCache,
     },
     indexHtml,
-    prerenders,
   };
-}
-
-export async function buildRuntimeAppsSequentially(
-  apps: RuntimeTargetApp[],
-  projectRoot: string,
-  targetDir: string,
-  serverEntry: string | null,
-  options: BuildAppOptions,
-  targetName: "bun" | "vercel"
-): Promise<{
-  builds: RuntimeAppBuild[];
-  entryApps: BuildEntryOptions["apps"];
-  headlineBuildId: string;
-}> {
-  const builds: RuntimeAppBuild[] = [];
-  const entryApps: BuildEntryOptions["apps"] = [];
-  let headlineBuildId = "";
-
-  for (const app of apps) {
-    // biome-ignore lint/performance/noAwaitInLoops: each app installs a build-time template before SSG snapshotting, so this must remain ordered.
-    const built = await buildRuntimeApp(
-      app,
-      projectRoot,
-      targetDir,
-      serverEntry,
-      options,
-      targetName
-    );
-    builds.push(built);
-    entryApps.push(built.entryApp);
-    if (app.prefix === "" || headlineBuildId === "") {
-      headlineBuildId = built.buildId;
-    }
-  }
-  if (serverEntry) {
-    await buildRscGraph(apps, targetDir, headlineBuildId, options.plugins);
-  }
-
-  return { builds, entryApps, headlineBuildId };
 }

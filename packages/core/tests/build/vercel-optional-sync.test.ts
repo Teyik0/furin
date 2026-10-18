@@ -33,11 +33,10 @@ export default new Elysia().use(await furin({
     expect(build.exitCode).toBe(0);
     const functionDir = join(app.path, ".vercel/output/functions/__server.func");
     const bundleBytes = readdirSync(functionDir)
-      .filter((file) => file === "handler.js" || /^chunk-.*\.js$/.test(file))
+      .filter((file) => file.endsWith(".js") && file !== "index.js" && file !== "server-codec.js")
       .reduce((total, file) => total + statSync(join(functionDir, file)).size, 0);
-    expect(await Bun.file(join(functionDir, "index.js")).text()).toContain(
-      `server_bundle_bytes: ${bundleBytes}`
-    );
+    const runtimeData = await Bun.file(join(functionDir, "furin-vercel.json")).json();
+    expect(runtimeData.serverBundleBytes).toBe(bundleBytes);
     const handlerPath = join(functionDir, "handler.js");
     const response = await runProcess(
       [

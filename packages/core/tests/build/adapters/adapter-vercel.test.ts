@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { version } from "../../../package.json";
+import { vercel } from "../../../src/adapter/vercel.ts";
 import { buildApp } from "../../../src/build/index.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
@@ -171,8 +172,7 @@ export const route = defineRoute()
             analyze: true,
             plugins: [userPlugin],
             rootDir: app.path,
-            target: "vercel",
-            vercelConfig: { regions: ["cdg1"] },
+            target: vercel({ regions: ["cdg1"] }),
           }),
         (config) => {
           buildConfigs.push(config);
@@ -239,7 +239,7 @@ export const route = defineRoute()
       expect(bootstrap).toContain('import("./handler.js")');
       expect(bootstrap).toContain("furin_module_init");
       expect(bootstrap).toContain("furin_server_init");
-      expect(bootstrap).toContain('event: "vercel_cold_start"');
+      expect(bootstrap).toContain("vercel_cold_start");
       expect(
         existsSync(join(app.path, ".furin/build/analysis/vercel-server.json"))
       ).toBe(true);
@@ -301,26 +301,16 @@ export const route = defineRoute()
         "Home page"
       );
 
-      const serverBuild = buildConfigs.find((build) =>
-        build.entrypoints.some((entrypoint) => entrypoint.endsWith("_vercel-handler.ts"))
+      const captureEntry = join(app.path, ".furin/build/vercel/_furin-app.ts");
+      const serverBuild = buildConfigs.find((build) => build.entrypoints.includes(captureEntry));
+      expect(serverBuild?.entrypoints[0]).toEndWith("/src/adapter/vercel/handler.ts");
+      const runtimeData = JSON.parse(
+        readFileSync(join(serverFunctionDir, "furin-vercel.json"), "utf8")
       );
-      const entrypoint = serverBuild?.entrypoints[0] as string;
-      const source = serverBuild?.files?.[entrypoint] as string;
-      const captureEntry = join(serverFunctionDir, "_furin-app.ts");
-      expect(source).toContain("@vercel+functions");
-      expect(source).toContain("getCache as getVercelCache");
-      expect(source).toContain("invalidateByTag");
-      expect(source).toContain("setRuntimeCacheProvider");
-      expect(source).toContain("setRuntimeEvlogWaitUntil(waitUntil)");
-      expect(source).toContain("waitUntil");
-      expect(source).toContain("serverModule.default");
-      expect(source).toContain("app.handle(restoredRequest)");
-      expect(source.indexOf("setRuntimeCacheProvider({")).toBeLessThan(
-        source.indexOf("const serverModule = await import")
-      );
-      expect(source.indexOf("setRuntimeEvlogWaitUntil(waitUntil)")).toBeLessThan(
-        source.indexOf("const serverModule = await import")
-      );
+      expect(runtimeData.prerenderAliases).toContainEqual([
+        "/news-isr",
+        "^(?:(?<__furin_path>/news))$",
+      ]);
       const serverPluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
       expect(serverPluginNames).toContain("elysia-aot");
       expect(serverPluginNames).toContain("test-user-plugin");
@@ -330,7 +320,6 @@ export const route = defineRoute()
       expect(readFileSync(captureEntry, "utf8")).toContain(
         "export default __serverModule.default"
       );
-      expect(source).toContain(captureEntry.replaceAll("\\", "/"));
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {

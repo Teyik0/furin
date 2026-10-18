@@ -1,5 +1,4 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
-import { buildRoutePrerenders, buildSSGCacheSnapshot } from "../../../src/build/ssg-cache.ts";
 import {
   defineRootRoute,
   defineRoute,
@@ -9,6 +8,7 @@ import {
 } from "../../../src/furin.ts";
 import { __resetCacheState, revalidatePath } from "../../../src/server/cache/index.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
+import { renderSsgSnapshot } from "../../../src/server/prerender.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
@@ -137,19 +137,21 @@ test("SSG shell failures return 500 without caching the error page", async () =>
 test("SSG build prerendering rejects a failed React shell", async () => {
   const terminal = defineRoute()
     .config({ layout: rootTerminal, mode: "ssg" })
+    .staticParams(() => [{}])
     .loader(() => ({}))
     .page(() => {
       throw new Error("SSG build shell failed");
     });
 
   await expect(
-    buildRoutePrerenders([resolveRoute(terminal)], root, "http://localhost", "")
+    renderSsgSnapshot([resolveRoute(terminal)], root, "http://localhost")
   ).rejects.toThrow("HTTP 500");
 });
 
 test("SSG build prerendering keeps a notFound page and its 404 status", async () => {
   const terminal = defineRoute()
     .config({ layout: rootTerminal, mode: "ssg" })
+    .staticParams(() => [{}])
     .loader(() => notFound(undefined))
     .page(() => <main>Catalog</main>);
   const missingRoot: RootLayout = {
@@ -157,15 +159,14 @@ test("SSG build prerendering keeps a notFound page and its 404 status", async ()
     notFound: () => <main>Missing catalog</main>,
   };
 
-  const prerenders = await buildRoutePrerenders(
+  const snapshot = await renderSsgSnapshot(
     [resolveRoute(terminal)],
     missingRoot,
-    "http://localhost",
-    ""
+    "http://localhost"
   );
 
-  expect(prerenders).toHaveLength(1);
-  expect(prerenders[0]?.result).toMatchObject({
+  expect(Object.keys(snapshot)).toEqual(["/catalog"]);
+  expect(snapshot["/catalog"]).toMatchObject({
     html: expect.stringContaining("Missing catalog"),
     status: 404,
   });
@@ -186,7 +187,7 @@ test("SSG cache snapshots skip staticParams paths owned by a more specific route
     { ...resolveRoute(about), path: "/about.tsx", pattern: "/about" },
   ];
 
-  const snapshot = await buildSSGCacheSnapshot(routes, root, "http://localhost");
+  const snapshot = await renderSsgSnapshot(routes, root, "http://localhost");
 
   expect(Object.keys(snapshot)).toEqual(["/other"]);
 });

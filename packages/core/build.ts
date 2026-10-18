@@ -42,6 +42,7 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client-only.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/build/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/config.ts`] }),
+  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/adapter/vercel.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/postgres/migrate.ts`] }),

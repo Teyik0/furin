@@ -3,12 +3,16 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { t, Validator } from "elysia";
 import type { TSchema } from "typebox";
-import { configSchema, type FurinConfig } from "../config.ts";
+import { BUILD_TARGETS, configSchema, type FurinConfig, type FurinTarget } from "../config.ts";
 
 const compiledConfigSchema = Validator.create(configSchema);
 
-// `plugins` is validated separately because TypeBox cannot describe functions.
-const configKeysSchema = t.Object({ ...configSchema.properties, plugins: t.Any() });
+// `plugins` and `targets` are validated separately: TypeBox cannot describe functions.
+const configKeysSchema = t.Object({
+  ...configSchema.properties,
+  plugins: t.Any(),
+  targets: t.Any(),
+});
 const MAX_SUGGESTION_DISTANCE = 2;
 
 function editDistance(left: string, right: string): number {
@@ -88,6 +92,24 @@ function isBunPlugin(value: unknown): value is Bun.BunPlugin {
   );
 }
 
+function isFurinTarget(value: unknown): value is FurinTarget {
+  if (typeof value === "string") {
+    return (BUILD_TARGETS as readonly string[]).includes(value);
+  }
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "capabilities" in value &&
+    typeof value.capabilities === "object" &&
+    "runtimeModule" in value &&
+    typeof value.runtimeModule === "string" &&
+    "onBuildComplete" in value &&
+    typeof value.onBuildComplete === "function"
+  );
+}
+
 const DEFAULT_CONFIG_FILENAMES = [
   "furin.config.ts",
   "furin.config.js",
@@ -127,8 +149,8 @@ export async function loadCliConfig(
   const imported = await import(pathToFileURL(configPath).href);
   const rawConfig: FurinConfig = imported.default ?? imported;
 
-  // Extract plugins before TypeBox validation: functions cannot be JSON-schema validated
-  const { plugins, ...configToValidate } = rawConfig;
+  // Extract plugins and targets before TypeBox validation: functions cannot be JSON-schema validated
+  const { plugins, targets, ...configToValidate } = rawConfig;
 
   if (plugins !== undefined && !Array.isArray(plugins)) {
     throw new Error(
@@ -148,6 +170,16 @@ export async function loadCliConfig(
     );
   }
 
+  if (targets !== undefined && !Array.isArray(targets)) {
+    throw new Error(`[furin] Invalid config at ${configPath}: "targets" must be an array`);
+  }
+  const invalidTargetIndex = (targets ?? []).findIndex((target: unknown) => !isFurinTarget(target));
+  if (invalidTargetIndex !== -1) {
+    throw new Error(
+      `[furin] Invalid config at ${configPath}: targets[${invalidTargetIndex}] must be one of ${BUILD_TARGETS.join(", ")}, or a deployment adapter object`
+    );
+  }
+
   if (!compiledConfigSchema.Check(configToValidate)) {
     const [firstError] = compiledConfigSchema.Errors(configToValidate);
     throw new Error(
@@ -164,5 +196,6 @@ export async function loadCliConfig(
       : undefined,
     plugins,
     rootDir: resolvedRootDir,
+    targets,
   };
 }

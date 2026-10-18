@@ -1,10 +1,9 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BuildTarget } from "../config";
 import { resolveRouteRevalidate } from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
-import type { BuildRouteManifestEntry, TargetBuildManifest } from "./types";
+import type { BuildRouteManifestEntry } from "./types";
 
 // import.meta.dir/path/url are inlined at bundle time to the OUTPUT file's
 // location — so relative paths break when bundled. import.meta.resolve() is a
@@ -60,24 +59,5 @@ export function toBuildRouteManifestEntry(
       route.page.staticParams !== undefined ||
       route.routeChain.some((entry) => entry.staticParams !== undefined),
     revalidate: resolveRouteRevalidate(route.page) ?? null,
-  };
-}
-
-export function buildTargetManifest(
-  rootDir: string,
-  buildRoot: string,
-  target: BuildTarget,
-  serverEntry: string | null
-): TargetBuildManifest {
-  const targetDir = join(buildRoot, target);
-
-  return {
-    buildId: "", // populated by adapter after buildClient() completes
-    generatedAt: new Date().toISOString(),
-    targetDir: toPosixPath(relative(rootDir, targetDir)),
-    clientDir: toPosixPath(relative(rootDir, join(targetDir, "client"))),
-    templatePath: toPosixPath(relative(rootDir, join(targetDir, "client", "index.html"))),
-    serverPath: null,
-    serverEntry: serverEntry ? toPosixPath(relative(rootDir, serverEntry)) : null,
   };
 }

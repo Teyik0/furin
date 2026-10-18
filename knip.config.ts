@@ -36,6 +36,10 @@ const config: KnipConfig = {
       entry: [
         // Referenced by generated hydration entries and Bun codec aliases.
         "src/rsc/client-references.ts",
+        // Adapter runtime modules, bundled as server entries by the build.
+        "src/adapter/bun/server.ts",
+        "src/adapter/vercel/bootstrap.ts",
+        "src/adapter/vercel/handler.ts",
         "src/rsc/bundled-client-codec.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",

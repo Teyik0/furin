@@ -67,6 +67,11 @@
       "bun": "./src/config.ts",
       "import": "./dist/config.js"
     },
+    "./adapters/vercel": {
+      "types": "./dist/adapter/vercel.d.ts",
+      "bun": "./src/adapter/vercel.ts",
+      "import": "./dist/adapter/vercel.js"
+    },
     "./sync": {
       "types": "./dist/server/sync/index.d.ts",
       "bun": "./src/server/sync/index.ts",

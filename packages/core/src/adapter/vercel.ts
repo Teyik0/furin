@@ -1,46 +1,60 @@
-import { cpSync, existsSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, join, relative } from "node:path";
+import {
+  cpSync,
+  existsSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
-import { elysiaAot } from "../build/elysia-aot.ts";
-import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
-import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
-import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
-import type { RoutePrerender } from "../build/ssg-cache.ts";
-import type { BuildAppOptions, VercelTargetBuildManifest } from "../build/types.ts";
-import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
-import { createRoutesPlugin } from "../plugin/routes.ts";
-import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
-import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
-import { environmentGuardPlugin } from "../rsc/build/environment.ts";
-import { hasRequestLoader } from "../server/render/loaders.ts";
-import {
-  compareRouteSpecificity,
-  resolveDocumentMode,
-  resolveDocumentRevalidate,
-} from "../server/router/patterns.ts";
-import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
-import type { ResolvedRoute } from "../server/router/types.ts";
-import { isTypeBoxObjectSchema } from "../shared/elysia-contract.ts";
+import type { VercelTargetBuildManifest } from "../build/types.ts";
+import { compareRouteSpecificity } from "../server/router/patterns.ts";
 import { physicalPath } from "../shared/prefix.ts";
-import {
-  buildRuntimeAppsSequentially,
-  mixedRuntimePlugin,
-  pprRuntimePlugin,
-  type RuntimeAppBuild,
-  type RuntimeTargetApp,
-} from "./runtime-build.ts";
+import { frameworkSourceModule } from "./runtime-build.ts";
+import type { AdapterApp, AdapterBuildOutput, AdapterRoute, FurinAdapter } from "./types.ts";
+import { ISR_PATH_PARAM, VERCEL_DATA_FILE, type VercelRuntimeData } from "./vercel/data.ts";
 
-const ISR_PATH_PARAM = "__furin_path";
+// https://vercel.com/docs/regions#region-list
+const VERCEL_REGIONS = [
+  "arn1",
+  "bom1",
+  "cdg1",
+  "cle1",
+  "cpt1",
+  "dub1",
+  "dxb1",
+  "fra1",
+  "gru1",
+  "hkg1",
+  "hnd1",
+  "iad1",
+  "icn1",
+  "kix1",
+  "lhr1",
+  "pdx1",
+  "sfo1",
+  "sin1",
+  "syd1",
+  "yul1",
+] as const;
+
+export type VercelRegion = (typeof VERCEL_REGIONS)[number];
+
+export interface VercelAdapterOptions {
+  /** Vercel compute regions, such as "cdg1" or "iad1". Defaults to the project's region. */
+  regions?: VercelRegion[];
+}
+
+const HANDLER_MODULE = frameworkSourceModule("adapter/vercel/handler.ts");
+const BOOTSTRAP_MODULE = frameworkSourceModule("adapter/vercel/bootstrap.ts");
+const HANDLER_IMPORT_RE = /^\.\/handler\.js$/;
 const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
-const ELYSIA_STATIC_IMPORT_RE = /^@elysia\/static$/;
-const MATCH_ALL_RE = /.*/;
 const REGEX_META_RE = /[.*+?^${}()|[\]\\]/;
 const UNSAFE_FUNCTION_PATH_RE = /[^a-zA-Z0-9_.[\]/-]/g;
-const VERCEL_FUNCTIONS_PATH = fileURLToPath(import.meta.resolve("@vercel/functions"));
-const VERCEL_RUNTIME_STUB_NAMESPACE = "furin-vercel-runtime-stub";
-const FURIN_RUNTIME_ROOT = dirname(import.meta.dir);
 
 interface VercelRoute {
   continue?: boolean;
@@ -80,41 +94,23 @@ interface PrerenderSpec {
   source: string;
 }
 
-function isFurinRuntimeImporter(importer: string): boolean {
-  if (importer === "") {
-    return false;
-  }
-  const fromRuntimeRoot = relative(FURIN_RUNTIME_ROOT, importer.split("?")[0] as string);
-  return (
-    fromRuntimeRoot !== ".." &&
-    !fromRuntimeRoot.startsWith("../") &&
-    !fromRuntimeRoot.startsWith("..\\")
-  );
+/** A known URL the production Function renders into a Prerender fallback. */
+interface FallbackJob {
+  path: string;
+  route: AdapterRoute;
+  spec: PrerenderSpec;
 }
 
-function vercelRuntimePlugin(): Bun.BunPlugin {
-  return {
-    name: "furin-vercel-runtime",
-    setup(build) {
-      build.onResolve({ filter: ELYSIA_STATIC_IMPORT_RE }, ({ importer }) => {
-        if (!isFurinRuntimeImporter(importer)) {
-          throw new Error(
-            "[furin] Application @elysia/static mounts are not supported by the Vercel target. Put CDN assets under public/ instead."
-          );
-        }
-        return {
-          namespace: VERCEL_RUNTIME_STUB_NAMESPACE,
-          path: "@elysia/static",
-        };
-      });
-      build.onLoad({ filter: MATCH_ALL_RE, namespace: VERCEL_RUNTIME_STUB_NAMESPACE }, () => ({
-        contents: `export function staticPlugin() {
-  throw new Error("[furin] The Vercel CDN owns production assets.");
-}`,
-        loader: "js",
-      }));
-    },
-  };
+function assertRegions(regions: VercelRegion[] | undefined): void {
+  if (regions === undefined) {
+    return;
+  }
+  const invalid = regions.find((region) => !(VERCEL_REGIONS as readonly string[]).includes(region));
+  if (regions.length === 0 || new Set(regions).size !== regions.length || invalid !== undefined) {
+    throw new Error(
+      `[furin] vercel({ regions }) expects a non-empty list of distinct Vercel regions${invalid === undefined ? "" : ` (got "${invalid}")`}.`
+    );
+  }
 }
 
 function frameworkVersion(): string {
@@ -123,41 +119,6 @@ function frameworkVersion(): string {
     version: string;
   };
   return packageJson.version;
-}
-
-function serverEntryLoader(serverEntry: string): "js" | "jsx" | "ts" | "tsx" {
-  const extension = extname(serverEntry);
-  if (extension === ".tsx") {
-    return "tsx";
-  }
-  if (extension === ".jsx") {
-    return "jsx";
-  }
-  if (extension === ".js" || extension === ".mjs" || extension === ".cjs") {
-    return "js";
-  }
-  return "ts";
-}
-
-function assertDefaultServerExport(serverEntry: string): void {
-  const transpiler = new Bun.Transpiler({ loader: serverEntryLoader(serverEntry) });
-  const { exports, imports } = transpiler.scan(readFileSync(serverEntry, "utf8"));
-  if (!exports.includes("default")) {
-    throw new Error(
-      `[furin] Vercel server entry "${toPosixPath(serverEntry)}" must export the Elysia app as default. ` +
-        "Guard app.listen() with `if (import.meta.main)` so the same entry also runs locally."
-    );
-  }
-  if (imports.some(({ path }) => ELYSIA_STATIC_IMPORT_RE.test(path))) {
-    throw new AggregateError(
-      [
-        new Error(
-          "[furin] Application @elysia/static mounts are not supported by the Vercel target. Put CDN assets under public/ instead."
-        ),
-      ],
-      "[furin] Vercel build rejected application static mounts."
-    );
-  }
 }
 
 function escapeRegex(value: string): string {
@@ -172,8 +133,8 @@ function encodeCacheTag(value: string): string {
   return value.replaceAll(",", "%2C");
 }
 
-function cacheTagHeader(path: string, tags: readonly string[] | undefined): string {
-  return [path, ...(tags ?? [])].map(encodeCacheTag).join(",");
+function cacheTagHeader(path: string, tags: readonly string[]): string {
+  return [path, ...tags].map(encodeCacheTag).join(",");
 }
 
 function routePatternSource(prefix: string, pattern: string): string {
@@ -247,61 +208,8 @@ function destinationForFunction(functionName: string): string {
   return `/${functionName}?${ISR_PATH_PARAM}=$${ISR_PATH_PARAM}`;
 }
 
-function isPprRoute(app: RuntimeTargetApp, route: ResolvedRoute): boolean {
-  return (
-    resolveDocumentMode(route) !== "ssr" &&
-    (app.root.route.requestLoader !== undefined || hasRequestLoader(route))
-  );
-}
-
-async function addPrerenderFallback(
-  spec: PrerenderSpec,
-  physicalRoutePath: string,
-  prerender: RoutePrerender,
-  functionsDir: string
-): Promise<void> {
-  const fallback = `${basename(spec.functionName)}.prerender-fallback.html`;
-  const { result } = prerender;
-  if (result === undefined) {
-    return;
-  }
-  let body: string;
-  let contentType = "text/html; charset=utf-8";
-  let location: string | undefined;
-  let status: number;
-
-  if (result instanceof Response) {
-    body = await result.text();
-    contentType = result.headers.get("content-type") ?? contentType;
-    location = result.headers.get("location") ?? undefined;
-    ({ status } = result);
-  } else {
-    body = result.html;
-    ({ status } = result);
-  }
-
-  const fallbackPath = join(dirname(join(functionsDir, spec.functionName)), fallback);
-  ensureDir(dirname(fallbackPath));
-  writeFileSync(fallbackPath, body);
-  spec.config.fallback = fallback;
-  spec.config.initialHeaders = {
-    "content-type": contentType,
-    ...(spec.config.chain === undefined ? {} : { "cache-control": "private, no-store" }),
-    ...(location === undefined ? {} : { location }),
-    "vercel-cache-tag": cacheTagHeader(physicalRoutePath, prerender.route.tags),
-  };
-  spec.config.initialStatus = status;
-}
-
-function createFunctionAlias(
-  functionsDir: string,
-  serverFunctionDir: string,
-  functionName: string
-): void {
-  const aliasPath = join(functionsDir, `${functionName}.func`);
-  ensureDir(dirname(aliasPath));
-  const target = relative(dirname(aliasPath), serverFunctionDir);
-  symlinkSync(target, aliasPath, process.platform === "win32" ? "junction" : "dir");
+function expirationFor(route: AdapterRoute): number | false {
+  return route.mode === "ssg" ? false : (route.revalidate ?? 60);
 }
 
 /**
@@ -311,287 +219,149 @@ function createFunctionAlias(
  * be enumerated; they keep Vercel's per-query caching rather than collapsing
  * distinct declared values into one entry.
  */
-function prerenderAllowQuery(route: ResolvedRoute): string[] | undefined {
-  const schema = mergeRouteSchemas(route.routeChain, "query");
-  if (schema === undefined) {
-    return [ISR_PATH_PARAM];
-  }
-  if (!isTypeBoxObjectSchema(schema)) {
-    return;
-  }
-  return [ISR_PATH_PARAM, ...Object.keys(schema.properties).toSorted()];
+function prerenderAllowQuery(route: AdapterRoute): string[] | undefined {
+  return route.queryKeys === null ? undefined : [ISR_PATH_PARAM, ...route.queryKeys];
 }
 
-function createExactPrerenderSpec(
-  prerender: RoutePrerender,
-  routePath: string,
-  names: Map<string, string>
-): PrerenderSpec | undefined {
-  if (!DYNAMIC_SEGMENT_RE.test(prerender.route.pattern)) {
-    return;
-  }
-  const mode = resolveDocumentMode(prerender.route);
-  if (mode === "ssr") {
-    return;
-  }
-  const source = exactPathSource(routePath);
-  return {
-    config: {
-      expiration: mode === "ssg" ? false : (resolveDocumentRevalidate(prerender.route) ?? 60),
-      passQuery: true,
-    },
-    exact: true,
-    functionName: functionNameForPath(routePath, mode, names),
-    pattern: routePath,
-    source,
-  };
-}
-
-async function createPrerenderSpecs(
-  apps: RuntimeTargetApp[],
-  builds: RuntimeAppBuild[],
-  functionsDir: string,
+function createPrerenderSpecs(
+  apps: AdapterApp[],
   pprResumeKey: string
-): Promise<PrerenderSpec[]> {
+): { jobs: FallbackJob[]; specs: PrerenderSpec[] } {
   const specs = new Map<string, PrerenderSpec>();
   const names = new Map<string, string>();
+  const jobs: FallbackJob[] = [];
 
   for (const app of apps) {
     for (const route of app.routes) {
-      const mode = resolveDocumentMode(route);
-      if (mode === "ssr") {
+      if (route.mode === "ssr") {
         continue;
       }
       const physicalPattern = physicalPath(app.prefix, route.pattern);
       const source = routePatternSource(app.prefix, route.pattern);
       specs.set(source, {
         config: {
-          expiration: mode === "ssg" ? false : (resolveDocumentRevalidate(route) ?? 60),
+          expiration: expirationFor(route),
           passQuery: true,
           // PPR shells resume on __server with the request's query, which
           // requestLoaders may read; keep Vercel's per-query caching there.
-          ...(isPprRoute(app, route)
+          ...(route.ppr
             ? {
                 chain: { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: "__server" },
               }
             : { allowQuery: prerenderAllowQuery(route) }),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
-        functionName: functionNameForPath(physicalPattern, mode, names),
+        functionName: functionNameForPath(physicalPattern, route.mode, names),
         pattern: physicalPattern,
         source,
       });
     }
   }
 
-  for (let appIndex = 0; appIndex < apps.length; appIndex += 1) {
-    const app = apps[appIndex] as RuntimeTargetApp;
-    const build = builds[appIndex] as RuntimeAppBuild;
-    for (const prerender of build.prerenders) {
-      const routePath = physicalPath(app.prefix, prerender.path);
-      const genericSource = routePatternSource(app.prefix, prerender.route.pattern);
-      let spec = specs.get(genericSource) as PrerenderSpec;
-      const exactSpec = createExactPrerenderSpec(prerender, routePath, names);
-      if (exactSpec !== undefined) {
-        exactSpec.config.chain = spec.config.chain;
-        exactSpec.config.allowQuery = spec.config.allowQuery;
-        spec = exactSpec;
-        specs.set(exactSpec.source, exactSpec);
+  for (const app of apps) {
+    for (const prerender of app.prerenders) {
+      const route = app.routes.find((candidate) => candidate.pattern === prerender.pattern);
+      if (route === undefined || route.mode === "ssr") {
+        continue;
       }
-      // biome-ignore lint/performance/noAwaitInLoops: each fallback may consume a unique redirect response body.
-      await addPrerenderFallback(spec, routePath, prerender, functionsDir);
+      const path = physicalPath(app.prefix, prerender.path);
+      let spec = specs.get(routePatternSource(app.prefix, route.pattern)) as PrerenderSpec;
+      if (DYNAMIC_SEGMENT_RE.test(route.pattern)) {
+        spec = {
+          config: {
+            allowQuery: spec.config.allowQuery,
+            chain: spec.config.chain,
+            expiration: expirationFor(route),
+            passQuery: true,
+          },
+          exact: true,
+          functionName: functionNameForPath(path, route.mode, names),
+          pattern: path,
+          source: exactPathSource(path),
+        };
+        specs.set(spec.source, spec);
+      }
+      jobs.push({ path, route, spec });
     }
   }
 
-  return [...specs.values()].toSorted((left, right) => {
-    if (left.exact !== right.exact) {
-      return left.exact ? -1 : 1;
-    }
-    return compareRouteSpecificity(right.pattern, left.pattern);
-  });
+  return {
+    jobs,
+    specs: [...specs.values()].toSorted((left, right) => {
+      if (left.exact !== right.exact) {
+        return left.exact ? -1 : 1;
+      }
+      return compareRouteSpecificity(right.pattern, left.pattern);
+    }),
+  };
 }
 
-function vercelEntrySource(
-  apps: RuntimeTargetApp[],
-  builds: RuntimeAppBuild[],
-  prerenderSpecs: PrerenderSpec[],
-  appEntry: string,
-  pprResumeKey: string
-): string {
-  const routeCount = builds.reduce((count, build) => count + build.entryApp.routes.length, 0);
-  const prerenderAliases = prerenderSpecs.map((spec) => [
-    `/${spec.functionName}`,
-    `^(?:${spec.source})$`,
-  ]);
-  const pprBuilds = apps
-    .map((app, index) => ({
-      buildId: (builds[index] as RuntimeAppBuild).buildId,
-      patterns: app.routes
-        .filter((route) => isPprRoute(app, route))
-        .map((route) => `^(?:${routePatternSource(app.prefix, route.pattern)})$`),
-      prefix: app.prefix,
-    }))
-    .filter((build) => build.patterns.length > 0);
-  const cacheTagRules = apps
-    .flatMap((app) =>
-      app.routes.map((route) => ({
-        pattern: physicalPath(app.prefix, route.pattern),
-        source: `^(?:${routePatternSource(app.prefix, route.pattern)})$`,
-        tags: route.tags ?? [],
-      }))
-    )
-    .sort((left, right) => compareRouteSpecificity(right.pattern, left.pattern))
-    .map(({ source, tags }) => [source, tags]);
-  return `import {
-  addCacheTag,
-  getCache as getVercelCache,
-  invalidateByTag,
-  waitUntil,
-} from ${JSON.stringify(VERCEL_FUNCTIONS_PATH)};
-import { setCachePurger } from "@teyik0/furin";
-import {
-  hasPendingISRRevalidations,
-  markExternalPrerenderRequest,
-  restorePprResumeRequest,
-  setCacheTagPurger,
-  setRuntimeEvlogWaitUntil,
-  setRuntimeCacheProvider,
-  waitForPendingISRRevalidations,
-} from "@teyik0/furin/internal";
-
-const prerenderAliases = new Map(
-  ${JSON.stringify(prerenderAliases)}.map(([alias, source]) => [alias, new RegExp(source)])
-);
-${
-  pprBuilds.length === 0
-    ? ""
-    : `const pprBuilds = ${JSON.stringify(pprBuilds)}.map(build => ({
-  ...build, patterns: build.patterns.map(source => new RegExp(source))
-}));`
-}
-const cacheTagRules = ${JSON.stringify(cacheTagRules)}.map(([source, tags]) => [
-  new RegExp(source),
-  tags,
-]);
-
-function encodeCacheTag(value) {
-  return value.replaceAll(",", "%2C");
-}
-
-setRuntimeCacheProvider({
-  getCache: (options) => getVercelCache(options),
-  scope: process.env.VERCEL_DEPLOYMENT_ID,
-});
-setRuntimeEvlogWaitUntil(waitUntil);
-
-async function purgeCacheTags(paths) {
-  const purge = Promise.all([
-    invalidateByTag(paths.map(encodeCacheTag)),
-    getVercelCache().expireTag(paths),
-  ]);
-  waitUntil(purge);
-  await purge;
-}
-setCachePurger(purgeCacheTags);
-setCacheTagPurger(purgeCacheTags);
-
-const serverInitStartedAt = performance.now();
-const serverModule = await import(${JSON.stringify(toPosixPath(appEntry))});
-const app = serverModule.default;
-if (!app || typeof app.handle !== "function") {
-  throw new TypeError("[furin] Vercel server entry must export the Elysia app as default.");
-}
-const initialization = Object.freeze({
-  app_count: ${builds.length},
-  route_count: ${routeCount},
-  server_init_ms: Math.round((performance.now() - serverInitStartedAt) * 100) / 100,
-});
-
-function restorePrerenderPath(request) {
-  const url = new URL(request.url);
-  const path = url.searchParams.get(${JSON.stringify(ISR_PATH_PARAM)});
-  const aliasPattern = prerenderAliases.get(url.pathname);
-  if (path === null || aliasPattern === undefined || !aliasPattern.test(path)) {
-    return request;
-  }
-  if (!path.startsWith("/")) {
-    return request;
-  }
-  url.pathname = path;
-  url.searchParams.delete(${JSON.stringify(ISR_PATH_PARAM)});
-  return markExternalPrerenderRequest(new Request(url, request));
-}
-
-async function exposeVercelCacheTag(response, request) {
-  const cacheTag = response.headers.get("cache-tag");
-  if (cacheTag === null) {
-    return response;
-  }
-  const physicalCacheTag = new URL(request.url).pathname;
-  const semanticTags =
-    cacheTagRules.find(([pattern]) => pattern.test(physicalCacheTag))?.[1] ?? [];
-  const tags = [physicalCacheTag, ...semanticTags].map(encodeCacheTag);
-  await addCacheTag(tags);
-  const headers = new Headers(response.headers);
-  headers.delete("cache-tag");
-  headers.set("vercel-cache-tag", tags.join(","));
-  return new Response(response.body, {
-    headers,
-    status: response.status,
-    statusText: response.statusText,
-  });
-}
-
-async function handle(request) {
-  ${
-    pprBuilds.length === 0
-      ? ""
-      : `if (request.headers.has("x-furin-ppr-resume")) {
-    if (request.method !== "POST" || request.headers.get("x-furin-ppr-resume") !== ${JSON.stringify(pprResumeKey)}) {
-      return new Response("Invalid PPR continuation", { status: 403 });
-    }
-    const restored = await restorePprResumeRequest(request, pprBuilds);
-    if (restored instanceof Response) return restored;
-    return app.handle(restored);
-  }`
-  }
-  const restoredRequest = restorePrerenderPath(request);
-  const response = await app.handle(restoredRequest);
-  if (hasPendingISRRevalidations()) {
-    waitUntil(waitForPendingISRRevalidations());
-  }
-  return exposeVercelCacheTag(response, restoredRequest);
-}
-
-export { initialization };
-export default { fetch: handle };
-`;
-}
-
-async function buildProductionFallbacks(
-  apps: RuntimeTargetApp[],
-  builds: RuntimeAppBuild[],
+function runtimeData(
+  apps: AdapterApp[],
   specs: PrerenderSpec[],
+  pprResumeKey: string,
+  serverBundleBytes: number
+): VercelRuntimeData {
+  return {
+    appCount: apps.length,
+    cacheTagRules: apps
+      .flatMap((app) =>
+        app.routes.map((route) => ({
+          pattern: physicalPath(app.prefix, route.pattern),
+          source: `^(?:${routePatternSource(app.prefix, route.pattern)})$`,
+          tags: route.tags,
+        }))
+      )
+      .sort((left, right) => compareRouteSpecificity(right.pattern, left.pattern))
+      .map(({ source, tags }) => [source, tags]),
+    pprBuilds: apps
+      .map((app) => ({
+        buildId: app.buildId,
+        patterns: app.routes
+          .filter((route) => route.ppr)
+          .map((route) => `^(?:${routePatternSource(app.prefix, route.pattern)})$`),
+        prefix: app.prefix,
+      }))
+      .filter((build) => build.patterns.length > 0),
+    pprResumeKey,
+    prerenderAliases: specs.map((spec) => [`/${spec.functionName}`, `^(?:${spec.source})$`]),
+    routeCount: apps.reduce((count, app) => count + app.routes.length, 0),
+    serverBundleBytes,
+  };
+}
+
+async function addPrerenderFallback(
+  job: FallbackJob,
+  response: Response,
+  functionsDir: string
+): Promise<void> {
+  const { spec } = job;
+  const fallback = `${basename(spec.functionName)}.prerender-fallback.html`;
+  const location = response.headers.get("location") ?? undefined;
+  const fallbackPath = join(dirname(join(functionsDir, spec.functionName)), fallback);
+  ensureDir(dirname(fallbackPath));
+  writeFileSync(fallbackPath, await response.text());
+  spec.config.fallback = fallback;
+  spec.config.initialHeaders = {
+    "content-type": response.headers.get("content-type") ?? "text/html; charset=utf-8",
+    ...(spec.config.chain === undefined ? {} : { "cache-control": "private, no-store" }),
+    ...(location === undefined ? {} : { location }),
+    "vercel-cache-tag": cacheTagHeader(job.path, job.route.tags),
+  };
+  spec.config.initialStatus = response.status;
+}
+
+/** Renders every known URL through the deployed Function code. */
+async function buildProductionFallbacks(
+  jobs: FallbackJob[],
   functionsDir: string,
   rootDir: string,
-  targetDir: string
+  buildRoot: string
 ): Promise<void> {
-  const jobs = builds.flatMap((build, index) =>
-    build.prerenders
-      .filter((prerender) => prerender.result === undefined)
-      .map((prerender) => {
-        const path = physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path);
-        const spec = specs.find((candidate) => new RegExp(`^(?:${candidate.source})$`).test(path));
-        if (!spec) {
-          throw new Error(`[furin] Missing prerender build target for ${path}`);
-        }
-        return { path, prerender, spec };
-      })
-  );
   if (jobs.length === 0) {
     return;
   }
-  const resultPath = join(targetDir, "prerender-results.json");
+  const resultPath = join(buildRoot, `vercel-prerender-${crypto.randomUUID()}.json`);
   const requests = jobs.map(
     ({ path, spec }) =>
       `http://localhost/${spec.functionName}?${ISR_PATH_PARAM}=${encodeURIComponent(path)}`
@@ -631,12 +401,8 @@ process.exit(0);
       const result = results[index] as (typeof results)[number];
       // biome-ignore lint/performance/noAwaitInLoops: consume and write each fallback in route order.
       await addPrerenderFallback(
-        job.spec,
-        job.path,
-        {
-          ...job.prerender,
-          result: new Response(result.body, { headers: result.headers, status: result.status }),
-        },
+        job,
+        new Response(result.body, { headers: result.headers, status: result.status }),
         functionsDir
       );
     }
@@ -645,241 +411,70 @@ process.exit(0);
   }
 }
 
-function vercelBootstrapSource(serverBundleBytes: number): string {
-  return `const moduleInitStartedAt = performance.now();
-const handlerPromise = import("./handler.js").then((handlerModule) => ({
-  handlerModule,
-  moduleInitMs: Math.round((performance.now() - moduleInitStartedAt) * 100) / 100,
-}));
-let firstRequest = true;
-
-function appendServerTiming(response, value) {
-  try {
-    response.headers.append("server-timing", value);
-    return response;
-  } catch {
-    if (response.status === 101) {
-      return response;
-    }
-    const headers = new Headers(response.headers);
-    headers.append("server-timing", value);
-    return new Response(response.body, {
-      headers,
-      status: response.status,
-      statusText: response.statusText,
-    });
-  }
-}
-
-async function handle(request) {
-  const waitStartedAt = performance.now();
-  const ready = await handlerPromise;
-  const requestWaitMs = Math.round((performance.now() - waitStartedAt) * 100) / 100;
-  const isFirstRequest = firstRequest;
-  firstRequest = false;
-  const { initialization } = ready.handlerModule;
-
-  if (isFirstRequest) {
-    console.log(JSON.stringify({
-      environment: process.env.VERCEL_ENV ?? "production",
-      event: "vercel_cold_start",
-      furin: {
-        app_count: initialization.app_count,
-        module_init_ms: ready.moduleInitMs,
-        request_wait_ms: requestWaitMs,
-        route_count: initialization.route_count,
-        server_bundle_bytes: ${serverBundleBytes},
-        server_init_ms: initialization.server_init_ms,
+/** Builds the typed bootstrap that lazily loads `handler.js`. */
+async function buildBootstrap(serverFunctionDir: string): Promise<void> {
+  await runBunBuild({
+    entrypoints: [BOOTSTRAP_MODULE],
+    format: "esm",
+    minify: true,
+    naming: "index.js",
+    outdir: serverFunctionDir,
+    plugins: [
+      {
+        name: "furin-vercel-handler-external",
+        setup(build) {
+          build.onResolve({ filter: HANDLER_IMPORT_RE }, ({ path }) => ({ external: true, path }));
+        },
       },
-      level: "info",
-      region: process.env.VERCEL_REGION,
-      service: "furin",
-    }));
-  }
-
-  const handlerStartedAt = performance.now();
-  const response = await ready.handlerModule.default.fetch(request);
-  const handlerMs = Math.round((performance.now() - handlerStartedAt) * 100) / 100;
-  const serverTiming = [
-    \`furin_module_init;dur=\${ready.moduleInitMs}\`,
-    \`furin_server_init;dur=\${initialization.server_init_ms}\`,
-    \`furin_handler_wait;dur=\${requestWaitMs}\`,
-    \`furin_handler;dur=\${handlerMs}\`,
-    ...(isFirstRequest ? ["furin_instance_first_request"] : []),
-  ].join(", ");
-  return appendServerTiming(response, serverTiming);
-}
-
-export default { fetch: handle };
-`;
-}
-
-export async function buildVercelTarget(
-  apps: RuntimeTargetApp[],
-  rootDir: string,
-  buildRoot: string,
-  serverEntry: string,
-  options: BuildAppOptions
-): Promise<VercelTargetBuildManifest> {
-  assertDefaultServerExport(serverEntry);
-
-  const targetDir = join(buildRoot, "vercel");
-  const outputDir = join(rootDir, ".vercel", "output");
-  const staticDir = join(outputDir, "static");
-  const functionsDir = join(outputDir, "functions");
-  const serverFunctionDir = join(functionsDir, "__server.func");
-  rmSync(targetDir, { force: true, recursive: true });
-  rmSync(join(buildRoot, "private", "server-sourcemaps", "vercel"), {
-    force: true,
-    recursive: true,
+    ],
+    target: "bun",
   });
-  rmSync(outputDir, { force: true, recursive: true });
-  ensureDir(targetDir);
-  ensureDir(staticDir);
-  ensureDir(serverFunctionDir);
+}
 
-  const { builds, headlineBuildId } = await buildRuntimeAppsSequentially(
-    apps,
-    rootDir,
-    targetDir,
-    serverEntry,
-    options,
-    "vercel"
-  );
+function createFunctionAlias(
+  functionsDir: string,
+  serverFunctionDir: string,
+  functionName: string
+): void {
+  const aliasPath = join(functionsDir, `${functionName}.func`);
+  ensureDir(dirname(aliasPath));
+  const target = relative(dirname(aliasPath), serverFunctionDir);
+  symlinkSync(target, aliasPath, process.platform === "win32" ? "junction" : "dir");
+}
 
-  cpSync(join(targetDir, "server-codec.js"), join(serverFunctionDir, "server-codec.js"));
-
-  const publicDir = join(rootDir, "public");
-  if (existsSync(publicDir)) {
+function copyStaticAssets(output: AdapterBuildOutput, staticDir: string): void {
+  const { apps, publicDir } = output;
+  if (publicDir !== undefined) {
     cpSync(publicDir, staticDir, { recursive: true });
     for (const app of apps) {
       const appStaticDir = join(staticDir, app.prefix.slice(1));
-      const appPublicDir = join(appStaticDir, "public");
-      cpSync(publicDir, appPublicDir, { recursive: true });
+      cpSync(publicDir, join(appStaticDir, "public"), { recursive: true });
       const favicon = join(publicDir, "favicon.ico");
       if (app.prefix !== "" && existsSync(favicon)) {
         cpSync(favicon, join(appStaticDir, "favicon.ico"));
       }
     }
   }
-  for (let appIndex = 0; appIndex < apps.length; appIndex += 1) {
-    const app = apps[appIndex] as RuntimeTargetApp;
-    const build = builds[appIndex] as RuntimeAppBuild;
-    const clientOutputDir = join(staticDir, app.prefix.slice(1), "_client");
-    cpSync(build.clientDir, clientOutputDir, { recursive: true });
+  for (const app of apps) {
+    cpSync(app.clientDir, join(staticDir, app.prefix.slice(1), "_client"), { recursive: true });
   }
+}
 
-  const pprResumeKey = crypto.randomUUID();
-  const [prerenderSpecs, appEntry] = await Promise.all([
-    createPrerenderSpecs(apps, builds, functionsDir, pprResumeKey),
-    materializeServerAppEntry({
-      apps: builds.map(({ entryApp, indexHtml }) => ({
-        ...entryApp,
-        embed: undefined,
-        templateHtml: indexHtml,
-      })),
-      headerComment: "// Auto-generated by `furin build --target vercel` — do not edit",
-      instances: apps,
-      outDir: serverFunctionDir,
-      serverEntry,
-    }),
-  ]);
-  const entryPath = join(serverFunctionDir, "_vercel-handler.ts");
-  const entry = createVirtualBuildEntry(
-    entryPath,
-    vercelEntrySource(apps, builds, prerenderSpecs, appEntry, pprResumeKey),
-    "ts"
-  );
-  const serverBuild = await runBunBuild({
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
-    entrypoints: [entry.entrypoint],
-    files: entry.files,
-    format: "esm",
-    metafile: options.analyze,
-    minify: true,
-    naming: { entry: "handler.[ext]" },
-    outdir: serverFunctionDir,
-    plugins: [
-      entry.plugin,
-      vercelRuntimePlugin(),
-      productionInstrumentationPlugin(),
-      pprRuntimePlugin(apps),
-      mixedRuntimePlugin(apps),
-      ...(options.plugins ?? []),
-      createRoutesPlugin({ instances: apps, target: "server" }),
-      clientReferencesPlugin(),
-      isomorphicTransformPlugin("server"),
-      environmentGuardPlugin("ssr"),
-      elysiaAot(appEntry),
-    ],
-    sourcemap: options.serverSourceMaps ? "external" : "none",
-    splitting: true,
-    target: "bun",
-  });
-  if (options.serverSourceMaps) {
-    movePrivateServerSourceMaps(
-      serverFunctionDir,
-      join(buildRoot, "private", "server-sourcemaps", "vercel"),
-      serverBuild.outputs
-        .filter((output) => output.kind === "sourcemap")
-        .map((output) => output.path)
-    );
-  }
-  if (options.analyze) {
-    if (serverBuild.metafile === undefined) {
-      throw new Error("[furin] Vercel server build did not produce the requested metafile.");
-    }
-    const metafilePath = join(buildRoot, "analysis", "vercel-server.json");
-    ensureDir(dirname(metafilePath));
-    writeFileSync(metafilePath, `${JSON.stringify(serverBuild.metafile, null, 2)}\n`);
-    console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
-  }
-  const serverBundleBytes = serverBuild.outputs
-    .filter((output) => output.path.endsWith(".js"))
-    .reduce((total, output) => total + output.size, 0);
-  writeFileSync(join(serverFunctionDir, "index.js"), vercelBootstrapSource(serverBundleBytes));
-  await buildProductionFallbacks(apps, builds, prerenderSpecs, functionsDir, rootDir, targetDir);
-
-  writeFileSync(
-    join(serverFunctionDir, ".vc-config.json"),
-    `${JSON.stringify(
-      {
-        handler: "index.js",
-        launcherType: "Nodejs",
-        ...(options.vercelConfig?.regions === undefined
-          ? {}
-          : { regions: options.vercelConfig.regions }),
-        runtime: "bun1.4.x",
-        shouldAddHelpers: false,
-        supportsResponseStreaming: true,
-      },
-      null,
-      2
-    )}\n`
-  );
-
-  for (const spec of prerenderSpecs) {
-    createFunctionAlias(functionsDir, serverFunctionDir, spec.functionName);
-    writeFileSync(
-      join(functionsDir, `${spec.functionName}.prerender-config.json`),
-      `${JSON.stringify(spec.config, null, 2)}\n`
-    );
-  }
-
+function buildOutputConfig(apps: AdapterApp[], specs: PrerenderSpec[]): VercelBuildOutputConfig {
   const assetRoutes: VercelRoute[] = apps.map((app) => ({
     continue: true,
     headers: { "cache-control": "public, max-age=31536000, immutable" },
     src: `${escapeRegex(app.prefix)}/_client/(.*)`,
   }));
   const pageRoutes = [
-    ...prerenderSpecs.map((spec) => ({
+    ...specs.map((spec) => ({
       dest: destinationForFunction(spec.functionName),
       pattern: spec.pattern,
       src: spec.source,
     })),
     ...apps.flatMap((app) =>
       app.routes
-        .filter((route) => resolveDocumentMode(route) === "ssr")
+        .filter((route) => route.mode === "ssr")
         .map((route) => ({
           dest: "/__server",
           pattern: physicalPath(app.prefix, route.pattern),
@@ -887,7 +482,7 @@ export async function buildVercelTarget(
         }))
     ),
   ].sort((left, right) => compareRouteSpecificity(right.pattern, left.pattern));
-  const config: VercelBuildOutputConfig = {
+  return {
     framework: { name: "furin", version: frameworkVersion() },
     routes: [
       ...assetRoutes,
@@ -900,30 +495,95 @@ export async function buildVercelTarget(
     ],
     version: 3,
   };
-  writeFileSync(join(outputDir, "config.json"), `${JSON.stringify(config, null, 2)}\n`);
+}
 
-  const ssgRoutes = builds
-    .flatMap((build, index) =>
-      build.prerenders
-        .filter((prerender) => resolveDocumentMode(prerender.route) === "ssg")
-        .map((prerender) => physicalPath((apps[index] as RuntimeTargetApp).prefix, prerender.path))
-    )
-    .toSorted();
-  const isrRoutes = apps
-    .flatMap((app) =>
-      app.routes
-        .filter((route) => resolveDocumentMode(route) === "isr")
-        .map((route) => physicalPath(app.prefix, route.pattern))
-    )
-    .toSorted();
+function writeFunctionConfig(serverFunctionDir: string, regions: VercelRegion[] | undefined): void {
+  writeFileSync(
+    join(serverFunctionDir, ".vc-config.json"),
+    `${JSON.stringify(
+      {
+        handler: "index.js",
+        launcherType: "Nodejs",
+        ...(regions === undefined ? {} : { regions }),
+        runtime: "bun1.4.x",
+        shouldAddHelpers: false,
+        supportsResponseStreaming: true,
+      },
+      null,
+      2
+    )}\n`
+  );
+}
 
-  console.log(`[furin] Vercel output: ${toPosixPath(relative(rootDir, outputDir))}`);
+/**
+ * Vercel Build Output API v3 in `.vercel/output`: CDN assets, one Bun
+ * Function, and Prerender Functions that own SSG, ISR and PPR caching.
+ */
+export function vercel(options: VercelAdapterOptions): FurinAdapter {
+  assertRegions(options.regions);
   return {
-    buildId: headlineBuildId,
-    generatedAt: new Date().toISOString(),
-    isrRoutes,
-    outputDir: toPosixPath(relative(rootDir, outputDir)),
-    serverPath: toPosixPath(relative(rootDir, serverFunctionDir)),
-    ssgRoutes,
+    capabilities: { assets: "platform", publicCache: "platform", websocket: false },
+    name: "vercel",
+    async onBuildComplete(output): Promise<VercelTargetBuildManifest> {
+      const { apps, rootDir, server } = output;
+      const outputDir = join(rootDir, ".vercel", "output");
+      const staticDir = join(outputDir, "static");
+      const functionsDir = join(outputDir, "functions");
+      const serverFunctionDir = join(functionsDir, "__server.func");
+      rmSync(outputDir, { force: true, recursive: true });
+      ensureDir(staticDir);
+      ensureDir(serverFunctionDir);
+
+      for (const file of [...server.files, "server-codec.js"]) {
+        cpSync(join(server.dir, file), join(serverFunctionDir, file));
+      }
+      copyStaticAssets(output, staticDir);
+
+      const pprResumeKey = crypto.randomUUID();
+      const { jobs, specs } = createPrerenderSpecs(apps, pprResumeKey);
+      const serverBundleBytes = server.files.reduce(
+        (total, file) => total + statSync(join(server.dir, file)).size,
+        0
+      );
+      writeFileSync(
+        join(serverFunctionDir, VERCEL_DATA_FILE),
+        `${JSON.stringify(runtimeData(apps, specs, pprResumeKey, serverBundleBytes))}\n`
+      );
+      await buildBootstrap(serverFunctionDir);
+      await buildProductionFallbacks(jobs, functionsDir, rootDir, output.buildRoot);
+
+      writeFunctionConfig(serverFunctionDir, options.regions);
+      for (const spec of specs) {
+        createFunctionAlias(functionsDir, serverFunctionDir, spec.functionName);
+        writeFileSync(
+          join(functionsDir, `${spec.functionName}.prerender-config.json`),
+          `${JSON.stringify(spec.config, null, 2)}\n`
+        );
+      }
+      writeFileSync(
+        join(outputDir, "config.json"),
+        `${JSON.stringify(buildOutputConfig(apps, specs), null, 2)}\n`
+      );
+
+      console.log(`[furin] Vercel output: ${toPosixPath(relative(rootDir, outputDir))}`);
+      return {
+        buildId: output.buildId,
+        generatedAt: new Date().toISOString(),
+        isrRoutes: apps
+          .flatMap((app) =>
+            app.routes
+              .filter((route) => route.mode === "isr")
+              .map((route) => physicalPath(app.prefix, route.pattern))
+          )
+          .toSorted(),
+        outputDir: toPosixPath(relative(rootDir, outputDir)),
+        serverPath: toPosixPath(relative(rootDir, serverFunctionDir)),
+        ssgRoutes: jobs
+          .filter((job) => job.route.mode === "ssg")
+          .map((job) => job.path)
+          .toSorted(),
+      };
+    },
+    runtimeModule: HANDLER_MODULE,
   };
 }

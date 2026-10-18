@@ -1,8 +1,5 @@
-import type {
-  BuildTarget,
-  StaticExportConfig,
-  VercelDeploymentConfig,
-} from "../config";
+import type { AdapterTargetManifest } from "../adapter/types.ts";
+import type { FurinTarget, StaticExportConfig } from "../config";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import type { ClientBoundary } from "../rsc/build/discover.ts";
 
@@ -62,7 +59,6 @@ export interface TargetBuildManifest {
   clientDir: string | null;
   generatedAt: string;
   rscManifestPath?: string;
-  serverEntry: string | null;
   serverPath: string | null;
   targetDir: string;
   templatePath: string | null;
@@ -77,6 +73,7 @@ export interface PackageTargetBuildManifest {
 }
 
 export type AnyTargetManifest =
+  | AdapterTargetManifest
   | TargetBuildManifest
   | StaticTargetBuildManifest
   | PackageTargetBuildManifest
@@ -98,7 +95,8 @@ export interface BuildManifest {
   rootPath: string;
   routes: BuildRouteManifestEntry[];
   serverEntry: string | null;
-  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
+  /** Keyed by target name. */
+  targets: { [target: string]: AnyTargetManifest };
   version: 1;
 }
 
@@ -127,9 +125,8 @@ export interface BuildAppOptions {
   serverSourceMaps?: boolean;
   /** Configuration for the `static` build target. */
   staticConfig?: StaticExportConfig;
-  target: BuildTarget | "all";
-  /** Configuration for the Vercel build target. */
-  vercelConfig?: VercelDeploymentConfig;
+  /** One target, several, or `"all"` deploy targets (bun, vercel, static). */
+  target: FurinTarget | FurinTarget[] | "all";
 }
 
 /** Build manifest entry produced by the `static` adapter. */
@@ -153,7 +150,7 @@ export interface VercelTargetBuildManifest {
 
 export interface BuildAppResult {
   manifest: BuildManifest;
-  targets: Partial<Record<BuildTarget, AnyTargetManifest>>;
+  targets: BuildManifest["targets"];
 }
 
 export type BunBuildAliasConfig = Bun.BuildConfig & {

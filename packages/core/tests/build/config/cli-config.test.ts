@@ -53,48 +53,53 @@ describe("CLI config resolution", () => {
     expect(result.pagesDir).toBe(join(app.path, "src/custom-pages"));
   });
 
-  test("loadCliConfig preserves validated Vercel regions", async () => {
+  test("loadCliConfig keeps adapter objects and built-in names in targets", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     writeAppFile(
       app.path,
       "furin.config.ts",
       [
         'import { defineConfig } from "@teyik0/furin/config";',
-        'export default defineConfig({ vercel: { regions: ["cdg1", "fra1"] } });',
+        'import { vercel } from "@teyik0/furin/adapters/vercel";',
+        'export default defineConfig({ targets: ["bun", vercel({ regions: ["cdg1", "fra1"] })] });',
       ].join("\n")
     );
 
     const result = await loadCliConfig(app.path);
 
-    expect(result.vercel?.regions).toEqual(["cdg1", "fra1"]);
+    expect(
+      result.targets?.map((target) => (typeof target === "string" ? target : target.name))
+    ).toEqual(["bun", "vercel"]);
   });
 
-  test("loadCliConfig rejects malformed Vercel regions", async () => {
+  test("loadCliConfig rejects an unknown target name", async () => {
+    const app = rememberTmpApp(createTmpApp("cli-app"));
+    writeAppFile(app.path, "furin.config.ts", 'export default { targets: ["node"] };');
+
+    await expect(loadCliConfig(app.path)).rejects.toThrow(
+      "targets[0] must be one of bun, vercel, static, package, or a deployment adapter object"
+    );
+  });
+
+  test("vercel() rejects unsupported regions while the config loads", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
     writeAppFile(
       app.path,
       "furin.config.ts",
       [
-        'import { defineConfig } from "@teyik0/furin/config";',
-        'export default defineConfig({ vercel: { regions: ["paris"] } });',
+        'import { vercel } from "@teyik0/furin/adapters/vercel";',
+        'export default { targets: [vercel({ regions: ["abc1"] as never })] };',
       ].join("\n")
     );
 
-    await expect(loadCliConfig(app.path)).rejects.toThrow("path: /vercel/regions/0");
+    await expect(loadCliConfig(app.path)).rejects.toThrow('(got "abc1")');
   });
 
-  test("loadCliConfig rejects unsupported Vercel regions", async () => {
+  test("loadCliConfig reports the removed vercel key", async () => {
     const app = rememberTmpApp(createTmpApp("cli-app"));
-    writeAppFile(
-      app.path,
-      "furin.config.ts",
-      [
-        'import { defineConfig } from "@teyik0/furin/config";',
-        'export default defineConfig({ vercel: { regions: ["abc1"] } });',
-      ].join("\n")
-    );
+    writeAppFile(app.path, "furin.config.ts", 'export default { vercel: { regions: ["cdg1"] } };');
 
-    await expect(loadCliConfig(app.path)).rejects.toThrow("path: /vercel/regions/0");
+    await expect(loadCliConfig(app.path)).rejects.toThrow('unknown key "vercel"');
   });
 
   // RED: plugins must survive TypeBox validation and be returned

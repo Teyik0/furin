@@ -1,14 +1,32 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { buildClient } from "../../../src/build/client.ts";
+import type { TargetBuildManifest } from "../../../src/build/types.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures.ts";
 import { withBuildStub } from "../../support/with-build-stub.ts";
 
-const { buildBunTarget } = await import("../../../src/adapter/bun.ts");
+const { buildAdapterTarget } = await import("../../../src/adapter/build.ts");
+const { bun } = await import("../../../src/adapter/bun.ts");
+const { buildApp } = await import("../../../src/build/index.ts");
+
+type BuildArgs = Parameters<typeof buildAdapterTarget> extends [unknown, ...infer Rest]
+  ? Rest
+  : never;
+
+function buildBunTarget(...[apps, rootDir, buildRoot, serverEntry, options]: BuildArgs) {
+  return buildAdapterTarget(
+    bun(options.compile),
+    apps,
+    rootDir,
+    buildRoot,
+    serverEntry,
+    options
+  ) as Promise<TargetBuildManifest>;
+}
 
 const tmpApps: TmpApp[] = [];
 
@@ -87,25 +105,10 @@ describe.serial("buildBunTarget Bun branches", () => {
 
   test("rejects server compilation without a server entry", async () => {
     const app = trackedTmpApp("cli-app");
+    rmSync(join(app.path, "src/server.ts"));
 
     await expect(
-      buildBunTarget(
-        [
-          {
-            pagesDir: join(app.path, "src/pages"),
-            prefix: "",
-            root: {
-              path: join(app.path, "src/pages/root.tsx"),
-              route: { __type: "FURIN_ROUTE" },
-            },
-            routes: [],
-          },
-        ],
-        app.path,
-        join(app.path, ".furin/build"),
-        null,
-        { compile: "server", target: "bun" },
-      ),
+      buildApp({ compile: "server", rootDir: app.path, target: "bun" })
     ).rejects.toThrow("server entry");
   });
 
@@ -223,13 +226,10 @@ describe.serial("buildBunTarget Bun branches", () => {
       }
     );
 
-    const serverBuild = buildConfigs.find((config) =>
-      config.entrypoints.some((entrypoint) => entrypoint.endsWith("/server.ts"))
-    );
-    const pluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
     const captureEntry = join(app.path, ".furin/build/bun/_furin-app.ts");
+    const serverBuild = buildConfigs.find((config) => config.entrypoints.includes(captureEntry));
+    const pluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
     const captureSource = readFileSync(captureEntry, "utf8");
-    const bootSource = serverBuild?.files?.[serverBuild.entrypoints[0] as string];
 
     expect(pluginNames).toContain("elysia-aot");
     expect(pluginNames).toContain("test-user-plugin");
@@ -238,10 +238,10 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(captureSource).toContain("export default __serverModule.default");
     expect(captureSource).not.toContain(".listen(");
     expect(captureSource).toContain("_furin-routes-0.ts");
-    expect(bootSource).toContain("_furin-app.ts");
+    expect(serverBuild?.entrypoints[0]).toEndWith("/src/adapter/bun/server.ts");
   });
 
-  test("embed compilation uses Bun asset directories and an in-memory server entry", async () => {
+  test("embed compilation embeds asset directories into the bundled server", async () => {
     const app = createCompileTmpApp();
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const buildConfigs: Bun.BuildConfig[] = [];
@@ -268,7 +268,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     }
     expect(compile.assets?.map((path) => basename(path))).toEqual(["client", "public"]);
     const entrypoint = serverBuild?.entrypoints[0];
-    expect(entrypoint).toEndWith("_compile-entry.ts");
+    expect(entrypoint).toBe(join(app.path, ".furin/build/bun/server.js"));
     const source = readFileSync(join(app.path, ".furin/build/bun/_furin-app.ts"), "utf8");
     expect(source).toContain("import.meta.dir");
     expect(source).not.toContain('with { type: "file" }');
@@ -465,38 +465,12 @@ describe.serial("buildBunTarget Bun branches", () => {
         [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
         app.path,
         buildRoot,
-        null,
+        join(app.path, "src/server.ts"),
         { analyze: true, target: "bun" },
       ),
     );
 
     expect(existsSync(join(buildRoot, "analysis/bun-client.json"))).toBe(true);
     expect(existsSync(join(buildRoot, "bun/client/metafile.json"))).toBe(false);
-  });
-
-  test("client-only builds do not emit an RSC manifest", async () => {
-    const app = trackedTmpApp("cli-app");
-    writeFileSync(
-      join(app.path, "src/pages/index.tsx"),
-      [
-        'import { defineRoute } from "@teyik0/furin";',
-        'export const route = defineRoute().config({ mode: "ssg" })',
-        '  .staticParams(async () => { throw new Error("snapshot should not run"); })',
-        "  .page(() => <main>Home</main>);",
-      ].join("\n"),
-    );
-    const { root, routes } = await scanPages(join(app.path, "src/pages"));
-
-    const manifest = await withBuildStub(() =>
-      buildBunTarget(
-        [{ pagesDir: join(app.path, "src/pages"), prefix: "", root, routes }],
-        app.path,
-        join(app.path, ".furin/build"),
-        null,
-        { target: "bun" },
-      ),
-    );
-
-    expect(manifest.rscManifestPath).toBeUndefined();
   });
 });

@@ -1,12 +1,14 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: build phases run in sequence because later phases consume prior artifacts
 import { existsSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { buildBunTarget } from "../adapter/bun";
+import { buildAdapterTarget } from "../adapter/build.ts";
+import { bun } from "../adapter/bun.ts";
 import { buildPackageTarget } from "../adapter/package";
 import type { RuntimeTargetApp } from "../adapter/runtime-build";
 import { buildStaticTarget } from "../adapter/static";
-import { buildVercelTarget } from "../adapter/vercel";
-import { BUILD_TARGETS, type BuildTarget, type FurinPlugin } from "../config";
+import type { FurinAdapter } from "../adapter/types.ts";
+import { vercel } from "../adapter/vercel.ts";
+import { BUILD_TARGETS, type BuildTarget, type FurinPlugin, type FurinTarget } from "../config";
 import { assertValidRouteConfig } from "../plugin/route-config.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
@@ -22,7 +24,6 @@ import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
 export { buildClient } from "./client";
 export { writeDevFiles } from "./hydrate";
 export { writeRouteTypes } from "./route-types";
-export { buildSSGCacheSnapshot, type SSGCacheSnapshot } from "./ssg-cache";
 export type {
   BuildAppOptions,
   BuildAppResult,
@@ -36,6 +37,31 @@ export type {
 // "package" is intentionally excluded from `--target all` — it is an
 // alternative packaging of ONE app, not an additional deploy target.
 const IMPLEMENTED_TARGETS = ["bun", "vercel", "static"] as const satisfies BuildTarget[];
+
+/** Targets without a server bundle: static ships none, package leaves it to the host. */
+function isServerless(target: FurinTarget): target is "package" | "static" {
+  return target === "static" || target === "package";
+}
+
+function requestedTargets(target: BuildAppOptions["target"]): FurinTarget[] {
+  if (target === "all") {
+    return [...IMPLEMENTED_TARGETS];
+  }
+  const targets = Array.isArray(target) ? target : [target];
+  for (const entry of targets) {
+    if (typeof entry === "string" && !(BUILD_TARGETS as readonly string[]).includes(entry)) {
+      throw new Error(`[furin] Unsupported build target "${entry}"`);
+    }
+  }
+  return targets;
+}
+
+function adapterFor(target: FurinAdapter | "bun" | "vercel", options: BuildAppOptions): FurinAdapter {
+  if (typeof target !== "string") {
+    return target;
+  }
+  return target === "bun" ? bun(options.compile) : vercel({});
+}
 export const BUILD_OUTPUT_DIR = ".furin/build";
 let isomorphicRuntimePluginRegistered = false;
 
@@ -179,9 +205,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuildAppResult
 async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResult> {
   const rootDir = resolve(options.rootDir ?? process.cwd());
   const buildRoot = join(rootDir, BUILD_OUTPUT_DIR);
+  const targets = requestedTargets(options.target);
   const serverEntry = (() => {
-    // Static and package builds don't need a server entry point
-    if (options.target === "static" || options.target === "package") {
+    if (targets.every(isServerless)) {
       return null;
     }
     if (options.serverEntry) {
@@ -192,20 +218,12 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     }
     const entry = resolve(rootDir, "src/server.ts");
     if (!existsSync(entry)) {
-      throw new Error("[furin] Entrypoint server.ts not found");
+      throw new Error(
+        "[furin] Server targets need a server entry: src/server.ts not found. Create it or set `serverEntry` in furin.config.ts."
+      );
     }
     return entry;
   })();
-
-  const requestedTargets =
-    options.target === "all"
-      ? [...IMPLEMENTED_TARGETS]
-      : [options.target].map((target) => {
-          if (!(BUILD_TARGETS as readonly string[]).includes(target)) {
-            throw new Error(`[furin] Unsupported build target "${target}"`);
-          }
-          return target as BuildTarget;
-        });
 
   const apps = await scanApps(options, serverEntry, rootDir);
   // furin-env.d.ts is one file at the project root, owned by the root-mounted
@@ -232,63 +250,50 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
     targets: {},
   };
 
-  for (const target of requestedTargets) {
-    switch (target) {
-      case "bun":
-        manifest.targets.bun = await buildBunTarget(apps, rootDir, buildRoot, serverEntry, options);
-        break;
-      case "static":
-        if (apps.length > 1) {
-          console.warn(
-            "[furin] `--target static` exports the root-mounted app only — prefixed apps are skipped."
-          );
-        }
-        // The static adapter only knows about staticConfig.basePath — the mount
-        // prefix is a server-side concept it never sees. Exporting a prefixed
-        // app without a matching basePath produces root-relative asset URLs.
-        if (primaryApp.prefix !== "") {
-          console.warn(
-            `[furin] \`--target static\` exports an app mounted at "${primaryApp.prefix}", but the ` +
-              `static export ignores the mount prefix — set \`static.basePath\` to "${primaryApp.prefix}" ` +
-              "(or the sub-path the site is served from) so asset URLs resolve correctly."
-          );
-        }
-        manifest.targets.static = await buildStaticTarget(
-          primaryApp.routes,
-          rootDir,
-          buildRoot,
-          primaryApp.root,
-          options
+  for (const target of targets) {
+    if (target === "static") {
+      if (apps.length > 1) {
+        console.warn(
+          "[furin] `--target static` exports the root-mounted app only — prefixed apps are skipped."
         );
-        break;
-      case "package":
-        if (apps.length > 1) {
-          throw new Error(
-            "[furin] `--target package` builds exactly one app — configure a single pagesDir/prefix."
-          );
-        }
-        manifest.targets.package = await buildPackageTarget(
-          primaryApp,
-          rootDir,
-          buildRoot,
-          options
+      }
+      // The static adapter only knows about staticConfig.basePath — the mount
+      // prefix is a server-side concept it never sees. Exporting a prefixed
+      // app without a matching basePath produces root-relative asset URLs.
+      if (primaryApp.prefix !== "") {
+        console.warn(
+          `[furin] \`--target static\` exports an app mounted at "${primaryApp.prefix}", but the ` +
+            `static export ignores the mount prefix — set \`static.basePath\` to "${primaryApp.prefix}" ` +
+            "(or the sub-path the site is served from) so asset URLs resolve correctly."
         );
-        break;
-      case "vercel":
-        if (!serverEntry) {
-          throw new Error("[furin] `--target vercel` requires a server entry point.");
-        }
-        manifest.targets.vercel = await buildVercelTarget(
-          apps,
-          rootDir,
-          buildRoot,
-          serverEntry,
-          options
-        );
-        break;
-      default:
-        throw new Error(`[furin] Unsupported build target "${target}"`);
+      }
+      manifest.targets.static = await buildStaticTarget(
+        primaryApp.routes,
+        rootDir,
+        buildRoot,
+        primaryApp.root,
+        options
+      );
+      continue;
     }
+    if (target === "package") {
+      if (apps.length > 1) {
+        throw new Error(
+          "[furin] `--target package` builds exactly one app — configure a single pagesDir/prefix."
+        );
+      }
+      manifest.targets.package = await buildPackageTarget(primaryApp, rootDir, buildRoot, options);
+      continue;
+    }
+    const adapter = adapterFor(target, options);
+    manifest.targets[adapter.name] = await buildAdapterTarget(
+      adapter,
+      apps,
+      rootDir,
+      buildRoot,
+      serverEntry as string,
+      options
+    );
   }
 
   writeFileSync(join(buildRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

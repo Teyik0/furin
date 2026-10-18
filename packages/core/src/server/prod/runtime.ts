@@ -7,6 +7,7 @@ import { setSSGCache } from "../cache/ssg.ts";
 import { type FurinInstance, withInstance } from "../instance.ts";
 import type { CompileContext, EmbeddedAppData } from "../internal.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
+import { registerPrerenderSource } from "../prerender.ts";
 import { warmSSGCache } from "../render/ssg.ts";
 import {
   setProductionPreloadManifest,
@@ -136,6 +137,7 @@ export async function createProdRuntime(
     renderer: () => renderer,
   });
   instance.buildId = prodBuildId;
+  registerPrerenderSource(instance, { root, routes });
   // Init-time writes target THIS instance explicitly — with several mounted
   // apps there is no ambient request scope to resolve it from.
   withInstance(instance, () => {
@@ -143,10 +145,12 @@ export async function createProdRuntime(
   });
 
   const { embedded } = ctx;
+  // ctx.clientDir is relative to the JavaScript bundle; a standalone
+  // executable keeps its on-disk assets next to itself instead.
   const clientDir =
     embedded?.clientDir ??
     explicitClientDir ??
-    ctx.clientDir ??
+    (Bun.isStandaloneExecutable ? undefined : ctx.clientDir) ??
     resolveClientDirFromArgv(instance.prefix);
   await setupCompiledTemplate(ctx, embedded, clientDir, instance);
   const assets = await createProductionAssetsPlugin(ctx, embedded, clientDir);
