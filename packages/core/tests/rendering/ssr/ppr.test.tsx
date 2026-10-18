@@ -238,14 +238,14 @@ describe.serial("partial prerendering", () => {
       },
     };
     let publicCalls = 0;
-    const resolved = resolveRoute(
+    const { app } = await mountAccount(
       defineRoute()
         .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
         .requestLoader(() => ({ user: "alice" }))
         .loader(() => ({ catalog: (publicCalls += 1) }))
-        .page(({ catalog }) => <main>{catalog}</main>)
+        .page(({ catalog }) => <main>{catalog}</main>),
+      undefined
     );
-    const app = new Elysia().use(createRoutePlugin(resolved, root, "build-1"));
     const render = async (scope: string) => {
       setRuntimeCacheProvider({ getCache: () => store, scope });
       clearPprRouteCache();

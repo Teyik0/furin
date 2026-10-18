@@ -5,7 +5,11 @@ import { furin } from "../../src/furin.ts";
 import { materializedRouteModuleSource } from "../../src/plugin/routes.ts";
 import type { PageCacheAdapter } from "../../src/server/cache/page-cache.ts";
 import { allInstances, type FurinInstance } from "../../src/server/instance.ts";
-import { __setCompileContext, type CompileContext } from "../../src/server/internal.ts";
+import {
+  __setCompileContext,
+  type CompileContext,
+  type CompiledModule,
+} from "../../src/server/internal.ts";
 import { scanPages } from "../../src/server/router/discovery.ts";
 import type { ErrorComponent } from "../../src/shared/error.ts";
 import type { NotFoundComponent } from "../../src/shared/not-found.ts";
@@ -13,6 +17,11 @@ import type { NotFoundComponent } from "../../src/shared/not-found.ts";
 const TEMPLATE =
   '<!doctype html><html><head><!--furin-head--></head><body><div id="root"><!--ssr-outlet--></div><script type="module" src="/_client/entry.js"></script></body></html>';
 const TMP_ROOT = resolve(import.meta.dir, "../../.tmp-tests");
+/** No asset directory exists for these virtual apps. */
+const PLATFORM_ASSETS: NonNullable<CompileContext["adapter"]> = {
+  capabilities: { assets: "platform", publicCache: "framework", websocket: true },
+  name: "test",
+};
 
 /** A route terminal from `defineRoute()` / `defineRootRoute()`. */
 interface RouteTerminal {
@@ -73,7 +82,7 @@ async function mount(
 export function mountProductionApp(options: ProductionAppOptions): Promise<MountedApp> {
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
   const rootPath = `${pagesDir}/root.tsx`;
-  const modules: CompileContext["modules"] = { [rootPath]: { route: options.root } };
+  const modules: { [path: string]: CompiledModule } = { [rootPath]: { route: options.root } };
   const rootConventions: NonNullable<CompileContext["rootConventions"]> = {};
   if (options.rootError) {
     rootConventions.errorPath = `${pagesDir}/error.tsx`;
@@ -106,8 +115,8 @@ export function mountProductionApp(options: ProductionAppOptions): Promise<Mount
       rootConventions,
       rootPath,
       routeMetadata,
+      adapter: PLATFORM_ASSETS,
       routes,
-      serveAssets: false,
       ssgCache: options.ssgCache,
       templateHtml: TEMPLATE,
     },
@@ -146,7 +155,7 @@ export async function mountProductionPages(pagesDir: string, buildId: string): P
       ),
     };
   }
-  const modules: CompileContext["modules"] = {};
+  const modules: { [path: string]: CompiledModule } = {};
   await Promise.all(
     [...paths].map(async (path) => {
       if (path !== undefined) {
@@ -166,8 +175,8 @@ export async function mountProductionPages(pagesDir: string, buildId: string): P
       rootConventions: { errorPath: root.errorPath, notFoundPath: root.notFoundPath },
       rootPath: root.path,
       routeMetadata,
+      adapter: PLATFORM_ASSETS,
       routes: routes.map(({ mode, path, pattern }) => ({ mode, path, pattern })),
-      serveAssets: false,
       templateHtml: TEMPLATE,
     },
     root.path.slice(0, root.path.lastIndexOf("/")),

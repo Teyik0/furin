@@ -16,6 +16,7 @@ import {
   __resetCompileContext,
   __setCompileContext,
   type CompileContext,
+  type CompiledModule,
 } from "../../../src/server/internal.ts";
 import { documentAssetsFromTemplate } from "../../../src/server/render/template.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
@@ -168,7 +169,7 @@ afterEach(async () => {
  */
 async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
-  const modules: { [path: string]: unknown } = {
+  const modules: { [path: string]: CompiledModule } = {
     [`${pagesDir}/root.tsx`]: { route: rootDefinition },
     [`${pagesDir}/shop/_route.tsx`]: { route: shopDefinition },
   };
@@ -211,7 +212,10 @@ async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
     rootPath: `${pagesDir}/root.tsx`,
     routeMetadata,
     routes: compiledRoutes,
-    serveAssets: false,
+    adapter: {
+      capabilities: { assets: "platform", publicCache: "framework", websocket: true },
+      name: "test",
+    },
     templateHtml: TEMPLATE,
   });
   return new Elysia().use(await furin({ pagesDir }));

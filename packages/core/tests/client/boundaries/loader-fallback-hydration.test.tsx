@@ -12,7 +12,11 @@ import { findRouteFailure, Link, RouterProvider } from "../../../src/client/link
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
 import { furin } from "../../../src/furin.ts";
-import { __resetCompileContext, __setCompileContext } from "../../../src/server/internal.ts";
+import {
+  __resetCompileContext,
+  __setCompileContext,
+  type CompiledModule,
+} from "../../../src/server/internal.ts";
 import { documentAssetsFromTemplate } from "../../../src/server/render/template.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
@@ -51,7 +55,7 @@ async function mountBoundaryApp(
 ): Promise<AnyElysia> {
   const pagesDir = `/furin-virtual/${crypto.randomUUID()}`;
   const libraryDir = `${pagesDir}/library`;
-  const modules: { [path: string]: unknown } = {
+  const modules: { [path: string]: CompiledModule } = {
     [`${libraryDir}/_route.tsx`]: { route: library },
     [`${libraryDir}/error.tsx`]: { default: Unavailable },
     [`${libraryDir}/not-found.tsx`]: { default: Missing },
@@ -91,7 +95,10 @@ async function mountBoundaryApp(
     rootPath: `${pagesDir}/root.tsx`,
     routeMetadata: Object.fromEntries(routes.map(({ path }) => [path, { segmentBoundaries }])),
     routes,
-    serveAssets: false,
+    adapter: {
+      capabilities: { assets: "platform", publicCache: "framework", websocket: true },
+      name: "test",
+    },
     templateHtml: template,
   });
   return new Elysia().use(await furin({ pagesDir }));
