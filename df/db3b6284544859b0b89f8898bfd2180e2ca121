@@ -1,0 +1,25 @@
+packages/core/src/server/render/ppr-route.ts
+  s_3827fec5c7f2ed::t_ec15835f5c62cb 354-367,379
+  s_3827fec5c7f2ed::t_bb8c8d86db8134 10-16,372,377,380-381
+  s_3827fec5c7f2ed::t_669997caa73023 368-369
+packages/core/tests/rendering/ssr/ppr.test.tsx
+  s_3827fec5c7f2ed::t_54fe36cd662c6b 1149-1152,1154-1183
+  s_3827fec5c7f2ed::t_ec15835f5c62cb 1153
+  s_3827fec5c7f2ed::t_1749b94c06b6e4 1106-1148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dfdb3b6284544859b0b89f8898bfd2180e2ca121",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
