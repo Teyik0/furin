@@ -59,7 +59,7 @@ describe("renderEjsFile — simple template", () => {
     const src = resolve(TEMPLATES_DIR, "simple/furin-env.d.ts.ejs");
     const output = await renderEjsFile(src, mockVars);
     expect(output).not.toContain("<%");
-    expect(output).toContain("RouteManifest");
+    expect(output).toContain("interface RouteMap {");
   });
 });
 

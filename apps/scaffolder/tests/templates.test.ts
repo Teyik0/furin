@@ -1,11 +1,15 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: template fixture checks are intentionally sequential for clearer assertion context
 import { beforeAll, describe, expect, it } from "bun:test";
-import { extname, relative, resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { extname, join, relative, resolve } from "node:path";
 import { renderEjsFile } from "../src/engine/renderer";
 import type { EjsTemplateVars } from "../src/pipeline/context";
 
 const SCAFFOLDER_ROOT = resolve(import.meta.dir, "..");
 const TEMPLATES_DIR = resolve(SCAFFOLDER_ROOT, "templates");
+// Loaded by path so Furin's sources stay out of the scaffolder's type-check program.
+const ROUTE_TYPES_MODULE = resolve(SCAFFOLDER_ROOT, "../../packages/core/src/build/route-types.ts");
 const TOKEN_RE = /\{\{[A-Z_]+\}\}/;
 /** Matches strings that are absolute paths (start with / or \). */
 const ABSOLUTE_PATH_RE = /^[/\\]/;
@@ -270,6 +274,37 @@ describe("Furin page templates", () => {
       expect(page.indexOf(".page(")).toBeGreaterThan(page.indexOf(".loader("));
       expect(page).toContain(".page(({");
       expect(page).not.toContain(".page(({ data");
+    }
+  });
+});
+
+describe("generated furin-env.d.ts", () => {
+  // Keeps the scaffolded file identical to what `furin` writes on the first dev
+  // run, so a new project type-checks before it is ever started.
+  it("matches the route types Furin generates for the template pages", async () => {
+    const { writeRouteTypes } = (await import(ROUTE_TYPES_MODULE)) as {
+      writeRouteTypes: (routes: { path: string; pattern: string }[], projectRoot: string) => void;
+    };
+    const projectRoot = mkdtempSync(join(tmpdir(), "create-furin-route-types-"));
+    try {
+      writeRouteTypes(
+        [{ path: join(projectRoot, "src/pages/index.tsx"), pattern: "/" }],
+        projectRoot
+      );
+      const expected = readFileSync(join(projectRoot, "furin-env.d.ts"), "utf8");
+
+      for (const template of registry.templates) {
+        const envFile = template.files.find((file) => file.dest === "furin-env.d.ts");
+        if (!envFile?.src) {
+          throw new Error(`Missing furin-env.d.ts template for ${template.id}`);
+        }
+        const rendered = await renderEjsFile(resolve(TEMPLATES_DIR, envFile.src), MOCK_EJS_VARS);
+        expect(rendered, `${template.id} furin-env.d.ts drifted from writeRouteTypes()`).toBe(
+          expected
+        );
+      }
+    } finally {
+      rmSync(projectRoot, { force: true, recursive: true });
     }
   });
 });
