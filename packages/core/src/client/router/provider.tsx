@@ -10,8 +10,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { HeadOptions } from "../../client.ts";
-import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { type QuerySeed, queryTag } from "../../shared/sync-query.ts";
@@ -21,14 +19,12 @@ import { DocumentProvider, useDocumentState } from "../document.tsx";
 import { wrapLoaderLayouts } from "../loader-layouts.tsx";
 import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
-import { isAbortError } from "./abort.ts";
 import { buildPageElement, buildRouterTree } from "./boundary-tree.tsx";
 import { CacheGeneration } from "./cache-generation.ts";
 import { observeWindowFetch } from "./fetch-observers.ts";
 import {
   generateHistoryKey,
   getHistoryKey,
-  isStaleDeployResponse,
   SCROLL_STORAGE_KEY,
   saveScrollPosition,
 } from "./history.ts";
@@ -46,21 +42,18 @@ import {
   toLogical,
 } from "./link-utils.ts";
 import { createOptimisticRuntime, registerOptimisticRuntime, SYNC_REQUEST } from "./optimistic.ts";
+import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import {
-  buildDataEndpoint,
   buildErrorPageElement,
   buildNotFoundPageElement,
-  classifySpaResponse,
   detectStaticMode,
-  parsePageResponse,
 } from "./spa-response.ts";
 import {
   createInvalidationRefresh,
   createSyncCatchUp,
   type SyncChangePagePayload,
 } from "./sync-catch-up.ts";
-import { trackDeferredTransport } from "./transport.ts";
 import type {
   CacheEntry,
   ClientSegmentBoundary,
@@ -326,237 +319,36 @@ export function RouterProvider({
     }
   }, [routes]);
 
-  /**
-   * Resolves the RouterState when no client-side route matched the URL. The
-   * server's `renderRootNotFound` produced the 404 HTML; we fetch the physical
-   * URL to detect the `__furinStatus: 404` signal and render the 404 UI inline
-   * (rather than triggering a jarring full-page reload).
-   */
-  const resolveNoMatchState = useCallback(
-    async (physicalHref: string, signal: AbortSignal | undefined): Promise<RouterState | null> => {
-      const res = await fetch(physicalHref, { signal });
-      if (isStaleDeployResponse(res)) {
-        return null;
-      }
-      const { data, finalHref, title } = await parsePageResponse(res, basePath);
-      const kind = classifySpaResponse(res.status, data);
-      if (kind.kind !== "not-found") {
-        return null;
-      }
-      const { __furinStatus: _s, __furinNotFound: _n, ...cleanData } = data ?? {};
-      return {
-        data: cleanData,
-        finalHref,
-        match: currentMatchRef.current,
-        notFound: kind.error,
-        notFoundBoundaries: rootBoundaries,
-        title,
-      };
-    },
-    [basePath, rootBoundaries]
-  );
-
-  const fetchPageState = useCallback(
+  /** Adapts typed page results to the router's snapshot shape. */
+  const fetchPage = useCallback(
     async (
-      rawLogicalHref: string,
+      href: string,
       signal: AbortSignal | undefined,
       hmrRefresh: boolean
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SPA navigation orchestrator — response shapes (redirect, stale-deploy, deferred) + abort-signal wiring require this depth
     ): Promise<RouterState | null> => {
-      const hydrateQueries = queries.captureHydration();
-      // Normalize trailing slashes so "/docs/routing/" matches the route
-      // pattern "/docs/routing" — static hosts (GitHub Pages, Netlify) often
-      // redirect to or serve URLs with a trailing slash.
-      const logicalHref = normalizeHref(rawLogicalHref);
-      try {
-        // Physical href: what the browser/server actually receives.
-        // For basePath deployments: fetch("/furin/docs/routing") not fetch("/docs/routing").
-        const physicalHref = basePath + logicalHref;
-        const url = new URL(physicalHref, window.location.origin);
-        // Route matching always uses the LOGICAL pathname (basePath stripped).
-        const logicalPathname = toLogical(url.pathname, basePath);
-        const match = routes.find((r) => r.regex.test(logicalPathname));
-        if (!match) {
-          return await resolveNoMatchState(physicalHref, signal);
-        }
-
-        // ── NDJSON data endpoint + JS chunk load (parallel) ──────────────────
-        const dataEndpoint = buildDataEndpoint(basePath, logicalHref, staticMode);
-        // Production builds define NODE_ENV, which compiles the HMR branches out.
-        const loadedModule =
-          process.env.NODE_ENV !== "production" && hmrRefresh
-            ? Promise.resolve(undefined)
-            : match.load();
-        const [res, loadedMod] = await Promise.all([
-          fetch(dataEndpoint, {
-            headers:
-              process.env.NODE_ENV !== "production" && hmrRefresh
-                ? { "x-furin-hmr-refresh": "1" }
-                : undefined,
-            redirect: "manual",
-            signal,
-          }),
-          loadedModule,
-        ]);
-
-        // Stale-deploy detection: force a full page reload to pick up the new bundle.
-        if (isStaleDeployResponse(res)) {
-          return null;
-        }
-
-        const contentType = res.headers.get("content-type") ?? "";
-        if (
-          !(
-            staticMode ||
-            contentType.includes("application/x-ndjson") ||
-            contentType.includes("application/x-furin-route")
-          )
-        ) {
-          return null;
-        }
-
-        const body = res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() });
-        let parsed: {
-          syncData: Record<string, unknown>;
-          deferredPromises: Record<string, Promise<unknown>>;
-        };
-        try {
-          parsed = await parseDeferredNdjson(body, signal);
-        } catch (parseErr) {
-          log.warn({
-            action: "navigate_server_error",
-            error: String(parseErr),
-            href: physicalHref,
-            status: res.status,
-          });
-          return null;
-        }
-        const { syncData, deferredPromises } = parsed;
-        const reusable = trackDeferredTransport(deferredPromises, signal);
-        const ownedSnapshot = (snapshot: RouterState): RouterState => {
-          snapshotTransports.current.set(snapshot, reusable);
-          return snapshot;
-        };
-
-        // Special fields injected by the server into syncData:
-        //   __furinStatus   — 404 signal
-        //   __furinNotFound — not-found payload
-        //   __furinRedirect — server-side redirect target (logical path)
-        //   __furinError    — error sentinel (digest, message, status)
-        //   __furinTitle    — document title resolved server-side from head()
-        const {
-          __furinHead,
-          __furinStatus,
-          __furinNotFound,
-          __furinRedirect,
-          __furinError,
-          __furinTitle,
-          __furinQueries,
-          ...cleanSyncData
-        } = syncData as {
-          __furinStatus?: number;
-          __furinNotFound?: { data?: unknown; message?: string };
-          __furinRedirect?: string;
-          __furinError?: { digest: string; message: string; status: number };
-          __furinHead?: HeadOptions;
-          __furinTitle?: string;
-          __furinQueries?: QuerySeed[];
-          [key: string]: unknown;
-        };
-
-        if (typeof __furinRedirect === "string") {
-          const target = new URL(__furinRedirect, window.location.origin);
-          const isLogicalPath =
-            __furinRedirect.startsWith("/") && !__furinRedirect.startsWith("//");
-          const withinMount =
-            isLogicalPath ||
-            basePath === "" ||
-            target.pathname === basePath ||
-            target.pathname.startsWith(`${basePath}/`);
-          const targetPath = isLogicalPath ? target.pathname : toLogical(target.pathname, basePath);
-          if (
-            target.origin !== window.location.origin ||
-            !withinMount ||
-            !routes.some((route) => route.regex.test(targetPath))
-          ) {
-            return null;
-          }
-          return {
-            data: {},
-            finalHref: targetPath + target.search + target.hash,
-            match: null,
-            title: "",
-          };
-        }
-
-        // Merge sync data + deferred Promises.
-        const data = { ...cleanSyncData, ...deferredPromises };
-
-        const title = typeof __furinTitle === "string" ? __furinTitle : "";
-
-        const loadedMatch: LoadedClientRoute | null = loadedMod
-          ? {
-              ...match,
-              component: loadedMod.default.component,
-              pageRoute: loadedMod.default._route,
-              segmentBoundaries: loadedMod.segmentBoundaries ?? match.segmentBoundaries,
-            }
-          : currentMatchRef.current;
-        if (!loadedMatch) {
-          return null;
-        }
-
-        // Loader threw a non-redirect Response (or an Error).
-        if (__furinError) {
-          return ownedSnapshot({
-            data,
-            error: __furinError,
-            head: __furinHead,
-            match: loadedMatch,
-            title,
-          });
-        }
-
-        // Non-2xx without sentinel and not 404 → opaque server error.
-        if (!res.ok && res.status !== 404) {
-          log.warn({ action: "navigate_server_error", href: physicalHref, status: res.status });
-          return null;
-        }
-
-        if (__furinStatus === 404) {
-          const notFound =
-            __furinNotFound !== null && typeof __furinNotFound === "object"
-              ? (__furinNotFound as { data?: unknown; message?: string })
-              : {};
-          return ownedSnapshot({
-            data,
-            head: __furinHead,
-            match: loadedMatch,
-            notFound,
-            title,
-          });
-        }
-
-        return ownedSnapshot({
-          data,
-          head: __furinHead,
-          match: loadedMatch,
-          querySeeds: __furinQueries,
-          hydrateQueries,
-          title,
-        });
-      } catch (err: unknown) {
-        if (!isAbortError(err)) {
-          log.error({
-            action: "navigate_failed",
-            error: String(err),
-            href: basePath + logicalHref,
-          });
-        }
+      const result = await fetchPageState(
+        {
+          basePath,
+          captureHydration: () => queries.captureHydration(),
+          currentMatch: () => currentMatchRef.current,
+          rootBoundaries,
+          routes,
+          staticMode,
+        },
+        href,
+        signal,
+        hmrRefresh
+      );
+      if (result.kind === "redirect") {
+        return { data: {}, finalHref: result.href, match: null, title: "" };
+      }
+      if (result.kind === "hardNavigate" || result.kind === "aborted") {
         return null;
       }
+      snapshotTransports.current.set(result.state, result.reusable);
+      return result.state;
     },
-    [routes, basePath, resolveNoMatchState, queries]
+    [routes, basePath, rootBoundaries, queries, staticMode]
   );
 
   const fetchConfirmedPageState = useCallback(
@@ -573,7 +365,7 @@ export function RouterProvider({
         }
         const version = optimisticRuntime.revision(href);
         const generation = cacheGeneration.current;
-        const snapshot = await fetchPageState(href, signal, hmrRefresh);
+        const snapshot = await fetchPage(href, signal, hmrRefresh);
         if (optimisticRuntime.publishable(href, version)) {
           if (snapshot) {
             snapshotVersions.current.set(snapshot, version);
@@ -583,7 +375,7 @@ export function RouterProvider({
         }
       }
     },
-    [fetchPageState, optimisticRuntime, cacheGeneration]
+    [fetchPage, optimisticRuntime, cacheGeneration]
   );
 
   const invalidatePrefetch = useCallback(
@@ -613,7 +405,7 @@ export function RouterProvider({
       const generation = cacheGeneration.current;
       const entry: CacheEntry = {
         createdAt: Date.now(),
-        promise: fetchPageState(href, undefined, false).then((snapshot) => {
+        promise: fetchPage(href, undefined, false).then((snapshot) => {
           if (snapshot) {
             snapshotGenerations.current.set(snapshot, generation);
           }
@@ -628,7 +420,7 @@ export function RouterProvider({
         }
       });
     },
-    [fetchPageState, defaultPreloadStaleTime, prefetchCacheSize, cacheGeneration]
+    [fetchPage, defaultPreloadStaleTime, prefetchCacheSize, cacheGeneration]
   );
 
   const readNavigationState = useCallback(
