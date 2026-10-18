@@ -128,7 +128,7 @@ import { defineConfig } from "@teyik0/furin/config";
 export default defineConfig({ clientLogging: true });
 ```
 
-Or pass `clientLogging: true` to `furin()` when development/runtime configuration owns the choice. The generated browser entry initializes `evlog/http`, batches events to the instance's `/_furin/ingest` endpoint, and labels re-emitted events with `service: "furin:browser"`.
+Or pass `clientLogging: true` to `furin()` when development/runtime configuration owns the choice. The generated browser entry initializes `evlog/http`, batches events to the instance's `/_furin/ingest` endpoint, and re-emits them nested under a `browser` field with `service: "furin:browser"`, so browser input cannot overwrite server fields such as `status`, `path` or `user`.
 
 Furin automatically records navigation and refresh failures. Application browser code can use evlog's client-safe logger:
 
@@ -138,6 +138,6 @@ import { log } from "evlog";
 log.info({ action: "search_submitted", queryLength: query.length });
 ```
 
-The ingest endpoint limits a request to 64 KiB and at most 100 entries. It accepts only event-shaped batches and strips unsafe prototype fields before adding them to the server event.
+The ingest endpoint limits a request to 64 KiB and at most 100 entries. It accepts only event-shaped batches and strips `__proto__`, `constructor` and `prototype` keys at every depth before adding them to the server event.
 
 Client logging adds browser code and HTTP traffic, so enable it deliberately and apply the same redaction/data-minimization policy as server logs.

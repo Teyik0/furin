@@ -281,18 +281,11 @@ async function setupCompiledTemplate(
   setProductionTemplateContent(ctx.templateHtml, instance);
 }
 
-/**
- * Shape of one browser-submitted log event. The named keys are the dangerous
- * ones stripped before `log.set` (prototype-pollution vectors, plus the
- * browser `environment` which must not overwrite the server's); everything
- * else is forwarded as-is.
- */
-interface FurinBrowserEvent {
-  __proto__?: unknown;
-  constructor?: unknown;
-  environment?: unknown;
-  prototype?: unknown;
-  [key: string]: unknown;
+const PROTOTYPE_POLLUTION_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Drops prototype-pollution keys at every depth before evlog deep-merges the event. */
+function dropPrototypeKeys(key: string, value: unknown): unknown {
+  return PROTOTYPE_POLLUTION_KEYS.has(key) ? undefined : value;
 }
 
 type BrowserIngestRead =
@@ -339,7 +332,7 @@ async function readBrowserIngest(request: Request): Promise<BrowserIngestRead> {
     offset += chunk.byteLength;
   }
   try {
-    return { body: JSON.parse(new TextDecoder().decode(bytes)), kind: "ok" };
+    return { body: JSON.parse(new TextDecoder().decode(bytes), dropPrototypeKeys), kind: "ok" };
   } catch {
     return { kind: "invalid" };
   }
@@ -406,19 +399,13 @@ function createLoggerPlugin(
         log.set({ msg: "[furin] ingest: skipping malformed entry" });
         continue;
       }
-      // Pick only safe, known fields from the event to prevent prototype pollution
-      const event = entry.event as FurinBrowserEvent | undefined;
+      const { event } = entry;
       if (!event || typeof event !== "object") {
         continue;
       }
-      const {
-        __proto__,
-        constructor: _ctor,
-        prototype,
-        environment: _browserEnv,
-        ...safeEvent
-      } = event;
-      log.set({ ...safeEvent, service: "furin:browser" });
+      // Nest browser input under one key so it cannot overwrite server fields
+      // (status, path, environment, user, ...).
+      log.set({ browser: event, service: "furin:browser" });
     }
     return status("No Content");
   }) as unknown as Elysia;

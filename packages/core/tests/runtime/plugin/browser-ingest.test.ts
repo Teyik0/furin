@@ -189,7 +189,10 @@ test.serial("browser log ingest accepts browser events when enabled", async () =
   );
 
   expect(res.status).toBe(204);
-  expect(evlogSetMock).toHaveBeenCalledWith({ msg: "browser log", service: "furin:browser" });
+  expect(evlogSetMock).toHaveBeenCalledWith({
+    browser: { msg: "browser log" },
+    service: "furin:browser",
+  });
 });
 
 test.serial("browser log ingest rejects oversized batches", async () => {
