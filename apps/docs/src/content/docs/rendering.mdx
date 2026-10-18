@@ -139,7 +139,7 @@ Furin's composite API is intentionally narrower than the Next.js React Server Co
 
 Function components with hooks can cross this boundary when their module starts with `"use client"`. Furin sends a Flight reference, renders the component with React DOM during SSR, and loads its browser module for hydration. Imports used only by a loader are included in the client build too.
 
-Client references currently support function exports. Components exported through `memo()` or `forwardRef()` are not supported inside composite callbacks yet.
+Client references support function exports and components wrapped in `memo()`, `forwardRef()`, or `lazy()`. Each exported wrapper keeps its own reference, even when several wrap the same function.
 
 Client barrels retain their original exports' Flight identities, including when several applications share a component. CommonJS modules preserve Bun's default interop; their native RSC graph supports literal export assignments and object literals assigned to `module.exports`. Use an ESM wrapper for dynamically generated CommonJS exports.
 
@@ -155,20 +155,47 @@ export function Counter() {
 }
 ```
 
+The loader builds the server tree once and returns it as loader data. `children` is a slot: the server tree marks where it goes, and the layout fills it with live React elements when it renders `<CompositeComponent>`.
+
 ```tsx
-// Inside a route loader
-const header = await createCompositeComponent<{ children: ReactNode }>(
-  ({ children }) => (
-    <header>
-      <Link to="/">Home</Link>
-      <Counter />
-      {children}
-    </header>
-  )
-);
+// src/pages/root.tsx
+import { defineRootRoute, HeadContent, Scripts } from "@teyik0/furin";
+import { Link } from "@teyik0/furin/link";
+import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
+import type { ReactNode } from "react";
+import { Counter } from "../components/counter";
+import { UserMenu } from "../components/user-menu";
+
+export const route = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(async () => ({
+    header: await createCompositeComponent<{ children: ReactNode }>(({ children }) => (
+      <header>
+        <Link to="/">Home</Link>
+        <Counter />
+        {children}
+      </header>
+    )),
+  }))
+  .layout(({ children, header }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <CompositeComponent src={header}>
+          <UserMenu />
+        </CompositeComponent>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
 ```
 
-Furin's `Link` already declares this client boundary. It keeps its router context and SPA navigation when rendered through Flight. Props passed from a server tree to a client component must be serializable by React; event handlers belong inside the client component. Composite slots remain available for supplying live children from the route layout or page.
+`header` is typed from the loader, so `<CompositeComponent>` checks the slots it receives against the props declared on `createCompositeComponent()`. `UserMenu` here is an ordinary component of the layout: it is rendered in the slot, not sent through Flight.
+
+Furin's `Link` already declares this client boundary. It keeps its router context and SPA navigation when rendered through Flight. Props passed from a server tree to a client component must be serializable by React; event handlers belong inside the client component.
 
 ## Content Security Policy
 
