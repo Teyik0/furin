@@ -39,9 +39,9 @@ const PRODUCT_NEW_RE = /^\/products\/new$/;
 const HREF_ATTRIBUTE_RE = /\shref="([^"]*)"/;
 
 const assertNamedLinkJsx = () => {
-  const valid = <Link params={{ boardId: 42 }} to="/elysia-boards/:boardId" />;
+  const valid = <Link params={{ boardId: 42 }} search={{ page: 1 }} to="/elysia-boards/:boardId" />;
   // @ts-expect-error a named dynamic link requires its path params
-  const missingParams = <Link to="/elysia-boards/:boardId" />;
+  const missingParams = <Link search={{ page: 1 }} to="/elysia-boards/:boardId" />;
   return [valid, missingParams];
 };
 

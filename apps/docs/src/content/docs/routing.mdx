@@ -92,7 +92,7 @@ export const route = defineRoute()
     layout: rootRoute,
     mode: "ssr",
     query: t.Object({
-      page: t.Numeric({ default: 1, minimum: 1 }),
+      page: t.Optional(t.Numeric({ default: 1, minimum: 1 })),
       q: t.Optional(t.String()),
     }),
   })
@@ -101,6 +101,13 @@ export const route = defineRoute()
 ```
 
 Schema defaults are applied before loaders run. Navigation omits values equal to those defaults from the generated URL, keeping canonical links clean.
+
+Furin types the two sides of a query schema separately:
+
+- **Navigation input** (`search` on `<Link>`, `navigate()` and `RouteSearch`): what a caller may send. Required fields are required, optional or defaulted fields are optional, and `search` itself is required as soon as one field is required.
+- **Validated output** (`useSearch()`, loader and page `query`, `RouteSearchOutput`): what the route reads after validation, with defaults applied.
+
+The input side comes from the schema's input type. With Zod or another Standard Schema library, `z.number().default(1)` is optional in navigation input and a `number` in the output. TypeBox doesn't record `default` in its static type, so a TypeBox field with only `{ default }` stays required for navigation. Wrap it in `t.Optional(...)` so links can omit it. The default still applies at runtime, but the validated type then includes `undefined`.
 
 By default, changing path parameters remounts the page, while query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
 

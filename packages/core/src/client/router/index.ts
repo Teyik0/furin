@@ -61,6 +61,7 @@ export type {
   RouterProviderProps,
   RouterState,
   RouteSearch,
+  RouteSearchOutput,
   RouteTo,
   SpaResponseKind,
 } from "./types.ts";

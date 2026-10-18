@@ -109,11 +109,16 @@ type ContractFields<Route> = [RouteContractOf<Route>] extends [never]
     ? {
         params: ElysiaRouteParams<ElysiaRouteLeaf<App>>;
         query: ElysiaRouteQuery<ElysiaRouteLeaf<App>>;
+        search: ElysiaRouteQuery<ElysiaRouteLeaf<App>>;
       }
     : never
   : RouteContractOf<Route>;
 
-type RouteSearchInput<Route> = DeclaredFields<ContractFields<Route>["query"]>;
+/** What a caller may send: fields with defaults (schema input side) are optional. */
+type RouteSearchInput<Route> = DeclaredFields<ContractFields<Route>["search"]>;
+
+/** What the route reads after validation, with defaults applied. */
+type RouteSearchOutputOf<Route> = DeclaredFields<ContractFields<Route>["query"]>;
 
 type RouteParamsInput<Route> = DeclaredFields<ContractFields<Route>["params"]>;
 
@@ -135,6 +140,23 @@ export type RouteSearch<To extends RouteTo> = keyof RouteManifest extends never
   : string extends To
     ? SearchParamsInput
     : RouteSearchInput<RouteOf<To>>;
+
+/**
+ * The validated search a route reads (`useSearch()`), with schema defaults
+ * applied. `RouteSearch` is the navigation input for the same route.
+ */
+export type RouteSearchOutput<To extends RouteTo> = keyof RouteManifest extends never
+  ? SearchParamsInput
+  : string extends To
+    ? SearchParamsInput
+    : RouteSearchOutputOf<RouteOf<To>>;
+
+/** `search` is required as soon as the navigation input has a required field. */
+type SearchProp<Search> = undefined extends Search
+  ? { search?: Search }
+  : NonNullable<unknown> extends Search
+    ? { search?: Search }
+    : { search: Search };
 
 /**
  * URL values for a route's path params: schema numbers accept both `42` and
@@ -219,6 +241,7 @@ export interface LinkBaseProps<To extends RouteTo>
 
 export type LinkProps<To extends RouteTo = RouteTo> = LinkBaseProps<To> &
   LinkParams<To> &
+  SearchProp<RouteSearch<To>> &
   RouteToCheck<To>;
 
 /** Destinations accepted by structured navigation; validated by `CheckedRouteTo`. */
@@ -239,7 +262,8 @@ export type RouteToCheck<To extends string> =
 type DestinationLiteral = `/${string}` | `${string}:${string}`;
 
 export type RouteTarget<To extends NavigationTo> = To extends DestinationLiteral
-  ? { to: To; hash?: string; search?: RouteSearch<NoInfer<To>> } & LinkParams<NoInfer<To>> &
+  ? { to: To; hash?: string } & SearchProp<RouteSearch<NoInfer<To>>> &
+      LinkParams<NoInfer<To>> &
       RouteToCheck<NoInfer<To>>
   : string extends To
     ? {

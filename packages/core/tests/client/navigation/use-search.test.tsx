@@ -252,7 +252,7 @@ describe("useNavigate", () => {
     function Page(): React.ReactElement {
       const go = useNavigate();
       useEffect(() => {
-        go({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+        go({ params: { boardId: 42 }, search: { page: 2 }, to: "/elysia-boards/:boardId" });
       }, [go]);
       return createElement("output");
     }
@@ -263,7 +263,7 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42", undefined);
+      expect(navigate).toHaveBeenCalledWith("/elysia-boards/42?page=2", undefined);
     } finally {
       await rendered.cleanup();
     }
@@ -310,7 +310,7 @@ describe("useNavigate", () => {
     function Page(): React.ReactElement {
       const go = useNavigate();
       useEffect(() => {
-        go({ replace: true, resetScroll: false, to: "/products" });
+        go({ replace: true, resetScroll: false, search: { page: 2 }, to: "/products" });
       }, [go]);
       return createElement("output");
     }
@@ -321,7 +321,7 @@ describe("useNavigate", () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(navigate).toHaveBeenCalledWith("/products", {
+      expect(navigate).toHaveBeenCalledWith("/products?page=2", {
         replace: true,
         resetScroll: false,
       });

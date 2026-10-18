@@ -1,4 +1,4 @@
-import type { RouteManifest, RoutePatternOf, RouteSearch, RouteTo } from "@teyik0/furin/link";
+import type { RouteManifest, RoutePatternOf, RouteSearchOutput, RouteTo } from "@teyik0/furin/link";
 import { useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import {
   findSearchDefaultsForRouteTarget,
@@ -28,7 +28,7 @@ export type SearchRouteCheck<To extends SearchRouteTo> = keyof RouteManifest ext
         }
       : unknown;
 
-type SearchRouteSearch<To extends SearchRouteTo> = RouteSearch<To>;
+type SearchRouteSearch<To extends SearchRouteTo> = RouteSearchOutput<To>;
 
 export type EmptyRouteSearch = Record<PropertyKey, never>;
 

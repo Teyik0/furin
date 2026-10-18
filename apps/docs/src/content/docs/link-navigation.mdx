@@ -39,7 +39,7 @@ A value typed as plain `string`, such as an href loaded from a CMS, can't be che
 |---|---|
 | `to` | Route pattern, a path matching one, or an absolute URL (see [destination checking](#destination-checking)) |
 | `params` | Replaces typed `:param` segments |
-| `search` | Serializes typed search values; schema defaults are omitted |
+| `search` | Typed navigation input: required when the query schema has a required field; schema defaults are omitted from the URL ([input vs output](/docs/routing#validated-search-parameters)) |
 | `hash` | Fragment without `#` |
 | `replace` | Replaces the current history entry |
 | `resetScroll` | Scrolls to the hash target or top after navigation; defaults to `true` |
@@ -164,7 +164,7 @@ Unsafe schemes are rejected. External `http(s)` destinations use a document navi
 
 ## Search State
 
-`useSearch()` returns the validated search state for a route and an async setter:
+`useSearch()` returns the validated search state for a route (schema output, defaults applied) and an async setter:
 
 ```tsx
 import { useSearch } from "@teyik0/furin/search";

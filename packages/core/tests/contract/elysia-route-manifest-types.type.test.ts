@@ -168,16 +168,16 @@ const assertInheritedNavigation = (navigate: Navigate) => {
 };
 
 const assertLinkDestinations = () => {
-  Link({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  Link({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   Link({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
   Link({ search: { page: 2 }, to: "/elysia-products" });
-  Link({ to: "/elysia-boards/42" });
+  Link({ search: { page: 1 }, to: "/elysia-boards/42" });
   // @ts-expect-error a named dynamic route requires its URL segment
-  Link({ to: "/elysia-boards/:boardId" });
+  Link({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error optional schemas do not make path segments optional
   Link({ params: {}, to: "/elysia-optional-boards/:boardId" });
   // @ts-expect-error path params retain their schema types
-  Link({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  Link({ params: { boardId: false }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error named routes retain their query schema
   Link({ search: { page: "two" }, to: "/elysia-products" });
 };
@@ -209,14 +209,14 @@ const assertTypedNavigate = (
   navigate: Navigate,
   to: "/elysia-boards/:boardId" | "/elysia-slugs/:slug"
 ) => {
-  navigate({ params: { boardId: 42 }, to: "/elysia-boards/:boardId" });
+  navigate({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   navigate({ params: { boardId: "42" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ params: { boardId: "42", locale: "fr" }, to: "/elysia-optional-boards/:boardId" });
   navigate({ search: { page: 2, tag: "bun" }, to: "/elysia-products" });
   navigate({ to: "https://example.com" });
   navigate(
     to === "/elysia-boards/:boardId"
-      ? { params: { boardId: 42 }, to }
+      ? { params: { boardId: 42 }, search: { page: 1 }, to }
       : { params: { slug: "bun" }, to }
   );
 
@@ -224,9 +224,9 @@ const assertTypedNavigate = (
   navigate({ params: { slug: "bun" }, to });
 
   // @ts-expect-error required path params must be supplied
-  navigate({ to: "/elysia-boards/:boardId" });
+  navigate({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error path params retain their schema-derived types
-  navigate({ params: { boardId: false }, to: "/elysia-boards/:boardId" });
+  navigate({ params: { boardId: false }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error a required URL segment cannot be omitted even with an optional schema
   navigate({ params: {}, to: "/elysia-optional-boards/:boardId" });
   // @ts-expect-error undefined cannot fill a required URL segment
@@ -255,15 +255,20 @@ const assertRouteApi = () => {
 };
 
 const assertRouterTargets = (router: Router) => {
-  router.navigate({ to: "/elysia-boards/:boardId", params: { boardId: 42 } });
-  router.prefetch({ to: "/elysia-boards/:boardId", params: { boardId: 42 }, staleTime: 5000 });
+  router.navigate({ params: { boardId: 42 }, search: { page: 1 }, to: "/elysia-boards/:boardId" });
+  router.prefetch({
+    params: { boardId: 42 },
+    search: { page: 1 },
+    staleTime: 5000,
+    to: "/elysia-boards/:boardId",
+  });
   router.prefetch({ to: "/elysia-products", search: { page: 2 } });
   router.navigate("/elysia-boards/42", { replace: true });
   router.prefetch("/elysia-boards/42", { staleTime: 5000 });
   // @ts-expect-error named destinations require their path params
-  router.navigate({ to: "/elysia-boards/:boardId" });
+  router.navigate({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error prefetch uses the same required params
-  router.prefetch({ to: "/elysia-boards/:boardId" });
+  router.prefetch({ search: { page: 1 }, to: "/elysia-boards/:boardId" });
   // @ts-expect-error search retains its schema types
   router.prefetch({ to: "/elysia-products", search: { page: "two" } });
   // @ts-expect-error structured navigation rejects unknown routes
