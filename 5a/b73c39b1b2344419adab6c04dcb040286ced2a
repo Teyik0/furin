@@ -1,0 +1,22 @@
+packages/core/tests/client/navigation/router-cache.test.tsx
+  s_3827fec5c7f2ed::t_627b3e62c0a7c1 248-272
+packages/core/src/client/router/provider.tsx
+  s_3827fec5c7f2ed::t_5c81af1bead981 610-611
+  s_3827fec5c7f2ed::t_ff84a517448d53 575-586
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ab73c39b1b2344419adab6c04dcb040286ced2a",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
