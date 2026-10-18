@@ -21,10 +21,19 @@ afterEach(() => __setDevMode(previousDevMode));
 
 function accountApi() {
   return createClient(
-    new Elysia().get("/account", ({ set }) => {
-      set.headers["x-furin-query"] = JSON.stringify(identity);
-      return { profile: { displayName: "Alice" }, passwordResetToken: SECRET };
-    })
+    new Elysia()
+      .get("/account", ({ set }) => {
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { profile: { displayName: "Alice" }, passwordResetToken: SECRET };
+      })
+      .get("/board", ({ set }) => {
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { board: { title: "Alpha" }, cards: [{ title: SECRET }] };
+      })
+      .get("/totals", ({ set }) => {
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { board: { title: "Alpha" }, cards: [{ title: "Card" }], total: SECRET };
+      })
   );
 }
 
@@ -33,6 +42,8 @@ type Account = Awaited<ReturnType<ReturnType<typeof accountApi>["account"]["get"
 // biome-ignore lint/style/useConsistentTypeDefinitions: only an alias satisfies the loader's index signature.
 type LoaderOutput = {
   account?: Account;
+  board?: { title: string };
+  cards?: { title: string }[];
   displayName?: string | Promise<string | undefined>;
   later?: Promise<string>;
   profile?: { displayName: string };
@@ -134,6 +145,27 @@ test("a GET response returned whole still hydrates", async () => {
       bindings: [{ source: [], target: ["account"] }],
     },
   ]);
+});
+
+test("a GET whose every top-level value is returned by identity still hydrates", async () => {
+  const { seeds } = await transports(async (api) => {
+    const { data } = await api.board.get();
+    return { board: data?.board, cards: data?.cards };
+  });
+  expect(seeds).toMatchObject([
+    { identity, data: { board: { title: "Alpha" }, cards: [{ title: SECRET }] } },
+  ]);
+});
+
+test("a GET with a top-level scalar the loader cannot bind ships no body", async () => {
+  const { html, payload, seeds } = await transports(async (api) => {
+    const { data } = await api.totals.get();
+    return { board: data?.board, cards: data?.cards };
+  });
+  expect(html).not.toContain(SECRET);
+  expect(payload).not.toContain(SECRET);
+  expect(seeds).toMatchObject([{ identity }]);
+  expect(seeds[0]?.data).toBeUndefined();
 });
 
 test("a later deferred field does not erase a body returned whole by the loader", async () => {

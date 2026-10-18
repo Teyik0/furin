@@ -2,13 +2,16 @@
 import "../../setup/global.ts";
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { treaty } from "@elysia/eden";
-import { Elysia } from "elysia";
+import { type Context, Elysia } from "elysia";
 import { act, createElement, Suspense, use } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { toCrossJSON } from "seroval";
+import { fromCrossJSON, toCrossJSON } from "seroval";
 import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/index.ts";
 import { useQuery, withSync } from "../../../src/client.ts";
+import { autoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
+import { runLoaders } from "../../../src/server/render/loaders.ts";
+import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
@@ -245,6 +248,92 @@ describe("RouterProvider sync refresh", () => {
       expect(loaderReads).toBeGreaterThan(0);
     } finally {
       gate.resolve();
+    }
+  });
+
+  test("the documented per-field loader projection hydrates and projects cache.update at once", async () => {
+    const gate = Promise.withResolvers<void>();
+    const identity = { id: "board", scope: { boardId: "alpha" }, session: "test" };
+    let reads = 0;
+    const app = new Elysia()
+      .get("/workspace", ({ set }) => {
+        reads += 1;
+        set.headers["x-furin-query"] = JSON.stringify(identity);
+        return { board: { title: "Alpha" }, cards: [{ column: "todo", id: "c1" }] };
+      })
+      .post("/workspace", async () => {
+        await gate.promise;
+        return { ok: true };
+      });
+    const client = (origin: string) =>
+      withSync(
+        treaty<typeof app>(origin, {
+          fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+        })
+      );
+    const serverApi = client("http://ssr.internal");
+    const api = client(window.location.origin);
+    const loaded = await runLoaders(
+      {
+        mode: "ssr",
+        pattern: "/board",
+        page: {
+          loader: async () => {
+            const { data } = await serverApi.workspace.get();
+            return { board: data?.board, cards: data?.cards };
+          },
+        },
+        routeChain: [],
+      } as unknown as ResolvedRoute,
+      {
+        request: new Request(`${window.location.origin}/board`),
+        path: "/board",
+        params: {},
+        query: {},
+        set: { headers: {} },
+      } as unknown as Context
+    );
+    autoInvalidateRegistry.unregisterPath("/board");
+    if (loaded.type !== "data") {
+      throw new Error("Loader failed");
+    }
+    function Board(props: PageProps) {
+      const board = props.board as { title: string };
+      const cards = props.cards as { column: string }[];
+      return <main>{`${board.title}:${cards.map((card) => card.column).join()}`}</main>;
+    }
+    const route = makeRoute("/board");
+    const initialMatch = await loadInitialMatch(route);
+    initialMatch.component = Board;
+    globalThis.fetch = mock(() =>
+      Promise.resolve(makeNdjsonResponse(loaded.syncData))
+    ) as unknown as typeof fetch;
+    const rendered = await renderRouter(
+      route,
+      initialMatch,
+      fromCrossJSON(toCrossJSON(loaded.syncData), {}) as PageProps
+    );
+    currentCleanup = rendered.cleanup;
+    expect(rendered.container.textContent).toBe("Alpha:todo");
+    let write: ReturnType<typeof api.workspace.post> | undefined;
+    try {
+      await act(async () => {
+        write = api.workspace.post(undefined, {
+          optimistic: (cache) =>
+            cache.update(api.workspace.get, (data) => ({
+              ...data,
+              cards: data.cards.map((card) => ({ ...card, column: "done" })),
+            })),
+        });
+        await Promise.resolve();
+      });
+      expect(rendered.container.textContent).toBe("Alpha:done");
+      expect(reads).toBe(1);
+    } finally {
+      gate.resolve();
+      await act(async () => {
+        await write;
+      });
     }
   });
 

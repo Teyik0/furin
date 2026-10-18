@@ -173,7 +173,9 @@ export const route = defineRoute()
   });
 ```
 
-No matching loader tag is needed. Furin transports completed reads with the loader snapshot and registers the dependency automatically. Keep credentials on the server-side Eden client request: tracking does not forward the page request's authentication headers automatically. Use SSR or request loaders for personalized reads; public SSG/ISR loaders must remain public.
+No matching loader tag is needed. Furin registers the dependency of every completed read automatically, so cache tags and sync refreshes target the route. Keep credentials on the server-side Eden client request: tracking does not forward the page request's authentication headers automatically. Use SSR or request loaders for personalized reads; public SSG/ISR loaders must remain public.
+
+A read's response body is sent to the browser, so `useQuery` and `cache.update` start from it without a GET, only when the loader output already exposes all of it by object identity: either the whole response (`return { initialCards: data }`) or every top-level field as an object or array (`return { board: data.board, cards: data.cards }`). Otherwise only the dependency travels and the browser fetches the GET when it needs it. A loader that reads `{ displayName, passwordResetToken }` and returns `displayName`, or returns `board` and `cards` but not a scalar `total`, never sends the rest of the response.
 
 ### Update Loader Props With One GET Projection
 

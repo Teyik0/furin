@@ -23,15 +23,33 @@ const trackedQueryPaths = instanceSlot(() => new Set<string>());
 const deferredQueries = new WeakMap<Promise<unknown>, QuerySeed[]>();
 
 /**
- * A response body may only travel when the loader output already contains it whole, by identity.
- * Other reads keep their identity and bindings so cache tags and sync refreshes still apply.
+ * A response body may only travel when the loader output already exposes all of it by identity:
+ * the whole response, or every top-level value of a response object.
  */
-function transportableSeeds(seeds: readonly QuerySeed[]): QuerySeed[] {
-  return seeds.map((seed) =>
-    seed.bindings?.some((binding) => binding.source.length === 0)
-      ? seed
-      : { ...seed, data: undefined }
+function exposesBody(seed: QuerySeed): boolean {
+  const bound = new Set(
+    seed.bindings?.map((binding) =>
+      binding.source.reduce<unknown>(
+        (value, key) => (value as { [field: string]: unknown })[key],
+        seed.data
+      )
+    )
   );
+  if (bound.has(seed.data)) {
+    return true;
+  }
+  const { data } = seed;
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.values(data).every((value) => bound.has(value))
+  );
+}
+
+/** Reads whose body is not exposed keep their identity and bindings for cache tags and sync. */
+function transportableSeeds(seeds: readonly QuerySeed[]): QuerySeed[] {
+  return seeds.map((seed) => (exposesBody(seed) ? seed : { ...seed, data: undefined }));
 }
 
 export function deferredQuerySeeds(promise: Promise<unknown>): QuerySeed[] | undefined {
