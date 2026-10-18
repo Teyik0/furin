@@ -24,9 +24,6 @@ const config: KnipConfig = {
     },
     "examples/task-manager": {
       entry: ["src/server.ts", "furin.config.ts", "src/pages/**/*.{ts,tsx}"],
-      ignoreIssues: {
-        "src/api/modules/boards/service.ts": ["exports", "types"],
-      },
       project: ["src/**/*.{ts,tsx,css}"],
     },
     "examples/weather": {
@@ -53,10 +50,8 @@ const config: KnipConfig = {
         "src/build/request-keys.ts": ["exports"],
         "src/server/auto-invalidate/index.ts": ["exports"],
         "src/server/cache/index.ts": ["exports", "types"],
-        "src/server/devtools/hub.ts": ["exports"],
         "src/server/render/index.ts": ["exports", "types"],
         "src/server/render/ssr.ts": ["types"],
-        "src/server/sync/config.ts": ["exports"],
       },
       project: ["src/**/*.{ts,tsx}", "tests/fixtures/**/*.prisma"],
     },
