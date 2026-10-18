@@ -1,0 +1,28 @@
+apps/docs/src/content/docs/caching.mdx
+  s_3827fec5c7f2ed::t_043b3bc6f65d89 238,241-245,249
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_f8f17bfaae3772 19-22
+  s_3827fec5c7f2ed::t_5bc9ad96c15a0f 26
+  s_3827fec5c7f2ed::t_7bf23cb3600946 41-43
+apps/docs/src/content/docs/configuration.mdx
+  s_3827fec5c7f2ed::t_b4c1d294744252 155,158-159,163
+apps/docs/src/content/docs/multi-instance.mdx
+  s_3827fec5c7f2ed::t_4d1090338e47b3 71,74
+  s_3827fec5c7f2ed::t_3c5e7433b78783 28-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "04359ce0603bc0e8d7c2762d2c975d93f3acbeea",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
