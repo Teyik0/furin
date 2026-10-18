@@ -44,7 +44,7 @@
     "lefthook": "^2.1.14",
     "pkg-pr-new": "0.0.91",
     "react-doctor": "^0.9.17",
-    "typescript": "^7.0.2",
+    "typescript": "7.0.2",
     "ultracite": "7.12.4"
   },
   "engines": {

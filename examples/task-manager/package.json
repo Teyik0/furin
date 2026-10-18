@@ -21,7 +21,7 @@
     "@teyik0/furin": "workspace:*",
     "bun-plugin-tailwind": "^0.1.2",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.45.3",
+    "drizzle-orm": "^0.45.4",
     "elysia": "catalog:",
     "evlog": "catalog:",
     "exact-mirror": "catalog:",
