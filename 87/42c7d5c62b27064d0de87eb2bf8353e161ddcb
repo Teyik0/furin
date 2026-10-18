@@ -1,0 +1,24 @@
+packages/core/src/define-route.ts
+  s_3827fec5c7f2ed::t_e696416f9a1a09 210-214,222,512-516,555-558,560-571,574,694,703,713,723
+  s_3827fec5c7f2ed::t_abb9a652b6a415 218,221,223
+  s_3827fec5c7f2ed::t_91878c618652d5 559,728
+packages/core/tests/contract/define-route-mode.test.ts
+  s_3827fec5c7f2ed::t_a067a70fe3ce01 133-137,293-297
+  s_3827fec5c7f2ed::t_67b3ef41dddd61 298-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8742c7d5c62b27064d0de87eb2bf8353e161ddcb",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
