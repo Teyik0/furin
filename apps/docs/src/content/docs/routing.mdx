@@ -132,7 +132,22 @@ The input side comes from the schema's input type. With Zod or another Standard 
 
 ### Inherited params and query
 
-A child route inherits the `params` and `query` schemas of every layout above it. The runtime merges the schemas from root to leaf, and the types follow the same rule: if a child declares a field that a parent also declares, the child's version wins. A layout at `/orgs/:org` with `query: t.Object({ lang: t.String() })` gives its children `params.org` and `query.lang` in their loaders, heads and pages. `<Link>` and `navigate()` then require `org` and `lang` for those children too.
+A child route inherits the `params` and `query` schemas of every layout above it. The runtime merges the schemas from root to leaf, and the types follow the same rule: if a child declares a field that a parent also declares, the child's version wins. A layout at `/orgs/:org` with `query: t.Object({ lang: t.String() })` gives its children `query.lang` in their loaders, heads and pages. `<Link>` and `navigate()` then require `org` and `lang` for those children too.
+
+Path params are the exception: a page still declares every dynamic segment of its path in its own `params` schema, including `org`. The page's schema validates the matched URL, and a segment it omits is rejected by the [route config checks](#route-config-checks) and when the route module loads:
+
+```tsx
+// src/pages/orgs/[org]/projects/[project].tsx
+import { route as orgRoute } from "../_route";
+
+export const route = defineRoute()
+  .config({
+    layout: orgRoute,
+    mode: "ssr",
+    params: t.Object({ org: t.String(), project: t.String() }),
+  })
+  .page(({ params, query }) => <Project org={params.org} id={params.project} lang={query.lang} />);
+```
 
 By default, changing path parameters remounts the page, while query and hash changes preserve its state. Use `remountDeps` to customize this [page lifecycle](/docs/layouts#page-state-and-navigation).
 
