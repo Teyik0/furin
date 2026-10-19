@@ -13,6 +13,30 @@ function withEchoRenderer(furinApp: AnyElysia) {
     .use(furinApp);
 }
 
+test("a runtime plugin registered earlier cannot claim the route module", async () => {
+  const instance = {
+    pagesDir: join(import.meta.dir, "../../fixtures/routes-v2/root"),
+    prefix: "/claimed",
+  };
+  const specifier = routeModuleSpecifier(instance);
+  const query = specifier.slice(specifier.indexOf("?"));
+  // An application plugin whose filter happens to match the module's file path.
+  Bun.plugin({
+    name: "claims-route-module",
+    setup(build) {
+      build.onLoad({ filter: new RegExp(`routes\\.ts\\${query}$`) }, () => ({
+        contents: "export const furinApp = undefined;",
+        loader: "ts",
+      }));
+    },
+  });
+  registerDevRoutesPlugin([instance]);
+
+  const module = (await import(specifier)) as { furinApp: AnyElysia | undefined };
+
+  expect(module.furinApp).toBeDefined();
+});
+
 test("the dev runtime resolves a composed Elysia app from the stable route specifier", async () => {
   const instance = {
     pagesDir: join(import.meta.dir, "../../fixtures/routes-v2/root"),

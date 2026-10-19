@@ -17,14 +17,11 @@ import {
   segmentPath,
 } from "./route-tree.ts";
 
-const DEV_ROUTES_APPS_SYMBOL = Symbol.for("@teyik0/furin/dev-routes-apps");
 const DEV_ROUTE_WATCHERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watchers");
 const DEV_ROUTE_WATCHER_OWNERS_SYMBOL = Symbol.for("@teyik0/furin/dev-route-watcher-owners");
-const DEV_ROUTES_FILE_FILTER = /[\\/]routes\.ts\?instance=[^&]+$/;
 const DEV_ROUTE_RECONCILE_DELAY_MS = 25;
 const DEV_ROUTE_RETRY_DELAY_MS = 100;
 const devInstancesBySpecifier = new Map<string, RouteInstanceSpec>();
-let devRoutesPluginRegistered = false;
 
 interface DevRoutesApps {
   app: AnyElysia;
@@ -421,45 +418,31 @@ async function composeRuntimeInstance(instance: RouteInstanceSpec): Promise<DevR
   return composeRuntimeNode(buildRouteTree(instance.pagesDir, instanceId));
 }
 
-function devRoutesApps(): Map<string, DevRoutesApps> {
-  const existing = Reflect.get(globalThis, DEV_ROUTES_APPS_SYMBOL);
-  if (existing instanceof Map) {
-    return existing as Map<string, DevRoutesApps>;
-  }
-  const apps = new Map<string, DevRoutesApps>();
-  Reflect.set(globalThis, DEV_ROUTES_APPS_SYMBOL, apps);
-  return apps;
-}
-
+/**
+ * Serves each instance's route module as a Bun virtual module. A virtual
+ * module resolves before any `onLoad` hook, so another runtime plugin whose
+ * filter matches `routes.ts` cannot claim it.
+ */
 export function registerDevRoutesPlugin(instances: RouteInstanceSpec[]): void {
   for (const instance of instances) {
-    devInstancesBySpecifier.set(routeModuleSpecifier(instance), instance);
+    const specifier = routeModuleSpecifier(instance);
+    const registered = devInstancesBySpecifier.has(specifier);
+    devInstancesBySpecifier.set(specifier, instance);
+    if (registered) {
+      continue;
+    }
+    Bun.plugin({
+      name: "furin-routes-dev",
+      setup(build) {
+        build.module(specifier, async () => {
+          const current = devInstancesBySpecifier.get(specifier);
+          if (!current) {
+            throw new Error(`[furin] Unknown dev route instance: ${specifier}`);
+          }
+          const routes = await composeRuntimeInstance(current);
+          return { exports: { furinApp: routes.app, furinShell: routes.shell }, loader: "object" };
+        });
+      },
+    });
   }
-  if (devRoutesPluginRegistered) {
-    return;
-  }
-  devRoutesPluginRegistered = true;
-
-  Bun.plugin({
-    name: "furin-routes-dev",
-    setup(build) {
-      build.onLoad({ filter: DEV_ROUTES_FILE_FILTER }, async ({ path }) => {
-        const queryIndex = path.indexOf("?instance=");
-        const specifier = `@teyik0/furin/routes${path.slice(queryIndex)}`;
-        const instance = devInstancesBySpecifier.get(specifier);
-        if (!instance) {
-          throw new Error(`[furin] Unknown dev route instance: ${specifier}`);
-        }
-        devRoutesApps().set(specifier, await composeRuntimeInstance(instance));
-        return {
-          contents: `const registry = Reflect.get(globalThis, Symbol.for(${JSON.stringify(
-            Symbol.keyFor(DEV_ROUTES_APPS_SYMBOL)
-          )}));\nconst routes = registry.get(${JSON.stringify(
-            specifier
-          )});\nexport const furinApp = routes.app;\nexport const furinShell = routes.shell;\n`,
-          loader: "js",
-        };
-      });
-    },
-  });
 }
