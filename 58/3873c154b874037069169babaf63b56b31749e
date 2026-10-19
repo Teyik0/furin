@@ -1,0 +1,34 @@
+packages/core/src/client/define-route.ts
+  s_553967112fee2c::t_c559927a8d07d2 40-41
+packages/core/tests/contract/define-route-keyed.test.ts
+  s_553967112fee2c::t_e3e43eec08a8c0 1-123,125-135
+  s_553967112fee2c::t_83635f5abb2abb 124
+packages/core/src/define-route.ts
+  s_553967112fee2c::t_8706e514f8b081 1005,1068-1069
+  s_553967112fee2c::t_b2ba998ec09d30 563-608,612-628
+  s_553967112fee2c::t_8ac5333ccfecda 813-817
+  s_553967112fee2c::t_318fde42dc4c56 493,496
+  s_553967112fee2c::t_a72a5bc395e393 1
+  s_553967112fee2c::t_64c9bbcc91f477 462-463
+  s_553967112fee2c::t_7da1746b301766 831
+  s_553967112fee2c::t_f4812b28951b70 999-1004,1006-1067
+  s_553967112fee2c::t_40f58f3297c537 629
+packages/core/tests/contract/define-route-client.test.tsx
+  s_553967112fee2c::t_9f9f94843cc181 27-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "583873c154b874037069169babaf63b56b31749e",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
