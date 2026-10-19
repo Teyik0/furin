@@ -686,7 +686,16 @@ throw new Error("recovery exploded");`
     );
     expect(errorEvent.diagnostic.location?.line).toBe(5);
     expect(readFileSync(join(app.path, "src/pages/index.tsx"), "utf8")).toBe(missingMode);
-    expect(server.getStderr()).toContain('config() must declare mode ("ssg", "ssr" or "isr")');
+    // The socket event can arrive before the server's stderr is read.
+    const configMessage = 'config() must declare mode ("ssg", "ssr" or "isr")';
+    for (
+      let attempt = 0;
+      attempt < 40 && !server.getStderr().includes(configMessage);
+      attempt += 1
+    ) {
+      await Bun.sleep(50);
+    }
+    expect(server.getStderr()).toContain(configMessage);
 
     writeAppFile(app.path, "src/pages/index.tsx", healthyPage("Config fixed"));
     let readyEvent = await events.next("ready");
