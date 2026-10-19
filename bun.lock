@@ -112,7 +112,7 @@
     },
     "packages/core": {
       "name": "@teyik0/furin",
-      "version": "0.7.0-alpha.3",
+      "version": "0.8.0-alpha.0",
       "bin": {
         "furin": "./src/cli/index.ts",
         "furin-sync-postgres-migrate": "./dist/server/sync/postgres/migrate.js",

@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.8.0-alpha.0] — 2026-10-19
+
 ### Breaking
 - **Navigation data comes from the page URL** — SPA navigation fetches `<page>?_furin=data` instead of `/_furin/data?path=<href>`, which is removed. The page's own Elysia route serves the payload, so parent guards, schemas and hooks run once, exactly as for the document, and the URL is matched only by Elysia. Furin removes the `_furin` marker before routing, so guards, loaders and render caches see the page URL. Being part of the URL, the marker gives documents and data separate CDN cache entries without `Vary`; keep the query string in the cache key. The Vercel adapter routes `?_furin=data` requests to the function. Proxy or firewall rules that allowed `/_furin/data` must allow page URLs with `_furin=data`, and guards that matched `/_furin/data` should use `isFurinPageRequest()`.
 - **`route.elysia` requires `furin()`** — a route's Elysia handler no longer falls back to `Response.json(loader(...))` when it's mounted without the Furin plugin. It now throws, and layout loaders no longer run outside Furin, so loader data can't be exposed as public JSON by accident.
@@ -572,7 +574,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `writeRouteTypes()` generating `furin-env.d.ts` for per-route type inference
 - Bun-native HMR with React Fast Refresh — single process, no Vite
 
-[Unreleased]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.3...HEAD
+[Unreleased]: https://github.com/teyik0/furin/compare/v0.8.0-alpha.0...HEAD
+[0.8.0-alpha.0]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.3...v0.8.0-alpha.0
 [0.7.0-alpha.3]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.2...v0.7.0-alpha.3
 [0.7.0-alpha.2]: https://github.com/teyik0/furin/compare/v0.7.0-alpha.1...v0.7.0-alpha.2
 [0.7.0-alpha.1]: https://github.com/teyik0/furin/compare/v0.6.0-alpha.1...v0.7.0-alpha.1

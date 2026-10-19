@@ -1,6 +1,6 @@
 {
   "name": "@teyik0/furin",
-  "version": "0.7.0-alpha.3",
+  "version": "0.8.0-alpha.0",
   "description": "React meta-framework powered by Elysia and Bun with file-based routing, SSR, SSG, and ISR.",
   "keywords": [
     "react",
