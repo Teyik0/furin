@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import stripPlugin from "../../../src/plugin";
+import { createClientStripPlugin } from "../../../src/plugin/client-plugin.ts";
 import { transformForClient } from "../../../src/plugin/transform-client";
 import {
   isomorphicTransformPlugin,
@@ -434,12 +435,13 @@ test.each([
       .server(() => "SERVER_SECRET_MARKER")
       .client(() => "PUBLIC_VALUE");
   `);
-  await expect(Bun.build({
-    entrypoints: [entrypoint],
-    external: ["@teyik0/furin"],
-    plugins: [stripPlugin],
-    target: "browser",
-  })).rejects.toThrow();
+  const build = (plugin: Bun.BunPlugin) =>
+    Bun.build({ entrypoints: [entrypoint], external: ["@teyik0/furin"], plugins: [plugin], target: "browser" });
+  await expect(build(createClientStripPlugin({ mode: "build" }))).rejects.toThrow();
+  // The dev server serves a module that rethrows the failure, without the server code.
+  const output = await (await build(stripPlugin)).outputs[0]?.text();
+  expect(output).toContain("throw new Error(");
+  expect(output).not.toContain("SERVER_SECRET_MARKER");
 });
 
 test("namespace validation preserves other direct exports and shadowed local namespaces", () => {
