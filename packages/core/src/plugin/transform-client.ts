@@ -3,6 +3,7 @@ import { literalValue, walk } from "yuku-ast";
 import type {
   CallExpression,
   Expression,
+  IdentifierName,
   ImportDeclaration,
   ImportDeclarationSpecifier,
   Node,
@@ -280,6 +281,72 @@ function assertCompleteRouteChains(
   });
 }
 
+interface ServerStage {
+  call: CallExpression;
+  /** The chain the stage is called on. */
+  object: Expression;
+  property: IdentifierName;
+}
+
+/** The `defineRoute()` chains of a module, found in one walk for every step. */
+interface RouteChains {
+  /** The component passed to the exported route's `.page()` or `.layout()`. */
+  component: Node | null;
+  serverStages: ServerStage[];
+}
+
+function isExportedRouteDeclaration(ancestors: Node[]): boolean {
+  const routeDeclarator = ancestors.find((ancestor) => {
+    if (ancestor.type !== "VariableDeclarator") {
+      return false;
+    }
+    const identifier = unwrapped(ancestor.id);
+    return identifier?.type === "Identifier" && identifier.name === "route";
+  });
+  return (
+    routeDeclarator !== undefined &&
+    ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
+  );
+}
+
+function analyzeRouteChains(program: Program, bindings: FactoryBindings): RouteChains {
+  const chains: RouteChains = { component: null, serverStages: [] };
+  if (bindings.size === 0) {
+    return chains;
+  }
+  let foundComponent = false;
+  walk(program, {
+    CallExpression(call, context) {
+      const callee = unwrapped(call.callee);
+      if (callee?.type !== "MemberExpression" || callee.computed === true) {
+        return;
+      }
+      const { property } = callee;
+      if (property.type !== "Identifier") {
+        return;
+      }
+      const ancestors = context.ancestors();
+      if (SERVER_ONLY_METHODS.has(property.name)) {
+        const object = unwrapped(callee.object);
+        if (object && chainRootIsDefineRoute(callee.object, bindings, ancestors)) {
+          chains.serverStages.push({ call, object, property });
+        }
+        return;
+      }
+      if (
+        !foundComponent &&
+        (property.name === "page" || property.name === "layout") &&
+        isExportedRouteDeclaration(ancestors) &&
+        chainRootIsDefineRoute(callee.object, bindings, ancestors)
+      ) {
+        foundComponent = true;
+        chains.component = Array.isArray(call.arguments) ? unwrapped(call.arguments[0]) : null;
+      }
+    },
+  });
+  return chains;
+}
+
 function memberAccessStart(source: string, object: Node, property: Node): number {
   // Parser expression ranges exclude parentheses around a fluent receiver.
   const accessGap = source.slice(object.end, property.start);
@@ -321,53 +388,35 @@ function stripServerStage(
 function removeChainedServerCalls(
   module: ModuleTransform,
   bindings: FactoryBindings,
+  chains: RouteChains,
   stripped: StrippedCode
 ): boolean {
   const { filename, program, source } = module;
   let transformed = rewriteClientImports(source, program, bindings);
   const { declarations } = collectModuleBindings(program);
 
-  walk(program, {
-    CallExpression(call, context) {
-      const callee = unwrapped(call.callee);
-      if (
-        callee?.type !== "MemberExpression" ||
-        callee.computed === true ||
-        isRemoved(call, module.removed)
-      ) {
-        return;
+  for (const { call, object, property } of chains.serverStages) {
+    if (isRemoved(call, module.removed)) {
+      continue;
+    }
+    let remount: Node | null = null;
+    if (property.name === "config" && Array.isArray(call.arguments)) {
+      const config = unwrapped(call.arguments[0]);
+      if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
+        collectConfigBindings(config, declarations, stripped.configBindings);
+        remount = resolveRemountProperty(
+          config,
+          declarations,
+          stripped.configBindings,
+          new Set(),
+          filename
+        );
       }
-      const { property } = callee;
-      if (
-        property.type !== "Identifier" ||
-        !SERVER_ONLY_METHODS.has(property.name) ||
-        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors())
-      ) {
-        return;
-      }
-      const object = unwrapped(callee.object);
-      if (!object) {
-        return;
-      }
-      let remount: Node | null = null;
-      if (property.name === "config" && Array.isArray(call.arguments)) {
-        const config = unwrapped(call.arguments[0]);
-        if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
-          collectConfigBindings(config, declarations, stripped.configBindings);
-          remount = resolveRemountProperty(
-            config,
-            declarations,
-            stripped.configBindings,
-            new Set(),
-            filename
-          );
-        }
-      }
-      const accessStart = memberAccessStart(source.original, object, property);
-      stripServerStage(module, stripped, { end: call.end, start: accessStart }, remount);
-      transformed = true;
-    },
-  });
+    }
+    const accessStart = memberAccessStart(source.original, object, property);
+    stripServerStage(module, stripped, { end: call.end, start: accessStart }, remount);
+    transformed = true;
+  }
   return transformed;
 }
 
@@ -725,10 +774,10 @@ function collectDependencies(node: Node, trackImports: boolean, state: HmrDepend
 function createHmrDataSignature(
   code: string,
   program: Program,
-  bindings: FactoryBindings,
+  serverStages: ServerStage[],
   filename: string
 ): string {
-  const serverStages: Array<{ source: string; start: number }> = [];
+  const stageSources: Array<{ source: string; start: number }> = [];
   const dependencyState: HmrDependencyState = {
     dependencies: new Map(),
     dynamicImports: new Set(),
@@ -737,41 +786,23 @@ function createHmrDataSignature(
     moduleBindings: collectModuleBindings(program),
   };
 
-  walk(program, {
-    CallExpression(call, context) {
-      const callee = unwrapped(call.callee);
-      if (callee?.type !== "MemberExpression" || callee.computed === true) {
-        return;
-      }
-      const { property } = callee;
-      if (
-        property.type !== "Identifier" ||
-        !SERVER_ONLY_METHODS.has(property.name) ||
-        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors())
-      ) {
-        return;
-      }
-      const object = unwrapped(callee.object);
-      if (!object) {
-        return;
-      }
-      serverStages.push({
-        source: code.slice(object.end, call.end),
-        start: call.start,
-      });
-      if (Array.isArray(call.arguments)) {
-        for (const argument of call.arguments) {
-          const argumentNode = unwrapped(argument);
-          if (argumentNode) {
-            collectDependencies(argumentNode, property.name !== "config", dependencyState);
-          }
+  for (const { call, object, property } of serverStages) {
+    stageSources.push({
+      source: code.slice(object.end, call.end),
+      start: call.start,
+    });
+    if (Array.isArray(call.arguments)) {
+      for (const argument of call.arguments) {
+        const argumentNode = unwrapped(argument);
+        if (argumentNode) {
+          collectDependencies(argumentNode, property.name !== "config", dependencyState);
         }
       }
-    },
-  });
+    }
+  }
 
   const dataSource = [
-    ...serverStages,
+    ...stageSources,
     ...[...dependencyState.imports].map((imported) => ({
       source: code.slice(imported.start, imported.end),
       start: imported.start,
@@ -801,7 +832,8 @@ function createHmrDataSignature(
 /** Server stages and their imports share one signature across both HMR graphs. */
 export function getHmrDataSignature(code: string, filename: string): string {
   const { program } = parseModule(code, filename);
-  return createHmrDataSignature(code, program, collectDefineRouteBindings(program), filename);
+  const chains = analyzeRouteChains(program, collectDefineRouteBindings(program));
+  return createHmrDataSignature(code, program, chains.serverStages, filename);
 }
 
 function calledHookName(call: CallExpression): string | null {
@@ -816,42 +848,6 @@ function calledHookName(call: CallExpression): string | null {
     }
   }
   return null;
-}
-
-function routeComponentExpression(program: Program, bindings: FactoryBindings): Node | null {
-  let component: Node | null = null;
-  walk(program, {
-    CallExpression(call, context) {
-      const callee = unwrapped(call.callee);
-      if (callee?.type !== "MemberExpression" || callee.computed === true) {
-        return;
-      }
-      const { property } = callee;
-      const ancestors = context.ancestors();
-      const routeDeclarator = ancestors.find((ancestor) => {
-        if (ancestor.type !== "VariableDeclarator") {
-          return false;
-        }
-        const identifier = unwrapped(ancestor.id);
-        return identifier?.type === "Identifier" && identifier.name === "route";
-      });
-      if (
-        !(
-          routeDeclarator &&
-          ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
-        ) ||
-        property.type !== "Identifier" ||
-        (property.name !== "page" && property.name !== "layout") ||
-        !chainRootIsDefineRoute(callee.object, bindings, ancestors)
-      ) {
-        return;
-      }
-      const args = call.arguments;
-      component = Array.isArray(args) ? unwrapped(args[0]) : null;
-      context.stop();
-    },
-  });
-  return component;
 }
 
 function namedFunction(declaration: Node, name: string): Node | null {
@@ -1050,9 +1046,8 @@ function collectFunctionHookSignature(code: string, component: Node): string[] {
 function collectClientHookSignature(
   code: string,
   program: Program,
-  bindings: FactoryBindings
+  componentExpression: Node | null
 ): string[] | ImportedRouteComponent | "external" | null {
-  const componentExpression = routeComponentExpression(program, bindings);
   if (!componentExpression) {
     return null;
   }
@@ -1101,14 +1096,15 @@ export function transformForClient(code: string, filename: string): TransformRes
   const isomorphic = selectIsomorphicFunctions(module, "client");
   const routeBindings = collectDefineRouteBindings(program);
   assertCompleteRouteChains(program, routeBindings, filename);
+  const chains = analyzeRouteChains(program, routeBindings);
   const stripped: StrippedCode = { configBindings: new Set(), retained: new Set() };
-  const removedRouteCode = removeChainedServerCalls(module, routeBindings, stripped);
+  const removedRouteCode = removeChainedServerCalls(module, routeBindings, chains, stripped);
   const removedServerCode = clientModules || isomorphic || removedRouteCode;
   if (removedServerCode) {
     pruneOrphanedCode(module, stripped.configBindings, stripped.retained);
   }
   let hookSignature =
-    routeBindings.size > 0 ? collectClientHookSignature(code, program, routeBindings) : null;
+    routeBindings.size > 0 ? collectClientHookSignature(code, program, chains.component) : null;
   if (hookSignature && typeof hookSignature === "object" && !Array.isArray(hookSignature)) {
     const createElementBinding = unusedIdentifier(program, "__furinCreateElement");
     source.prepend(`import { createElement as ${createElementBinding} } from "react";\n`);
@@ -1120,7 +1116,7 @@ export function transformForClient(code: string, filename: string): TransformRes
     hookSignature = [];
   }
   if (routeBindings.size > 0 && hookSignature !== null) {
-    const hmrDataSignature = createHmrDataSignature(code, program, routeBindings, filename);
+    const hmrDataSignature = createHmrDataSignature(code, program, chains.serverStages, filename);
     const signatureValue = Array.isArray(hookSignature)
       ? JSON.stringify(hookSignature)
       : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';
