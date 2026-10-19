@@ -362,11 +362,10 @@ export async function resolveCurrentDevRoute(
     // Patch chain[0] (the root) with the freshly-imported root's loader
     // and layout.  `refreshLayoutChain` deliberately starts at chainIdx=1
     // because the root is already loaded separately above; without this
-    // patch, chain[0] points to whatever object `_route.parent` captured
-    // at _route's first evaluation — a STALE reference if Bun --hot
-    // re-evaluated root.tsx without propagating the re-evaluation to
-    // _route.tsx (the standard ESM behaviour).  Mirroring the pattern
-    // used by patchRouteEntryFromFreshModule.
+    // patch, chain[0] is the root adapted by the last route scan — a
+    // STALE reference for a nested page between a root.tsx edit and the
+    // topology watcher's rescan.  Mirroring the pattern used by
+    // patchRouteEntryFromFreshModule.
     if (chain[0] && currentRoot.route) {
       chain[0].layout = currentRoot.route.layout;
       chain[0].loader = currentRoot.route.loader;

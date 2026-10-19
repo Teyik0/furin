@@ -228,7 +228,12 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
     );
   }
 
-  const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as CompiledModule;
+  // Dev loads root through the same versioned identity as the renderer and
+  // the pages' rewritten imports, so its top level runs once per edit.
+  const mod = (ctx?.modules[rootPath] ??
+    (await import(
+      IS_DEV ? `${rootPath}?furin-server&t=${routeModuleSourceVersion(rootPath)}` : rootPath
+    ))) as CompiledModule;
   const rootExport = mod.route;
   if (!isDefinedRouteTerminal(rootExport)) {
     throw new Error(

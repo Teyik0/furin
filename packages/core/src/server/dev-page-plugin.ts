@@ -296,7 +296,7 @@ export function registerDevPagePlugin(): void {
       });
 
       /**
-       * Workspace source files (root.tsx, _route.tsx, local components, core
+       * Workspace source files imported by plain path (local components, core
        * packages, etc.) still load through Bun's normal file namespace in dev.
        *
        * After bun --hot re-evaluates part of that graph, those modules can
@@ -305,7 +305,7 @@ export function registerDevPagePlugin(): void {
        *
        * Rewrite only the React singleton imports and the JSX runtime so every
        * SSR module observes the exact same React instance, while still keeping
-       * the files in Bun's watched graph for root.tsx HMR.
+       * the files in Bun's watched graph.
        */
       build.onLoad({ filter: WORKSPACE_SOURCE_FILTER }, async (args) => {
         const raw = await Bun.file(args.path).text();

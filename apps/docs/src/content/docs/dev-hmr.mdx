@@ -124,6 +124,13 @@ Directories without `_route` files do not consume a chain position. The root is
 loaded separately, then its current layout and loader references replace the
 root entry captured by the nested chain.
 
+Route discovery, the per-request renderer, and the pages' rewritten relative
+imports all load `root.tsx` through the same versioned specifier, so its top
+level runs once per revision. A root edit is not a `bun --hot` server reload: the
+route watcher rescans and the next page or 404 render uses the new root. Like
+page modules, the Elysia route tree is composed at startup, so a change to a
+route module's Elysia hooks (including `root.tsx`) takes effect after a restart.
+
 Furin finally rebuilds the `ResolvedRoute` from the current page and route chain.
 Changing `mode`, adding or removing a loader, changing `revalidate`, or changing
 cache tags therefore takes effect without a manual restart. Structural fields
