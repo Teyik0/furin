@@ -99,7 +99,6 @@ async function renderRouterWithLink(
         initialData: {},
         initialDigest: undefined,
         initialMatch,
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes,

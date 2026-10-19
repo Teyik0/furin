@@ -88,7 +88,6 @@ async function mountRouter(): Promise<{ router: () => ReturnType<typeof useRoute
         initialData={{}}
         initialDigest={undefined}
         initialMatch={{ ...routes[0], component: Page, pageRoute: {} as never }}
-        initialNotFound={undefined}
         prefetchCacheSize={50}
         root={null}
         routes={routes}

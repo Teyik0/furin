@@ -14,6 +14,7 @@ import { runLoaders } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { serializeRouteFrame, serializeRouteFrames } from "../../../src/shared/route-frame.ts";
+import { ROUTE_MATCHES_KEY } from "../../../src/shared/route-matches.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
 import { navigationDataPath } from "../../support/navigation-data.ts";
 
@@ -116,9 +117,7 @@ async function renderRouter(
         defaultPreloadStaleTime: 30_000,
         initialData: initialData ?? { message: "stale" },
         initialDigest: undefined,
-        initialError: undefined,
         initialMatch,
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes: routes ?? [route],
@@ -828,6 +827,37 @@ describe("Eden optimistic loader projection", () => {
       gate.resolve();
       await call;
     });
+    expect(refreshes).toBe(0);
+  });
+  test("a hydrated failed match is not a loaded page for optimistic refreshes", async () => {
+    const app = new Elysia().post("/cards", () => ({ ok: true }));
+    let refreshes = 0;
+    globalThis.fetch = (() => {
+      refreshes += 1;
+      return Promise.resolve(makeNdjsonResponse({ message: "saved" }));
+    }) as unknown as typeof fetch;
+    const api = withSync(
+      treaty<typeof app>(window.location.origin, {
+        fetcher: ((input, init) => app.handle(new Request(input, init))) as typeof fetch,
+      })
+    );
+    const route = makeRoute("/board");
+    const rendered = await renderRouter(route, await loadInitialMatch(route), {
+      [ROUTE_MATCHES_KEY]: [
+        { fields: {}, status: "success" },
+        { error: { digest: "d1", message: "boom", status: 500 }, status: "error" },
+      ],
+    });
+    ({ cleanup } = rendered);
+
+    await act(async () => {
+      await api.cards.post(undefined, {
+        optimistic: (cache) =>
+          cache.update("/board", (loader) => ({ ...loader, message: "saved" })),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
     expect(refreshes).toBe(0);
   });
   test("renders optimistic props without local state and hands off to confirmed data", async () => {

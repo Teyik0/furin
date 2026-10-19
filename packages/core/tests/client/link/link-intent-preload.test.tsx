@@ -103,7 +103,6 @@ test("intent prefetch loads the route once across hovers within stale time", asy
           component: homeComponent,
           pageRoute: pageModule(homeComponent).default._route,
         },
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes,

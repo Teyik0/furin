@@ -157,7 +157,6 @@ async function renderBoard(cards: Card[]) {
         initialData: { initialCards: cards, __furinQueries: querySeeds() },
         initialDigest: undefined,
         initialMatch: route as never,
-        initialNotFound: undefined,
         prefetchCacheSize: 50,
         root: null,
         routes: [route as never],

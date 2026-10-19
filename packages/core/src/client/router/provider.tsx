@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { type DeferredQueryValue, projectDeferredQueryData } from "../../shared/query-bindings.ts";
+import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { collectRouteChainFromRoute } from "../../shared/utils/index.ts";
@@ -71,8 +72,6 @@ export function RouterProvider({
   initialMatch,
   initialData,
   initialDigest,
-  initialError,
-  initialNotFound,
   autoRefresh,
   basePath,
   defaultPreload,
@@ -92,34 +91,33 @@ export function RouterProvider({
     );
     return store;
   });
-  // Initial snapshot. When `initialMatch` is `null`, `initialNotFound` MUST be
-  // set — the provider boots into the inline not-found UI.
-  const [initialSnapshot] = useState<NavigationSnapshot>(() => ({
-    // The LOGICAL path (basePath stripped) so Link active-state detection works
-    // with route patterns that never include the basePath prefix.
-    href:
-      typeof window === "undefined"
-        ? "/"
-        : normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search,
-    isNavigating: false,
-    resetVersion: 0,
-    state: {
-      data: Object.fromEntries(
-        Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
-      ),
-      querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
-      hydrateQueries: queries.captureHydration(),
-      error: initialError
-        ? {
-            ...initialError,
-            message: initialError.message || "Something went wrong",
-          }
-        : undefined,
-      head: initialDocumentState?.head,
-      match: initialMatch,
-      notFound: initialNotFound,
-    },
-  }));
+  // Initial snapshot. Like a navigation response, the payload's matches are
+  // the only source of the route failure. When `initialMatch` is `null`, they
+  // MUST carry a not-found match — the provider boots into the inline 404 UI.
+  const [initialSnapshot] = useState<NavigationSnapshot>(() => {
+    const failure = findRouteFailure(initialData);
+    return {
+      // The LOGICAL path (basePath stripped) so Link active-state detection works
+      // with route patterns that never include the basePath prefix.
+      href:
+        typeof window === "undefined"
+          ? "/"
+          : normalizeHref(toLogical(window.location.pathname, basePath)) + window.location.search,
+      isNavigating: false,
+      resetVersion: 0,
+      state: {
+        data: Object.fromEntries(
+          Object.entries(initialData).filter(([key]) => key !== "__furinQueries")
+        ),
+        querySeeds: initialData.__furinQueries as QuerySeed[] | undefined,
+        hydrateQueries: queries.captureHydration(),
+        error: failure?.status === "error" ? failure.error : undefined,
+        head: initialDocumentState?.head,
+        match: initialMatch,
+        notFound: failure?.status === "notFound" ? failure.error : undefined,
+      },
+    };
+  });
   const optimisticSnapshot = useRef({
     href: initialSnapshot.href,
     loaded: initialSnapshot.state.match !== null,

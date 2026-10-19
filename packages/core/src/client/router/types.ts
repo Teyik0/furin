@@ -426,18 +426,11 @@ export interface RouterProviderProps {
    * fallback UI surfaces the id a user would find in server logs.
    */
   initialDigest: string | undefined;
-  /** Server loader error serialized into the initial SSR document. */
-  initialError?: Omit<FurinServerErrorPayload, "message"> & { message?: string };
   /**
    * The route matched at hydration time. `null` is a valid value ONLY when
-   * `initialNotFound` is also provided.
+   * `initialData` carries a not-found match.
    */
   initialMatch: LoadedClientRoute | null;
-  /**
-   * When set, the provider boots into the inline not-found state as if a
-   * prior SPA navigation hit a 404.
-   */
-  initialNotFound: { data?: unknown; message?: string } | undefined;
   /** Maximum number of prefetch cache entries. Oldest entry is evicted when exceeded. Default: 50. */
   prefetchCacheSize: number;
   root: RuntimeRoute | null;

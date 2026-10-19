@@ -58,7 +58,6 @@ test("a provider re-render that changes no router value does not re-render route
         initialData={{ slow: deferred.promise }}
         initialDigest={undefined}
         initialMatch={{ ...home, component: Page, pageRoute: {} as never }}
-        initialNotFound={undefined}
         prefetchCacheSize={50}
         root={null}
         routes={[home]}
@@ -128,7 +127,6 @@ test("Links and useNavigate re-render only when their own selection changes", as
           initialData={{}}
           initialDigest={undefined}
           initialMatch={{ ...home, component: Page, pageRoute: {} as never }}
-          initialNotFound={undefined}
           prefetchCacheSize={50}
           root={null}
           routes={[home]}

@@ -371,8 +371,6 @@ if (__deferred && __deferred._chunks) {
   }
   let app;
   const failure = findRouteFailure(loaderData);
-  const initialError = failure?.status === "error" ? failure.error : undefined;
-  const initialNotFound = failure?.status === "notFound" ? failure.error : undefined;
   if (_match) {
     const _mod = await _match.load();
     const match = {
@@ -387,11 +385,9 @@ if (__deferred && __deferred._chunks) {
       root,
       initialMatch: match,
       initialData: { ...loaderData, ...deferredData },
-      initialDigest: initialError?.digest,
-      initialError,
-      initialNotFound,${routerProviderDefaults}
+      initialDigest: failure?.status === "error" ? failure.error.digest : undefined,${routerProviderDefaults}
     } as any);
-  } else if (initialNotFound) {
+  } else if (failure?.status === "notFound") {
     // Direct load to an unknown URL. The server sent the root not-found UI
     // already rendered into the DOM. Mount RouterProvider with a null match
     // so the provider boots into its not-found branch, hydrating that exact
@@ -403,9 +399,7 @@ if (__deferred && __deferred._chunks) {
       root,
       initialMatch: null,
       initialData: loaderData,
-      initialDigest: undefined,
-      initialError: undefined,
-      initialNotFound,${routerProviderDefaults}
+      initialDigest: undefined,${routerProviderDefaults}
     } as any);
   } else {
     // A removed active route has no match in the new development manifest.

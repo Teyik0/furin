@@ -32,7 +32,6 @@ test.each([false, true])(
       },
       initialDigest: undefined,
       initialMatch: null,
-      initialNotFound: {},
       prefetchCacheSize: 50,
       root,
       routes: grouped

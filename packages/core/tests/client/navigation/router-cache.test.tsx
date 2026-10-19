@@ -64,7 +64,6 @@ async function mount(
           component: initial.default.component,
           pageRoute: initial.default._route,
         }}
-        initialNotFound={undefined}
         prefetchCacheSize={50}
         root={null}
         routes={routes}

@@ -156,7 +156,6 @@ describe("getRouteApi in the browser", () => {
             initialData: { params: { boardId: 42 }, title: "Hydrated board" },
             initialDigest: undefined,
             initialMatch: match,
-            initialNotFound: undefined,
             prefetchCacheSize: 50,
             root: null,
             routes: [match],

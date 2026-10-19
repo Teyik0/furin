@@ -98,7 +98,6 @@ async function mountRouter(
         initialData={initialData}
         initialDigest={undefined}
         initialMatch={match}
-        initialNotFound={undefined}
         prefetchCacheSize={50}
         root={null}
         routes={[match]}

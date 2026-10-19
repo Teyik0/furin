@@ -42,7 +42,7 @@ function hydratePathname(code: string, pathname: string): string {
 
 // Biome's useTopLevelRegex: hoist Slice 10 regexes so repeated test runs
 // don't reconstruct them inside the callback.
-const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*initialError\?\.digest/;
+const INITIAL_DIGEST_BOUND_RE = /initialDigest:\s*failure\?\.status === "error" \? failure\.error\.digest/;
 const LOADER_DIGEST_CHAIN_RE = /findRouteFailure\(loaderData\)/;
 const INITIAL_DIGEST_PROP_RE = /initialDigest:/;
 
