@@ -190,6 +190,8 @@ SPA navigation data requests (`<page>?_furin=data`) are routed to the Bun Functi
 
 Vercel owns the deployed SSG/ISR cache. Prerender Function invocations bypass Furin's process-local cache and return newly rendered HTML; the in-memory stale-while-revalidate implementation is used only in development and Bun deployments.
 
+Every Prerender Function, PPR included, sets `allowQuery` to the keys of the route's TypeBox `query` schema (none without a schema), so the CDN keeps one entry per declared query instead of one per unique URL; Vercel drops every other param before invoking the function. Routes whose query schema cannot be enumerated (Standard Schema) keep Vercel's per-URL caching. A PPR shell records the declared query it rendered with, and `requestLoader` resumes with that query: on Vercel, a request loader sees only declared query params, while on Bun it receives the live request.
+
 `index.js` and `handler.js` are typed runtime modules of the adapter (`adapter/vercel/bootstrap.ts` and `adapter/vercel/handler.ts`). The build only writes data for them: `furin-vercel.json` holds the Prerender Function aliases, cache-tag rules, PPR routes and the chain key.
 
 PPR stores the public HTML shell, React's opaque postponed state, and the public loader snapshot as one coherent artifact. The build generates known PPR shells using the **actual production bundle**, so minification cannot change the component tree between prerender and resume.

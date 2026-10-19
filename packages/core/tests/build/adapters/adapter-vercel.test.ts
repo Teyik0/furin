@@ -368,6 +368,15 @@ export const route = defineRoute()
     );
     expect(config.chain.outputPath).toBe("__server");
     expect(config.initialHeaders["content-type"]).toContain("application/x-nextjs-pre-render");
+    expect(config.allowQuery).toEqual(["__furin_path"]);
+    const search = JSON.parse(
+      readFileSync(
+        join(app.path, ".vercel/output/functions/search-isr.prerender-config.json"),
+        "utf8"
+      )
+    );
+    expect(search.chain.outputPath).toBe("__server");
+    expect(search.allowQuery).toEqual(["__furin_path", "q"]);
   });
 
   test("rejects a custom page cache instead of combining it with Vercel caching", async () => {

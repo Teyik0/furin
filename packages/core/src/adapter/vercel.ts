@@ -216,15 +216,16 @@ function createPrerenderSpecs(
       const source = routePatternSource(app.prefix, route.pattern);
       specs.set(source, {
         config: {
+          // PPR holes resume with the query the shell recorded, which is the
+          // canonical declared query, so PPR shells share the same keys.
+          allowQuery: prerenderAllowQuery(route),
           expiration: expirationFor(route),
           passQuery: true,
-          // PPR shells resume on __server with the request's query, which
-          // requestLoaders may read; keep Vercel's per-query caching there.
           ...(route.ppr
             ? {
                 chain: { headers: { "x-furin-ppr-resume": pprResumeKey }, outputPath: "__server" },
               }
-            : { allowQuery: prerenderAllowQuery(route) }),
+            : {}),
         },
         exact: !DYNAMIC_SEGMENT_RE.test(route.pattern),
         functionName: functionNameForPath(physicalPattern, route.mode, names),
