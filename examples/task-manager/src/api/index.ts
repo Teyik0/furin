@@ -32,7 +32,7 @@ export const dbErrors = new Elysia({ name: "db-errors" })
     return mapSqliteProblem(code);
   });
 
-export const api = new Elysia()
+export const api = new Elysia({ name: "task-manager-api" })
   .use(furinSync(taskManagerSync))
   .use(new Elysia({ prefix: "/api" }).use(dbErrors).use(boardPlugin).use(cardPlugin));
 export type Api = typeof api;
