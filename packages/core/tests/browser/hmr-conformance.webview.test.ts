@@ -1956,6 +1956,55 @@ browserTest(
 );
 
 browserTest(
+  "the development overlay keeps source lines below server code stripped from the client",
+  async () => {
+    const harness = await createBrowserHarness(pageSource("lines-v1", false), [], false);
+    activeHarness = harness;
+    await harness.view.click('[data-testid="increment"]');
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/index.tsx",
+      [
+        'import { useState } from "react";',
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "const loadLabel = async () => {",
+        '  const label = "server-only";',
+        "  return { label };",
+        "};",
+        "",
+        "function CounterPage() {",
+        "  const [count] = useState(0);",
+        '  if (count === 0) throw new Error("located client render exploded");',
+        "  return <main>{count}</main>;",
+        "}",
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .loader(loadLabel)",
+        "  .page(CounterPage);",
+      ].join("\n")
+    );
+
+    let location = "";
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      location = (await harness.view.evaluate(
+        'document.querySelector("#__furin-dev-error-overlay")?.shadowRoot?.querySelector("[data-furin-diagnostic-location]")?.textContent ?? ""'
+      )) as string;
+      if (location.includes("src/pages/index.tsx")) {
+        break;
+      }
+      await Bun.sleep(100);
+    }
+
+    expect(location).toContain("src/pages/index.tsx:12:");
+  },
+  45_000
+);
+
+browserTest(
   "successive syntax and render errors recover on the next valid edit",
   async () => {
     const harness = await createBrowserHarness(pageSource("sequence-v1", false), [], false);

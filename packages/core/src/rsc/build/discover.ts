@@ -3,7 +3,7 @@ import type { Node } from "yuku-parser";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { hasShadowingDeclaration } from "../../plugin/binding-scope.ts";
 import { pruneOrphanedImports } from "../../plugin/dead-code-elimination.ts";
-import { parseModule } from "../../plugin/module-transform.ts";
+import { parseModule, replaceRange } from "../../plugin/module-transform.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "../../plugin/route-chains.ts";
 import {
   isomorphicTransformPlugin,
@@ -144,8 +144,7 @@ function stripRouteView(source: string, path: string): string {
   const [terminal] = exportedRouteChain(program, collectDefineRouteBindings(program))?.calls ?? [];
   const [view] = terminal?.call.arguments ?? [];
   if ((terminal?.method === "page" || terminal?.method === "layout") && view !== undefined) {
-    module.source.overwrite(view.start, view.end, "() => null");
-    module.removed.push({ end: view.end, start: view.start });
+    replaceRange(module, view.start, view.end, "() => null");
   }
   pruneOrphanedImports(module);
   return module.source.toString();

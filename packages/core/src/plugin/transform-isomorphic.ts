@@ -17,7 +17,7 @@ import {
 } from "../server/lang-detect.ts";
 import { hasShadowingDeclaration, lexicalBindingScope, varBindingScope } from "./binding-scope.ts";
 import { pruneOrphanedCode, removeDeclarator } from "./dead-code-elimination.ts";
-import { isRemoved, type ModuleTransform, parseModule } from "./module-transform.ts";
+import { isRemoved, type ModuleTransform, parseModule, replaceRange } from "./module-transform.ts";
 import { rewriteClientModules } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
@@ -562,7 +562,6 @@ function selectImplementations(
   candidates: IsomorphicCandidate[],
   environment: IsomorphicEnvironment
 ): void {
-  const { removed, source } = module;
   const selected: { candidate: IsomorphicCandidate; kept: Argument | undefined }[] = [];
   for (const candidate of candidates) {
     const enclosing = selected.findLast((entry) => contains(entry.candidate, candidate));
@@ -571,17 +570,11 @@ function selectImplementations(
     }
     const implementation = candidate[environment];
     if (implementation) {
-      source.remove(candidate.start, implementation.start);
-      source.remove(implementation.end, candidate.end);
-      source.appendLeft(implementation.start, "(");
-      source.appendLeft(implementation.end, ")");
-      removed.push(
-        { end: implementation.start, start: candidate.start },
-        { end: candidate.end, start: implementation.end }
-      );
+      // The parenthesis precedes the kept line breaks: `return (` must not become `return\n`.
+      replaceRange(module, candidate.start, implementation.start, "(");
+      replaceRange(module, implementation.end, candidate.end, ")");
     } else {
-      source.overwrite(candidate.start, candidate.end, "(() => undefined)");
-      removed.push({ end: candidate.end, start: candidate.start });
+      replaceRange(module, candidate.start, candidate.end, "(() => undefined)");
     }
     selected.push({ candidate, kept: implementation });
   }

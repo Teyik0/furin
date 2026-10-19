@@ -34,3 +34,30 @@ export function parseModule(code: string, filename: string): ModuleTransform {
 export function isRemoved(node: SourceRange, removed: readonly SourceRange[]): boolean {
   return removed.some((range) => range.start <= node.start && node.end <= range.end);
 }
+
+export type EditedModule = Pick<ModuleTransform, "removed" | "source">;
+
+/**
+ * Replaces a range of the original code and records it as removed. The range's
+ * line breaks follow `content`: Bun ignores the sourcemaps of `onLoad` results,
+ * so stack traces only match the source if every surviving line stays in place.
+ */
+export function replaceRange(
+  module: EditedModule,
+  start: number,
+  end: number,
+  content: string
+): void {
+  const replacement =
+    content + "\n".repeat(module.source.original.slice(start, end).split("\n").length - 1);
+  if (replacement === "") {
+    module.source.remove(start, end);
+  } else {
+    module.source.overwrite(start, end, replacement);
+  }
+  module.removed.push({ end, start });
+}
+
+export function removeRange(module: EditedModule, start: number, end: number): void {
+  replaceRange(module, start, end, "");
+}

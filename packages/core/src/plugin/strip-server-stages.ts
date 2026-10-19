@@ -9,7 +9,13 @@ import {
   localName,
   unwrapped,
 } from "./module-bindings.ts";
-import { isRemoved, type ModuleTransform, type SourceRange } from "./module-transform.ts";
+import {
+  isRemoved,
+  type ModuleTransform,
+  removeRange,
+  replaceRange,
+  type SourceRange,
+} from "./module-transform.ts";
 import { FURIN_SERVER_MODULES, type RouteChains } from "./route-chains.ts";
 
 function rewriteClientImports(
@@ -74,11 +80,10 @@ function stripServerStage(
       stripped.retained.add(name);
     }
     // overwrite, not update: update keeps the text earlier steps inserted in the range.
-    source.overwrite(range.start, range.end, `.config({ ${policy} })`);
+    replaceRange(module, range.start, range.end, `.config({ ${policy} })`);
   } else {
-    source.remove(range.start, range.end);
+    removeRange(module, range.start, range.end);
   }
-  removed.push(range);
 }
 
 export function removeChainedServerCalls(

@@ -12,7 +12,14 @@ import type {
 } from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { isNode } from "../shared/utils/ast-walk.ts";
-import { isRemoved, type ModuleTransform, type SourceRange } from "./module-transform.ts";
+import {
+  type EditedModule,
+  isRemoved,
+  type ModuleTransform,
+  removeRange,
+  replaceRange,
+  type SourceRange,
+} from "./module-transform.ts";
 
 const TYPE_SCOPE_NODES = new Set([
   "TSTypeAnnotation",
@@ -312,13 +319,6 @@ function isDeadBinding(unit: ModuleUnit, after: ModuleReferences, state: DeadCod
   );
 }
 
-type EditedModule = Pick<ModuleTransform, "removed" | "source">;
-
-function removeRange(module: EditedModule, start: number, end: number): void {
-  module.source.remove(start, end);
-  module.removed.push({ end, start });
-}
-
 /** Removes one declarator, or its whole declaration once it is the last one left. */
 export function removeDeclarator(
   module: EditedModule,
@@ -373,29 +373,21 @@ function pruneDeadBindings(state: DeadCodeState): void {
   }
 }
 
-function preserveImportSideEffect(source: MagicString, declaration: ImportDeclaration): void {
-  source.overwrite(
+function preserveImportSideEffect(module: EditedModule, declaration: ImportDeclaration): void {
+  replaceRange(
+    module,
     declaration.start,
     declaration.end,
-    `import ${source.slice(declaration.source.start, declaration.source.end)};`
+    `import ${module.source.slice(declaration.source.start, declaration.source.end)};`
   );
 }
 
-function removeEntireImport(source: MagicString, declaration: ImportDeclaration): void {
-  const code = source.original;
-  let removeEnd = declaration.end;
-  while (removeEnd < code.length && (code[removeEnd] === "\n" || code[removeEnd] === "\r")) {
-    removeEnd += 1;
-  }
-  source.remove(declaration.start, removeEnd);
-}
-
 function removeUnusedSpecifiers(
-  source: MagicString,
+  module: EditedModule,
   declaration: ImportDeclaration,
   references: ReadonlySet<string>
 ): void {
-  const code = source.original;
+  const code = module.source.original;
   const removedSpecifiers = declaration.specifiers.filter(
     (specifier) => !references.has(specifier.local.name)
   );
@@ -411,7 +403,7 @@ function removeUnusedSpecifiers(
         removeStart -= 1;
       }
     }
-    source.remove(removeStart, removeEnd);
+    removeRange(module, removeStart, removeEnd);
   }
 }
 
@@ -444,12 +436,12 @@ function pruneDeadImports(state: DeadCodeState): void {
         state.before.names.has(specifier.local.name)
       );
       if (typeOnly || wasUsedBeforeTransform) {
-        removeEntireImport(state.source, declaration);
+        removeRange(state, declaration.start, declaration.end);
       } else {
-        preserveImportSideEffect(state.source, declaration);
+        preserveImportSideEffect(state, declaration);
       }
     } else if (usedCount < declaration.specifiers.length) {
-      removeUnusedSpecifiers(state.source, declaration, references);
+      removeUnusedSpecifiers(state, declaration, references);
     }
   }
 }

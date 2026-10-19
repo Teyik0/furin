@@ -4,7 +4,7 @@ import { walk } from "yuku-ast";
 import type { Node, Program } from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
-import { type ModuleTransform, parseModule } from "./module-transform.ts";
+import { type ModuleTransform, parseModule, replaceRange } from "./module-transform.ts";
 import type { IsomorphicEnvironment } from "./transform-isomorphic.ts";
 
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
@@ -119,8 +119,7 @@ export function rewriteClientModules(
       if (environment === "client") {
         source.appendLeft(loader.end, `, ${key}`);
       } else {
-        source.overwrite(loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
-        module.removed.push({ end: loader.end, start: loader.start });
+        replaceRange(module, loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
       }
       rewritten = true;
     },

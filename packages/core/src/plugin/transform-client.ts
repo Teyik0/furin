@@ -52,7 +52,8 @@ export function transformForClient(code: string, filename: string): TransformRes
     routeBindings.size > 0 ? collectClientHookSignature(code, program, chains.component) : null;
   if (hookSignature && typeof hookSignature === "object" && !Array.isArray(hookSignature)) {
     const createElementBinding = unusedIdentifier(program, "__furinCreateElement");
-    source.prepend(`import { createElement as ${createElementBinding} } from "react";\n`);
+    // On the first line: an added line would shift every stack frame of the module.
+    source.prepend(`import { createElement as ${createElementBinding} } from "react"; `);
     source.update(
       hookSignature.start,
       hookSignature.end,

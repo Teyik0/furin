@@ -342,7 +342,7 @@ export const read = createIsomorphicFn().server(readServer).client(readClient);`
     );
 
     expect(result.code).toContain("return (readServer)");
-    expect(result.code).toContain("(readServer)()");
+    expect(result.code.replaceAll(/\s/g, "")).toContain("(readServer)()");
     expect(result.code).not.toContain("createIsomorphicFn");
   });
 
@@ -359,7 +359,8 @@ export const read = createIsomorphicFn().server(readServer).client(readClient);`
       "server"
     );
 
-    expect(result.code).toContain('(() => "server-value")()');
+    // Kept line breaks may separate the parentheses; precedence is what matters.
+    expect(result.code.replaceAll(/\s/g, "")).toContain('(()=>"server-value")()');
   });
 
   test("transforms multiple independent chains", () => {

@@ -8,7 +8,7 @@ import {
 import { parseSource } from "../shared/parser.ts";
 import { walkAST } from "../shared/utils/ast-walk.ts";
 import { pruneOrphanedImports } from "./dead-code-elimination.ts";
-import type { ModuleTransform } from "./module-transform.ts";
+import { type ModuleTransform, removeRange, replaceRange } from "./module-transform.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
 
 interface SplitDevPage {
@@ -190,8 +190,7 @@ export function splitDevPage(
   );
   // Both modules are edits of the one parsed program.
   const contract = editModule(source, filePath, program);
-  contract.source.overwrite(callback.start, callback.end, "__furinDeferredRender");
-  contract.removed.push({ end: callback.end, start: callback.start });
+  replaceRange(contract, callback.start, callback.end, "__furinDeferredRender");
   pruneOrphanedImports(contract);
   const contractCode = contract.source.toString();
   // Splitting without removing an import cannot avoid loading any dependency.
@@ -206,20 +205,15 @@ export function splitDevPage(
       continue;
     }
     if (statement.start <= callback.start && callback.end <= statement.end) {
-      render.source.overwrite(statement.start, callback.start, "export default ");
-      render.source.overwrite(callback.end, statement.end, ";");
-      render.removed.push(
-        { end: callback.start, start: statement.start },
-        { end: statement.end, start: callback.end }
-      );
+      replaceRange(render, statement.start, callback.start, "export default ");
+      replaceRange(render, callback.end, statement.end, ";");
       continue;
     }
-    render.source.remove(statement.start, statement.end);
-    render.removed.push({ end: statement.end, start: statement.start });
+    removeRange(render, statement.start, statement.end);
   }
   pruneOrphanedImports(render);
   return {
-    contract: `const __furinDeferredRender = Object.assign(() => { throw new Error("Unresolved Furin page"); }, { [Symbol.for("furin.dev.render")]: () => import(${JSON.stringify(renderSpecifier)}) });\n${contractCode}`,
+    contract: `const __furinDeferredRender = Object.assign(() => { throw new Error("Unresolved Furin page"); }, { [Symbol.for("furin.dev.render")]: () => import(${JSON.stringify(renderSpecifier)}) }); ${contractCode}`,
     render: render.source.toString(),
   };
 }
