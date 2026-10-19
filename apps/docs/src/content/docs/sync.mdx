@@ -183,7 +183,7 @@ The `undefined` member accommodates Elysia's generic `Context.params`; missing v
 The enriched Eden client tracks identified GETs invoked inside loaders:
 
 ```ts
-export const route = defineRoute()
+export const route = defineRoute("/board/[boardId]")
   .config({ mode: "ssr" })
   .loader(async ({ params }) => {
     const { data, error } = await api.boards({ boardId: params.boardId }).cards.get();

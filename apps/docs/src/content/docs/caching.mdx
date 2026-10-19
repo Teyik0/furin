@@ -37,9 +37,9 @@ SSG and ISR responses also expose `Cache-Tag` with the concrete resolved path. T
 For `mode: "isr"`, `revalidate` is seconds:
 
 ```tsx
-export const route = defineRoute()
+// src/pages/blog/index.tsx
+export const route = defineRoute("/blog")
   .config({
-    layout: rootRoute,
     mode: "isr",
     revalidate: 60,
     tags: ["posts"],
@@ -150,9 +150,9 @@ The adapter is the source of truth; Redis Pub/Sub is not required. Notifications
 Routes continue to declare their mode, revalidation window, and tags:
 
 ```tsx
-export const route = defineRoute()
+// src/pages/blog/index.tsx
+export const route = defineRoute("/blog")
   .config({
-    layout: rootRoute,
     mode: "isr",
     revalidate: 60,
     tags: ["posts"],
@@ -184,7 +184,6 @@ Declare data dependencies in route config:
 
 ```tsx
 .config({
-  layout: rootRoute,
   mode: "isr",
   revalidate: 300,
   tags: ["posts", "homepage"],

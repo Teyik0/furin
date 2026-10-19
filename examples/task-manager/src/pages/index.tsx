@@ -2,10 +2,9 @@ import { defineRoute } from "@teyik0/furin";
 import { BoardCard } from "@/components/board-card";
 import { CreateBoardForm } from "@/components/create-board-form";
 import { api } from "@/lib/api";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 10 })
+export const route = defineRoute("/")
+  .config({ mode: "isr", revalidate: 10 })
   .loader(async () => {
     const { data, error } = await api.boards.get();
     if (error) {

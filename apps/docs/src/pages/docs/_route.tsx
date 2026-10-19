@@ -5,10 +5,9 @@ import { DocsPager } from "@/components/docs-pager";
 import { DocsToc } from "@/components/docs-toc";
 import { GiscusComments } from "@/components/giscus-comments";
 import { DOCS_NAV } from "@/lib/docs";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/docs/_route")
+  .config({ mode: "ssg" })
   .layout(({ children, path }) => {
     // `path` is injected by Furin from componentProps (ctx.path server-side,
     // state.data.path client-side) — always correct on SSR and SPA navigation.

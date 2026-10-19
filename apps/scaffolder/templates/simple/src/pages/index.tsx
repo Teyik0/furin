@@ -1,9 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { getHelloPayload } from "../api/hello";
-import { route as parentRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .loader(() => {
     const payload = getHelloPayload();
 

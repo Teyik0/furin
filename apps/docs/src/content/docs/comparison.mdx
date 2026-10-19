@@ -51,7 +51,7 @@ Furin's real-browser suite covers pages, layouts, re-exports, cycles, rapid edit
 
 | Dimension | Next.js | TanStack Start | Furin |
 |---|---|---|---|
-| Route definition | Files and special App Router conventions | Generated or code-based route tree | Files plus explicit `defineRoute()` chain |
+| Route definition | Files and special App Router conventions | Generated or code-based route tree | Files plus an explicit `defineRoute(id)` chain, keyed by the file |
 | Typed destinations | Optional generated typed routes | Strong typed `to`, params, and search | Generated autocomplete; known paths infer params/search, with a string escape hatch |
 | Search state | Application-defined parsing | First-class validated search state | TypeBox runtime schemas plus `useSearch()` |
 | Loader inference | Generated route props and component conventions | Route tree and loader APIs | Parent loader promises flow through the route builder |

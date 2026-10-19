@@ -97,13 +97,12 @@ export default function BlogNotFound({ error }: NotFoundProps) {
 Trigger it from a loader when the URL matches a page but its resource does not exist:
 
 ```tsx
+// src/pages/blog/[slug].tsx
 import { defineRoute, notFound } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/blog/[slug]")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     params: t.Object({ slug: t.String() }),
   })

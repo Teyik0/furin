@@ -1,11 +1,9 @@
 import { defineRoute } from "@teyik0/furin";
 import { loadWeatherPage } from "../api/weather-page";
 import { WeatherPage } from "../components/weather-page";
-import { route as parentRoute } from "./root";
 
-export const route = defineRoute()
+export const route = defineRoute("/")
   .config({
-    layout: parentRoute,
     mode: "isr",
     revalidate: 300,
   })

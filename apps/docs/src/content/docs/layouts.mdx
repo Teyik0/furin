@@ -33,10 +33,9 @@ Furin does not add a second document shell. Omitting `<HeadContent />` or `<Scri
 ```tsx
 // src/pages/dashboard/_route.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/dashboard/_route")
+  .config({ mode: "ssr" })
   .loader(async ({ request }) => ({ user: await getSession(request) }))
   .layout(({ children, user }) => (
     <div className="dashboard-shell">
@@ -46,15 +45,14 @@ export const route = defineRoute()
   ));
 ```
 
-A page in that directory points to the layout terminal:
+A page in that directory gets the layout's loader fields through its [route id](/docs/routing#route-ids):
 
 ```tsx
 // src/pages/dashboard/settings.tsx
 import { defineRoute } from "@teyik0/furin";
-import { route as dashboardRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: dashboardRoute, mode: "ssr" })
+export const route = defineRoute("/dashboard/settings")
+  .config({ mode: "ssr" })
   .loader(async ({ user }) => {
     const sessionUser = await user;
     return { settings: await getSettings(sessionUser.id) };
@@ -78,11 +76,9 @@ src/pages/
         └── security.tsx
 ```
 
-Each module references its immediate parent. The explicit import exists for TypeScript inference; the filesystem remains the routing authority. Furin reports a `layout` reference that disagrees with the directory tree.
+`security.tsx` is wrapped by `account/_route.tsx`, itself wrapped by `dashboard/_route.tsx` and `root.tsx`. The filesystem is the only source of that chain: a route never imports its layout, and its [id](/docs/routing#route-ids) gives TypeScript the same parent from the generated route types.
 
-`layout` only accepts a route built with `.layout()`. Passing a page route or any other value is a type error.
-
-Do not skip a parent to reuse an unrelated layout. Extract ordinary React components for visual reuse and keep route layouts aligned with URL ownership.
+A layout can't be reused outside its directory. Extract ordinary React components for visual reuse and keep route layouts aligned with URL ownership.
 
 ## Rendering Modes Across A Chain
 
@@ -107,9 +103,9 @@ Use `remountDeps` in `config()` to choose which values identify a page:
 Config spreads can provide `remountDeps` through local object literals. For an imported or dynamically computed config, declare `remountDeps` explicitly after the spread so the client transform can preserve it without including server configuration.
 
 ```tsx
-export const route = defineRoute()
+// src/pages/documents/[documentId]/[tab].tsx
+export const route = defineRoute("/documents/[documentId]/[tab]")
   .config({
-    layout: rootRoute,
     mode: "ssr",
     params: t.Object({ documentId: t.String(), tab: t.String() }),
     remountDeps: ({ params }) => [params.documentId],

@@ -5,13 +5,13 @@
 This is separate from Elysia 2's request-context `defer(callback)`: Elysia queues cleanup work after `afterResponse`, while Furin's `defer(data)` streams loader values into React Suspense and reconstructs them during SPA navigation. Neither API can replace the other.
 
 ```tsx
+// src/pages/dashboard/index.tsx
 import { defineRoute } from "@teyik0/furin";
 import { Await, defer } from "@teyik0/furin/client";
 import { Suspense } from "react";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/dashboard")
+  .config({ mode: "ssr" })
   .loader(() =>
     defer({
       title: "Dashboard",

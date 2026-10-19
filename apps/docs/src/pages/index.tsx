@@ -11,14 +11,12 @@ import { StackReveal } from "@/components/landing/stack-reveal";
 import { SyncDemo } from "@/components/landing/sync-demo";
 import { highlighter } from "@/lib/highlight";
 import { LandingServer, type LandingSlots } from "../components/landing/landing-server";
-import { route as parentRoute } from "./root";
 
 const FILES = {
   "pages/index.tsx": `import { defineRoute } from "@teyik0/furin"
-import { route as rootRoute } from "./root"
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/")
+  .config({ mode: "ssr" })
   .loader(async () => ({
     message: "Hello from Furin!",
     renderedAt: Date.now(),
@@ -113,8 +111,8 @@ const landingSlots: LandingSlots = {
   SyncDemo: () => <SyncDemo />,
 };
 
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssg" })
+export const route = defineRoute("/")
+  .config({ mode: "ssg" })
   .loader(async () => {
     const entries = Object.entries(FILES) as [FileName, string][];
     const lines = FILES["pages/index.tsx"].split("\n");
