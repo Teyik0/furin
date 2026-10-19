@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
+import type { WideEvent } from "evlog";
 import { FurinRscRenderError } from "../../../src/rsc/render-error.ts";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
+import { setFurinEvlogOptions } from "../../../src/server/evlog.ts";
+import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import {
   runLoaders,
   runPublicLoaders,
@@ -12,7 +13,7 @@ import {
 } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
-import { evlogErrorMock, evlogWarnMock } from "../../setup/evlog-mock.ts";
+import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 
 const CACHED_PUBLIC_LOADERS_RE = /Cached public loaders/;
 
@@ -28,6 +29,28 @@ function createMockLoaderContext(overrides: Partial<Context>): Context {
     set: { headers: {} as HTTPHeaders },
     ...overrides,
   } as Context;
+}
+
+/** Runs `route`'s loaders in a synthetic render and returns the drained wide event. */
+async function runLoadersLogged(
+  route: ResolvedRoute,
+  path: string
+): Promise<{ event: WideEvent; result: Awaited<ReturnType<typeof runLoaders>> }> {
+  const capture = captureEvlogEvents();
+  const runtime = createInstance("", "/loaders-log");
+  setFurinEvlogOptions(runtime, { drain: capture.drain });
+  const event = capture.next();
+  const result = await withInstance(runtime, () =>
+    runInSyntheticRenderScope(() => runLoaders(route, createMockLoaderContext({ path })), {
+      route: path,
+    })
+  );
+  return { event: await event, result };
+}
+
+function warnings(event: WideEvent): string[] {
+  const logs = (event.requestLogs ?? []) as { level: string; message: string }[];
+  return logs.filter((log) => log.level === "warn").map((log) => log.message);
 }
 
 describe("runLoaders requestLoader", () => {
@@ -364,7 +387,6 @@ describe("runLoaders requestLoader", () => {
 
   test("warns in dev when a deeper loader overwrites a parent loader key", async () => {
     __setDevMode(true);
-    evlogWarnMock.mockClear();
     try {
       const route = {
         mode: "ssr",
@@ -381,14 +403,10 @@ describe("runLoaders requestLoader", () => {
         segmentBoundaries: [],
       } as unknown as ResolvedRoute;
 
-      const result = await runInSyntheticRenderScope(
-        () => runLoaders(route, createMockLoaderContext({ path: "/collision" })),
-        { route: "/collision" }
-      );
+      const { event, result } = await runLoadersLogged(route, "/collision");
       expect(result.type).toBe("data");
 
-      expect(evlogWarnMock).toHaveBeenCalled();
-      const message = evlogWarnMock.mock.calls.map((call) => String(call[0])).join("\n");
+      const message = warnings(event).join("\n");
       expect(message).toContain('"user"');
       expect(message).toContain("/collision");
     } finally {
@@ -398,7 +416,6 @@ describe("runLoaders requestLoader", () => {
 
   test("does not warn when parent and child loader keys are disjoint", async () => {
     __setDevMode(true);
-    evlogWarnMock.mockClear();
     try {
       const route = {
         mode: "ssr",
@@ -413,13 +430,10 @@ describe("runLoaders requestLoader", () => {
         segmentBoundaries: [],
       } as unknown as ResolvedRoute;
 
-      const result = await runInSyntheticRenderScope(
-        () => runLoaders(route, createMockLoaderContext({ path: "/disjoint" })),
-        { route: "/disjoint" }
-      );
+      const { event, result } = await runLoadersLogged(route, "/disjoint");
       expect(result.type).toBe("data");
 
-      expect(evlogWarnMock).not.toHaveBeenCalled();
+      expect(warnings(event)).toEqual([]);
     } finally {
       __setDevMode(false);
     }
@@ -611,7 +625,6 @@ describe("runLoaders requestLoader", () => {
 
   test("logs RSC render errors and preserves their development message", async () => {
     __setDevMode(true);
-    evlogErrorMock.mockClear();
     const error = new FurinRscRenderError({
       cause: new TypeError("null is not an object (evaluating 'dispatcher.useContext')"),
       component: "PhoneIcon",
@@ -632,16 +645,13 @@ describe("runLoaders requestLoader", () => {
     } as unknown as ResolvedRoute;
 
     try {
-      const result = await runInSyntheticRenderScope(
-        () => runLoaders(route, createMockLoaderContext({ path: "/rsc-error" })),
-        { route: "/rsc-error" }
-      );
+      const { event, result } = await runLoadersLogged(route, "/rsc-error");
 
       expect(result.type).toBe("error");
       if (result.type === "error") {
         expect(result.message).toContain("Component: PhoneIcon");
       }
-      expect(evlogErrorMock).toHaveBeenCalledWith(error);
+      expect(event.error).toMatchObject({ message: error.message });
     } finally {
       __setDevMode(false);
     }

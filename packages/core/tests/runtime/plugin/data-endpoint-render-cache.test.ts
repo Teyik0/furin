@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import type { SsgCacheEntry } from "../../../src/server/cache/isr-ssg.ts";
-import { resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtures";
 
 const { furin } = await import("../../../src/furin");
@@ -23,7 +22,6 @@ interface LoaderCounter {
 const counters = globalThis as typeof globalThis & LoaderCounter;
 
 afterEach(() => {
-  resetEvlogMock();
   __setDevMode(true);
   __resetTemplateState();
   __resetCacheState();

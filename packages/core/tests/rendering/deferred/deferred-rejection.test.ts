@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { fromCrossJSON, toCrossJSON } from "seroval";
-import "../../setup/evlog-mock";
-
 import { FurinErrorBoundary } from "../../../src/client/boundaries.tsx";
 import { serializeDeferredRejection } from "../../../src/server/render/loader-errors.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";

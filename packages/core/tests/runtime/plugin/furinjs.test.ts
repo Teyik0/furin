@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Elysia, { type AnyElysia } from "elysia";
@@ -7,8 +7,8 @@ import { routeModuleSpecifier } from "../../../src/plugin/route-tree.ts";
 import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
-import { evlogOptionsMock, initLoggerOptionsMock, resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../support/app-fixtures";
+import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
@@ -17,9 +17,18 @@ const { furin, isFurinPageRequest, revalidatePath, revalidateTag } = await impor
   "../../../src/furin"
 );
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
+const { getFurinEvlogOptions } = await import("../../../src/server/evlog");
+const { allInstances, withInstance } = await import("../../../src/server/instance");
 const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
 const { __setDevMode } = await import("../../../src/server/runtime-env");
+
+// evlog's logger is process-wide: observe furin()'s initialization without
+// installing a sampling config that would outlive this file.
+const initLoggerSpy = spyOn(await import("evlog"), "initLogger").mockImplementation(
+  () => undefined
+);
+afterAll(() => initLoggerSpy.mockRestore());
 
 const originalCwd = process.cwd();
 const originalArgv = process.argv.slice();
@@ -52,7 +61,7 @@ async function createTestApp(options: FurinOptions): Promise<AnyElysia> {
 }
 
 async function resetState(): Promise<void> {
-  resetEvlogMock();
+  initLoggerSpy.mockClear();
   resetFurinLoggerForTests();
   __setDevMode(true);
   __resetTemplateState();
@@ -199,11 +208,14 @@ test.serial(
       pagesDir: join(app.path, "src/pages"),
     });
 
-    expect(initLoggerOptionsMock).toHaveBeenCalledWith({
+    expect(initLoggerSpy).toHaveBeenCalledWith({
       env: { service: "furin" },
       sampling,
     });
-    expect(evlogOptionsMock.mock.calls[0]?.[0]).not.toHaveProperty("sampling");
+    const options = allInstances().map((runtime) => withInstance(runtime, getFurinEvlogOptions));
+    expect(options).toHaveLength(1);
+    expect(options[0]).toBeDefined();
+    expect(options[0]).not.toHaveProperty("sampling");
   }
 );
 
@@ -216,7 +228,7 @@ test.serial("furin() initializes the process-wide logger only once", async () =>
   await createTestApp({ pagesDir });
   await createTestApp({ pagesDir, prefix: "/admin" });
 
-  expect(initLoggerOptionsMock).toHaveBeenCalledTimes(1);
+  expect(initLoggerSpy).toHaveBeenCalledTimes(1);
 });
 
 test.serial("each furin() instance purges its own physical paths", async () => {
@@ -324,7 +336,7 @@ test.serial(
     await expect(
       createTestApp({ logger: { sampling: { rates: { info: 50 } } }, pagesDir, prefix: "/admin" })
     ).rejects.toThrow("logger.sampling");
-    expect(initLoggerOptionsMock).toHaveBeenCalledTimes(1);
+    expect(initLoggerSpy).toHaveBeenCalledTimes(1);
   }
 );
 
@@ -1099,12 +1111,21 @@ test.serial("furin() excludes internal DevTools requests from logging", async ()
   __setDevMode(true);
   process.chdir(app.path);
 
-  await furin({
+  const capture = captureEvlogEvents();
+  const instance = await createTestApp({
+    logger: { drain: capture.drain },
     pagesDir: join(app.path, "src/pages"),
   });
 
-  const loggerOptions = evlogOptionsMock.mock.calls.at(-1)?.[0];
-  expect(loggerOptions?.exclude).toContain("/_furin/devtools/**");
+  const devtools = await instance.handle(new Request("http://localhost/_furin/devtools/snapshot"));
+  await devtools.text();
+  const event = capture.next();
+  const page = await instance.handle(new Request("http://localhost/"));
+  await page.text();
+
+  expect(devtools.status).toBe(200);
+  expect(await event).toMatchObject({ path: "/" });
+  expect(capture.events.map((logged) => logged.path)).toEqual(["/"]);
 });
 
 test.serial("furin() production without build output throws", async () => {
@@ -1131,7 +1152,7 @@ test.serial("furin() production plugin starts from built output", async () => {
   });
   const htmlResponse = await instance.handle(new Request("http://furin/"));
   const snapshotResponse = await instance.handle(
-    new Request("http://furin/_furin/devtools/snapshot")
+    new Request("http://localhost/_furin/devtools/snapshot")
   );
   const clientResponse = await instance.handle(
     new Request("http://furin/_furin/devtools/client.js")

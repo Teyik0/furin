@@ -3,8 +3,6 @@ import { join as joinPath } from "node:path";
 import { runProcess } from "../../support/process.ts";
 
 const script = `
-await import("./packages/core/tests/setup/evlog-mock.ts");
-
 const { join } = await import("node:path");
 const { renderRootNotFound } = await import("./packages/core/src/server/render/index.ts");
 const { t } = await import(Bun.resolveSync("elysia", join(process.cwd(), "packages/core")));
@@ -83,8 +81,6 @@ assert(body.includes("404"), "broken not-found fallback body");
 `;
 
 const trustedOriginScript = `
-await import("./packages/core/tests/setup/evlog-mock.ts");
-
 const { join } = await import("node:path");
 const { renderRootNotFound } = await import("./packages/core/src/server/render/index.ts");
 const { __resetTemplateState } = await import("./packages/core/src/server/render/template.ts");

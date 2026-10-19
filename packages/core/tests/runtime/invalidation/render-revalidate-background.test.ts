@@ -2,8 +2,6 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
-import "../../setup/evlog-mock";
-
 import {
   __resetCacheState,
   isrCache,

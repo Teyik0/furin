@@ -5,11 +5,13 @@ import { createElement, type ReactNode } from "react";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { runInSyntheticRenderScope } from "../../../src/server/context-logger.ts";
+import { setFurinEvlogOptions } from "../../../src/server/evlog.ts";
+import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
-import { evlogSetMock } from "../../setup/evlog-mock";
+import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 
 const ROOT_ROUTE: RuntimeRoute = {
   __type: "FURIN_ROUTE",
@@ -503,7 +505,10 @@ describe("renderSSR — digest", () => {
   });
 
   test("server logs the digest alongside the rendered error", async () => {
-    evlogSetMock.mockClear();
+    const capture = captureEvlogEvents();
+    const runtime = createInstance("", "/render-error-log");
+    setFurinEvlogOptions(runtime, { drain: capture.drain });
+    const event = capture.next();
     const routeWithError = createTestRoute({
       component: () => createElement("div", { "data-testid": "blog-index" }, "Blog"),
       error: BlogError,
@@ -513,22 +518,20 @@ describe("renderSSR — digest", () => {
       pattern: "/blog",
     });
 
-    const response = await runInSyntheticRenderScope(
-      () =>
-        renderSSR(
-          routeWithError,
-          createMockLoaderContext({ path: "/blog" }),
-          createTestRoot(RootError),
-          undefined
-        ),
-      { route: "/blog" }
+    const response = await withInstance(runtime, () =>
+      runInSyntheticRenderScope(
+        () =>
+          renderSSR(
+            routeWithError,
+            createMockLoaderContext({ path: "/blog" }),
+            createTestRoot(RootError),
+            undefined
+          ),
+        { route: "/blog" }
+      )
     );
     await response.text(); // drain
 
-    const hasDigestLog = evlogSetMock.mock.calls.some(([entry]) => {
-      const furin = entry.furin as { [key: string]: unknown } | undefined;
-      return typeof furin?.digest === "string" && DIGEST_RE.test(furin.digest as string);
-    });
-    expect(hasDigestLog).toBe(true);
+    expect((await event).furin).toMatchObject({ digest: expect.stringMatching(DIGEST_RE) });
   });
 });

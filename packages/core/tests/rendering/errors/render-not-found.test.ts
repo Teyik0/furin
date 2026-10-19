@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
-import { createElement, type ElementType, type ReactNode } from "react";
-import "../../setup/evlog-mock";
-
 import type { HTTPHeaders } from "elysia/types";
+import { createElement, type ElementType, type ReactNode } from "react";
 import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import type { RuntimePage, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import { defineRootRoute } from "../../../src/define-route.ts";

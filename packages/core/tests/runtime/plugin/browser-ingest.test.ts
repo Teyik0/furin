@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
-import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
+import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 
 const { furin } = await import("../../../src/furin");
 const { __clearInstanceRegistry } = await import("../../../src/server/instance");
@@ -15,7 +15,6 @@ async function createTestApp(clientLogging: boolean): Promise<AnyElysia> {
 
 afterEach(() => {
   __clearInstanceRegistry();
-  resetEvlogMock();
 });
 
 test.serial("browser log ingest is not mounted unless clientLogging is enabled", async () => {
@@ -177,7 +176,11 @@ test.serial("native DevTools records serialized route payload bytes", async () =
 test.serial("browser log ingest accepts browser events when enabled", async () => {
   __setDevMode(true);
 
-  const app = await createTestApp(true);
+  const capture = captureEvlogEvents();
+  const app = new Elysia().use(
+    await furin({ clientLogging: true, logger: { drain: capture.drain }, pagesDir: fixturesDir })
+  );
+  const event = capture.next();
   const res = await app.handle(
     new Request("http://localhost/_furin/ingest", {
       body: JSON.stringify([{ event: { msg: "browser log" } }]),
@@ -187,7 +190,7 @@ test.serial("browser log ingest accepts browser events when enabled", async () =
   );
 
   expect(res.status).toBe(204);
-  expect(evlogSetMock).toHaveBeenCalledWith({
+  expect(await event).toMatchObject({
     browser: { msg: "browser log" },
     service: "furin:browser",
   });

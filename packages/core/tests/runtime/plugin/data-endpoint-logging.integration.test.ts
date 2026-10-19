@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { evlogSetMock, resetEvlogMock } from "../../setup/evlog-mock";
+import { setFurinEvlogOptions } from "../../../src/server/evlog.ts";
+import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 import { runProcess } from "../../support/process.ts";
 
 const { __resetCompileContext } = await import("../../../src/server/internal.ts");
@@ -9,45 +10,37 @@ const { mountProductionPages } = await import("../../support/production-app.ts")
 
 const fixturesDir = join(import.meta.dir, "../../fixtures/pages/default");
 
-interface LogFields {
-  path?: string;
-  routePattern?: string;
-  [key: string]: unknown;
-}
-
 afterEach(() => {
   __setDevMode(process.env.NODE_ENV !== "production");
   __resetCompileContext();
-  resetEvlogMock();
 });
 
 test("navigation data requests enrich matching route events", async () => {
   __setDevMode(false);
-  const { app } = await mountProductionPages(fixturesDir, "");
+  const { app, instance } = await mountProductionPages(fixturesDir, "");
+  const capture = captureEvlogEvents();
+  setFurinEvlogOptions(instance, { drain: capture.drain });
+  const event = capture.next();
 
-  await app.handle(new Request("http://localhost/dynamic/42?_furin=data"));
+  const response = await app.handle(new Request("http://localhost/dynamic/42?_furin=data"));
+  await response.text();
 
-  const merged = evlogSetMock.mock.calls.reduce<LogFields>(
-    (acc, [arg]) => Object.assign(acc, arg),
-    {}
-  );
-  expect(merged.path).toBe("/dynamic/42");
-  expect(merged.routePattern).toBe("/dynamic/:id");
+  expect(await event).toMatchObject({ path: "/dynamic/42", routePattern: "/dynamic/:id" });
 });
 
 test("navigation data requests for unknown paths get an uncached 404 without a route", async () => {
   __setDevMode(false);
-  const { app } = await mountProductionPages(fixturesDir, "");
+  const { app, instance } = await mountProductionPages(fixturesDir, "");
+  const capture = captureEvlogEvents();
+  setFurinEvlogOptions(instance, { drain: capture.drain });
+  const event = capture.next();
 
   const res = await app.handle(new Request("http://localhost/nope/nowhere?_furin=data"));
 
   expect(res.status).toBe(404);
   expect(res.headers.get("cache-control")).toBe("private, no-store");
   expect(await res.text()).toBe("");
-  const routePatterns = evlogSetMock.mock.calls.flatMap(([arg]) =>
-    arg.routePattern === undefined ? [] : [arg.routePattern]
-  );
-  expect(routePatterns).toEqual([]);
+  expect(await event).not.toHaveProperty("routePattern");
 });
 
 test("the real Elysia integration exposes a request-scoped logger", async () => {

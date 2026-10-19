@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { applyRevalidateHeader } from "../../../src/client/router/link-utils.ts";

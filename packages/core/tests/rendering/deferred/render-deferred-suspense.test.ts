@@ -1,7 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
-import "../../setup/evlog-mock";
-
 import { createElement, Suspense } from "react";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 

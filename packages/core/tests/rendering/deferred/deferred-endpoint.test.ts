@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import { type AnyElysia, t } from "elysia";
 import { createElement } from "react";
 import { defer } from "../../../src/client";

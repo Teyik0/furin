@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { defer } from "../../../src/client";

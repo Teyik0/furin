@@ -9,8 +9,6 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import "../../setup/evlog-mock";
-
 import { join } from "node:path";
 import { Elysia, t } from "elysia";
 import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";

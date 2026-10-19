@@ -5,7 +5,6 @@ import { pathToFileURL } from "node:url";
 import { type AnyElysia, Elysia } from "elysia";
 import type { FurinOptions } from "../../../src/furin";
 import type { CompileContext, EmbeddedAppData } from "../../../src/server/internal";
-import { resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures";
 
 const { furin } = await import("../../../src/furin");
@@ -78,7 +77,6 @@ async function setCompileContext(appPath: string, embedded?: EmbeddedAppData): P
 }
 
 function resetState(): void {
-  resetEvlogMock();
   __setDevMode(true);
   __resetTemplateState();
   __resetCacheState();

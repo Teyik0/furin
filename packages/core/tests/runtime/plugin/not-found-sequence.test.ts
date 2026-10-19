@@ -3,7 +3,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import type { CompileContext } from "../../../src/server/internal";
-import { resetEvlogMock } from "../../setup/evlog-mock";
 import { createTmpApp, type TmpApp } from "../../support/app-fixtures";
 
 const { furin } = await import("../../../src/furin");
@@ -37,7 +36,6 @@ async function createProductionContext(appPath: string, prefix: string): Promise
 }
 
 afterEach(() => {
-  resetEvlogMock();
   __setDevMode(true);
   __resetTemplateState();
   __resetCompileContext();
