@@ -259,7 +259,7 @@ function stableFingerprintPath(path: string, projectRoot: string): string {
   return `external/${toPosixPath(projectPath)}`;
 }
 
-function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
+export function buildCompileMetadata(root: RootLayout, routes: ResolvedRoute[]) {
   const rootConventions =
     root.errorPath || root.notFoundPath
       ? {

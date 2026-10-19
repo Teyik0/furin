@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildApp } from "../../../src/build/index.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
@@ -70,6 +71,61 @@ test("static exports render without touching the process's runtime state", async
   );
   expect(getProductionTemplate()).toBeNull();
   expect(ssgRouteCache().size).toBe(0);
+}, 60_000);
+
+test("static exports render SSG pages with a production bundle", async () => {
+  const app = createOriginApp();
+
+  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
+
+  const html = await Bun.file(join(app.path, "dist/blog/hello-world/index.html")).text();
+  expect(html).toContain("rendered-from-<!-- -->bundle");
+  expect(existsSync(join(app.path, ".furin/build/static"))).toBe(false);
+}, 60_000);
+
+test("static exports render pages in production mode", async () => {
+  const app = createTmpApp("cli-app");
+  tmpApps.push(app);
+  writeAppFile(
+    app.path,
+    "src/pages/env.tsx",
+    `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => <main>node-env-{process.env.NODE_ENV}</main>);
+`
+  );
+
+  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
+
+  const html = await Bun.file(join(app.path, "dist/env/index.html")).text();
+  expect(html).toContain("node-env-<!-- -->production");
+}, 60_000);
+
+test("static exports never render pages in the build process", async () => {
+  const app = createTmpApp("cli-app");
+  tmpApps.push(app);
+  writeAppFile(
+    app.path,
+    "src/pages/global.tsx",
+    `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => {
+    (globalThis as { __furinStaticRendered?: boolean }).__furinStaticRendered = true;
+    return <main>global</main>;
+  });
+`
+  );
+
+  await buildApp({ rootDir: app.path, staticConfig: { outDir: "dist" }, target: "static" });
+
+  expect(await Bun.file(join(app.path, "dist/global/index.html")).text()).toContain("global");
+  expect((globalThis as { __furinStaticRendered?: boolean }).__furinStaticRendered).toBeUndefined();
 }, 60_000);
 
 test("the Bun server serves the snapshot rendered at build time", async () => {

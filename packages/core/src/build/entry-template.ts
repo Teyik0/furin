@@ -17,6 +17,7 @@ const _pkgSrcDir = _pkgSrcDirRaw.replace(/\\/g, "/");
 const _ext = _pkgSrcDir.endsWith("/src") ? ".ts" : ".js";
 const INTERNAL_MODULE_PATH = `${_pkgSrcDir}/server/internal${_ext}`;
 const RUNTIME_ENV_MODULE_PATH = `${_pkgSrcDir}/server/runtime-env${_ext}`;
+const STATIC_EXPORT_MODULE_PATH = `${_pkgSrcDir}/server/static-export${_ext}`;
 /** Sidecar holding the SSG documents the production bundle rendered at build time. */
 export const PRERENDER_SNAPSHOT_FILE = "furin-prerender.json";
 
@@ -70,8 +71,11 @@ export interface EntryTemplateOptions {
    *   NODE_ENV (the host decides), and it imports furin internals via the
    *   package specifier so the host and the register module share ONE copy of
    *   the context registry (`packages: "external"` keeps it unbundled).
+   * - "static": registers contexts in production mode and exports the static
+   *   export renderer, without a server entry. `--target static` renders
+   *   from this temporary bundle.
    */
-  mode?: "app" | "boot" | "register";
+  mode?: "app" | "boot" | "register" | "static";
   /**
    * Seed each context's SSG cache from the build-time prerender snapshot,
    * a JSON sidecar next to the emitted bundle.
@@ -275,6 +279,12 @@ export function buildEntrySource(options: EntryTemplateOptions): string {
             "",
           ]
         : []),
+    ...(mode === "static"
+      ? [
+          `export { exportStaticPages as __furinStaticExport } from ${JSON.stringify(STATIC_EXPORT_MODULE_PATH)};`,
+          "",
+        ]
+      : []),
   ];
 
   return lines.join("\n");

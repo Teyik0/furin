@@ -2,29 +2,29 @@
 import { cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep, win32 } from "node:path";
 import { toCrossJSONAsync } from "seroval";
+import { PRODUCTION_DEFINE, runBunBuild } from "../build/bun-build.ts";
 import { buildClient } from "../build/client.ts";
+import { buildEntrySource } from "../build/entry-template.ts";
+import type { ClientPreloadManifest } from "../build/preload-manifest.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, StaticTargetBuildManifest } from "../build/types.ts";
+import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
 import { toLogical } from "../client/router/link-utils.ts";
 import type { StaticExportConfig } from "../config.ts";
-import { createInstance, withInstance } from "../server/instance.ts";
-import { resolvePath } from "../server/render/assemble.ts";
+import { routeSourcePaths } from "../plugin/route-tree.ts";
+import { buildFlightCodec } from "../rsc/build/index.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
-import { prerenderSSG } from "../server/render/ssg.ts";
-import { expandStaticPaths, type StaticPath } from "../server/render/static-params.ts";
-import {
-  setProductionPreloadManifest,
-  setProductionTemplateContent,
-} from "../server/render/template.ts";
-import { buildRouteMatcher, resolveDocumentMode } from "../server/router/patterns.ts";
-import { createSearchRouteMetadata } from "../server/router/schemas.ts";
+import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
+import type {
+  StaticExportFailure,
+  StaticExportPage,
+  StaticExportResult,
+} from "../server/static-export.ts";
 import { isWithinPrefix } from "../shared/prefix.ts";
-import type { SearchRouteMetadata } from "../shared/search-params.ts";
-import { mapWithConcurrency } from "../shared/utils/index.ts";
-
-/** Maximum concurrent pre-render calls (mirrors warmSSGCache). */
-const STATIC_CONCURRENCY = 4;
+import { exportStaticFromBundle } from "./prerender.ts";
+import { buildCompileMetadata, type RuntimeTargetApp } from "./runtime-build.ts";
+import { serverBundlePlugins } from "./server-bundle.ts";
 
 /** Strips all trailing slashes from a string. */
 const TRAILING_SLASHES_RE = /\/+$/;
@@ -139,70 +139,142 @@ function assertNoPrerenderSkips(
   );
 }
 
-// ── Pre-render worker ─────────────────────────────────────────────────────────
+// ── Page outputs ──────────────────────────────────────────────────────────────
 
-async function prerenderAndWrite(
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  root: RootLayout,
+interface StaticOutput {
+  /** Navigation payload, or null for redirects leaving the site. */
+  data: string | null;
+  dataFile: string;
+  html: string;
+  htmlFile: string;
+  path: string;
+  /** Redirect target shown in the build log. */
+  redirect: string | null;
+}
+
+async function toStaticOutput(
+  page: StaticExportPage,
   outDir: string,
-  renderedRoutes: string[],
-  skippedRoutes: string[],
-  basePath: string,
-  searchRoutes: SearchRouteMetadata[]
-): Promise<void> {
-  const urlPath = resolvePath(route.pattern, params);
-  const htmlOutputFile = pathToOutputFile(urlPath, outDir, "index.html");
-  const dataOutputFile = pathToOutputFile(urlPath, outDir, "__furin_data.ndjson");
-
-  try {
-    const entry = await prerenderSSG(
-      route,
-      params,
-      root,
-      "http://localhost",
-      basePath,
-      searchRoutes
-    );
-
-    if (entry instanceof Response) {
-      const location = entry.headers.get("location");
-      if (entry.status < 300 || entry.status >= 400 || location === null) {
-        throw new Error(
-          `[furin] static: route "${route.pattern}" returned a response that cannot be exported.`
-        );
-      }
-      const staticLocation = resolveStaticRedirectLocation(location, basePath, urlPath);
-      ensureDir(dirname(htmlOutputFile));
-      writeFileSync(htmlOutputFile, createStaticRedirectHtml(staticLocation.html));
-      if (staticLocation.spa !== null) {
-        const serializedRedirect = await toCrossJSONAsync({
-          __furinRedirect: staticLocation.spa,
-        });
-        writeFileSync(dataOutputFile, `${JSON.stringify(serializedRedirect)}\n`);
-      }
-      renderedRoutes.push(urlPath);
-      console.log(
-        `[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)} (redirects to ${staticLocation.html})`
-      );
-      return;
-    }
-
-    ensureDir(dirname(htmlOutputFile));
-    writeFileSync(htmlOutputFile, entry.html);
+  basePath: string
+): Promise<StaticOutput> {
+  const htmlFile = pathToOutputFile(page.path, outDir, "index.html");
+  const dataFile = pathToOutputFile(page.path, outDir, "__furin_data.ndjson");
+  if (!("redirect" in page)) {
     // Persist the loader payload at a static-friendly URL: SPA navigation on
     // file-server deployments (GitHub Pages, S3, …) fetches this file instead of
     // sending `?_furin=data` requests, which no server answers there.
-    writeFileSync(dataOutputFile, entry.ndjson);
-    renderedRoutes.push(urlPath);
-    console.log(`[furin] static:   ${urlPath} → ${toPosixPath(htmlOutputFile)}`);
-  } catch (err) {
-    console.error(
-      `[furin] static: prerender failed for "${route.pattern}" (params: ${JSON.stringify(params)}):`,
-      err
-    );
-    skippedRoutes.push(urlPath);
+    return {
+      data: page.ndjson,
+      dataFile,
+      html: page.html,
+      htmlFile,
+      path: page.path,
+      redirect: null,
+    };
   }
+  const location = resolveStaticRedirectLocation(page.redirect, basePath, page.path);
+  const data =
+    location.spa === null
+      ? null
+      : `${JSON.stringify(await toCrossJSONAsync({ __furinRedirect: location.spa }))}\n`;
+  return {
+    data,
+    dataFile,
+    html: createStaticRedirectHtml(location.html),
+    htmlFile,
+    path: page.path,
+    redirect: location.html,
+  };
+}
+
+/**
+ * Records skipped routes and resolves every page to its files. Throws before
+ * anything is written when an output path is unsafe or onSSR="error" fails.
+ */
+async function collectStaticOutputs(
+  exported: StaticExportResult,
+  outDir: string,
+  basePath: string,
+  onSSR: "error" | "skip",
+  skippedRoutes: string[]
+): Promise<StaticOutput[]> {
+  for (const pattern of exported.missingParams) {
+    console.warn(
+      `[furin] static: skipping dynamic route "${pattern}" — no staticParams() defined.`
+    );
+    skippedRoutes.push(pattern);
+  }
+  for (const failure of exported.paramsFailures) {
+    console.error(`[furin] static: staticParams() failed for "${failure.pattern}":`, failure.error);
+    skippedRoutes.push(failure.pattern);
+  }
+  for (const { path } of [...exported.pages, ...exported.renderFailures]) {
+    pathToOutputFile(path, outDir, "index.html");
+  }
+  assertNoStaticExportSkips(onSSR, skippedRoutes);
+  // Snapshot before render failures: routes skipped due to missing staticParams()
+  // are already recorded; only paths added below are prerender failures.
+  const afterQueueCount = skippedRoutes.length;
+
+  for (const failure of exported.renderFailures) {
+    logRenderFailure(failure, failure.error);
+    skippedRoutes.push(failure.path);
+  }
+  const outputs: StaticOutput[] = [];
+  for (const page of exported.pages) {
+    try {
+      outputs.push(await toStaticOutput(page, outDir, basePath));
+    } catch (err) {
+      logRenderFailure(page, err);
+      skippedRoutes.push(page.path);
+    }
+  }
+  // Fail the build when onSSR="error" and any page was recorded as skipped.
+  assertNoPrerenderSkips(onSSR, skippedRoutes, afterQueueCount);
+  return outputs;
+}
+
+function writeStaticOutput(output: StaticOutput): void {
+  ensureDir(dirname(output.htmlFile));
+  writeFileSync(output.htmlFile, output.html);
+  if (output.data !== null) {
+    writeFileSync(output.dataFile, output.data);
+  }
+  const redirect = output.redirect === null ? "" : ` (redirects to ${output.redirect})`;
+  console.log(`[furin] static:   ${output.path} → ${toPosixPath(output.htmlFile)}${redirect}`);
+}
+
+function replaceOutDir(
+  outDir: string,
+  publicSrcDir: string,
+  clientSrcDir: string,
+  outputs: StaticOutput[],
+  shellHtml: string
+): void {
+  rmSync(outDir, { force: true, recursive: true });
+  ensureDir(outDir);
+  if (existsSync(publicSrcDir)) {
+    cpSync(publicSrcDir, outDir, { recursive: true, dereference: true });
+  }
+  if (existsSync(clientSrcDir)) {
+    cpSync(clientSrcDir, join(outDir, "_client"), { recursive: true, dereference: true });
+  }
+  for (const output of outputs) {
+    writeStaticOutput(output);
+  }
+  // SPA fallback for GitHub Pages.
+  writeFileSync(join(outDir, "404.html"), shellHtml);
+  console.log("[furin] static: wrote 404.html (SPA shell fallback)");
+}
+
+function logRenderFailure(
+  failure: Pick<StaticExportFailure, "params" | "pattern">,
+  error: unknown
+) {
+  console.error(
+    `[furin] static: prerender failed for "${failure.pattern}" (params: ${JSON.stringify(failure.params)}):`,
+    error
+  );
 }
 
 // ── SSR validation ────────────────────────────────────────────────────────────
@@ -248,79 +320,77 @@ function collectSsgRoutes(
   return routes.filter((r) => resolveDocumentMode(r) === "ssg");
 }
 
-// ── Task queue builder ────────────────────────────────────────────────────────
+// ── Export bundle ─────────────────────────────────────────────────────────────
+
+const STATIC_ENTRY = "_furin-static";
 
 /**
- * Builds the flat list of pre-render tasks for all SSG routes.
- * Dynamic routes without staticParams() are warned about and pushed to skippedRoutes.
+ * Bundles the app for the static export like a server target: production
+ * defines and the shared server plugin chain, but no server entry. Returns
+ * the module exporting the static renderer.
  */
-async function buildTaskQueue(
-  ssgRoutes: ResolvedRoute[],
-  allRoutes: ResolvedRoute[],
-  root: RootLayout,
-  outDir: string,
-  renderedRoutes: string[],
-  skippedRoutes: string[],
-  basePath: string,
-  searchRoutes: SearchRouteMetadata[]
-): Promise<Array<() => Promise<void>>> {
-  const tasks: Array<() => Promise<void>> = [];
-
-  type StaticPathsResult =
-    | { paths: StaticPath[] | null; route: ResolvedRoute }
-    | { error: unknown; paths: null; route: ResolvedRoute };
-
-  // Ownership is decided against every route, exported or not, so a
-  // staticParams() value never overwrites the page of a more specific route.
-  const matchRoute = buildRouteMatcher(allRoutes);
-  const staticPathsResults: StaticPathsResult[] = await mapWithConcurrency(
-    ssgRoutes,
-    STATIC_CONCURRENCY,
-    async (route) => {
-      try {
-        const paths = await expandStaticPaths(route, matchRoute, STATIC_RENDER_ORIGIN);
-        if (paths === undefined) {
-          console.warn(
-            `[furin] static: skipping dynamic route "${route.pattern}" — no staticParams() defined.`
-          );
-          skippedRoutes.push(route.pattern);
-          return { paths: null, route };
-        }
-        return { paths, route };
-      } catch (err) {
-        return { error: err, paths: null, route };
-      }
-    }
+async function bundleStaticExport(
+  app: RuntimeTargetApp,
+  shellHtml: string,
+  preloadManifest: ClientPreloadManifest,
+  serverDir: string,
+  rootDir: string,
+  options: BuildAppOptions
+): Promise<string> {
+  const { root, routes } = app;
+  const { rootConventions, routeMetadata } = buildCompileMetadata(root, routes);
+  const entry = createVirtualBuildEntry(
+    join(serverDir, `${STATIC_ENTRY}.ts`),
+    buildEntrySource({
+      apps: [
+        {
+          clientLogging: Boolean(options.clientLogging),
+          modulePaths: routeSourcePaths(app),
+          preloadManifest,
+          rootConventions,
+          rootPath: root.path,
+          routeMetadata,
+          routes: routes.map((route) => ({
+            mode: route.mode,
+            path: route.path,
+            pattern: route.pattern,
+          })),
+          templateHtml: shellHtml,
+        },
+      ],
+      headerComment: "// Auto-generated by `furin build --target static` — do not edit",
+      mode: "static",
+      prerenderSnapshot: false,
+    }),
+    "ts"
   );
-
-  for (const result of staticPathsResults) {
-    const { pattern } = result.route;
-    if ("error" in result) {
-      console.error(`[furin] static: staticParams() failed for "${pattern}":`, result.error);
-      skippedRoutes.push(pattern);
-      continue;
-    }
-    if (result.paths === null) {
-      continue;
-    }
-    for (const { params, path } of result.paths) {
-      pathToOutputFile(path, outDir, "index.html");
-      tasks.push(() =>
-        prerenderAndWrite(
-          result.route,
-          params,
-          root,
-          outDir,
-          renderedRoutes,
-          skippedRoutes,
-          basePath,
-          searchRoutes
-        )
-      );
-    }
+  const result = await runBunBuild({
+    define: PRODUCTION_DEFINE,
+    entrypoints: [entry.entrypoint],
+    files: entry.files,
+    format: "esm",
+    minify: false,
+    naming: { chunk: "[name]-[hash].[ext]", entry: "[name].[ext]" },
+    outdir: serverDir,
+    plugins: [
+      entry.plugin,
+      ...serverBundlePlugins({
+        appEntry: undefined,
+        apps: [app],
+        platformAssets: undefined,
+        rootDir,
+        userPlugins: options.plugins,
+      }),
+    ],
+    sourcemap: "inline",
+    target: "bun",
+  });
+  if (!result.success) {
+    throw new AggregateError(result.logs, "[furin] static export bundle failed");
   }
-
-  return tasks;
+  // The bundled Flight codec loads `server-codec.js` from the bundle's directory.
+  await buildFlightCodec(serverDir, options.plugins);
+  return join(serverDir, `${STATIC_ENTRY}.js`);
 }
 
 // ── Main adapter ──────────────────────────────────────────────────────────────
@@ -344,12 +414,12 @@ function assertNoRequestLoaders(routes: ResolvedRoute[], root: RootLayout): void
 }
 
 export async function buildStaticTarget(
-  routes: ResolvedRoute[],
+  app: RuntimeTargetApp,
   rootDir: string,
   buildRoot: string,
-  root: RootLayout,
   options: BuildAppOptions
 ): Promise<StaticTargetBuildManifest> {
+  const { root, routes } = app;
   assertNoRequestLoaders(routes, root);
 
   const staticConfig: StaticExportConfig = options.staticConfig ?? {};
@@ -412,93 +482,57 @@ export async function buildStaticTarget(
 
   // ── 1. Validate SSR/ISR routes before doing any work ─────────────────────
   const ssgRoutes = collectSsgRoutes(routes, onSSR, skippedRoutes);
-  const searchRoutes = createSearchRouteMetadata(ssgRoutes);
-
-  // The export renders in its own runtime: templates and caches stay out of
-  // the build process's shared state.
-  const exportRuntime = createInstance("", dirname(root.path));
-
-  // ── 2. Resolve and validate every output path before writing artifacts ────
-  const tasks = await withInstance(exportRuntime, () =>
-    buildTaskQueue(
-      ssgRoutes,
-      routes,
-      root,
-      outDir,
-      renderedRoutes,
-      skippedRoutes,
-      basePath,
-      searchRoutes
-    )
-  );
-  assertNoStaticExportSkips(onSSR, skippedRoutes);
-  // Snapshot after queue-building: routes skipped due to missing staticParams() are
-  // already recorded; only routes added during task execution are prerender failures.
-  const afterQueueCount = skippedRoutes.length;
-
-  // ── 3. Clean & create output directories ─────────────────────────────────
-  rmSync(outDir, { force: true, recursive: true });
-  ensureDir(outDir);
 
   const targetDir = join(buildRoot, "static");
   rmSync(targetDir, { force: true, recursive: true });
   ensureDir(targetDir);
+  try {
+    // ── 2. Build client bundle ──────────────────────────────────────────────
+    const { entryChunk, cssChunks, preloadManifest } = await buildClient(ssgRoutes, {
+      basePath,
+      clientLogging: Boolean(options.clientLogging),
+      metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
+      optimizeImports: options.optimizeImports,
+      outDir: targetDir,
+      pagesDir: dirname(root.path),
+      plugins: options.plugins,
+      preloadRouteChunks: options.preload?.routeChunks,
+      publicPath,
+      reactCompiler: options.reactCompiler,
+      rootLayout: root.path,
+    });
 
-  // ── 4. Build client bundle ────────────────────────────────────────────────
-  const { entryChunk, cssChunks, preloadManifest } = await buildClient(ssgRoutes, {
-    basePath,
-    clientLogging: Boolean(options.clientLogging),
-    metafilePath: options.analyze ? join(buildRoot, "analysis", "static-client.json") : undefined,
-    optimizeImports: options.optimizeImports,
-    outDir: targetDir,
-    pagesDir: dirname(root.path),
-    plugins: options.plugins,
-    preloadRouteChunks: options.preload?.routeChunks,
-    publicPath,
-    reactCompiler: options.reactCompiler,
-    rootLayout: root.path,
-  });
+    // ── 3. Generate HTML shell template ────────────────────────────────────
+    // Emit a <link rel="icon"> only when a favicon.ico exists in the public dir.
+    // This ensures the browser finds it even when the site is served from a sub-path.
+    const publicFavicon = join(rootDir, "public", "favicon.ico");
+    const faviconHref = existsSync(publicFavicon) ? `${basePath}/favicon.ico` : undefined;
+    const shellHtml = generateProdIndexHtml(entryChunk, cssChunks, undefined, faviconHref, true);
 
-  // ── 5. Generate HTML shell template ──────────────────────────────────────
-  // Emit a <link rel="icon"> only when a favicon.ico exists in the public dir.
-  // This ensures the browser finds it even when the site is served from a sub-path.
-  const publicFavicon = join(rootDir, "public", "favicon.ico");
-  const faviconHref = existsSync(publicFavicon) ? `${basePath}/favicon.ico` : undefined;
-  const shellHtml = generateProdIndexHtml(entryChunk, cssChunks, undefined, faviconHref, true);
+    // ── 4. Render every page inside a temporary production bundle ───────────
+    const bundle = await bundleStaticExport(
+      app,
+      shellHtml,
+      preloadManifest,
+      join(targetDir, "server"),
+      rootDir,
+      options
+    );
+    const exported = await exportStaticFromBundle(bundle, rootDir, {
+      basePath,
+      patterns: ssgRoutes.map((route) => route.pattern),
+    });
 
-  // ── 6. Prime the export runtime with the production shell ────────────────
-  // Must be called before any prerenderSSG invocation.
-  // prepareRender() checks getProductionTemplate() first (before IS_DEV), so
-  // setting the content here is sufficient — no need to flip IS_DEV globally.
-  setProductionTemplateContent(shellHtml, exportRuntime);
-  setProductionPreloadManifest(preloadManifest, exportRuntime);
+    // ── 5. Validate every output path before writing artifacts ──────────────
+    const outputs = await collectStaticOutputs(exported, outDir, basePath, onSSR, skippedRoutes);
 
-  // ── 7. Copy public/ → outDir/ ─────────────────────────────────────────────
-  const publicSrcDir = join(rootDir, "public");
-  if (existsSync(publicSrcDir)) {
-    cpSync(publicSrcDir, outDir, { recursive: true, dereference: true });
+    // ── 6. Replace outDir: public/, _client/, pages, 404.html ───────────────
+    replaceOutDir(outDir, join(rootDir, "public"), join(targetDir, "client"), outputs, shellHtml);
+    renderedRoutes.push(...outputs.map((output) => output.path));
+  } finally {
+    // ── 7. Discard intermediate build artifacts, including the bundle ───────
+    rmSync(targetDir, { force: true, recursive: true });
   }
-
-  // ── 8. Copy _client/ chunks → outDir/_client/ ────────────────────────────
-  const clientSrcDir = join(targetDir, "client");
-  if (existsSync(clientSrcDir)) {
-    cpSync(clientSrcDir, join(outDir, "_client"), { recursive: true, dereference: true });
-  }
-
-  // ── 9. Pre-render SSG routes ──────────────────────────────────────────────
-  await withInstance(exportRuntime, () =>
-    mapWithConcurrency(tasks, STATIC_CONCURRENCY, (task) => task())
-  );
-
-  // Fail the build when onSSR="error" and any prerender task was recorded as skipped.
-  assertNoPrerenderSkips(onSSR, skippedRoutes, afterQueueCount);
-
-  // ── 10. Write 404.html (SPA fallback for GitHub Pages) ──────────────────
-  writeFileSync(join(outDir, "404.html"), shellHtml);
-  console.log("[furin] static: wrote 404.html (SPA shell fallback)");
-
-  // ── 11. Clean up intermediate build artifacts ───────────────────────────
-  rmSync(targetDir, { force: true, recursive: true });
 
   console.log(
     `[furin] static: export complete → ${toPosixPath(outDir)}` +

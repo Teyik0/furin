@@ -266,13 +266,7 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
             "(or the sub-path the site is served from) so asset URLs resolve correctly."
         );
       }
-      manifest.targets.static = await buildStaticTarget(
-        primaryApp.routes,
-        rootDir,
-        buildRoot,
-        primaryApp.root,
-        options
-      );
+      manifest.targets.static = await buildStaticTarget(primaryApp, rootDir, buildRoot, options);
       continue;
     }
     if (target === "package") {

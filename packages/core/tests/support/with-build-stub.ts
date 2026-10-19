@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-const REAL_BUILD_ENTRY_RE = /(?:_furin-app|register|vercel[/\\]bootstrap)\.ts$/;
+const REAL_BUILD_ENTRY_RE = /(?:_furin-app|_furin-static|register|vercel[/\\]bootstrap)\.ts$/;
 
 type BunBuildGlobal = typeof globalThis & {
   __FURIN_BUN_BUILD_FOR_TESTS?: typeof Bun.build;
