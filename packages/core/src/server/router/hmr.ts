@@ -34,6 +34,7 @@ import {
   annotateScannedRequestKeys,
   collectRouteTags,
   getSourceModuleCandidates,
+  invalidNestedLayoutError,
   isModuleNotFoundError,
 } from "./discovery.ts";
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
@@ -209,10 +210,20 @@ async function importFreshLayoutRouteModule(
 ): Promise<CompiledModule | undefined> {
   for (const layoutPath of getSourceModuleCandidates(layoutDir, "_route")) {
     const freshMod = await importFreshRouteModuleCandidate(layoutPath, resolveImport, ctx);
-    if (freshMod) {
-      return freshMod;
+    if (!freshMod) {
+      continue;
     }
+    // Same contract as an invalid page export: the overlay names the file.
+    if (!(isDefinedRouteTerminal(freshMod.route) && typeof freshMod.route.layout === "function")) {
+      throw invalidExportFailure(invalidNestedLayoutError(layoutPath), layoutPath);
+    }
+    return freshMod;
   }
+}
+
+function invalidExportFailure(error: Error, file: string): DevTransformFailure {
+  Reflect.set(error, "furinPosition", { column: 1, file, line: 1 });
+  return new DevTransformFailure(error, { cause: error });
 }
 
 function patchRouteEntryFromFreshModule(
@@ -281,10 +292,7 @@ export async function refreshLayoutChain(
     }
 
     patchRouteEntryFromFreshModule(chain[chainIdx], freshMod);
-    // An _route module exists at this depth — advance chainIdx regardless of
-    // whether the export is currently a valid route (the chain entry was
-    // populated by the initial import and should be revisited on the next
-    // successful HMR cycle).
+    // A valid _route module exists at this depth (invalid exports throw on import).
     chainIdx += 1;
   }
 }
@@ -390,15 +398,12 @@ export async function resolveCurrentDevRoute(
     }
     return { root: currentRoot, route: refreshed };
   }
-  const invalidExport = new Error(
-    `${route.path} must provide a valid Furin page export: \`export const route = defineRoute().config({ layout, mode }).page(...)\``
+  throw invalidExportFailure(
+    new Error(
+      `${route.path} must provide a valid Furin page export: \`export const route = defineRoute().config({ layout, mode }).page(...)\``
+    ),
+    route.path
   );
-  Reflect.set(invalidExport, "furinPosition", {
-    column: 1,
-    file: route.path,
-    line: 1,
-  });
-  throw new DevTransformFailure(invalidExport, { cause: invalidExport });
 }
 
 const devLoaderCaches = {

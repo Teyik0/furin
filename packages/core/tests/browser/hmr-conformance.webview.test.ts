@@ -2049,6 +2049,42 @@ browserTest(
 );
 
 browserTest(
+  "a cold invalid layout export shows the overlay and recovers after an edit",
+  async () => {
+    const harness = await createBrowserHarness(
+      pageSource("home", false),
+      [
+        {
+          contents: sectionLayoutSource("layout-broken").replace(
+            ".layout(SectionLayout);",
+            ".loader(() => ({}));"
+          ),
+          relativePath: "src/pages/section/_route.tsx",
+        },
+        {
+          contents: sectionPageSource("section-v1"),
+          relativePath: "src/pages/section/index.tsx",
+        },
+      ],
+      false
+    );
+    activeHarness = harness;
+    await harness.view.navigate(`${harness.url}/section`);
+    await waitForDevErrorOverlayText(harness.view, "_route.tsx must export");
+
+    writeAppFile(
+      harness.app.path,
+      "src/pages/section/_route.tsx",
+      sectionLayoutSource("layout-fixed")
+    );
+
+    await waitForElementText(harness.view, '[data-testid="layout-version"]', "layout-fixed");
+    await waitForDevErrorOverlayRemoved(harness.view);
+  },
+  45_000
+);
+
+browserTest(
   "a CSS edit updates computed styles without resetting React state",
   async () => {
     const harness = await createBrowserHarness(

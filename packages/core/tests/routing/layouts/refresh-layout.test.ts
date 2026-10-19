@@ -56,7 +56,7 @@ describe("refreshLayoutChain", () => {
     expect((chain[1] as Required<RuntimeRoute>).loader).toBe(newLoader);
   });
 
-  test("keeps the current layout while _route.tsx has no layout terminal", async () => {
+  test("rejects with the layout export contract while _route.tsx has no layout terminal", async () => {
     const chain: RuntimeRoute[] = [
       { __type: "FURIN_ROUTE", layout: () => "root" },
       { __type: "FURIN_ROUTE", layout: () => "board" },
@@ -73,10 +73,21 @@ describe("refreshLayoutChain", () => {
       return Promise.resolve({});
     };
 
-    await refreshLayoutChain(chain, "/pages/board/page.tsx", "/pages/root.tsx", importFn);
+    const failure = await refreshLayoutChain(
+      chain,
+      "/pages/board/page.tsx",
+      "/pages/root.tsx",
+      importFn
+    ).catch((error: unknown) => error);
 
-    expect((chain[1] as RuntimeRoute | undefined)?.layout).toBeDefined();
-    expect((chain[0] as RuntimeRoute | undefined)?.layout).toBeDefined();
+    expect(String((failure as Error).cause)).toContain(
+      "/pages/board/_route.tsx: _route.tsx must export `route = defineRoute()"
+    );
+    expect(Reflect.get((failure as Error).cause as Error, "furinPosition")).toEqual({
+      column: 1,
+      file: "/pages/board/_route.tsx",
+      line: 1,
+    });
   });
 
   test("removes stale loader when _route.tsx no longer exports one", async () => {

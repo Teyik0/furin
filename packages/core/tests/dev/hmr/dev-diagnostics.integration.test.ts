@@ -602,4 +602,80 @@ throw new Error("recovery exploded");`
     expect(readyEvent.revision).toBeGreaterThan(errorEvent.revision);
     events.close();
   }, 20_000);
+
+  test("an invalid _route.tsx export is routed through the diagnostic overlay, then cleared", async () => {
+    const layoutSource = (terminal: string): string =>
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "../root";',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        `  ${terminal};`,
+      ].join("\n");
+    writeAppFile(
+      app.path,
+      "src/pages/section/_route.tsx",
+      layoutSource("  .layout(({ children }) => <section>Section layout{children}</section>)")
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/section/index.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as sectionRoute } from "./_route";',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: sectionRoute, mode: "ssr" })',
+        "  .page(() => <main>Section page</main>);",
+      ].join("\n")
+    );
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`http://localhost:${port}/section`);
+      if (response.ok && (await response.text()).includes("Section layout")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    writeAppFile(app.path, "src/pages/section/_route.tsx", layoutSource(".loader(() => ({}))"));
+    let response: Response | undefined;
+    let state: EmbeddedDiagnosticState | undefined;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      response = await fetch(`http://localhost:${port}/section`);
+      const stateMatch = DIAGNOSTIC_STATE_RE.exec(await response.text());
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the diagnostic state may not yet be available.
+      if (stateMatch?.[1]) {
+        state = JSON.parse(stateMatch[1]) as EmbeddedDiagnosticState;
+        break;
+      }
+      await Bun.sleep(250);
+    }
+
+    expect(response?.status).toBe(500);
+    expect(state?.event.diagnostic.phase).toBe("transform");
+    expect(state?.event.diagnostic.route).toBe("/section");
+    expect(state?.event.diagnostic.message).toContain("_route.tsx must export");
+    expect(state?.event.diagnostic.location?.file).toContain("src/pages/section/_route.tsx");
+
+    const events = await openDiagnosticSocket(port);
+    const readyEvent = events.next("ready");
+    writeAppFile(
+      app.path,
+      "src/pages/section/_route.tsx",
+      layoutSource("  .layout(({ children }) => <section>Section fixed{children}</section>)")
+    );
+    let html = "";
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const fixed = await fetch(`http://localhost:${port}/section`);
+      html = await fixed.text();
+      if (fixed.ok && html.includes("Section fixed")) {
+        break;
+      }
+      await Bun.sleep(250);
+    }
+    expect(html).toContain("Section fixed");
+    expect((await readyEvent).type).toBe("ready");
+    events.close();
+  }, 30_000);
 });

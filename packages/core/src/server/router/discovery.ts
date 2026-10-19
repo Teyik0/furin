@@ -146,7 +146,7 @@ function resolveCompiledRuntimePage(
   return adaptDefinedPage(module.route, parent);
 }
 
-function invalidNestedLayoutError(layoutPath: string): Error {
+export function invalidNestedLayoutError(layoutPath: string): Error {
   return new Error(
     `[furin] ${layoutPath}: _route.tsx must export \`route = defineRoute().config({ layout: parentRoute, mode }).layout(({ children }) => ...)\`. For example:
   export const route = defineRoute()
