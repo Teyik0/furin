@@ -1,0 +1,92 @@
+packages/core/tests/file-routes.d.ts
+  s_553967112fee2c::t_3e62d58a960716 1-17
+packages/core/src/client/define-route.ts
+  s_553967112fee2c::t_9660c4639157fb 40-41,47
+packages/core/src/plugin/route-chains.ts
+  s_553967112fee2c::t_29e4bae4d8520e 215,227
+packages/core/src/routes.ts
+  s_553967112fee2c::t_29e4bae4d8520e 11
+packages/core/tests/build/hydrate/dev-files.test.ts
+  s_553967112fee2c::t_9b97dc505e5239 21,55
+  s_553967112fee2c::t_8cc70c131f3ecf 2
+  s_553967112fee2c::t_6cdf79b475f81a 67-105
+packages/core/src/build/hydrate.ts
+  s_553967112fee2c::t_879240cdc99f36 570-571
+  s_553967112fee2c::t_eca3250baaaebb 511-513,517
+  s_553967112fee2c::t_a915309ecb950a 515
+  s_553967112fee2c::t_52d008e0a85be1 488-510,514,516,518-520,522-523,530-537
+packages/core/src/server/dev/runtime.ts
+  s_553967112fee2c::t_d444ceddbfd198 246
+  s_553967112fee2c::t_47aaa8bb01a719 132,327,349
+  s_553967112fee2c::t_fadb9df07d3850 174,361
+packages/core/tests/contract/define-route-keyed.test.ts
+  s_553967112fee2c::t_eb2cb5c1aef6d2 3-5,8,10,15,84-85,104-184,186,189,192,196-200,208-251
+  s_553967112fee2c::t_6077b88687d522 193
+packages/core/src/shared/utils/index.ts
+  s_553967112fee2c::t_29e4bae4d8520e 74
+packages/core/tests/routing/validation/route-config.test.ts
+  s_553967112fee2c::t_85949cbd82225c 96,148
+  s_553967112fee2c::t_4057ec32a6cb01 175
+  s_553967112fee2c::t_43ea274bd7f795 42-43,48,52-53,58-59,64,67-68,77,79-80,83-84,86,92-93,105-106,113-114,123,127,138,163,188,191-192,196,199-200,203-209,211,221,226,238-239,244-245,254-255,259,282,319-320,322,324-329,331,337,340,349-350,354,375,405-406,414-415,419-431,439-440,453,458
+packages/core/src/build/route-types.ts
+  s_553967112fee2c::t_b09c312029582a 3,25-28,30-33,35,60,68,73-78,92-95,100,119
+  s_553967112fee2c::t_df37e91e5f8c34 44
+packages/core/src/server/router/discovery.ts
+  s_553967112fee2c::t_29e4bae4d8520e 66,131-133,344
+packages/core/src/shared/await.tsx
+  s_553967112fee2c::t_29e4bae4d8520e 149-150
+packages/core/src/build/production-instrumentation.ts
+  s_553967112fee2c::t_8d361b92a24441 33
+packages/core/src/server/router/hmr.ts
+  s_553967112fee2c::t_29e4bae4d8520e 401
+packages/core/src/cli/index.ts
+  s_553967112fee2c::t_e9a9fcd4905ef5 247
+packages/core/src/plugin/route-modules.ts
+  s_553967112fee2c::t_29e4bae4d8520e 37
+packages/core/src/shared/defer.ts
+  s_553967112fee2c::t_29e4bae4d8520e 24
+packages/core/src/plugin/route-tree.ts
+  s_553967112fee2c::t_a6c964b5b34d5b 92-95,97,99
+packages/core/src/define-route.ts
+  s_553967112fee2c::t_6ddcf53fd42f76 723-727,909-913,970-973,975-978
+packages/core/src/build/index.ts
+  s_553967112fee2c::t_e4c614a1f83daa 186-187,194,228
+  s_553967112fee2c::t_3d7e12ea9faefe 174-176
+packages/core/tests/contract/route-types.test.ts
+  s_553967112fee2c::t_6681572a31b00d 233-237,239-240
+  s_553967112fee2c::t_9cbbbaa753204c 122,174
+  s_553967112fee2c::t_28150cde6f39e0 231-232,241-266,268,275-278
+  s_553967112fee2c::t_ecfeb7b483ed26 238,267,269-274
+packages/core/src/server/internal.ts
+  s_553967112fee2c::t_29e4bae4d8520e 33
+packages/core/src/plugin/route-config.ts
+  s_553967112fee2c::t_76711dee1ee696 224
+  s_553967112fee2c::t_29e4bae4d8520e 37
+  s_553967112fee2c::t_4f002582252eef 147-148,152,155-156,161-162,165,203,207,228,237
+  s_553967112fee2c::t_47aaa8bb01a719 320,326,329-331,423-424,428,431-432,438-439,441-442,444-448
+  s_1d3ba3f7cc3fcc::t_687d4d9033b12d 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f511e521f384bd5470860aba3b4e869bb1ac43f",
+  "prompts": {},
+  "sessions": {
+    "s_1d3ba3f7cc3fcc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0d2f19a85b7c95dd",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
