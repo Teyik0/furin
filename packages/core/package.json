@@ -174,7 +174,6 @@
     "@elysia/static": "2.0.0-beta.3",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@vercel/functions": "^3.10.1",
-    "@yuku-toolchain/types": "0.12.0",
     "magic-string": "^1.4.3",
     "react-server-dom-webpack": "~19.3.1",
     "seroval": "^1.6.11",

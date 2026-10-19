@@ -6,22 +6,33 @@ export interface FurinRegistration {
   readonly prefix: string;
 }
 
-// Shared through globalThis: the build's Elysia AOT worker installs the list
-// before evaluating the application, whichever copy of Furin it loads.
+// Shared through globalThis: the build installs the collector before
+// evaluating the application, whichever copy of Furin it loads.
 const REGISTRATIONS = Symbol.for("@teyik0/furin/registrations");
 
+interface RegistrationCollector {
+  /** True when the build only discovers mounts: furin() must not start a runtime. */
+  readonly discover: boolean;
+  readonly registrations: FurinRegistration[];
+}
+
 interface RegistrationGlobal {
-  [REGISTRATIONS]?: FurinRegistration[];
+  [REGISTRATIONS]?: RegistrationCollector;
 }
 
 /** Starts recording `furin()` calls in this process. */
-export function collectFurinRegistrations(): FurinRegistration[] {
+export function collectFurinRegistrations(discover: boolean): FurinRegistration[] {
   const registrations: FurinRegistration[] = [];
-  (globalThis as RegistrationGlobal)[REGISTRATIONS] = registrations;
+  (globalThis as RegistrationGlobal)[REGISTRATIONS] = { discover, registrations };
   return registrations;
 }
 
-/** Records a `furin()` call while a build evaluates the application. */
-export function recordFurinRegistration(registration: FurinRegistration): void {
-  (globalThis as RegistrationGlobal)[REGISTRATIONS]?.push(registration);
+/**
+ * Records a `furin()` call while a build evaluates the application. Returns
+ * true when the build only discovers mounts.
+ */
+export function recordFurinRegistration(registration: FurinRegistration): boolean {
+  const collector = (globalThis as RegistrationGlobal)[REGISTRATIONS];
+  collector?.registrations.push(registration);
+  return collector?.discover === true;
 }

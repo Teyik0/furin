@@ -39,7 +39,7 @@ CLI flags override the corresponding file settings. Paths are resolved from the 
 | `static` | `StaticExportConfig` | See below | Configure pure static output |
 | `targets` | `(BuildTarget \| FurinAdapter)[]` | `["bun"]` | What `furin build` builds without `--target`; also where adapters receive their options |
 
-`apps` takes precedence over `pagesDir` and server-entry scanning. When neither is configured, a server build statically scans literal `furin({ pagesDir, prefix })` calls in `src/server.ts`, then falls back to `src/pages`.
+`apps` takes precedence over `pagesDir` and the server entry. When neither is configured, a server build evaluates the server entry in a child process, with `furin()` only recording its `{ pagesDir, prefix }`, and builds those apps, then falls back to `src/pages`. Any `furin()` call counts, whatever its import name or how its options are computed. If the server entry cannot be evaluated at build time, list the apps in `apps`.
 
 Server builds then check the result against the application itself: Elysia AOT already evaluates the server entry, and Furin records every `furin({ pagesDir, prefix })` call it makes. A mounted app the build did not produce, or a built app the server never mounts, fails the build and lists both sides. Relative `pagesDir` values resolve against `rootDir`. Applications using `.mount()` skip AOT and therefore this check.
 

@@ -15,7 +15,7 @@ import { normalizePrefix } from "../server/instance.ts";
 import { scanPages } from "../server/router/discovery.ts";
 import { assertNoPrefixSlugCollisions } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
-import { scanFurinInstances } from "./scan-server";
+import { discoverFurinMounts } from "./discover-mounts.ts";
 import { writeRouteTypes } from "./route-types";
 import { ensureDir, toBuildRouteManifestEntry, toPosixPath } from "./shared";
 import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
@@ -77,14 +77,14 @@ function registerIsomorphicRuntimePlugin(): void {
  * Resolves the list of apps to build, in priority order:
  * 1. explicit `apps` config (furin.config.ts),
  * 2. explicit single `pagesDir` option (mounted at root),
- * 3. every `furin({ pagesDir, prefix })` call detected in the server entry,
+ * 3. every `furin({ pagesDir, prefix })` call made by evaluating the server entry,
  * 4. the `src/pages` default.
  */
-function resolveAppSpecs(
+async function resolveAppSpecs(
   options: RouteTypegenOptions,
   serverEntry: string | null,
   rootDir: string
-): Array<{ pagesDir: string; prefix: string }> {
+): Promise<Array<{ pagesDir: string; prefix: string }>> {
   if (options.apps && options.apps.length > 0) {
     // normalizePrefix is the choke point for config/CLI-provided prefixes:
     // `"/"` → `""` (otherwise the bun target derives `publicPath: "//_client/"`,
@@ -99,9 +99,9 @@ function resolveAppSpecs(
     return [{ pagesDir: resolve(rootDir, options.pagesDir), prefix: "" }];
   }
   if (serverEntry) {
-    const detected = scanFurinInstances(serverEntry);
-    if (detected.length > 0) {
-      return detected.map((app) => ({
+    const mounted = await discoverFurinMounts(serverEntry, rootDir);
+    if (mounted.length > 0) {
+      return mounted.map((app) => ({
         pagesDir: resolve(rootDir, app.pagesDir),
         prefix: app.prefix,
       }));
@@ -148,7 +148,7 @@ async function scanApps(
   }
   registerIsomorphicRuntimePlugin();
 
-  const appSpecs = resolveAppSpecs(options, serverEntry, rootDir);
+  const appSpecs = await resolveAppSpecs(options, serverEntry, rootDir);
   const duplicatePrefix = appSpecs.find(
     (spec, index) => appSpecs.findIndex((other) => other.prefix === spec.prefix) !== index
   );

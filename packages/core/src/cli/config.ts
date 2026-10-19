@@ -120,8 +120,8 @@ interface ResolvedCliConfig extends FurinConfig {
   configPath: string | null;
   /**
    * Only set when the config file declares one — leaving it undefined lets
-   * buildApp fall back to scanning server.ts for `furin({ pagesDir, prefix })`
-   * calls (multi-instance detection).
+   * buildApp fall back to the `furin({ pagesDir, prefix })` calls made by
+   * evaluating the server entry (multi-instance detection).
    */
   pagesDir?: string;
   plugins?: Bun.BunPlugin[];

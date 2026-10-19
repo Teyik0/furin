@@ -27,7 +27,7 @@ if (!port) {
 const { entry } = workerData as { entry: string };
 const hooks = aotFactory({ entry, strip: false, target: "bun" });
 Bun.plugin(isomorphicTransformPlugin("server"));
-const registrations = collectFurinRegistrations();
+const registrations = collectFurinRegistrations(false);
 
 port.on("message", async (request: AotWorkerRequest) => {
   try {

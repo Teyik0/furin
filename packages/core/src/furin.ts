@@ -203,7 +203,6 @@ async function createFurinApp(options: FurinOptions): Promise<{
   // In a deployed binary the cwd-resolved pagesDir may differ from the build
   // machine's; the compile context is found by the (stable) declared prefix.
   const paramPagesDir = resolve(cwd, pagesDir ?? "src/pages");
-  recordFurinRegistration({ pagesDir: pagesDir ?? "src/pages", prefix });
   const ctx = getCompileContext(paramPagesDir, prefix);
   const resolvedPagesDir = ctx?.rootPath ? dirname(ctx.rootPath) : paramPagesDir;
   const normalizedPagesDir = resolvedPagesDir.replaceAll("\\", "/");
@@ -299,6 +298,15 @@ const mountedPrefixes = new WeakMap<AnyElysia, Map<string, FurinInstance>>();
  * ```
  */
 export async function furin(options?: FurinOptions) {
+  const registration = {
+    pagesDir: options?.pagesDir ?? "src/pages",
+    prefix: normalizePrefix(options?.prefix),
+  };
+  if (recordFurinRegistration(registration)) {
+    // The build only discovers mounts: no runtime, nothing to mount.
+    return <ParentApp extends AnyElysia>(parentApp: ParentApp) =>
+      parentApp as unknown as FurinApplication<ParentApp>;
+  }
   const { app, hasSync, instance } = await createFurinApp(options ?? {});
   let mounted = false;
   return <ParentApp extends AnyElysia>(parentApp: ParentApp): FurinApplication<ParentApp> => {

@@ -49,7 +49,7 @@ const compileTargetSchema = t.Union([t.Literal("server"), t.Literal("embed")]);
 export const configSchema = t.Object({
   /**
    * Multi-instance builds: one entry per mounted furin app. Overrides
-   * `pagesDir` and server-entry auto-detection. `prefix` must match the
+   * `pagesDir` and the mounts found by evaluating the server entry. `prefix` must match the
    * `furin({ prefix })` the app is mounted with (`""`/absent = root).
    */
   apps: t.Optional(

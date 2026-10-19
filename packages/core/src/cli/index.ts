@@ -245,7 +245,7 @@ BUILD OPTIONS
 
 TYPEGEN OPTIONS
   Writes furin-env.d.ts for the root-mounted app (run it before tsc in CI)
-  --pagesDir  Pages directory (default: config apps, server.ts detection, then src/pages)
+  --pagesDir  Pages directory (default: config apps, server entry furin() mounts, then src/pages)
   --config    Config file path
 
 PREVIEW OPTIONS

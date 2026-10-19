@@ -40,6 +40,8 @@ const config: KnipConfig = {
         "src/adapter/bun/server.ts",
         "src/adapter/vercel/bootstrap.ts",
         "src/adapter/vercel/handler.ts",
+        // Spawned by the build to evaluate the server entry.
+        "src/build/discover-mounts-process.ts",
         "src/rsc/bundled-client-codec.ts",
         "src/server/sync/postgres/migrate.ts",
         "tests/**/*.{ts,tsx}",

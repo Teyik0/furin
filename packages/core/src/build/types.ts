@@ -105,7 +105,7 @@ export interface BuildAppOptions {
   analyze?: boolean;
   /**
    * Explicit multi-app build (furin.config.ts `apps`). Overrides `pagesDir`
-   * and server-entry auto-detection.
+   * and the mounts found by evaluating the server entry.
    */
   apps?: BuildAppSpec[];
   /** Inject the evlog client logger into the hydrate entry. Defaults to false. */
