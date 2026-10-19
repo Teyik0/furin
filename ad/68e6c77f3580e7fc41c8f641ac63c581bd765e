@@ -1,0 +1,43 @@
+packages/core/tests/build/hydrate/transform-client.test.ts
+  s_3827fec5c7f2ed::t_a6b64200547b54 241-243
+  s_3827fec5c7f2ed::t_b2c358fd755fe3 232-240,244-247
+packages/core/src/plugin/transform-client.ts
+  s_3827fec5c7f2ed::t_44f49ab1b64d62 1
+  s_3827fec5c7f2ed::t_25cf03df0e25ab 15-16,18-20,22-24,301,306,308-310,318,322,324,326,333-337,367,803,1096,1098-1101,1104-1106,1108,1111,1123
+  s_3827fec5c7f2ed::t_fd8d2dde9bd3fd 313-314
+packages/core/src/plugin/dead-code-elimination.ts
+  s_3827fec5c7f2ed::t_4f4c91007acb64 17,57,166-167,169,222,317-321,324-329,331,334,340,345,349-357,363,421,499-516
+packages/core/src/plugin/transform-client-module.ts
+  s_3827fec5c7f2ed::t_93c3322a150cde 5,7,73-75,78-80,82-85,89,92,120,122-123,125,128
+packages/core/src/plugin/transform-isomorphic.ts
+  s_adf30e6b39f380::t_61c9ba58b31162 19-21,327,551-569,572-581,583-584,586,590-628,630,632-637,640,648,650-653,655-661,663-669
+packages/core/src/plugin/module-transform.ts
+  s_3827fec5c7f2ed::t_2b4d412299994b 1-36
+packages/core/tests/build/hydrate/transform-parse-count.test.ts
+  s_3827fec5c7f2ed::t_8ba249013a025c 2,82-83
+  s_3827fec5c7f2ed::t_4996735ca2396b 1,3-81,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad68e6c77f3580e7fc41c8f641ac63c581bd765e",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_adf30e6b39f380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab4b5396d7a81d65e",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
