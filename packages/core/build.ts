@@ -31,14 +31,31 @@ const shared = {
 };
 
 await Promise.all([
+  // Browser entries, loaded by apps in dev and production: built together so
+  // their shared modules (document, router and query contexts) exist once.
+  Bun.build({
+    ...shared,
+    entrypoints: [
+      `${import.meta.dir}/src/client.ts`,
+      `${import.meta.dir}/src/client/link.tsx`,
+      `${import.meta.dir}/src/client/router/search/index.ts`,
+      `${import.meta.dir}/src/rsc-client.ts`,
+    ],
+    // The app's build decides the mode: Bun would otherwise inline "development".
+    define: { "process.env.NODE_ENV": "process.env.NODE_ENV" },
+    // The app's client build decides whether the router logger ships.
+    external: [...shared.external, "evlog"],
+    jsx: { development: false },
+    naming: { chunk: "client/chunks/[name]-[hash].[ext]" },
+    splitting: true,
+    target: "browser",
+  }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cli/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/furin.ts`] }),
-  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/cache.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/cache/redis/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/routes.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc.tsx`] }),
-  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/rsc-client.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server-only.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client-only.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/build/index.ts`] }),
@@ -52,7 +69,6 @@ await Promise.all([
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/redis/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/sync/sqlite/index.ts`] }),
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/plugin/index.ts`] }),
-  Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/client/link.tsx`] }),
   // Modules imported directly by the generated compile-entry (entry-template.ts).
   // Must exist as standalone files so the dist/ fallback path works.
   Bun.build({ ...shared, entrypoints: [`${import.meta.dir}/src/server/internal.ts`] }),

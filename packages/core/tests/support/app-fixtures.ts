@@ -1,5 +1,6 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { assertDistFresh } from "./dist.ts";
 
 const FIXTURES_ROOT = resolve(import.meta.dir, "../fixtures/apps");
 const TMP_ROOT = resolve(import.meta.dir, "../../.tmp-tests");
@@ -26,6 +27,8 @@ function assertWithinAppPath(appPath: string, relativePath: string): string {
 }
 
 export function createTmpApp(fixtureName: string): TmpApp {
+  // Fixture apps load Furin's browser client from dist/, in dev and production builds.
+  assertDistFresh("client.js");
   ensureTmpRoot();
 
   const source = join(FIXTURES_ROOT, fixtureName);

@@ -43,6 +43,8 @@ const config: KnipConfig = {
         // Spawned by the build to evaluate the server entry.
         "src/build/discover-mounts-process.ts",
         "src/rsc/bundled-client-codec.ts",
+        // Built as the browser `@teyik0/furin/rsc` entry, `dist/rsc-client.js`.
+        "src/rsc-client.ts",
         // Re-exported by the generated static-export bundle entry.
         "src/server/static-export.ts",
         "src/server/sync/postgres/migrate.ts",

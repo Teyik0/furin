@@ -53,7 +53,7 @@
     },
     "./rsc": {
       "types": "./dist/rsc.d.ts",
-      "browser": "./src/rsc-client.ts",
+      "browser": "./dist/rsc-client.js",
       "bun": "./src/rsc.tsx",
       "import": "./dist/rsc.js"
     },

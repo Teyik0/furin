@@ -1,5 +1,4 @@
 import { dirname, isAbsolute, resolve } from "node:path";
-import { resolveClientModuleSpecifiers } from "../build/shared.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
 import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
@@ -35,8 +34,8 @@ function trackHydrationTopology(filePath: string, source: string, topologyPaths:
 interface ClientStripPluginOptions {
   /**
    * `dev` keeps deleted route modules loadable while Bun's dev server still
-   * holds them in its client graph. `build` points Furin's client specifiers
-   * at the sources the build runs from.
+   * holds them in its client graph. Both modes resolve Furin's client through
+   * its package exports, to the `dist` build.
    */
   mode: "dev" | "build";
 }
@@ -105,13 +104,8 @@ export function createClientStripPlugin({ mode }: ClientStripPluginOptions): Bun
         if (mode === "dev") {
           trackHydrationTopology(filePath, source, topologyPaths);
         }
-        const stripped = stripServerCode(filePath, source);
         const loaded = {
-          ...stripped,
-          // Dev still resolves Furin's client through package exports: serving
-          // its sources changes Bun's HMR graph (tests/browser/hmr-conformance).
-          contents:
-            mode === "build" ? resolveClientModuleSpecifiers(stripped.contents) : stripped.contents,
+          ...stripServerCode(filePath, source),
           isRouteModule: topologyPaths.has(filePath),
         };
         loadedSources.set(filePath, loaded);

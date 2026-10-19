@@ -11,18 +11,6 @@ import type { BuildRouteManifestEntry } from "./types";
 // exports. This is the Web-standard approach (Bun, Node 20.6+, browsers).
 export const CLIENT_MODULE_PATH = fileURLToPath(import.meta.resolve("@teyik0/furin/client"));
 export const LINK_MODULE_PATH = fileURLToPath(import.meta.resolve("@teyik0/furin/link"));
-export const SEARCH_MODULE_PATH = fileURLToPath(import.meta.resolve("@teyik0/furin/search"));
-
-/** Points the browser graph at the Furin client sources the server runs, not the `dist` bundle. */
-export function resolveClientModuleSpecifiers(code: string): string {
-  return code
-    .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
-    .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
-}
 
 export function ensureDir(path: string): void {
   if (!existsSync(path)) {

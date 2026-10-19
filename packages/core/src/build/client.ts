@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClientStripPlugin } from "../plugin/client-plugin.ts";
 import { createRoutesPlugin } from "../plugin/route-registry.ts";
 import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
@@ -7,17 +8,12 @@ import type { ResolvedRoute } from "../server/router/types.ts";
 import { PRODUCTION_DEFINE, runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
-import {
-  CLIENT_MODULE_PATH,
-  LINK_MODULE_PATH,
-  resolveClientModuleSpecifiers,
-  SEARCH_MODULE_PATH,
-  writeBuildMetafile,
-} from "./shared";
+import { writeBuildMetafile } from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
-const ROUTER_DIR = `${resolve(import.meta.dir, "../client/router")}${sep}`;
+// Within Furin's browser build only the router imports evlog.
+const CLIENT_DIST_DIR = `${join(dirname(dirname(fileURLToPath(import.meta.resolve("@teyik0/furin")))), "dist")}${sep}`;
 
 export interface BuildClientResult {
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
@@ -77,9 +73,8 @@ export async function buildClient(
     [...new Set([rootLayout, ...routes.flatMap(route => [route.path, ...route.routeChain.flatMap(entry => entry.sourcePath ? [entry.sourcePath] : [])])])], plugins
   );
   await registerServerBoundaries(boundaries);
-  const hydrateCode = resolveClientModuleSpecifiers(
-    generateClientReferenceEntry(boundaries) + generateProductionHydrateEntry(routes, rootLayout, basePath, clientLogging)
-  );
+  const hydrateCode =
+    generateClientReferenceEntry(boundaries) + generateProductionHydrateEntry(routes, rootLayout, basePath, clientLogging);
   const hydratePath = join(
     outDir,
     dirName === "client" ? "_hydrate.tsx" : `_hydrate-${dirName}.tsx`
@@ -92,7 +87,7 @@ export async function buildClient(
     name: "furin-client-router-logger",
     setup(build) {
       build.onResolve({ filter: /^evlog$/ }, ({ importer }) => {
-        if (importer.startsWith(ROUTER_DIR)) {
+        if (importer.startsWith(CLIENT_DIST_DIR)) {
           return { namespace: "furin-client-router-logger", path: "router-logger" };
         }
       });
@@ -144,11 +139,6 @@ export async function buildClient(
         : []),
       createClientStripPlugin({ mode: "build" }),
     ],
-    alias: {
-      "@teyik0/furin/client": CLIENT_MODULE_PATH,
-      "@teyik0/furin/link": LINK_MODULE_PATH,
-      "@teyik0/furin/search": SEARCH_MODULE_PATH,
-    },
     define: {
       ...Object.fromEntries(
         Object.entries(process.env)
