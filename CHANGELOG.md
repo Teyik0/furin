@@ -93,6 +93,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Per-runtime state** — a runtime's development or production mode is fixed when `furin()` creates it, so a production runtime never exposes raw error messages, and the sync safety poll interval follows each runtime instead of the first import. Shutting down one production server no longer waits for request-log drains of another server in the same process.
 - **Development route modules** — each application's development route module is a Bun virtual module, so a runtime plugin registered earlier in the process with a broad filter no longer answers for it.
 - **RSC development codec** — the on-demand Flight codec is built in a private temporary directory that is removed after import, instead of a predictable directory left in the shared temp dir.
+- **Server bundle size with client references** — servers register only the client exports their RSC graph references, so a `"use client"` module such as `furin/link` no longer pulls the browser router and Flight client into server bundles.
 
 ## [0.7.0-alpha.3] — 2026-10-04
 

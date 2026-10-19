@@ -6,7 +6,7 @@ import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
 import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
 import { assertInstalledRscVersions } from "../version.ts";
-import { rscClientReferencesPlugin } from "./client-references.ts";
+import { referencedClientExports, rscClientReferencesPlugin } from "./client-references.ts";
 import { environmentGuardPlugin } from "./environment.ts";
 import { flightLoaderPlugin } from "./flight-loader.ts";
 
@@ -95,6 +95,7 @@ export async function buildRscGraph(
   const result = await runBunBuild({
     ...reactServerBuild,
     entrypoints,
+    metafile: true,
     outdir: graphDir,
     splitting: true,
     naming: { entry: "[dir]/[name]-[hash].[ext]", chunk: "[name]-[hash].[ext]" },
@@ -110,11 +111,18 @@ export async function buildRscGraph(
       `[furin] RSC graph build failed.\n${result.logs.map((log) => log.message).join("\n")}`
     );
   }
+  if (result.metafile === undefined) {
+    throw new Error("[furin] The RSC graph build did not produce its metafile.");
+  }
   await buildFlightCodec(outDir, userPlugins);
   const css = result.outputs
     .filter((output) => output.path.endsWith(".css"))
     .map((output) => ({ href: `/_rsc/${basename(output.path)}` }));
-  const manifest: RscManifest = { buildId, clientReferences, css };
+  const manifest: RscManifest = {
+    buildId,
+    clientReferences: referencedClientExports(clientReferences, result.metafile),
+    css,
+  };
   writeFileSync(join(graphDir, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
 }

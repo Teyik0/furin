@@ -165,6 +165,7 @@ export async function buildPackageTarget(
       ...serverBundlePlugins({
         appEntry: undefined,
         apps: [app],
+        clientReferences: undefined,
         platformAssets: undefined,
         rootDir,
         userPlugins: options.plugins,

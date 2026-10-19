@@ -10,6 +10,8 @@ import { CLIENT_REFERENCE_RUNTIME_PATH } from "./paths.ts";
 
 const IMPLEMENTATION = "?furin-client-implementation";
 const SCRIPTS = /\.[cm]?[jt]sx?$/;
+const REFERENCE_NAMESPACE = "furin-client-reference";
+const REFERENCE_MODULE = /^furin-client-reference:/;
 
 export function clientModuleId(path: string): string {
   return `furin:${Bun.hash(path.replaceAll("\\", "/")).toString(16)}`;
@@ -51,7 +53,36 @@ function isCommonJsModule(source: string, path: string): boolean {
   return !program.body.some((statement) => ESM_EXPORTS.has(statement.type));
 }
 
-export function clientReferencesPlugin(): Bun.BunPlugin {
+/**
+ * Registers each client module's exports for SSR's Flight client: the exports in
+ * `references` (the RSC graph's), or the whole namespace without a graph.
+ */
+function clientRegistration(
+  sourcePath: string,
+  path: string,
+  prefix: string,
+  references: readonly ClientReference[] | undefined
+): string {
+  const id = clientModuleId(sourcePath);
+  const register = `import { registerClientModule as ${prefix}RegisterClientModule } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};`;
+  if (references === undefined) {
+    return `import * as ${prefix}Implementation from ${JSON.stringify(path)};
+${register}
+${prefix}RegisterClientModule(${JSON.stringify(id)}, ${prefix}Implementation);`;
+  }
+  const names = references.filter((reference) => reference.id === id).map(({ name }) => name);
+  if (names.length === 0) {
+    return "";
+  }
+  // Getters keep the bindings live: a module cycle can register them uninitialized.
+  return `import { ${names.map((name, index) => `${JSON.stringify(name)} as ${prefix}${index}`).join(", ")} } from ${JSON.stringify(path)};
+${register}
+${prefix}RegisterClientModule(${JSON.stringify(id)}, { ${names.map((name, index) => `get ${JSON.stringify(name)}() { return ${prefix}${index}; }`).join(", ")} });`;
+}
+
+export function clientReferencesPlugin(
+  references: readonly ClientReference[] | undefined
+): Bun.BunPlugin {
   return {
     name: "furin-client-references",
     setup(build) {
@@ -78,9 +109,7 @@ export function clientReferencesPlugin(): Bun.BunPlugin {
           contents: isCommonJsModule(source, sourcePath)
             ? source
             : `${source}
-import * as ${prefix}Implementation from ${JSON.stringify(path)};
-import { registerClientModule as ${prefix}RegisterClientModule } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};
-${prefix}RegisterClientModule(${JSON.stringify(clientModuleId(sourcePath))}, ${prefix}Implementation);`,
+${clientRegistration(sourcePath, path, prefix, references)}`,
           loader: detectLoaderFromPath(sourcePath),
           resolveDir: dirname(sourcePath),
         };
@@ -174,24 +203,65 @@ async function exportedNames(
   return [...names];
 }
 
+function referenceModule({ id, name }: ClientReference): string {
+  return `${REFERENCE_NAMESPACE}:${id}#${encodeURIComponent(name)}`;
+}
+
+/** One module per reference: the RSC bundle drops those no server code uses. */
 export function rscClientReferencesPlugin(references: ClientReference[]): Bun.BunPlugin {
   return {
     name: "furin-rsc-client-boundaries",
     setup(build) {
       flightLoaderPlugin().setup(build);
+      build.onResolve({ filter: REFERENCE_MODULE }, ({ path }) => ({
+        namespace: REFERENCE_NAMESPACE,
+        path: path.slice(REFERENCE_NAMESPACE.length + 1),
+      }));
+      build.onLoad({ filter: /.*/, namespace: REFERENCE_NAMESPACE }, ({ path }) => {
+        const separator = path.indexOf("#");
+        return {
+          contents: `import { createClientReference } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};
+export default /* @__PURE__ */ createClientReference(${JSON.stringify(path.slice(0, separator))}, ${JSON.stringify(decodeURIComponent(path.slice(separator + 1)))});`,
+          loader: "js",
+        };
+      });
       build.onLoad({ filter: SCRIPTS }, async ({ path }) => {
         const source = await Bun.file(path).text();
         if (!isClientModule(source, path)) {
           return;
         }
         const id = clientModuleId(path);
-        const names = await exportedNames(source, path, new Set());
-        references.push(...names.map((name) => ({ chunks: [], id, name })));
+        const moduleReferences = (await exportedNames(source, path, new Set())).map((name) => ({
+          chunks: [],
+          id,
+          name,
+        }));
+        references.push(...moduleReferences);
         return {
-          contents: `import { createClientReference } from ${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)};\n${names.map((name, index) => `const reference${index} = createClientReference(${JSON.stringify(id)}, ${JSON.stringify(name)}); export { reference${index} as ${name === "default" ? "default" : JSON.stringify(name)} };`).join("\n")}`,
+          contents: moduleReferences
+            .map(
+              (reference) =>
+                `export { default as ${reference.name === "default" ? "default" : JSON.stringify(reference.name)} } from ${JSON.stringify(referenceModule(reference))};`
+            )
+            .join("\n"),
           loader: "js",
         };
       });
     },
   };
+}
+
+/** The references the RSC bundle kept, like Vite RSC's rendered exports. */
+export function referencedClientExports(
+  references: readonly ClientReference[],
+  metafile: Bun.BuildMetafile
+): ClientReference[] {
+  const bundled = new Set(
+    Object.values(metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, input]) => input.bytesInOutput > 0)
+        .map(([path]) => path)
+    )
+  );
+  return references.filter((reference) => bundled.has(referenceModule(reference)));
 }

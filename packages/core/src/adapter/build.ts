@@ -10,7 +10,7 @@ import {
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
 import { copyDirRecursive, ensureDir, toPosixPath, writeBuildMetafile } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
-import { buildRscGraph } from "../rsc/build/index.ts";
+import { buildRscGraph, type ClientReference } from "../rsc/build/index.ts";
 import type { AppPrerender } from "../server/prerender.ts";
 import { hasRequestLoader } from "../server/render/request-loaders.ts";
 import { resolveDocumentMode, resolveDocumentRevalidate } from "../server/router/patterns.ts";
@@ -127,6 +127,7 @@ async function bundleServer(
   adapter: FurinAdapter,
   apps: RuntimeTargetApp[],
   appEntry: string,
+  clientReferences: readonly ClientReference[],
   rootDir: string,
   targetDir: string,
   buildRoot: string,
@@ -143,6 +144,7 @@ async function bundleServer(
     plugins: serverBundlePlugins({
       appEntry,
       apps,
+      clientReferences,
       platformAssets: adapter.capabilities.assets === "platform" ? adapter.name : undefined,
       rootDir,
       userPlugins: options.plugins,
@@ -209,7 +211,7 @@ export async function buildAdapterTarget(
   );
   const rootIndex = apps.findIndex((app) => app.prefix === "");
   const { buildId } = builds[rootIndex === -1 ? 0 : rootIndex] as RuntimeAppBuild;
-  await buildRscGraph(apps, targetDir, buildId, options.plugins);
+  const rscManifest = await buildRscGraph(apps, targetDir, buildId, options.plugins);
 
   const projectPublicDir = join(rootDir, "public");
   const publicDir = existsSync(projectPublicDir) ? projectPublicDir : undefined;
@@ -233,6 +235,7 @@ export async function buildAdapterTarget(
     adapter,
     apps,
     appEntry,
+    rscManifest.clientReferences,
     rootDir,
     targetDir,
     buildRoot,

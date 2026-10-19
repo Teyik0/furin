@@ -5,6 +5,7 @@ import { createRoutesPlugin } from "../plugin/route-registry.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
+import type { ClientReference } from "../rsc/build/index.ts";
 import { mixedRuntimePlugin, pprRuntimePlugin, type RuntimeTargetApp } from "./runtime-build.ts";
 
 const APP_SPECIFIER_RE = /^furin:app$/;
@@ -76,6 +77,8 @@ export interface ServerBundlePluginsOptions {
   /** Application entry evaluated by Elysia AOT; omitted when the host owns the app. */
   appEntry: string | undefined;
   apps: RuntimeTargetApp[];
+  /** Client exports the RSC graph references; without a graph, every export registers. */
+  clientReferences: readonly ClientReference[] | undefined;
   /** Name of the adapter whose platform serves assets, when it does. */
   platformAssets: string | undefined;
   /** Project root; relative furin() pagesDirs resolve against it. */
@@ -89,7 +92,7 @@ export interface ServerBundlePluginsOptions {
  * last so it compiles the fully transformed application.
  */
 export function serverBundlePlugins(options: ServerBundlePluginsOptions): Bun.BunPlugin[] {
-  const { appEntry, apps, platformAssets, rootDir, userPlugins } = options;
+  const { appEntry, apps, clientReferences, platformAssets, rootDir, userPlugins } = options;
   return [
     ...(appEntry === undefined ? [] : [appSpecifierPlugin(appEntry)]),
     prerenderSnapshotPlugin(),
@@ -99,7 +102,7 @@ export function serverBundlePlugins(options: ServerBundlePluginsOptions): Bun.Bu
     mixedRuntimePlugin(apps),
     ...(userPlugins ?? []),
     createRoutesPlugin({ instances: apps, target: "server" }),
-    clientReferencesPlugin(),
+    clientReferencesPlugin(clientReferences),
     isomorphicTransformPlugin("server"),
     environmentGuardPlugin("ssr"),
     ...(appEntry === undefined ? [] : [elysiaAot(appEntry, { apps, rootDir })]),

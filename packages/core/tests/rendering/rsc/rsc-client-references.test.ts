@@ -69,7 +69,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
         entrypoints: [entry],
         external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
         outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin()],
+        plugins: [clientReferencesPlugin(undefined)],
         target: "bun",
       });
       expect(built.success).toBe(true);
@@ -126,7 +126,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
         entrypoints: [entry],
         external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
         outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin()],
+        plugins: [clientReferencesPlugin(undefined)],
         splitting,
         target: "bun",
       });
@@ -266,7 +266,7 @@ console.log(await new Response(await renderToReadableStream(page)).text());`
       entrypoints: [join(directory, "entry.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       splitting: true,
       target: "bun",
     });
@@ -331,7 +331,7 @@ console.log(JSON.stringify({
       entrypoints: [join(directory, "entry.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       splitting: true,
       target: "bun",
     });
@@ -383,7 +383,7 @@ console.log(await new Response(await renderToReadableStream(<CompositeComponent 
       entrypoints: [join(directory, "entry.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       splitting: true,
       target: "bun",
     });
@@ -430,7 +430,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
       entrypoints: [join(directory, "entry.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       target: "bun",
     });
     expect(build.logs).toEqual([]);
@@ -453,39 +453,102 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
   }
 });
 
-test("SSR registers a client reexport whose source module is evaluated first in a cycle", async () => {
-  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
-  try {
-    await Bun.write(
-      join(directory, "counter.tsx"),
-      `import { Component, useState } from "react";
+test.each([
+  { registered: "every export", names: undefined },
+  { registered: "the referenced exports", names: ["Counter", "Title"] },
+])(
+  "SSR registers a client reexport whose source module is evaluated first in a cycle ($registered)",
+  async ({ names }) => {
+    const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+    try {
+      await Bun.write(
+        join(directory, "counter.tsx"),
+        `import { Component, useState } from "react";
 import { suffix } from "./boundary.tsx";
 export const Counter = () => { const [count] = useState(0); return <b>{count + suffix}</b>; };
 export class Title extends Component { render() { return <i>{suffix}</i>; } }`
-    );
-    await Bun.write(
-      join(directory, "boundary.tsx"),
-      `"use client";
+      );
+      await Bun.write(
+        join(directory, "boundary.tsx"),
+        `"use client";
 export { Counter, Title } from "./counter.tsx";
 export const suffix = "!";`
-    );
-    await Bun.write(
-      join(directory, "entry.tsx"),
-      `import "./counter.tsx";
+      );
+      await Bun.write(
+        join(directory, "entry.tsx"),
+        `import "./counter.tsx";
 import { renderServerComponent } from "@teyik0/furin/rsc";
 import { renderToReadableStream } from "react-dom/server";
 import { Counter, Title } from "./boundary.tsx";
 const tree = await renderServerComponent(<><Counter /><Title /></>);
+console.log(await new Response(await renderToReadableStream(tree)).text());`
+      );
+      const build = await Bun.build({
+        entrypoints: [join(directory, "entry.tsx")],
+        external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
+        outdir: join(directory, "output"),
+        plugins: [
+          clientReferencesPlugin(
+            names?.map((name) => ({
+              chunks: [],
+              id: clientModuleId(join(directory, "boundary.tsx")),
+              name,
+            }))
+          ),
+        ],
+        target: "bun",
+      });
+      expect(build.success).toBe(true);
+      const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
+        exitCode: 0,
+        stdout: "<b>0!</b><i>!</i>",
+        stderr: "",
+      });
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  }
+);
+
+test("SSR registers only the client exports the RSC graph references", async () => {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    const counter = join(directory, "counter.tsx");
+    await Bun.write(
+      counter,
+      `"use client";
+import { useState } from "react";
+export function Counter() { const [count] = useState(0); return <b>{count}</b>; }
+export function Unused() { return <i>UNREFERENCED_CLIENT_EXPORT</i>; }`
+    );
+    await Bun.write(
+      join(directory, "entry.tsx"),
+      `import { renderServerComponent } from "@teyik0/furin/rsc";
+import { renderToReadableStream } from "react-dom/server";
+import { Counter } from "./counter.tsx";
+const tree = await renderServerComponent(<Counter />);
 console.log(await new Response(await renderToReadableStream(tree)).text());`
     );
     const build = await Bun.build({
       entrypoints: [join(directory, "entry.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [
+        clientReferencesPlugin([{ chunks: [], id: clientModuleId(counter), name: "Counter" }]),
+      ],
       target: "bun",
     });
     expect(build.success).toBe(true);
+    expect(await build.outputs[0]?.text()).not.toContain("UNREFERENCED_CLIENT_EXPORT");
     const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
       stderr: "pipe",
       stdout: "pipe",
@@ -497,7 +560,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
     ]);
     expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
       exitCode: 0,
-      stdout: "<b>0!</b><i>!</i>",
+      stdout: "<b>0</b>",
       stderr: "",
     });
   } finally {
@@ -537,7 +600,7 @@ console.log(await new Response(await renderToReadableStream(tree)).text());`
         entrypoints: [join(directory, "entry.tsx")],
         external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
         outdir: join(directory, "output"),
-        plugins: [clientReferencesPlugin()],
+        plugins: [clientReferencesPlugin(undefined)],
         splitting,
         target: "bun",
       });
@@ -664,6 +727,36 @@ async function buildClientReferenceNames(
   }
 }
 
+test.each([
+  {
+    imports: 'import { A } from "./barrel.ts"; export const tree = <A />;',
+    names: ["A"],
+    kind: "a named import through an export * barrel",
+  },
+  {
+    imports: 'import Client from "./client.tsx"; export const tree = <Client />;',
+    names: ["default"],
+    kind: "a default import",
+  },
+  {
+    imports: 'import * as Client from "./client.tsx"; export const components = Client;',
+    names: ["A", "B", "default"],
+    kind: "a namespace import",
+  },
+])("the react-server graph references the client exports of $kind", async ({ imports, names }) => {
+  const referenced = await buildClientReferenceNames(
+    {
+      "barrel.ts": 'export * from "./client.tsx";',
+      "client.tsx": `"use client";
+export function A() { return null; }
+export function B() { return null; }
+export default function Client() { return null; }`,
+    },
+    imports
+  );
+  expect(referenced.toSorted()).toEqual([...names]);
+});
+
 test("the react-server graph does not treat an ES module that probes for module as CommonJS", async () => {
   const names = await buildClientReferenceNames(
     {
@@ -684,7 +777,7 @@ function Counter() { return null; }
 Object.defineProperty(exports, "__esModule", { value: true });
 Object.defineProperty(exports, "Counter", { enumerable: true, get: function () { return Counter; } });`,
     },
-    'import { Counter } from "./counter.js"; export const tree = <Counter />;'
+    'import CounterModule, { Counter } from "./counter.js"; export const tree = <Counter module={CounterModule} />;'
   );
   expect(names.toSorted()).toEqual(["Counter", "default"]);
 });
@@ -697,7 +790,7 @@ test("the react-server graph names CommonJS exports reexported with __exportStar
 var __exportStar = function (m, exports) { for (var p in m) exports[p] = m[p]; };
 __exportStar(require("./counter.js"), exports);`,
     },
-    'import { Counter } from "./index.js"; export const tree = <Counter />;'
+    'import IndexModule, { Counter } from "./index.js"; export const tree = <Counter module={IndexModule} />;'
   );
   expect(names.toSorted()).toEqual(["Counter", "default"]);
 });
@@ -717,7 +810,7 @@ test("SSR client registration does not classify shadowed module and exports as C
     const built = await Bun.build({
       entrypoints: [entry],
       outdir: join(directory, "output"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       target: "bun",
     });
     expect(built.logs).toEqual([]);
@@ -841,6 +934,47 @@ export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
   { timeout: 30_000 }
 );
 
+test("a production server bundle registers only the client exports its RSC graph references", async () => {
+  const app = createTmpApp("cli-app");
+  try {
+    writeAppFile(
+      app.path,
+      "src/pages/index.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+import { Link } from "@teyik0/furin/link";
+import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
+export const route = defineRoute("/").config({ mode: "ssr" })
+  .loader(async () => ({ header: await createCompositeComponent(() => <Link to="/blog/hello">Blog</Link>) }))
+  .page(({ header }) => <CompositeComponent src={header} />);`
+    );
+    const buildPath = join(import.meta.dir, "../../../src/build/index.ts");
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const { buildApp } = await import(${JSON.stringify(buildPath)}); await buildApp({ analyze: true, rootDir: ${JSON.stringify(app.path)}, target: "bun" });`,
+      ],
+      { stdout: "pipe", stderr: "pipe" }
+    );
+    const [status, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect({ errors, status }).toEqual({ errors: "", status: 0 });
+    const metafile = (await Bun.file(
+      join(app.path, ".furin/build/analysis/bun-server.json")
+    ).json()) as Bun.BuildMetafile;
+    const bundled = Object.values(metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, input]) => input.bytesInOutput > 0)
+        .map(([path]) => path.replaceAll("\\", "/"))
+    );
+    expect(bundled.some((path) => path.includes("client/link.tsx"))).toBe(true);
+    expect(bundled.filter((path) => path.includes("client/router/navigation-controller"))).toEqual(
+      []
+    );
+  } finally {
+    app.cleanup();
+  }
+}, 30_000);
+
 test.each(["development", "production"])(
   "a Flight-only client component reexported by a barrel hydrates and handles clicks (%s)",
   async (mode) => {
@@ -873,7 +1007,7 @@ console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }))
         entrypoints: [join(directory, "server.tsx")],
         external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
         outdir: join(directory, "server"),
-        plugins: [clientReferencesPlugin()],
+        plugins: [clientReferencesPlugin(undefined)],
         target: "bun",
       });
       expect(server.success).toBe(true);
@@ -968,7 +1102,7 @@ console.log(JSON.stringify({ html, bytes: [...getRscSourceState(tree).bytes] }))
       entrypoints: [join(directory, "server.tsx")],
       external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
       outdir: join(directory, "server"),
-      plugins: [clientReferencesPlugin()],
+      plugins: [clientReferencesPlugin(undefined)],
       target: "bun",
     });
     expect(server.success).toBe(true);

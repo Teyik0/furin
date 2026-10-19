@@ -377,6 +377,7 @@ async function bundleStaticExport(
       ...serverBundlePlugins({
         appEntry: undefined,
         apps: [app],
+        clientReferences: undefined,
         platformAssets: undefined,
         rootDir,
         userPlugins: options.plugins,
