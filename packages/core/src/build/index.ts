@@ -22,7 +22,6 @@ import type { BuildAppOptions, BuildAppResult, BuildManifest } from "./types";
 
 // biome-ignore lint/performance/noBarrelFile: intentional — build/index.ts is the public build API entry
 export { buildClient } from "./client";
-export { writeDevFiles } from "./hydrate";
 export { writeRouteTypes } from "./route-types";
 export type {
   BuildAppOptions,
@@ -62,7 +61,7 @@ function adapterFor(target: FurinAdapter | "bun" | "vercel", options: BuildAppOp
   }
   return target === "bun" ? bun(options.compile) : vercel({});
 }
-export const BUILD_OUTPUT_DIR = ".furin/build";
+const BUILD_OUTPUT_DIR = ".furin/build";
 let isomorphicRuntimePluginRegistered = false;
 
 function registerIsomorphicRuntimePlugin(): void {

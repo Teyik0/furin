@@ -221,7 +221,7 @@ export function normalizeHref(href: string): string {
 }
 
 /** Strips a single trailing slash from a pathname. Root `/` and empty string are preserved. */
-export function normalizePath(path: string): string {
+function normalizePath(path: string): string {
   if (path === "/" || path === "") {
     return path;
   }

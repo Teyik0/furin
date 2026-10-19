@@ -132,7 +132,7 @@ function parseEntry(raw: string): PageCacheEntry {
   return value.entry as PageCacheEntry;
 }
 
-export class RedisPageCache implements PageCacheAdapter {
+class RedisPageCache implements PageCacheAdapter {
   private readonly client: RedisClient;
   private readonly metadataRetentionMs: number;
   private readonly prefix: string;

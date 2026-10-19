@@ -54,7 +54,6 @@ export {
 export type { FurinLoggerOptions } from "./server/logging/ingest-plugin.ts";
 export { isFurinPageRequest } from "./server/router/dispatch.ts";
 export { type FurinCspOptions, furinCsp } from "./server/security/csp.ts";
-export { clientDirNameForPrefix } from "./shared/prefix.ts";
 
 type FurinApplication<App extends AnyElysia> =
   App extends Elysia<
