@@ -72,6 +72,7 @@ That intentionally loads the other document and browser bundle.
 | `revalidateTag()` | Finds tagged paths across instances, then evicts only from each owner |
 | Sync journal | Determined by the configured adapter and namespace |
 | CDN purge paths | Converted to physical prefixed URLs and sent to each instance's `cachePurger` |
+| CDN purge tags | Sent once to each distinct `cacheTagPurger` |
 
 Cross-instance path and tag invalidation is deliberate for applications sharing data. If two apps use the same logical path for unrelated content, prefer distinct tags and avoid broad path invalidation.
 

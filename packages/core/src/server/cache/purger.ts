@@ -9,6 +9,9 @@ let tagPurger: CachePurger | undefined;
 const instancePathPurger = instanceSlot<{ purger: CachePurger | undefined }>(() => ({
   purger: undefined,
 }));
+const instanceTagPurger = instanceSlot<{ purger: CachePurger | undefined }>(() => ({
+  purger: undefined,
+}));
 
 export function setCachePurger(purger: CachePurger): void {
   pathPurger = purger;
@@ -21,7 +24,14 @@ export function setInstanceCachePurger(
   instancePathPurger(instance).purger = purger;
 }
 
-/** Deployment-only semantic tag hook; the public CDN hook remains path-only. */
+export function setInstanceCacheTagPurger(
+  instance: FurinInstance,
+  purger: CachePurger | undefined
+): void {
+  instanceTagPurger(instance).purger = purger;
+}
+
+/** Process-wide fallback installed by deployment adapters; `furin({ cacheTagPurger })` wins. */
 export function setCacheTagPurger(purger: CachePurger): void {
   tagPurger = purger;
 }
@@ -31,25 +41,25 @@ export function setCacheTagPurger(purger: CachePurger): void {
  * to the process-wide one. Runtimes sharing a purger get one deduped batch.
  */
 export function callCachePurger(purges: ReadonlyMap<FurinInstance, readonly string[]>): void {
-  const batches = new Map<CachePurger, Set<string>>();
-  for (const [instance, paths] of purges) {
-    const purger = instancePathPurger(instance).purger ?? pathPurger;
-    if (!purger) {
-      continue;
-    }
-    const batch = batches.get(purger) ?? new Set<string>();
-    for (const path of paths) {
-      batch.add(path);
-    }
-    batches.set(purger, batch);
-  }
-  for (const [purger, paths] of batches) {
-    dispatch(purger, [...paths]);
-  }
+  dispatchBatches(
+    [...purges].map(([instance, paths]) => [
+      instancePathPurger(instance).purger ?? pathPurger,
+      paths,
+    ])
+  );
 }
 
-export function callCacheTagPurger(tags: string[]): void {
-  dispatch(tagPurger, tags);
+/**
+ * Purges `tags` through each runtime's tag purger, falling back to the
+ * process-wide one. Runtimes sharing a purger get one deduped batch.
+ */
+export function callCacheTagPurger(
+  instances: readonly FurinInstance[],
+  tags: readonly string[]
+): void {
+  dispatchBatches(
+    instances.map((instance) => [instanceTagPurger(instance).purger ?? tagPurger, tags])
+  );
 }
 
 export function resetCachePurgers(instances: readonly FurinInstance[]): void {
@@ -57,6 +67,26 @@ export function resetCachePurgers(instances: readonly FurinInstance[]): void {
   tagPurger = undefined;
   for (const instance of instances) {
     setInstanceCachePurger(instance, undefined);
+    setInstanceCacheTagPurger(instance, undefined);
+  }
+}
+
+function dispatchBatches(
+  purges: readonly (readonly [CachePurger | undefined, readonly string[]])[]
+): void {
+  const batches = new Map<CachePurger, Set<string>>();
+  for (const [purger, keys] of purges) {
+    if (!purger) {
+      continue;
+    }
+    const batch = batches.get(purger) ?? new Set<string>();
+    for (const key of keys) {
+      batch.add(key);
+    }
+    batches.set(purger, batch);
+  }
+  for (const [purger, keys] of batches) {
+    dispatch(purger, [...keys]);
   }
 }
 

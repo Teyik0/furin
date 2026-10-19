@@ -128,8 +128,8 @@ export async function revalidateTag(tags: string | readonly string[]): Promise<b
   // But each instance's tag-registered paths are evicted from THAT instance's
   // caches only — the cross-app fan-out of `revalidatePath` would also evict
   // a sibling app's unrelated page that merely shares the pathname.
-  callCacheTagPurger(tagList);
   const instances = allInstances();
+  callCacheTagPurger(instances, tagList);
   const results = await Promise.all(
     instances.map((instance) => invalidateTagsForInstance(instance, tagList))
   );

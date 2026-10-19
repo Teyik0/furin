@@ -248,6 +248,19 @@ await furin({
 
 Each callback receives only the physical (prefixed) paths of its own mount. `setCachePurger(callback)` from `@teyik0/furin` registers a process-wide fallback for mounts without their own `cachePurger`. Furin batches and deduplicates physical paths per callback for an invalidation call. The callback is fire-and-forget; a rejection is written to the structured logger and does not fail the mutation response.
 
+CDNs with surrogate-key purging can also receive the semantic tags passed to `revalidateTag()`:
+
+```ts
+await furin({
+  pagesDir: "./src/pages",
+  cacheTagPurger: async (tags) => {
+    await cdn.purgeTags(tags);
+  },
+});
+```
+
+`revalidateTag()` invalidates tags across every mounted instance, so each instance's `cacheTagPurger` receives the whole tag list. Instances sharing one callback receive a single deduplicated call. Without a `cacheTagPurger`, a mount uses the tag purger installed by its deployment adapter (Vercel purges its native cache tags), if any. Like `cachePurger`, the callback is fire-and-forget and a rejection is only logged.
+
 An origin cache and a CDN cache must both be coherent. In a multi-replica Bun deployment, configure the shared page cache in addition to CDN purging. Purging only the CDN can allow another origin replica with a local cache to repopulate it with stale HTML.
 
 ## Deploy Changes

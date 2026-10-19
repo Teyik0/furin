@@ -161,6 +161,7 @@ await furin({
 | `clientLogging` | Enable browser logging for this runtime/build context |
 | `logger` | evlog Elysia options plus process-wide sampling; a second instance with a different `sampling` throws |
 | `cachePurger` | CDN purge hook for this instance; receives its physical paths and takes precedence over `setCachePurger()` |
+| `cacheTagPurger` | CDN purge hook for this instance's semantic cache tags; receives the tags passed to `revalidateTag()` and takes precedence over the deployment adapter's tag purger |
 | `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
 | `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
 

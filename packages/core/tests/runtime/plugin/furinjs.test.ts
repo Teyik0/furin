@@ -13,7 +13,9 @@ import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
 import { runCli, startProcess } from "../../support/process";
 
-const { furin, isFurinPageRequest, revalidatePath } = await import("../../../src/furin");
+const { furin, isFurinPageRequest, revalidatePath, revalidateTag } = await import(
+  "../../../src/furin"
+);
 const { __resetCompileContext, __setCompileContext } = await import("../../../src/server/internal");
 const { resetFurinLoggerForTests } = await import("../../../src/server/logger");
 const { __resetTemplateState } = await import("../../../src/server/render/template");
@@ -248,6 +250,59 @@ test.serial("each furin() instance purges its own physical paths", async () => {
   await Bun.sleep(0);
 
   expect(purged).toEqual({ admin: [["/admin/x"]], front: [["/x"]] });
+});
+
+test.serial("each furin() instance purges tags through its own tag purger", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+  const pagesDir = join(app.path, "src/pages");
+  const purged: { admin: string[][]; front: string[][] } = { admin: [], front: [] };
+
+  new Elysia()
+    .use(
+      await furin({
+        cacheTagPurger: (tags) => {
+          purged.front.push(tags);
+          return Promise.resolve();
+        },
+        pagesDir,
+      })
+    )
+    .use(
+      await furin({
+        cacheTagPurger: (tags) => {
+          purged.admin.push(tags);
+          return Promise.resolve();
+        },
+        pagesDir,
+        prefix: "/admin",
+      })
+    );
+  await revalidateTag("posts");
+  await Bun.sleep(0);
+
+  expect(purged).toEqual({ admin: [["posts"]], front: [["posts"]] });
+});
+
+test.serial("furin() instances sharing a tag purger purge each tag once", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+  const pagesDir = join(app.path, "src/pages");
+  const purged: string[][] = [];
+  const cacheTagPurger = (tags: string[]) => {
+    purged.push(tags);
+    return Promise.resolve();
+  };
+
+  new Elysia()
+    .use(await furin({ cacheTagPurger, pagesDir }))
+    .use(await furin({ cacheTagPurger, pagesDir, prefix: "/admin" }));
+  await revalidateTag(["posts", "authors"]);
+  await Bun.sleep(0);
+
+  expect(purged).toEqual([["posts", "authors"]]);
 });
 
 test.serial(

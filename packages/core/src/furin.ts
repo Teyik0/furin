@@ -5,7 +5,11 @@ import { FURIN_RENDER_DECORATOR, type FurinNativeRouteContext } from "./define-r
 import { consumePendingInvalidations } from "./server/cache/invalidation.ts";
 import type { PageCacheAdapter } from "./server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "./server/cache/page-cache-state.ts";
-import { type CachePurger, setInstanceCachePurger } from "./server/cache/purger.ts";
+import {
+  type CachePurger,
+  setInstanceCachePurger,
+  setInstanceCacheTagPurger,
+} from "./server/cache/purger.ts";
 import {
   createInstance,
   type FurinInstance,
@@ -90,6 +94,13 @@ export interface FurinOptions {
    * the process-wide `setCachePurger()`.
    */
   cachePurger?: CachePurger;
+  /**
+   * CDN purge hook for this app's semantic cache tags. Receives the tags passed
+   * to `revalidateTag()`. Takes precedence over the tag purger installed by
+   * the deployment adapter (e.g. Vercel). Runtimes sharing one purger get a
+   * single call per `revalidateTag()`.
+   */
+  cacheTagPurger?: CachePurger;
   /**
    * Production only: explicit directory holding this app's built client
    * assets (chunks + index.html template). Packaged furin apps pass their own
@@ -196,7 +207,16 @@ async function createFurinApp(options: FurinOptions): Promise<{
   hasSync: boolean;
   instance: FurinInstance;
 }> {
-  const { cachePurger, clientDir, clientLogging, logger, pageCache, pagesDir, sync } = options;
+  const {
+    cachePurger,
+    cacheTagPurger,
+    clientDir,
+    clientLogging,
+    logger,
+    pageCache,
+    pagesDir,
+    sync,
+  } = options;
   const prefix = normalizePrefix(options.prefix);
   const cwd = process.cwd();
   // In a deployed binary the cwd-resolved pagesDir may differ from the build
@@ -217,6 +237,7 @@ async function createFurinApp(options: FurinOptions): Promise<{
   );
   configurePageCache(instance, ctx, pageCache);
   setInstanceCachePurger(instance, cachePurger);
+  setInstanceCacheTagPurger(instance, cacheTagPurger);
   registerInstance(instance);
 
   const development = IS_DEV;
