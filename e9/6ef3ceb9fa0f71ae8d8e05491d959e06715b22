@@ -1,0 +1,25 @@
+packages/core/src/server/render/isr-shared-cache.ts
+  s_3827fec5c7f2ed::t_01616c63c169ff 1-141
+packages/core/src/server/render/isr.ts
+  s_3827fec5c7f2ed::t_01616c63c169ff 12,15,17,20,22-28
+packages/core/src/server/render/isr-revalidation.ts
+  s_3827fec5c7f2ed::t_01616c63c169ff 1-246
+packages/core/src/adapter/runtime-build.ts
+  s_3827fec5c7f2ed::t_7c7e1d2c6e2e3e 56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e96ef3ceb9fa0f71ae8d8e05491d959e06715b22",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
