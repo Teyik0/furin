@@ -101,7 +101,8 @@ async function mountDevelopmentPages(
   if (!instance) {
     throw new Error(`No furin() runtime registered for ${pagesDir}`);
   }
-  return { app, instance, pagesDir };
+  // Cache keys and dependencies use the POSIX path Furin stores.
+  return { app, instance, pagesDir: instance.pagesDir };
 }
 
 const originalCwd = process.cwd();
