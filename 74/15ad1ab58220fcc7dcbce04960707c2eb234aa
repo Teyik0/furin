@@ -1,0 +1,21 @@
+packages/core/package.json
+  s_553967112fee2c::t_29dcb6d341f6d4 167
+.github/workflows/ci.yaml
+  s_553967112fee2c::t_4b2a140ee71747 106-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7415ad1ab58220fcc7dcbce04960707c2eb234aa",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
