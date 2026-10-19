@@ -4,6 +4,7 @@ import "../../setup/evlog-mock";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { defer } from "../../../src/client";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { runLoaders } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 
@@ -22,8 +23,8 @@ function makeCtx(overrides: Partial<Context> = {}): Context {
 }
 
 function makeRoute(
-  pageLoader: ((ctx: Record<string, unknown>) => unknown) | undefined,
-  routeLoaders: ((ctx: Record<string, unknown>) => unknown)[]
+  pageLoader: ((ctx: RuntimeData) => unknown) | undefined,
+  routeLoaders: ((ctx: RuntimeData) => unknown)[]
 ): ResolvedRoute {
   return {
     mode: "ssr",
@@ -32,7 +33,7 @@ function makeRoute(
           __type: "FURIN_PAGE" as const,
           _route: { __type: "FURIN_ROUTE" as const },
           component: () => null,
-          loader: pageLoader as (ctx: Record<string, unknown>) => Promise<Record<string, unknown>>,
+          loader: pageLoader as (ctx: RuntimeData) => Promise<RuntimeData>,
         }
       : {
           __type: "FURIN_PAGE" as const,
@@ -43,7 +44,7 @@ function makeRoute(
     pattern: "/test",
     routeChain: routeLoaders.map((loader) => ({
       __type: "FURIN_ROUTE" as const,
-      loader: loader as (ctx: Record<string, unknown>) => Promise<Record<string, unknown>>,
+      loader: loader as (ctx: RuntimeData) => Promise<RuntimeData>,
     })),
     segmentBoundaries: [],
   } as unknown as ResolvedRoute;
@@ -313,7 +314,7 @@ describe("runLoaders — DeferredData", () => {
     // dance. This test guards that runtime contract; the matching type-level
     // contract lives in tests/types.test.tsx.
     const route = makeRoute(
-      async (ctx: Record<string, unknown>) => {
+      async (ctx: RuntimeData) => {
         const slow = ctx.slow as Promise<string>;
         const value = await slow;
         return { received: value };
@@ -334,8 +335,7 @@ describe("runLoaders — DeferredData", () => {
     // own `defer()`. The end-to-end wire chunk must carry the resolved value —
     // not a nested Promise — so the client-side <Await> consumes X directly.
     const route = makeRoute(
-      (ctx: Record<string, unknown>) =>
-        defer({ mySlow: ctx.slow as Promise<string>, scalar: "ok" }),
+      (ctx: RuntimeData) => defer({ mySlow: ctx.slow as Promise<string>, scalar: "ok" }),
       [() => defer({ slow: Promise.resolve("from-parent") })]
     );
     const result = await runLoaders(route, makeCtx());

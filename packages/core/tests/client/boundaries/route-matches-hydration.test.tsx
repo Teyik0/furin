@@ -8,6 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "../../../src/client/document.tsx";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { findRouteFailure, Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute, LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { defineRootRoute, defineRoute } from "../../../src/define-route.ts";
@@ -221,7 +222,7 @@ async function createApp(routes: TestRoute[]): Promise<AnyElysia> {
   return new Elysia().use(await furin({ pagesDir }));
 }
 
-async function documentData(): Promise<Record<string, unknown>> {
+async function documentData(): Promise<RuntimeData> {
   const json = document.getElementById("__FURIN_DATA__")?.textContent;
   if (json) {
     return JSON.parse(json);

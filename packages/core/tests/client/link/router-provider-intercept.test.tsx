@@ -9,6 +9,7 @@ import {
   type DocumentState,
   useDocumentState,
 } from "../../../src/client/document.tsx";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom } from "../../support/dom.ts";
@@ -19,7 +20,7 @@ const PAGE_B_RE = /^\/page-b$/;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makePage(linkTo: string): React.ComponentType<Record<string, unknown>> {
+function makePage(linkTo: string): React.ComponentType<RuntimeData> {
   return () =>
     createElement(
       "div",
@@ -97,7 +98,7 @@ function waitFor(condition: () => boolean): Promise<void> {
 }
 
 /** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
-function makeNdjsonResponse(data: Record<string, unknown>): Response {
+function makeNdjsonResponse(data: RuntimeData): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
   return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
 }
@@ -124,7 +125,7 @@ async function renderRouterWithLink(
 
   let initialMatch:
     | (ClientRoute & {
-        component: React.ComponentType<Record<string, unknown>>;
+        component: React.ComponentType<RuntimeData>;
         pageRoute: unknown;
       })
     | null = null;

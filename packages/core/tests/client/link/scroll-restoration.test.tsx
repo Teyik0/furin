@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toCrossJSON } from "seroval";
+import type { RuntimeData } from "../../../src/client/internal/runtime-types.ts";
 import { Link, RouterProvider } from "../../../src/client/link.tsx";
 import type { ClientRoute } from "../../../src/client/router/index.ts";
 import { installDom, resetDomState, uninstallDom, waitForDom } from "../../support/dom.ts";
@@ -12,7 +13,7 @@ import { navigationDataPath } from "../../support/navigation-data.ts";
 
 const SCROLL_STORAGE_KEY = "__furin_scroll__";
 
-function makePage(content: string, linkTo?: string): React.ComponentType<Record<string, unknown>> {
+function makePage(content: string, linkTo?: string): React.ComponentType<RuntimeData> {
   return () =>
     createElement(
       "div",
@@ -57,7 +58,7 @@ async function flushReactUpdates(): Promise<void> {
 }
 
 /** Returns a single-line NDJSON response (CrossJSON-serialised) for `?_furin=data` navigation requests. */
-function makeNdjsonResponse(data: Record<string, unknown>): Response {
+function makeNdjsonResponse(data: RuntimeData): Response {
   const ndjson = JSON.stringify(toCrossJSON(data));
   return new Response(ndjson, { headers: { "Content-Type": "application/x-ndjson" }, status: 200 });
 }
@@ -84,7 +85,7 @@ async function renderRouter(
 
   let initialMatch:
     | (ClientRoute & {
-        component: React.ComponentType<Record<string, unknown>>;
+        component: React.ComponentType<RuntimeData>;
         pageRoute: unknown;
       })
     | null = null;

@@ -12,6 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import React, {
   Children,
+  type ComponentProps,
   createElement,
   forwardRef,
   isValidElement,
@@ -25,7 +26,7 @@ import {
   FurinErrorBoundary,
   FurinNotFoundBoundary,
 } from "../../../src/client/boundaries.tsx";
-import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import type { RuntimeData, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import type { ClientSegmentBoundary, LoadedClientRoute } from "../../../src/client/link.tsx";
 import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
@@ -55,7 +56,7 @@ function namedLayout(label: string): NonNullable<RuntimeRoute["layout"]> {
   return L;
 }
 
-const Page: React.FC<Record<string, unknown>> = () => createElement("span", null, "P");
+const Page: React.FC<RuntimeData> = () => createElement("span", null, "P");
 Object.defineProperty(Page, "name", { value: "Page" });
 
 const ROOT_REGEX = /^\/$/;
@@ -325,7 +326,7 @@ describe("resolveRouteElement — client-side boundary interleaving", () => {
       node = firstValidChild(children);
     }
     expect(err).not.toBeNull();
-    const props = err?.props as Record<string, unknown>;
+    const props = err?.props as ComponentProps<typeof FurinErrorBoundary>;
     expect(props.onReset).toBeUndefined();
     expect(props.resetKey).toBeUndefined();
   });

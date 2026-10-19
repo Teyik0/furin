@@ -3,7 +3,7 @@ import { expectTypeOf } from "expect-type";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FurinErrorBoundary } from "../../../src/client/boundaries.tsx";
-import type { RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
+import type { RuntimeData, RuntimeRoute } from "../../../src/client/internal/runtime-types.ts";
 import type {
   CacheEntry,
   LinkProps,
@@ -88,7 +88,7 @@ function makeRoute(opts: Partial<Omit<RuntimeRoute, "__type">> | undefined): Run
 }
 
 function makeMatch(
-  component: React.FC<Record<string, unknown>>,
+  component: React.FC<RuntimeData>,
   pageRoute: RuntimeRoute,
   pattern: string | undefined
 ): LoadedClientRoute {
@@ -238,7 +238,7 @@ describe("findSearchDefaults", () => {
 describe("resolveRouteElement", () => {
   const data = { title: "test" };
 
-  const Page: React.FC<Record<string, unknown>> = () => createElement("p", null, "page");
+  const Page: React.FC<RuntimeData> = () => createElement("p", null, "page");
 
   test("no layout — returns the page element directly", () => {
     const match = makeMatch(Page, makeRoute(undefined), undefined);
@@ -278,8 +278,7 @@ describe("resolveRouteElement", () => {
   });
 
   test("passes loader data to the page component as props", () => {
-    const DataPage: React.FC<Record<string, unknown>> = ({ title }) =>
-      createElement("h1", null, String(title));
+    const DataPage: React.FC<RuntimeData> = ({ title }) => createElement("h1", null, String(title));
 
     const match = makeMatch(DataPage, makeRoute(undefined), undefined);
     expect(renderToStaticMarkup(pageTree(match, { title: "Hello World" }))).toBe(
@@ -291,14 +290,12 @@ describe("resolveRouteElement", () => {
     let pageUser: unknown;
     let layoutUser: unknown;
     let pageHasRequestData = false;
-    const PrivatePage: React.FC<Record<string, unknown>> = (props) => {
+    const PrivatePage: React.FC<RuntimeData> = (props) => {
       pageUser = props.user;
       pageHasRequestData = "requestData" in props;
       return createElement("p", null, "page");
     };
-    const PrivateLayout: React.FC<Record<string, unknown> & { children: React.ReactNode }> = (
-      props
-    ) => {
+    const PrivateLayout: React.FC<RuntimeData & { children: React.ReactNode }> = (props) => {
       layoutUser = props.user;
       return createElement("main", null, props.children);
     };
@@ -314,7 +311,7 @@ describe("resolveRouteElement", () => {
 
   test("keeps an absent optional public prop absent when request data is pending", () => {
     let optional: unknown;
-    const PageWithOptional: React.FC<Record<string, unknown>> = ({ optional: value }) => {
+    const PageWithOptional: React.FC<RuntimeData> = ({ optional: value }) => {
       optional = value;
       return createElement("p", null, "page");
     };
@@ -324,7 +321,7 @@ describe("resolveRouteElement", () => {
   });
 
   test("passes loader data to layout components as props", () => {
-    const Layout: React.FC<Record<string, unknown>> = ({ title, children }) =>
+    const Layout: React.FC<RuntimeData> = ({ title, children }) =>
       createElement("div", { "data-title": String(title) }, children as React.ReactNode);
 
     const match = makeMatch(Page, makeRoute({ layout: Layout }), undefined);
