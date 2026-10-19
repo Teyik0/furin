@@ -1,11 +1,9 @@
 import { dirname } from "node:path";
-import { walk } from "yuku-ast";
-import type { Node } from "yuku-parser";
-import { hasShadowingDeclaration } from "../../plugin/binding-scope.ts";
+import { type Exports, parse } from "cjs-module-lexer";
+import MagicString from "magic-string";
 import { transformIsomorphicFunctions } from "../../plugin/transform-isomorphic.ts";
 import { detectLangFromPath, detectLoaderFromPath } from "../../server/lang-detect.ts";
 import { parseSource } from "../../shared/parser.ts";
-import type { AstNode } from "../../shared/utils/ast-walk.ts";
 import { flightLoaderPlugin } from "./flight-loader.ts";
 import type { ClientReference } from "./index.ts";
 import { CLIENT_REFERENCE_RUNTIME_PATH } from "./paths.ts";
@@ -33,56 +31,24 @@ export function isClientModule(source: string, path: string): boolean {
   return false;
 }
 
+const COMMONJS_EXTENSION = /\.c[jt]s$/;
+const ESM_EXTENSION = /\.m[jt]s$/;
+const ESM_EXPORTS = new Set([
+  "ExportAllDeclaration",
+  "ExportDefaultDeclaration",
+  "ExportNamedDeclaration",
+]);
+
+/** Mirrors Bun: ESM export syntax wins over any reference to module or exports. */
 function isCommonJsModule(source: string, path: string): boolean {
-  const { program } = parseSource(source, detectLangFromPath(path));
-  const locals = new Set<string>();
-  for (const statement of program.body) {
-    if (statement.type === "ImportDeclaration") {
-      for (const specifier of statement.specifiers) {
-        locals.add(specifier.local.name);
-      }
-    }
-    const declaration =
-      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
-    if (declaration?.type === "VariableDeclaration") {
-      for (const binding of declaration.declarations) {
-        walk(binding.id, {
-          Identifier(node) {
-            locals.add(node.name);
-          },
-        });
-      }
-    } else if (
-      (declaration?.type === "FunctionDeclaration" || declaration?.type === "ClassDeclaration") &&
-      declaration.id
-    ) {
-      locals.add(declaration.id.name);
-    }
+  if (COMMONJS_EXTENSION.test(path)) {
+    return true;
   }
-  let commonJs = false;
-  walk(program, {
-    TSType(_node, context) {
-      context.skip();
-    },
-    Identifier(node, context) {
-      const parent = context.parent;
-      if (
-        (node.name !== "module" && node.name !== "exports") ||
-        locals.has(node.name) ||
-        (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
-        (parent?.type === "Property" &&
-          !parent.computed &&
-          !parent.shorthand &&
-          parent.key === node) ||
-        hasShadowingDeclaration(node.name, context.ancestors() as AstNode[])
-      ) {
-        return;
-      }
-      commonJs = true;
-      context.stop();
-    },
-  });
-  return commonJs;
+  if (ESM_EXTENSION.test(path)) {
+    return false;
+  }
+  const { program } = parseSource(source, detectLangFromPath(path));
+  return !program.body.some((statement) => ESM_EXPORTS.has(statement.type));
 }
 
 export function clientReferencesPlugin(): Bun.BunPlugin {
@@ -150,13 +116,16 @@ ${names.length > 0 ? `export { ${names.map((name) => JSON.stringify(name)).join(
   };
 }
 
-function staticPropertyName(property: Node, computed: boolean): string | undefined {
-  if (!computed && property.type === "Identifier") {
-    return property.name;
+/** cjs-module-lexer reads plain scripts; Bun also accepts imports in CommonJS. */
+function commonJsExports(source: string, path: string): Exports {
+  const script = new Bun.Transpiler({ loader: detectLoaderFromPath(path) }).transformSync(source);
+  const withoutImports = new MagicString(script);
+  for (const statement of parseSource(script, "js").program.body) {
+    if (statement.type === "ImportDeclaration") {
+      withoutImports.remove(statement.start, statement.end);
+    }
   }
-  return property.type === "Literal" && typeof property.value === "string"
-    ? property.value
-    : undefined;
+  return parse(withoutImports.toString());
 }
 
 async function exportedNames(
@@ -173,64 +142,28 @@ async function exportedNames(
       .scan(source)
       .exports.filter((name) => name !== "*")
   );
+  const reexports: string[] = [];
   if (isCommonJsModule(source, path)) {
     names.add("default");
-    walk(parseSource(source, detectLangFromPath(path)).program, {
-      AssignmentExpression(node, context) {
-        const target = node.left;
-        if (target.type !== "MemberExpression") {
-          return;
-        }
-        const object = target.object;
-        if (
-          object.type === "Identifier" &&
-          object.name === "module" &&
-          staticPropertyName(target.property, target.computed) === "exports" &&
-          !hasShadowingDeclaration(object.name, context.ancestors() as AstNode[])
-        ) {
-          if (node.right.type === "ObjectExpression") {
-            for (const property of node.right.properties) {
-              if (property.type === "Property") {
-                const name = staticPropertyName(property.key, property.computed);
-                if (name) {
-                  names.add(name);
-                }
-              }
-            }
-          }
-          return;
-        }
-        const namespace =
-          object.type === "Identifier" && object.name === "exports"
-            ? object
-            : object.type === "MemberExpression" &&
-                object.object.type === "Identifier" &&
-                object.object.name === "module" &&
-                staticPropertyName(object.property, object.computed) === "exports"
-              ? object.object
-              : undefined;
-        if (
-          !namespace ||
-          hasShadowingDeclaration(namespace.name, context.ancestors() as AstNode[])
-        ) {
-          return;
-        }
-        const name = staticPropertyName(target.property, target.computed);
-        if (typeof name === "string") {
-          names.add(name);
-        }
-      },
-    });
+    const commonJs = commonJsExports(source, path);
+    for (const name of commonJs.exports) {
+      if (name !== "__esModule") {
+        names.add(name);
+      }
+    }
+    reexports.push(...commonJs.reexports);
   }
   for (const statement of parseSource(source, detectLangFromPath(path)).program.body) {
     if (
-      statement.type !== "ExportAllDeclaration" ||
-      statement.exported ||
-      statement.exportKind === "type"
+      statement.type === "ExportAllDeclaration" &&
+      !statement.exported &&
+      statement.exportKind !== "type"
     ) {
-      continue;
+      reexports.push(String(statement.source.value));
     }
-    const dependency = Bun.resolveSync(String(statement.source.value), dirname(path));
+  }
+  for (const specifier of reexports) {
+    const dependency = Bun.resolveSync(specifier, dirname(path));
     const exported = await exportedNames(await Bun.file(dependency).text(), dependency, visited);
     for (const name of exported) {
       if (name !== "default") {

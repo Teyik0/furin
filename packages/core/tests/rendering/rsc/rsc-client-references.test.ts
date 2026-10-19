@@ -572,6 +572,67 @@ test.each([
   }
 });
 
+async function buildClientReferenceNames(
+  files: { [name: string]: string },
+  root: string
+): Promise<string[]> {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    await Promise.all(
+      Object.entries({ ...files, "root.tsx": root }).map(([name, source]) =>
+        Bun.write(join(directory, name), source)
+      )
+    );
+    const manifest = await buildRscGraph(
+      [{ root: { path: join(directory, "root.tsx"), route: {} as never }, routes: [] }],
+      join(directory, "output"),
+      "client-reference-names",
+      undefined
+    );
+    return manifest.clientReferences.map(({ name }) => name);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+}
+
+test("the react-server graph does not treat an ES module that probes for module as CommonJS", async () => {
+  const names = await buildClientReferenceNames(
+    {
+      "counter.js": `"use client";
+export function Counter() { return null; }
+if (typeof module !== "undefined" && module.hot) { module.hot.accept(); }`,
+    },
+    'import { Counter } from "./counter.js"; export const tree = <Counter />;'
+  );
+  expect(names).toEqual(["Counter"]);
+});
+
+test("the react-server graph names CommonJS exports defined with Object.defineProperty", async () => {
+  const names = await buildClientReferenceNames(
+    {
+      "counter.js": `"use client";
+function Counter() { return null; }
+Object.defineProperty(exports, "__esModule", { value: true });
+Object.defineProperty(exports, "Counter", { enumerable: true, get: function () { return Counter; } });`,
+    },
+    'import { Counter } from "./counter.js"; export const tree = <Counter />;'
+  );
+  expect(names.toSorted()).toEqual(["Counter", "default"]);
+});
+
+test("the react-server graph names CommonJS exports reexported with __exportStar", async () => {
+  const names = await buildClientReferenceNames(
+    {
+      "counter.js": "exports.Counter = function Counter() { return null; };",
+      "index.js": `"use client";
+var __exportStar = function (m, exports) { for (var p in m) exports[p] = m[p]; };
+__exportStar(require("./counter.js"), exports);`,
+    },
+    'import { Counter } from "./index.js"; export const tree = <Counter />;'
+  );
+  expect(names.toSorted()).toEqual(["Counter", "default"]);
+});
+
 test("SSR client registration does not classify shadowed module and exports as CommonJS", async () => {
   const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
   try {
