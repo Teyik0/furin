@@ -5,11 +5,7 @@ import { type FurinNativeRouteContext, getFurinRenderer } from "../define-route.
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import { isRouteGroup } from "../server/router/patterns.ts";
 import { routeModuleSourceVersion } from "../server/router/source-version.ts";
-import {
-  type loadRouteModule,
-  routeModuleDependencies,
-  validateRouteParams,
-} from "./route-modules.ts";
+import { type RouteModule, routeModuleDependencies, validateRouteParams } from "./route-modules.ts";
 import {
   buildRouteTree,
   instanceKey,
@@ -360,9 +356,9 @@ export function registerDevRouteTopologyWatcher(
 }
 
 async function composableRouteApps(route: RouteFile): Promise<DevRoutesApps | undefined> {
-  const module = (await import(
+  const module: RouteModule = await import(
     `${route.sourcePath}?furin-server&t=${routeModuleSourceVersion(route.sourcePath)}`
-  )) as Awaited<ReturnType<typeof loadRouteModule>>;
+  );
   if (!module.route?.elysia) {
     return;
   }

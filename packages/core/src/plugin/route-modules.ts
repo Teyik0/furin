@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AnyElysia } from "elysia";
+import type { CompiledModule } from "../server/internal.ts";
 import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 
 const ROUTE_MODULE_CACHE_SYMBOL = Symbol.for("@teyik0/furin/route-module-cache");
@@ -33,9 +34,22 @@ export function validateRouteParams(
   }
 }
 
+/** The fields of a `defineRoute()` export the routes plugin reads. */
+interface RouteExport {
+  elysia?: AnyElysia;
+  loader?: unknown;
+  mode?: string;
+  schemas?: { params?: { properties?: object } };
+}
+
+/** Namespace of an imported page or layout module. */
+export interface RouteModule extends CompiledModule {
+  readonly route?: RouteExport;
+}
+
 interface CachedRouteModule {
   dependencies: RouteModuleDependency[];
-  module: Record<string, unknown>;
+  module: RouteModule;
 }
 
 interface RouteModuleDependency {
@@ -160,7 +174,7 @@ export function routeModuleDependencies(sourcePath: string): RouteModuleDependen
   );
 }
 
-async function importRouteModule(sourcePath: string): Promise<Record<string, unknown>> {
+export async function loadRouteModule(sourcePath: string): Promise<RouteModule> {
   const cache = routeModuleCache();
   const cached = cache.get(sourcePath);
   if (
@@ -173,7 +187,7 @@ async function importRouteModule(sourcePath: string): Promise<Record<string, unk
   const dependencies = collectRouteModuleDependencies(sourcePath);
   const fingerprint = Bun.hash(JSON.stringify(dependencies)).toString(16);
   const moduleUrl = `${pathToFileURL(sourcePath).href}?furin-routes=${fingerprint}`;
-  const module = (await import(moduleUrl)) as Record<string, unknown>;
+  const module: RouteModule = await import(moduleUrl);
   cache.set(sourcePath, { dependencies, module });
   return module;
 }
@@ -186,30 +200,10 @@ export async function validateRouteModules(routeFiles: Iterable<RouteModuleInfo>
     }
     validations.push(
       (async () => {
-        const module = (await importRouteModule(routeFile.sourcePath)) as {
-          route?: { schemas?: { params?: { properties?: object } } };
-        };
+        const module = await loadRouteModule(routeFile.sourcePath);
         validateRouteParams(routeFile.routePath, module.route?.schemas);
       })()
     );
   }
   await Promise.all(validations);
-}
-
-export async function loadRouteModule(sourcePath: string): Promise<{
-  route?: {
-    elysia?: AnyElysia;
-    loader?: unknown;
-    mode?: string;
-    schemas?: { params?: { properties?: object } };
-  };
-}> {
-  return (await importRouteModule(sourcePath)) as {
-    route?: {
-      elysia?: AnyElysia;
-      loader?: unknown;
-      mode?: string;
-      schemas?: { params?: { properties?: object } };
-    };
-  };
 }
