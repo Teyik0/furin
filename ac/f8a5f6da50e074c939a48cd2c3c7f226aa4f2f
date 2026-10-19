@@ -1,0 +1,23 @@
+packages/core/src/adapter/vercel.ts
+  s_553967112fee2c::t_4d113b0cb689f4 219-221,228
+apps/docs/src/content/docs/deployment.mdx
+  s_553967112fee2c::t_36a3aed11250e8 193-194
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_553967112fee2c::t_6d910bc081080c 371-379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "acf8a5f6da50e074c939a48cd2c3c7f226aa4f2f",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
