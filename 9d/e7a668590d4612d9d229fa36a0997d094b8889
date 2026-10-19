@@ -1,0 +1,27 @@
+packages/core/src/server/dev/stack-location.ts
+  s_3827fec5c7f2ed::t_162577ee3af2f9 1-46
+packages/core/tests/dev/hmr/stack-location.test.ts
+  s_3827fec5c7f2ed::t_cb456b69ea63e0 1-48
+packages/core/src/server/dev/diagnostics.ts
+  s_3827fec5c7f2ed::t_d12b2113976080 14
+  s_3827fec5c7f2ed::t_d4ccde26b1ab1b 96
+packages/core/src/server/dev/error.ts
+  s_3827fec5c7f2ed::t_f83295516e201a 72-73
+  s_3827fec5c7f2ed::t_11ade8934e1001 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9de7a668590d4612d9d229fa36a0997d094b8889",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

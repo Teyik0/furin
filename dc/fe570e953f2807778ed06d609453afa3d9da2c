@@ -1,0 +1,27 @@
+packages/core/src/rsc.tsx
+  s_3827fec5c7f2ed::t_f44e69364ac7cd 13
+  s_3827fec5c7f2ed::t_6b343194916d4f 12
+packages/core/src/rsc-server.tsx
+  s_3827fec5c7f2ed::t_4b1ffe9306947b 12
+  s_3827fec5c7f2ed::t_fa65307baaa479 13
+packages/core/src/rsc/slot-proxy.ts
+  s_3827fec5c7f2ed::t_cce6bc48861eb0 1-34
+packages/core/tests/rendering/rsc/slot-proxy.test.ts
+  s_3827fec5c7f2ed::t_c7fa355e88a202 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dcfe570e953f2807778ed06d609453afa3d9da2c",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
