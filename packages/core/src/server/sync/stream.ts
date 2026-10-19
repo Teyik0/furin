@@ -13,7 +13,8 @@ const BROADCAST_WINDOW_MS = 100;
 const DEFAULT_CHANGE_LIMIT = 100;
 const MAX_CHANGE_LIMIT = 500;
 const MAX_CURSOR_LENGTH = 128;
-const SAFETY_POLL_INTERVAL_MS = IS_DEV ? 250 : 15_000;
+const DEVELOPMENT_SAFETY_POLL_INTERVAL_MS = 250;
+const PRODUCTION_SAFETY_POLL_INTERVAL_MS = 15_000;
 const UNSIGNED_INTEGER_PATTERN = /^\d+$/;
 const defaultSyncPath = "/_furin/sync";
 const noOpSubscription: SyncSubscription = {
@@ -90,12 +91,15 @@ async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCurs
       return noOpSubscription;
     });
   if (runtime.notifier.recovery !== "self" || subscriptionFailed) {
+    const interval = runtime.development
+      ? DEVELOPMENT_SAFETY_POLL_INTERVAL_MS
+      : PRODUCTION_SAFETY_POLL_INTERVAL_MS;
     state.safetyPoll = setInterval(() => {
       runtime.adapter
         .currentCursor()
         .then((cursor) => notifyState(state, cursor))
         .catch(() => undefined);
-    }, SAFETY_POLL_INTERVAL_MS);
+    }, interval);
     state.safetyPoll.unref?.();
   }
   resolvedStates.add(state);
@@ -104,9 +108,10 @@ async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCurs
 
 export async function subscribeSyncCursor(
   options: FurinSyncOptions,
+  development: boolean,
   listener: (cursor: string) => void
 ): Promise<{ unsubscribe: () => void }> {
-  const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
+  const runtime = resolveSyncRuntime(syncRuntimeOptions(options), development);
   const statePromise = getCursorState(runtime);
   const state = await statePromise;
   state.listeners.add(listener);
@@ -166,9 +171,15 @@ function parseChangeQuery(
   return { after, limit };
 }
 
+/** A standalone changes endpoint belongs to no Furin runtime: it follows the default mode. */
 export function createSyncChangesPlugin(options: FurinSyncOptions) {
+  return createRuntimeSyncChangesPlugin(options, IS_DEV);
+}
+
+/** The changes endpoint of a Furin runtime, validated for that runtime's mode. */
+export function createRuntimeSyncChangesPlugin(options: FurinSyncOptions, development: boolean) {
   const syncPath = options.path ?? defaultSyncPath;
-  const runtime = resolveSyncRuntime(syncRuntimeOptions(options));
+  const runtime = resolveSyncRuntime(syncRuntimeOptions(options), development);
   return new Elysia({ name: `furin-sync-changes-${syncPath}` }).get(
     `${syncPath}/changes`,
     async (context) => {

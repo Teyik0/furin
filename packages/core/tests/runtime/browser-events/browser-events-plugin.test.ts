@@ -31,6 +31,7 @@ test("SSE delivers sync cursors through app.handle without a listening server", 
   let unsubscribed = false;
   const app = new Elysia().use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: {
         adapter,
         notifier: {
@@ -72,10 +73,12 @@ test("SSE delivers sync cursors through app.handle without a listening server", 
 
 test("SSE routes stay independent when Furin apps use different prefixes", async () => {
   const root = createSseBrowserEventsPlugin({
+    development: true,
     sync: { adapter, notifier, principal: () => "test" },
   });
   const admin = new Elysia({ prefix: "/admin" }).use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: {
         adapter: { ...adapter, currentCursor: () => Promise.resolve("9") },
         notifier,
@@ -115,6 +118,7 @@ function userPrincipal({ request }: { request: Request }): string {
 test("SSE tells a browser to retry when connection capacity is full", async () => {
   const app = new Elysia().use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: { adapter, notifier, principal: userPrincipal },
     })
   );
@@ -147,6 +151,7 @@ test.each([
   let subscriptions = 0;
   const app = new Elysia().use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: {
         adapter: {
           ...adapter,
@@ -176,6 +181,7 @@ test.each([
 test("SSE caps one principal without exhausting capacity for others", async () => {
   const app = new Elysia().use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: { adapter, notifier, principal: userPrincipal },
     })
   );
@@ -214,6 +220,7 @@ test.serial("SSE expires and releases its notifier subscription", async () => {
   try {
     const app = new Elysia().use(
       createSseBrowserEventsPlugin({
+        development: true,
         sync: {
           adapter,
           notifier: {
@@ -253,6 +260,7 @@ test("SSE closes a request that was already aborted", async () => {
   let subscribed = false;
   const app = new Elysia().use(
     createSseBrowserEventsPlugin({
+      development: true,
       sync: {
         adapter,
         notifier: {
@@ -281,6 +289,7 @@ test("browser event socket sends the current durable sync cursor", async () => {
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sync: {
           adapter,
           notifier,
@@ -331,6 +340,7 @@ test("browser event socket remains available when notifier subscription fails", 
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sync: {
           adapter: recoveringAdapter,
           notifier: {
@@ -380,6 +390,7 @@ test("browser event socket releases notifier subscriptions when the tab closes",
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sync: {
           adapter,
           notifier: {
@@ -428,6 +439,7 @@ test("browser event socket releases successful source subscriptions when another
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sources: [
           {
             subscribe: () => ({
@@ -479,6 +491,7 @@ test("browser event socket rejects an unauthenticated upgrade before subscribing
   let cursorReads = 0;
   const app = new Elysia().use(
     createBrowserEventsPlugin({
+      development: true,
       sync: {
         adapter: {
           ...adapter,
@@ -508,7 +521,12 @@ test("browser event socket rejects an unauthenticated upgrade before subscribing
 
 test("browser event socket caps one principal without exhausting capacity for others", async () => {
   const app = new Elysia()
-    .use(createBrowserEventsPlugin({ sync: { adapter, notifier, principal: userPrincipal } }))
+    .use(
+      createBrowserEventsPlugin({
+        development: true,
+        sync: { adapter, notifier, principal: userPrincipal },
+      })
+    )
     .listen(0);
   const base = `ws://127.0.0.1:${app.server?.port}/_furin/events`;
   const sockets: WebSocket[] = [];
@@ -532,7 +550,7 @@ test("browser event socket caps one principal without exhausting capacity for ot
 });
 
 test("browser event socket caps one peer address when no principal is configured", async () => {
-  const app = new Elysia().use(createBrowserEventsPlugin({})).listen(0);
+  const app = new Elysia().use(createBrowserEventsPlugin({ development: true })).listen(0);
   const base = `ws://127.0.0.1:${app.server?.port}/_furin/events`;
   const sockets: WebSocket[] = [];
   try {
@@ -555,6 +573,7 @@ test("an unauthenticated development socket keeps source events without sync cur
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sources: [
           {
             subscribe: (listener) => {
@@ -599,7 +618,12 @@ test("an unauthenticated development socket keeps source events without sync cur
 
 test("browser event socket rejects connections above the per-instance limit", async () => {
   const app = new Elysia()
-    .use(createBrowserEventsPlugin({ sync: { adapter, notifier, principal: userPrincipal } }))
+    .use(
+      createBrowserEventsPlugin({
+        development: true,
+        sync: { adapter, notifier, principal: userPrincipal },
+      })
+    )
     .listen(0);
   const port = app.server?.port;
   if (port === undefined) {
@@ -641,6 +665,7 @@ test("a reconnect burst never subscribes sources above the connection limit", as
   const app = new Elysia()
     .use(
       createBrowserEventsPlugin({
+        development: true,
         sources: [
           {
             subscribe: () => {

@@ -1,7 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, expect, spyOn, test } from "bun:test";
 import { Elysia } from "elysia";
-import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type { SyncAdapter } from "../../../src/server/sync/adapter.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { resolveSyncRuntime } from "../../../src/server/sync/runtime.ts";
@@ -9,7 +8,6 @@ import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/s
 import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 
 const SECRET = "a-test-secret-of-at-least-32-characters";
-const originalDevMode = IS_DEV;
 const databases: Database[] = [];
 
 function hostLocalAdapter(): SyncAdapter {
@@ -98,26 +96,24 @@ test("rejects secrets shorter than 32 characters", () => {
 test("rejects runtimes sharing an adapter with a different secret", () => {
   const adapter = sqliteSyncAdapter({ database: memoryDatabase(), namespace: "shared" });
   const principal = () => "alice";
-  resolveSyncRuntime({ adapter, principal, secret: SECRET });
-  expect(() => resolveSyncRuntime({ adapter, principal, secret: `${SECRET}-rotated` })).toThrow(
-    "must use the same secret"
-  );
+  resolveSyncRuntime({ adapter, principal, secret: SECRET }, true);
+  expect(() =>
+    resolveSyncRuntime({ adapter, principal, secret: `${SECRET}-rotated` }, true)
+  ).toThrow("must use the same secret");
 });
 
 test("warns once per adapter in production when no secret is configured", () => {
-  __setDevMode(false);
   const warn = spyOn(console, "warn").mockImplementation(() => undefined);
   try {
     const keyed = hostLocalAdapter();
-    resolveSyncRuntime({ adapter: keyed, principal: () => "alice", secret: SECRET });
+    resolveSyncRuntime({ adapter: keyed, principal: () => "alice", secret: SECRET }, false);
     expect(warn).not.toHaveBeenCalled();
     const unkeyed = hostLocalAdapter();
-    resolveSyncRuntime({ adapter: unkeyed, principal: () => "alice" });
-    resolveSyncRuntime({ adapter: unkeyed, principal: () => "alice" });
+    resolveSyncRuntime({ adapter: unkeyed, principal: () => "alice" }, false);
+    resolveSyncRuntime({ adapter: unkeyed, principal: () => "alice" }, false);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain("sync.secret is not set");
   } finally {
     warn.mockRestore();
-    __setDevMode(originalDevMode);
   }
 });

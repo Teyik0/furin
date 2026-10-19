@@ -9,6 +9,7 @@ import type { InvalidationInput } from "../auto-invalidate/types.ts";
 import { peekPendingInvalidations } from "../cache/invalidation.ts";
 import { getLogger } from "../context-logger.ts";
 import { ensureRequestScope } from "../instance.ts";
+import { IS_DEV } from "../runtime-env.ts";
 import type {
   MutationLease,
   StoredResponse,
@@ -180,7 +181,8 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
   options: SyncRuntimeOptions<Adapter>,
   owner: SyncOwner
 ) {
-  const runtime = resolveSyncRuntime(options);
+  // furinSync() belongs to no Furin runtime: it follows the default mode.
+  const runtime = resolveSyncRuntime(options, IS_DEV);
   const transactional =
     "executeMutation" in options.adapter
       ? (options.adapter as Adapter &

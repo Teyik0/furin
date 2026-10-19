@@ -43,15 +43,16 @@ const productionPagePorts: PagePorts = {
 
 async function createProductionBrowserEventsPlugin(
   sync: FurinSyncOption | undefined,
-  websocket: boolean
+  websocket: boolean,
+  development: boolean
 ): Promise<AnyElysia> {
   if (!sync) {
     return new Elysia();
   }
   const browserEvents = await import("../browser-events/plugin.ts");
   return websocket
-    ? browserEvents.createBrowserEventsPlugin({ sync })
-    : browserEvents.createSseBrowserEventsPlugin({ sync });
+    ? browserEvents.createBrowserEventsPlugin({ development, sync })
+    : browserEvents.createSseBrowserEventsPlugin({ development, sync });
 }
 
 async function setupProdTemplate(
@@ -156,7 +157,8 @@ export async function createProdRuntime(
   const assets = await createProductionAssetsPlugin(ctx, embedded, clientDir);
   const browserEvents = await createProductionBrowserEventsPlugin(
     options.sync,
-    ctx.adapter?.capabilities.websocket ?? true
+    ctx.adapter?.capabilities.websocket ?? true,
+    instance.development
   );
 
   return {

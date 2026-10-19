@@ -9,6 +9,7 @@ import {
 import type { PageCacheAdapter } from "../../../src/server/cache/page-cache.ts";
 import { setPageCacheAdapter } from "../../../src/server/cache/page-cache-state.ts";
 import { defaultInstanceBucket } from "../../../src/server/instance.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type {
   BeginMutationInput,
   BeginMutationResult,
@@ -29,6 +30,7 @@ import {
   subscribeSyncCursor,
 } from "../../../src/server/sync/stream.ts";
 
+const originalDevMode = IS_DEV;
 const syncDatabase = new Database(":memory:");
 migrateSqliteSync(syncDatabase);
 const syncListeners = new Set<(cursor: string) => void>();
@@ -705,11 +707,58 @@ test("sync cursor polling recovers when notifier subscription fails", async () =
   try {
     const subscription = await subscribeSyncCursor(
       { adapter, notifier, principal: () => "principal" },
+      true,
       () => undefined
     );
     expect(intervalDelays).toEqual([250]);
     subscription.unsubscribe();
   } finally {
+    globalThis.setInterval = originalSetInterval;
+    resetSyncTestState();
+  }
+});
+
+test("the safety poll interval follows the subscribing runtime, not the mode at import", async () => {
+  resetSyncTestState();
+  const intervalDelays: number[] = [];
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    intervalDelays.push(args[1] ?? 0);
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
+  const adapter: SyncAdapter = {
+    abortMutation: () => Promise.resolve(),
+    beginMutation: () => Promise.resolve({ kind: "conflict", reason: "in-progress" }),
+    completeMutation: () => Promise.resolve({ kind: "lost" }),
+    currentCursor: () => Promise.resolve("0"),
+    readChanges: () => Promise.resolve({ changes: [], cursor: "0", hasMore: false, reset: false }),
+    renewMutation: () => Promise.resolve("lost"),
+    scope: "distributed",
+  };
+  const notifier: SyncNotifier = {
+    publish: () => Promise.resolve(),
+    subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
+  };
+
+  try {
+    // The stream module was imported while the default mode was development.
+    __setDevMode(true);
+    const production = await subscribeSyncCursor(
+      { adapter, notifier, principal: () => "principal" },
+      false,
+      () => undefined
+    );
+    __setDevMode(false);
+    const development = await subscribeSyncCursor(
+      { adapter: { ...adapter }, notifier, principal: () => "principal" },
+      true,
+      () => undefined
+    );
+    expect(intervalDelays).toEqual([15_000, 250]);
+    production.unsubscribe();
+    development.unsubscribe();
+  } finally {
+    __setDevMode(originalDevMode);
     globalThis.setInterval = originalSetInterval;
     resetSyncTestState();
   }
@@ -745,6 +794,7 @@ test("sync cursor does not poll when the notifier recovers missed notifications"
   try {
     const subscription = await subscribeSyncCursor(
       { adapter, notifier, principal: () => "principal" },
+      true,
       () => undefined
     );
     expect(cursorReads).toBe(1);

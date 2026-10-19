@@ -1,4 +1,3 @@
-import { IS_DEV } from "../runtime-env.ts";
 import type { ChangePage, ReadChangesInput, SyncAdapter, SyncChange } from "./adapter.ts";
 
 const MIN_SECRET_LENGTH = 32;
@@ -7,7 +6,11 @@ const changePrincipals = new WeakMap<SyncChange, string>();
 const principalSecrets = new WeakMap<SyncAdapter, string | undefined>();
 
 /** Binds the runtime's `secret` to its adapter so every principal hash uses one key. */
-export function configurePrincipalSecret(adapter: SyncAdapter, secret: string | undefined): void {
+export function configurePrincipalSecret(
+  adapter: SyncAdapter,
+  secret: string | undefined,
+  development: boolean
+): void {
   if (secret !== undefined && (typeof secret !== "string" || secret.length < MIN_SECRET_LENGTH)) {
     throw new Error(
       `[furin] sync.secret must be a string of at least ${MIN_SECRET_LENGTH} characters.`
@@ -20,7 +23,7 @@ export function configurePrincipalSecret(adapter: SyncAdapter, secret: string | 
     return;
   }
   principalSecrets.set(adapter, secret);
-  if (secret === undefined && !IS_DEV) {
+  if (secret === undefined && !development) {
     console.warn(
       "[furin] sync.secret is not set: principal hashes sent to browsers and stored in the sync journal are unkeyed SHA-256 and can be reversed with a dictionary. Set sync.secret to a random value of at least 32 characters."
     );

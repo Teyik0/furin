@@ -378,7 +378,7 @@ test("waits for deferred log drains before application resource cleanup", async 
 });
 
 test("closes Furin browser-event WebSockets before stopping Bun", async () => {
-  const app = new Elysia().use(createBrowserEventsPlugin({}));
+  const app = new Elysia().use(createBrowserEventsPlugin({ development: true }));
   const lifecycle = startProductionServer({
     app,
     port: 0,
@@ -439,13 +439,13 @@ test("the configured shutdown deadline bounds an unacknowledged browser-event cl
 
 test("shutting down one server leaves another server's browser-event sockets open", async () => {
   const first = startProductionServer({
-    app: new Elysia().use(createBrowserEventsPlugin({})),
+    app: new Elysia().use(createBrowserEventsPlugin({ development: true })),
     port: 0,
     preStopDelayMs: 0,
     shutdownTimeoutMs: 2000,
   });
   const second = startProductionServer({
-    app: new Elysia().use(createBrowserEventsPlugin({})),
+    app: new Elysia().use(createBrowserEventsPlugin({ development: true })),
     port: 0,
     preStopDelayMs: 0,
     shutdownTimeoutMs: 2000,
@@ -479,6 +479,7 @@ test("shutting down one server leaves another server's browser-event sockets ope
       },
       principal: () => "test",
     },
+    true,
     (cursor) => cursors.push(cursor)
   );
   const firstSocket = new WebSocket(`ws://localhost:${first.server.port}/_furin/events`);
@@ -563,6 +564,7 @@ test("concurrent server shutdowns close shared Sync cursor subscriptions", async
       },
       principal: () => "test",
     },
+    true,
     () => undefined
   );
 
@@ -612,6 +614,7 @@ test("a forced shutdown closes shared Sync state after its peer has stopped", as
       },
       principal: () => "test",
     },
+    true,
     () => undefined
   );
   try {

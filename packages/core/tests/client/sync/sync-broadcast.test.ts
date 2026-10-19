@@ -43,7 +43,7 @@ test("coalesces cursor bursts into one trailing broadcast of the latest cursor",
   jest.useFakeTimers();
   const { publish, sync } = syncWithManualNotifier();
   const received: string[] = [];
-  await subscribeSyncCursor(sync, (cursor) => received.push(cursor));
+  await subscribeSyncCursor(sync, true, (cursor) => received.push(cursor));
   expect(received).toEqual(["0"]);
 
   publish("1");

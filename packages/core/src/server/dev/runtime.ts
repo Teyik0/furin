@@ -307,6 +307,7 @@ export async function createDevRuntime(
     ? await staticPlugin({ assets: publicDir, prefix: "/public" })
     : new Elysia();
   const browserEvents = (await import("../browser-events/plugin.ts")).createBrowserEventsPlugin({
+    development: instance.development,
     sources: createDevelopmentBrowserEventSources(instance, devDiagnosticStore(instance)),
     sync: sync || undefined,
   });

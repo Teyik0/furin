@@ -288,7 +288,12 @@ async function createFurinApp(options: FurinOptions): Promise<{
     })
     .use(mode.plugins)
     .use(
-      sync ? (await import("./server/sync/stream.ts")).createSyncChangesPlugin(sync) : new Elysia()
+      sync
+        ? (await import("./server/sync/stream.ts")).createRuntimeSyncChangesPlugin(
+            sync,
+            development
+          )
+        : new Elysia()
     )
     .decorate(FURIN_RENDER_DECORATOR, dispatchNativeRoute)
     .use(mode.nativeRoutes)

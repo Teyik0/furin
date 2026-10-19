@@ -1,18 +1,12 @@
 import { Database } from "bun:sqlite";
-import { afterEach, describe, expect, test } from "bun:test";
-import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env";
+import { describe, expect, test } from "bun:test";
 import type { SyncAdapter } from "../../../src/server/sync/adapter";
 import { resolveSyncPath, syncRuntimeOptions } from "../../../src/server/sync/config";
 import { PollingSyncNotifier } from "../../../src/server/sync/notifier";
 import { resolveSyncRuntime } from "../../../src/server/sync/runtime";
 import { migrateSqliteSync, sqliteSyncAdapter } from "../../../src/server/sync/sqlite/index.ts";
 
-const originalDevMode = IS_DEV;
 const principal = () => "principal";
-
-afterEach(() => {
-  __setDevMode(originalDevMode);
-});
 
 function durableAdapter(
   scope: "distributed" | "host-local",
@@ -38,38 +32,40 @@ describe("sync runtime", () => {
   });
 
   test("rejects process-local SQLite storage in production", () => {
-    __setDevMode(false);
     const database = new Database(":memory:");
     try {
       migrateSqliteSync(database);
       const adapter = sqliteSyncAdapter({ database, namespace: "runtime" });
-      expect(() => resolveSyncRuntime({ adapter, principal })).toThrow("process-local SyncAdapter");
+      expect(() => resolveSyncRuntime({ adapter, principal }, false)).toThrow(
+        "process-local SyncAdapter"
+      );
     } finally {
       database.close();
     }
   });
 
   test("accepts an explicit host-local adapter in production", () => {
-    __setDevMode(false);
     const adapter = durableAdapter("host-local", async () => "0");
-    expect(resolveSyncRuntime({ adapter, principal }).adapter).toBe(adapter);
+    expect(resolveSyncRuntime({ adapter, principal }, false).adapter).toBe(adapter);
   });
 
   test("requires distributed production adapters to choose their notifier explicitly", () => {
-    __setDevMode(false);
     const adapter = durableAdapter("distributed", async () => "0");
 
-    expect(() => resolveSyncRuntime({ adapter, principal })).toThrow(
+    expect(() => resolveSyncRuntime({ adapter, principal }, false)).toThrow(
       "Distributed production sync requires an explicit SyncNotifier"
     );
 
     const notifier = new PollingSyncNotifier(adapter, 250);
     expect(
-      resolveSyncRuntime({
-        adapter,
-        notifier,
-        principal,
-      }).notifier
+      resolveSyncRuntime(
+        {
+          adapter,
+          notifier,
+          principal,
+        },
+        false
+      ).notifier
     ).toBe(notifier);
   });
 
@@ -84,17 +80,19 @@ describe("sync runtime", () => {
       subscribe: () => Promise.resolve({ unsubscribe: () => Promise.resolve() }),
     };
 
-    expect(() => resolveSyncRuntime({ adapter, notifier, principal })).toThrow(
+    expect(() => resolveSyncRuntime({ adapter, notifier, principal }, true)).toThrow(
       "notification channels do not match"
     );
   });
 
   test("keeps polling as a development convenience", () => {
-    __setDevMode(true);
-    const runtime = resolveSyncRuntime({
-      adapter: durableAdapter("distributed", async () => "0"),
-      principal,
-    });
+    const runtime = resolveSyncRuntime(
+      {
+        adapter: durableAdapter("distributed", async () => "0"),
+        principal,
+      },
+      true
+    );
     expect(runtime.notifier).toBeInstanceOf(PollingSyncNotifier);
   });
 });

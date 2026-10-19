@@ -9,7 +9,6 @@ import {
   type BrowserEventEnvelope,
 } from "../../shared/browser-events.ts";
 import { forbiddenDevelopmentRequest } from "../dev/request-security.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import type { FurinSyncOptions } from "../sync/config.ts";
 import { subscribeSyncCursor } from "../sync/stream.ts";
 import { registerBrowserEventConnection, unregisterBrowserEventConnection } from "./shutdown.ts";
@@ -26,6 +25,8 @@ const SSE_CLIENT_SOURCE = browserEventsSseClientSource();
 const SSE_ENCODER = new TextEncoder();
 
 interface BrowserEventsPluginOptions {
+  /** Mode of the runtime serving these events. */
+  development: boolean;
   sources?: readonly BrowserEventSource[];
   sync?: FurinSyncOptions;
 }
@@ -107,9 +108,10 @@ function releaseConnection(state: ConnectionState): void {
 
 function forbiddenBrowserRequest(
   request: Request,
-  server: Bun.Server<unknown> | null | undefined
+  server: Bun.Server<unknown> | null | undefined,
+  development: boolean
 ): Response | undefined {
-  if (IS_DEV) {
+  if (development) {
     return forbiddenDevelopmentRequest(request, server ?? null);
   }
   const origin = request.headers.get("origin");
@@ -126,11 +128,11 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
   const connections = new Map<string, ConnectionState>();
   const capacity = createConnectionCapacity();
   const peers = new WeakMap<Request, BrowserEventPeer>();
-  const { sources = [], sync } = options;
+  const { development, sources = [], sync } = options;
   return new Elysia({ name: "furin-browser-events" })
     .use(websocket())
     .get(CLIENT_PATH, ({ request, server }) => {
-      const forbidden = forbiddenBrowserRequest(request, server);
+      const forbidden = forbiddenBrowserRequest(request, server, development);
       if (forbidden) {
         return forbidden;
       }
@@ -145,7 +147,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
     .ws(SOCKET_PATH, {
       async beforeHandle(context) {
         const { request, server } = context;
-        const forbidden = forbiddenBrowserRequest(request, server);
+        const forbidden = forbiddenBrowserRequest(request, server, development);
         if (forbidden) {
           return forbidden;
         }
@@ -212,7 +214,7 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
 
         try {
           if (sync !== undefined && peer.sync) {
-            const subscription = await subscribeSyncCursor(sync, (cursor) =>
+            const subscription = await subscribeSyncCursor(sync, development, (cursor) =>
               send({
                 channel: "sync",
                 data: { cursor },
@@ -244,11 +246,17 @@ export function createBrowserEventsPlugin(options: BrowserEventsPluginOptions): 
     });
 }
 
-export function createSseBrowserEventsPlugin({ sync }: { sync: FurinSyncOptions }): AnyElysia {
+export function createSseBrowserEventsPlugin({
+  development,
+  sync,
+}: {
+  development: boolean;
+  sync: FurinSyncOptions;
+}): AnyElysia {
   const capacity = createConnectionCapacity();
   return new Elysia({ name: "furin-browser-events-sse" })
     .get(CLIENT_PATH, ({ request, server }) => {
-      const forbidden = forbiddenBrowserRequest(request, server);
+      const forbidden = forbiddenBrowserRequest(request, server, development);
       if (forbidden) {
         return forbidden;
       }
@@ -262,7 +270,7 @@ export function createSseBrowserEventsPlugin({ sync }: { sync: FurinSyncOptions 
     })
     .get(SOCKET_PATH, async (context) => {
       const { request, server } = context;
-      const forbidden = forbiddenBrowserRequest(request, server);
+      const forbidden = forbiddenBrowserRequest(request, server, development);
       if (forbidden) {
         return forbidden;
       }
@@ -331,7 +339,7 @@ export function createSseBrowserEventsPlugin({ sync }: { sync: FurinSyncOptions 
           lifetime = setTimeout(finish, SSE_CONNECTION_LIFETIME_MS);
           lifetime.unref?.();
           controller.enqueue(SSE_ENCODER.encode(": connected\n\n"));
-          subscribeSyncCursor(sync, (cursor) =>
+          subscribeSyncCursor(sync, development, (cursor) =>
             send({ channel: "sync", data: { cursor }, version: BROWSER_EVENT_PROTOCOL_VERSION })
           )
             .then((next) => {
