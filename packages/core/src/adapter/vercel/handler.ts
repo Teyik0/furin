@@ -64,6 +64,9 @@ if (!app || typeof app.handle !== "function") {
   throw new TypeError("[furin] Vercel server entry must export the Elysia app as default.");
 }
 const application = app;
+// `handle` neither waits for pending async plugins nor fails after one
+// rejected: settle them at cold start so a failure fails the initialization.
+await application.modules;
 
 export const initialization = Object.freeze({
   app_count: data.appCount,

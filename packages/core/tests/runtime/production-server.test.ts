@@ -273,6 +273,25 @@ test("a second server does not steal the first server's pending log drains", asy
   }
 });
 
+test("serves no request before the application's async plugins resolve", async () => {
+  const guard = Bun.sleep(50).then(() =>
+    new Elysia({ name: "guard" }).onRequest(({ status }) => status(401, "denied"))
+  );
+  const lifecycle = startProductionServer({
+    app: new Elysia().use(guard).get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+
+  try {
+    const response = await fetch(`http://localhost:${lifecycle.server.port}/`);
+    expect(response.status).toBe(401);
+  } finally {
+    await lifecycle.shutdown();
+  }
+});
+
 test("an idle server's shutdown does not wait for another server's pending log drains", async () => {
   const { promise: releaseDrain, resolve } = Promise.withResolvers<void>();
   const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();

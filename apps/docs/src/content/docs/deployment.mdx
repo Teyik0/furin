@@ -41,6 +41,14 @@ Furin automatically enables `elysia/plugin/aot/bun` for Bun server bundles, comp
 
 No custom Elysia runtime adapter is necessary for the supported targets. Bun uses Elysia's native Bun adapter, Vercel runs the same Bun-targeted bundle through `app.handle(Request)`, static exports have no server runtime, and package builds let the host application own its adapter. A future non-Bun target should be added only with a dedicated Furin deployment adapter and Elysia Adapter v2 integration, not as an unimplemented CLI option.
 
+Both Furin-owned entry points fail closed when the application uses asynchronous plugins, such as `.use(import("./auth"))`. The Bun server serves no request until Elysia's `app.modules` settles, and it stops if `app.modules` rejects. The Vercel handler awaits `app.modules` during cold start, so a rejected plugin fails the Function's initialization. Elysia's `app.handle()` and `app.fetch` don't do this on their own. A request can run before a pending plugin is applied, and after a plugin rejects they keep serving the app without it. If you host the application in your own `fetch` handler, await `app.modules` before you serve requests:
+
+```ts
+await app.modules;
+
+export default { fetch: app.handle };
+```
+
 ## Adapters
 
 The `bun` and `vercel` targets are deployment adapters. An adapter is a plain object, in the spirit of the Next.js adapter API, that `targets` in `furin.config.ts` accepts:

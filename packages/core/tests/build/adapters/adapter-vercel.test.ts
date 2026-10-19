@@ -348,6 +348,76 @@ export const route = defineRoute()
     ).rejects.toThrow("must export the Elysia app as default");
   });
 
+  test("serves no request before the application's async plugins resolve", async () => {
+    const app = createTmpApp("cli-app");
+    tmpApps.push(app);
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      [
+        'import { furin } from "@teyik0/furin";',
+        'import { Elysia } from "elysia";',
+        "",
+        "const guard = Bun.sleep(50).then(() => {",
+        '  if (process.env.FURIN_TEST_GUARD === "reject") throw new Error("guard plugin failed");',
+        '  return process.env.FURIN_TEST_GUARD === "deny"',
+        '    ? new Elysia({ name: "guard" }).onRequest(({ status }) => status(401, "denied"))',
+        "    : new Elysia();",
+        "});",
+        "",
+        "const app = new Elysia()",
+        "  .use(guard)",
+        '  .get("/api/health", () => "ok")',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: generated source text
+        "  .use(await furin({ pagesDir: `${import.meta.dir}/pages` }));",
+        "",
+        "export default app;",
+        "",
+      ].join("\n")
+    );
+    await buildApp({ rootDir: app.path, target: "vercel" });
+    const handlerUrl = pathToFileURL(
+      join(app.path, ".vercel/output/functions/__server.func/handler.js")
+    ).href;
+    const run = async (guard: string): Promise<string> => {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          "-e",
+          `const handler = await import(${JSON.stringify(handlerUrl)}).then(
+            (module) => module.default,
+            (error) => {
+              console.log("__FURIN_RESULT__import-rejected:" + error.message);
+              process.exit(0);
+            }
+          );
+          const response = await handler.fetch(new Request("http://furin.test/api/health"));
+          console.log("__FURIN_RESULT__" + response.status);
+          process.exit(0);`,
+        ],
+        {
+          cwd: app.path,
+          env: { ...process.env, FURIN_TEST_GUARD: guard },
+          stderr: "pipe",
+          stdout: "pipe",
+        }
+      );
+      const [stdout, stderr] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      const result = stdout.split("\n").find((line) => line.startsWith("__FURIN_RESULT__"));
+      if (result === undefined) {
+        throw new Error(`Generated handler did not report a result:\n${stdout}\n${stderr}`);
+      }
+      return result.slice("__FURIN_RESULT__".length);
+    };
+
+    expect(await run("deny")).toBe("401");
+    expect(await run("reject")).toBe("import-rejected:guard plugin failed");
+  });
+
   test("treats a root requestLoader as PPR without running it during the build", async () => {
     const app = createVercelApp();
     const rootPath = join(app.path, "src/pages/root.tsx");
