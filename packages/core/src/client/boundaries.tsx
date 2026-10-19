@@ -102,7 +102,8 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
   }
 
   override componentDidCatch(error: Error): void {
-    if (import.meta.hot && typeof window !== "undefined") {
+    // Not `import.meta.hot`: Furin's own build would compile it out of `dist/`.
+    if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("furin:client-error", {
           detail: { error, phase: "client-render" },
