@@ -242,15 +242,24 @@ has no page cache and treats each render mode deliberately:
 | SSR | Run the current loader chain for every request | Render from current source |
 | SSG | Cache synchronous loader data until a tracked source changes | Re-render HTML for every request |
 | ISR | Cache synchronous loader data for `revalidate`, unless a tracked source changes first, keyed on the declared query params like production | Re-render HTML for every request |
+| PPR (a `requestLoader` under an SSG or ISR document) | Cache the public loader data like its SSG or ISR mode; run `requestLoader` for every request | Prerender the public shell and resume the request fields for every request |
 
 Only loader output is cached in development. HTML is always assembled again so
 the response can carry current code, document assets, and framework scripts.
-Deferred promises are not reused from an SSG or ISR cache hit.
+Deferred promises are not reused from an SSG or ISR cache hit. Navigation data
+(`?_furin=data`) reads and fills the same loader cache as documents, so an SSG
+loader runs once whether the page was first loaded or navigated to.
+
+PPR documents go through the production prerender and resume, without its
+shell cache, so a page that breaks a PPR rule (for example a `requestLoader`
+field read outside a `<Suspense>` boundary) fails in development with the
+error overlay instead of only in production.
 
 Each cache entry records the page, root, and existing intermediate layouts that
 can affect it. A source re-evaluation invalidates only entries indexed by that
-file. The validity check also compares dependency modification times, so a
-rename or deletion fails conservatively instead of serving stale data.
+file, and so does the route table refresh that applies its edited schemas. The
+validity check also compares dependency modification times, so a rename or
+deletion fails conservatively instead of serving stale data.
 
 Changing the route mode is safe because the mode is recomputed from the freshly
 adapted route before selecting the SSR, SSG, or ISR path.

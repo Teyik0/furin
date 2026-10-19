@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file } from "elysia";
 import { prefixSlug } from "../../shared/prefix.ts";
+import { invalidateDevLoaderCacheBySource } from "../cache/dev-loader.ts";
 import { createInstrumentationPlugin } from "../devtools/instrumentation.ts";
 import { type FurinInstance, withInstance } from "../instance.ts";
 import type { ModeOptions, ModeRuntime } from "../mode.ts";
@@ -228,6 +229,11 @@ export async function createDevRuntime(
         const nextSnapshot = createDevelopmentRouteSnapshot(instance, next.root, nextRoutes);
         await writeCurrentDevFiles(nextSnapshot, changedSources);
         graph.commit(nextSnapshot);
+        // A request served before this commit validated params and query with
+        // the previous schemas; its loader output must not outlive them.
+        for (const sourcePath of changedSources) {
+          invalidateDevLoaderCacheBySource(sourcePath);
+        }
         matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
         const diagnostics = devDiagnosticStore(instance);
         if (repaired.root) {

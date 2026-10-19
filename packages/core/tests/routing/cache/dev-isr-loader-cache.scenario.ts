@@ -1,5 +1,5 @@
 import { expect } from "bun:test";
-import { cpSync, rmSync } from "node:fs";
+import { cpSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import { furin } from "../../../src/furin.ts";
@@ -13,6 +13,7 @@ import {
 } from "../../../src/server/cache/index.ts";
 import { allInstances, type FurinInstance, withInstance } from "../../../src/server/instance.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
 
 // This scenario runs in the dedicated Worker created by
@@ -40,6 +41,49 @@ function timestampFrom(html: string): string {
   return value as string;
 }
 
+// Reads its requestLoader field outside a Suspense boundary: production PPR
+// rejects the page, and development must too.
+const pprOutsideSuspensePage = `import { defineRoute } from "@teyik0/furin";
+import { use } from "react";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
+  .page(({ session }) => <main>{String(use(session))}</main>);
+`;
+
+// A valid PPR page whose public loader stamps its run.
+const pprLoaderPage = `import { Await, defineRoute } from "@teyik0/furin";
+import { Suspense } from "react";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
+  .loader(() => ({ timestamp: Date.now() }))
+  .page(({ session, timestamp }) => (
+    <main data-timestamp={String(timestamp)}>
+      <Suspense fallback="Loading">
+        <Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await>
+      </Suspense>
+    </main>
+  ));
+`;
+
+/** The public `timestamp` field of a page's navigation data. */
+async function dataTimestamp(app: AnyElysia, path: string): Promise<string> {
+  const response = await app.handle(
+    new Request(`http://localhost${path}?_furin=data`, { headers: { cookie: "session=alice" } })
+  );
+  expect(response.status).toBe(200);
+  const { syncData } = await parseDeferredNdjson(
+    response.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() }),
+    undefined
+  );
+  return String(syncData.timestamp);
+}
+
 /** Mounts the default page fixtures through a development `furin()`. */
 async function mountDevelopmentPages(
   appPath: string
@@ -47,6 +91,8 @@ async function mountDevelopmentPages(
   const pagesDir = join(appPath, "src/pages");
   rmSync(pagesDir, { force: true, recursive: true });
   cpSync(fixturesDir, pagesDir, { recursive: true });
+  writeFileSync(join(pagesDir, "ppr-outside-suspense.tsx"), pprOutsideSuspensePage);
+  writeFileSync(join(pagesDir, "ppr-loader-page.tsx"), pprLoaderPage);
   process.chdir(appPath);
   __setDevMode(true);
   const app = new Elysia().use(await furin({ pagesDir }));
@@ -198,6 +244,47 @@ try {
     await Bun.sleep(20);
     const ts2 = timestampFrom(await requestText(app, "/ssg-loader-page"));
     expect(Number(ts2)).toBeGreaterThan(Number(ts1));
+  });
+
+  await runScenario(async () => {
+    const response = await app.handle(
+      new Request("http://localhost/ppr-outside-suspense", {
+        headers: { cookie: "session=alice" },
+      })
+    );
+
+    // The production PPR diagnostic, shown in the development overlay.
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(body).toContain("__FURIN_DEV_DIAGNOSTIC__");
+    expect(body).toContain("PPR requires a complete root HTML document");
+  });
+
+  await runScenario(async () => {
+    const documentTimestamp = timestampFrom(await requestText(app, "/ssg-loader-page"));
+    await Bun.sleep(20);
+
+    expect(await dataTimestamp(app, "/ssg-loader-page")).toBe(documentTimestamp);
+  });
+
+  await runScenario(async () => {
+    const pagePath = `${pagesDir}/ppr-loader-page.tsx`;
+    const document = await app.handle(
+      new Request("http://localhost/ppr-loader-page", { headers: { cookie: "session=alice" } })
+    );
+    expect(document.status).toBe(200);
+    const html = await document.text();
+    expect(html).toContain("<strong>alice</strong>");
+    const documentTimestamp = timestampFrom(html);
+    await Bun.sleep(20);
+    expect(await dataTimestamp(app, "/ppr-loader-page")).toBe(documentTimestamp);
+
+    // A source edit drops the public data navigation serves too.
+    scoped(() => invalidateDevLoaderCacheBySource(pagePath));
+    await Bun.sleep(20);
+    expect(Number(await dataTimestamp(app, "/ppr-loader-page"))).toBeGreaterThan(
+      Number(documentTimestamp)
+    );
   });
 
   self.postMessage({ type: "pass" });

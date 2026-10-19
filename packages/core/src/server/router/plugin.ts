@@ -24,7 +24,7 @@ import {
   runPublicLoaders,
 } from "../render/loaders.ts";
 import { withNavigationHead } from "../render/navigation-head.ts";
-import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
+import { type PprShell, renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
 import {
   createDeferredRouteFrameStream,
@@ -65,12 +65,39 @@ function emitSerializedPayload(body: string, kind: "route-data" | "rsc", request
   });
 }
 
-async function runDataEndpointLoaders(
-  route: ResolvedRoute,
+/** Whether a route is partially prerendered: a requestLoader below an SSG or ISR document. */
+export function isPprRoute(route: ResolvedRoute): boolean {
+  return resolveDocumentMode(route) !== "ssr" && hasRequestLoader(route);
+}
+
+/**
+ * A PPR route's shell source, and the route to render it with: the page
+ * cache's, or without one a fresh prerender from the runtime's loader result.
+ */
+async function resolvePprShell(
+  current: CurrentRoute,
   ctx: Context,
-  root: RootLayout | undefined,
-  searchRoutes: SearchRouteMetadata[]
+  purpose: "data" | "document",
+  ports: PagePorts
+): Promise<{ route: ResolvedRoute; source: PprShell }> {
+  if (ports.cache.pages) {
+    return { route: current.route, source: { type: "cached" } };
+  }
+  const publicResult = await ports.cache.loaders(current, ctx, purpose);
+  const route =
+    publicResult === undefined || publicResult.type === "data"
+      ? await ports.modules.render(current.route)
+      : current.route;
+  return { route, source: { publicResult, type: "fresh" } };
+}
+
+async function runDataEndpointLoaders(
+  current: CurrentRoute,
+  ctx: Context,
+  searchRoutes: SearchRouteMetadata[],
+  ports: PagePorts
 ): Promise<LoaderResult> {
+  const { root, route } = current;
   if (hasMixedLoaderModes(route)) {
     return runMixedLoaders(route, ctx);
   }
@@ -78,9 +105,21 @@ async function runDataEndpointLoaders(
     return runLoaders(route, ctx);
   }
 
-  const result = hasRequestLoader(route)
-    ? await runPprPublicLoaders(route, ctx, currentInstance().buildId, root, searchRoutes)
-    : await runPublicLoaders(route, ctx);
+  let result: LoaderResult;
+  if (hasRequestLoader(route)) {
+    const shell = await resolvePprShell(current, ctx, "data", ports);
+    result = await runPprPublicLoaders(
+      shell.route,
+      ctx,
+      currentInstance().buildId,
+      root,
+      searchRoutes,
+      shell.source
+    );
+  } else {
+    result =
+      (await ports.cache.loaders(current, ctx, "data")) ?? (await runPublicLoaders(route, ctx));
+  }
   if (result.type !== "data" || !hasRequestLoader(route)) {
     return result;
   }
@@ -299,7 +338,7 @@ function cachedRouteDataResponse(
 
 /** Serialise navigation data after Elysia has run the matched page's hooks. */
 export async function renderRouteData(
-  { root, route }: CurrentRoute,
+  current: CurrentRoute,
   ctx: Context,
   searchRoutes: SearchRouteMetadata[],
   logicalHref: string,
@@ -309,6 +348,7 @@ export async function renderRouteData(
     path: { enumerable: true, value: new URL(logicalHref, ctx.request.url).pathname },
   }) as Context;
   const requestUrl = new URL(logicalHref, ctx.request.url).href;
+  const { root, route } = current;
   const cached = ports.cache.pages
     ? await readCachedRouteData(route, logicalContext, root, searchRoutes)
     : undefined;
@@ -316,7 +356,7 @@ export async function renderRouteData(
     return cachedRouteDataResponse(cached, requestUrl);
   }
   const result =
-    cached?.result ?? (await runDataEndpointLoaders(route, logicalContext, root, searchRoutes));
+    cached?.result ?? (await runDataEndpointLoaders(current, logicalContext, searchRoutes, ports));
   return createLoaderDataResponse(result, route, requestUrl, logicalContext, ports.cache.pages);
 }
 
@@ -406,9 +446,10 @@ async function handleSSGRequest(
 }
 
 /**
- * Renders a page document: SSG, ISR and PPR documents through the page cache
- * when the runtime has one, every other document live with the loader result
- * the runtime's cache policy supplies.
+ * Renders a page document: PPR documents prerendered and resumed, through the
+ * page cache when the runtime has one; SSG and ISR documents through the page
+ * cache too; every other document live with the loader result the runtime's
+ * cache policy supplies.
  */
 export async function renderResolvedRoute(
   current: CurrentRoute,
@@ -419,17 +460,18 @@ export async function renderResolvedRoute(
 ): Promise<unknown> {
   const { root, route } = current;
   const documentMode = resolveDocumentMode(route);
+  if (isPprRoute(route)) {
+    const shell = await resolvePprShell(current, ctx, "document", ports);
+    return renderPprRoute(shell.route, ctx, root, buildId, searchRoutes, shell.source);
+  }
   if (ports.cache.pages && documentMode !== "ssr") {
-    if (hasRequestLoader(route)) {
-      return renderPprRoute(route, ctx, root, buildId, searchRoutes);
-    }
     if (documentMode === "ssg") {
       return handleSSGRequest(route, ctx, root, buildId, searchRoutes);
     }
     ctx.set.headers["cache-tag"] = resolvePath(route.pattern, ctx.params ?? {});
     return handleISR(route, ctx, root, buildId, searchRoutes);
   }
-  const loaderResult = await ports.cache.loaders(current, ctx);
+  const loaderResult = await ports.cache.loaders(current, ctx, "document");
   const renderRoute = loaderResult?.type === "data" ? await ports.modules.render(route) : route;
   return renderSSR(renderRoute, ctx, root, loaderResult, searchRoutes);
 }

@@ -53,7 +53,15 @@ test("prerenders a route without requestLoader fields", async () => {
     segmentBoundaries: [],
   };
   const app = new Elysia().get("/public", async (ctx) => {
-    const artifact = await prerenderPprDocument(route, ctx, root, "build-1", undefined, undefined);
+    const artifact = await prerenderPprDocument(
+      route,
+      ctx,
+      root,
+      "build-1",
+      undefined,
+      undefined,
+      undefined
+    );
     expect(isPprArtifact(artifact)).toBe(true);
     if (!isPprArtifact(artifact)) {
       throw new Error("Prerender failed");
@@ -131,7 +139,15 @@ test("a serialized public shell resumes independently for two sessions", async (
     })
     .get("/account", async (ctx) => {
       if (artifact === undefined) {
-        artifact = await prerenderPprDocument(route, ctx, root, "build-1", undefined, undefined);
+        artifact = await prerenderPprDocument(
+          route,
+          ctx,
+          root,
+          "build-1",
+          undefined,
+          undefined,
+          undefined
+        );
         expect(privateCalls).toBe(0);
       }
       if (!isPprArtifact(artifact)) {

@@ -28,7 +28,6 @@ import {
   runMixedLoaders,
   runPublicLoaders,
 } from "../render/loaders.ts";
-import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import {
   annotateScannedRequestKeys,
@@ -39,7 +38,7 @@ import {
 } from "./discovery.ts";
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { collectIntermediateLayoutDirs, resolveMode, resolveRouteRevalidate } from "./patterns.ts";
-import { createRouteDataErrorResponse } from "./plugin.ts";
+import { createRouteDataErrorResponse, isPprRoute } from "./plugin.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
@@ -429,13 +428,15 @@ const devLoaderCaches = {
  * `revalidate`.  SSG entries are keyed by path and tagged forever-fresh
  * (`revalidate: Infinity`) so they survive until source-aware invalidation
  * drops them — the loader runs ONCE per cache key, like production SSG, not on
- * every refresh.
+ * every refresh. Documents and navigation data share the entries; only public
+ * loader data is cached, so a PPR route's request fields resume separately.
  */
 async function loadCachedDevLoaderData(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
-  mode: "isr" | "ssg"
+  mode: "isr" | "ssg",
+  purpose: "data" | "document"
 ): Promise<LoaderResult> {
   const cache = devLoaderCaches[mode];
   const resolvedPath = resolvePath(route.pattern, ctx.params ?? {});
@@ -448,16 +449,19 @@ async function loadCachedDevLoaderData(
   const cached = cache.get(cacheKey);
 
   if (cached && isDevLoaderCacheValid(cached)) {
-    const precomputed: LoaderResult = {
+    return {
       deferredPromises: undefined,
       headers: cached.headers,
       syncData: cached.loaderData,
       type: "data",
     };
-    return hasRequestLoader(route) ? withRequestLoaderData(route, ctx, precomputed) : precomputed;
   }
 
-  const result = await runDevLoaders(route, loaderCtx);
+  // A document shows loader failures in the overlay; navigation data carries them.
+  const result =
+    purpose === "document"
+      ? await runDevLoaders(route, loaderCtx)
+      : await runPublicLoaders(route, loaderCtx);
   if (result.type === "data") {
     const entry: DevLoaderCacheEntry = {
       dependencies: computeRouteDependencies(route.path, root.path),
@@ -471,9 +475,7 @@ async function loadCachedDevLoaderData(
     cache.set(cacheKey, entry);
     autoInvalidateRegistry.registerLoaderTags(cachePath, route.tags, cache.source);
   }
-  return result.type === "data" && hasRequestLoader(route)
-    ? withRequestLoaderData(route, ctx, result)
-    : result;
+  return result;
 }
 
 /**
@@ -481,14 +483,21 @@ async function loadCachedDevLoaderData(
  * has no schemas, so edited schemas take effect; modules are imported at
  * their current source version, and failures answer with the diagnostic
  * overlay. Documents always render live, because their HTML embeds the Bun
- * HMR client of the current client build; only loader output is cached.
+ * HMR client of the current client build; PPR documents prerender and resume
+ * on every request, so they fail on the same rules as production. Only
+ * loader output is cached, for documents and navigation data alike.
  */
 export const developmentPagePorts: PagePorts = {
   cache: {
-    loaders: ({ root, route }, ctx) =>
-      !hasMixedLoaderModes(route) && (route.mode === "isr" || route.mode === "ssg")
-        ? loadCachedDevLoaderData(route, ctx, root, route.mode)
-        : runDevLoaders(route, ctx),
+    loaders: ({ root, route }, ctx, purpose) => {
+      if (!hasMixedLoaderModes(route) && (route.mode === "isr" || route.mode === "ssg")) {
+        return loadCachedDevLoaderData(route, ctx, root, route.mode, purpose);
+      }
+      // A mixed PPR shell runs its segments' public loaders itself.
+      return purpose === "data" || isPprRoute(route)
+        ? Promise.resolve(undefined)
+        : runDevLoaders(route, ctx);
+    },
     pages: false,
   },
   modules: {

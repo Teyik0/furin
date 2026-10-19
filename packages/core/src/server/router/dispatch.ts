@@ -42,12 +42,19 @@ export interface PagePorts {
   cache: {
     /**
      * The loader result of a live render, or `undefined` to let the renderer
-     * run the loaders.
+     * run the loaders. A PPR route's result holds only its public loader
+     * data, which the shell prerenders. A `data` request's loader failure is
+     * a result, never a throw.
      */
-    loaders: (current: CurrentRoute, ctx: Context) => Promise<LoaderResult | undefined>;
+    loaders: (
+      current: CurrentRoute,
+      ctx: Context,
+      purpose: "data" | "document"
+    ) => Promise<LoaderResult | undefined>;
     /**
      * Whether SSG, ISR and PPR documents, and their navigation data, are
-     * served through the page cache. Otherwise every document renders live.
+     * served through the page cache. Otherwise every document renders live,
+     * a PPR document prerendered and resumed on each request.
      */
     pages: boolean;
   };

@@ -92,17 +92,22 @@ function postponedRequestData(controller: AbortController, reason: Error): Promi
   };
 }
 
+function runShellLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResult> {
+  return hasMixedLoaderModes(route)
+    ? runSegmentPublicLoaders(route, ctx)
+    : runPublicLoaders(route, ctx);
+}
+
 export async function prerenderPprDocument(
   route: ResolvedRoute,
   ctx: Context,
   root: RootLayout,
   buildId: string,
   searchRoutes: SearchRouteMetadata[] | undefined,
-  basePath: string | undefined
+  basePath: string | undefined,
+  publicResult: LoaderResult | undefined
 ): Promise<PprResult> {
-  const result = await (hasMixedLoaderModes(route)
-    ? runSegmentPublicLoaders(route, ctx)
-    : runPublicLoaders(route, ctx));
+  const result = publicResult ?? (await runShellLoaders(route, ctx));
   if (result.type !== "data") {
     return result;
   }

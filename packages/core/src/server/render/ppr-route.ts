@@ -203,6 +203,7 @@ async function renderSharedPpr(
       input.root,
       input.buildId,
       input.searchRoutes,
+      undefined,
       undefined
     );
     if (lease === null || !isPprArtifact(result)) {
@@ -283,6 +284,7 @@ function renderFreshPpr(input: SharedPprInput): Promise<PprResult> {
     input.root,
     input.buildId,
     input.searchRoutes,
+    undefined,
     undefined
   );
 }
@@ -386,7 +388,15 @@ async function getPprArtifact(
     if (stored !== undefined) {
       return stored;
     }
-    const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
+    const result = await prerenderPprDocument(
+      route,
+      ctx,
+      root,
+      buildId,
+      searchRoutes,
+      undefined,
+      undefined
+    );
     await writePprArtifact(
       key,
       result,
@@ -400,7 +410,15 @@ async function getPprArtifact(
   if (cached?.artifact.state.buildId !== buildId) {
     const generation = pprRoutes.captureGeneration(cacheKey);
     try {
-      const result = await prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined);
+      const result = await prerenderPprDocument(
+        route,
+        ctx,
+        root,
+        buildId,
+        searchRoutes,
+        undefined,
+        undefined
+      );
       if (!(isPprArtifact(result) && generation.valid)) {
         return result;
       }
@@ -423,9 +441,42 @@ async function getPprArtifact(
     return cached.artifact;
   }
   revalidatePprArtifact(pprRoutes, cacheKey, cached, () =>
-    prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined)
+    prerenderPprDocument(route, ctx, root, buildId, searchRoutes, undefined, undefined)
   );
   return cached.artifact;
+}
+
+/**
+ * Where a PPR request's public shell comes from: the page cache, or a
+ * prerender on every request (development) from the public loader result the
+ * runtime supplies, `undefined` letting the prerender run the public loaders.
+ */
+export type PprShell =
+  | { type: "cached" }
+  | { publicResult: LoaderResult | undefined; type: "fresh" };
+
+function getPprShell(
+  route: ResolvedRoute,
+  requestCtx: Context,
+  root: RootLayout,
+  buildId: string,
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
+): Promise<PprResult> {
+  if (source.type === "cached") {
+    return getPprArtifact(route, requestCtx, root, buildId, searchRoutes);
+  }
+  const resolvedPath = resolvePath(route.pattern, requestCtx.params ?? {});
+  const { ctx } = canonicalCacheRequest(route, resolvedPath, requestCtx);
+  return prerenderPprDocument(
+    route,
+    ctx,
+    root,
+    buildId,
+    searchRoutes,
+    undefined,
+    source.publicResult
+  );
 }
 
 export async function runPprPublicLoaders(
@@ -433,14 +484,15 @@ export async function runPprPublicLoaders(
   ctx: Context,
   buildId: string,
   root: RootLayout | undefined,
-  searchRoutes: SearchRouteMetadata[] | undefined
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
 ): Promise<LoaderResult> {
   if (root === undefined) {
     return hasMixedLoaderModes(route)
       ? runSegmentPublicLoaders(route, ctx)
       : runPublicLoaders(route, ctx);
   }
-  const result = await getPprArtifact(route, ctx, root, buildId, searchRoutes);
+  const result = await getPprShell(route, ctx, root, buildId, searchRoutes, source);
   return isPprArtifact(result) ? pprPublicResult(result.state) : result;
 }
 
@@ -449,7 +501,8 @@ export async function renderPprRoute(
   ctx: Context,
   root: RootLayout,
   buildId: string,
-  searchRoutes: SearchRouteMetadata[] | undefined
+  searchRoutes: SearchRouteMetadata[] | undefined,
+  source: PprShell
 ): Promise<Response> {
   const state = getPprResumeState(ctx.request);
   if (state !== undefined) {
@@ -459,7 +512,7 @@ export async function renderPprRoute(
   if (!isExternalPrerenderRequest(ctx.request) && useRequestCspNonce(ctx.request) !== undefined) {
     return renderSSR(route, ctx, root, undefined, searchRoutes);
   }
-  const result = await getPprArtifact(route, ctx, root, buildId, searchRoutes);
+  const result = await getPprShell(route, ctx, root, buildId, searchRoutes, source);
   if (!isPprArtifact(result)) {
     return renderSSR(route, ctx, root, result, searchRoutes);
   }

@@ -340,7 +340,7 @@ describe("furinInvalidate macro", () => {
     expect(response.headers.get("x-furin-revalidate")).toBeNull();
   });
 
-  test("navigation data does not retain uncached dynamic paths", async () => {
+  test("development navigation data keeps tagged paths only while their loader output is cached", async () => {
     const tmpApp = createTmpApp("cli-app");
     writeAppFile(
       tmpApp.path,
@@ -371,6 +371,9 @@ describe("furinInvalidate macro", () => {
         expect(response.status).toBe(200);
       }
 
+      // Navigation data fills the dev loader cache, whose entries own the tags.
+      expect(getAutoInvalidateRegistry(instance).pathsForTags(["boards"])).toHaveLength(200);
+      __resetDevLoaderCacheState();
       expect(getAutoInvalidateRegistry(instance).pathsForTags(["boards"])).toEqual([]);
     } finally {
       process.chdir(originalCwd);
