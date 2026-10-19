@@ -450,7 +450,8 @@ export const route = defineRoute("/about")
     const consoleError = spyOn(console, "error").mockImplementation(() => undefined);
     const report = createRouteConfigReporter({ pagesDir, prefix: "" }, store);
 
-    const message = `[furin] ${aboutPath}:4:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".`;
+    // Messages show paths with POSIX separators (absolute across Windows drives).
+    const message = `[furin] ${aboutPath.replaceAll("\\", "/")}:4:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".`;
     try {
       report();
       report();
