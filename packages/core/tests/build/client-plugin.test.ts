@@ -160,3 +160,56 @@ describe.serial("client strip plugin", () => {
     }
   );
 });
+
+describe("client strip plugin transform failures", () => {
+  function createEscapingBuilderApp(): TmpApp {
+    const app = createTmpApp("cli-app");
+    tmpApps.push(app);
+    writeFileSync(
+      join(app.path, "src/pages/index.tsx"),
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        "function factory() { return defineRoute(); }",
+        "export const route = factory().page(() => null);",
+      ].join("\n")
+    );
+    return app;
+  }
+
+  test("development serves a module that rethrows the failure instead of failing the plugin", async () => {
+    const app = createEscapingBuilderApp();
+    const result = await Bun.build({
+      entrypoints: [join(app.path, "src/pages/index.tsx")],
+      plugins: [stripPlugin],
+      target: "browser",
+    });
+
+    expect(result.success).toBe(true);
+    const output = await result.outputs[0]?.text();
+    expect(output).toContain("throw new Error(");
+    expect(output).toContain("one fluent chain");
+  });
+
+  test("development leaves a syntax error to Bun so it keeps the last valid module", async () => {
+    const app = createTmpApp("cli-app");
+    tmpApps.push(app);
+    writeFileSync(join(app.path, "src/pages/index.tsx"), "export const value = ;\n");
+
+    const error = await Bun.build({
+      entrypoints: [join(app.path, "src/pages/index.tsx")],
+      plugins: [stripPlugin],
+      target: "browser",
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    const messages = (error as AggregateError).errors.map((entry: Error) => entry.message);
+    expect(messages.join("\n")).toContain("Unexpected");
+    expect(messages.join("\n")).not.toContain("Failed to parse");
+  });
+
+  test("production still fails the build", async () => {
+    const app = createEscapingBuilderApp();
+
+    await expect(productionClientInputs(app)).rejects.toThrow("Bundle failed");
+  });
+});

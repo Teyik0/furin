@@ -1,7 +1,7 @@
 import { dirname, isAbsolute, resolve } from "node:path";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
-import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
+import { detectLoaderFromPath, SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import { isPackageModule, stripServerCode } from "./strip-server.ts";
 
 const ELYSIA_FILTER = /^elysia$/;
@@ -28,6 +28,35 @@ function trackHydrationTopology(filePath: string, source: string, topologyPaths:
     if (isAbsolute(imported.path) || imported.path.startsWith(".")) {
       topologyPaths.add(resolve(dirname(filePath), imported.path.split("?")[0] as string));
     }
+  }
+}
+
+/**
+ * In dev, a transform failure must not throw from onLoad: Bun 1.4.3's dev
+ * server can crash when a plugin's onLoad throws (oven-sh/bun#46076). A syntax
+ * error is handed back untouched for Bun to report, keeping the last valid
+ * module; any other failure becomes a module that rethrows it (the server
+ * reports it to the overlay). Builds still fail.
+ */
+function stripForMode(
+  filePath: string,
+  source: string,
+  mode: ClientStripPluginOptions["mode"]
+): { contents: string; loader: Bun.Loader } {
+  try {
+    return stripServerCode(filePath, source);
+  } catch (error) {
+    if (mode === "build") {
+      throw error;
+    }
+    const loader = detectLoaderFromPath(filePath);
+    try {
+      new Bun.Transpiler({ loader }).scan(source);
+    } catch {
+      return { contents: source, loader };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return { contents: `throw new Error(${JSON.stringify(message)});`, loader: "js" };
   }
 }
 
@@ -105,7 +134,7 @@ export function createClientStripPlugin({ mode }: ClientStripPluginOptions): Bun
           trackHydrationTopology(filePath, source, topologyPaths);
         }
         const loaded = {
-          ...stripServerCode(filePath, source),
+          ...stripForMode(filePath, source, mode),
           isRouteModule: topologyPaths.has(filePath),
         };
         loadedSources.set(filePath, loaded);
