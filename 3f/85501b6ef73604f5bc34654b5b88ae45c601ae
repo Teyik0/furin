@@ -1,0 +1,23 @@
+.github/workflows/vercel-benchmark.yaml
+  s_553967112fee2c::t_304c6446fbb43b 68
+.github/workflows/ci.yaml
+  s_553967112fee2c::t_6dbfd533c21bf0 199,203-209
+  s_553967112fee2c::t_3e7702a289112b 287
+  s_553967112fee2c::t_8ca867993aa3cf 210-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f85501b6ef73604f5bc34654b5b88ae45c601ae",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
