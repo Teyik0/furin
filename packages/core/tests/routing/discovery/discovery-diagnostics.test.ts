@@ -21,7 +21,8 @@ function createPagesDir(files: { [relativePath: string]: string }): string {
     mkdirSync(join(filePath, ".."), { recursive: true });
     writeFileSync(filePath, contents);
   }
-  return pagesDir;
+  // furin() hands discovery a POSIX pages directory on every platform.
+  return pagesDir.replaceAll("\\", "/");
 }
 
 beforeAll(() => {
@@ -74,7 +75,7 @@ describe("convention file diagnostics", () => {
     const error = await scanRootLayout(pagesDir).catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
-      `[furin] ${join(pagesDir, "error.tsx")}: error.tsx must default-export a React component (found exports: ErrorPage).`
+      `[furin] ${pagesDir}/error.tsx: error.tsx must default-export a React component (found exports: ErrorPage).`
     );
     expect(String(error)).toContain(
       "export default function ErrorPage({ error, reset }: ErrorProps)"
@@ -90,7 +91,7 @@ describe("convention file diagnostics", () => {
     const error = await scanRootLayout(pagesDir).catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
-      `[furin] ${join(pagesDir, "not-found.tsx")}: not-found.tsx must default-export a React component (found exports: NotFound).`
+      `[furin] ${pagesDir}/not-found.tsx: not-found.tsx must default-export a React component (found exports: NotFound).`
     );
     expect(String(error)).toContain("export default function NotFound()");
   });
@@ -115,7 +116,7 @@ export const route = defineRoute("/blog").config({ mode: "ssr" }).page(() => nul
     const error = await scanPages(pagesDir).catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
-      `[furin] ${join(pagesDir, "blog/_route.tsx")}: _route.tsx must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id.`
+      `[furin] ${pagesDir}/blog/_route.tsx: _route.tsx must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id.`
     );
   });
 });
