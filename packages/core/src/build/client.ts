@@ -1,11 +1,8 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, join, resolve, sep } from "node:path";
-import { isPackageModule, stripServerCode } from "../plugin/strip-server.ts";
+import { createClientStripPlugin } from "../plugin/client-plugin.ts";
 import { createRoutesPlugin } from "../plugin/route-registry.ts";
-import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
-import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
-import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { PRODUCTION_DEFINE, runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
@@ -13,6 +10,7 @@ import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preloa
 import {
   CLIENT_MODULE_PATH,
   LINK_MODULE_PATH,
+  resolveClientModuleSpecifiers,
   SEARCH_MODULE_PATH,
   writeBuildMetafile,
 } from "./shared";
@@ -20,16 +18,6 @@ import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
 const ROUTER_DIR = `${resolve(import.meta.dir, "../client/router")}${sep}`;
-
-function resolveClientModuleSpecifiers(code: string): string {
-  return code
-    .replaceAll(`"@teyik0/furin/client"`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`'furin/client'`, JSON.stringify(CLIENT_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/link"`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`'furin/link'`, JSON.stringify(LINK_MODULE_PATH))
-    .replaceAll(`"@teyik0/furin/search"`, JSON.stringify(SEARCH_MODULE_PATH))
-    .replaceAll(`'furin/search'`, JSON.stringify(SEARCH_MODULE_PATH));
-}
 
 export interface BuildClientResult {
   /** Public paths of all CSS chunks, e.g. `["/_client/chunk-abc.css"]` */
@@ -100,21 +88,6 @@ export async function buildClient(
 
   console.log("[furin] Building production client bundle…");
 
-  const transformPlugin: Bun.BunPlugin = {
-    name: "furin-transform-client",
-    setup(build) {
-      build.onLoad({ filter: SCRIPT_FILE_FILTER }, async (args) => {
-        const { path } = args;
-        if (isPackageModule(path)) {
-          return;
-        }
-
-        const stripped = stripServerCode(path, await Bun.file(path).text());
-        return { ...stripped, contents: resolveClientModuleSpecifiers(stripped.contents) };
-      });
-    },
-  };
-
   const routerLoggerPlugin: Bun.BunPlugin = {
     name: "furin-client-router-logger",
     setup(build) {
@@ -160,17 +133,16 @@ export async function buildClient(
     // Overridable via the `publicPath` option (e.g. "/furin/_client/" for basePath builds).
     publicPath,
     // Resolve the in-memory entry first. User plugins still run before Furin's
-    // transforms for every imported application module.
+    // transforms for every imported application module, as bunfig's
+    // `[serve.static] plugins` do in dev, which uses the same strip plugin.
     plugins: [
       hydrateEntry.plugin,
-      flightLoaderPlugin(),
       ...(plugins ?? []),
       ...(!clientLogging ? [routerLoggerPlugin] : []),
       ...(pagesDir
         ? [createRoutesPlugin({ instances: [{ pagesDir, prefix: basePath }], target: "client" })]
         : []),
-      environmentGuardPlugin("client"),
-      transformPlugin,
+      createClientStripPlugin({ mode: "build" }),
     ],
     alias: {
       "@teyik0/furin/client": CLIENT_MODULE_PATH,
