@@ -257,7 +257,7 @@ try {
     expect(response.status).toBe(500);
     const body = await response.text();
     expect(body).toContain("__FURIN_DEV_DIAGNOSTIC__");
-    expect(body).toContain("PPR requires a complete root HTML document");
+    expect(body).toContain("requestLoader fields must be consumed inside a Suspense boundary");
   });
 
   await runScenario(async () => {

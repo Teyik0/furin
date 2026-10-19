@@ -98,6 +98,16 @@ function runShellLoaders(route: ResolvedRoute, ctx: Context): Promise<LoaderResu
     : runPublicLoaders(route, ctx);
 }
 
+function assertCompleteShell(html: string, postponed: boolean, postponeReason: Error): void {
+  if (html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END)) {
+    return;
+  }
+  // A request field read outside Suspense postpones the whole shell.
+  throw postponed
+    ? postponeReason
+    : new Error("[furin] PPR requires a complete root HTML document.");
+}
+
 export async function prerenderPprDocument(
   route: ResolvedRoute,
   ctx: Context,
@@ -171,9 +181,7 @@ export async function prerenderPprDocument(
     throw renderError;
   }
   const html = await new Response(output.prelude).text();
-  if (!(html.startsWith("<!DOCTYPE html><html") && html.endsWith(DOCUMENT_END))) {
-    throw new Error("[furin] PPR requires a complete root HTML document.");
-  }
+  assertCompleteShell(html, controller.signal.aborted, reason);
   const scripts = buildSsrTransportScripts(result.syncData, requestKeys, true, false);
   const openDocument = html.slice(0, -DOCUMENT_END.length);
   const shell = injectAfterEntry(
