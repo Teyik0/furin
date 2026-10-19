@@ -1,8 +1,10 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: process output stream must be read sequentially
 import { resolve } from "node:path";
+import type { FileSink } from "bun";
 import { withBuildTestLock } from "./build-lock.ts";
 
 const CLI_ENTRY = resolve(import.meta.dir, "../../src/cli/index.ts");
+const REAPER_ENTRY = resolve(import.meta.dir, "process-reaper.ts");
 // Below the 30s timeout of CLI build tests so a hung build is killed (and its
 // lock released) before the test runner abandons the test.
 const CLI_TIMEOUT_MS = 25_000;
@@ -121,6 +123,27 @@ export function startCli(
   return startProcess([process.execPath, CLI_ENTRY, ...args], options);
 }
 
+let reaper: FileSink | undefined;
+
+// `bun test --bail` exits without running afterAll hooks nor process "exit"
+// listeners, so a long-lived child (e.g. a `bun --hot` dev server) would
+// outlive the test process. A sidecar kills it once this process is gone.
+// `line` is `<pid>` for a started child and `-<pid>` for an exited one.
+function notifyReaper(line: string): void {
+  if (!reaper) {
+    const sidecar = Bun.spawn([process.execPath, REAPER_ENTRY], {
+      stderr: "ignore",
+      stdin: "pipe",
+      stdout: "ignore",
+    });
+    sidecar.unref();
+    sidecar.stdin.unref();
+    reaper = sidecar.stdin;
+  }
+  reaper.write(`${line}\n`);
+  reaper.flush();
+}
+
 export function startProcess(
   command: string[],
   options: {
@@ -140,6 +163,8 @@ export function startProcess(
     stderr: "pipe",
     stdout: "pipe",
   });
+  notifyReaper(`${proc.pid}`);
+  proc.exited.then(() => notifyReaper(`-${proc.pid}`));
 
   const stdoutPromise = collectStream(proc.stdout, (chunk) => {
     stdout += chunk;

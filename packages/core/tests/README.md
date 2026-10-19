@@ -69,6 +69,9 @@ state.
 Use subprocess tests for global module state, Bun `--hot`, or scenarios that
 cannot be isolated safely inside the current Bun test process. Mark those tests
 with `.integration.test.ts` when they are intentionally slow or process-heavy.
+Start long-lived children with `startProcess()`: still kill them in `afterAll`,
+but a sidecar also terminates them when the test process exits without running
+hooks (`--bail`, crash), so no `bun --hot` server outlives the run.
 
 ## DOM And Browser Tests
 
