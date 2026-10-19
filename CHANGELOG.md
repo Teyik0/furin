@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+- **Windows development route refresh** — on Windows the development server reported edited route sources with backslashes, so their dev ISR/SSG loader output was not cleared: after a params or query schema edit, a navigation could keep loader data parsed with the previous schema. Edited sources are now reported with forward slashes, the form route snapshots and caches use.
+
 ## [0.8.0-alpha.0] — 2026-10-19
 
 ### Breaking

@@ -1,4 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
+// biome-ignore lint/performance/noNamespaceImport: a spy on the default export misses named imports.
+import * as fsModule from "node:fs";
 import nodeFs, {
   type FSWatcher,
   mkdirSync,
@@ -10,7 +12,7 @@ import nodeFs, {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { registerDevRouteTopologyWatcher } from "../../../src/plugin/dev-routes.ts";
 import { routeSourcePaths } from "../../../src/plugin/route-tree.ts";
 
@@ -51,7 +53,7 @@ test("the dev topology watcher reloads only when the route set changes", async (
     writeFileSync(join(pagesDir, "index.ts"), "export const route = 2;\n");
     await waitForCount(() => touchedRouteFiles, 1);
     expect(topologies).toHaveLength(0);
-    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts"));
+    expect(touchedSources[0]).toContain(join(pagesDir, "index.ts").replaceAll("\\", "/"));
 
     await Bun.sleep(80);
     expect(touchedRouteFiles).toBe(1);
@@ -70,6 +72,47 @@ test("the dev topology watcher reloads only when the route set changes", async (
     expect(topologies[1]).toEqual(["index.ts"]);
   } finally {
     watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher reports changed sources with POSIX separators", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-posix-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  const routePath = join(pagesDir, "items/[id].ts");
+  mkdirSync(dirname(routePath), { recursive: true });
+  writeFileSync(routePath, "export const route = 1;\n");
+  const listeners: Array<(event: string, filename: string) => void> = [];
+  const watchSpy = spyOn(fsModule, "watch").mockImplementation(((
+    _directory: string,
+    _options: { recursive: boolean },
+    listener: (event: string, filename: string) => void
+  ) => {
+    listeners.push(listener);
+    return { close: () => undefined, unref: () => undefined };
+  }) as unknown as typeof fsModule.watch);
+
+  const touchedSources: string[][] = [];
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: (sourcePaths) => {
+      touchedSources.push([...sourcePaths]);
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 22;\n");
+    // A recursive watcher on Windows names the file relative to the pages
+    // directory with backslashes.
+    for (const listener of listeners) {
+      listener("change", "items\\[id].ts");
+    }
+    await watcher.refresh();
+    expect(touchedSources).toEqual([[routePath.replaceAll("\\", "/")]]);
+  } finally {
+    watcher.close();
+    watchSpy.mockRestore();
     rmSync(projectRoot, { force: true, recursive: true });
   }
 });
@@ -205,7 +248,7 @@ test("the dev topology watcher skips installed packages but follows linked proje
         { cause: error }
       );
     }
-    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath));
+    expect(touchedSources[0]).toContain(realpathSync.native(linkedPath).replaceAll("\\", "/"));
   } finally {
     watcher.close();
     rmSync(projectRoot, { force: true, recursive: true });

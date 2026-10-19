@@ -98,9 +98,9 @@ function changedSignaturePaths(previous: string, next: string): string[] {
     );
   const previousEntries = entries(previous);
   const nextEntries = entries(next);
-  return [...new Set([...previousEntries.keys(), ...nextEntries.keys()])].filter(
-    (path) => previousEntries.get(path) !== nextEntries.get(path)
-  );
+  return [...new Set([...previousEntries.keys(), ...nextEntries.keys()])]
+    .filter((path) => previousEntries.get(path) !== nextEntries.get(path))
+    .map((path) => path.replaceAll("\\", "/"));
 }
 
 function devRouteTopologyWatchers(): Map<RouteInstanceSpec, DevRouteTopologyWatcherState> {
@@ -218,7 +218,10 @@ function replaceSourceWatchers(state: DevRouteTopologyWatcherState): void {
       }
       state.dirty = true;
       if (filename !== null) {
-        watcherChangedSources(state).add(resolve(directory, String(filename)));
+        // Route snapshots, the dev graph and loader caches key sources by POSIX path.
+        watcherChangedSources(state).add(
+          resolve(directory, String(filename)).replaceAll("\\", "/")
+        );
       }
       reportChangedSourceError(state, directory, filename);
       scheduleRouteTopologyRefresh(state, DEV_ROUTE_RECONCILE_DELAY_MS);
