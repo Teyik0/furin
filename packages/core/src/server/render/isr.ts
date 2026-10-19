@@ -1,41 +1,31 @@
-import { AsyncResource } from "node:async_hooks";
 import type { Context } from "elysia";
-import { isNotFoundError } from "../../shared/not-found.ts";
 import type { SearchRouteMetadata } from "../../shared/search-params.ts";
 import { queryTagsFromData } from "../../shared/sync-query.ts";
 import { autoInvalidateRegistry, getAutoInvalidateRegistry } from "../auto-invalidate/registry.ts";
 import {
   captureISRCacheGeneration,
-  deleteISRCache,
-  getISRCache,
   type ISRCacheGeneration,
-  pendingISRRevalidations,
   releaseISRCacheGeneration,
   setISRCacheIfGenerationUnchanged,
 } from "../cache/isr.ts";
 import type { ISRCacheEntry } from "../cache/isr-ssg.ts";
-import type {
-  PageCacheAdapter,
-  PageCacheEntry,
-  PageCacheIdentity,
-  PageCacheLease,
-} from "../cache/page-cache.ts";
-import { waitForPageCacheEntry } from "../cache/page-cache.ts";
+import type { PageCacheAdapter, PageCacheIdentity, PageCacheLease } from "../cache/page-cache.ts";
 import { getPageCacheAdapter } from "../cache/page-cache-state.ts";
 import { canonicalCacheRequest } from "../cache/route-cache.ts";
-import { createLogger, getLogger } from "../context-logger.ts";
+import { getLogger } from "../context-logger.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
-import { currentInstance, withInstance } from "../instance.ts";
+import { currentInstance } from "../instance.ts";
 import { resolveDocumentRevalidate } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
-import {
-  injectSyncRuntimeScript,
-  type LoaderContext,
-  resolvePath,
-  streamToString,
-} from "./assemble.ts";
-import { renderForPath } from "./buffered-render.ts";
+import { injectSyncRuntimeScript, resolvePath, streamToString } from "./assemble.ts";
 import { renderPayload, renderPreparedDocument } from "./document-stream.ts";
+import { revalidateInBackground } from "./isr-revalidation.ts";
+import {
+  acquireISRLease,
+  coordinateConcurrentISR,
+  lookupISRCache,
+  serializeISRPayload,
+} from "./isr-shared-cache.ts";
 import {
   hasMixedLoaderModes,
   type LoaderResult,
@@ -90,11 +80,6 @@ function serveISRDocumentHit(
     furin: { cache: isFresh ? "hit" : "stale", render: "isr", route: route.pattern },
   });
   return injectSyncRuntimeScript(cached.html);
-}
-
-interface SharedPageCacheContext {
-  adapter: PageCacheAdapter;
-  identity: PageCacheIdentity;
 }
 
 /**
@@ -162,132 +147,6 @@ async function renderISRNon200(
   }
   ctx.set.status = finalStatus;
   return html;
-}
-
-/** Shared page cache payload: the document and its navigation data, rendered together. */
-function serializeISRPayload(entry: ISRCacheEntry): string {
-  return JSON.stringify({ html: entry.html, ndjson: entry.ndjson });
-}
-
-function toISRCacheEntry(entry: PageCacheEntry, revalidate: number): ISRCacheEntry | undefined {
-  let value: unknown;
-  try {
-    value = JSON.parse(entry.payload);
-  } catch {
-    return;
-  }
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("html" in value) ||
-    typeof value.html !== "string" ||
-    !("ndjson" in value) ||
-    typeof value.ndjson !== "string"
-  ) {
-    return;
-  }
-  return {
-    generatedAt: entry.cachedAt,
-    html: value.html,
-    ndjson: value.ndjson,
-    revalidate: entry.revalidate ?? revalidate,
-  };
-}
-
-interface ISRCacheLookup {
-  cached: ISRCacheEntry | undefined;
-  sharedAvailable: boolean;
-}
-
-async function lookupISRCache(
-  pageCache: PageCacheAdapter | undefined,
-  identity: PageCacheIdentity,
-  cacheKey: string,
-  externalPrerender: boolean,
-  revalidate: number
-): Promise<ISRCacheLookup> {
-  if (pageCache === undefined) {
-    return {
-      cached: externalPrerender ? undefined : getISRCache(cacheKey),
-      sharedAvailable: false,
-    };
-  }
-  try {
-    const entry = await pageCache.read(identity);
-    return {
-      cached: entry === null ? undefined : toISRCacheEntry(entry, revalidate),
-      sharedAvailable: true,
-    };
-  } catch {
-    getLogger().warn("ISR shared page cache read failed; rendering fresh with no-store");
-    return { cached: undefined, sharedAvailable: false };
-  }
-}
-
-interface ISRLeaseResult {
-  lease: PageCacheLease | null;
-  sharedAvailable: boolean;
-}
-
-const SHARED_ISR_LEASE_MS = 30_000;
-const SHARED_ISR_WAIT_SLICE_MS = 2000;
-
-async function acquireISRLease(
-  pageCache: PageCacheAdapter,
-  identity: PageCacheIdentity
-): Promise<ISRLeaseResult> {
-  try {
-    return {
-      lease: await pageCache.acquire({ identity, leaseMs: SHARED_ISR_LEASE_MS }),
-      sharedAvailable: true,
-    };
-  } catch {
-    getLogger().warn("ISR shared page cache lease failed; rendering fresh with no-store");
-    return { lease: null, sharedAvailable: false };
-  }
-}
-
-interface ISRCoordinationResult extends ISRCacheLookup {
-  lease: PageCacheLease | null;
-}
-
-function coordinateConcurrentISR(
-  pageCache: PageCacheAdapter,
-  identity: PageCacheIdentity,
-  revalidate: number
-): Promise<ISRCoordinationResult> {
-  return coordinateConcurrentISRUntil(
-    pageCache,
-    identity,
-    revalidate,
-    Date.now() + SHARED_ISR_LEASE_MS
-  );
-}
-
-async function coordinateConcurrentISRUntil(
-  pageCache: PageCacheAdapter,
-  identity: PageCacheIdentity,
-  revalidate: number,
-  deadline: number
-): Promise<ISRCoordinationResult> {
-  if (Date.now() >= deadline) {
-    return { cached: undefined, lease: null, sharedAvailable: true };
-  }
-  try {
-    const entry = await waitForPageCacheEntry(pageCache, identity, SHARED_ISR_WAIT_SLICE_MS);
-    const cached = entry === null ? undefined : toISRCacheEntry(entry, revalidate);
-    if (cached !== undefined) {
-      return { cached, lease: null, sharedAvailable: true };
-    }
-  } catch {
-    getLogger().warn("ISR shared page cache wait failed; rendering fresh with no-store");
-    return { cached: undefined, lease: null, sharedAvailable: false };
-  }
-  const leaseResult = await acquireISRLease(pageCache, identity);
-  if (!leaseResult.sharedAvailable || leaseResult.lease !== null) {
-    return { cached: undefined, ...leaseResult };
-  }
-  return coordinateConcurrentISRUntil(pageCache, identity, revalidate, deadline);
 }
 
 interface ISRCacheMissInput {
@@ -633,230 +492,4 @@ async function resolveISR<T>(request: ISRRequest, responder: ISRResponder<T>): P
     sharedAvailable,
   });
   return responder.miss(outcome);
-}
-
-function revalidateInBackground(
-  route: ResolvedRoute,
-  params: Record<string, string>,
-  cacheKey: string,
-  revalidate: number,
-  root: RootLayout,
-  originalCtx: LoaderContext,
-  sharedCache: SharedPageCacheContext | undefined,
-  searchRoutes?: SearchRouteMetadata[]
-) {
-  const pendingRevalidations = pendingISRRevalidations();
-  if (pendingRevalidations.has(cacheKey)) {
-    const logger = createLogger({});
-    logger.set({
-      furin: {
-        cache: "revalidation_skipped",
-        reason: "already_in_flight",
-        render: "isr",
-        route: route.pattern,
-      },
-    });
-    logger.emit();
-    return;
-  }
-  const cacheGeneration =
-    sharedCache === undefined ? captureISRCacheGeneration(cacheKey) : undefined;
-  const instance = currentInstance();
-  const { origin } = new URL(originalCtx.request.url);
-  const { search } = new URL(cacheKey, origin);
-
-  const input: BackgroundRevalidationInput = {
-    cacheGeneration,
-    cacheKey,
-    origin,
-    params,
-    revalidate,
-    root,
-    route,
-    search,
-    searchRoutes,
-    sharedCache,
-  };
-
-  const revalidation = new Promise<void>((resolve) => {
-    const resource = new AsyncResource("furin:isr-revalidation", { triggerAsyncId: 0 });
-    resource.runInAsyncScope(() => {
-      queueMicrotask(() => {
-        withInstance(instance, () => performBackgroundRevalidation(input)).finally(() => {
-          resolve();
-          resource.emitDestroy();
-        });
-      });
-    });
-  }).finally(() => {
-    if (pendingRevalidations.get(cacheKey) === revalidation) {
-      pendingRevalidations.delete(cacheKey);
-    }
-  });
-  pendingRevalidations.set(cacheKey, revalidation);
-}
-
-interface BackgroundRevalidationInput {
-  cacheGeneration: ISRCacheGeneration | undefined;
-  cacheKey: string;
-  origin: string;
-  params: Record<string, string>;
-  revalidate: number;
-  root: RootLayout;
-  route: ResolvedRoute;
-  search: string;
-  searchRoutes: SearchRouteMetadata[] | undefined;
-  sharedCache: SharedPageCacheContext | undefined;
-}
-
-function logRevalidationSkipped(route: ResolvedRoute, reason: string, status?: number): void {
-  const logger = createLogger({});
-  logger.set({
-    furin: {
-      cache: "revalidation_skipped",
-      reason,
-      render: "isr",
-      route: route.pattern,
-      ...(status === undefined ? {} : { status }),
-    },
-  });
-  logger.emit();
-}
-
-async function handleBackgroundRevalidationError(
-  input: BackgroundRevalidationInput,
-  error: unknown
-): Promise<void> {
-  if (isNotFoundError(error)) {
-    await invalidateBackgroundNotFound(input);
-    return;
-  }
-  const logger = createLogger({});
-  logger.set({
-    furin: {
-      cache: "revalidation_failed",
-      render: "isr",
-      route: input.route.pattern,
-    },
-  });
-  logger.error(error instanceof Error ? error : new Error(String(error)));
-  logger.emit();
-}
-
-async function invalidateBackgroundNotFound(input: BackgroundRevalidationInput): Promise<void> {
-  if (input.sharedCache === undefined && !input.cacheGeneration?.valid) {
-    return;
-  }
-  const logger = createLogger({});
-  if (input.sharedCache === undefined) {
-    deleteISRCache(input.cacheKey);
-  } else {
-    try {
-      await input.sharedCache.adapter.invalidate({
-        kind: "path",
-        path: input.sharedCache.identity.path,
-        scope: input.sharedCache.identity.scope,
-        type: "page",
-      });
-    } catch {
-      logger.warn("ISR shared page cache invalidation failed after not-found revalidation");
-    }
-  }
-  logger.set({
-    furin: {
-      cache: "revalidation_invalidated",
-      reason: "not_found",
-      render: "isr",
-      route: input.route.pattern,
-    },
-  });
-  logger.emit();
-}
-
-async function releaseBackgroundRevalidation(
-  input: BackgroundRevalidationInput,
-  lease: PageCacheLease | null
-): Promise<void> {
-  if (input.sharedCache !== undefined && lease !== null) {
-    try {
-      await input.sharedCache.adapter.release({ identity: input.sharedCache.identity, lease });
-    } catch {
-      getLogger().warn("ISR shared page cache lease release failed");
-    }
-  }
-  if (input.cacheGeneration !== undefined) {
-    releaseISRCacheGeneration(input.cacheKey, input.cacheGeneration);
-  }
-}
-
-async function performBackgroundRevalidation(input: BackgroundRevalidationInput): Promise<void> {
-  let lease: PageCacheLease | null = null;
-  try {
-    if (input.sharedCache !== undefined) {
-      lease = await input.sharedCache.adapter.acquire({
-        identity: input.sharedCache.identity,
-        leaseMs: 30_000,
-      });
-      if (lease === null) {
-        logRevalidationSkipped(input.route, "already_in_flight");
-        return;
-      }
-    }
-    const result = await renderForPath(
-      input.route,
-      input.params,
-      input.root,
-      input.origin,
-      "isr",
-      undefined,
-      input.searchRoutes,
-      input.search
-    );
-    if (result instanceof Response) {
-      return;
-    }
-    if (result.status === 404) {
-      await invalidateBackgroundNotFound(input);
-      return;
-    }
-    if (result.status !== 200) {
-      logRevalidationSkipped(input.route, "non_200_render", result.status);
-      return;
-    }
-    const entry: ISRCacheEntry = {
-      generatedAt: Date.now(),
-      html: result.html,
-      ndjson: result.ndjson,
-      revalidate: input.revalidate,
-    };
-    if (input.sharedCache !== undefined && lease !== null) {
-      const { identity } = input.sharedCache;
-      const identityTags = new Set(identity.tags);
-      if ((result.queryTags ?? []).some((tag) => !identityTags.has(tag))) {
-        return;
-      }
-      await input.sharedCache.adapter.commit({
-        entry: {
-          cachedAt: entry.generatedAt,
-          payload: serializeISRPayload(entry),
-          revalidate: input.revalidate,
-        },
-        identity: input.sharedCache.identity,
-        lease,
-      });
-    } else if (input.cacheGeneration !== undefined) {
-      const stored = setISRCacheIfGenerationUnchanged(input.cacheKey, entry, input.cacheGeneration);
-      if (stored) {
-        autoInvalidateRegistry.registerLoaderTags(
-          input.cacheKey,
-          [...(input.route.tags ?? []), ...(result.queryTags ?? [])],
-          "render:isr-html"
-        );
-      }
-    }
-  } catch (error: unknown) {
-    await handleBackgroundRevalidationError(input, error);
-  } finally {
-    await releaseBackgroundRevalidation(input, lease);
-  }
 }

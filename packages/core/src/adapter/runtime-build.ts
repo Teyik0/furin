@@ -53,6 +53,8 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/server/render/element.tsx`,
   `${_pkgSrcDir}/server/render/index${_ext}`,
   `${_pkgSrcDir}/server/render/isr${_ext}`,
+  `${_pkgSrcDir}/server/render/isr-revalidation${_ext}`,
+  `${_pkgSrcDir}/server/render/isr-shared-cache${_ext}`,
   `${_pkgSrcDir}/server/render/loader-errors${_ext}`,
   `${_pkgSrcDir}/server/render/loader-segments${_ext}`,
   `${_pkgSrcDir}/server/render/loaders${_ext}`,
