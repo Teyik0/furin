@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { basename, join, resolve, sep } from "node:path";
 import { isPackageModule, stripServerCode } from "../plugin/strip-server.ts";
 import { createRoutesPlugin } from "../plugin/routes.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
@@ -7,10 +7,15 @@ import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";
 import { SCRIPT_FILE_FILTER } from "../server/lang-detect.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
-import { runBunBuild } from "./bun-build.ts";
+import { PRODUCTION_DEFINE, runBunBuild } from "./bun-build.ts";
 import { generateClientReferenceEntry, generateProductionHydrateEntry } from "./hydrate";
 import { type ClientPreloadManifest, writeClientPreloadManifest } from "./preload-manifest.ts";
-import { CLIENT_MODULE_PATH, LINK_MODULE_PATH, SEARCH_MODULE_PATH } from "./shared";
+import {
+  CLIENT_MODULE_PATH,
+  LINK_MODULE_PATH,
+  SEARCH_MODULE_PATH,
+  writeBuildMetafile,
+} from "./shared";
 import type { BuildClientOptions, BunBuildAliasConfig } from "./types";
 import { createVirtualBuildEntry } from "./virtual-entry.ts";
 
@@ -178,7 +183,7 @@ export async function buildClient(
           .filter(([name, value]) => name.startsWith("FURIN_PUBLIC_") && value !== undefined)
           .map(([name, value]) => [`process.env.${name}`, JSON.stringify(value)])
       ),
-      "process.env.NODE_ENV": JSON.stringify("production"),
+      ...PRODUCTION_DEFINE,
     },
   };
 
@@ -187,9 +192,7 @@ export async function buildClient(
     throw new Error("[furin] client build did not produce the requested metafile");
   }
   if (metafilePath !== undefined) {
-    mkdirSync(dirname(metafilePath), { recursive: true });
-    writeFileSync(metafilePath, `${JSON.stringify(result.metafile, null, 2)}\n`);
-    console.log(`[furin] Client metafile: ${metafilePath}`);
+    writeBuildMetafile(metafilePath, result.metafile, "Client");
   }
   for (const output of result.outputs) {
     console.log(`[furin]   ${output.path} (${(output.size / 1024).toFixed(1)} KB)`);

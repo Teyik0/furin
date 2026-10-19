@@ -1,5 +1,5 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { relative } from "node:path";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveRouteRevalidate } from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
@@ -21,6 +21,13 @@ export function ensureDir(path: string): void {
 
 export function toPosixPath(path: string): string {
   return path.replace(/\\/g, "/");
+}
+
+/** Writes a Bun build metafile (`furin build --analyze`) and logs where it went. */
+export function writeBuildMetafile(path: string, metafile: Bun.BuildMetafile, label: string): void {
+  ensureDir(dirname(path));
+  writeFileSync(path, `${JSON.stringify(metafile, null, 2)}\n`);
+  console.log(`[furin] ${label} metafile: ${toPosixPath(path)}`);
 }
 
 export function copyDirRecursive(sourceDir: string, targetDir: string): void {

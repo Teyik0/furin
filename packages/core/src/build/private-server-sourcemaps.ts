@@ -2,6 +2,11 @@ import { existsSync, renameSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { ensureDir } from "./shared.ts";
 
+/** Where an adapter's server source maps are kept, outside its deployable directory. */
+export function privateServerSourceMapDir(buildRoot: string, adapterName: string): string {
+  return join(buildRoot, "private", "server-sourcemaps", adapterName);
+}
+
 /** Keep server maps out of Bun assets and Vercel's deployment artifact. */
 export function movePrivateServerSourceMaps(
   outputDir: string,

@@ -2,7 +2,10 @@ import { existsSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { runBunBuild } from "../build/bun-build.ts";
 import { PRERENDER_SNAPSHOT_FILE } from "../build/entry-template.ts";
-import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
+import {
+  movePrivateServerSourceMaps,
+  privateServerSourceMapDir,
+} from "../build/private-server-sourcemaps.ts";
 import { toPosixPath } from "../build/shared.ts";
 import type { TargetBuildManifest } from "../build/types.ts";
 import { clientDirNameForPrefix } from "../shared/prefix.ts";
@@ -46,7 +49,7 @@ async function compileExecutable(
   if (output.serverSourceMaps) {
     movePrivateServerSourceMaps(
       server.dir,
-      join(buildRoot, "private", "server-sourcemaps", "bun"),
+      privateServerSourceMapDir(buildRoot, "bun"),
       build.outputs.filter((entry) => entry.kind === "sourcemap").map((entry) => entry.path)
     );
   }

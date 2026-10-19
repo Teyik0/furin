@@ -1,11 +1,14 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, join, relative } from "node:path";
-import { runBunBuild } from "../build/bun-build.ts";
+import { basename, extname, join, relative } from "node:path";
+import { PRODUCTION_DEFINE, runBunBuild } from "../build/bun-build.ts";
 import { prepareCompileEntryApps } from "../build/compile-entry.ts";
 import { type EntryAppContext, PRERENDER_SNAPSHOT_FILE } from "../build/entry-template.ts";
-import { movePrivateServerSourceMaps } from "../build/private-server-sourcemaps.ts";
+import {
+  movePrivateServerSourceMaps,
+  privateServerSourceMapDir,
+} from "../build/private-server-sourcemaps.ts";
 import { materializeServerAppEntry } from "../build/server-app-entry.ts";
-import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
+import { copyDirRecursive, ensureDir, toPosixPath, writeBuildMetafile } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import type { AppPrerender } from "../server/prerender.ts";
@@ -130,7 +133,7 @@ async function bundleServer(
   options: BuildAppOptions
 ): Promise<AdapterServerBundle> {
   const build = await runBunBuild({
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+    define: PRODUCTION_DEFINE,
     entrypoints: [adapter.runtimeModule, appEntry],
     format: "esm",
     metafile: options.analyze,
@@ -151,7 +154,7 @@ async function bundleServer(
   if (options.serverSourceMaps) {
     movePrivateServerSourceMaps(
       targetDir,
-      join(buildRoot, "private", "server-sourcemaps", adapter.name),
+      privateServerSourceMapDir(buildRoot, adapter.name),
       build.outputs.filter((output) => output.kind === "sourcemap").map((output) => output.path)
     );
   }
@@ -159,10 +162,11 @@ async function bundleServer(
     if (build.metafile === undefined) {
       throw new Error(`[furin] The ${adapter.name} server build did not produce its metafile.`);
     }
-    const metafilePath = join(buildRoot, "analysis", `${adapter.name}-server.json`);
-    ensureDir(dirname(metafilePath));
-    writeFileSync(metafilePath, `${JSON.stringify(build.metafile, null, 2)}\n`);
-    console.log(`[furin] Server metafile: ${toPosixPath(metafilePath)}`);
+    writeBuildMetafile(
+      join(buildRoot, "analysis", `${adapter.name}-server.json`),
+      build.metafile,
+      "Server"
+    );
   }
   return {
     dir: targetDir,
@@ -194,7 +198,7 @@ export async function buildAdapterTarget(
   assertServerEntry(serverEntry, adapter);
   const targetDir = join(buildRoot, adapter.name);
   rmSync(targetDir, { force: true, recursive: true });
-  rmSync(join(buildRoot, "private", "server-sourcemaps", adapter.name), {
+  rmSync(privateServerSourceMapDir(buildRoot, adapter.name), {
     force: true,
     recursive: true,
   });

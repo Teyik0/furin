@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runBunBuild } from "../../build/bun-build.ts";
+import { PRODUCTION_DEFINE, runBunBuild } from "../../build/bun-build.ts";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { isomorphicTransformPlugin } from "../../plugin/transform-isomorphic.ts";
 import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
@@ -62,23 +62,27 @@ export async function buildRscGraph(
       });
     },
   };
+  // Both builds run in the react-server graph with the same transforms.
+  const reactServerBuild = {
+    conditions: ["react-server"],
+    define: PRODUCTION_DEFINE,
+    format: "esm",
+    target: "bun",
+  } satisfies Partial<Bun.BuildConfig>;
+  const reactServerPlugins = () => [isomorphicTransformPlugin("server"), environmentGuardPlugin("rsc")];
   const clientReferences: ClientReference[] = [];
   const result = await runBunBuild({
+    ...reactServerBuild,
     entrypoints,
     outdir: graphDir,
-    target: "bun",
-    format: "esm",
     splitting: true,
-    conditions: ["react-server"],
     naming: { entry: "[dir]/[name]-[hash].[ext]", chunk: "[name]-[hash].[ext]" },
     plugins: [
       ...(userPlugins ?? []),
       rscClientReferencesPlugin(clientReferences),
-      isomorphicTransformPlugin("server"),
-      environmentGuardPlugin("rsc"),
+      ...reactServerPlugins(),
       aliasPlugin,
     ],
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
   });
   if (!result.success) {
     throw new Error(
@@ -86,18 +90,11 @@ export async function buildRscGraph(
     );
   }
   const codecResult = await runBunBuild({
+    ...reactServerBuild,
     entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
     outdir: outDir,
-    target: "bun",
-    format: "esm",
-    conditions: ["react-server"],
     naming: "server-codec.js",
-    plugins: [
-      ...(userPlugins ?? []),
-      isomorphicTransformPlugin("server"),
-      environmentGuardPlugin("rsc"),
-    ],
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+    plugins: [...(userPlugins ?? []), ...reactServerPlugins()],
   });
   if (!codecResult.success) {
     throw new Error(

@@ -1,7 +1,7 @@
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { createBuildFingerprint, type RuntimeTargetApp } from "../adapter/runtime-build.ts";
-import { runBunBuild } from "../build/bun-build.ts";
+import { PRODUCTION_DEFINE, runBunBuild } from "../build/bun-build.ts";
 import { buildClient } from "../build/client.ts";
 import { buildEntrySource, PRERENDER_SNAPSHOT_FILE } from "../build/entry-template.ts";
 import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
@@ -149,7 +149,7 @@ export async function buildPackageTarget(
 
   const result = await runBunBuild({
     // Production JSX: react/jsx-dev-runtime exports no jsxDEV in production hosts.
-    define: { "process.env.NODE_ENV": JSON.stringify("production") },
+    define: PRODUCTION_DEFINE,
     entrypoints: [register.entrypoint],
     files: register.files,
     minify: false,
