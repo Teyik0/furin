@@ -63,7 +63,7 @@ export function loadProdRoutes(ctx: CompileContext): {
 } {
   const rootExport = ctx.modules[ctx.rootPath]?.route;
   if (!isDefinedRouteTerminal(rootExport) || typeof rootExport.layout !== "function") {
-    throw new Error("[furin] root.tsx: defineRoute().layout() not found in CompileContext.");
+    throw new Error("[furin] root.tsx: defineRootRoute().layout() not found in CompileContext.");
   }
   const rootRoute = adaptDefinedLayout(rootExport, undefined, ctx.rootPath);
 
@@ -128,9 +128,9 @@ function resolveCompiledRuntimePage(
 
 export function invalidNestedLayoutError(layoutPath: string): Error {
   return new Error(
-    `[furin] ${layoutPath}: _route.tsx must export \`route = defineRoute().config({ layout: parentRoute, mode }).layout(({ children }) => ...)\`. For example:
-  export const route = defineRoute()
-    .config({ layout: parentRoute, mode: "ssr" })
+    `[furin] ${layoutPath}: _route.tsx must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id. For example, in blog/_route.tsx:
+  export const route = defineRoute("/blog/_route")
+    .config({ mode: "ssr" })
     .layout(({ children }) => <section>{children}</section>);`
   );
 }
@@ -341,7 +341,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     };
     const page = await resolveRuntimePage(pageMod, absolutePath, pagesDir, root.route);
     if (!page) {
-      throw new Error(`[furin] ${relativePath}: no valid defineRoute().page() export found`);
+      throw new Error(`[furin] ${relativePath}: no valid defineRoute(id).page() export found`);
     }
 
     const routeChain = collectRouteChainFromRoute(page._route as RuntimeRoute);

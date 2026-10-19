@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import type { CallExpression, Node, ObjectExpression, ObjectProperty, Program } from "yuku-parser";
 import type { DevDiagnosticStore } from "../server/dev/diagnostics.ts";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
@@ -21,9 +21,7 @@ export interface RouteConfigIssue {
   message: string;
 }
 
-const LAYOUT_FILE_NAMES = ["_route.tsx", "_route.ts", "_route.jsx", "_route.js"];
 const EXTENSION_RE = /\.(?:[cm]?[jt]sx?)$/;
-const NON_ALPHANUMERIC_RE = /[^a-zA-Z0-9]/g;
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
 const PATH_SEPARATOR_RE = /[\\/]/;
 
@@ -36,7 +34,7 @@ interface RouteExport {
   /** `config({...})` argument, when the chain declares one. */
   config: ObjectExpression | undefined;
   head: CallExpression;
-  /** First argument of a keyed `defineRoute(id)`. */
+  /** First argument of `defineRoute(id)`. */
   id: Node | undefined;
   isRootFactory: boolean;
   methods: Set<string>;
@@ -136,33 +134,6 @@ function parseRoute(file: string): ParsedRoute | undefined {
   return route ? { imports, route, source } : undefined;
 }
 
-/** Nearest `_route` above the file (its parent directory's for a `_route`), else `root.tsx`. */
-function expectedLayoutPath(file: string, pagesDir: string): string | undefined {
-  const directory = dirname(file);
-  const isLayout = withoutExtension(file) === join(directory, "_route");
-  let current = isLayout ? dirname(directory) : directory;
-  while (current.startsWith(pagesDir) && current !== pagesDir) {
-    const layout = LAYOUT_FILE_NAMES.map((name) => join(current, name)).find(existsSync);
-    if (layout) {
-      return layout;
-    }
-    current = dirname(current);
-  }
-  const root = join(pagesDir, "root.tsx");
-  return existsSync(root) ? root : undefined;
-}
-
-function layoutBinding(layoutPath: string): string {
-  const stem = withoutExtension(layoutPath);
-  const name = stem.endsWith("_route") ? dirname(stem).split(PATH_SEPARATOR_RE).pop() : "root";
-  return `${(name ?? "").replace(NON_ALPHANUMERIC_RE, "") || "root"}Route`;
-}
-
-function importSpecifier(fromFile: string, toFile: string): string {
-  const specifier = withoutExtension(relative(dirname(fromFile), toFile)).replaceAll("\\", "/");
-  return specifier.startsWith(".") ? specifier : `./${specifier}`;
-}
-
 function position(source: string, offset: number): { column: number; line: number } {
   const before = source.slice(0, offset);
   return { column: offset - before.lastIndexOf("\n"), line: before.split("\n").length };
@@ -172,70 +143,26 @@ function issueAt(file: string, parsed: ParsedRoute, node: Node, message: string)
   return { file, ...position(parsed.source, node.start), message };
 }
 
-function layoutFix(file: string, layoutPath: string): string {
-  const identifier = layoutBinding(layoutPath);
-  return `Import it and pass it:\n  import { route as ${identifier} } from "${importSpecifier(file, layoutPath)}";\n  .config({ layout: ${identifier}, ... })`;
-}
-
-function checkLayout(
-  file: string,
-  pagesDir: string,
-  parsed: ParsedRoute
-): RouteConfigIssue | undefined {
-  const { config, id } = parsed.route;
-  const expected = expectedLayoutPath(file, pagesDir);
-  if (id || !(config && expected)) {
-    return;
-  }
-  const property = findProperty(config, "layout");
-  if (!property) {
-    return issueAt(
-      file,
-      parsed,
-      config,
-      `config() must declare layout: the nearest layout is ${relative(pagesDir, expected)}. ${layoutFix(file, expected)}`
-    );
-  }
-  const layout = unwrapTSExpression(property.value);
-  const binding = layout.type === "Identifier" ? parsed.imports.get(layout.name) : undefined;
-  if (!(binding?.imported === "route" && binding.specifier.startsWith("."))) {
-    return;
-  }
-  const target = withoutExtension(resolve(dirname(file), binding.specifier));
-  if (target === withoutExtension(expected)) {
-    return;
-  }
-  return issueAt(
-    file,
-    parsed,
-    layout,
-    `config({ layout }) must reference the nearest layout, ${relative(pagesDir, expected)}. ${layoutFix(file, expected)}`
-  );
-}
-
 /**
- * A keyed `defineRoute(id)` names its file; its parent layout comes from the
- * pages tree. Only the root-mounted app gets `FileRoutes` entries.
+ * `defineRoute(id)` names its file: the app's prefix, then the file's place in
+ * the pages tree. The parent layout comes from that tree, never from config().
  */
 function checkKey(
   file: string,
-  { pagesDir, prefix }: RouteInstanceSpec,
+  instance: RouteInstanceSpec,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
-  const { config, id } = parsed.route;
+  const { config, head, id } = parsed.route;
+  const expected = fileRouteId(instance, file);
   if (!id) {
-    return;
-  }
-  const key = unwrapTSExpression(id);
-  if (prefix !== "") {
     return issueAt(
       file,
       parsed,
-      key,
-      "keyed routes are only supported in the root-mounted app; use defineRoute() with config({ layout }) here."
+      head,
+      `defineRoute() must name this file. Its id is "${expected}":\n  defineRoute("${expected}")`
     );
   }
-  const expected = fileRouteId(pagesDir, file);
+  const key = unwrapTSExpression(id);
   if (!(key.type === "Literal" && key.value === expected)) {
     const written = key.type === "Literal" ? JSON.stringify(key.value) : "id";
     return issueAt(
@@ -271,26 +198,13 @@ function suggestedMode(route: RouteExport, isRoot: boolean): string {
   return route.methods.has("loader") || route.methods.has("requestLoader") ? "ssr" : "ssg";
 }
 
-/** `import { route as blogRoute } from "./_route";` and its `layout: blogRoute, ` entry. */
-function layoutSnippets(file: string, pagesDir: string): { entry: string; importLine: string } {
-  const expected = expectedLayoutPath(file, pagesDir);
-  if (!expected) {
-    return { entry: "", importLine: "" };
-  }
-  const identifier = layoutBinding(expected);
-  return {
-    entry: `layout: ${identifier}, `,
-    importLine: `\n  import { route as ${identifier} } from "${importSpecifier(file, expected)}";`,
-  };
-}
-
 function checkFactory(
   file: string,
-  pagesDir: string,
+  instance: RouteInstanceSpec,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
   const { route } = parsed;
-  const isRoot = withoutExtension(file) === join(pagesDir, "root");
+  const isRoot = withoutExtension(file) === join(instance.pagesDir, "root");
   if (isRoot === route.isRootFactory) {
     return;
   }
@@ -303,33 +217,24 @@ function checkFactory(
       `root.tsx must use defineRootRoute(), which has no parent layout:\n  import { defineRootRoute } from "@teyik0/furin";\n  export const route = defineRootRoute().config({ mode: "${mode}" })`
     );
   }
-  const { entry, importLine } = layoutSnippets(file, pagesDir);
   return issueAt(
     file,
     parsed,
     route.head,
-    `defineRootRoute() is reserved for root.tsx. Use defineRoute() with the nearest layout:\n  import { defineRoute } from "@teyik0/furin";${importLine}\n  export const route = defineRoute().config({ ${entry}mode: "${mode}" })`
+    `defineRootRoute() is reserved for root.tsx. Use defineRoute with this file's id:\n  import { defineRoute } from "@teyik0/furin";\n  export const route = defineRoute("${fileRouteId(instance, file)}").config({ mode: "${mode}" })`
   );
 }
 
-function checkConfig(
-  file: string,
-  pagesDir: string,
-  parsed: ParsedRoute
-): RouteConfigIssue | undefined {
+function checkConfig(file: string, parsed: ParsedRoute): RouteConfigIssue | undefined {
   const { route } = parsed;
   if (route.config) {
     return;
   }
-  const { entry, importLine } =
-    route.isRootFactory || route.id
-      ? { entry: "", importLine: "" }
-      : layoutSnippets(file, pagesDir);
   return issueAt(
     file,
     parsed,
     route.head,
-    `${route.isRootFactory ? "defineRootRoute" : "defineRoute"}() must be followed by config(). Add:${importLine}\n  .config({ ${entry}mode: "${suggestedMode(route, route.isRootFactory)}" })`
+    `${route.isRootFactory ? "defineRootRoute" : "defineRoute"}() must be followed by config(). Add:\n  .config({ mode: "${suggestedMode(route, route.isRootFactory)}" })`
   );
 }
 
@@ -412,18 +317,18 @@ function checkRoute(
   instance: RouteInstanceSpec,
   parsed: ParsedRoute
 ): (RouteConfigIssue | undefined)[] {
-  const { pagesDir } = instance;
-  const factory = checkFactory(file, pagesDir, parsed);
+  const factory = checkFactory(file, instance, parsed);
   if (factory) {
     return [factory];
   }
   const isLayout = basename(withoutExtension(file)) === "_route";
   return [
-    checkConfig(file, pagesDir, parsed),
+    checkConfig(file, parsed),
     parsed.route.isRootFactory ? undefined : checkKey(file, instance, parsed),
-    parsed.route.isRootFactory ? undefined : checkLayout(file, pagesDir, parsed),
     checkMode(file, parsed),
-    parsed.route.isRootFactory || isLayout ? undefined : checkParams(file, pagesDir, parsed),
+    parsed.route.isRootFactory || isLayout
+      ? undefined
+      : checkParams(file, instance.pagesDir, parsed),
   ];
 }
 
@@ -515,39 +420,32 @@ export const route = defineRootRoute()
   ));
 `;
 
-function scaffoldTemplate(file: string, pagesDir: string): string | undefined {
-  if (withoutExtension(file) === join(pagesDir, "root")) {
+function scaffoldTemplate(file: string, instance: RouteInstanceSpec): string {
+  if (withoutExtension(file) === join(instance.pagesDir, "root")) {
     return ROOT_TEMPLATE;
   }
-  const layout = expectedLayoutPath(file, pagesDir);
-  if (!layout) {
-    return;
-  }
   const isLayout = basename(withoutExtension(file)) === "_route";
-  const identifier = layoutBinding(layout);
-  const params = undeclaredSegments(file, pagesDir, new Set());
+  const params = undeclaredSegments(file, instance.pagesDir, new Set());
   return `import { defineRoute } from "@teyik0/furin";${params.length > 0 ? '\nimport { t } from "elysia";' : ""}
-import { route as ${identifier} } from "${importSpecifier(file, layout)}";
 
-export const route = defineRoute()
-  .config({ layout: ${identifier}, mode: "${isLayout ? "ssr" : "ssg"}"${params.length > 0 ? `, ${paramsSchema(params)}` : ""} })
+export const route = defineRoute("${fileRouteId(instance, file)}")
+  .config({ mode: "${isLayout ? "ssr" : "ssg"}"${params.length > 0 ? `, ${paramsSchema(params)}` : ""} })
   .${isLayout ? "layout(({ children }) => children)" : "page(() => null)"};
 `;
 }
 
 /**
- * Writes a starter route into route files that are empty or whitespace-only,
- * the only case where Furin writes to a source file.
+ * Writes a starter route, keyed by the file's id, into route files that are
+ * empty or whitespace-only, the only case where Furin writes to a source file.
  */
-export function scaffoldEmptyRoutes(pagesDir: string): string[] {
-  const pages = resolve(pagesDir);
+export function scaffoldEmptyRoutes({ pagesDir, prefix }: RouteInstanceSpec): string[] {
+  const instance = { pagesDir: resolve(pagesDir), prefix };
   const written: string[] = [];
-  for (const file of routeFiles(pages).filter((path) => readSource(path)?.trim() === "")) {
-    const template = scaffoldTemplate(file, pages);
-    if (template) {
-      writeFileSync(file, template);
-      written.push(file);
-    }
+  for (const file of routeFiles(instance.pagesDir).filter(
+    (path) => readSource(path)?.trim() === ""
+  )) {
+    writeFileSync(file, scaffoldTemplate(file, instance));
+    written.push(file);
   }
   return written;
 }

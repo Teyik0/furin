@@ -30,7 +30,7 @@ export interface EmbeddedAppData {
 export interface CompiledModule {
   /** Convention component (`error.tsx`, `not-found.tsx`). */
   readonly default?: unknown;
-  /** `defineRoute()` export of a page or layout. */
+  /** `defineRoute(id)` export of a page or layout. */
   readonly route?: unknown;
 }
 

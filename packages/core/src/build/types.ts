@@ -37,12 +37,6 @@ export interface BuildClientOptions {
    */
   publicPath: string;
   rootLayout: string;
-  /**
-   * Skip furin-env.d.ts generation. Set for non-root instances in
-   * multi-instance dev — the file lives at the project root and only the root
-   * app owns it.
-   */
-  skipRouteTypes?: boolean;
 }
 
 export interface BuildRouteManifestEntry {

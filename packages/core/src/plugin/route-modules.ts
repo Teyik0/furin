@@ -34,7 +34,7 @@ export function validateRouteParams(
   }
 }
 
-/** The fields of a `defineRoute()` export the routes plugin reads. */
+/** The fields of a `defineRoute(id)` export the routes plugin reads. */
 interface RouteExport {
   elysia?: AnyElysia;
   loader?: unknown;

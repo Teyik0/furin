@@ -8,7 +8,7 @@
 export interface RouteMap {}
 
 /**
- * Typecheck fallback for the keyed `defineRoute(id)` overload. The generated
+ * Typecheck fallback for `defineRoute(id)`. The generated
  * furin-env.d.ts augments it with one entry per route file, keyed by its file
  * id (`"/board/[boardId]"`, `"/board/_route"`): kind, URL pattern, parent
  * layout and path params, read from the pages tree without importing modules.

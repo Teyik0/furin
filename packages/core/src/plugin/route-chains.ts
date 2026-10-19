@@ -212,7 +212,7 @@ export interface ServerStage {
   property: IdentifierName;
 }
 
-/** The `defineRoute()` chains of a module, found in one walk for every step. */
+/** The `defineRoute(id)` chains of a module, found in one walk for every step. */
 export interface RouteChains {
   /** The component passed to the exported route's `.page()` or `.layout()`. */
   component: Node | null;
@@ -224,7 +224,7 @@ export interface RouteChainCall {
   method: string;
 }
 
-/** `export const route = defineRoute()...`: the `route` export route discovery reads. */
+/** `export const route = defineRoute(id)...`: the `route` export route discovery reads. */
 export interface ExportedRouteChain {
   /** The builder calls after the factory call, the terminal call first. */
   calls: RouteChainCall[];

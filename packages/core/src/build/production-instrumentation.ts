@@ -30,7 +30,7 @@ function devBuildExports(path: string): readonly string[] {
   }
   return path.includes("route-config")
     ? ["createRouteConfigReporter", "scaffoldEmptyRoutes"]
-    : ["writeDevFiles"];
+    : ["releaseDevRouteTypes", "writeDevFiles"];
 }
 
 export function productionInstrumentationPlugin(): Bun.BunPlugin {

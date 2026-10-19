@@ -171,11 +171,9 @@ async function scanApps(
   return apps;
 }
 
-function writeRootRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
-  const rootApp = apps.find((app) => app.prefix === "");
-  if (rootApp) {
-    writeRouteTypes(rootApp.routes, rootDir, rootApp.pagesDir);
-  }
+/** `RouteMap` for the root-mounted app, `FileRoutes` for every app. */
+function writeAppRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
+  writeRouteTypes(apps.find((app) => app.prefix === "")?.routes ?? [], rootDir, apps);
 }
 
 /** Options for `generateRouteTypes()`, a subset of the build options. */
@@ -185,15 +183,15 @@ export type RouteTypegenOptions = Pick<
 >;
 
 /**
- * Writes `furin-env.d.ts` for the root-mounted app without building, e.g.
- * before `tsc` in CI. Prefixed apps are skipped, as in development.
+ * Writes `furin-env.d.ts` for every mounted app without building, e.g.
+ * before `tsc` in CI.
  */
 export function generateRouteTypes(options: RouteTypegenOptions): Promise<void> {
   return withProductionBuild(async () => {
     const rootDir = resolve(options.rootDir ?? process.cwd());
     const entry = resolve(rootDir, options.serverEntry ?? "src/server.ts");
     const apps = await scanApps(options, existsSync(entry) ? entry : null, rootDir);
-    writeRootRouteTypes(apps, rootDir);
+    writeAppRouteTypes(apps, rootDir);
   });
 }
 
@@ -227,7 +225,7 @@ async function buildAppInternal(options: BuildAppOptions): Promise<BuildAppResul
   const apps = await scanApps(options, serverEntry, rootDir);
   // furin-env.d.ts is one file at the project root, owned by the root-mounted
   // app — the same rule as the dev server, so builds keep types current too.
-  writeRootRouteTypes(apps, rootDir);
+  writeAppRouteTypes(apps, rootDir);
   // The root-mounted app drives single-app manifest fields and the static target.
   const primaryApp = (apps.find((app) => app.prefix === "") ?? apps[0]) as RuntimeTargetApp;
 

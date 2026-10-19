@@ -244,7 +244,7 @@ BUILD OPTIONS
   --analyze   Write complete bundle metafiles to .furin/build/analysis
 
 TYPEGEN OPTIONS
-  Writes furin-env.d.ts for the root-mounted app (run it before tsc in CI)
+  Writes furin-env.d.ts for every mounted app (run it before tsc in CI)
   --pagesDir  Pages directory (default: config apps, server entry furin() mounts, then src/pages)
   --config    Config file path
 

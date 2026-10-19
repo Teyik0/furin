@@ -37,12 +37,12 @@ function createRouteBuilder(remountDeps: RemountDeps<never, never> | undefined) 
   };
 }
 
-/** The file id of a keyed `defineRoute(id)` is type-only: the client ignores it. */
-export function defineRoute(_id?: string) {
+/** The file id of `defineRoute(id)` is type-only: the client ignores it. */
+export function defineRoute(_id: string) {
   return createRouteBuilder(undefined);
 }
 
 /** Client stub for the root-layout builder — identical surface. */
 export function defineRootRoute() {
-  return defineRoute();
+  return createRouteBuilder(undefined);
 }

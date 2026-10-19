@@ -485,15 +485,56 @@ if (__deferred && __deferred._chunks) {
 `;
 }
 
+interface DevRouteTypesApp {
+  pagesDir: string;
+  routes: ResolvedRoute[];
+}
+
 /**
- * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode.
+ * Apps served by this dev process, by project root then prefix: furin-env.d.ts
+ * is one file per project, so every app's write declares them all.
+ */
+const devRouteTypesApps = new Map<string, Map<string, DevRouteTypesApp>>();
+
+/** Forgets a stopped dev app, so the next write no longer declares its routes. */
+export function releaseDevRouteTypes(projectRoot: string, prefix: string): void {
+  devRouteTypesApps.get(projectRoot)?.delete(prefix);
+}
+
+function writeDevRouteTypes(
+  projectRoot: string,
+  prefix: string,
+  app: DevRouteTypesApp
+): boolean {
+  const apps = devRouteTypesApps.get(projectRoot) ?? new Map<string, DevRouteTypesApp>();
+  devRouteTypesApps.set(projectRoot, apps.set(prefix, app));
+  // An app that never started has no stop hook to release it: skip it once
+  // its pages directory is gone.
+  const live = [...apps].filter(([, { pagesDir }]) => existsSync(pagesDir));
+  return writeRouteTypes(
+    live.find(([appPrefix]) => appPrefix === "")?.[1].routes ?? [],
+    projectRoot,
+    live.map(([appPrefix, { pagesDir }]) => ({ pagesDir, prefix: appPrefix }))
+  );
+}
+
+/**
+ * Writes _hydrate.tsx + index.html to outDir for dev (Bun HMR) mode, and the
+ * app's routes into furin-env.d.ts.
  *
  * Only rewrites a file when its content has actually changed so Bun's --hot
  * watcher does not trigger a spurious reload on every server restart.
  */
 export function writeDevFiles(
   routes: ResolvedRoute[],
-  { outDir, rootLayout, basePath, clientLogging, clientBoundaries, skipRouteTypes }: BuildClientOptions,
+  {
+    outDir,
+    rootLayout,
+    basePath,
+    clientLogging,
+    clientBoundaries,
+    prefix,
+  }: BuildClientOptions & { prefix: string },
   projectRoot: string,
   serverSourceVersion?: string
 ): void {
@@ -526,9 +567,8 @@ export function writeDevFiles(
     changed = true;
   }
 
-  if (!skipRouteTypes) {
-    changed = writeRouteTypes(routes, projectRoot, dirname(rootLayout)) || changed;
-  }
+  changed =
+    writeDevRouteTypes(projectRoot, prefix, { pagesDir: dirname(rootLayout), routes }) || changed;
 
   if (changed) {
     console.log(

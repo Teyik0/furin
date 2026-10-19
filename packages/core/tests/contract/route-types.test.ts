@@ -119,7 +119,7 @@ describe("writeRouteTypes", () => {
         route("/blog/*", join(directory, "src/pages/blog/[...rest].tsx")),
       ],
       directory,
-      join(directory, "src/pages")
+      [{ pagesDir: join(directory, "src/pages"), prefix: "" }]
     );
     writeFileSync(
       join(directory, "consumer.ts"),
@@ -171,7 +171,7 @@ export { archive, city, parent, rest, search };
       writeFileSync(join(pagesDir, file), 'throw new Error("imported");\n');
     }
 
-    writeRouteTypes([], directory, pagesDir);
+    writeRouteTypes([], directory, [{ pagesDir, prefix: "" }]);
 
     const content = readFileSync(join(directory, "furin-env.d.ts"), "utf8");
     expect(content).toContain(`declare module "@teyik0/furin/routes" {
@@ -226,6 +226,54 @@ export { archive, city, parent, rest, search };
     };
   }
 }`);
+  });
+
+  test("declares FileRoutes for every mounted app, keyed by its prefix and file id", () => {
+    const directory = join(temporaryDirectory, "file-routes-apps");
+    for (const file of [
+      "pages/root.tsx",
+      "pages/index.tsx",
+      "admin/root.tsx",
+      "admin/index.tsx",
+      "admin/users/_route.tsx",
+      "admin/users/[id].tsx",
+    ]) {
+      mkdirSync(join(directory, "src", file, ".."), { recursive: true });
+      writeFileSync(join(directory, "src", file), 'throw new Error("imported");\n');
+    }
+
+    writeRouteTypes([], directory, [
+      { pagesDir: join(directory, "src/pages"), prefix: "" },
+      { pagesDir: join(directory, "src/admin"), prefix: "/admin" },
+    ]);
+
+    const content = readFileSync(join(directory, "furin-env.d.ts"), "utf8");
+    expect(content).toContain(`  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/admin": {
+      kind: "page";
+      pattern: "/admin";
+      parent: typeof import("./src/admin/root").route;
+      pathParams: {};
+    };
+    "/admin/users/[id]": {
+      kind: "page";
+      pattern: "/admin/users/:id";
+      parent: typeof import("./src/admin/users/_route").route;
+      pathParams: { id: string };
+    };
+    "/admin/users/_route": {
+      kind: "layout";
+      pattern: "/admin/users";
+      parent: typeof import("./src/admin/root").route;
+      pathParams: {};
+    };
+  }`);
   });
 
   test("keeps an empty RouteMap valid", () => {

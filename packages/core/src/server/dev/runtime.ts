@@ -129,7 +129,7 @@ export async function createDevRuntime(
     "../../plugin/route-config.ts"
   );
   const reportRouteConfig = createRouteConfigReporter(routeInstance, devDiagnosticStore(instance));
-  scaffoldEmptyRoutes(resolvedPagesDir);
+  scaffoldEmptyRoutes(routeInstance);
 
   const graph = devGraph(instance);
   const { nativeRoutesApp, root, routes } = await withInstance(instance, async () => {
@@ -171,7 +171,7 @@ export async function createDevRuntime(
     renderer: () => currentSnapshot().render,
   });
 
-  const { writeDevFiles } = await import("../../build/hydrate.ts");
+  const { releaseDevRouteTypes, writeDevFiles } = await import("../../build/hydrate.ts");
   const { discoverClientBoundaries, registerServerBoundaries } = await import(
     "../../rsc/build/discover.ts"
   );
@@ -243,10 +243,8 @@ export async function createDevRuntime(
         clientBoundaries,
         outDir: furinDir,
         publicPath: `${prefix}/_client/`,
+        prefix,
         rootLayout: snapshot.root.path,
-        // furin-env.d.ts is one file at the project root — only the root
-        // instance owns it, otherwise mounted apps clobber each other's types.
-        skipRouteTypes: prefix !== "",
       },
       cwd,
       String(serverSourceVersion)
@@ -326,7 +324,7 @@ export async function createDevRuntime(
             instance: routeInstance,
             owner: { app: owner.server ?? owner, prefix },
             onRouteFilesTouched: async (sourcePaths) => {
-              scaffoldEmptyRoutes(resolvedPagesDir);
+              scaffoldEmptyRoutes(routeInstance);
               await refreshDevelopmentRoutes(sourcePaths);
               reportRouteConfig();
             },
@@ -348,7 +346,7 @@ export async function createDevRuntime(
               // are served by swapping the dispatcher's route table. Hot-added
               // and removed routes then resolve through the runtime's
               // not-found path, which matches the current table.
-              scaffoldEmptyRoutes(resolvedPagesDir);
+              scaffoldEmptyRoutes(routeInstance);
               await refreshDevelopmentRoutes(sourcePaths);
               reportRouteConfig();
             },
@@ -360,6 +358,7 @@ export async function createDevRuntime(
             return;
           }
           releaseDevGraph(instance);
+          releaseDevRouteTypes(cwd, prefix);
           routeTopologyWatcher?.close();
           routeTopologyWatcher = undefined;
           watcherOwner = undefined;

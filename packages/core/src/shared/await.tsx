@@ -146,7 +146,8 @@ export interface AwaitProps<T> {
  *
  * @example
  * ```tsx
- * export const route = defineRoute()
+ * export const route = defineRoute("/board")
+ *   .config({ mode: "ssr" })
  *   .loader(() => defer({ board: "x", stats: fetchStats() }))
  *   .page(({ board, stats }) => (
  *     <div>

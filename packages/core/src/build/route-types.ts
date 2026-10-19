@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { extname, join, relative, resolve } from "node:path";
-import { fileRouteId, routeSourcePaths } from "../plugin/route-tree.ts";
+import { fileRouteId, type RouteInstanceSpec, routeSourcePaths } from "../plugin/route-tree.ts";
 import { filePathToPattern, parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
 import { compareCodeUnits, routeMapDeclaration, type RouteMapEntry } from "../shared/route-map.ts";
@@ -22,13 +22,17 @@ function importSpecifier(path: string, projectRoot: string): string {
 }
 
 /**
- * One `FileRoutes` entry per page and `_route` layout, keyed by its path under
- * `pagesDir` (brackets and groups kept, `/index` dropped). Read from the tree
- * alone, so the entries stay right while a route module is broken.
+ * One `FileRoutes` entry per page and `_route` layout of an app, keyed by the
+ * app's prefix and its path under `pagesDir` (brackets and groups kept,
+ * `/index` dropped). Read from the tree alone, so the entries stay right while
+ * a route module is broken.
  */
-function fileRoutesDeclaration(pagesDir: string, projectRoot: string): string {
+function fileRouteEntries(
+  { pagesDir, prefix }: RouteInstanceSpec,
+  projectRoot: string
+): { id: string; lines: string }[] {
   const pages = resolve(pagesDir);
-  const files = routeSourcePaths({ pagesDir: pages, prefix: "" }).map((path) => {
+  const files = routeSourcePaths({ pagesDir: pages, prefix }).map((path) => {
     const relativePath = relative(pages, path).replaceAll("\\", "/");
     const segments = relativePath.split("/");
     const base = (segments.pop() ?? "").slice(0, -extname(path).length);
@@ -37,7 +41,7 @@ function fileRoutesDeclaration(pagesDir: string, projectRoot: string): string {
   const layouts = new Map(
     files.filter(({ base }) => base === "_route").map((file) => [file.segments.join("/"), file.path])
   );
-  const body = files
+  return files
     .map(({ base, path, relativePath, segments }) => {
       const isLayout = base === "_route";
       // Nearest `_route` in an enclosing directory, as discovery resolves it.
@@ -53,7 +57,7 @@ function fileRoutesDeclaration(pagesDir: string, projectRoot: string): string {
         const dynamic = parseDynamicRouteSegment(segment, path);
         return dynamic ? [dynamic.catchAll ? '"*": string' : `${dynamic.name}: string`] : [];
       });
-      const id = fileRouteId(pages, path);
+      const id = fileRouteId({ pagesDir: pages, prefix }, path);
       const pattern = filePathToPattern(
         isLayout ? segments.concat("index").join("/") : relativePath
       );
@@ -61,12 +65,17 @@ function fileRoutesDeclaration(pagesDir: string, projectRoot: string): string {
         id,
         lines: `    ${JSON.stringify(id)}: {
       kind: "${isLayout ? "layout" : "page"}";
-      pattern: ${JSON.stringify(pattern)};
+      pattern: ${JSON.stringify(`${prefix}${pattern === "/" ? "" : pattern}` || "/")};
       parent: typeof import(${JSON.stringify(importSpecifier(parent, projectRoot))}).route;
       pathParams: {${pathParams.length > 0 ? ` ${pathParams.join("; ")} ` : ""}};
     };`,
       };
-    })
+    });
+}
+
+function fileRoutesDeclaration(apps: readonly RouteInstanceSpec[], projectRoot: string): string {
+  const body = apps
+    .flatMap((app) => fileRouteEntries(app, projectRoot))
     .toSorted((left, right) => compareCodeUnits(left.id, right.id))
     .map(({ lines }) => lines)
     .join("\n");
@@ -80,13 +89,15 @@ ${body}
 }
 
 /**
- * @internal Exported for framework build and focused contract tests. Without
- * `pagesDir`, `FileRoutes` is not declared and keyed routes accept any id.
+ * @internal Exported for framework build and focused contract tests. `routes`
+ * (the root-mounted app's) feed `RouteMap`; every app in `apps` feeds
+ * `FileRoutes`. Without `apps`, `FileRoutes` is not declared and
+ * `defineRoute(id)` accepts any id.
  */
 export function writeRouteTypes(
   routes: ResolvedRoute[],
   projectRoot: string,
-  pagesDir?: string
+  apps?: readonly RouteInstanceSpec[]
 ): boolean {
   const entries: RouteMapEntry[] = routes.map((route) => ({
     importSpecifier: importSpecifier(route.path, projectRoot),
@@ -105,7 +116,7 @@ export function writeRouteTypes(
 /// <reference types="@teyik0/furin/env" />
 import "@teyik0/furin/routes";
 
-${pagesDir === undefined ? "" : fileRoutesDeclaration(pagesDir, projectRoot)}${routeMapDeclaration(entries)}${tagBlock}
+${apps === undefined ? "" : fileRoutesDeclaration(apps, projectRoot)}${routeMapDeclaration(entries)}${tagBlock}
 `;
 
   const typesPath = join(projectRoot, "furin-env.d.ts");

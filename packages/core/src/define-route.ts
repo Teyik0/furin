@@ -66,7 +66,6 @@ declare const ssrFieldBrand: unique symbol;
 declare const inheritedDataBrand: unique symbol;
 declare const loaderDataBrand: unique symbol;
 declare const routeContractBrand: unique symbol;
-declare const layoutRouteBrand: unique symbol;
 declare const noRequestLoader: unique symbol;
 type PrivateField<Value> = Promise<Value> & { readonly [privateFieldBrand]: true };
 interface SsrField<Value> {
@@ -721,17 +720,11 @@ type PageTerminal<State extends ChainState> = RouteTerminal<State> & {
   page: PageComponentOf<State>;
 };
 
-/** Type-only brand: `config({ layout })` accepts routes built with `.layout()`. */
-export interface FurinLayoutRoute {
-  readonly [layoutRouteBrand]: true;
-}
-
-type LayoutTerminal<State extends ChainState> = RouteTerminal<State> &
-  FurinLayoutRoute & {
-    component: LayoutComponentOf<State>;
-    elysia: ReturnType<typeof registerLayout>;
-    layout: LayoutComponentOf<State>;
-  };
+type LayoutTerminal<State extends ChainState> = RouteTerminal<State> & {
+  component: LayoutComponentOf<State>;
+  elysia: ReturnType<typeof registerLayout>;
+  layout: LayoutComponentOf<State>;
+};
 
 function registerPage(
   route: FurinRouteKey,
@@ -857,90 +850,6 @@ function configure(options: RouteMetadata & ConfigOptions): unknown {
 }
 
 /**
- * First stage of the builder: `config()` is MANDATORY and must declare at
- * least `layout` and `mode`. Loader/page/layout are intentionally unreachable
- * before it — a route without an explicit rendering contract does not compile.
- */
-class UnconfiguredRoute {
-  config<
-    LayoutRoute extends FurinLayoutRoute,
-    QuerySchema extends FurinSchema,
-    Mode extends RenderingMode,
-  >(
-    options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, QuerySchema> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params?: undefined;
-      query: QuerySchema;
-    }
-  ): ConfiguredRoute<
-    ContractOf<LayoutRoute>,
-    DataOfRoute<LayoutRoute>,
-    undefined,
-    QuerySchema,
-    { query: QuerySchema },
-    Mode
-  >;
-  config<
-    LayoutRoute extends FurinLayoutRoute,
-    ParamsSchema extends FurinSchema,
-    QuerySchema extends FurinSchema,
-    Mode extends RenderingMode,
-  >(
-    options: ResolvedConfig<ContractOf<LayoutRoute>, ParamsSchema, QuerySchema> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params: ParamsSchema;
-      query: QuerySchema;
-    }
-  ): ConfiguredRoute<
-    ContractOf<LayoutRoute>,
-    DataOfRoute<LayoutRoute>,
-    ParamsSchema,
-    QuerySchema,
-    { params: ParamsSchema; query: QuerySchema },
-    Mode
-  >;
-  config<
-    LayoutRoute extends FurinLayoutRoute,
-    ParamsSchema extends FurinSchema,
-    Mode extends RenderingMode,
-  >(
-    options: ResolvedConfig<ContractOf<LayoutRoute>, ParamsSchema, undefined> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params: ParamsSchema;
-      query?: undefined;
-    }
-  ): ConfiguredRoute<
-    ContractOf<LayoutRoute>,
-    DataOfRoute<LayoutRoute>,
-    ParamsSchema,
-    undefined,
-    { params: ParamsSchema; query: undefined },
-    Mode
-  >;
-  config<LayoutRoute extends FurinLayoutRoute, Mode extends RenderingMode>(
-    options: ResolvedConfig<ContractOf<LayoutRoute>, undefined, undefined> & {
-      layout: LayoutRoute;
-      mode: Mode;
-      params?: undefined;
-      query?: undefined;
-    }
-  ): ConfiguredRoute<
-    ContractOf<LayoutRoute>,
-    DataOfRoute<LayoutRoute>,
-    undefined,
-    undefined,
-    undefined,
-    Mode
-  >;
-  config(options: RouteMetadata & ConfigOptions): unknown {
-    return configure(options);
-  }
-}
-
-/**
  * Stage for `pages/root.tsx` — the document shell has no layout above it, so
  * `config()` requires only `mode` (the TanStack `createRootRoute` analogue).
  */
@@ -997,10 +906,11 @@ class UnconfiguredRootRoute {
 }
 
 /**
- * Stage of a keyed route, `defineRoute("/board/[boardId]")`: the generated
- * `FileRoutes` entry supplies the parent layout, the path params and the
- * terminal (`layout()` for `_route` files, `page()` otherwise), so `config()`
- * takes no `layout` and `params` only refines the path params.
+ * First stage of the builder, `defineRoute("/board/[boardId]")`: `config()` is
+ * MANDATORY and declares at least `mode`. The generated `FileRoutes` entry
+ * supplies the parent layout, the path params and the terminal (`layout()` for
+ * `_route` files, `page()` otherwise), so `config()` takes no `layout` and
+ * `params` only refines the path params.
  */
 class UnconfiguredFileRoute<Entry> {
   config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
@@ -1057,16 +967,15 @@ class UnconfiguredFileRoute<Entry> {
 }
 
 /**
- * `defineRoute(id)` keys the route by its file id (path under `pagesDir`, with
- * brackets and groups, `/index` dropped, layouts ending in `/_route`) and reads
- * its parent from the generated `FileRoutes`. `defineRoute()` wires the parent
- * by hand with `config({ layout })`. The id is type-only: the runtime chain is
- * the same.
+ * `defineRoute(id)` keys the route by its file id (the app's prefix, then the
+ * path under `pagesDir` with brackets and groups, `/index` dropped, layouts
+ * ending in `/_route`) and reads its parent from the generated `FileRoutes`.
+ * The id is type-only: the runtime chain comes from the pages tree.
  */
-export function defineRoute<Id extends FileRouteId>(id: Id): UnconfiguredFileRoute<FileRouteOf<Id>>;
-export function defineRoute(): UnconfiguredRoute;
-export function defineRoute(id?: string): unknown {
-  return id === undefined ? new UnconfiguredRoute() : new UnconfiguredFileRoute();
+export function defineRoute<Id extends FileRouteId>(
+  _id: Id
+): UnconfiguredFileRoute<FileRouteOf<Id>> {
+  return new UnconfiguredFileRoute();
 }
 
 export function defineRootRoute(): UnconfiguredRootRoute {

@@ -398,7 +398,7 @@ export async function resolveCurrentDevRoute(
   }
   throw invalidExportFailure(
     new Error(
-      `${route.path} must provide a valid Furin page export: \`export const route = defineRoute().config({ layout, mode }).page(...)\``
+      `${route.path} must provide a valid Furin page export: \`export const route = defineRoute(id).config({ mode }).page(...)\``
     ),
     route.path
   );
