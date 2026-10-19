@@ -1,0 +1,51 @@
+packages/core/src/server/render/loader-errors.ts
+  s_553967112fee2c::t_413d813718598c 75,82
+  s_553967112fee2c::t_2bdb989c62edef 6,73,168
+packages/core/src/server/instance.ts
+  s_553967112fee2c::t_2bdb989c62edef 207-214
+  s_553967112fee2c::t_f3b53d24517706 3,19-23,61,65,73-76,79-88,206
+packages/core/src/furin.ts
+  s_553967112fee2c::t_2f320801e01530 242
+packages/core/src/server/auto-invalidate/runtime.ts
+  s_553967112fee2c::t_413d813718598c 105
+packages/core/src/server/runtime-env.ts
+  s_553967112fee2c::t_230a6fc270ea86 1-5,8
+packages/core/src/server/render/element.tsx
+  s_553967112fee2c::t_2bdb989c62edef 5,36
+  s_553967112fee2c::t_413d813718598c 37,43
+packages/core/src/server/render/document-stream.ts
+  s_553967112fee2c::t_2bdb989c62edef 6,135
+packages/core/src/server/cache/invalidation.ts
+  s_553967112fee2c::t_413d813718598c 74,160
+packages/core/src/server/render/loader-segments.ts
+  s_553967112fee2c::t_2bdb989c62edef 5,139
+packages/core/src/server/router/plugin.ts
+  s_553967112fee2c::t_2bdb989c62edef 16,51
+packages/core/src/server/render/not-found.ts
+  s_553967112fee2c::t_2bdb989c62edef 11,39
+packages/core/src/server/render/mixed-cache.ts
+  s_553967112fee2c::t_413d813718598c 270-271,273
+packages/core/src/server/render/prepare-render.ts
+  s_553967112fee2c::t_2bdb989c62edef 22,115
+packages/core/src/server/render/observe-loader.ts
+  s_553967112fee2c::t_2bdb989c62edef 2,17
+packages/core/tests/rendering/errors/runtime-mode.test.tsx
+  s_553967112fee2c::t_4eb54a70a52ecf 1-35,37,39-52
+  s_553967112fee2c::t_0192948e1c4e20 36,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "52988e52082aca31567902e76615f325a7eb33ce",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
