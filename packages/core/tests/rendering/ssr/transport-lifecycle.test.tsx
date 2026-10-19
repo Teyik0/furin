@@ -140,8 +140,6 @@ test.each([404, 503])(
           {children}
         </section>
       ));
-    const root = { path: "/root.tsx", route: adaptDefinedLayout(rootDefinition, undefined) };
-    const nested = adaptDefinedLayout(nestedDefinition, root.route);
     const definition = defineRoute()
       .config({ layout: nestedDefinition, mode: "ssr" })
       .loader(async ({ dashboard }) => {
@@ -152,44 +150,33 @@ test.each([404, 503])(
         throw new Response("Resource unavailable", { status });
       })
       .page(() => <p>Resource</p>);
-    const page = adaptDefinedPage(definition, nested);
-    const route = {
-      mode: "ssr" as const,
-      page,
-      path: "/missing.tsx",
-      pattern: "/missing",
-      routeChain: collectRouteChainFromRoute(page._route),
-      // Declared beside the nested layout, so it renders inside that layout.
-      segmentBoundaries: [
-        {
-          depth: 1,
-          error: () => <p>Resource unavailable</p>,
-          notFound: ({ error }: NotFoundProps) => <p>{error.message}</p>,
-          path: "/library",
-        },
-      ],
-    };
-    const response = await new Elysia()
-      .get("/missing", (context) => renderSSR(route, context, root, undefined))
-      .handle(new Request("http://localhost/missing"));
-
-    expect(response.status).toBe(status);
-    const html = await response.text();
-    expect(html).toContain('<body data-theme="forest">');
-    expect(html).toContain('<section data-theme="ocean">');
-    expect(html).toContain("Library");
-    expect(html).toContain(status === 404 ? "Missing resource" : "Resource unavailable");
     const { app } = await mountProductionApp({
       buildId: "test",
       pages: [
         {
-          layout: { route: nestedDefinition, segment: "library" },
+          // Declared beside the nested layout, so they render inside that layout.
+          layout: {
+            error: () => <p>Library unavailable</p>,
+            notFound: ({ error }: NotFoundProps) => <p>Library: {error.message}</p>,
+            route: nestedDefinition,
+            segment: "library",
+          },
           pattern: "/missing",
           route: definition,
         },
       ],
       root: rootDefinition,
     });
+    const response = await app.handle(new Request("http://localhost/missing"));
+
+    expect(response.status).toBe(status);
+    const html = await response.text();
+    expect(html).toContain('<body data-theme="forest">');
+    expect(html).toContain('<section data-theme="ocean">');
+    expect(html).toContain("Library");
+    expect(html).toContain(
+      status === 404 ? "Library: <!-- -->Missing resource" : "Library unavailable"
+    );
     const navigation = await app.handle(new Request("http://localhost/missing?_furin=data"));
     const parsed = await parseData(await navigation.text());
     expect(parsed.syncData.dashboard).toEqual({ settings: { theme: "ocean" } });

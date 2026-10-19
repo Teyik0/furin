@@ -23,6 +23,10 @@ const PLATFORM_ASSETS: NonNullable<CompileContext["adapter"]> = {
   name: "test",
 };
 
+type SegmentBoundaryMetadata = NonNullable<
+  CompileContext["routeMetadata"]
+>[string]["segmentBoundaries"][number];
+
 /** A route terminal from `defineRoute()` / `defineRootRoute()`. */
 interface RouteTerminal {
   elysia: AnyElysia;
@@ -30,10 +34,16 @@ interface RouteTerminal {
 
 export interface ProductionPage {
   /**
-   * Intermediate layout above the page, mounted as `<segment>/_route.tsx`.
+   * Intermediate layout above the page, mounted as `<segment>/_route.tsx`,
+   * with optional `<segment>/error.tsx` / `<segment>/not-found.tsx` beside it.
    * The page's URL is still `pattern`.
    */
-  layout?: { route: RouteTerminal; segment: string };
+  layout?: {
+    error?: ErrorComponent;
+    notFound?: NotFoundComponent;
+    route: RouteTerminal;
+    segment: string;
+  };
   pattern: string;
   /** Private field names the build would infer from the chain's request loaders. */
   requestKeys?: string[];
@@ -97,13 +107,26 @@ export function mountProductionApp(options: ProductionAppOptions): Promise<Mount
   const nativeRoutes = new Elysia();
   for (const [index, page] of options.pages.entries()) {
     const directory = page.layout ? `${pagesDir}/${page.layout.segment}` : pagesDir;
+    const segmentBoundaries: SegmentBoundaryMetadata[] = [];
     if (page.layout) {
       modules[`${directory}/_route.tsx`] = { route: page.layout.route };
+      const boundary: SegmentBoundaryMetadata = { depth: 1, path: directory };
+      if (page.layout.error) {
+        boundary.errorPath = `${directory}/error.tsx`;
+        modules[boundary.errorPath] = { default: page.layout.error };
+      }
+      if (page.layout.notFound) {
+        boundary.notFoundPath = `${directory}/not-found.tsx`;
+        modules[boundary.notFoundPath] = { default: page.layout.notFound };
+      }
+      if (boundary.errorPath || boundary.notFoundPath) {
+        segmentBoundaries.push(boundary);
+      }
     }
     const path = `${directory}/page-${index}.tsx`;
     modules[path] = { route: page.route };
     routes.push({ mode: pageMode(page.route), path, pattern: page.pattern });
-    routeMetadata[path] = { requestKeys: page.requestKeys, segmentBoundaries: [] };
+    routeMetadata[path] = { requestKeys: page.requestKeys, segmentBoundaries };
     nativeRoutes.use(new Elysia({ prefix: page.pattern }).use(page.route.elysia));
   }
   return mount(
