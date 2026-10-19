@@ -9,7 +9,8 @@ import type {
   RscSourceState,
 } from "./rsc/shared.tsx";
 import { decodeFlightBytes } from "./rsc/shared.tsx";
-import { RSC_SOURCE, SLOT_MARKER } from "./rsc/symbols.ts";
+import { type CompositePropsWithSupportedChildren, createSlotProxy } from "./rsc/slot-proxy.ts";
+import { RSC_SOURCE } from "./rsc/symbols.ts";
 
 installClientCodec();
 
@@ -52,28 +53,6 @@ export async function renderServerComponent<TNode extends ReactNode>(
     tree: decodeFlightBytes(bytes),
   });
 }
-
-function createSlotProxy<TProps extends object>(): TProps {
-  return new Proxy({} as TProps, {
-    get(_target, property) {
-      if (property === "then" || typeof property !== "string") {
-        return;
-      }
-      if (property === "children") {
-        return createElement(SLOT_MARKER, { args: [], name: property });
-      }
-      return (...args: unknown[]) => createElement(SLOT_MARKER, { args, name: property });
-    },
-  });
-}
-
-type CompositePropsWithSupportedChildren<TProps extends object> = TProps extends {
-  children?: infer TChildren;
-}
-  ? [TChildren] extends [ReactNode | undefined]
-    ? Omit<TProps, "children"> & { children?: ReactNode }
-    : never
-  : TProps;
 
 // react-doctor-disable-next-line react-doctor/only-export-components
 export async function createCompositeComponent<TProps extends object>(
