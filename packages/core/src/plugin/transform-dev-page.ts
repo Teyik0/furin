@@ -7,7 +7,8 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import { walkAST } from "../shared/utils/ast-walk.ts";
-import { deadCodeElimination } from "./dead-code-elimination.ts";
+import { pruneOrphanedImports } from "./dead-code-elimination.ts";
+import type { ModuleTransform } from "./module-transform.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
 
 interface SplitDevPage {
@@ -187,18 +188,42 @@ export function splitDevPage(
   const renderImports = imports.filter((entry) =>
     entry.specifiers.some((specifier) => references.has(specifier.local.name))
   );
-  const rewritten = new MagicString(source);
-  rewritten.overwrite(callback.start, callback.end, "__furinDeferredRender");
-  const contract = deadCodeElimination(rewritten, source, lang).toString();
+  // Both modules are edits of the one parsed program.
+  const contract = editModule(source, filePath, program);
+  contract.source.overwrite(callback.start, callback.end, "__furinDeferredRender");
+  contract.removed.push({ end: callback.end, start: callback.start });
+  pruneOrphanedImports(contract);
+  const contractCode = contract.source.toString();
   // Splitting without removing an import cannot avoid loading any dependency.
   const scanner = new Bun.Transpiler({ loader: detectLoaderFromPath(filePath) });
-  const retained = new Set(scanner.scanImports(contract).map((entry) => entry.path));
+  const retained = new Set(scanner.scanImports(contractCode).map((entry) => entry.path));
   if (!renderImports.some((entry) => !retained.has(entry.source.value))) {
     return;
   }
-  const fragment = `${renderImports.map((entry) => source.slice(entry.start, entry.end)).join("\n")}\nexport default ${source.slice(callback.start, callback.end)};`;
+  const render = editModule(source, filePath, program);
+  for (const statement of statements) {
+    if (renderImports.some((entry) => entry === statement)) {
+      continue;
+    }
+    if (statement.start <= callback.start && callback.end <= statement.end) {
+      render.source.overwrite(statement.start, callback.start, "export default ");
+      render.source.overwrite(callback.end, statement.end, ";");
+      render.removed.push(
+        { end: callback.start, start: statement.start },
+        { end: statement.end, start: callback.end }
+      );
+      continue;
+    }
+    render.source.remove(statement.start, statement.end);
+    render.removed.push({ end: statement.end, start: statement.start });
+  }
+  pruneOrphanedImports(render);
   return {
-    contract: `const __furinDeferredRender = Object.assign(() => { throw new Error("Unresolved Furin page"); }, { [Symbol.for("furin.dev.render")]: () => import(${JSON.stringify(renderSpecifier)}) });\n${contract}`,
-    render: deadCodeElimination(new MagicString(fragment), source, lang).toString(),
+    contract: `const __furinDeferredRender = Object.assign(() => { throw new Error("Unresolved Furin page"); }, { [Symbol.for("furin.dev.render")]: () => import(${JSON.stringify(renderSpecifier)}) });\n${contractCode}`,
+    render: render.source.toString(),
   };
+}
+
+function editModule(code: string, filename: string, program: Program): ModuleTransform {
+  return { code, filename, program, removed: [], source: new MagicString(code) };
 }

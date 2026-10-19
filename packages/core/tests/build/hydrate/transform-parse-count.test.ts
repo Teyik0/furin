@@ -1,9 +1,11 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { transformForClient } from "../../../src/plugin/transform-client.ts";
+import { splitDevPage } from "../../../src/plugin/transform-dev-page.ts";
 import { transformIsomorphicFunctions } from "../../../src/plugin/transform-isomorphic.ts";
+import { discoverClientBoundaries } from "../../../src/rsc/build/discover.ts";
 import * as parser from "../../../src/shared/parser.ts";
 
 const temporaryDirectories: string[] = [];
@@ -81,4 +83,43 @@ test("a route module using clientModule and createIsomorphicFn is parsed once fo
   const filename = clientModuleRoute();
   const source = readFileSync(filename, "utf8");
   expect(parseCount(() => transformForClient(source, filename))).toBe(1);
+});
+
+const SPLIT_PAGE = `import { defineRoute } from "@teyik0/furin";
+import "./startup";
+import { Heavy } from "./heavy";
+
+export const route = defineRoute()
+  .config({ mode: "ssr" })
+  .page(() => <Heavy />);
+`;
+
+test("a dev page split into its contract and render modules is parsed once", () => {
+  let split: ReturnType<typeof splitDevPage>;
+  expect(
+    parseCount(() => {
+      split = splitDevPage(SPLIT_PAGE, "/app/page.tsx", "/app/page.tsx?furin-render&t=1");
+    })
+  ).toBe(1);
+  expect(split?.contract).not.toContain('"./heavy"');
+});
+
+test("client boundary discovery parses a route entry once for its view stripping", async () => {
+  const root = mkdtempSync(join(tmpdir(), "furin-parse-count-"));
+  temporaryDirectories.push(root);
+  const filename = join(realpathSync(root), "page.tsx");
+  writeFileSync(
+    filename,
+    `import { defineRoute } from "@teyik0/furin";
+export const route = defineRoute().config({ mode: "ssr" }).page(() => null);
+`
+  );
+  const parse = spyOn(parser, "parseSource");
+  try {
+    await discoverClientBoundaries([filename], undefined);
+    // View stripping, then the isomorphic transform of its output.
+    expect(parse.mock.calls.length).toBe(2);
+  } finally {
+    parse.mockRestore();
+  }
 });

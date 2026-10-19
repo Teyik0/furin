@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import MagicString from "magic-string";
 import { join } from "node:path";
-import { deadCodeElimination } from "../../../src/plugin/dead-code-elimination";
+import { pruneOrphanedImports } from "../../../src/plugin/dead-code-elimination";
+import { parseModule } from "../../../src/plugin/module-transform.ts";
 import { transformForClient } from "../../../src/plugin/transform-client";
 import strip from "../../../src/plugin/index.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
@@ -1064,22 +1064,12 @@ export const route = defineRoute().page(() => null);`,
   });
 });
 
-describe("deadCodeElimination", () => {
+describe("pruneOrphanedImports", () => {
   test("preserves module initialization when named bindings become unused", () => {
-    const code = 'import { secret } from "./db";\nexport const value = 1;';
-    const source = new MagicString(code);
+    const module = parseModule('import { secret } from "./db";\nexport const value = 1;', "db.ts");
 
-    const result = deadCodeElimination(source, code, "ts").toString();
+    pruneOrphanedImports(module);
 
-    expect(result).toContain('import "./db"');
-  });
-
-  test("returns transformed input when it cannot be reparsed", () => {
-    const source = new MagicString("export const value = 1;");
-    source.overwrite(0, source.length(), "<<<invalid>>>");
-
-    expect(deadCodeElimination(source, "export const value = 1;", "ts").toString()).toBe(
-      "<<<invalid>>>"
-    );
+    expect(module.source.toString()).toContain('import "./db"');
   });
 });

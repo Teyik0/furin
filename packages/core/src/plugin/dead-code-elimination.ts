@@ -1,10 +1,9 @@
-import MagicString from "magic-string";
+import type MagicString from "magic-string";
 import type {
   ImportDeclaration,
   Node,
   Program,
   ProgramStatement,
-  SourceLang,
   TSAsExpression,
   TSSatisfiesExpression,
   TSTypeAssertion,
@@ -12,7 +11,6 @@ import type {
   VariableDeclarator,
 } from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
-import { parseSource } from "../shared/parser.ts";
 import { isNode } from "../shared/utils/ast-walk.ts";
 import { isRemoved, type ModuleTransform, type SourceRange } from "./module-transform.ts";
 
@@ -425,7 +423,7 @@ function pruneDeadImports(state: DeadCodeState): void {
   const { body } = state.program;
   for (let index = body.length - 1; index >= 0; index -= 1) {
     const statement = body[index];
-    if (statement?.type !== "ImportDeclaration") {
+    if (statement?.type !== "ImportDeclaration" || isRemoved(statement, state.removed)) {
       continue;
     }
     const declaration = statement;
@@ -456,44 +454,16 @@ function pruneDeadImports(state: DeadCodeState): void {
   }
 }
 
-function reparse(
-  transformed: MagicString,
-  originalCode: string,
-  lang: SourceLang
-): DeadCodeState | null {
-  const code = transformed.toString();
-  const { program, diagnostics } = parseSource(code, lang);
-  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (firstError) {
-    console.error("[furin] DCE: failed to parse transformed output:", firstError.message);
-    return null;
-  }
-  const originalParse = parseSource(originalCode, lang);
-  const before = originalParse.diagnostics.some((diagnostic) => diagnostic.severity === "error")
-    ? collectModuleReferences(program, [])
-    : collectModuleReferences(originalParse.program, []);
-  return {
-    before,
+/** Prunes the imports the module's edits orphaned; top-level bindings are left untouched. */
+export function pruneOrphanedImports(module: ModuleTransform): void {
+  pruneDeadImports({
+    before: collectModuleReferences(module.program, []),
     forced: new Set(),
-    program,
-    removed: [],
+    program: module.program,
+    removed: module.removed,
     retained: new Set(),
-    source: new MagicString(code),
-  };
-}
-
-/** Prunes imports the transform orphaned; top-level bindings are left untouched. */
-export function deadCodeElimination(
-  transformed: MagicString,
-  originalCode: string,
-  lang: SourceLang
-): MagicString {
-  const state = reparse(transformed, originalCode, lang);
-  if (!state) {
-    return transformed;
-  }
-  pruneDeadImports(state);
-  return state.source;
+    source: module.source,
+  });
 }
 
 /**

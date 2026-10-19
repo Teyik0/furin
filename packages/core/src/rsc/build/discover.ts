@@ -1,9 +1,9 @@
-import MagicString from "magic-string";
 import { walk } from "yuku-ast";
 import type { Node } from "yuku-parser";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { hasShadowingDeclaration } from "../../plugin/binding-scope.ts";
-import { deadCodeElimination } from "../../plugin/dead-code-elimination.ts";
+import { pruneOrphanedImports } from "../../plugin/dead-code-elimination.ts";
+import { parseModule } from "../../plugin/module-transform.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "../../plugin/route-chains.ts";
 import {
   isomorphicTransformPlugin,
@@ -139,15 +139,16 @@ function reexportedDependencies(source: string, path: string): Set<string> {
 
 /** Route views already belong to the ordinary browser graph. */
 function stripRouteView(source: string, path: string): string {
-  const lang = detectLangFromPath(path);
-  const { program } = parseSource(source, lang);
-  const transformed = new MagicString(source);
+  const module = parseModule(source, path);
+  const { program } = module;
   const [terminal] = exportedRouteChain(program, collectDefineRouteBindings(program))?.calls ?? [];
   const [view] = terminal?.call.arguments ?? [];
   if ((terminal?.method === "page" || terminal?.method === "layout") && view !== undefined) {
-    transformed.overwrite(view.start, view.end, "() => null");
+    module.source.overwrite(view.start, view.end, "() => null");
+    module.removed.push({ end: view.end, start: view.start });
   }
-  return deadCodeElimination(transformed, source, lang).toString();
+  pruneOrphanedImports(module);
+  return module.source.toString();
 }
 
 /** Scan the unstripped server graph: loader-only imports also need browser chunks. */
