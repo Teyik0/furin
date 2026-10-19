@@ -1,0 +1,50 @@
+packages/core/src/plugin/transform-isomorphic.ts
+  s_553967112fee2c::t_cf9d72975dbb12 20
+  s_553967112fee2c::t_178c8e48cd2e00 577
+  s_553967112fee2c::t_e45b936f525e1d 573-575
+packages/core/tests/build/hydrate/transform-line-numbers.test.ts
+  s_553967112fee2c::t_bf7bf7cb452d8b 79-95
+  s_553967112fee2c::t_1a7a655efea6f6 1-47,62-78,96-117
+  s_553967112fee2c::t_c821c010703b93 48-61
+packages/core/src/plugin/strip-server-stages.ts
+  s_553967112fee2c::t_3d280977d81dd3 12-18
+  s_553967112fee2c::t_178c8e48cd2e00 83,85
+packages/core/src/plugin/module-transform.ts
+  s_553967112fee2c::t_7f2c622a3f2ff5 38
+  s_553967112fee2c::t_a0b20811319109 51-52
+  s_553967112fee2c::t_7ff4ebf8697625 37,39-50,53-63
+packages/core/src/rsc/build/discover.ts
+  s_553967112fee2c::t_178c8e48cd2e00 6,147
+packages/core/tests/build/hydrate/transform-isomorphic.test.ts
+  s_553967112fee2c::t_b7e53a05b66dfa 345
+  s_553967112fee2c::t_bd19b352589b88 362-363
+packages/core/src/plugin/transform-client.ts
+  s_553967112fee2c::t_737aa61468b0e0 55-56
+packages/core/tests/browser/hmr-conformance.webview.test.ts
+  s_553967112fee2c::t_cef4eb9ede6b63 1959-1962,1964-2006
+  s_553967112fee2c::t_9e14306511d55e 1963
+  s_553967112fee2c::t_b8f6b825df820b 1958
+packages/core/src/plugin/dead-code-elimination.ts
+  s_553967112fee2c::t_178c8e48cd2e00 15,17-22,376-378,381,386,390,406,439,441,444
+  s_553967112fee2c::t_7f2c622a3f2ff5 16
+packages/core/src/plugin/transform-dev-page.ts
+  s_553967112fee2c::t_178c8e48cd2e00 11,193,208-209,212,216
+packages/core/src/plugin/transform-client-module.ts
+  s_553967112fee2c::t_178c8e48cd2e00 7,122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd51391d16c6a82c84b17dfc6f012421e79108d4",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
