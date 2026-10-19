@@ -1,6 +1,7 @@
 import { navigationDataHref } from "../../shared/navigation-data.ts";
 import { physicalPath } from "../../shared/prefix.ts";
 import { findRouteFailure } from "../../shared/route-matches.ts";
+import type { RuntimeData } from "../internal/runtime-types.ts";
 import { TRAILING_SLASHES_RE, toLogical } from "./link-utils.ts";
 import type { SpaResponseKind } from "./types.ts";
 
@@ -15,10 +16,7 @@ import type { SpaResponseKind } from "./types.ts";
  *
  * @internal Exported for unit testing only.
  */
-export function classifySpaResponse(
-  status: number,
-  data: Record<string, unknown> | null
-): SpaResponseKind {
+export function classifySpaResponse(status: number, data: RuntimeData | null): SpaResponseKind {
   if (!data) {
     return { kind: "bail" };
   }
@@ -43,7 +41,7 @@ export function classifySpaResponse(
 export async function parsePageResponse(
   res: Response,
   basePath: string
-): Promise<{ data: Record<string, unknown> | null; finalHref: string | undefined; title: string }> {
+): Promise<{ data: RuntimeData | null; finalHref: string | undefined; title: string }> {
   let finalHref: string | undefined;
   if (res.redirected) {
     const final = new URL(res.url);

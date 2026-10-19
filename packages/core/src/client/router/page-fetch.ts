@@ -4,6 +4,7 @@ import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
 import { isWithinPrefix } from "../../shared/prefix.ts";
 import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
+import type { RuntimeData } from "../internal/runtime-types.ts";
 import { isAbortError } from "./abort.ts";
 import { isStaleDeployResponse } from "./history.ts";
 import { normalizeHref, toLogical } from "./link-utils.ts";
@@ -171,7 +172,7 @@ export async function fetchPageState(
 
     const body = res.body ?? new ReadableStream<Uint8Array>({ start: (c) => c.close() });
     let parsed: {
-      syncData: Record<string, unknown>;
+      syncData: RuntimeData;
       deferredPromises: Record<string, Promise<unknown>>;
     };
     try {

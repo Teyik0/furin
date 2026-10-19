@@ -10,7 +10,7 @@ import type {
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import type { RuntimeRoute } from "../internal/runtime-types.ts";
+import type { RuntimeData, RuntimeRoute } from "../internal/runtime-types.ts";
 import type { FurinServerErrorPayload } from "../server-error.ts";
 
 /** Exact public projection of the generated route map, keyed by route pattern. */
@@ -354,9 +354,9 @@ export interface ClientSegmentBoundary {
 }
 
 export interface ClientRoute {
-  component?: React.ComponentType<Record<string, unknown>>;
+  component?: React.ComponentType<RuntimeData>;
   load: () => Promise<{
-    default: { component: React.ComponentType<Record<string, unknown>>; _route: RuntimeRoute };
+    default: { component: React.ComponentType<RuntimeData>; _route: RuntimeRoute };
     segmentBoundaries?: ClientSegmentBoundary[];
   }>;
   pageRoute?: RuntimeRoute;
@@ -378,7 +378,7 @@ export interface ClientRoute {
  * on navigation via fetchPageState.
  */
 export type LoadedClientRoute = ClientRoute & {
-  component: React.ComponentType<Record<string, unknown>>;
+  component: React.ComponentType<RuntimeData>;
   pageRoute: RuntimeRoute;
 };
 
@@ -400,7 +400,7 @@ export interface RouterProviderProps {
   defaultPreload: PreloadStrategy;
   defaultPreloadDelay: number;
   defaultPreloadStaleTime: number;
-  initialData: Record<string, unknown>;
+  initialData: RuntimeData;
   /**
    * Slice 10 — server-logged error digest threaded from
    * the failed route match in `__FURIN_DATA__`. Forwarded onto the root-level
@@ -431,7 +431,7 @@ export interface RouterProviderProps {
 
 /** @internal Router state held inside RouterProvider. Exported so CacheEntry can reference it. */
 export interface RouterState {
-  data: Record<string, unknown>;
+  data: RuntimeData;
   /**
    * Set when the server's payload carried a route match that failed with an error.
    */

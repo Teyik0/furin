@@ -3,7 +3,13 @@ import type { HeadOptions, RenderingMode } from "../../client.ts";
 import type { RequestLoaderContext } from "../../define-route.ts";
 import type { RemountDeps } from "../../shared/page-key.ts";
 
-export type RuntimeData = Record<string, unknown>;
+/**
+ * Loader data after type erasure: field name → value. Each route declares the
+ * real shape through `defineRoute`; the runtime only relies on string keys.
+ */
+export interface RuntimeData {
+  [field: string]: unknown;
+}
 
 type Awaitable<T> = Promise<T> | T;
 

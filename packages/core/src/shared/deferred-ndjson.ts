@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: NDJSON stream chunks must be read sequentially
 import type { SerovalNode } from "seroval";
 import { fromCrossJSON } from "seroval";
+import type { RuntimeData } from "../client/internal/runtime-types.ts";
 import { parseCompactJsonLine } from "./compact-json.ts";
 import { isRouteFrameLine, parseRouteFrameLines } from "./route-frame.ts";
 
@@ -17,7 +18,7 @@ export interface DeferredNdjsonResult {
    */
   deferredPromises: Record<string, Promise<unknown>>;
   /** Scalar/sync values from the loader — available immediately. */
-  syncData: Record<string, unknown>;
+  syncData: RuntimeData;
 }
 
 function makeAbortError(reason: unknown): Error {
@@ -165,9 +166,9 @@ export async function parseDeferredNdjson(
     }
 
     const node = parsed as SerovalNode;
-    const deserialized = fromCrossJSON(node, {}) as Record<string, unknown>;
+    const deserialized = fromCrossJSON(node, {}) as RuntimeData;
 
-    const syncData: Record<string, unknown> = {};
+    const syncData: RuntimeData = {};
     const deferredPromises: Record<string, Promise<unknown>> = {};
     const resolvers: Record<
       string,
