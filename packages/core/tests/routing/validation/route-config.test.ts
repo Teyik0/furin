@@ -288,6 +288,66 @@ export const route = defineRoute()
     ]);
   });
 
+  test("accepts keyed routes whose id is the file's place in the pages tree", () => {
+    const keyed = (id: string, rest: string) => `import { defineRoute } from "@teyik0/furin";
+import { t } from "elysia";
+
+export const route = defineRoute(${JSON.stringify(id)})
+  .config({ mode: "ssr"${rest} })
+  .${id.endsWith("/_route") ? "layout(({ children }) => children)" : "page(() => null)"};
+`;
+    const pagesDir = createPages({
+      "(shop)/_route.tsx": keyed("/(shop)/_route", ""),
+      "(shop)/cart.tsx": keyed("/(shop)/cart", ""),
+      "board/[boardId]/index.tsx": keyed(
+        "/board/[boardId]",
+        ", params: t.Object({ boardId: t.String() })"
+      ),
+      "board/_route.tsx": keyed("/board/_route", ""),
+      "index.tsx": keyed("/", ""),
+      "root.tsx": ROOT,
+    });
+
+    expect(validateRouteConfig(pagesDir)).toEqual([]);
+  });
+
+  test("reports a stale keyed id with the file's id, and a layout option on a keyed route", () => {
+    const pagesDir = createPages({
+      "blog/_route.tsx": BLOG_LAYOUT,
+      "blog/index.tsx": `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/posts")
+  .config({ mode: "ssg" })
+  .page(() => null);
+`,
+      "blog/latest.tsx": `import { defineRoute } from "@teyik0/furin";
+import { route as blogRoute } from "./_route";
+
+export const route = defineRoute("/blog/latest")
+  .config({ layout: blogRoute, mode: "ssg" })
+  .page(() => null);
+`,
+      "root.tsx": ROOT,
+    });
+
+    expect(validateRouteConfig(pagesDir)).toEqual([
+      {
+        column: 34,
+        file: join(pagesDir, "blog/index.tsx"),
+        line: 3,
+        message:
+          'defineRoute("/posts") does not match this file. Its id is "/blog":\n  defineRoute("/blog")',
+      },
+      {
+        column: 13,
+        file: join(pagesDir, "blog/latest.tsx"),
+        line: 5,
+        message:
+          "defineRoute(id) reads the parent layout from the pages tree: remove layout from config() and its import.",
+      },
+    ]);
+  });
+
   test("reads the top-level route export, not a route binding nested in an export", () => {
     const pagesDir = createPages({
       "about.tsx": `import { defineRoute } from "@teyik0/furin";

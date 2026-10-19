@@ -6,7 +6,7 @@ import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
-import { routeSourcePaths } from "./route-tree.ts";
+import { fileRouteId, routeSourcePaths } from "./route-tree.ts";
 
 /**
  * Static route-config checks shared by the dev server and `furin build`.
@@ -36,6 +36,8 @@ interface RouteExport {
   /** `config({...})` argument, when the chain declares one. */
   config: ObjectExpression | undefined;
   head: CallExpression;
+  /** First argument of a keyed `defineRoute(id)`. */
+  id: Node | undefined;
   isRootFactory: boolean;
   methods: Set<string>;
 }
@@ -105,6 +107,7 @@ function findRouteExport(program: Program, imports: Map<string, Import>): RouteE
   return {
     config,
     head: chain.head,
+    id: chain.head.arguments[0],
     isRootFactory: imports.get(chain.factory)?.imported === "defineRootRoute",
     methods,
   };
@@ -179,9 +182,9 @@ function checkLayout(
   pagesDir: string,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
-  const { config } = parsed.route;
+  const { config, id } = parsed.route;
   const expected = expectedLayoutPath(file, pagesDir);
-  if (!(config && expected)) {
+  if (id || !(config && expected)) {
     return;
   }
   const property = findProperty(config, "layout");
@@ -208,6 +211,38 @@ function checkLayout(
     layout,
     `config({ layout }) must reference the nearest layout, ${relative(pagesDir, expected)}. ${layoutFix(file, expected)}`
   );
+}
+
+/** A keyed `defineRoute(id)` names its file; its parent layout comes from the pages tree. */
+function checkKey(
+  file: string,
+  pagesDir: string,
+  parsed: ParsedRoute
+): RouteConfigIssue | undefined {
+  const { config, id } = parsed.route;
+  if (!id) {
+    return;
+  }
+  const expected = fileRouteId(pagesDir, file);
+  const key = unwrapTSExpression(id);
+  if (!(key.type === "Literal" && key.value === expected)) {
+    const written = key.type === "Literal" ? JSON.stringify(key.value) : "id";
+    return issueAt(
+      file,
+      parsed,
+      key,
+      `defineRoute(${written}) does not match this file. Its id is "${expected}":\n  defineRoute("${expected}")`
+    );
+  }
+  const layout = config && findProperty(config, "layout");
+  if (layout) {
+    return issueAt(
+      file,
+      parsed,
+      layout,
+      "defineRoute(id) reads the parent layout from the pages tree: remove layout from config() and its import."
+    );
+  }
 }
 
 /** Declared mode, else the one the runtime infers from the local chain. */
@@ -275,9 +310,10 @@ function checkConfig(
   if (route.config) {
     return;
   }
-  const { entry, importLine } = route.isRootFactory
-    ? { entry: "", importLine: "" }
-    : layoutSnippets(file, pagesDir);
+  const { entry, importLine } =
+    route.isRootFactory || route.id
+      ? { entry: "", importLine: "" }
+      : layoutSnippets(file, pagesDir);
   return issueAt(
     file,
     parsed,
@@ -372,6 +408,7 @@ function checkRoute(
   const isLayout = basename(withoutExtension(file)) === "_route";
   return [
     checkConfig(file, pagesDir, parsed),
+    parsed.route.isRootFactory ? undefined : checkKey(file, pagesDir, parsed),
     parsed.route.isRootFactory ? undefined : checkLayout(file, pagesDir, parsed),
     checkMode(file, parsed),
     parsed.route.isRootFactory || isLayout ? undefined : checkParams(file, pagesDir, parsed),
