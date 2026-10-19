@@ -7,11 +7,9 @@ import { FaArrowLeft, FaChevronRight } from "react-icons/fa";
 import { FiTrash2 } from "react-icons/fi";
 import type { Card } from "@/db/schema";
 import { api } from "@/lib/api";
-import { route as parentRoute } from "./_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/board/[boardId]/card/[cardId]")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     params: t.Object({ boardId: t.String(), cardId: t.String() }),
   })

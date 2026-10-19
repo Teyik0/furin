@@ -1,10 +1,8 @@
 import { defineRoute } from "@teyik0/furin";
 import { Link } from "@teyik0/furin/link";
-import { t } from "elysia";
 import type { Board } from "@/db/schema";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { route as rootRoute } from "../root";
 
 const PALETTE = [
   "#a78bfa", // violet
@@ -19,12 +17,8 @@ function boardHue(id: string): string {
   return PALETTE[id.charCodeAt(0) % PALETTE.length] ?? (PALETTE[0] as string);
 }
 
-export const route = defineRoute()
-  .config({
-    layout: rootRoute,
-    mode: "ssr",
-    params: t.Object({ boardId: t.String() }),
-  })
+export const route = defineRoute("/board/_route")
+  .config({ mode: "ssr" })
   .loader(async () => {
     const { data: sidebarBoards, error } = await api.boards.get();
     if (error) {

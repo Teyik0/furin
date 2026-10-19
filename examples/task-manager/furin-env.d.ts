@@ -3,6 +3,41 @@
 import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/board/[boardId]": {
+      kind: "page";
+      pattern: "/board/:boardId";
+      parent: typeof import("./src/pages/board/_route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/[boardId]/card/[cardId]": {
+      kind: "page";
+      pattern: "/board/:boardId/card/:cardId";
+      parent: typeof import("./src/pages/board/[boardId]/card/_route").route;
+      pathParams: { boardId: string; cardId: string };
+    };
+    "/board/[boardId]/card/_route": {
+      kind: "layout";
+      pattern: "/board/:boardId/card";
+      parent: typeof import("./src/pages/board/_route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/_route": {
+      kind: "layout";
+      pattern: "/board";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+  }
+}
+
+declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
     "/board/:boardId": typeof import("./src/pages/board/[boardId]/index").route;

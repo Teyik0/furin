@@ -5,11 +5,9 @@ import { Suspense } from "react";
 import { StatsBar, StatsBarSkeleton, StatsBarUnavailable } from "@/components/board-page-content";
 import { Kanban } from "@/components/ui/kanban";
 import { api } from "@/lib/api";
-import { route as parentRoute } from "../_route";
 
-export const route = defineRoute()
+export const route = defineRoute("/board/[boardId]")
   .config({
-    layout: parentRoute,
     mode: "ssr",
     params: t.Object({ boardId: t.String() }),
   })
