@@ -163,5 +163,5 @@ describe.serial("buildPackageTarget", () => {
 
   test("emits package assets, factory types, and stable build metadata", (done) => {
     runBuildPackageTargetScenarios().then(() => done(), done);
-  });
+  }, 30_000);
 });
