@@ -31,6 +31,7 @@ import {
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
 import { bindSyncValidation } from "./server/sync/validation.ts";
 import { serializeInvalidationPaths } from "./shared/invalidation-header.ts";
+import { assertOnePagesDirPerMount } from "./shared/prefix.ts";
 
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmentable via furin-env.d.ts
 export interface FurinCacheTags {}
@@ -128,7 +129,8 @@ export interface FurinOptions {
    * Defaults to `""` (root). Mount Furin on an Elysia instance without a
    * prefix: under `new Elysia({ prefix: "/outer" })`, declare
    * `furin({ prefix: "/outer/admin" })` on an unprefixed child instead.
-   * Mounting two furin instances on the same prefix throws.
+   * Mounting two furin instances on the same prefix, or one pagesDir under
+   * two prefixes, throws.
    */
   prefix?: string;
   /**
@@ -197,6 +199,7 @@ function trackStartedRuntime(instance: FurinInstance, owner: AnyElysia): void {
       `[furin] prefix "${instance.prefix || "/"}" is already mounted by pagesDir "${existing.pagesDir}" (attempted to mount "${instance.pagesDir}"). Give each furin() instance a unique prefix.`
     );
   }
+  assertOnePagesDirPerMount([...runtimes.values(), instance]);
   runtimes.set(instance.prefix, instance);
 }
 
@@ -345,6 +348,7 @@ export async function furin(options?: FurinOptions) {
         `[furin] prefix "${instance.prefix || "/"}" is already mounted by pagesDir "${existing.pagesDir}" (attempted to mount "${instance.pagesDir}"). Give each furin() instance a unique prefix.`
       );
     }
+    assertOnePagesDirPerMount([...prefixes.values(), instance]);
     mounted = true;
     prefixes.set(instance.prefix, instance);
     mountedPrefixes.set(parentApp, prefixes);

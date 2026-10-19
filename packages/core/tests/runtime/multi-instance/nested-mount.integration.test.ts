@@ -171,6 +171,48 @@ try {
   }
 });
 
+test("one pages directory composed under two prefixes fails at startup", async () => {
+  const proc = await runFixtureScript(
+    `
+import { expect } from "bun:test";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "./src/furin.ts";
+import { __setDevMode } from "./src/server/runtime-env.ts";
+
+const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
+const originalCwd = process.cwd();
+const failures = [];
+const consoleError = console.error;
+console.error = (...args) => failures.push(args.map(String).join(" "));
+try {
+  process.chdir(fixture.path);
+  __setDevMode(true);
+  const pagesDir = join(fixture.path, "src/pages");
+  const app = new Elysia()
+    .use(new Elysia().use(await furin({ pagesDir, prefix: "/one" })))
+    .use(new Elysia().use(await furin({ pagesDir, prefix: "/two" })));
+  app.listen({ hostname: "127.0.0.1", port: 0 });
+  const expected = 'pagesDir "' + pagesDir + '" is mounted under both prefix "/one" and prefix "/two"';
+  const deadline = Date.now() + 3000;
+  while (!failures.join("\\n").includes(expected) && Date.now() < deadline) await Bun.sleep(10);
+  console.error = consoleError;
+  expect(failures.join("\\n")).toContain(expected);
+  expect(app.server).toBeUndefined();
+  expect(process.exitCode).toBe(1);
+  process.exitCode = 0;
+} finally {
+  console.error = consoleError;
+  process.chdir(originalCwd);
+}
+`,
+    8000
+  );
+  if (proc.exitCode !== 0) {
+    throw new Error(proc.stderr);
+  }
+});
+
 test("one furin() plugin cannot serve two applications", async () => {
   const proc = await runFixtureScript(
     `
@@ -272,6 +314,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
+import { copyPagesForPrefix } from "./tests/support/app-fixtures.ts";
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
@@ -281,9 +324,9 @@ try {
   const second = [];
   const emissions = [];
   const app = new Elysia()
-    .use(await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/one",
+    .use(await furin({ pagesDir: copyPagesForPrefix(fixture.path, "src/one", "/one"), prefix: "/one",
       logger: { drain: ({ event }) => first.push(event), waitUntil: task => emissions.push(task) } }))
-    .use(await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/two",
+    .use(await furin({ pagesDir: copyPagesForPrefix(fixture.path, "src/two", "/two"), prefix: "/two",
       logger: { drain: ({ event }) => second.push(event), waitUntil: task => emissions.push(task) } }))
     .get("/api", ({ log }) => { log.set({ parent: true }); return "parent"; });
   for (const prefix of ["/one", "/two"]) {
@@ -373,7 +416,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { writeAppFile } from "./tests/support/app-fixtures.ts";
+import { copyPagesForPrefix, writeAppFile } from "./tests/support/app-fixtures.ts";
 
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
@@ -385,7 +428,8 @@ try {
   __setDevMode(true);
   const messages = [[], []];
   for (const prefix of ["/one", "/two"]) {
-    const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: prefix + "/admin" });
+    const pagesDir = copyPagesForPrefix(fixture.path, "src" + prefix, prefix + "/admin");
+    const plugin = await furin({ pagesDir, prefix: prefix + "/admin" });
     const app = new Elysia().use(new Elysia().use(plugin)).listen({ hostname: "127.0.0.1", port: 0 });
     apps.push(app);
     const initial = await fetch(new URL(prefix + "/admin?_furin=data", app.server.url));
@@ -412,10 +456,10 @@ try {
     expect(JSON.stringify(messages[index])).toContain(prefix);
     expect(JSON.stringify(messages[index])).not.toContain(sibling);
   }
-  function addPage(name) {
-    writeAppFile(fixture.path, "src/pages/" + name + ".tsx", [
+  function addPage(prefix, name) {
+    writeAppFile(fixture.path, "src" + prefix + "/" + name + ".tsx", [
       'import { defineRoute } from "@teyik0/furin";',
-      'export const route = defineRoute("/").config({ mode: "ssr" })',
+      'export const route = defineRoute("' + prefix + "/admin/" + name + '").config({ mode: "ssr" })',
       '.loader(() => ({ added: true })).page(() => <main>Added</main>);',
     ].join("\n"));
   }
@@ -433,12 +477,13 @@ try {
     }
     throw new Error("Topology did not update for " + prefix + "/" + name);
   }
-  addPage("added");
+  addPage("/one", "added");
+  addPage("/two", "added");
   await Promise.all([waitForPage(apps[0], "/one", "added"), waitForPage(apps[1], "/two", "added")]);
   console.log("[fixture] both watchers updated");
   await apps.pop().stop(true);
   console.log("[fixture] second server stopped");
-  addPage("after-stop");
+  addPage("/one", "after-stop");
   await waitForPage(apps[0], "/one", "after-stop");
   console.log("[fixture] first watcher updated after sibling stopped");
 } finally {

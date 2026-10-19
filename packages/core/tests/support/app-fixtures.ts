@@ -71,6 +71,17 @@ export function keyPagesForPrefix(appPath: string, pagesDir: string, prefix: str
   }
 }
 
+/**
+ * Copies the app's `src/pages` to `pagesDir`, keyed for a mount at `prefix`:
+ * each mount needs its own pages directory. Returns the absolute copy path.
+ */
+export function copyPagesForPrefix(appPath: string, pagesDir: string, prefix: string): string {
+  const target = assertWithinAppPath(appPath, pagesDir);
+  cpSync(join(appPath, "src/pages"), target, { recursive: true });
+  keyPagesForPrefix(appPath, pagesDir, prefix);
+  return target;
+}
+
 export function removeAppPath(appPath: string, relativePath: string): void {
   const resolvedPath = assertWithinAppPath(appPath, relativePath);
   rmSync(resolvedPath, { force: true, recursive: true });

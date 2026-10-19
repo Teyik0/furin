@@ -45,6 +45,25 @@ export function prefixSlug(prefix: string): string {
 }
 
 /**
+ * Route ids carry their mount's prefix (`defineRoute("/admin/users")`), so a
+ * pages directory validates for one mount only.
+ */
+export function assertOnePagesDirPerMount(
+  mounts: readonly { pagesDir: string; prefix: string }[]
+): void {
+  const byPagesDir = new Map<string, string>();
+  for (const { pagesDir, prefix } of mounts) {
+    const existing = byPagesDir.get(pagesDir);
+    if (existing !== undefined && existing !== prefix) {
+      throw new Error(
+        `[furin] pagesDir "${pagesDir}" is mounted under both prefix "${existing || "/"}" and prefix "${prefix || "/"}". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
+      );
+    }
+    byPagesDir.set(pagesDir, prefix);
+  }
+}
+
+/**
  * Validate generated directory identities before writing any artifacts.
  */
 export function assertNoPrefixSlugCollisions(prefixes: string[]): void {

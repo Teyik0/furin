@@ -13,7 +13,7 @@ import { assertValidRouteConfig } from "../plugin/route-config.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { normalizePrefix } from "../server/instance.ts";
 import { scanPages } from "../server/router/discovery.ts";
-import { assertNoPrefixSlugCollisions } from "../shared/prefix.ts";
+import { assertNoPrefixSlugCollisions, assertOnePagesDirPerMount } from "../shared/prefix.ts";
 import { withProductionBuild } from "../shared/production-build.ts";
 import { discoverFurinMounts } from "./discover-mounts.ts";
 import { writeRouteTypes } from "./route-types";
@@ -156,6 +156,7 @@ async function scanApps(
       `[furin] Two apps are configured with the prefix "${duplicatePrefix.prefix || "/"}" — give each app a unique prefix.`
     );
   }
+  assertOnePagesDirPerMount(appSpecs);
   // Distinct prefixes can still slug to the same client dir (`/a-b` vs `/a/b`
   // → `client-a-b`), which would let a later app's assets overwrite an earlier
   // one's — reject before any target writes output.

@@ -8,6 +8,7 @@ import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import {
+  copyPagesForPrefix,
   createTmpApp,
   keyPagesForPrefix,
   removeAppPath,
@@ -230,9 +231,25 @@ test.serial("furin() initializes the process-wide logger only once", async () =>
   const pagesDir = join(app.path, "src/pages");
 
   await createTestApp({ pagesDir });
-  await createTestApp({ pagesDir, prefix: "/admin" });
+  await createTestApp({
+    pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
+    prefix: "/admin",
+  });
 
   expect(initLoggerSpy).toHaveBeenCalledTimes(1);
+});
+
+test.serial("furin() rejects one pages directory mounted under two prefixes", async () => {
+  const app = rememberTmpApp(createTmpApp("cli-app"));
+  __setDevMode(true);
+  process.chdir(app.path);
+  const pagesDir = join(app.path, "src/pages");
+  const parent = new Elysia().use(await furin({ pagesDir }));
+  const admin = await furin({ pagesDir, prefix: "/admin" });
+
+  expect(() => parent.use(admin)).toThrow(
+    `[furin] pagesDir "${pagesDir}" is mounted under both prefix "/" and prefix "/admin". Route ids carry their mount's prefix, so one pages directory serves one mount: give each mount its own pages directory.`
+  );
 });
 
 test.serial("each furin() instance purges its own physical paths", async () => {
@@ -258,7 +275,7 @@ test.serial("each furin() instance purges its own physical paths", async () => {
           purged.admin.push(paths);
           return Promise.resolve();
         },
-        pagesDir,
+        pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
         prefix: "/admin",
       })
     );
@@ -291,7 +308,7 @@ test.serial("each furin() instance purges tags through its own tag purger", asyn
           purged.admin.push(tags);
           return Promise.resolve();
         },
-        pagesDir,
+        pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
         prefix: "/admin",
       })
     );
@@ -312,9 +329,13 @@ test.serial("furin() instances sharing a tag purger purge each tag once", async 
     return Promise.resolve();
   };
 
-  new Elysia()
-    .use(await furin({ cacheTagPurger, pagesDir }))
-    .use(await furin({ cacheTagPurger, pagesDir, prefix: "/admin" }));
+  new Elysia().use(await furin({ cacheTagPurger, pagesDir })).use(
+    await furin({
+      cacheTagPurger,
+      pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
+      prefix: "/admin",
+    })
+  );
   await revalidateTag(["posts", "authors"]);
   await Bun.sleep(0);
 
@@ -332,13 +353,20 @@ test.serial(
     await createTestApp({ logger: { sampling: { rates: { info: 10 } } }, pagesDir });
     await createTestApp({
       logger: { sampling: { rates: { info: 10 } } },
-      pagesDir,
+      pagesDir: copyPagesForPrefix(app.path, "src/same", "/same"),
       prefix: "/same",
     });
-    await createTestApp({ pagesDir, prefix: "/inherits" });
+    await createTestApp({
+      pagesDir: copyPagesForPrefix(app.path, "src/inherits", "/inherits"),
+      prefix: "/inherits",
+    });
 
     await expect(
-      createTestApp({ logger: { sampling: { rates: { info: 50 } } }, pagesDir, prefix: "/admin" })
+      createTestApp({
+        logger: { sampling: { rates: { info: 50 } } },
+        pagesDir: copyPagesForPrefix(app.path, "src/admin", "/admin"),
+        prefix: "/admin",
+      })
     ).rejects.toThrow("logger.sampling");
     expect(initLoggerSpy).toHaveBeenCalledTimes(1);
   }

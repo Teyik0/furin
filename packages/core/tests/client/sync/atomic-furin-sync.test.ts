@@ -11,7 +11,7 @@ import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { drizzleSyncAdapter } from "../../../src/server/sync/drizzle/index.ts";
 import { furinSync } from "../../../src/server/sync/plugin.ts";
 import { migrateSqliteSync } from "../../../src/server/sync/sqlite/index.ts";
-import { createTmpApp } from "../../support/app-fixtures.ts";
+import { copyPagesForPrefix, createTmpApp } from "../../support/app-fixtures.ts";
 
 test.serial.each(["", "/api"])(
   "furin({ sync }) preserves GET and POST handlers mounted on a plugin at %s",
@@ -173,10 +173,18 @@ test.serial("independent Furin mounts select their transactional Sync runtime", 
       );
     const app = new Elysia()
       .use(
-        await furin({ prefix: "/first", pagesDir: join(fixture.path, "src/pages"), sync: first })
+        await furin({
+          prefix: "/first",
+          pagesDir: copyPagesForPrefix(fixture.path, "src/first", "/first"),
+          sync: first,
+        })
       )
       .use(
-        await furin({ prefix: "/second", pagesDir: join(fixture.path, "src/pages"), sync: second })
+        await furin({
+          prefix: "/second",
+          pagesDir: copyPagesForPrefix(fixture.path, "src/second", "/second"),
+          sync: second,
+        })
       )
       .use(mount)
       .get("/counter", () => db.select().from(counter).all());

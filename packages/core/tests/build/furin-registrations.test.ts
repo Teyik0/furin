@@ -120,3 +120,27 @@ test("the build reports a server entry it cannot evaluate to find furin() mounts
   expect(result.stderr).toContain("DATABASE_URL is not set");
   expect(result.stderr).toContain("config.apps");
 }, 30_000);
+
+test("the build fails when one pagesDir is mounted under two prefixes", async () => {
+  const app = createTmpApp("cli-app");
+  tmpApps.push(app);
+  writeAppFile(
+    app.path,
+    "src/server.ts",
+    `import { furin } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+export default new Elysia()
+  .use(await furin({ pagesDir: "./src/pages" }))
+  .use(await furin({ pagesDir: "./src/pages", prefix: "/admin" }));
+`
+  );
+
+  const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).toContain(
+    'src/pages" is mounted under both prefix "/" and prefix "/admin"'
+  );
+  expect(result.stderr).toContain("give each mount its own pages directory");
+}, 30_000);
