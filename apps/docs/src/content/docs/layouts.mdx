@@ -78,7 +78,7 @@ src/pages/
         └── security.tsx
 ```
 
-Each module references its immediate parent. The explicit import exists for TypeScript inference; the filesystem remains the routing authority. Furin reports or repairs a `layout` reference that disagrees with the directory tree.
+Each module references its immediate parent. The explicit import exists for TypeScript inference; the filesystem remains the routing authority. Furin reports a `layout` reference that disagrees with the directory tree.
 
 `layout` only accepts a route built with `.layout()`. Passing a page route or any other value is a type error.
 

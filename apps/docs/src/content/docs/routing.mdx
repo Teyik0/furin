@@ -54,6 +54,7 @@ The development server and `furin build` check every route file for mistakes tha
 - `root.tsx` uses `defineRootRoute()`, and other route files use `defineRoute()`.
 - `defineRoute()` is followed by `config()` with a `mode`.
 - `config({ layout })` references the nearest layout: the closest `_route.tsx` in a parent directory, or `root.tsx`. A layout imported through a path alias isn't checked.
+- A [keyed route](#keyed-routes) passes its own file id to `defineRoute(id)` and has no `layout` option.
 - A page's own `params` schema declares every dynamic segment of its path, including the segments its layouts also declare.
 
 Each issue names the file, line and column and gives the code to write:
@@ -173,7 +174,7 @@ pages/root.tsx
     └── pages/dashboard/settings.tsx
 ```
 
-The settings page references the dashboard route in `config({ layout })`, and the dashboard layout references the root route. Development validates this explicit type chain against the filesystem and repairs stale imports after route moves. See [Nested Layouts](/docs/layouts).
+The settings page references the dashboard route in `config({ layout })`, and the dashboard layout references the root route. The [route config checks](#route-config-checks) compare this explicit type chain with the filesystem and report a stale import after a route moves, with the import to write. [Keyed routes](#keyed-routes) read the chain from the filesystem instead. See [Nested Layouts](/docs/layouts).
 
 **Route groups**
 
@@ -200,9 +201,34 @@ Groups do not create routes or access controls by themselves. Two pages cannot r
 
 Links and navigation APIs use the public URL, such as `/users/:id`, while generated types retain the grouped source path for imports. Only directories are groups; a file named `(admin).tsx` creates the literal route `/(admin)`.
 
+## Keyed Routes
+
+`defineRoute()` can take the route file's id. The parent layout then comes from the pages tree instead of an import, so `config()` has no `layout` option:
+
+```tsx
+// src/pages/board/[boardId]/card/_route.tsx
+import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/board/[boardId]/card/_route")
+  .config({ mode: "ssr" })
+  .layout(({ children, params }) => <section data-board={params.boardId}>{children}</section>);
+```
+
+The id is the file's path under `pages`, without the extension: brackets and route groups stay, a trailing `/index` is dropped, and layouts end in `/_route`. For example, `board/[boardId]/index.tsx` is `"/board/[boardId]"` and `(marketing)/about.tsx` is `"/(marketing)/about"`.
+
+The id is type-only. It looks the file up in the `FileRoutes` interface of [`furin-env.d.ts`](#generated-route-types), which gives the route:
+
+- its parent layout's loader data, `params` and `query`, as `config({ layout })` would;
+- its path params as strings, so `params` only needs to refine them. A layout no longer declares a segment it doesn't have;
+- its terminal: a `_route` id only accepts `layout()`, any other id only `page()`.
+
+A page still declares every dynamic segment in its own `params` schema, because that schema validates the URL at runtime. The [route config checks](#route-config-checks) report a missing segment, and an id that doesn't match the file with the id to write. TypeScript reports an id that isn't in `FileRoutes`, for example after a file moves, once `furin-env.d.ts` is regenerated. Furin doesn't rewrite the id for you.
+
+Keyed routes are opt-in: `defineRoute()` with `config({ layout })` keeps working, and both forms can wrap each other. Use the unkeyed form in apps mounted with a `prefix`, which have no `FileRoutes` entries.
+
 ## Generated Route Types
 
-Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `RouteMap` entry per route pattern, such as `"/blog/:slug"`, and that map types `<Link>`, `useNavigate()`, and `useSearch()`:
+Furin writes `furin-env.d.ts` when the development server starts, on every `furin build`, and on `furin typegen`. It declares one `FileRoutes` entry per route file for [keyed routes](#keyed-routes), read from the pages tree without loading the modules, and one `RouteMap` entry per route pattern, such as `"/blog/:slug"`. `RouteMap` types `<Link>`, `useNavigate()`, and `useSearch()`:
 
 ```tsx
 import { Link } from "@teyik0/furin/link";
@@ -243,6 +269,6 @@ tags, trigger an atomic rewrite of `furin-env.d.ts`.
 
 Do not edit `furin-env.d.ts`, and exclude it from formatters such as Biome or Prettier: Furin rewrites it whenever routes change. Commit it if your team wants route types available before the dev server runs. Otherwise, run `furin typegen` before type-checking in local or CI workflows.
 
-The output is sorted by route pattern, so regenerating it with the same routes gives a byte-identical file.
+The output is sorted by file id and route pattern, so regenerating it with the same routes gives a byte-identical file.
 
-Only the root-mounted `furin()` instance (no `prefix`) writes `furin-env.d.ts`. The file is a single project-wide declaration, so prefixed instances such as `furin({ pagesDir: "./src/admin", prefix: "/admin" })` skip generation instead of overwriting the root app's routes. Their pages still work at runtime, but their route patterns aren't in `RouteMap`.
+Only the root-mounted `furin()` instance (no `prefix`) writes `furin-env.d.ts`. The file is a single project-wide declaration, so prefixed instances such as `furin({ pagesDir: "./src/admin", prefix: "/admin" })` skip generation instead of overwriting the root app's routes. Their pages still work at runtime, but their route patterns aren't in `RouteMap` and their files aren't in `FileRoutes`.
