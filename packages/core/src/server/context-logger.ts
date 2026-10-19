@@ -59,6 +59,12 @@ export function getLogger(): RequestLogger {
   }
 }
 
+/** Wide-event fields seeding the logger of a synthetic render. */
+export interface SyntheticRenderContext {
+  render?: "isr" | "ssg";
+  route: string;
+}
+
 /**
  * Runs `fn` inside a synthetic render scope.
  *
@@ -72,10 +78,10 @@ export function getLogger(): RequestLogger {
  */
 export async function runInSyntheticRenderScope<T>(
   fn: () => Promise<T> | T,
-  initialContext: Record<string, unknown>
+  initialContext: SyntheticRenderContext
 ): Promise<T> {
   const options = getFurinEvlogOptions();
-  const route = typeof initialContext.route === "string" ? initialContext.route : "/";
+  const { route } = initialContext;
   const middleware =
     options === undefined
       ? undefined
@@ -85,9 +91,9 @@ export async function runInSyntheticRenderScope<T>(
           method: "GET",
           path: physicalPath(currentInstance().prefix, route),
         });
-  const logger = middleware?.logger ?? createLogger(initialContext);
+  const logger = middleware?.logger ?? createLogger({ ...initialContext });
   if (middleware) {
-    logger.set(initialContext);
+    logger.set({ ...initialContext });
   }
   try {
     return await syntheticRenderStorage.run(logger, () => Promise.resolve(fn()));

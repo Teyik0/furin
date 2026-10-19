@@ -383,7 +383,7 @@ describe("runLoaders requestLoader", () => {
 
       const result = await runInSyntheticRenderScope(
         () => runLoaders(route, createMockLoaderContext({ path: "/collision" })),
-        { path: "/collision" }
+        { route: "/collision" }
       );
       expect(result.type).toBe("data");
 
@@ -415,7 +415,7 @@ describe("runLoaders requestLoader", () => {
 
       const result = await runInSyntheticRenderScope(
         () => runLoaders(route, createMockLoaderContext({ path: "/disjoint" })),
-        { path: "/disjoint" }
+        { route: "/disjoint" }
       );
       expect(result.type).toBe("data");
 
@@ -634,7 +634,7 @@ describe("runLoaders requestLoader", () => {
     try {
       const result = await runInSyntheticRenderScope(
         () => runLoaders(route, createMockLoaderContext({ path: "/rsc-error" })),
-        { path: "/rsc-error" }
+        { route: "/rsc-error" }
       );
 
       expect(result.type).toBe("error");

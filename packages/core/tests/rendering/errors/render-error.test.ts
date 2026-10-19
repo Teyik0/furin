@@ -463,7 +463,7 @@ describe("renderSSR — digest", () => {
           createTestRoot(RootError),
           undefined
         ),
-      { path: "/blog" }
+      { route: "/blog" }
     );
     const body = await response.text();
     expect(body).toContain("__furinMatches");
@@ -521,7 +521,7 @@ describe("renderSSR — digest", () => {
           createTestRoot(RootError),
           undefined
         ),
-      { path: "/blog" }
+      { route: "/blog" }
     );
     await response.text(); // drain
 
