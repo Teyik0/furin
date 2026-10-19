@@ -1,0 +1,116 @@
+apps/docs/src/pages/docs/deployment.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/data-loading.mdx
+  s_553967112fee2c::t_e66626cf29fbb1 11-12,68-69
+  s_553967112fee2c::t_fcabd661cdc2c8 102,106,129,133-134
+examples/weather/src/pages/weather/search.tsx
+  s_553967112fee2c::t_6077b88687d522 5
+apps/docs/src/pages/docs/_route.tsx
+  s_553967112fee2c::t_6077b88687d522 9-10
+apps/scaffolder/templates/simple/src/pages/index.tsx
+  s_553967112fee2c::t_6077b88687d522 4-5
+apps/docs/src/content/docs/api-routes.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 125-127
+apps/docs/src/content/docs/logging.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 35,39
+apps/docs/src/pages/index.tsx
+  s_553967112fee2c::t_6077b88687d522 18-19,114-115
+apps/docs/src/pages/docs/cli.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+examples/task-manager/src/pages/index.tsx
+  s_553967112fee2c::t_6077b88687d522 6-7
+apps/docs/src/pages/docs/sync.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/caching.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/defer.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/routing.mdx
+  s_553967112fee2c::t_65d821af1b383e 20
+  s_553967112fee2c::t_1f799cd9ab5d3d 26-27,34,49,53-55,61-62,76,89,102,106,135,167,188,194,196,209-210,213-214,217-219,221-224,228,271
+apps/docs/src/content/docs/error-handling.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 100,104
+apps/scaffolder/templates/full/src/pages/index.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/layouts.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 106-107
+  s_553967112fee2c::t_e66626cf29fbb1 37-38,54-55
+  s_553967112fee2c::t_a464da68f1ad4a 48,79,81
+apps/docs/src/pages/docs/api-routes.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/logging.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/caching.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 40-41,153-154
+apps/docs/src/pages/docs/head-seo.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/head-seo.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 6,10
+apps/docs/src/pages/docs/data-loading.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/link-navigation.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+examples/weather/furin-env.d.ts
+  s_553967112fee2c::t_505252f9bf29f7 13-30
+examples/weather/src/pages/index.tsx
+  s_553967112fee2c::t_6077b88687d522 5
+apps/docs/src/content/docs/sync.mdx
+  s_553967112fee2c::t_c121eb001c57f2 186
+examples/weather/src/pages/weather/[city].tsx
+  s_553967112fee2c::t_6077b88687d522 7
+apps/docs/src/pages/docs/error-handling.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/comparison.mdx
+  s_553967112fee2c::t_a464da68f1ad4a 54
+apps/docs/src/pages/docs/layouts.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/routing.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/cli.mdx
+  s_553967112fee2c::t_7000b4afff5a5b 81
+apps/docs/src/pages/docs/dev-hmr.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/multi-instance.mdx
+  s_553967112fee2c::t_7000b4afff5a5b 27,121
+apps/docs/src/content/docs/getting-started.mdx
+  s_553967112fee2c::t_a464da68f1ad4a 120
+  s_553967112fee2c::t_e66626cf29fbb1 114-115
+  s_553967112fee2c::t_931ab79c5c2668 108
+apps/docs/src/pages/docs/comparison.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/multi-instance.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/getting-started.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/rendering.mdx
+  s_553967112fee2c::t_e66626cf29fbb1 222-223
+  s_553967112fee2c::t_fcabd661cdc2c8 16,19-20,30,33-34,44,48,63-64,85,89,108,112-113
+apps/docs/src/pages/docs/configuration.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/plugins.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/rendering.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/pages/docs/index.tsx
+  s_553967112fee2c::t_6077b88687d522 8-9
+apps/docs/src/content/docs/introduction.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 26,29-30
+apps/docs/src/content/docs/defer.mdx
+  s_553967112fee2c::t_fcabd661cdc2c8 8,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a669def09e0dd3962c9bde6a445da0a6d54f5a86",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
