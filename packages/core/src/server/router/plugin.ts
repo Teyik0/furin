@@ -443,10 +443,7 @@ export async function renderResolvedRoute(
  * synchronous loader data. A throwing `head()` is swallowed: a missing title
  * must never break the data response.
  */
-function withResolvedHead(
-  route: ResolvedRoute,
-  syncData: Record<string, unknown>
-): Record<string, unknown> {
+function withResolvedHead(route: ResolvedRoute, syncData: RuntimeData): RuntimeData {
   const { head } = route.page;
   if (!head) {
     return syncData;

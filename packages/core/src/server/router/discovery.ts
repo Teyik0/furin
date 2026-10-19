@@ -10,7 +10,7 @@ import {
   mapWithConcurrency,
   validateRouteChain,
 } from "../../shared/utils/index.ts";
-import { type CompileContext, getCompileContext } from "../internal.ts";
+import { type CompileContext, type CompiledModule, getCompileContext } from "../internal.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import { filePathToPattern, resolveMode, routePatternKey } from "./patterns.ts";
@@ -248,7 +248,7 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
     );
   }
 
-  const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as Record<string, unknown>;
+  const mod = (ctx?.modules[rootPath] ?? (await import(rootPath))) as CompiledModule;
   const rootExport = mod.route;
   if (!isDefinedRouteTerminal(rootExport)) {
     throw new Error(

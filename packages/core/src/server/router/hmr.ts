@@ -19,7 +19,7 @@ import { devGraph } from "../dev/graph.ts";
 import { renderDevDiagnosticResponse } from "../dev/plugin.ts";
 import { DevTransformFailure } from "../dev/transform-failure.ts";
 import { currentInstance } from "../instance.ts";
-import { type CompileContext, getCompileContext } from "../internal.ts";
+import { type CompileContext, type CompiledModule, getCompileContext } from "../internal.ts";
 import { resolvePath } from "../render/assemble.ts";
 import {
   hasMixedLoaderModes,
@@ -43,14 +43,14 @@ import { createRouteDataErrorResponse } from "./plugin.ts";
 import { invalidateRouteModuleSourceVersions, routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
 
-type RouteModuleImport = (specifier: string) => Promise<Record<string, unknown>>;
+type RouteModuleImport = (specifier: string) => Promise<CompiledModule>;
 const requestKeyCache = new Map<
   string,
   { keys: string[]; keysByLoader: string[][]; version: string }
 >();
 
 const routeModuleImport: RouteModuleImport = (specifier) =>
-  import(specifier) as Promise<Record<string, unknown>>;
+  import(specifier) as Promise<CompiledModule>;
 
 class DevPhaseFailure extends Error {
   readonly error: unknown;
@@ -149,7 +149,7 @@ function devFailureResponse(
 export function importStampedRouteModule(
   path: string,
   resolveImport: RouteModuleImport
-): Promise<Record<string, unknown>> {
+): Promise<CompiledModule> {
   const stamp = routeModuleSourceVersion(path);
   return devGraph(undefined).importModule(path, stamp, resolveImport);
 }
@@ -160,7 +160,7 @@ export function invalidateStampedRouteModules(): void {
 
 function isResolvedRouteModuleCandidate(
   layoutPath: string,
-  imported: Record<string, unknown>,
+  imported: CompiledModule,
   ctx: CompileContext | null
 ): boolean {
   if (existsSync(layoutPath) || ctx?.modules[layoutPath]) {
@@ -174,7 +174,7 @@ async function importFreshRouteModuleCandidate(
   layoutPath: string,
   resolveImport: RouteModuleImport,
   ctx: CompileContext | null
-): Promise<Record<string, unknown> | undefined> {
+): Promise<CompiledModule | undefined> {
   if (
     resolveImport === routeModuleImport &&
     !(existsSync(layoutPath) || ctx?.modules[layoutPath])
@@ -207,7 +207,7 @@ async function importFreshLayoutRouteModule(
   layoutDir: string,
   resolveImport: RouteModuleImport,
   ctx: CompileContext | null
-): Promise<Record<string, unknown> | undefined> {
+): Promise<CompiledModule | undefined> {
   for (const layoutPath of getSourceModuleCandidates(layoutDir, "_route")) {
     const freshMod = await importFreshRouteModuleCandidate(layoutPath, resolveImport, ctx);
     if (freshMod) {
@@ -218,7 +218,7 @@ async function importFreshLayoutRouteModule(
 
 function patchRouteEntryFromFreshModule(
   entry: RuntimeRoute | undefined,
-  freshMod: Record<string, unknown>
+  freshMod: CompiledModule
 ): void {
   const freshRoute = freshMod.route;
   if (!(entry && freshRoute)) {
@@ -251,7 +251,7 @@ export async function refreshLayoutChain(
   chain: RuntimeRoute[],
   pagePath: string,
   rootPath: string,
-  importFn: ((specifier: string) => Promise<Record<string, unknown>>) | undefined
+  importFn: ((specifier: string) => Promise<CompiledModule>) | undefined
 ): Promise<void> {
   const resolveImport = importFn ?? routeModuleImport;
   const ctx = getCompileContext();
