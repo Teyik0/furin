@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { generateIndexHtml } from "../server/render/shell.ts";
 import {
   buildRouteRegex,
@@ -527,7 +527,7 @@ export function writeDevFiles(
   }
 
   if (!skipRouteTypes) {
-    changed = writeRouteTypes(routes, projectRoot) || changed;
+    changed = writeRouteTypes(routes, projectRoot, dirname(rootLayout)) || changed;
   }
 
   if (changed) {

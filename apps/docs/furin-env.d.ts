@@ -3,6 +3,149 @@
 import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/docs": {
+      kind: "page";
+      pattern: "/docs";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/_route": {
+      kind: "layout";
+      pattern: "/docs";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/docs/api-routes": {
+      kind: "page";
+      pattern: "/docs/api-routes";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/caching": {
+      kind: "page";
+      pattern: "/docs/caching";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/cli": {
+      kind: "page";
+      pattern: "/docs/cli";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/comparison": {
+      kind: "page";
+      pattern: "/docs/comparison";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/configuration": {
+      kind: "page";
+      pattern: "/docs/configuration";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/data-loading": {
+      kind: "page";
+      pattern: "/docs/data-loading";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/defer": {
+      kind: "page";
+      pattern: "/docs/defer";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/deployment": {
+      kind: "page";
+      pattern: "/docs/deployment";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/dev-hmr": {
+      kind: "page";
+      pattern: "/docs/dev-hmr";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/error-handling": {
+      kind: "page";
+      pattern: "/docs/error-handling";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/getting-started": {
+      kind: "page";
+      pattern: "/docs/getting-started";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/head-seo": {
+      kind: "page";
+      pattern: "/docs/head-seo";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/layouts": {
+      kind: "page";
+      pattern: "/docs/layouts";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/link-navigation": {
+      kind: "page";
+      pattern: "/docs/link-navigation";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/logging": {
+      kind: "page";
+      pattern: "/docs/logging";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/multi-instance": {
+      kind: "page";
+      pattern: "/docs/multi-instance";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/plugins": {
+      kind: "page";
+      pattern: "/docs/plugins";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/rendering": {
+      kind: "page";
+      pattern: "/docs/rendering";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/routing": {
+      kind: "page";
+      pattern: "/docs/routing";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+    "/docs/sync": {
+      kind: "page";
+      pattern: "/docs/sync";
+      parent: typeof import("./src/pages/docs/_route").route;
+      pathParams: {};
+    };
+  }
+}
+
+declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
     "/docs": typeof import("./src/pages/docs/index").route;

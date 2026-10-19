@@ -7,6 +7,15 @@
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by generated route types
 export interface RouteMap {}
 
+/**
+ * Typecheck fallback for the keyed `defineRoute(id)` overload. The generated
+ * furin-env.d.ts augments it with one entry per route file, keyed by its file
+ * id (`"/board/[boardId]"`, `"/board/_route"`): kind, URL pattern, parent
+ * layout and path params, read from the pages tree without importing modules.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by generated route types
+export interface FileRoutes {}
+
 /** Application contract for sync IDs and their resource scopes. */
 // biome-ignore lint/suspicious/noEmptyInterface: intentionally augmented by applications
 export interface SyncQueryMap {}

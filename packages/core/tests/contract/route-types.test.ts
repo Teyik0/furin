@@ -97,6 +97,7 @@ describe("writeRouteTypes", () => {
       readFileSync(join(import.meta.dir, "../../src/routes.ts"), "utf8")
     );
     for (const [file, kind] of [
+      ["root", "root"],
       ["index", "home"],
       ["weather/[city]", "city"],
       ["weather/search", "search"],
@@ -117,15 +118,18 @@ describe("writeRouteTypes", () => {
         route("/blog/:id", join(directory, "src/pages/blog/[id].tsx")),
         route("/blog/*", join(directory, "src/pages/blog/[...rest].tsx")),
       ],
-      directory
+      directory,
+      join(directory, "src/pages")
     );
     writeFileSync(
       join(directory, "consumer.ts"),
-      `import type { RouteMap } from "@teyik0/furin/routes";
+      `import type { FileRoutes, RouteMap } from "@teyik0/furin/routes";
 const city: RouteMap["/weather/:city"]["kind"] = "city";
 const search: RouteMap["/weather/search"]["kind"] = "search";
 const archive: RouteMap["/blog/*"]["kind"] = "archive";
-export { archive, city, search };
+const parent: FileRoutes["/weather/[city]"]["parent"]["kind"] = "root";
+const rest: FileRoutes["/blog/[...rest]"]["pathParams"] = { "*": "a/b" };
+export { archive, city, parent, rest, search };
 `
     );
 
@@ -144,6 +148,84 @@ export { archive, city, search };
     expect(content).not.toContain("[path:");
     expect(content).not.toContain("RoutePatternMap");
     expect(content).not.toContain("RouteManifest");
+  });
+
+  test("declares FileRoutes from the pages tree, keyed by file id, without importing routes", () => {
+    const directory = join(temporaryDirectory, "file-routes");
+    const pagesDir = join(directory, "src/pages");
+    for (const file of [
+      "root.tsx",
+      "index.tsx",
+      "board/_route.tsx",
+      "board/[boardId]/index.tsx",
+      "board/[boardId]/card/_route.tsx",
+      "board/[boardId]/card/[cardId].tsx",
+      "(marketing)/_route.tsx",
+      "(marketing)/about.tsx",
+      "docs/[...slug].tsx",
+      "docs/_components/toc.tsx",
+      "not-found.tsx",
+    ]) {
+      mkdirSync(join(pagesDir, file, ".."), { recursive: true });
+      // Throws if imported: typegen must read the tree, not the modules.
+      writeFileSync(join(pagesDir, file), 'throw new Error("imported");\n');
+    }
+
+    writeRouteTypes([], directory, pagesDir);
+
+    const content = readFileSync(join(directory, "furin-env.d.ts"), "utf8");
+    expect(content).toContain(`declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/(marketing)/_route": {
+      kind: "layout";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/(marketing)/about": {
+      kind: "page";
+      pattern: "/about";
+      parent: typeof import("./src/pages/(marketing)/_route").route;
+      pathParams: {};
+    };
+    "/board/[boardId]": {
+      kind: "page";
+      pattern: "/board/:boardId";
+      parent: typeof import("./src/pages/board/_route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/[boardId]/card/[cardId]": {
+      kind: "page";
+      pattern: "/board/:boardId/card/:cardId";
+      parent: typeof import("./src/pages/board/[boardId]/card/_route").route;
+      pathParams: { boardId: string; cardId: string };
+    };
+    "/board/[boardId]/card/_route": {
+      kind: "layout";
+      pattern: "/board/:boardId/card";
+      parent: typeof import("./src/pages/board/_route").route;
+      pathParams: { boardId: string };
+    };
+    "/board/_route": {
+      kind: "layout";
+      pattern: "/board";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/docs/[...slug]": {
+      kind: "page";
+      pattern: "/docs/*";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: { "*": string };
+    };
+  }
+}`);
   });
 
   test("keeps an empty RouteMap valid", () => {

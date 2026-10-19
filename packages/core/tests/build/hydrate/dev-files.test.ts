@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeDevFiles } from "../../../src/build/hydrate.ts";
@@ -7,6 +7,7 @@ import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 
 test("unchanged dev artifacts do not report another write", () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-dev-files-"));
+  mkdirSync(join(projectRoot, "src/pages"), { recursive: true });
   const outDir = join(projectRoot, ".furin");
   const log = spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -31,6 +32,7 @@ test("unchanged dev artifacts do not report another write", () => {
 
 test("an unloadable development route is included in generated route types", () => {
   const projectRoot = mkdtempSync(join(tmpdir(), "furin-dev-files-"));
+  mkdirSync(join(projectRoot, "src/pages"), { recursive: true });
   const route = {
     mode: "ssr",
     page: { __type: "FURIN_PAGE", _route: { __type: "FURIN_ROUTE" }, component: () => null },

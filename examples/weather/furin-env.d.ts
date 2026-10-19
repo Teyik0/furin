@@ -3,6 +3,29 @@
 import "@teyik0/furin/routes";
 
 declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/": {
+      kind: "page";
+      pattern: "/";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+    "/weather/[city]": {
+      kind: "page";
+      pattern: "/weather/:city";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: { city: string };
+    };
+    "/weather/search": {
+      kind: "page";
+      pattern: "/weather/search";
+      parent: typeof import("./src/pages/root").route;
+      pathParams: {};
+    };
+  }
+}
+
+declare module "@teyik0/furin/routes" {
   interface RouteMap {
     "/": typeof import("./src/pages/index").route;
     "/weather/:city": typeof import("./src/pages/weather/[city]").route;

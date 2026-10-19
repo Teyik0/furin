@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { extname, join, relative, resolve } from "node:path";
+import { fileRouteId, routeSourcePaths } from "../plugin/route-tree.ts";
+import { filePathToPattern, parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";
-import { routeMapDeclaration, type RouteMapEntry } from "../shared/route-map.ts";
+import { compareCodeUnits, routeMapDeclaration, type RouteMapEntry } from "../shared/route-map.ts";
 
 function tagKeyToPropertyName(tag: string): string {
   return /^[$A-Z_a-z][$\w]*$/.test(tag) ? tag : JSON.stringify(tag);
@@ -12,15 +14,84 @@ function tagToStringLiteral(tag: string): string {
   return `'${json.slice(1, -1).replaceAll("'", "\\'")}'`;
 }
 
-/** @internal Exported for framework build and focused contract tests. */
-export function writeRouteTypes(routes: ResolvedRoute[], projectRoot: string): boolean {
-  const entries: RouteMapEntry[] = routes.map((route) => {
-    const extension = extname(route.path);
-    const sourcePath = extension ? route.path.slice(0, -extension.length) : route.path;
-    const relativePath = relative(projectRoot, sourcePath).replaceAll("\\", "/");
-    const specifier = relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
-    return { importSpecifier: specifier, pattern: route.pattern };
+function importSpecifier(path: string, projectRoot: string): string {
+  const extension = extname(path);
+  const sourcePath = extension ? path.slice(0, -extension.length) : path;
+  const relativePath = relative(projectRoot, sourcePath).replaceAll("\\", "/");
+  return relativePath.startsWith(".") ? relativePath : `./${relativePath}`;
+}
+
+/**
+ * One `FileRoutes` entry per page and `_route` layout, keyed by its path under
+ * `pagesDir` (brackets and groups kept, `/index` dropped). Read from the tree
+ * alone, so the entries stay right while a route module is broken.
+ */
+function fileRoutesDeclaration(pagesDir: string, projectRoot: string): string {
+  const pages = resolve(pagesDir);
+  const files = routeSourcePaths({ pagesDir: pages, prefix: "" }).map((path) => {
+    const relativePath = relative(pages, path).replaceAll("\\", "/");
+    const segments = relativePath.split("/");
+    const base = (segments.pop() ?? "").slice(0, -extname(path).length);
+    return { base, path, relativePath, segments };
   });
+  const layouts = new Map(
+    files.filter(({ base }) => base === "_route").map((file) => [file.segments.join("/"), file.path])
+  );
+  const body = files
+    .map(({ base, path, relativePath, segments }) => {
+      const isLayout = base === "_route";
+      // Nearest `_route` in an enclosing directory, as discovery resolves it.
+      let parent = join(pages, "root.tsx");
+      for (let depth = isLayout ? segments.length - 1 : segments.length; depth > 0; depth -= 1) {
+        const layout = layouts.get(segments.slice(0, depth).join("/"));
+        if (layout) {
+          parent = layout;
+          break;
+        }
+      }
+      const pathParams = [...segments, base].flatMap((segment) => {
+        const dynamic = parseDynamicRouteSegment(segment, path);
+        return dynamic ? [dynamic.catchAll ? '"*": string' : `${dynamic.name}: string`] : [];
+      });
+      const id = fileRouteId(pages, path);
+      const pattern = filePathToPattern(
+        isLayout ? segments.concat("index").join("/") : relativePath
+      );
+      return {
+        id,
+        lines: `    ${JSON.stringify(id)}: {
+      kind: "${isLayout ? "layout" : "page"}";
+      pattern: ${JSON.stringify(pattern)};
+      parent: typeof import(${JSON.stringify(importSpecifier(parent, projectRoot))}).route;
+      pathParams: {${pathParams.length > 0 ? ` ${pathParams.join("; ")} ` : ""}};
+    };`,
+      };
+    })
+    .toSorted((left, right) => compareCodeUnits(left.id, right.id))
+    .map(({ lines }) => lines)
+    .join("\n");
+  return `declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+${body}
+  }
+}
+
+`;
+}
+
+/**
+ * @internal Exported for framework build and focused contract tests. Without
+ * `pagesDir`, `FileRoutes` is not declared and keyed routes accept any id.
+ */
+export function writeRouteTypes(
+  routes: ResolvedRoute[],
+  projectRoot: string,
+  pagesDir?: string
+): boolean {
+  const entries: RouteMapEntry[] = routes.map((route) => ({
+    importSpecifier: importSpecifier(route.path, projectRoot),
+    pattern: route.pattern,
+  }));
 
   const sortedTags = [...new Set(routes.flatMap((route) => route.tags ?? []))].sort();
   const tagBlock =
@@ -34,7 +105,7 @@ export function writeRouteTypes(routes: ResolvedRoute[], projectRoot: string): b
 /// <reference types="@teyik0/furin/env" />
 import "@teyik0/furin/routes";
 
-${routeMapDeclaration(entries)}${tagBlock}
+${pagesDir === undefined ? "" : fileRoutesDeclaration(pagesDir, projectRoot)}${routeMapDeclaration(entries)}${tagBlock}
 `;
 
   const typesPath = join(projectRoot, "furin-env.d.ts");

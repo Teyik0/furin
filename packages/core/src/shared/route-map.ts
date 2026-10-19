@@ -4,7 +4,7 @@ export interface RouteMapEntry {
 }
 
 /** Code-unit order: stable across runs, platforms and locales. */
-function compareCodeUnits(left: string, right: string): number {
+export function compareCodeUnits(left: string, right: string): number {
   if (left === right) {
     return 0;
   }

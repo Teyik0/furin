@@ -174,7 +174,7 @@ async function scanApps(
 function writeRootRouteTypes(apps: RuntimeTargetApp[], rootDir: string): void {
   const rootApp = apps.find((app) => app.prefix === "");
   if (rootApp) {
-    writeRouteTypes(rootApp.routes, rootDir);
+    writeRouteTypes(rootApp.routes, rootDir, rootApp.pagesDir);
   }
 }
 

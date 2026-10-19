@@ -86,6 +86,18 @@ function scanRouteFiles(
   }
 }
 
+const INDEX_SUFFIX = /\/index$/;
+
+/**
+ * Id of a keyed `defineRoute(id)`: the file's path under `pagesDir` with
+ * brackets and groups, `/index` dropped (`board/[boardId]/index.tsx` →
+ * `/board/[boardId]`, `board/_route.tsx` → `/board/_route`).
+ */
+export function fileRouteId(pagesDir: string, sourcePath: string): string {
+  const path = relative(pagesDir, sourcePath).replaceAll("\\", "/").replace(ROUTE_EXTENSION, "");
+  return `/${path}`.replace(INDEX_SUFFIX, "") || "/";
+}
+
 export function segmentPath(segment: string): string {
   return routeSegmentToPattern(segment);
 }
