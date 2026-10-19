@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { stackSourceLocation } from "../../../src/server/dev/stack-location.ts";
 
@@ -28,14 +29,16 @@ describe("stackSourceLocation", () => {
   });
 
   test("maps dev page specifiers, queries and file URLs to source paths", () => {
-    const fileUrl = pathToFileURL("/workspace/src/b.tsx").href;
+    // A native absolute path, so the file URL round-trips on Windows too.
+    const pagePath = resolve("/workspace/src/b.tsx");
+    const fileUrl = pathToFileURL(pagePath).href;
     const stack = [
       "Error: failed",
       "    at render (furin-dev-render:/workspace/src/a.tsx?furin-render&t=1:9:4)",
       `    at page (${fileUrl}:2:1)`,
     ].join("\n");
 
-    expect(stackSourceLocation(stack, "/workspace/src/b.tsx")?.file).toBe("/workspace/src/b.tsx");
+    expect(stackSourceLocation(stack, pagePath)?.file).toBe(pagePath);
     expect(stackSourceLocation(stack, "/workspace/src/a.tsx")?.file).toBe("/workspace/src/a.tsx");
   });
 
