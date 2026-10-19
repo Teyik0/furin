@@ -1,0 +1,40 @@
+packages/core/tests/dev/hmr/transform-dev-page.test.ts
+  s_553967112fee2c::t_0f7f9faa026443 54-74
+packages/core/src/plugin/route-chains.ts
+  s_553967112fee2c::t_fc5c74c3f45dbc 222-249,251-278,286-289
+  s_553967112fee2c::t_8401a3490f89f0 302
+packages/core/tests/routing/validation/route-config.test.ts
+  s_553967112fee2c::t_b548950ff0695a 264-309
+packages/core/src/plugin/route-config.ts
+  s_553967112fee2c::t_060d33163b9386 8,90,92-94,98,100,105-110
+  s_4a48d47a9f998e::t_d94348df347959 3
+packages/core/src/rsc/build/discover.ts
+  s_553967112fee2c::t_30f467a8977658 7
+  s_553967112fee2c::t_6bd1490fa34cc0 145-148
+packages/core/src/plugin/transform-dev-page.ts
+  s_553967112fee2c::t_80911ad99c53ac 2,11,88,91-94,97-99,164-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a43d39d5fa1e57ab70d11d7f8f2e40e6f25bb8f",
+  "prompts": {},
+  "sessions": {
+    "s_4a48d47a9f998e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a5017e25aba5e6e51",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}

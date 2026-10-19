@@ -1,0 +1,35 @@
+packages/core/tests/runtime/plugin/dev-routes-plugin.integration.test.ts
+  s_553967112fee2c::t_81fc3650ad6b1f 4-5
+packages/core/tests/runtime/plugin/route-topology-watcher.integration.test.ts
+  s_553967112fee2c::t_81fc3650ad6b1f 13
+packages/core/src/plugin/route-tree.ts
+  s_553967112fee2c::t_72b33f7f617813 22-25
+packages/core/tests/build/routes-plugin.test.ts
+  s_553967112fee2c::t_81fc3650ad6b1f 11
+packages/core/src/plugin/route-registry.ts
+  s_553967112fee2c::t_8325d3dc24d3f0 17
+packages/core/tests/runtime/plugin/furinjs.test.ts
+  s_553967112fee2c::t_81fc3650ad6b1f 6
+packages/core/src/plugin/dev-routes.ts
+  s_553967112fee2c::t_8f544b1f9a40e8 15
+apps/docs/src/content/docs/dev-hmr.mdx
+  s_553967112fee2c::t_79ffb076afc8ec 442
+packages/core/src/server/dev/runtime.ts
+  s_553967112fee2c::t_592cd21267ffb2 90-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4ca1c5996b593c7b0ca724bbe2fbb66bcdf34d32",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
