@@ -77,7 +77,10 @@ async function mount(
 ): Promise<MountedApp> {
   __setCompileContext(context);
   const app = new Elysia().use(await furin({ pageCache, pagesDir, prefix: context.prefix }));
-  const instance = allInstances().find((candidate) => candidate.pagesDir === pagesDir);
+  // Furin stores pagesDir with POSIX separators on every platform.
+  const instance = allInstances().find(
+    (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
+  );
   if (!instance) {
     throw new Error(`[test] furin() did not register a runtime for ${pagesDir}`);
   }

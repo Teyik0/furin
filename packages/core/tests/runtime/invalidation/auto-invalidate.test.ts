@@ -361,7 +361,10 @@ describe("furinInvalidate macro", () => {
     try {
       const pagesDir = join(tmpApp.path, "src/pages");
       const app = new Elysia().use(await furin({ pagesDir }));
-      const instance = allInstances().find((candidate) => candidate.pagesDir === pagesDir);
+      const instance = allInstances().find(
+        // Furin stores pagesDir with POSIX separators on every platform.
+        (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
+      );
       for (let index = 0; index < 200; index += 1) {
         // biome-ignore lint/performance/noAwaitInLoops: requests verify cardinality across paths.
         const response = await app.handle(
