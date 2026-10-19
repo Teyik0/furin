@@ -15,7 +15,6 @@ import {
 } from "../instance.ts";
 import { clearMixedPublicCache } from "../render/mixed-cache.ts";
 import { clearPprRouteCache } from "../render/ppr-route.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { clearDevLoaderCaches } from "./dev-loader";
 import { clearPendingISRRevalidations, isrRouteCache } from "./isr";
 import { getPageCacheAdapter, resetPageCacheAdapter } from "./page-cache-state.ts";
@@ -72,7 +71,7 @@ function emitPathInvalidation(
   deleted: boolean,
   purgedPaths: readonly string[]
 ): void {
-  if (!IS_DEV) {
+  if (!instance.development) {
     return;
   }
   withInstance(instance, () => {
@@ -158,7 +157,7 @@ export function revalidatePathForInstance(
       deleted = result.deleted || deleted;
       purgedPaths.push(...result.purgedPaths);
     }
-    if (IS_DEV && emitPathEvent !== false) {
+    if (emitPathEvent !== false) {
       emitPathInvalidation(instance, path, deleted, purgedPaths);
     }
   });

@@ -3,8 +3,8 @@ import { FurinDocumentFallback } from "../../client/document.tsx";
 import type { RouterContextValue } from "../../client/router/types.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { failRouteMatches } from "../../shared/route-matches.ts";
+import { isDevelopment } from "../instance.ts";
 import type { RootLayout } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { withDocumentState } from "./document.tsx";
 import { buildErrorElement, errorMessageForRender } from "./element.tsx";
 import { type PreparedRender, withSSRRouterContext } from "./prepare-render.ts";
@@ -132,7 +132,7 @@ export async function renderElementWithShellFallback(
     if (signal?.aborted) {
       throw error;
     }
-    if (IS_DEV) {
+    if (isDevelopment()) {
       throw error;
     }
     const digest = computeErrorDigest(error);

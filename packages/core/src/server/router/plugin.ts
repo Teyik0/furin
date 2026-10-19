@@ -13,7 +13,7 @@ import {
   emitPayloadSerialized,
 } from "../devtools/instrumentation.ts";
 import { isExternalPrerenderRequest } from "../external-prerender.ts";
-import { currentInstance } from "../instance.ts";
+import { currentInstance, isDevelopment } from "../instance.ts";
 import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { type CachedRouteData, handleISR, handleISRData } from "../render/isr.ts";
 import {
@@ -32,7 +32,6 @@ import {
 } from "../render/route-frame-transport.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR } from "../render/ssr.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";
 import type { ResolvedRoute, RootLayout } from "./types.ts";
@@ -49,7 +48,7 @@ type SyntheticDataContext = Omit<Context, "params" | "query"> & {
 type RouteDataContext = Pick<SyntheticDataContext, "params" | "path" | "query">;
 
 function emitSerializedPayload(body: string, kind: "route-data" | "rsc", requestUrl: string): void {
-  if (!IS_DEV) {
+  if (!isDevelopment()) {
     return;
   }
   const request = currentInstrumentationRequest();

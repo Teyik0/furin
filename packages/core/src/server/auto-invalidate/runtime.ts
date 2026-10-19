@@ -15,7 +15,6 @@ import {
   emitCacheInvalidated,
 } from "../devtools/instrumentation.ts";
 import { allInstances, withInstance } from "../instance.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { effectiveResponseStatus } from "../sync/response.ts";
 import { getAutoInvalidateRegistry } from "./registry.ts";
 import type { InvalidationInput, InvalidationRule } from "./types.ts";
@@ -103,7 +102,7 @@ async function invalidateTagsForInstance(
   }
   const pathResults = await Promise.all(sharedInvalidations);
   deleted = pathResults.some((result) => result.invalidated) || deleted;
-  if (IS_DEV) {
+  if (instance.development) {
     withInstance(instance, () => {
       const request = currentInstrumentationRequest();
       const operationId = request === undefined ? null : request.operationId;

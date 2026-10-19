@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isWithinPrefix } from "../shared/prefix.ts";
+import { IS_DEV } from "./runtime-env.ts";
 import { WeakRegistry } from "./weak-registry.ts";
 
 // ── Furin runtime model ──────────────────────────────────────────────────────
@@ -15,6 +16,11 @@ import { WeakRegistry } from "./weak-registry.ts";
 
 export interface FurinInstance {
   buildId: string;
+  /**
+   * Whether this runtime serves development behaviour (raw errors, dev
+   * assets, diagnostics). Fixed when the runtime is created.
+   */
+  readonly development: boolean;
   /** Absolute pagesDir — also the compile-context key. */
   readonly pagesDir: string;
   /** Full physical mount prefix declared by `furin({ prefix })`, `""` for root. */
@@ -52,9 +58,11 @@ const _runtimes = new WeakRegistry<FurinInstance>();
  */
 let _defaultInstance: FurinInstance | null = null;
 
+/** Creates a runtime in the current default mode (see `runtime-env.ts`). */
 export function createInstance(prefix: string, pagesDir: string): FurinInstance {
   return {
     buildId: "",
+    development: IS_DEV,
     pagesDir,
     prefix,
     state: new Map(),
@@ -62,10 +70,22 @@ export function createInstance(prefix: string, pagesDir: string): FurinInstance 
   };
 }
 
-/** The bucket used when no runtime has been created in this process. */
+/**
+ * The bucket used when no runtime has been created in this process. It belongs
+ * to no runtime, so its mode follows the current default.
+ */
 export function defaultInstanceBucket(): FurinInstance {
   if (!_defaultInstance) {
-    _defaultInstance = createInstance("", "");
+    _defaultInstance = {
+      buildId: "",
+      get development() {
+        return IS_DEV;
+      },
+      pagesDir: "",
+      prefix: "",
+      state: new Map(),
+      syncPath: undefined,
+    };
   }
   return _defaultInstance;
 }
@@ -181,6 +201,15 @@ export function requestLogRuntime(): FurinInstance | undefined {
 /** The runtime owning the current request or `withInstance()` call, if any. */
 export function scopedInstance(): FurinInstance | undefined {
   return _scope.getStore()?.runtime;
+}
+
+/**
+ * Whether the current code runs for a development runtime. Code bound to no
+ * runtime (build-time rendering, helpers called outside a request) follows the
+ * default mode instead of throwing, so error paths never fail on this read.
+ */
+export function isDevelopment(): boolean {
+  return scopedInstance()?.development ?? IS_DEV;
 }
 
 /**

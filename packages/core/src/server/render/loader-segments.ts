@@ -2,7 +2,7 @@ import type { RuntimeData } from "../../client/internal/runtime-types.ts";
 import { isDeferred } from "../../shared/defer.ts";
 import type { SerializedRouteMatch } from "../../shared/route-matches.ts";
 import { getLogger } from "../context-logger.ts";
-import { IS_DEV } from "../runtime-env.ts";
+import { isDevelopment } from "../instance.ts";
 
 const FURIN_RESERVED_KEY_PREFIX = "__furin";
 /**
@@ -136,7 +136,7 @@ export function flattenSegments(
 }
 
 export function mergeParentData(parent: RuntimeData, own: RuntimeData, path: string): RuntimeData {
-  if (IS_DEV) {
+  if (isDevelopment()) {
     for (const key of Object.keys(own)) {
       if (Object.hasOwn(parent, key)) {
         getLogger().warn(

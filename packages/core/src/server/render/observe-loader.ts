@@ -1,5 +1,5 @@
 import { currentInstrumentationRequest, emitLoaderFinished } from "../devtools/instrumentation.ts";
-import { IS_DEV } from "../runtime-env.ts";
+import { isDevelopment } from "../instance.ts";
 
 export function observeLoader<T extends object>(
   run: () => T | Promise<T>,
@@ -14,7 +14,7 @@ export function observeLoader<T extends object>(
   } catch (error) {
     promise = Promise.reject(error);
   }
-  if (!(IS_DEV && request)) {
+  if (!(request && isDevelopment())) {
     return promise;
   }
   return promise.then(

@@ -19,9 +19,8 @@ import {
   type RouteMatchFailure,
 } from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
-import { currentInstance } from "../instance.ts";
+import { currentInstance, isDevelopment } from "../instance.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { errorMessageForRender, SERVER_RESET_NOOP } from "./element.tsx";
 import { hasSsrLoaderAncestor, type LoaderResult, runRouteLoaders } from "./loaders.ts";
 import { generateIndexHtml } from "./shell.ts";
@@ -113,7 +112,7 @@ function resolveDocumentAssets(ctx: Context): DocumentAssets | Promise<DocumentA
   if (productionAssets !== null) {
     return productionAssets;
   }
-  if (IS_DEV && ctx.server) {
+  if (isDevelopment() && ctx.server) {
     return getDevDocumentAssets(ctx.server.url.origin);
   }
   return documentAssetsFromTemplate(generateIndexHtml());

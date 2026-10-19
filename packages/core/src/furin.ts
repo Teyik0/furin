@@ -28,7 +28,6 @@ import {
   dispatchNativeRoute,
   renderNotFound,
 } from "./server/router/dispatch.ts";
-import { IS_DEV } from "./server/runtime-env.ts";
 import { type FurinSyncOption, resolveSyncPath } from "./server/sync/config.ts";
 import { bindSyncValidation } from "./server/sync/validation.ts";
 import { serializeInvalidationPaths } from "./shared/invalidation-header.ts";
@@ -240,7 +239,7 @@ async function createFurinApp(options: FurinOptions): Promise<{
   setInstanceCacheTagPurger(instance, cacheTagPurger);
   registerInstance(instance);
 
-  const development = IS_DEV;
+  const { development } = instance;
   const modeOptions: ModeOptions = {
     clientLogging,
     requestHooks: (runtimeApp) =>

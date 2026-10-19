@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { DefaultErrorFallback, DefaultNotFoundFallback } from "../../client/default-screens.tsx";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { FurinNotFoundError, NotFoundComponent } from "../../shared/not-found.ts";
-import { IS_DEV } from "../runtime-env.ts";
+import { isDevelopment } from "../instance.ts";
 
 export function buildNotFoundElement(
   component: NotFoundComponent | undefined,
@@ -33,13 +33,14 @@ export function errorMessageForRender(
   error: unknown,
   messageOverride: string | undefined
 ): string {
-  if (component && IS_DEV) {
+  const development = isDevelopment();
+  if (component && development) {
     return messageOverride ?? errorMessageOf(error);
   }
   if (component) {
     return messageOverride ?? GENERIC_ERROR_MESSAGE;
   }
-  if (IS_DEV) {
+  if (development) {
     return (messageOverride ?? errorMessageOf(error)) || GENERIC_ERROR_MESSAGE;
   }
   return GENERIC_ERROR_MESSAGE;

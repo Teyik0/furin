@@ -3,7 +3,7 @@ import { isFurinRscRenderError } from "../../rsc/render-error.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
 import { isNotFoundError } from "../../shared/not-found.ts";
 import { getLogger } from "../context-logger.ts";
-import { IS_DEV } from "../runtime-env.ts";
+import { isDevelopment } from "../instance.ts";
 import type { LoaderResult } from "./loaders.ts";
 
 /**
@@ -70,15 +70,16 @@ export async function serializeDeferredRejection(err: unknown): Promise<unknown>
     Object.assign(wrapped, { __furinStatus: err.status });
     return wrapped;
   }
+  const development = isDevelopment();
   if (err instanceof Error) {
-    if (IS_DEV) {
+    if (development) {
       return err;
     }
     const wrapped = sanitizedDeferredError();
     Object.assign(wrapped, { __furinDigest: computeErrorDigest(err) });
     return wrapped;
   }
-  if (IS_DEV) {
+  if (development) {
     return new Error(String(err));
   }
   const wrapped = sanitizedDeferredError();
@@ -164,7 +165,7 @@ export async function normalizeLoaderError(
       deferredPromises,
       error: err,
       headers,
-      message: IS_DEV ? err.message : "Something went wrong",
+      message: isDevelopment() ? err.message : "Something went wrong",
       status: 500,
       syncData,
       type: "error",

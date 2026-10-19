@@ -8,10 +8,9 @@ import { FurinNotFoundError } from "../../shared/not-found.ts";
 import { ROUTE_MATCHES_KEY, type SerializedRouteMatch } from "../../shared/route-matches.ts";
 import type { SearchParamsInput } from "../../shared/search-params.ts";
 import { getLogger } from "../context-logger.ts";
-import { currentInstance } from "../instance.ts";
+import { currentInstance, isDevelopment } from "../instance.ts";
 import { parseRouteQuery } from "../router/schemas.ts";
 import type { RootLayout } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
@@ -37,7 +36,7 @@ export async function renderRootNotFound(
 ): Promise<Response> {
   const productionAssets = getProductionDocumentAssets();
   let assets: DocumentAssets;
-  if (IS_DEV && listenerOrigin) {
+  if (isDevelopment() && listenerOrigin) {
     try {
       assets = await getDevDocumentAssets(listenerOrigin);
     } catch {

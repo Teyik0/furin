@@ -19,7 +19,6 @@ import { getLogger } from "../context-logger.ts";
 import { allStateBuckets, currentInstance, type FurinInstance } from "../instance.ts";
 import { routeModuleSourceVersion } from "../router/source-version.ts";
 import type { ResolvedRoute } from "../router/types.ts";
-import { IS_DEV } from "../runtime-env.ts";
 
 interface CachedSegment {
   cachedAt: number;
@@ -268,9 +267,10 @@ export async function cacheMixedPublicLoader(
   const path = toLogical(new URL(ctx.path, ctx.request.url).pathname, instance.prefix);
   const pathWithSearch = canonicalCacheRequest(route, path, ctx).cacheKey;
   const sourcePath = "sourcePath" in segment ? segment.sourcePath : route.path;
-  const sourceVersion = IS_DEV && sourcePath ? routeModuleSourceVersion(sourcePath) : "";
+  const sourceVersion =
+    instance.development && sourcePath ? routeModuleSourceVersion(sourcePath) : "";
   const key = `${route.path}:${instance.buildId}:${index}:${sourceVersion}|${pathWithSearch}`;
-  const shared = IS_DEV ? undefined : getPageCacheAdapter(instance);
+  const shared = instance.development ? undefined : getPageCacheAdapter(instance);
   const localState = shared === undefined ? localCache() : undefined;
   const generation = localState?.generation;
   const local = await readLocalSegment(localState, generation, key, revalidate, parentData);
