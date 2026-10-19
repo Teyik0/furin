@@ -1,0 +1,33 @@
+packages/core/src/server/dev-page-plugin.ts
+  s_553967112fee2c::t_c2293f0c4a98d3 34,43,63,193,197,200-201,275,306-308,342,351,362,364,366-369,378-379,387
+packages/core/src/server/dev-page-imports.ts
+  s_553967112fee2c::t_c2293f0c4a98d3 3-5,8-9,28-29,69,71,92-96,98-101,103,133-135
+packages/core/tests/runtime/plugin/react-singleton-integration.test.ts
+  s_553967112fee2c::t_70056753d12f8c 221-233,235,238-241
+  s_553967112fee2c::t_7ae61c71689479 234
+  s_553967112fee2c::t_508761f55aad51 8
+  s_553967112fee2c::t_76864b29a144f9 236-237
+packages/core/tests/dev/hmr/dev-page-plugin.test.ts
+  s_553967112fee2c::t_d2809d15f502ba 368,374,424,429,434,443,452
+packages/core/tests/dev/hmr/dev-diagnostics.integration.test.ts
+  s_553967112fee2c::t_f688d31062b182 17
+  s_553967112fee2c::t_0129e3096543b7 475,515
+  s_553967112fee2c::t_c9b4d8878fa6cd 503-514,516-551
+  s_553967112fee2c::t_798748a5f53e43 458-474,476-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b2a2aa0071395c4e6a6cb3c8665ba1cbca32a45",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
