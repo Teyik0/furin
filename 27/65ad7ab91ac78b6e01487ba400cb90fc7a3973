@@ -1,0 +1,27 @@
+packages/core/tests/runtime/instance/instance.test.ts
+  s_553967112fee2c::t_1557e08f228c27 7-10,125-126
+  s_553967112fee2c::t_3747cabfde9b5e 127-145
+  s_553967112fee2c::t_3cce62202005a1 146-148
+packages/core/tests/runtime/invalidation/auto-invalidate.test.ts
+  s_553967112fee2c::t_4f5fca6ea16428 29,176,231,233,244-245,255
+  s_553967112fee2c::t_2347537e663460 31,46
+packages/core/src/server/cache/invalidation.ts
+  s_553967112fee2c::t_ed5f716bb0f4d4 19
+  s_553967112fee2c::t_443968bc340ff5 165-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2765ad7ab91ac78b6e01487ba400cb90fc7a3973",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
