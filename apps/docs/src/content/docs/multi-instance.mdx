@@ -24,7 +24,7 @@ src/admin/users.tsx       → /admin/users
 - The root instance uses `""` or `/`.
 - A non-root prefix starts with `/` and has no trailing slash after normalization.
 - Two instances cannot claim the same prefix.
-- [Route ids](/docs/routing#route-ids) start with the prefix, so each instance mounts its own pages directory.
+- [Route ids](/docs/routing#route-ids) start with the prefix, so each instance mounts its own pages directory. Mounting one pages directory under two prefixes of an application fails at startup, and `furin build` rejects it, naming the directory and both prefixes.
 - Prefixes that would produce the same client-directory slug are also rejected.
 - The prefix is the full physical path. The client bundle is built for it, as with a Next.js or TanStack Start `basePath`, so Furin does not adapt to a prefix added by a parent Elysia instance.
 - Each `furin()` call serves one application. Call it again for another application instead of reusing the plugin or a container that holds it.

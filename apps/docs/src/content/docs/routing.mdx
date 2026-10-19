@@ -206,7 +206,7 @@ export const route = defineRoute("/board/[boardId]/card/_route")
 
 The id is the file's path under `pages`, without the extension: brackets and route groups stay, a trailing `/index` is dropped, and layouts end in `/_route`. For example, `board/[boardId]/index.tsx` is `"/board/[boardId]"` and `(marketing)/about.tsx` is `"/(marketing)/about"`.
 
-In an app mounted with a `prefix`, the id starts with that prefix. In `furin({ pagesDir: "./src/admin", prefix: "/admin" })`, `users.tsx` is `"/admin/users"`, `index.tsx` is `"/admin"` and `settings/_route.tsx` is `"/admin/settings/_route"`. Ids are therefore unique across the apps of a project, and one pages directory can't be mounted under two prefixes.
+In an app mounted with a `prefix`, the id starts with that prefix. In `furin({ pagesDir: "./src/admin", prefix: "/admin" })`, `users.tsx` is `"/admin/users"`, `index.tsx` is `"/admin"` and `settings/_route.tsx` is `"/admin/settings/_route"`. Ids are therefore unique across the apps of a project, and a pages directory serves one mount: mounting it under two prefixes fails at startup and in `furin build`. Give each mount its own pages directory.
 
 The id is type-only. It looks the file up in the `FileRoutes` interface of [`furin-env.d.ts`](#generated-route-types), which gives the route:
 
