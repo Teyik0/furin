@@ -184,6 +184,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     const snapshot = (await snapshotResponse.json()) as { routes: Array<{ pattern: string }> };
     expect(snapshot.routes.some((route) => route.pattern === "/about")).toBe(true);
 
+    // Without parent hooks the not-found fallback serves it like a mounted route.
+    expect(server.getStderr()).not.toContain("was added while the dev server was running");
+
     // No server restart must have occurred.
     const logsAfter = server.getStdout() + server.getStderr();
     const listenCountAfter = (logsAfter.match(/listening on/g) ?? []).length;
@@ -450,5 +453,84 @@ export const route = defineRoute()
     } finally {
       removeAppPath(app.path, "src/pages/starter.tsx");
     }
+  }, 20_000);
+});
+
+describe.serial("dev route topology — hot-added routes under a hooked parent", () => {
+  const app = createTmpApp("cli-app");
+  let port: number;
+  let server: ReturnType<typeof startProcess>;
+
+  writeAppFile(
+    app.path,
+    "src/server.ts",
+    [
+      'import { furin } from "@teyik0/furin";',
+      'import Elysia from "elysia";',
+      "",
+      "new Elysia()",
+      '  .onBeforeHandle("global", ({ set }) => {',
+      '    set.headers["x-parent-hook"] = "ran";',
+      "  })",
+      '  .use(await furin({ pagesDir: import.meta.dir + "/pages" }))',
+      "  .listen(Number(process.env.PORT));",
+    ].join("\n")
+  );
+
+  beforeAll(async () => {
+    port = await getFreePort();
+    server = startProcess(["bun", "--hot", join(app.path, "src/server.ts")], {
+      cwd: app.path,
+      env: { PORT: String(port) },
+    });
+    const ready = await pollUntil(
+      async () => {
+        try {
+          return (await fetch(`http://localhost:${port}/`)).ok;
+        } catch {
+          return false;
+        }
+      },
+      80,
+      250
+    );
+    if (!ready) {
+      throw new Error(`Server failed to start on port ${port}. stderr:\n${server.getStderr()}`);
+    }
+  }, 30_000);
+
+  afterAll(async () => {
+    server?.kill();
+    await server?.exitCode;
+    app.cleanup();
+  });
+
+  test("warns once that parent hooks skip a hot-added route until restart", async () => {
+    expect((await fetch(`http://localhost:${port}/`)).headers.get("x-parent-hook")).toBe("ran");
+
+    writeAppFile(
+      app.path,
+      "src/pages/added.tsx",
+      [
+        'import { defineRoute } from "@teyik0/furin";',
+        'import { route as rootRoute } from "./root";',
+        "",
+        "export const route = defineRoute()",
+        '  .config({ layout: rootRoute, mode: "ssr" })',
+        "  .page(() => <main data-added>added</main>);",
+      ].join("\n")
+    );
+    const served = await pollUntil(
+      async () => (await fetch(`http://localhost:${port}/added`)).status === 200,
+      40,
+      250
+    );
+    expect(served, server.getStderr()).toBe(true);
+    // The warning's premise: the parent hook does not run for the hot-added page.
+    const added = await fetch(`http://localhost:${port}/added`);
+    expect(added.headers.get("x-parent-hook")).toBeNull();
+
+    const warning = "[furin] /added was added while the dev server was running";
+    expect(server.getStderr().split(warning)).toHaveLength(2);
   }, 20_000);
 });

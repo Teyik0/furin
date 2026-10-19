@@ -38,6 +38,34 @@ function repairedDevelopmentRoutes(
   };
 }
 
+type RouteHooks = AnyElysia["routes"][number]["hooks"];
+/** Hooks that never run on the `NotFound` error path serving hot-added routes. */
+const HANDLER_PHASE_HOOKS = ["transform", "beforeHandle", "afterHandle"] as const;
+
+function handlerPhaseHookCount(hooks: RouteHooks | undefined): number {
+  return HANDLER_PHASE_HOOKS.reduce((count, name) => {
+    const hook: unknown = hooks?.[name];
+    return count + (Array.isArray(hook) ? hook.length : Number(hook !== undefined));
+  }, 0);
+}
+
+/** Whether the owner adds handler-phase hooks to the routes this app declares. */
+function ownerAddsRouteHooks(app: AnyElysia, owner: AnyElysia): boolean {
+  const anchor = app.routes.find((route) => typeof route.handler === "function");
+  const mounted =
+    anchor &&
+    owner.routes.find(
+      (route) =>
+        route.method === anchor.method &&
+        route.handler === anchor.handler &&
+        route.path.endsWith(anchor.path)
+    );
+  return (
+    mounted !== undefined &&
+    handlerPhaseHookCount(mounted.hooks) !== handlerPhaseHookCount(anchor?.hooks)
+  );
+}
+
 async function loadDevelopmentRoutes(resolvedPagesDir: string) {
   const { scanPages } = await import("../router/discovery.ts");
   return scanPages(resolvedPagesDir);
@@ -116,6 +144,25 @@ export async function createDevRuntime(
   let matchNavigationData = buildRouteMatcher(initialSnapshot.routes);
   let routeTopologyWatcher: ReturnType<typeof registerDevRouteTopologyWatcher> | undefined;
   let watcherOwner: AnyElysia | undefined;
+  // Hot-added pages are served through the root `NotFound` handler until a
+  // restart mounts them, so hooks a parent app added to pages skip them.
+  const startupPatterns = new Set(initialSnapshot.routes.map((route) => route.pattern));
+  const warnedHotAddedPatterns = new Set<string>();
+  let parentHooksSkipHotAddedRoutes = false;
+  const warnHotAddedRoutes = (current: readonly ResolvedRoute[]): void => {
+    if (!parentHooksSkipHotAddedRoutes) {
+      return;
+    }
+    for (const { pattern } of current) {
+      if (startupPatterns.has(pattern) || warnedHotAddedPatterns.has(pattern)) {
+        continue;
+      }
+      warnedHotAddedPatterns.add(pattern);
+      console.warn(
+        `[furin] ${pattern} was added while the dev server was running. Until a restart it is served through the not-found fallback, where hooks registered by a parent Elysia app (beforeHandle, derive, resolve...) do not run.`
+      );
+    }
+  };
   bindRuntimeRoutes(instance, {
     matches: (path) => matchNavigationData(path) !== null,
     refresh: async () => {
@@ -235,6 +282,7 @@ export async function createDevRuntime(
           invalidateDevLoaderCacheBySource(sourcePath);
         }
         matchNavigationData = buildRouteMatcher(nextSnapshot.routes);
+        warnHotAddedRoutes(nextSnapshot.routes);
         const diagnostics = devDiagnosticStore(instance);
         if (repaired.root) {
           diagnostics.markReady("*");
@@ -272,6 +320,7 @@ export async function createDevRuntime(
       app
         .onStart((owner) => {
           watcherOwner = owner;
+          parentHooksSkipHotAddedRoutes = prefix === "" && ownerAddsRouteHooks(app, owner);
           routeTopologyWatcher = registerDevRouteTopologyWatcher({
             instance: routeInstance,
             owner: { app: owner.server ?? owner, prefix },

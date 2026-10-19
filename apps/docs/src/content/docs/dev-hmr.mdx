@@ -420,6 +420,27 @@ Furin does not hide these cases behind a global reload because that would make
 the passing Fast Refresh cases lose state and would conceal graph invalidation
 regressions.
 
+### Parent application hooks
+
+When a parent Elysia application registers a hook that reaches Furin's routes
+(for example `onBeforeHandle("global", ...)` from a CORS, auth, or logging
+plugin), Elysia prints this warning at startup:
+
+```text
+[Elysia] GET /_bun_hmr_entry is an HTML bundle served natively, hooks do not run for it
+```
+
+It is expected and harmless. `/_bun_hmr_entry` only serves Bun's development
+HTML entry, which needs no hooks, and the route does not exist in production.
+Elysia has no per-route opt-out for this warning yet.
+
+A page added while the dev server runs is served through the root instance's
+`NotFound` handler until a restart mounts it, and a parent's `beforeHandle`,
+`derive`, and `resolve` hooks do not run on that path. Furin prints one warning
+per such page when the parent adds hooks to its routes. Restart the server
+before relying on a parent guard for a newly added page; production always runs
+it.
+
 Large-project cold start, warm start, memory, and edit-to-paint performance need
 published reproducible benchmarks before making comparative speed claims.
 
