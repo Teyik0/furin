@@ -1,0 +1,24 @@
+packages/core/tests/rendering/ssr/loaders.test.ts
+  s_3827fec5c7f2ed::t_ef9da7b701c483 386,418,637
+packages/core/tests/rendering/errors/render-error.test.ts
+  s_3827fec5c7f2ed::t_ef9da7b701c483 466,524
+packages/core/src/server/context-logger.ts
+  s_3827fec5c7f2ed::t_c25135af8c65db 62-63,66,94,96
+  s_3827fec5c7f2ed::t_ef9da7b701c483 64-65,67,81,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33be6d61e72e42569e2a3b3a3f04957dff4f4090",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
