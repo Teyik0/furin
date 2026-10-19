@@ -24,6 +24,13 @@ describe("client defineRoute", () => {
     expect("loader" in pageRoute).toBe(false);
   });
 
+  test("builds the same terminal for a keyed route", () => {
+    const keyed = defineRoute("/board/[boardId]").page(Page);
+
+    expect(keyed.page).toBe(defineRoute().page(Page).page);
+    expect(keyed.component({ boardId: "a" })).toBe("page");
+  });
+
   test("passes the flat runtime context to a page without copying it", () => {
     let received: unknown;
     const pageRoute = defineRoute().page((props) => {

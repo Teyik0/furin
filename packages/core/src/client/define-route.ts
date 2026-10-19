@@ -37,7 +37,8 @@ function createRouteBuilder(remountDeps: RemountDeps<never, never> | undefined) 
   };
 }
 
-export function defineRoute() {
+/** The file id of a keyed `defineRoute(id)` is type-only: the client ignores it. */
+export function defineRoute(_id?: string) {
   return createRouteBuilder(undefined);
 }
 

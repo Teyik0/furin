@@ -1,3 +1,4 @@
+import type { FileRoutes } from "@teyik0/furin/routes";
 import { type Context, Elysia, ValidationError } from "elysia";
 import type { RequestLogger } from "evlog";
 import type { HeadOptions, RenderingMode } from "./client.ts";
@@ -458,6 +459,8 @@ function assertPageRequestLoaderMode(metadata: RouteMetadata, requestLoader: unk
 interface ChainState {
   /** Own public loader data (`NoFields` until `loader()`). */
   data: LoaderData;
+  /** Terminals the route file allows: both for unkeyed routes, its own kind for keyed ones. */
+  kind: RouteKind;
   loaded: boolean;
   mode: RenderingMode;
   params: unknown;
@@ -487,8 +490,10 @@ interface InitialState<
   ParentData extends LoaderData,
   ParentParams,
   Mode extends RenderingMode,
+  Kind extends RouteKind,
 > {
   data: NoFields;
+  kind: Kind;
   loaded: false;
   mode: Mode;
   params: Params;
@@ -555,9 +560,72 @@ type ConfiguredRoute<
     Schemas,
     ParentData,
     Parent["params"],
-    Mode
+    Mode,
+    RouteKind
   >
 >;
+
+type RouteKind = "layout" | "page";
+
+type FileRouteId = [keyof FileRoutes] extends [never] ? string : keyof FileRoutes & string;
+
+/** Before the first typegen any id is accepted, with no parent and no path params. */
+type FileRouteOf<Id extends string> = Id extends keyof FileRoutes
+  ? FileRoutes[Id]
+  : { kind: RouteKind; parent: undefined; pathParams: NoFields };
+
+type FileRouteKind<Entry> = Entry extends { kind: infer Kind extends RouteKind } ? Kind : RouteKind;
+type FileRouteParent<Entry> = Entry extends { parent: infer Parent } ? Parent : undefined;
+
+/**
+ * Contract a keyed route inherits: its path params as strings, refined by the
+ * types its layouts declare, plus the parent layout's query.
+ */
+interface FileRouteContract<Entry> {
+  params: MergeSchemaValues<
+    Entry extends { pathParams: infer PathParams } ? PathParams : NoFields,
+    ContractOf<FileRouteParent<Entry>>["params"]
+  >;
+  query: ContractOf<FileRouteParent<Entry>>["query"];
+  search: ContractOf<FileRouteParent<Entry>>["search"];
+}
+
+type FileConfiguredRoute<
+  Entry,
+  ParamsSchema extends FurinSchema | undefined,
+  QuerySchema extends FurinSchema | undefined,
+  Schemas extends RouteSchemas | undefined,
+  Mode extends RenderingMode,
+> = ConfiguredStage<
+  InitialState<
+    MergeSchemaValues<FileRouteContract<Entry>["params"], ParamsOf<ParamsSchema>>,
+    MergeSchemaValues<FileRouteContract<Entry>["query"], ParamsOf<QuerySchema>>,
+    MergeSchemaValues<FileRouteContract<Entry>["search"], SearchInputOf<QuerySchema>>,
+    Schemas,
+    DataOfRoute<FileRouteParent<Entry>>,
+    ContractOf<FileRouteParent<Entry>>["params"],
+    Mode,
+    FileRouteKind<Entry>
+  >
+>;
+
+/** Keyed routes take their parent layout from the pages tree. */
+interface NoLayoutOption {
+  layout?: FurinTypeError<"defineRoute(id) reads the parent layout from the pages tree: remove layout">;
+}
+
+/** A terminal the route file's kind does not allow becomes a compile error. */
+type KindCheck<
+  State extends ChainState,
+  Terminal extends RouteKind,
+  ValidComponent,
+> = Terminal extends State["kind"]
+  ? ValidComponent
+  : FurinTypeError<
+      Terminal extends "page"
+        ? "this route file is a layout (_route): finish it with layout()"
+        : "this route file is a page: finish it with page(); layouts live in _route files"
+    >;
 
 interface ChainRuntime {
   head: unknown;
@@ -742,7 +810,11 @@ class RouteChain<State extends ChainState> {
   }
 
   page(
-    component: PageRequestLoaderCheck<State["mode"], State["requestData"], PageComponentOf<State>>
+    component: KindCheck<
+      State,
+      "page",
+      PageRequestLoaderCheck<State["mode"], State["requestData"], PageComponentOf<State>>
+    >
   ): PageTerminal<State> {
     const { metadata, paramsSchema, querySchema, requestLoader } = this.runtime;
     assertPageRequestLoaderMode(metadata, requestLoader);
@@ -756,7 +828,7 @@ class RouteChain<State extends ChainState> {
     return terminal as unknown as PageTerminal<State>;
   }
 
-  layout(component: LayoutComponentOf<State>): LayoutTerminal<State> {
+  layout(component: KindCheck<State, "layout", LayoutComponentOf<State>>): LayoutTerminal<State> {
     const { paramsSchema, querySchema } = this.runtime;
     return {
       ...terminalFields(this.runtime),
@@ -924,8 +996,77 @@ class UnconfiguredRootRoute {
   }
 }
 
-export function defineRoute(): UnconfiguredRoute {
-  return new UnconfiguredRoute();
+/**
+ * Stage of a keyed route, `defineRoute("/board/[boardId]")`: the generated
+ * `FileRoutes` entry supplies the parent layout, the path params and the
+ * terminal (`layout()` for `_route` files, `page()` otherwise), so `config()`
+ * takes no `layout` and `params` only refines the path params.
+ */
+class UnconfiguredFileRoute<Entry> {
+  config<QuerySchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, undefined, QuerySchema> &
+      NoLayoutOption & {
+        mode: Mode;
+        params?: undefined;
+        query: QuerySchema;
+      }
+  ): FileConfiguredRoute<Entry, undefined, QuerySchema, { query: QuerySchema }, Mode>;
+  config<
+    ParamsSchema extends FurinSchema,
+    QuerySchema extends FurinSchema,
+    Mode extends RenderingMode,
+  >(
+    options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, QuerySchema> &
+      NoLayoutOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query: QuerySchema;
+      }
+  ): FileConfiguredRoute<
+    Entry,
+    ParamsSchema,
+    QuerySchema,
+    { params: ParamsSchema; query: QuerySchema },
+    Mode
+  >;
+  config<ParamsSchema extends FurinSchema, Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, ParamsSchema, undefined> &
+      NoLayoutOption & {
+        mode: Mode;
+        params: ParamsSchema;
+        query?: undefined;
+      }
+  ): FileConfiguredRoute<
+    Entry,
+    ParamsSchema,
+    undefined,
+    { params: ParamsSchema; query: undefined },
+    Mode
+  >;
+  config<Mode extends RenderingMode>(
+    options: ResolvedConfig<FileRouteContract<Entry>, undefined, undefined> &
+      NoLayoutOption & {
+        mode: Mode;
+        params?: undefined;
+        query?: undefined;
+      }
+  ): FileConfiguredRoute<Entry, undefined, undefined, undefined, Mode>;
+  config(options: RouteMetadata & ConfigOptions): unknown {
+    return configure(options);
+  }
+}
+
+/**
+ * `defineRoute(id)` keys the route by its file id (path under `pagesDir`, with
+ * brackets and groups, `/index` dropped, layouts ending in `/_route`) and reads
+ * its parent from the generated `FileRoutes`. `defineRoute()` wires the parent
+ * by hand with `config({ layout })`. The id is type-only: the runtime chain is
+ * the same.
+ */
+export function defineRoute<Id extends FileRouteId>(id: Id): UnconfiguredFileRoute<FileRouteOf<Id>>;
+export function defineRoute(): UnconfiguredRoute;
+export function defineRoute(id?: string): unknown {
+  return id === undefined ? new UnconfiguredRoute() : new UnconfiguredFileRoute();
 }
 
 export function defineRootRoute(): UnconfiguredRootRoute {
