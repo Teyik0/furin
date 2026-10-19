@@ -31,6 +31,34 @@ export interface RscBuildApp {
   routes: ResolvedRoute[];
 }
 
+// Both builds run in the react-server graph with the same transforms.
+const reactServerBuild = {
+  conditions: ["react-server"],
+  define: PRODUCTION_DEFINE,
+  format: "esm",
+  target: "bun",
+} satisfies Partial<Bun.BuildConfig>;
+const reactServerPlugins = () => [isomorphicTransformPlugin("server"), environmentGuardPlugin("rsc")];
+
+/** Builds the isolated Flight codec the bundled runtime loads as `server-codec.js` next to itself. */
+export async function buildFlightCodec(
+  outDir: string,
+  userPlugins: Bun.BunPlugin[] | undefined
+): Promise<void> {
+  const codecResult = await runBunBuild({
+    ...reactServerBuild,
+    entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
+    outdir: outDir,
+    naming: "server-codec.js",
+    plugins: [...(userPlugins ?? []), flightLoaderPlugin(), ...reactServerPlugins()],
+  });
+  if (!codecResult.success) {
+    throw new Error(
+      `[furin] Flight codec build failed.\n${codecResult.logs.map((log) => log.message).join("\n")}`
+    );
+  }
+}
+
 export async function buildRscGraph(
   apps: RscBuildApp[],
   outDir: string,
@@ -63,14 +91,6 @@ export async function buildRscGraph(
       });
     },
   };
-  // Both builds run in the react-server graph with the same transforms.
-  const reactServerBuild = {
-    conditions: ["react-server"],
-    define: PRODUCTION_DEFINE,
-    format: "esm",
-    target: "bun",
-  } satisfies Partial<Bun.BuildConfig>;
-  const reactServerPlugins = () => [isomorphicTransformPlugin("server"), environmentGuardPlugin("rsc")];
   const clientReferences: ClientReference[] = [];
   const result = await runBunBuild({
     ...reactServerBuild,
@@ -90,18 +110,7 @@ export async function buildRscGraph(
       `[furin] RSC graph build failed.\n${result.logs.map((log) => log.message).join("\n")}`
     );
   }
-  const codecResult = await runBunBuild({
-    ...reactServerBuild,
-    entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
-    outdir: outDir,
-    naming: "server-codec.js",
-    plugins: [...(userPlugins ?? []), flightLoaderPlugin(), ...reactServerPlugins()],
-  });
-  if (!codecResult.success) {
-    throw new Error(
-      `[furin] Flight codec build failed.\n${codecResult.logs.map((log) => log.message).join("\n")}`
-    );
-  }
+  await buildFlightCodec(outDir, userPlugins);
   const css = result.outputs
     .filter((output) => output.path.endsWith(".css"))
     .map((output) => ({ href: `/_rsc/${basename(output.path)}` }));
