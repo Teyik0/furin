@@ -75,6 +75,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Invalid `_route.tsx` in development** — a `_route.tsx` whose `route` export is not a layout chain now shows in the error overlay instead of rendering the page without its layout.
 - **One route scanner** — page discovery and the native route tree share one file manifest: a symlinked page file is served instead of returning 404, and an invalid dynamic segment above a convention file fails the build too. Route config checks now also validate routes that import `defineRoute` from `@teyik0/furin/client`.
 - **Per-runtime state** — a runtime's development or production mode is fixed when `furin()` creates it, so a production runtime never exposes raw error messages, and the sync safety poll interval follows each runtime instead of the first import. Shutting down one production server no longer waits for request-log drains of another server in the same process.
+- **Development route modules** — each application's development route module is a Bun virtual module, so a runtime plugin registered earlier in the process with a broad filter no longer answers for it.
 - **RSC development codec** — the on-demand Flight codec is built in a private temporary directory that is removed after import, instead of a predictable directory left in the shared temp dir.
 
 ## [0.7.0-alpha.3] — 2026-10-04
