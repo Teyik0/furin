@@ -228,7 +228,8 @@ export function invalidateDevLoaderCacheBySource(filePath: string): InvalidateOu
 
 function invalidateInstanceBySource(instance: FurinInstance, filePath: string): InvalidateOutcome {
   const state = instanceDevLoaderState(instance);
-  const keys = state.sourceFileToCacheKeys.get(filePath);
+  // Dependencies are indexed with POSIX separators; Windows callers may pass native paths.
+  const keys = state.sourceFileToCacheKeys.get(filePath.replaceAll("\\", "/"));
   if (!keys || keys.size === 0) {
     return { cleared: [], isr: 0, ssg: 0 };
   }

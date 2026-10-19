@@ -82,6 +82,15 @@ assert(getDevISRLoaderCache("/isr-route") === undefined, "ISR entry should be re
 assert(getDevSSGLoaderCache("/ssg-route") === undefined, "SSG entry should be removed");
 
 resetDevCache();
+setDevSSGLoaderCache("/win-route", makeEntry({ dependencies: ["C:/app/src/pages/win.tsx"] }));
+// Windows callers can report the native path of a POSIX-indexed dependency.
+assertEqual(
+  invalidateDevLoaderCacheBySource("C:\\\\app\\\\src\\\\pages\\\\win.tsx").ssg,
+  1,
+  "a backslash path should clear its POSIX dependency"
+);
+
+resetDevCache();
 setDevSSGLoaderCache("/a", makeEntry({ loaderData: { page: "a" } }));
 setDevSSGLoaderCache("/b", makeEntry({ loaderData: { page: "b" } }));
 const keys = getAllDevSSGLoaderEntries().map(([key]) => key);
