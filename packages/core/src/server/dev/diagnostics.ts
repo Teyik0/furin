@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   DEV_DIAGNOSTIC_PROTOCOL_VERSION,
   type DevDiagnostic,
@@ -12,6 +11,7 @@ import {
 import { currentInstance, type FurinInstance, instanceSlot } from "../instance.ts";
 import { buildRouteMatcher } from "../router/patterns.ts";
 import { devGraph } from "./graph.ts";
+import { sourceFilePath, stackSourceLocation } from "./stack-location.ts";
 import { symbolicateStack } from "./symbolicate.ts";
 
 interface DiagnosticContext {
@@ -29,10 +29,6 @@ export interface ClientErrorReport {
   stack: string | undefined;
 }
 
-const STACK_POSITION_RE =
-  /(?:^|\s)\(?((?:file:\/\/|furin-dev-(?:page|render):)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
-const QUERY_RE = /\?.*$/;
 const EVENT_LIMIT = 100;
 
 function messageOf(error: unknown): string {
@@ -49,17 +45,6 @@ function causeOf(error: unknown): string | undefined {
 function displayPath(path: string): string {
   const projected = relative(process.cwd(), path).replaceAll("\\", "/");
   return projected.startsWith("../") ? path : projected;
-}
-
-function sourceFilePath(file: string): string {
-  if (!file.startsWith("file://")) {
-    return file;
-  }
-  try {
-    return fileURLToPath(file);
-  } catch {
-    return file;
-  }
 }
 
 function canonicalSourcePath(path: string): string {
@@ -80,30 +65,6 @@ function logicalDiagnosticRoute(route: string, instance: FurinInstance | undefin
     return route.slice(prefix.length) || "/";
   }
   return route;
-}
-
-function stackLocation(
-  stack: string | undefined,
-  entryPath: string
-): DevSourceLocation | undefined {
-  if (!stack) {
-    return;
-  }
-  const locations: DevSourceLocation[] = [];
-  for (const line of stack.split("\n")) {
-    const match = STACK_POSITION_RE.exec(line.trim());
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the position pattern.
-    if (!(match?.[1] && match[2] && match[3])) {
-      continue;
-    }
-    const file = sourceFilePath(match[1].replace(DEV_PAGE_PREFIX_RE, "").replace(QUERY_RE, ""));
-    locations.push({
-      column: Number.parseInt(match[3], 10),
-      file,
-      line: Number.parseInt(match[2], 10),
-    });
-  }
-  return locations.find((location) => location.file === entryPath) ?? locations[0];
 }
 
 function explicitLocation(error: unknown, entryPath: string): DevSourceLocation | undefined {
@@ -132,7 +93,7 @@ function explicitLocation(error: unknown, entryPath: string): DevSourceLocation 
 export function createDevDiagnostic(error: unknown, context: DiagnosticContext): DevDiagnostic {
   const stack = error instanceof Error ? error.stack : undefined;
   const sourceLocation =
-    explicitLocation(error, context.entryPath) ?? stackLocation(stack, context.entryPath);
+    explicitLocation(error, context.entryPath) ?? stackSourceLocation(stack, context.entryPath);
   const location = sourceLocation
     ? { ...sourceLocation, file: displayPath(sourceLocation.file) }
     : undefined;

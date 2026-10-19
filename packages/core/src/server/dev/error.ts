@@ -1,6 +1,6 @@
 import { relative } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { DevErrorPayload, DevErrorPhase, DevGraph, DevGraphEvent } from "./graph.ts";
+import { stackSourceLocation } from "./stack-location.ts";
 
 interface DevErrorContext {
   entryPath: string;
@@ -21,10 +21,6 @@ interface SourcePosition {
   line: number;
 }
 
-const STACK_POSITION_RE = /(?:^|\s)\(?((?:file:\/\/)?\S+):(\d+):(\d+)\)?$/;
-const DEV_PAGE_PREFIX_RE = /^furin-dev-(?:page|render):/;
-const QUERY_RE = /\?.*$/;
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -37,34 +33,6 @@ function errorCause(error: unknown): string | null {
     return null;
   }
   return errorMessage(error.cause);
-}
-
-function stackPosition(stack: string | undefined, entryPath: string): SourcePosition | null {
-  if (!stack) {
-    return null;
-  }
-  const positions: SourcePosition[] = [];
-  for (const line of stack.split("\n")) {
-    const match = STACK_POSITION_RE.exec(line.trim());
-    // biome-ignore lint/suspicious/noUnnecessaryConditions: stack lines need not match the position pattern.
-    if (!(match?.[1] && match[2] && match[3])) {
-      continue;
-    }
-    let file = match[1].replace(DEV_PAGE_PREFIX_RE, "").replace(QUERY_RE, "");
-    if (file.startsWith("file://")) {
-      try {
-        file = fileURLToPath(file);
-      } catch {
-        // Keep the URL when it cannot be projected to a local file.
-      }
-    }
-    positions.push({
-      column: Number.parseInt(match[3], 10),
-      file,
-      line: Number.parseInt(match[2], 10),
-    });
-  }
-  return positions.find((position) => position.file === entryPath) ?? positions[0] ?? null;
 }
 
 function buildPosition(error: unknown, entryPath: string): SourcePosition | null {
@@ -101,7 +69,8 @@ function buildPosition(error: unknown, entryPath: string): SourcePosition | null
 export function createDevErrorPayload(error: unknown, context: DevErrorContext): DevErrorPayload {
   const stack = error instanceof Error ? (error.stack ?? null) : null;
   const position =
-    buildPosition(error, context.entryPath) ?? stackPosition(stack ?? undefined, context.entryPath);
+    buildPosition(error, context.entryPath) ??
+    stackSourceLocation(stack ?? undefined, context.entryPath);
   return {
     cause: errorCause(error),
     column: position?.column ?? null,
