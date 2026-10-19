@@ -1,0 +1,38 @@
+packages/core/src/client/router/link-utils.ts
+  s_3827fec5c7f2ed::t_c142658fea9349 196-198
+  s_3827fec5c7f2ed::t_7940d0684ed147 1
+packages/core/src/server/cache/dev-loader.ts
+  s_3827fec5c7f2ed::t_ce6da6e98e2d1a 3
+  s_3827fec5c7f2ed::t_5165f2b332fdfb 193
+packages/core/tests/runtime/invalidation/invalidated-path.test.ts
+  s_3827fec5c7f2ed::t_2c0f431f24df4e 1-20
+packages/core/src/server/cache/route-cache.ts
+  s_3827fec5c7f2ed::t_8b58a5e2c47b0a 2
+  s_123bc7da779c69::t_a23f0ae223986f 183
+packages/core/src/shared/invalidation-header.ts
+  s_3827fec5c7f2ed::t_4bdf80de3db607 23-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0af8cd770afb0d0cd863c472e8011f4847393227",
+  "prompts": {},
+  "sessions": {
+    "s_123bc7da779c69": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a6837c54d458bd40a",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    },
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
