@@ -1,0 +1,73 @@
+packages/core/src/client/default-screens.tsx
+  s_3827fec5c7f2ed::t_7887daeef48696 247,277
+packages/core/src/client/hmr.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 7
+packages/core/src/server/cache/route-cache.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 6,61
+packages/core/src/server/sync/fingerprint.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 27
+packages/core/src/shared/search-params.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 3,64,81
+packages/core/src/server/dev/graph.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 10
+packages/core/src/client/router/page-fetch.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 19
+packages/core/src/client/router/sync-catch-up.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 6
+packages/core/src/build/shared.ts
+  s_3827fec5c7f2ed::t_6963c047342088 1-2
+packages/core/src/client/router/types.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 248,254,264,286
+packages/core/src/server/cache/index.ts
+  s_3827fec5c7f2ed::t_73b6ba3800e467 23-24
+knip.config.ts
+  s_3827fec5c7f2ed::t_70dca28ccaeac1 58-59
+packages/core/src/rsc/build/index.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 18
+packages/core/src/server/render/assemble.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 13,30,161
+packages/core/src/server/router/patterns.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 167
+packages/core/src/server/auto-invalidate/index.ts
+  s_3827fec5c7f2ed::t_b548f8043f3fcc 3-4
+packages/core/src/rsc/transport-benchmark.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 3
+packages/core/src/server/render/ssr.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 234
+packages/core/src/build/types.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 75,83
+packages/core/src/client/query-store.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 82
+packages/core/src/devtools/protocol.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 3,25,30
+packages/core/src/server/render/loaders.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 333
+packages/core/src/server/dev-page-plugin.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 185,261
+packages/core/src/shared/route-matches.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 11
+packages/core/src/server/prerender.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 21,54
+packages/core/src/server/render/ppr-request.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 49,91
+packages/core/src/server/render/index.ts
+  s_3827fec5c7f2ed::t_3aa16c027277e9 3,7
+packages/core/src/server/router/hmr.ts
+  s_3827fec5c7f2ed::t_7887daeef48696 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "286b20600b8b45a7556845ccf729f5a1ea57f872",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
