@@ -1,10 +1,4 @@
-import {
-  decodedMappings,
-  originalPositionFor,
-  type SourceMapSegment,
-  TraceMap,
-} from "@jridgewell/trace-mapping";
-import MagicString, { SourceMap } from "magic-string";
+import MagicString from "magic-string";
 import { walk } from "yuku-ast";
 import type {
   Argument,
@@ -35,7 +29,6 @@ export type IsomorphicEnvironment = "client" | "server";
 
 export interface IsomorphicTransformResult {
   code: string;
-  map: ReturnType<MagicString["generateMap"]> | null;
   transformed: boolean;
 }
 
@@ -563,7 +556,7 @@ function assertResolvedFactoryUses(
   });
 }
 
-function pruneFactoryAliases(code: string, filename: string, maps: SourceMap[]): string {
+function pruneFactoryAliases(code: string, filename: string): string {
   const { program } = parseSource(code, detectLangFromPath(filename));
   const bindings = collectBindings(program);
   const aliases = bindings.constants.filter((binding) =>
@@ -618,31 +611,7 @@ function pruneFactoryAliases(code: string, filename: string, maps: SourceMap[]):
       }
     }
   }
-  maps.push(pruned.generateMap({ hires: true, source: filename }));
-  return pruneFactoryAliases(pruned.toString(), filename, maps);
-}
-
-function composeSourceMaps(maps: SourceMap[], source: string, filename: string): SourceMap {
-  const traces = maps.map((map) => new TraceMap({ ...map, version: 3 }));
-  const last = traces.pop() as TraceMap;
-  const previous = traces.toReversed();
-  const mappings = decodedMappings(last).map((line) =>
-    line.map((segment): SourceMapSegment => {
-      if (segment.length === 1) {
-        return [segment[0]];
-      }
-      let position = { line: segment[2] + 1, column: segment[3] };
-      for (const trace of previous) {
-        const original = originalPositionFor(trace, position);
-        if (original.line === null || original.column === null) {
-          return [segment[0]];
-        }
-        position = { line: original.line, column: original.column };
-      }
-      return [segment[0], 0, position.line - 1, position.column];
-    })
-  );
-  return new SourceMap({ mappings, names: [], sources: [filename], sourcesContent: [source] });
+  return pruneFactoryAliases(pruned.toString(), filename);
 }
 
 export function transformIsomorphicFunctions(
@@ -652,7 +621,7 @@ export function transformIsomorphicFunctions(
 ): IsomorphicTransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
-    return { code: input, map: null, transformed: false };
+    return { code: input, transformed: false };
   }
   const clientModules = transformClientModuleSource(input, filename, environment);
   const source = clientModules.toString();
@@ -666,7 +635,7 @@ export function transformIsomorphicFunctions(
 
   const bindings = collectBindings(program);
   if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
-    return { code: source, map: null, transformed: clientModulesTransformed };
+    return { code: source, transformed: clientModulesTransformed };
   }
   assertResolvedFactoryUses(program, bindings, filename);
   const builders = collectBuilderBindings(program, bindings);
@@ -674,7 +643,7 @@ export function transformIsomorphicFunctions(
   assertNoSplitChains(source, filename, program, builders);
   const candidates = collectCandidates(source, filename, program, bindings);
   if (candidates.length === 0) {
-    return { code: source, map: null, transformed: clientModulesTransformed };
+    return { code: source, transformed: clientModulesTransformed };
   }
 
   const transformed = new MagicString(source);
@@ -690,24 +659,10 @@ export function transformIsomorphicFunctions(
     }
   }
 
-  const maps = [
-    clientModules.generateMap({ hires: true, source: filename }),
-    transformed.generateMap({ hires: true, source: filename }),
-  ];
-  const aliasesPruned = new MagicString(
-    pruneFactoryAliases(transformed.toString(), filename, maps)
-  );
+  const aliasesPruned = new MagicString(pruneFactoryAliases(transformed.toString(), filename));
   const pruned = pruneDeadCode(aliasesPruned, source, lang);
-  maps.push(pruned.generateMap({ hires: true, source: filename }));
   const nested = transformIsomorphicFunctions(pruned.toString(), filename, environment);
-  if (nested.map) {
-    maps.push(nested.map);
-  }
-  return {
-    code: nested.code,
-    map: composeSourceMaps(maps, input, filename),
-    transformed: true,
-  };
+  return { code: nested.code, transformed: true };
 }
 
 export function isomorphicTransformPlugin(environment: IsomorphicEnvironment): Bun.BunPlugin {

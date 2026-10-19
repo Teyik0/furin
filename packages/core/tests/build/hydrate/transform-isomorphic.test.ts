@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,28 +18,6 @@ afterEach(() => {
 });
 
 describe("transformIsomorphicFunctions", () => {
-  test.each(["shared.ts", "C:\\project\\shared.ts"])("factory-alias pruning maps runtime statements back to the original source: %s", (filename) => {
-    const source = `import { createIsomorphicFn } from "furin";
-const factory = createIsomorphicFn;
-export const value = (() => {
-  const local = factory;
-  return local()
-    .server(() => "PRIVATE_SOURCE_MAP_VALUE")
-    .client(() => {
-      throw new Error("CLIENT_RUNTIME_LINE");
-    });
-})();`;
-    const result = transformIsomorphicFunctions(source, filename, "client");
-    expect(result.map?.sourcesContent).toEqual([source]);
-    const generatedPrefix = result.code.slice(0, result.code.indexOf("throw new Error"));
-    const generatedLines = generatedPrefix.split("\n");
-    const originalPrefix = source.slice(0, source.indexOf("throw new Error"));
-    const originalLines = originalPrefix.split("\n");
-    if (!result.map) { throw new Error("Expected a transformation map"); }
-    const mapped = originalPositionFor(new TraceMap({ ...result.map, version: 3 }), { line: generatedLines.length, column: generatedLines.at(-1)?.length ?? 0 });
-    expect(mapped.line).toBe(originalLines.length);
-    expect(mapped.column).toBe(originalLines.at(-1)?.length ?? 0);
-  });
   test("leaves unrelated client and server methods unchanged", () => {
     const source = 'export const value = api.server("production").client({ name: "browser" });';
     expect(transformForClient(source, "helper.ts").code).toBe(source);

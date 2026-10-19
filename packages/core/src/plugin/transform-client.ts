@@ -38,7 +38,6 @@ type LocalDeclaration = NodeOfType<
 
 interface TransformResult {
   code: string;
-  map: ReturnType<MagicString["generateMap"]> | null;
   removedServerCode: boolean;
 }
 
@@ -1103,7 +1102,7 @@ function parseOrThrow(code: string, filename: string): Program {
 export function transformForClient(code: string, filename: string): TransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
-    return { code, map: null, removedServerCode: false };
+    return { code, removedServerCode: false };
   }
 
   const isomorphicResult = transformIsomorphicFunctions(code, filename, "client");
@@ -1200,9 +1199,5 @@ if (import.meta.hot && route?.component) {
 `);
   }
 
-  return {
-    code: source.toString(),
-    map: source.generateMap({ includeContent: true, source: filename }),
-    removedServerCode,
-  };
+  return { code: source.toString(), removedServerCode };
 }

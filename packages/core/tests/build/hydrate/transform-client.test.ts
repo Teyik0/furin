@@ -1039,7 +1039,6 @@ export const route = defineRoute().page(() => null);`,
     const code = "declare module 'furin' { interface Route {} }";
     expect(transformForClient(code, "furin-env.d.ts")).toEqual({
       code,
-      map: null,
       removedServerCode: false,
     });
   });
