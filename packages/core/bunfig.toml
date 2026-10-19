@@ -3,7 +3,7 @@ bun = true
 
 [test]
 root = "./tests"
-preload = ["./tests/setup/global.ts"]
+preload = ["./tests/setup/global.ts", "./tests/setup/process-state.ts"]
 coverageReporter = ["text", "lcov"]
 coveragePathIgnorePatterns = [
   "**/tests/**",

@@ -57,6 +57,7 @@ explicit:
 - `dom.ts`: installs and resets the DOM environment.
 - `hmr.ts`: HMR-specific process and port helpers.
 - `http.ts`: HTTP polling helpers.
+- `evlog-capture.ts`: a real evlog drain that records wide events.
 
 Do not add generic helpers until at least two tests need the same behavior.
 
@@ -72,6 +73,16 @@ with `.integration.test.ts` when they are intentionally slow or process-heavy.
 Start long-lived children with `startProcess()`: still kill them in `afterAll`,
 but a sidecar also terminates them when the test process exits without running
 hooks (`--bail`, crash), so no `bun --hot` server outlives the run.
+
+## Process State
+
+A file that changes process-level Furin state restores it before it ends:
+`__setDevMode()` in `afterAll`, and runtimes it registers (a `furin()` mount,
+`registerInstance()`) through `__clearInstanceRegistry()` or
+`unregisterInstance()`. The `setup/process-state.ts` preload fails the file
+otherwise. Do not use `mock.module()`: a module mock cannot be undone and
+reaches every later file of a run without `--isolate`. Assert logs through
+`support/evlog-capture.ts` or a restorable `spyOn()`.
 
 ## DOM And Browser Tests
 
