@@ -145,6 +145,8 @@ async function refreshRouteTopologyOnce(state: DevRouteTopologyWatcherState): Pr
         state.routeFilesSignature = signature;
         if (!state.closed) {
           replaceSourceWatchers(state);
+          // A save that landed before the new watchers existed left no fs event.
+          state.pending ||= routeFilesSignature(state.instance) !== signature;
         }
       }
     } else {

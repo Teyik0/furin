@@ -1,5 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
-import {
+import nodeFs, {
+  type FSWatcher,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -308,6 +309,47 @@ test("the dev topology watcher keeps an edit saved while a refresh is running", 
     expect(touchedRouteFiles).toBe(2);
   } finally {
     watcher.close();
+    rmSync(projectRoot, { force: true, recursive: true });
+  }
+});
+
+test("the dev topology watcher picks up a save that lands as a refresh ends", async () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "furin-route-late-save-watch-"));
+  const pagesDir = join(projectRoot, "src/pages");
+  mkdirSync(pagesDir, { recursive: true });
+  const routePath = join(pagesDir, "index.ts");
+  writeFileSync(routePath, "export const route = 1;\n");
+  // The save's fs event reaches the replaced watcher and is dropped (inotify):
+  // watchers that never fire make that loss deterministic.
+  const watchSpy = spyOn(nodeFs, "watch").mockImplementation(
+    () => ({ close: () => undefined, unref: () => undefined }) as unknown as FSWatcher
+  );
+
+  let touchedRouteFiles = 0;
+  const watcher = registerDevRouteTopologyWatcher({
+    instance: { pagesDir, prefix: "" },
+    onRouteFilesTouched: () => {
+      touchedRouteFiles += 1;
+      if (touchedRouteFiles === 1) {
+        writeFileSync(routePath, "export const route = 'saved';\n");
+        const changedAt = new Date(Date.now() + 2000);
+        utimesSync(routePath, changedAt, changedAt);
+      }
+    },
+    onTopologyChange: () => undefined,
+  });
+
+  try {
+    writeFileSync(routePath, "export const route = 2;\n");
+    const changedAt = new Date(Date.now() + 1000);
+    utimesSync(routePath, changedAt, changedAt);
+
+    await watcher.refresh();
+
+    expect(touchedRouteFiles).toBe(2);
+  } finally {
+    watcher.close();
+    watchSpy.mockRestore();
     rmSync(projectRoot, { force: true, recursive: true });
   }
 });
