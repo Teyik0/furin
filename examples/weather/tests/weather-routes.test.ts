@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { join } from "node:path";
 import { furin } from "@teyik0/furin";
 import { getCache } from "@teyik0/furin/cache";
 import { Elysia } from "elysia";
@@ -6,7 +7,12 @@ import { cityNameFromSlug, toCitySlug } from "../src/lib/cities.ts";
 import { route as cityRoute } from "../src/pages/weather/[city].tsx";
 import app from "../src/server.ts";
 
-const prefixedApp = new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "/forecast" }));
+// One pages directory per mount: the prefixed mount is its own project, so its
+// `/forecast` route types stay out of this app's furin-env.d.ts.
+const cwd = process.cwd();
+process.chdir(join(import.meta.dir, "forecast-app"));
+const prefixedApp = new Elysia().use(await furin({ pagesDir: "./pages", prefix: "/forecast" }));
+process.chdir(cwd);
 const weatherCache = getCache({ namespace: "furin-weather-v1" });
 const city = "Routeville";
 const latitude = 47.25;

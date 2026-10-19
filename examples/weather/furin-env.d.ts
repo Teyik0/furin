@@ -10,24 +10,6 @@ declare module "@teyik0/furin/routes" {
       parent: typeof import("./src/pages/root").route;
       pathParams: {};
     };
-    "/forecast": {
-      kind: "page";
-      pattern: "/forecast";
-      parent: typeof import("./src/pages/root").route;
-      pathParams: {};
-    };
-    "/forecast/weather/[city]": {
-      kind: "page";
-      pattern: "/forecast/weather/:city";
-      parent: typeof import("./src/pages/root").route;
-      pathParams: { city: string };
-    };
-    "/forecast/weather/search": {
-      kind: "page";
-      pattern: "/forecast/weather/search";
-      parent: typeof import("./src/pages/root").route;
-      pathParams: {};
-    };
     "/weather/[city]": {
       kind: "page";
       pattern: "/weather/:city";
