@@ -1,0 +1,43 @@
+packages/core/src/adapter/static.ts
+  s_553967112fee2c::t_fc29eb250ff415 380
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_553967112fee2c::t_22f331c39cb10c 757
+  s_553967112fee2c::t_a640e27246202a 937-958,960-968,970-977
+  s_553967112fee2c::t_b48be9e2778c40 72,129,269,334,386,433,603,813,1010,1105
+  s_553967112fee2c::t_55289df4a034df 959,969
+  s_553967112fee2c::t_3be68a3747d860 456-466,470-473,476-479,484-538,545-547,551,563,730-756,758
+  s_553967112fee2c::t_35fc139fe55428 780,793
+  s_553967112fee2c::t_6a02972781d9ac 759
+packages/core/src/rsc/build/client-references.ts
+  s_553967112fee2c::t_04f1ba1bea5903 206-210,216-227,234-239,241-246,253-267
+  s_553967112fee2c::t_37fe11e77959e1 56-85
+  s_553967112fee2c::t_2e034e72f515d2 13-14
+  s_553967112fee2c::t_1ac8d5588022c7 112
+packages/core/src/adapter/package.ts
+  s_553967112fee2c::t_fc29eb250ff415 168
+packages/core/src/rsc/build/index.ts
+  s_553967112fee2c::t_24d1da5857d8a4 114-116,123
+  s_553967112fee2c::t_488faf015ea497 9,98,121-122,124-125
+packages/core/src/adapter/server-bundle.ts
+  s_553967112fee2c::t_fc29eb250ff415 8,80-81,95,105
+packages/core/src/adapter/build.ts
+  s_553967112fee2c::t_ab08384f2ec7f9 13,130,147,214,238
+CHANGELOG.md
+  s_553967112fee2c::t_26fae7e5dceafd 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3fbd6d0cee915d7d84b5e5a40c49187b134e2b8",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
