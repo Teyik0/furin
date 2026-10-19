@@ -101,10 +101,9 @@ describe.serial("client strip plugin", () => {
           'import { defineRoute } from "@teyik0/furin";',
           'import { isRscSource } from "@teyik0/furin/rsc";',
           'import { useSearch } from "@teyik0/furin/search";',
-          'import { route as root } from "./root";',
           "",
-          "export const route = defineRoute()",
-          '  .config({ layout: root, mode: "ssr" })',
+          'export const route = defineRoute("/")',
+          '  .config({ mode: "ssr" })',
           '  .page(() => <main>{String(isRscSource(useSearch("/")))}</main>);',
         ].join("\n")
       );
