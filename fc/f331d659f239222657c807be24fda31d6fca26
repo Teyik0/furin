@@ -1,0 +1,21 @@
+packages/core/tests/build/adapters/adapter-bun-client.test.ts
+  s_553967112fee2c::t_7405b7eb6ebaed 241
+packages/core/tests/build/adapters/adapter-vercel.test.ts
+  s_553967112fee2c::t_c371bf7c8c7dc5 306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fcf331d659f239222657c807be24fda31d6fca26",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
