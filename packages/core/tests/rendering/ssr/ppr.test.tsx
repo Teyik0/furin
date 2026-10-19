@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { Elysia, t } from "elysia";
 import { Suspense, use } from "react";
 import { createClient, defer } from "../../../src/client.ts";
-import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
+import { Await, defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
 import { revalidateTag } from "../../../src/server/auto-invalidate";
 import { getAutoInvalidateRegistry } from "../../../src/server/auto-invalidate/registry.ts";
 import { revalidatePathForInstance } from "../../../src/server/cache/invalidation.ts";
@@ -318,6 +318,31 @@ describe.serial("partial prerendering", () => {
     expect(publicCalls).toBe(1);
     expect(privateCalls).toBe(2);
   });
+
+  test("a request field read through <Await> resumes into its Suspense boundary", async () => {
+    const { app } = await mountAccount(
+      defineRoute()
+        .config({ layout: rootTerminal, mode: "ssg" })
+        .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
+        .loader(() => ({ catalog: "Shoes" }))
+        .page(({ catalog, user }) => (
+          <main>
+            <h1>{catalog}</h1>
+            <Suspense fallback={<span>Loading</span>}>
+              <Await resolve={user}>{(value) => <strong>{String(value)}</strong>}</Await>
+            </Suspense>
+          </main>
+        )),
+      undefined
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/account", { headers: { cookie: "session=alice" } })
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("<strong>alice</strong>");
+  }, 5000);
 
   test("private GET snapshots stay isolated across a cached PPR document and SPA navigation", async () => {
     let publicCalls = 0;

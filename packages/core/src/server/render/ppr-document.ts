@@ -72,13 +72,21 @@ function postponedRequestData(controller: AbortController, reason: Error): Promi
   const pending = new Promise<never>(() => {
     /* Deliberately unresolved public placeholder. */
   });
+  // Any consumer postpones the shell: `<Await>` subscribes through `catch`.
+  const postpone = () => queueMicrotask(() => controller.abort(reason));
   return {
     [Symbol.toStringTag]: "Promise",
-    catch: (rejected) => pending.catch(rejected),
-    finally: (callback) => pending.finally(callback),
+    catch: (rejected) => {
+      postpone();
+      return pending.catch(rejected);
+    },
+    finally: (callback) => {
+      postpone();
+      return pending.finally(callback);
+    },
     // biome-ignore lint/suspicious/noThenProperty: React and await must observe this intentionally postponed thenable.
     then: (fulfilled, rejected) => {
-      queueMicrotask(() => controller.abort(reason));
+      postpone();
       return pending.then(fulfilled, rejected);
     },
   };
