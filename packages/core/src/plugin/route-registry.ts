@@ -14,9 +14,9 @@ import {
   type RouteFile,
   type RouteInstanceSpec,
   type RouteTreeNode,
+  routeModuleSpecifier,
   segmentPath,
 } from "./route-tree.ts";
-import { routeModuleSpecifier } from "./routes.ts";
 
 const ROUTES_NAMESPACE_PREFIX = "furin-routes";
 const ROUTES_REGISTRY_SPECIFIER = "furin/routes?registry";

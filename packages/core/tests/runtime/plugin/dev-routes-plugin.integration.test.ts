@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
-import { registerDevRoutesPlugin, routeModuleSpecifier } from "../../../src/plugin/routes.ts";
+import { registerDevRoutesPlugin } from "../../../src/plugin/dev-routes.ts";
+import { routeModuleSpecifier } from "../../../src/plugin/route-tree.ts";
 
 // Route apps refuse to render outside furin(); echo what the renderer receives.
 function withEchoRenderer(furinApp: AnyElysia) {

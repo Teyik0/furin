@@ -12,6 +12,7 @@ import {
   type RouteFile,
   type RouteInstanceSpec,
   type RouteTreeNode,
+  routeModuleSpecifier,
   routeSnapshotSourcePaths,
   segmentPath,
 } from "./route-tree.ts";
@@ -54,10 +55,6 @@ interface DevRouteTopologyWatcherState extends DevRouteTopologyWatcherOptions {
   routeFilesSignature: string;
   source: string;
   watchers: FSWatcher[];
-}
-
-export function routeModuleSpecifier(instance: RouteInstanceSpec): string {
-  return `@teyik0/furin/routes?instance=${Bun.hash(instanceKey(instance)).toString(16)}`;
 }
 
 function routeTopologySource(instance: RouteInstanceSpec): string {

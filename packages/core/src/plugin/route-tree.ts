@@ -19,6 +19,10 @@ export function instanceKey(instance: RouteInstanceSpec): string {
   return `${resolve(instance.pagesDir)}\0${instance.prefix}`;
 }
 
+export function routeModuleSpecifier(instance: RouteInstanceSpec): string {
+  return `@teyik0/furin/routes?instance=${Bun.hash(instanceKey(instance)).toString(16)}`;
+}
+
 export interface RouteFile {
   id: string;
   path: string;

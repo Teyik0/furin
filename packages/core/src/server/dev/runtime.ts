@@ -87,8 +87,10 @@ export async function createDevRuntime(
   const { createDevelopmentBrowserEventSources } = await import("./browser-events.ts");
   const { registerDevPagePlugin } = await import("../dev-page-plugin.ts");
   registerDevPagePlugin();
-  const { registerDevRoutesPlugin, registerDevRouteTopologyWatcher, routeModuleSpecifier } =
-    await import("../../plugin/routes.ts");
+  const { registerDevRoutesPlugin, registerDevRouteTopologyWatcher } = await import(
+    "../../plugin/dev-routes.ts"
+  );
+  const { routeModuleSpecifier } = await import("../../plugin/route-tree.ts");
   const routeInstance = { pagesDir: resolvedPagesDir, prefix };
   registerDevRoutesPlugin([routeInstance]);
 

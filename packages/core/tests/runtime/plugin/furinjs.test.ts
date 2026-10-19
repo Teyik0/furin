@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Elysia, { type AnyElysia } from "elysia";
 import type { FurinOptions } from "../../../src/furin";
-import { routeModuleSpecifier } from "../../../src/plugin/routes.ts";
+import { routeModuleSpecifier } from "../../../src/plugin/route-tree.ts";
 import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
