@@ -1,4 +1,5 @@
 import { toCrossJSON } from "seroval";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
 import {
   MAX_ROUTE_FRAME_STREAM_BYTES,
   serializeRouteFrame,
@@ -35,7 +36,7 @@ export async function serializeDeferredRouteFrame(
 }
 
 export function createDeferredRouteFrameStream(
-  syncData: Record<string, unknown>,
+  syncData: RuntimeData,
   deferredPromises: Record<string, Promise<unknown>>
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();

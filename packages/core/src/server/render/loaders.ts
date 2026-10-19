@@ -26,7 +26,7 @@ export type LoaderResult =
        * Synchronous (JSON-serialisable) loader fields. Injected into the initial
        * HTML shell as `__FURIN_DATA__` / the deferred registry's `_data` object.
        */
-      syncData: Record<string, unknown>;
+      syncData: RuntimeData;
       /**
        * Promise-valued fields from a `defer()` return. `undefined` when the page
        * loader did not call `defer()`. Streamed as late `<script>` resolution
@@ -157,11 +157,11 @@ async function readResponseMessage(res: Response): Promise<string> {
  * access of the same field (stable reference for Promise.all etc.).
  */
 function createLoaderCtx(
-  ctx: Record<string, unknown>,
-  accumulatedParentPromise: Promise<Record<string, unknown>>,
+  ctx: RuntimeData,
+  accumulatedParentPromise: Promise<RuntimeData>,
   inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
   onParentFieldAccess?: (key: string) => void
-): Record<string, unknown> {
+): RuntimeData {
   const cache = new Map<string, Promise<unknown>>();
   return new Proxy(ctx, {
     get(target, prop: string | symbol) {
@@ -207,11 +207,11 @@ function createLoaderCtx(
  * preserving the long-standing semantic that only an explicit `defer()` opts
  * into streaming.
  */
-function splitOneLoaderResult(result: Record<string, unknown>): {
-  sync: Record<string, unknown>;
+function splitOneLoaderResult(result: RuntimeData): {
+  sync: RuntimeData;
   deferred: Record<string, Promise<unknown>>;
 } {
-  const sync: Record<string, unknown> = {};
+  const sync: RuntimeData = {};
   const deferred: Record<string, Promise<unknown>> = {};
   const isDef = isDeferred(result);
   for (const [key, value] of Object.entries(result)) {
@@ -362,7 +362,7 @@ function runRequestLoaderFields(
     }
     const invocation = Promise.resolve().then(() => loader(requestContext));
     const result = observeLoader(() => invocation, `request:${index}`, ctx.path).then((value) => {
-      const data = value as Record<string, unknown>;
+      const data = value as RuntimeData;
       for (const key of Object.keys(data)) {
         assertRequestLoaderKey(key, ctx);
         if (!declaredKeys[index]?.has(key)) {
@@ -422,7 +422,7 @@ function runRequestLoaderFields(
 function requestFieldPromises(
   route: ResolvedRoute,
   fields: Record<string, Promise<unknown>>,
-  syncData: Record<string, unknown>,
+  syncData: RuntimeData,
   publicDeferred: Record<string, Promise<unknown>> | undefined
 ): Record<string, Promise<unknown>> {
   for (const key of Object.keys(fields)) {
@@ -469,7 +469,7 @@ export function withRequestLoaderData(
 
 interface SegmentData {
   deferred: Record<string, Promise<unknown>>;
-  sync: Record<string, unknown>;
+  sync: RuntimeData;
 }
 
 const NO_SEGMENT_DATA: SegmentData = { deferred: {}, sync: {} };
@@ -492,10 +492,10 @@ function flattenSegments(
   requestKeys: string[][] | undefined
 ): {
   allDeferred: Record<string, Promise<unknown>>;
-  allSync: Record<string, unknown>;
+  allSync: RuntimeData;
   matches: SerializedRouteMatch[];
 } {
-  const allSync: Record<string, unknown> = {};
+  const allSync: RuntimeData = {};
   const allDeferred: Record<string, Promise<unknown>> = {};
   for (const { sync, deferred } of segments) {
     for (const k of Object.keys(sync)) {
@@ -518,7 +518,7 @@ function flattenSegments(
           fields[field] = field;
         } else {
           const slot = `__furinMatch${index}:${field}`;
-          (flat as Record<string, unknown>)[slot] = value;
+          (flat as RuntimeData)[slot] = value;
           fields[field] = slot;
         }
       }
@@ -671,11 +671,7 @@ async function normalizeLoaderError(
   };
 }
 
-function mergeParentData(
-  parent: Record<string, unknown>,
-  own: Record<string, unknown>,
-  path: string
-): Record<string, unknown> {
+function mergeParentData(parent: RuntimeData, own: RuntimeData, path: string): RuntimeData {
   if (IS_DEV) {
     for (const key of Object.keys(own)) {
       if (Object.hasOwn(parent, key)) {
@@ -694,13 +690,13 @@ function startSegmentLoader(
   segment: RuntimeRoute | RuntimePage,
   index: number,
   label: string,
-  parent: Promise<Record<string, unknown>>,
-  publicParent: Promise<Record<string, unknown>>,
+  parent: Promise<RuntimeData>,
+  publicParent: Promise<RuntimeData>,
   inheritedRequestFields: Record<string, Promise<unknown>> | undefined,
-  ctxRecord: Record<string, unknown>,
-  publicCtxRecord: Record<string, unknown>,
+  ctxRecord: RuntimeData,
+  publicCtxRecord: RuntimeData,
   mixed: boolean
-): Promise<Record<string, unknown>> {
+): Promise<RuntimeData> {
   const publicSegment = mixed && (segment.mode ?? route.mode) !== "ssr";
   const parentFieldsRead = new Set<string>();
   const loaderCtx = createLoaderCtx(
@@ -782,7 +778,7 @@ async function runLoadersInternal(
   includeRequestData: boolean,
   mixed: boolean
 ): Promise<LoaderResult> {
-  const loaderMap = new Map<RuntimeRoute, Promise<Record<string, unknown>>>();
+  const loaderMap = new Map<RuntimeRoute, Promise<RuntimeData>>();
   let requestFields: ReturnType<typeof runRequestLoaderFields>;
   try {
     requestFields = includeRequestData ? runRequestLoaderFields(route, ctx) : undefined;
@@ -802,8 +798,8 @@ async function runLoadersInternal(
     // parent-data fields are individually-awaitable Promises. The loader opts
     // in to waiting by doing `await user` (or `Promise.all([user, org])`);
     // if it never awaits a parent field it runs in full parallel.
-    let accumulatedParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
-    let publicParentPromise: Promise<Record<string, unknown>> = Promise.resolve({});
+    let accumulatedParentPromise: Promise<RuntimeData> = Promise.resolve({});
+    let publicParentPromise: Promise<RuntimeData> = Promise.resolve({});
 
     let loaderIndex = 0;
     for (const [routeIndex, r] of route.routeChain.entries()) {
@@ -855,7 +851,7 @@ async function runLoadersInternal(
     }
 
     // Page loader receives all route-chain fields as individual Promises.
-    const pagePromise: Promise<Record<string, unknown>> = route.page.loader
+    const pagePromise: Promise<RuntimeData> = route.page.loader
       ? startSegmentLoader(
           route,
           ctx,

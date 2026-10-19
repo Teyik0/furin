@@ -2,6 +2,7 @@ import type { Context } from "elysia";
 import { createElement, type ReactNode } from "react";
 import { toCrossJSON, toCrossJSONAsync } from "seroval";
 import { type DocumentAssets, FurinDocumentFallback } from "../../client/document.tsx";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
 import { resolveRouteElement, selectRouteBoundary } from "../../client/route-element.tsx";
 import { RouterContext } from "../../client/router/context.ts";
 import { normalizeHref, toLogical } from "../../client/router/link-utils.ts";
@@ -87,7 +88,7 @@ export interface PreparedRender {
    * includes the Promise objects (for `<Await resolve={promise}>`) alongside
    * the scalar sync fields. Never serialise this directly — use `syncData`.
    */
-  componentProps: Record<string, unknown>;
+  componentProps: RuntimeData;
   /**
    * Promise-valued fields from a `defer()` loader return. Undefined for normal
    * (non-deferred) loaders. These are streamed as late `<script>` chunks after
@@ -109,7 +110,7 @@ export interface PreparedRender {
    * (with the failed segment on error and not-found renders). For deferred
    * renders this excludes the Promise fields (those are streamed separately).
    */
-  syncData: Record<string, unknown>;
+  syncData: RuntimeData;
 }
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
@@ -710,7 +711,7 @@ async function pipeDocumentStream(
 }
 
 export function buildSsrTransportScripts(
-  dataPayload: Record<string, unknown>,
+  dataPayload: RuntimeData,
   deferredKeys: string[],
   hasDeferred: boolean,
   shellErrored: boolean,
@@ -820,10 +821,10 @@ function waitForDeferred(
  * NDJSON shape live navigation data requests (`?_furin=data`) receive.
  */
 export async function serializeLoaderDataNdjson(
-  syncData: Record<string, unknown>,
+  syncData: RuntimeData,
   deferredPromises: Record<string, Promise<unknown>> | undefined
 ): Promise<string> {
-  const payload: Record<string, unknown> = {
+  const payload: RuntimeData = {
     ...syncData,
     ...(deferredPromises ?? {}),
   };

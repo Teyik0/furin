@@ -1,6 +1,10 @@
 import type { Context } from "elysia";
 import { fromCrossJSON, toCrossJSONAsync } from "seroval";
-import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import type {
+  RuntimeData,
+  RuntimePage,
+  RuntimeRoute,
+} from "../../client/internal/runtime-types.ts";
 import { currentQueryEnvironment } from "../../client/query-store.ts";
 import { toLogical } from "../../client/router/link-utils.ts";
 import { isDeferred } from "../../shared/defer.ts";
@@ -108,8 +112,8 @@ async function parentSignature(value: unknown): Promise<string> {
 async function readCachedSegment(
   entry: CachedSegment | undefined,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   if (entry === undefined || Date.now() - entry.cachedAt >= revalidate * 1000) {
     return;
   }
@@ -130,7 +134,7 @@ async function readCachedSegment(
     const environment = currentQueryEnvironment();
     environment?.store.hydrate(snapshot.queries ?? []);
     environment?.onRead();
-    const data = fromCrossJSON(snapshot.data, {}) as Record<string, unknown>;
+    const data = fromCrossJSON(snapshot.data, {}) as RuntimeData;
     return projectQueryData(data, snapshot.queries ?? [], (seed) => seed.data);
   } catch {
     getLogger().warn("Mixed loader cache entry is invalid; loading fresh data");
@@ -138,8 +142,8 @@ async function readCachedSegment(
 }
 
 async function createSegmentSnapshot(
-  data: Record<string, unknown>,
-  parentData: Promise<Record<string, unknown>>,
+  data: RuntimeData,
+  parentData: Promise<RuntimeData>,
   parentFieldsRead: ReadonlySet<string>
 ): Promise<string> {
   const parent = parentFieldsRead.size > 0 ? await parentData : {};
@@ -186,8 +190,8 @@ async function readSharedSegment(
   shared: PageCacheAdapter,
   identity: PageCacheIdentity,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   try {
     const entry = await shared.read(identity);
     return entry === null ? undefined : readCachedSegment(entry, revalidate, parentData);
@@ -227,8 +231,8 @@ async function readLocalSegment(
   generation: number | undefined,
   key: string,
   revalidate: number,
-  parentData: Promise<Record<string, unknown>>
-): Promise<Record<string, unknown> | undefined> {
+  parentData: Promise<RuntimeData>
+): Promise<RuntimeData | undefined> {
   const cached = await readCachedSegment(state?.cache.get(key), revalidate, parentData);
   return state?.generation === generation ? cached : undefined;
 }
@@ -253,10 +257,10 @@ export async function cacheMixedPublicLoader(
   ctx: Context,
   segment: RuntimeRoute | RuntimePage,
   index: number,
-  parentData: Promise<Record<string, unknown>>,
+  parentData: Promise<RuntimeData>,
   parentFieldsRead: ReadonlySet<string>,
-  run: () => Promise<Record<string, unknown>>
-): Promise<Record<string, unknown>> {
+  run: () => Promise<RuntimeData>
+): Promise<RuntimeData> {
   const instance = currentInstance();
   const declaredTags = route.tags ?? [];
   const mode = segment.mode ?? route.mode;

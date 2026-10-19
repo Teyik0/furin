@@ -248,7 +248,13 @@ export async function prerenderRuntimeSSG(
  * Centralises the repeated `createLogger → set → error → emit` dance so every
  * failure path stays consistent.
  */
-function logSsgError(furin: Record<string, unknown>, error: unknown): void {
+interface SsgFailureLog {
+  action: "prerender_failed" | "warmup_failed";
+  render: "ssg";
+  route: string;
+}
+
+function logSsgError(furin: SsgFailureLog, error: unknown): void {
   const logger = createLogger({});
   logger.set({ furin });
   logger.error(error instanceof Error ? error : new Error(String(error)));

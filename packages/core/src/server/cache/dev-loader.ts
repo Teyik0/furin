@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { relative } from "node:path";
+import type { RuntimeData } from "../../client/internal/runtime-types.ts";
 import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
 import { autoInvalidateRegistry } from "../auto-invalidate/registry";
 import { devGraph } from "../dev/graph.ts";
@@ -16,7 +17,7 @@ export interface DevLoaderCacheEntry {
   dependencies: string[];
   generatedAt: number;
   headers: Record<string, string>;
-  loaderData: Record<string, unknown>;
+  loaderData: RuntimeData;
   mode: "isr" | "ssg";
   revalidate: number;
 }
