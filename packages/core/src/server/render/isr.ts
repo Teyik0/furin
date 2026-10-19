@@ -34,6 +34,8 @@ import {
   resolvePath,
   streamToString,
 } from "./assemble.ts";
+import { renderForPath } from "./buffered-render.ts";
+import { renderPayload, renderPreparedDocument } from "./document-stream.ts";
 import {
   hasMixedLoaderModes,
   type LoaderResult,
@@ -41,14 +43,8 @@ import {
   runSegmentPublicLoaders,
 } from "./loaders.ts";
 import { withNavigationHead } from "./navigation-head.ts";
-import {
-  type PreparedRender,
-  prepareRender,
-  renderForPath,
-  renderPayload,
-  renderPreparedDocument,
-  serializeLoaderDataNdjson,
-} from "./ssr.ts";
+import { type PreparedRender, prepareRender } from "./prepare-render.ts";
+import { serializeLoaderDataNdjson } from "./route-frame-transport.ts";
 
 /**
  * Builds the Cache-Control header value for an ISR response.

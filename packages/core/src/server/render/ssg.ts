@@ -14,7 +14,7 @@ import { currentInstance } from "../instance.ts";
 import { resolveDocumentMode } from "../router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import { resolvePath } from "./assemble.ts";
-import { renderForPath } from "./ssr.ts";
+import { renderForPath } from "./buffered-render.ts";
 import { hasStaticParams, resolveStaticParams } from "./static-params.ts";
 
 export async function prerenderRoute(

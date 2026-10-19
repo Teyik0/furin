@@ -1,6 +1,8 @@
-import { toCrossJSON } from "seroval";
+import { toCrossJSON, toCrossJSONAsync } from "seroval";
 import type { RuntimeData } from "../../client/internal/runtime-types.ts";
+import { serializeCompactJsonLine } from "../../shared/compact-json.ts";
 import {
+  containsRscSource,
   MAX_ROUTE_FRAME_STREAM_BYTES,
   serializeRouteFrame,
   serializeRouteFrames,
@@ -64,4 +66,37 @@ export function createDeferredRouteFrameStream(
       controller.close();
     },
   });
+}
+
+/**
+ * Serialises a loader's `syncData` + `deferredPromises` into the same one-line
+ * NDJSON shape live navigation data requests (`?_furin=data`) receive.
+ */
+export async function serializeLoaderDataNdjson(
+  syncData: RuntimeData,
+  deferredPromises: Record<string, Promise<unknown>> | undefined
+): Promise<string> {
+  const payload: RuntimeData = {
+    ...syncData,
+    ...(deferredPromises ?? {}),
+  };
+  const deferredEntries = Object.entries(deferredPromises ?? {});
+  if (containsRscSource(payload) || deferredEntries.length > 0) {
+    let ndjson = serializeRouteFrames(
+      syncData,
+      deferredEntries.map(([key]) => key)
+    );
+    await Promise.all(
+      deferredEntries.map(async ([key, promise], index) => {
+        ndjson += await serializeDeferredRouteFrame(key, promise, `defer-${index}`);
+      })
+    );
+    return ndjson;
+  }
+  const compactJson = serializeCompactJsonLine(payload);
+  if (compactJson !== undefined) {
+    return compactJson;
+  }
+  const serialized = await toCrossJSONAsync(payload);
+  return `${JSON.stringify(serialized)}\n`;
 }

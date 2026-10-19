@@ -20,14 +20,13 @@ import {
   runSegmentPublicLoaders,
 } from "./loaders.ts";
 import { isPprResumeState, type PprResumeState } from "./ppr-request.ts";
+import { assertDeferredModeAllowed, prepareRender } from "./prepare-render.ts";
 import { withRequestLoaderData } from "./request-loaders.ts";
 import {
-  assertDeferredModeAllowed,
   buildSsrTransportScripts,
   injectAfterEntry,
-  prepareRender,
   writeDeferredSsrChunks,
-} from "./ssr.ts";
+} from "./ssr-transport.ts";
 
 const DOCUMENT_END = "</body></html>";
 

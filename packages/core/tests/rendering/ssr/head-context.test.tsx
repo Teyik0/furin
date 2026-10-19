@@ -7,7 +7,7 @@ import { HeadContent, Scripts } from "../../../src/client/document.tsx";
 import { defer } from "../../../src/client.ts";
 import { defineRootRoute, defineRoute } from "../../../src/furin.ts";
 import { renderToHTML } from "../../../src/server/render/index.ts";
-import { prepareRender } from "../../../src/server/render/ssr.ts";
+import { prepareRender } from "../../../src/server/render/prepare-render.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { collectRouteChainFromRoute } from "../../../src/shared/utils/index.ts";

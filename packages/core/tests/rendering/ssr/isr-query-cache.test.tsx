@@ -5,7 +5,7 @@ import { __resetCacheState, revalidatePath } from "../../../src/server/cache/ind
 import { isrCache, waitForPendingISRRevalidations } from "../../../src/server/cache/isr.ts";
 import { withInstance } from "../../../src/server/instance.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
-import { renderForPath } from "../../../src/server/render/ssr.ts";
+import { renderForPath } from "../../../src/server/render/buffered-render.ts";
 import { adaptDefinedLayout, adaptDefinedPage } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";

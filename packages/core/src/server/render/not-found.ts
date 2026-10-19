@@ -16,9 +16,9 @@ import { useRequestCspNonce } from "../security/csp.ts";
 import { streamToString } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import { buildNotFoundElement, SERVER_RESET_NOOP } from "./element.tsx";
+import { withSSRRouterContext } from "./prepare-render.ts";
 import { renderToReadableStream } from "./react-stream.ts";
 import { generateIndexHtml } from "./shell.ts";
-import { withSSRRouterContext } from "./ssr.ts";
 import {
   documentAssetsFromTemplate,
   getDevDocumentAssets,

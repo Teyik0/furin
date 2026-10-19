@@ -26,9 +26,12 @@ import {
 import { withNavigationHead } from "../render/navigation-head.ts";
 import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
 import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
-import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
+import {
+  createDeferredRouteFrameStream,
+  serializeLoaderDataNdjson,
+} from "../render/route-frame-transport.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
-import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";
+import { renderSSR } from "../render/ssr.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import type { CurrentRoute, PagePorts } from "./dispatch.ts";
 import { resolveDocumentMode, resolveDocumentRevalidate } from "./patterns.ts";

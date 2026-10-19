@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeLoaderDataNdjson } from "../../../src/server/render/ssr.ts";
+import { serializeLoaderDataNdjson } from "../../../src/server/render/route-frame-transport.ts";
 import { serializeCompactJsonLine } from "../../../src/shared/compact-json.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 
