@@ -227,7 +227,7 @@ export class PostgresSyncAdapter implements SyncAdapter {
             ${this.namespace},
             ${cursor},
             ${JSON.stringify(input.invalidations)}::text::jsonb,
-            ${principalHash(input.lease.principal)}
+            ${principalHash(this, input.lease.principal)}
           )
         `;
         await tx`

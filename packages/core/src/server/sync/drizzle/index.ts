@@ -93,6 +93,7 @@ export class DrizzlePostgresSyncAdapter<Db extends BunSQLDatabase<Schema>>
     return this.db.transaction((tx) => {
       const sql = drizzleTransactionSql(tx);
       return executePostgresMutation(
+        this,
         new PostgresSyncAdapter({
           namespace: this.syncNamespace,
           sql,

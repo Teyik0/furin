@@ -1,6 +1,7 @@
 import { IS_DEV } from "../runtime-env.ts";
 import type { SyncAdapter, SyncNotifier, SyncRuntimeOptions } from "./adapter.ts";
 import { PollingSyncNotifier } from "./notifier.ts";
+import { configurePrincipalSecret } from "./principal-journal.ts";
 
 const POLL_INTERVAL_MS = 250;
 const pollingNotifiers = new WeakMap<object, PollingSyncNotifier>();
@@ -14,6 +15,7 @@ export function resolveSyncRuntime(options: SyncRuntimeOptions): ResolvedSyncRun
   if (!IS_DEV && options.adapter.scope === "process-local") {
     throw new Error("[furin] Production sync cannot use a process-local SyncAdapter.");
   }
+  configurePrincipalSecret(options.adapter, options.secret);
   if (options.notifier) {
     if (
       options.adapter.notificationChannel !== undefined &&

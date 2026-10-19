@@ -231,7 +231,7 @@ export class SqliteSyncAdapter implements SyncAdapter {
               cursorRow.current_cursor,
               JSON.stringify(completion.invalidations),
               now,
-              principalHash(completion.lease.principal)
+              principalHash(this, completion.lease.principal)
             );
           const removed = this.database
             .query<never, [string, string, number]>(

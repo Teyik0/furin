@@ -163,7 +163,7 @@ await furin({
 | `cachePurger` | CDN purge hook for this instance; receives its physical paths and takes precedence over `setCachePurger()` |
 | `cacheTagPurger` | CDN purge hook for this instance's semantic cache tags; receives the tags passed to `revalidateTag()` and takes precedence over the deployment adapter's tag purger |
 | `pageCache` | Optional shared store for SSG, ISR, and PPR public artifacts; when omitted, the existing process-local render caches remain active |
-| `sync` | Sync adapter, principal resolver, optional notifier, and optional durable endpoint `path` |
+| `sync` | Sync adapter, principal resolver, optional notifier, optional principal hash `secret`, and optional durable endpoint `path` |
 
 Keep the same `pagesDir` and `prefix` between the build and runtime mount. `prefix` is the full physical path: mount Furin on an Elysia instance without its own prefix. Each `furin()` call serves one application. See [Caching](/docs/caching), [Multi-Instance](/docs/multi-instance), and [Sync & Invalidations](/docs/sync).
 

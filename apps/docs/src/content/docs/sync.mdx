@@ -32,6 +32,25 @@ export const sync = {
 
 Authenticate the request inside `principal`, for example by verifying a signed session as `requireUser` does above. The same callback authorizes journal recovery at the change endpoint. Never return an unverified header or a client-supplied user ID: hashing a principal separates journal entries but does not authenticate a request.
 
+### Principal Secret
+
+Furin sends a hash of the principal to the browser (the `session` of identified reads, used to drop a previous user's cached data) and stores it in the journal's `principal_hash`. Without a secret this is plain SHA-256, so an email or sequential ID can be recovered by hashing guesses. Set `secret` to key it with HMAC-SHA256:
+
+```ts
+export const sync = {
+  adapter: drizzleSyncAdapter({ db, namespace: "my-app" }),
+  principal: ({ request }) => requireUser(request).id,
+  secret: process.env.FURIN_SYNC_SECRET, // e.g. `openssl rand -base64 32`
+};
+```
+
+- The secret must be at least 32 characters; shorter values throw at startup. Never prefix the variable with `FURIN_PUBLIC_`.
+- Use the same secret on every node. Browsers compare `session` values across responses, and a node with another secret looks like a different user and clears that browser's queries.
+- Setting or rotating the secret is safe. Journal entries hashed with the previous value no longer match, so recovery takes the full-refresh path described in [Browser Catch-Up](#browser-catch-up), and browsers refetch their queries once.
+- Production logs a warning once per adapter when `secret` is missing.
+
+This follows the same model as `BETTER_AUTH_SECRET` (better-auth), `AUTH_SECRET` (Auth.js, at least 32 characters), and Next.js's `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. Each is a server-only key that must match across instances. You can reuse your authentication library's secret value, but a dedicated one can be rotated on its own.
+
 ```ts
 // src/server.ts
 import { Elysia } from "elysia";

@@ -25,5 +25,10 @@ export function getSyncPath(): string | undefined {
 }
 
 export function syncRuntimeOptions(sync: FurinSyncOptions): SyncRuntimeOptions {
-  return { adapter: sync.adapter, notifier: sync.notifier, principal: sync.principal };
+  return {
+    adapter: sync.adapter,
+    notifier: sync.notifier,
+    principal: sync.principal,
+    secret: sync.secret,
+  };
 }

@@ -27,6 +27,7 @@ import {
 import { MutationLeaseLost } from "./execution-error.ts";
 import { createMutationFingerprint } from "./fingerprint.ts";
 import { installMutationHandlers, prepareMutationHandler } from "./mutation-handler.ts";
+import { principalHash } from "./principal-journal.ts";
 import {
   appendQueryInvalidations,
   resolveSyncInvalidations,
@@ -447,7 +448,7 @@ function createSyncPlugin<Adapter extends SyncAdapter>(
       const identity = {
         id: read.id,
         scope: typeof read.scope === "function" ? read.scope(ctx as Context) : (read.scope ?? {}),
-        session: new Bun.CryptoHasher("sha256").update(principal).digest("hex"),
+        session: principalHash(options.adapter, principal),
       };
       queryTag(identity);
       ctx.set.headers["x-furin-query"] = serializeQueryHeader(identity);

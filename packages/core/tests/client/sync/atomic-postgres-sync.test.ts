@@ -17,6 +17,7 @@ import {
   postgresSyncNotifier,
 } from "../../../src/server/sync/postgres/index.ts";
 import { prismaSyncAdapter } from "../../../src/server/sync/prisma/index.ts";
+import { createSyncChangesPlugin } from "../../../src/server/sync/stream.ts";
 import { PrismaClient } from "../../fixtures/sync-prisma/generated/index.js";
 
 const url = process.env.FURIN_SYNC_POSTGRES_URL;
@@ -193,6 +194,40 @@ test.skipIf(!url)(
     } finally {
       resetPageCacheAdapter(defaultInstanceBucket());
       await sql`DELETE FROM furin_atomic_counter WHERE id = ${namespace}`;
+      await sql.close();
+    }
+  }
+);
+
+test.skipIf(!url).each(["drizzle", "prisma"] as const)(
+  "%s atomic journals hash the principal with the runtime secret",
+  async (orm) => {
+    const sql = new SQL(url ?? "");
+    await sql.unsafe(migration);
+    const namespace = crypto.randomUUID();
+    const client =
+      orm === "prisma"
+        ? new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+        : undefined;
+    const sync = {
+      adapter: client
+        ? prismaSyncAdapter({ client, namespace })
+        : drizzleSyncAdapter({ db: drizzle(sql), namespace }),
+      principal: () => "user",
+      secret: "a-test-secret-of-at-least-32-characters",
+    };
+    try {
+      const app = new Elysia()
+        .use(furinSync(sync))
+        .use(createSyncChangesPlugin(sync))
+        .post("/counter", { sync: { invalidate: { tags: [namespace] } } }, ({ mutation }) =>
+          mutation(() => ({ value: 1 }))
+        );
+      expect((await app.handle(request("counter", "one"))).status).toBe(200);
+      const changes = await app.handle(new Request("http://localhost/_furin/sync/changes?after=0"));
+      expect(await changes.json()).toMatchObject({ changes: [{ cursor: "1" }], reset: false });
+    } finally {
+      await client?.$disconnect();
       await sql.close();
     }
   }

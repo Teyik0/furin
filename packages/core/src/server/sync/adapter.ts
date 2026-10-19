@@ -127,6 +127,11 @@ export interface SyncRuntimeOptions<Adapter extends SyncAdapter = SyncAdapter> {
   notifier?: SyncNotifier;
   /** Authenticate the request and return its verified identity, including for journal recovery. */
   principal: (context: Context) => Promise<string> | string;
+  /**
+   * Server-only key (at least 32 characters) for HMAC-SHA256 principal hashes sent
+   * to browsers and stored in the journal. Use the same value on every node.
+   */
+  secret?: string;
 }
 
 import type { Context } from "elysia";

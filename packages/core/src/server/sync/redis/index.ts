@@ -227,7 +227,7 @@ export class RedisSyncAdapter implements SyncAdapter {
         JSON.stringify(input.invalidations),
         String(MUTATION_TTL_MS),
         String(CHANGE_RETENTION),
-        principalHash(input.lease.principal),
+        principalHash(this, input.lease.principal),
       ]),
       "complete mutation"
     );
