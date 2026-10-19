@@ -308,9 +308,9 @@ describe("generateHydrateEntry", () => {
       }
       const bundleText = chunks.join("\n");
 
-      // Router + search, two document contexts, and two initializers each for
-      // query and route snapshots, shared by Symbol.for across public bundles.
-      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(8);
+      // Router, router store + search, two document contexts, and two initializers
+      // each for query and route snapshots, shared by Symbol.for across public bundles.
+      expect((bundleText.match(/createContext\(null\)/g) ?? []).length).toBe(9);
     } finally {
       rmSync(tmpRoot, { force: true, recursive: true });
     }

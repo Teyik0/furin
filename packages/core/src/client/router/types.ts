@@ -340,6 +340,23 @@ export interface RouterContextValue {
   searchRoutes: SearchRouteMetadata[];
 }
 
+/** Router values that stay the same across navigations. */
+export type StableRouter = Omit<
+  RouterContextValue,
+  "currentHref" | "currentPattern" | "isNavigating" | "search"
+>;
+
+/**
+ * Stable router handle: never changes on navigation, so consumers subscribe
+ * to the navigation state they need instead of re-rendering on every
+ * `RouterContext` change.
+ */
+export interface RouterStore {
+  getCurrentHref: () => string;
+  router: StableRouter;
+  subscribe: (listener: () => void) => () => void;
+}
+
 /**
  * Client-side mirror of `SegmentBoundary` from router.ts. Unlike the server
  * version this does NOT carry the directory path — it's purely a (depth,

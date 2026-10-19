@@ -18,6 +18,7 @@ import { QueryStoreContext } from "../query.tsx";
 import { QueryStore } from "../query-store.ts";
 import { resolveRouteElement } from "../route-element.tsx";
 import { buildRouterTree } from "./boundary-tree.tsx";
+import { RouterStoreContext } from "./context.ts";
 import {
   applyRevalidateHeader,
   normalizeHref,
@@ -35,7 +36,13 @@ import { fetchPageState } from "./page-fetch.ts";
 import { createSearchStore, SearchStoreContext } from "./search-store.ts";
 import { detectStaticMode } from "./spa-response.ts";
 import { createInvalidationRefresh } from "./sync-catch-up.ts";
-import type { ClientRoute, ClientSegmentBoundary, RouterProviderProps } from "./types.ts";
+import type {
+  ClientRoute,
+  ClientSegmentBoundary,
+  RouterProviderProps,
+  RouterStore,
+  StableRouter,
+} from "./types.ts";
 import { useFetchInterception } from "./use-fetch-interception.ts";
 import { useHistorySync } from "./use-history-sync.ts";
 import { useHmrRefresh } from "./use-hmr-refresh.ts";
@@ -403,51 +410,63 @@ export function RouterProvider({
     rootBoundary: rootBoundaries?.[0],
   });
 
-  const routerContext = useMemo(
+  const stableRouter = useMemo<StableRouter>(
     () => ({
       basePath,
-      currentHref,
-      currentPattern: state.match?.pattern,
       defaultPreload,
       defaultPreloadDelay,
       defaultPreloadStaleTime,
       invalidatePrefetch,
-      isNavigating,
       navigate,
       prefetch,
       refresh,
-      search: resolvedSearch,
       searchRoutes: routes,
     }),
     [
       basePath,
-      currentHref,
-      state.match?.pattern,
       defaultPreload,
       defaultPreloadDelay,
       defaultPreloadStaleTime,
       invalidatePrefetch,
-      isNavigating,
       navigate,
       prefetch,
       refresh,
-      resolvedSearch,
       routes,
     ]
   );
+  const routerStore = useMemo<RouterStore>(
+    () => ({
+      getCurrentHref: () => controller.getSnapshot().href,
+      router: stableRouter,
+      subscribe: controller.subscribe,
+    }),
+    [controller, stableRouter]
+  );
+  const routerContext = useMemo(
+    () => ({
+      ...stableRouter,
+      currentHref,
+      currentPattern: state.match?.pattern,
+      isNavigating,
+      search: resolvedSearch,
+    }),
+    [stableRouter, currentHref, state.match?.pattern, isNavigating, resolvedSearch]
+  );
   const routerTree = (
-    <SearchStoreContext.Provider value={searchStore}>
-      {buildRouterTree(routerContext, pageElement, {
-        digest: initialDigest,
-        document: initialDocumentState !== null,
-        onReset: () => {
-          refresh(undefined).catch((err: unknown) => {
-            log.error({ action: "boundary_reset_failed", error: String(err) });
-          });
-        },
-        resetKey: `${currentHref}:${boundaryResetVersion}`,
-      })}
-    </SearchStoreContext.Provider>
+    <RouterStoreContext.Provider value={routerStore}>
+      <SearchStoreContext.Provider value={searchStore}>
+        {buildRouterTree(routerContext, pageElement, {
+          digest: initialDigest,
+          document: initialDocumentState !== null,
+          onReset: () => {
+            refresh(undefined).catch((err: unknown) => {
+              log.error({ action: "boundary_reset_failed", error: String(err) });
+            });
+          },
+          resetKey: `${currentHref}:${boundaryResetVersion}`,
+        })}
+      </SearchStoreContext.Provider>
+    </RouterStoreContext.Provider>
   );
   if (initialDocumentState === null) {
     return <QueryStoreContext.Provider value={queries}>{routerTree}</QueryStoreContext.Provider>;
