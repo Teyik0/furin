@@ -109,9 +109,42 @@ function routeId(instanceId: string, path: string): string {
   return `_route_${instanceId}_${encodedPath}`;
 }
 
-export function buildRouteTree(pagesDir: string, instanceId: string): RouteTreeNode {
+export interface RouteManifestFile {
+  base: string;
+  directorySegments: string[];
+  /** URL pattern of a page; `undefined` for a `_route` layout. */
+  pattern: string | undefined;
+  sourcePath: string;
+}
+
+/**
+ * The single filesystem walk behind every route consumer (native route tree,
+ * `scanPages`, typegen, adapters): files in deterministic depth-first order,
+ * dynamic segments validated and duplicate URL patterns rejected.
+ */
+export function scanRouteManifest(pagesDir: string): RouteManifestFile[] {
   const scannedFiles: ScannedRouteFile[] = [];
   scanRouteFiles(pagesDir, [], scannedFiles);
+  const seenPatterns = new Map<string, string>();
+  return scannedFiles.map((file) => {
+    if (file.base === "_route") {
+      return { ...file, pattern: undefined };
+    }
+    const relativePath = relative(pagesDir, file.sourcePath).replaceAll("\\", "/");
+    const pattern = filePathToPattern(relativePath);
+    const patternKey = routePatternKey(pattern);
+    const previousPath = seenPatterns.get(patternKey);
+    if (previousPath !== undefined) {
+      throw new Error(
+        `[furin] Duplicate route pattern "${patternKey}" from "${previousPath}" and "${relativePath}".`
+      );
+    }
+    seenPatterns.set(patternKey, relativePath);
+    return { ...file, pattern };
+  });
+}
+
+export function buildRouteTree(pagesDir: string, instanceId: string): RouteTreeNode {
   const nodes = new Map<string, RouteTreeNode>();
 
   const ensureNode = (segments: string[]): RouteTreeNode => {
@@ -134,26 +167,19 @@ export function buildRouteTree(pagesDir: string, instanceId: string): RouteTreeN
     return node;
   };
   const root = ensureNode([]);
-  const seenPatterns = new Map<string, string>();
 
-  for (const file of scannedFiles) {
+  for (const file of scanRouteManifest(pagesDir)) {
     const node = ensureNode(file.directorySegments);
-    if (file.base === "_route") {
+    if (file.pattern === undefined) {
       const path = `/${file.directorySegments.map(segmentPath).join("/")}#layout`;
       node.layout = { id: routeId(instanceId, path), path: "", sourcePath: file.sourcePath };
       continue;
     }
-    const path = filePathToPattern(relative(pagesDir, file.sourcePath));
-    const patternKey = routePatternKey(path);
-    const relativePath = relative(pagesDir, file.sourcePath).replaceAll("\\", "/");
-    const previousPath = seenPatterns.get(patternKey);
-    if (previousPath !== undefined) {
-      throw new Error(
-        `[furin] Duplicate route pattern "${patternKey}" from "${previousPath}" and "${relativePath}".`
-      );
-    }
-    seenPatterns.set(patternKey, relativePath);
-    const route = { id: routeId(instanceId, path), path, sourcePath: file.sourcePath };
+    const route = {
+      id: routeId(instanceId, file.pattern),
+      path: file.pattern,
+      sourcePath: file.sourcePath,
+    };
     if (file.base === "index") {
       node.indexRoute = route;
     } else {

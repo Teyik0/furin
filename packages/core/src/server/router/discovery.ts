@@ -1,19 +1,14 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: route discovery walks filesystem entries sequentially for deterministic ordering
 import { existsSync } from "node:fs";
-import { readdir } from "node:fs/promises";
-import { join, parse } from "node:path";
 import type { RuntimePage, RuntimeRoute } from "../../client/internal/runtime-types.ts";
+import { scanRouteManifest } from "../../plugin/route-tree.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
-import {
-  collectRouteChainFromRoute,
-  mapWithConcurrency,
-  validateRouteChain,
-} from "../../shared/utils/index.ts";
+import { collectRouteChainFromRoute, validateRouteChain } from "../../shared/utils/index.ts";
 import { type CompileContext, type CompiledModule, getCompileContext } from "../internal.ts";
 import { IS_DEV } from "../runtime-env.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
-import { filePathToPattern, resolveMode, routePatternKey } from "./patterns.ts";
+import { resolveMode } from "./patterns.ts";
 import { routeModuleSourceVersion } from "./source-version.ts";
 import type { ResolvedRoute, RootLayout, SegmentBoundary } from "./types.ts";
 
@@ -194,8 +189,8 @@ export async function scanPages(pagesDir: string): Promise<{
   root: RootLayout;
   routes: ResolvedRoute[];
 }> {
-  // Normalise once at the entry point; scanRootLayout and scanPageFiles (plus
-  // every absolute path collectPageFilePaths yields) then operate purely on
+  // Normalise once at the entry point; scanRootLayout and scanPageFiles (which
+  // also normalises every route-manifest path) then operate purely on
   // POSIX-separated paths.
   const dir = toPosixPath(pagesDir);
   const root = await scanRootLayout(dir);
@@ -264,9 +259,6 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
 
 const CONVENTION_FILE_NAMES = ["not-found", "error"] as const;
 const SOURCE_MODULE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"] as const;
-function isConventionFileName(name: string): boolean {
-  return (CONVENTION_FILE_NAMES as readonly string[]).includes(name);
-}
 
 export function getSourceModuleCandidates(dir: string, name: string): string[] {
   return SOURCE_MODULE_EXTENSIONS.map((ext) => `${dir}/${name}${ext}`);
@@ -309,35 +301,15 @@ async function loadConventionComponent<T>(
 
 async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<ResolvedRoute[]> {
   const routes: ResolvedRoute[] = [];
-  const seenPatterns = new Map<string, string>();
   const notFoundCache = new Map<string, ConventionLookup<NotFoundComponent> | undefined>();
   const errorCache = new Map<string, ConventionLookup<ErrorComponent> | undefined>();
 
-  for (const absolutePath of await collectPageFilePaths(pagesDir)) {
-    if (
-      absolutePath.endsWith(".d.ts") ||
-      !(SOURCE_MODULE_EXTENSIONS as readonly string[]).some((ext) => absolutePath.endsWith(ext))
-    ) {
+  for (const { pattern, sourcePath } of scanRouteManifest(pagesDir)) {
+    if (pattern === undefined) {
       continue;
     }
-
+    const absolutePath = toPosixPath(sourcePath);
     const relativePath = routeRelativePath(pagesDir, absolutePath);
-    const fileName = parse(relativePath).name;
-
-    // Skip root.tsx, convention files (not-found, error), and files starting with _
-    if (fileName.startsWith("_") || fileName === "root" || isConventionFileName(fileName)) {
-      continue;
-    }
-
-    const pattern = filePathToPattern(relativePath);
-    const patternKey = routePatternKey(pattern);
-    const previousPath = seenPatterns.get(patternKey);
-    if (previousPath !== undefined) {
-      throw new Error(
-        `[furin] Duplicate route pattern "${patternKey}" from "${previousPath}" and "${relativePath}".`
-      );
-    }
-    seenPatterns.set(patternKey, relativePath);
 
     const segmentBoundaries = await collectSegmentBoundaries(
       absolutePath,
@@ -562,46 +534,4 @@ async function buildDevRoute(
     segmentBoundaries: [],
     tags: collectRouteTags(routeChain, page),
   };
-}
-
-/**
- * Per-level cap on parallel directory traversals. Bounds peak in-flight
- * `readdir` calls to roughly `DIR_SCAN_CONCURRENCY * tree-depth`, which keeps
- * a wide flat pagesDir from opening thousands of FDs at once.
- */
-const DIR_SCAN_CONCURRENCY = 8;
-
-async function collectPageFilePaths(dir: string): Promise<string[]> {
-  const files: string[] = [];
-
-  // Sort by name so route order is reproducible across platforms / restarts.
-  // readdir is hash-based on Linux ext4, alphabetical on macOS APFS — without
-  // this sort, two pages that compile to the same URL pattern would resolve
-  // non-deterministically depending on host. Sorting also makes the eventual
-  // "duplicate route pattern" error reproducible (always the same winner).
-  const entries = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
-
-  // Walk subdirectories with bounded parallelism, then merge results in the
-  // original alphabetical entry order so the depth-first interleaving is
-  // preserved (file, then its sub-tree, then next file…).
-  const resolved = await mapWithConcurrency(entries, DIR_SCAN_CONCURRENCY, async (entry) => {
-    const absolutePath = toPosixPath(join(dir, entry.name));
-    if (entry.isDirectory()) {
-      if (entry.name.startsWith("_")) {
-        return [];
-      }
-      return await collectPageFilePaths(absolutePath);
-    }
-    if (entry.isFile()) {
-      return [absolutePath];
-    }
-    return [];
-  });
-  for (const chunk of resolved) {
-    files.push(...chunk);
-  }
-
-  return files;
 }
