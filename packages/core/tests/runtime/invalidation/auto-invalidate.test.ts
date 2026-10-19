@@ -20,14 +20,15 @@ import {
   getDevSSGLoaderCache,
   isrCache,
   revalidatePath,
-  setCachePurger,
   setDevISRLoaderCache,
   setDevSSGLoaderCache,
   setISRCache,
   setSSGCache,
   ssgCache,
 } from "../../../src/server/cache/index.ts";
+import { setInstanceCachePurger } from "../../../src/server/cache/purger.ts";
 import {
+  __clearInstanceRegistry,
   allInstances,
   createInstance,
   registerInstance,
@@ -42,6 +43,7 @@ const { furin } = await import("../../../src/furin.ts");
 
 afterEach(async () => {
   __resetCacheState();
+  __clearInstanceRegistry();
   __resetDevLoaderCacheState();
   autoInvalidateRegistry.reset();
   await flushMicrotasks();
@@ -171,7 +173,7 @@ describe("revalidateTag", () => {
     // logical "/x" must be purged as "/admin/x".
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(paths);
       return Promise.resolve();
     });
@@ -226,9 +228,9 @@ describe("revalidateTag", () => {
 
 describe("revalidatePath", () => {
   test("uses the same mounted root key as the deployment adapter", async () => {
-    registerInstance(createInstance("/admin", "/apps/admin"));
+    const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(...paths);
       return Promise.resolve();
     });
@@ -239,8 +241,8 @@ describe("revalidatePath", () => {
   });
 
   test("does not propagate a synchronous purge failure", async () => {
-    registerInstance(createInstance("/admin", "/apps/admin"));
-    setCachePurger(() => {
+    const admin = registerInstance(createInstance("/admin", "/apps/admin"));
+    setInstanceCachePurger(admin, () => {
       throw new Error("Purge unavailable");
     });
     await expect(revalidatePath("/x", "page")).resolves.toBe(false);
@@ -250,7 +252,7 @@ describe("revalidatePath", () => {
   test("purges the mounted app's PHYSICAL (prefixed) URL, not the logical path", async () => {
     const admin = registerInstance(createInstance("/admin", "/apps/admin"));
     const purged: string[][] = [];
-    setCachePurger((paths) => {
+    setInstanceCachePurger(admin, (paths) => {
       purged.push(paths);
       return Promise.resolve();
     });

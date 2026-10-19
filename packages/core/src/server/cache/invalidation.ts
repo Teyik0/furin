@@ -5,7 +5,6 @@ import {
   emitCacheInvalidated,
 } from "../devtools/instrumentation.ts";
 import {
-  __clearInstanceRegistry,
   allInstances,
   allStateBuckets,
   currentInstance,
@@ -17,12 +16,11 @@ import { clearMixedPublicCache } from "../render/mixed-cache.ts";
 import { clearPprRouteCache } from "../render/ppr-route.ts";
 import { clearDevLoaderCaches } from "./dev-loader";
 import { clearPendingISRRevalidations, isrRouteCache } from "./isr";
-import { getPageCacheAdapter, resetPageCacheAdapter } from "./page-cache-state.ts";
+import { getPageCacheAdapter } from "./page-cache-state.ts";
 import {
   type CachePurger,
   setCachePurger as installPurger,
   callCachePurger as purgePaths,
-  resetCachePurgers,
 } from "./purger.ts";
 import { getCacheInvalidators } from "./registry";
 import type { RevalidateType } from "./route-cache";
@@ -164,7 +162,11 @@ export function revalidatePathForInstance(
   return { deleted, purgedPaths };
 }
 
-/** @internal — resets all module state between tests */
+/**
+ * @internal test-only — empties the caches of every state bucket. Live
+ * runtimes stay registered and keep their configuration (page cache adapter,
+ * purgers); forget them explicitly with `__clearInstanceRegistry()`.
+ */
 export function __resetCacheState(): void {
   for (const instance of allStateBuckets()) {
     // `.clear()` fires each entry's onDelete hook, and those hooks resolve
@@ -178,13 +180,6 @@ export function __resetCacheState(): void {
       clearPprRouteCache(instance);
       clearMixedPublicCache(instance);
       clearPendingISRRevalidations(instance);
-      resetPageCacheAdapter(instance);
     });
-    instance.buildId = "";
   }
-  // Forget mounted instances (fresh furin() calls between tests must not hit
-  // prefix collisions) but keep the default bucket — cache slots above are
-  // cleared, while process-wide defaults like a beforeAll template survive.
-  resetCachePurgers(allStateBuckets());
-  __clearInstanceRegistry();
 }

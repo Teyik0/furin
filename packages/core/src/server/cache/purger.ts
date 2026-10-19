@@ -62,15 +62,6 @@ export function callCacheTagPurger(
   );
 }
 
-export function resetCachePurgers(instances: readonly FurinInstance[]): void {
-  pathPurger = undefined;
-  tagPurger = undefined;
-  for (const instance of instances) {
-    setInstanceCachePurger(instance, undefined);
-    setInstanceCacheTagPurger(instance, undefined);
-  }
-}
-
 function dispatchBatches(
   purges: readonly (readonly [CachePurger | undefined, readonly string[]])[]
 ): void {

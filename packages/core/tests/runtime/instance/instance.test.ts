@@ -4,6 +4,10 @@
  * contexts.
  */
 import { afterEach, describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { Elysia } from "elysia";
+import { furin } from "../../../src/furin.ts";
+import { __resetCacheState, revalidatePath } from "../../../src/server/cache/invalidation.ts";
 import {
   __clearInstanceRegistry,
   allInstances,
@@ -115,6 +119,30 @@ describe("runtime binding", () => {
       enterRequestScope(admin, request, () => allInstances())
     );
     expect(peers).toEqual([root, admin]);
+  });
+});
+
+describe("cache state reset", () => {
+  test("keeps live runtimes and their configuration", async () => {
+    const purged: string[][] = [];
+    const app = new Elysia().use(
+      await furin({
+        cachePurger: (paths) => {
+          purged.push(paths);
+          return Promise.resolve();
+        },
+        pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+        prefix: "/reset",
+      })
+    );
+
+    __resetCacheState();
+    await revalidatePath("/page", "page");
+    await Bun.sleep(0);
+
+    expect(allInstances().map((instance) => instance.prefix)).toContain("/reset");
+    expect(purged).toEqual([["/reset/page"]]);
+    expect(app).toBeDefined();
   });
 });
 
