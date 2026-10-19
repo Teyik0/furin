@@ -65,7 +65,7 @@ export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ childre
 
   expect(result.exitCode).toBe(1);
   expect(result.stderr).toContain("furin() mounts in the server entry do not match config.apps");
-  expect(result.stderr).toContain("src/pages");
+  expect(result.stderr.replaceAll("\\", "/")).toContain("src/pages");
 }, 30_000);
 
 test("the build accepts furin() mounts that match config.apps", async () => {
