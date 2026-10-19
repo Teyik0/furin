@@ -1,11 +1,10 @@
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
-import MagicString from "magic-string";
 import { walk } from "yuku-ast";
 import type { Node, Program } from "yuku-parser";
-import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
-import { parseSource } from "../shared/parser.ts";
+import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { hasShadowingDeclaration } from "./binding-scope.ts";
+import { type ModuleTransform, parseModule } from "./module-transform.ts";
 import type { IsomorphicEnvironment } from "./transform-isomorphic.ts";
 
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
@@ -71,24 +70,26 @@ export function transformClientModules(
   filename: string,
   environment: IsomorphicEnvironment
 ): string {
-  return transformClientModuleSource(source, filename, environment).toString();
+  const module = parseModule(source, filename);
+  rewriteClientModules(module, environment);
+  return module.source.toString();
 }
 
-export function transformClientModuleSource(
-  source: string,
-  filename: string,
+/** Applies the `clientModule()` rewrite to a parsed module; reports whether it edited it. */
+export function rewriteClientModules(
+  module: ModuleTransform,
   environment: IsomorphicEnvironment
-): MagicString {
-  const transformed = new MagicString(source);
-  if (!source.includes("clientModule")) {
-    return transformed;
+): boolean {
+  const { filename, program, source } = module;
+  if (!module.code.includes("clientModule")) {
+    return false;
   }
-  const { program } = parseSource(source, detectLangFromPath(filename));
   const bindings = collectClientModuleBindings(program);
   if (bindings.size === 0) {
-    return transformed;
+    return false;
   }
 
+  let rewritten = false;
   walk(program, {
     CallExpression(call, context) {
       const [loader, ...rest] = call.arguments;
@@ -116,11 +117,13 @@ export function transformClientModuleSource(
         );
       }
       if (environment === "client") {
-        transformed.appendLeft(loader.end, `, ${key}`);
+        source.appendLeft(loader.end, `, ${key}`);
       } else {
-        transformed.overwrite(loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
+        source.overwrite(loader.start, loader.end, `${SERVER_LOAD}, ${key}`);
+        module.removed.push({ end: loader.end, start: loader.start });
       }
+      rewritten = true;
     },
   });
-  return transformed;
+  return rewritten;
 }

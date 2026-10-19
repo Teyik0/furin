@@ -1,4 +1,4 @@
-import MagicString from "magic-string";
+import type MagicString from "magic-string";
 import { literalValue, walk } from "yuku-ast";
 import type {
   CallExpression,
@@ -10,19 +10,18 @@ import type {
   Program,
 } from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
-import { parseSource } from "../shared/parser.ts";
 import { isNode } from "../shared/utils/ast-walk.ts";
 import { FactoryBindings, fluentChain, hasShadowingDeclaration } from "./binding-scope.ts";
-import {
-  collectModuleReferences,
-  type DeadCodeState,
-  pruneDeadBindings,
-  pruneDeadImports,
-  referencedNames,
-  type SourceRange,
-} from "./dead-code-elimination.ts";
+import { pruneOrphanedCode, referencedNames } from "./dead-code-elimination.ts";
 import { hmrDependencySignature } from "./hmr-dependencies.ts";
-import { transformIsomorphicFunctions } from "./transform-isomorphic.ts";
+import {
+  isRemoved,
+  type ModuleTransform,
+  parseModule,
+  type SourceRange,
+} from "./module-transform.ts";
+import { rewriteClientModules } from "./transform-client-module.ts";
+import { selectIsomorphicFunctions } from "./transform-isomorphic.ts";
 
 const FURIN_CLIENT_MODULES = new Set(["@teyik0/furin/client", "furin/client"]);
 const FURIN_SERVER_MODULES = new Set(["@teyik0/furin", "furin"]);
@@ -293,47 +292,49 @@ function memberAccessStart(source: string, object: Node, property: Node): number
 interface StrippedCode {
   /** Config bindings the stripped `.config()` calls referenced. */
   configBindings: Set<string>;
-  removed: SourceRange[];
   /** Names the retained remount policy references. */
   retained: Set<string>;
 }
 
 /** Drops a server stage, keeping only a `.config()` call's remount policy. */
 function stripServerStage(
-  source: MagicString,
+  module: ModuleTransform,
   stripped: StrippedCode,
   range: SourceRange,
   remount: Node | null
 ): void {
+  const { removed, source } = module;
   if (remount) {
-    source.update(
-      range.start,
-      range.end,
-      `.config({ ${source.original.slice(remount.start, remount.end)} })`
-    );
-    for (const name of referencedNames(remount)) {
+    // The policy as edited so far: an isomorphic chain in it is already selected.
+    const policy = source.slice(remount.start, remount.end);
+    for (const name of referencedNames(remount, removed)) {
       stripped.retained.add(name);
     }
+    // overwrite, not update: update keeps the text earlier steps inserted in the range.
+    source.overwrite(range.start, range.end, `.config({ ${policy} })`);
   } else {
     source.remove(range.start, range.end);
   }
-  stripped.removed.push(range);
+  removed.push(range);
 }
 
 function removeChainedServerCalls(
-  source: MagicString,
-  program: Program,
+  module: ModuleTransform,
   bindings: FactoryBindings,
-  stripped: StrippedCode,
-  filename: string
+  stripped: StrippedCode
 ): boolean {
+  const { filename, program, source } = module;
   let transformed = rewriteClientImports(source, program, bindings);
   const { declarations } = collectModuleBindings(program);
 
   walk(program, {
     CallExpression(call, context) {
       const callee = unwrapped(call.callee);
-      if (callee?.type !== "MemberExpression" || callee.computed === true) {
+      if (
+        callee?.type !== "MemberExpression" ||
+        callee.computed === true ||
+        isRemoved(call, module.removed)
+      ) {
         return;
       }
       const { property } = callee;
@@ -363,7 +364,7 @@ function removeChainedServerCalls(
         }
       }
       const accessStart = memberAccessStart(source.original, object, property);
-      stripServerStage(source, stripped, { end: call.end, start: accessStart }, remount);
+      stripServerStage(module, stripped, { end: call.end, start: accessStart }, remount);
       transformed = true;
     },
   });
@@ -799,11 +800,7 @@ function createHmrDataSignature(
 
 /** Server stages and their imports share one signature across both HMR graphs. */
 export function getHmrDataSignature(code: string, filename: string): string {
-  const { diagnostics, program } = parseSource(code, detectLangFromPath(filename));
-  const error = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (error) {
-    throw new Error(`Failed to parse ${filename}: ${error.message}`);
-  }
+  const { program } = parseModule(code, filename);
   return createHmrDataSignature(code, program, collectDefineRouteBindings(program), filename);
 }
 
@@ -1090,56 +1087,28 @@ function collectClientHookSignature(
     : "external";
 }
 
-function parseOrThrow(code: string, filename: string): Program {
-  const { diagnostics, program } = parseSource(code, detectLangFromPath(filename));
-  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (firstError) {
-    throw new Error(`Failed to parse ${filename}: ${firstError.message}`);
-  }
-  return program;
-}
-
 export function transformForClient(code: string, filename: string): TransformResult {
   const lang = detectLangFromPath(filename);
   if (lang === "dts") {
     return { code, removedServerCode: false };
   }
 
-  const isomorphicResult = transformIsomorphicFunctions(code, filename, "client");
-  const clientSource = isomorphicResult.code;
-  // Every step below edits this one AST and MagicString in clientSource
+  // Every step below reads this one AST and edits its MagicString in `code`
   // coordinates; nothing is reparsed until Bun bundles the result.
-  const program = parseOrThrow(clientSource, filename);
-  const originalProgram = clientSource === code ? program : parseOrThrow(code, filename);
-
-  const source = new MagicString(clientSource);
+  const module = parseModule(code, filename);
+  const { program, source } = module;
+  const clientModules = rewriteClientModules(module, "client");
+  const isomorphic = selectIsomorphicFunctions(module, "client");
   const routeBindings = collectDefineRouteBindings(program);
   assertCompleteRouteChains(program, routeBindings, filename);
-  const stripped: StrippedCode = { configBindings: new Set(), removed: [], retained: new Set() };
-  const removedRouteCode = removeChainedServerCalls(
-    source,
-    program,
-    routeBindings,
-    stripped,
-    filename
-  );
-  const removedServerCode = isomorphicResult.transformed || removedRouteCode;
+  const stripped: StrippedCode = { configBindings: new Set(), retained: new Set() };
+  const removedRouteCode = removeChainedServerCalls(module, routeBindings, stripped);
+  const removedServerCode = clientModules || isomorphic || removedRouteCode;
   if (removedServerCode) {
-    const state: DeadCodeState = {
-      before: collectModuleReferences(originalProgram, []),
-      forced: stripped.configBindings,
-      program,
-      removed: stripped.removed,
-      retained: stripped.retained,
-      source,
-    };
-    pruneDeadBindings(state);
-    pruneDeadImports(state);
+    pruneOrphanedCode(module, stripped.configBindings, stripped.retained);
   }
   let hookSignature =
-    routeBindings.size > 0
-      ? collectClientHookSignature(clientSource, program, routeBindings)
-      : null;
+    routeBindings.size > 0 ? collectClientHookSignature(code, program, routeBindings) : null;
   if (hookSignature && typeof hookSignature === "object" && !Array.isArray(hookSignature)) {
     const createElementBinding = unusedIdentifier(program, "__furinCreateElement");
     source.prepend(`import { createElement as ${createElementBinding} } from "react";\n`);
@@ -1151,12 +1120,7 @@ export function transformForClient(code: string, filename: string): TransformRes
     hookSignature = [];
   }
   if (routeBindings.size > 0 && hookSignature !== null) {
-    const hmrDataSignature = createHmrDataSignature(
-      code,
-      originalProgram,
-      originalProgram === program ? routeBindings : collectDefineRouteBindings(originalProgram),
-      filename
-    );
+    const hmrDataSignature = createHmrDataSignature(code, program, routeBindings, filename);
     const signatureValue = Array.isArray(hookSignature)
       ? JSON.stringify(hookSignature)
       : 'route.component[Symbol.for("furin.hmr.hook-signature")] ?? [String(route.component)]';

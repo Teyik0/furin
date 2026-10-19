@@ -14,6 +14,7 @@ import type {
 import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import { isNode } from "../shared/utils/ast-walk.ts";
+import { isRemoved, type ModuleTransform, type SourceRange } from "./module-transform.ts";
 
 const TYPE_SCOPE_NODES = new Set([
   "TSTypeAnnotation",
@@ -31,11 +32,6 @@ const TYPE_ASSERTION_NODES = new Set([
   "TSTypeAssertion",
 ]);
 const WALK_SKIPPED_KEYS = new Set(["type", "start", "end"]);
-
-export interface SourceRange {
-  end: number;
-  start: number;
-}
 
 /** A top-level statement, or one declarator of a top-level variable declaration. */
 interface ModuleUnit {
@@ -58,7 +54,7 @@ interface ModuleReferences {
  * One module being pruned: `program` is the AST of `source.original`, and
  * every edit already applied to `source` that dropped code is in `removed`.
  */
-export interface DeadCodeState {
+interface DeadCodeState {
   /** References of the module before the transform stripped anything. */
   before: ModuleReferences;
   /** Bindings the transform knows to be server-only, whatever their initializer. */
@@ -74,10 +70,6 @@ function isTypeAssertion(
   node: Node
 ): node is TSAsExpression | TSSatisfiesExpression | TSTypeAssertion {
   return TYPE_ASSERTION_NODES.has(node.type);
-}
-
-function isRemoved(node: SourceRange, removed: readonly SourceRange[]): boolean {
-  return removed.some((range) => range.start <= node.start && node.end <= range.end);
 }
 
 /** Identifiers a pattern declares are not reads; its default values are. */
@@ -171,10 +163,10 @@ function collectReferences(
   }
 }
 
-/** Identifier names a node references, excluding property keys and types. */
-export function referencedNames(node: Node): Set<string> {
+/** Identifier names a node references outside `removed`, excluding property keys and types. */
+export function referencedNames(node: Node, removed: readonly SourceRange[]): Set<string> {
   const references = new Set<string>();
-  collectReferences(node, [], new Set(), references);
+  collectReferences(node, removed, new Set(), references);
   return references;
 }
 
@@ -227,7 +219,7 @@ function moduleUnits(program: Program): Omit<ModuleUnit, "references">[] {
   return units;
 }
 
-export function collectModuleReferences(
+function collectModuleReferences(
   program: Program,
   removed: readonly SourceRange[]
 ): ModuleReferences {
@@ -322,9 +314,36 @@ function isDeadBinding(unit: ModuleUnit, after: ModuleReferences, state: DeadCod
   );
 }
 
-function removeRange(state: DeadCodeState, start: number, end: number): void {
-  state.source.remove(start, end);
-  state.removed.push({ end, start });
+type EditedModule = Pick<ModuleTransform, "removed" | "source">;
+
+function removeRange(module: EditedModule, start: number, end: number): void {
+  module.source.remove(start, end);
+  module.removed.push({ end, start });
+}
+
+/** Removes one declarator, or its whole declaration once it is the last one left. */
+export function removeDeclarator(
+  module: EditedModule,
+  declaration: VariableDeclaration,
+  node: VariableDeclarator
+): void {
+  const declarators = declaration.declarations.filter(
+    (declarator) => declarator === node || !isRemoved(declarator, module.removed)
+  );
+  if (declarators.length === 1) {
+    removeRange(module, declaration.start, declaration.end);
+    return;
+  }
+  const index = declarators.indexOf(node);
+  const next = declarators[index + 1];
+  if (next) {
+    removeRange(module, node.start, next.start);
+    return;
+  }
+  const previous = declarators[index - 1];
+  if (previous) {
+    removeRange(module, previous.end, node.end);
+  }
 }
 
 function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
@@ -333,23 +352,7 @@ function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
     removeRange(state, node.start, node.end);
     return;
   }
-  const declarators = declaration.declarations.filter(
-    (declarator) => declarator === node || !isRemoved(declarator, state.removed)
-  );
-  if (declarators.length === 1) {
-    removeRange(state, declaration.start, declaration.end);
-    return;
-  }
-  const index = declarators.indexOf(node);
-  const next = declarators[index + 1];
-  if (next) {
-    removeRange(state, node.start, next.start);
-    return;
-  }
-  const previous = declarators[index - 1];
-  if (previous) {
-    removeRange(state, previous.end, node.end);
-  }
+  removeDeclarator(state, declaration, node);
 }
 
 /**
@@ -357,7 +360,7 @@ function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
  * become unreferenced (babel-dead-code-elimination's approach): a stripped
  * `.loader(loadData)` must not leave `loadData` and its server imports behind.
  */
-export function pruneDeadBindings(state: DeadCodeState): void {
+function pruneDeadBindings(state: DeadCodeState): void {
   for (;;) {
     const after = collectModuleReferences(state.program, state.removed);
     const dead = after.units.filter(
@@ -415,7 +418,7 @@ function removeUnusedSpecifiers(
 }
 
 /** Drops import specifiers no remaining code references. */
-export function pruneDeadImports(state: DeadCodeState): void {
+function pruneDeadImports(state: DeadCodeState): void {
   const references = collectModuleReferences(state.program, state.removed).names.union(
     state.retained
   );
@@ -493,17 +496,24 @@ export function deadCodeElimination(
   return state.source;
 }
 
-/** Prunes the top-level bindings, then the imports, the transform orphaned. */
-export function pruneDeadCode(
-  transformed: MagicString,
-  originalCode: string,
-  lang: SourceLang
-): MagicString {
-  const state = reparse(transformed, originalCode, lang);
-  if (!state) {
-    return transformed;
-  }
+/**
+ * Prunes the top-level bindings, then the imports, the module's edits
+ * orphaned. `forced` bindings are server-only whatever their initializer;
+ * `retained` names are referenced by code the transform inserted.
+ */
+export function pruneOrphanedCode(
+  module: ModuleTransform,
+  forced: ReadonlySet<string>,
+  retained: ReadonlySet<string>
+): void {
+  const state: DeadCodeState = {
+    before: collectModuleReferences(module.program, []),
+    forced,
+    program: module.program,
+    removed: module.removed,
+    retained,
+    source: module.source,
+  };
   pruneDeadBindings(state);
   pruneDeadImports(state);
-  return state.source;
 }

@@ -1,4 +1,3 @@
-import MagicString from "magic-string";
 import { walk } from "yuku-ast";
 import type {
   Argument,
@@ -16,10 +15,10 @@ import {
   detectLoaderFromPath,
   unwrapTSExpression,
 } from "../server/lang-detect.ts";
-import { parseSource } from "../shared/parser.ts";
 import { hasShadowingDeclaration, lexicalBindingScope, varBindingScope } from "./binding-scope.ts";
-import { pruneDeadCode } from "./dead-code-elimination.ts";
-import { transformClientModuleSource } from "./transform-client-module.ts";
+import { pruneOrphanedCode, removeDeclarator } from "./dead-code-elimination.ts";
+import { isRemoved, type ModuleTransform, parseModule } from "./module-transform.ts";
+import { rewriteClientModules } from "./transform-client-module.ts";
 
 const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
 const SCRIPT_FILE_FILTER =
@@ -325,14 +324,7 @@ function collectCandidates(
     },
   });
 
-  return candidates
-    .toSorted((left, right) => right.end - right.start - (left.end - left.start))
-    .filter(
-      (candidate, index, all) =>
-        !all
-          .slice(0, index)
-          .some((other) => other.start <= candidate.start && other.end >= candidate.end)
-    );
+  return candidates.toSorted((left, right) => left.start - right.start || right.end - left.end);
 }
 
 function sourcePosition(source: string, offset: number): string {
@@ -556,86 +548,96 @@ function assertResolvedFactoryUses(
   });
 }
 
-function pruneFactoryAliases(code: string, filename: string): string {
-  const { program } = parseSource(code, detectLangFromPath(filename));
-  const bindings = collectBindings(program);
-  const aliases = bindings.constants.filter((binding) =>
-    isFactoryExpression(binding.initializer, bindings, binding.ancestors, new Set())
-  );
-  const used = new Set<ConstantBinding>();
-  walk(program, {
-    Identifier(node, context) {
-      const ancestors = context.ancestors();
-      const parent = ancestors.at(-1);
-      if (
-        (parent?.type === "VariableDeclarator" && parent.id === node) ||
-        (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
-        (parent?.type === "Property" &&
-          !parent.computed &&
-          !parent.shorthand &&
-          parent.key === node)
-      ) {
-        return;
-      }
-      const binding = resolveConstant(node.name, bindings, ancestors);
-      if (binding) {
-        used.add(binding);
-      }
-    },
-  });
-  const unused = aliases.filter(
-    (binding) => !(used.has(binding) || binding.ancestors.at(-2)?.type === "ExportNamedDeclaration")
-  );
-  if (unused.length === 0) {
-    return code;
-  }
-  const pruned = new MagicString(code);
-  const removedDeclarations = new Set<VariableDeclaration>();
-  for (const binding of unused) {
-    const declaration = binding.statement;
-    if (removedDeclarations.has(declaration)) {
-      continue;
-    }
-    removedDeclarations.add(declaration);
-    const declarators = declaration.declarations;
-    if (declarators.length === 1) {
-      pruned.remove(declaration.start, declaration.end);
-    } else {
-      const index = declarators.indexOf(binding.declaration);
-      const next = declarators[index + 1];
-      const previous = declarators[index - 1];
-      if (next) {
-        pruned.remove(binding.declaration.start, next.start);
-      } else if (previous) {
-        pruned.remove(previous.end, binding.declaration.end);
-      }
-    }
-  }
-  return pruneFactoryAliases(pruned.toString(), filename);
+function contains(outer: { end: number; start: number }, inner: IsomorphicCandidate): boolean {
+  return outer.start <= inner.start && inner.end <= outer.end;
 }
 
-export function transformIsomorphicFunctions(
-  input: string,
-  filename: string,
+/**
+ * Selects each chain's implementation in one sweep over the AST. A chain
+ * nested in a kept implementation is selected too; one in a dropped
+ * implementation, or a partial chain inside a whole one, is dropped with it.
+ */
+function selectImplementations(
+  module: ModuleTransform,
+  candidates: IsomorphicCandidate[],
   environment: IsomorphicEnvironment
-): IsomorphicTransformResult {
-  const lang = detectLangFromPath(filename);
-  if (lang === "dts") {
-    return { code: input, transformed: false };
+): void {
+  const { removed, source } = module;
+  const selected: { candidate: IsomorphicCandidate; kept: Argument | undefined }[] = [];
+  for (const candidate of candidates) {
+    const enclosing = selected.findLast((entry) => contains(entry.candidate, candidate));
+    if (enclosing && !(enclosing.kept && contains(enclosing.kept, candidate))) {
+      continue;
+    }
+    const implementation = candidate[environment];
+    if (implementation) {
+      source.remove(candidate.start, implementation.start);
+      source.remove(implementation.end, candidate.end);
+      source.appendLeft(implementation.start, "(");
+      source.appendLeft(implementation.end, ")");
+      removed.push(
+        { end: implementation.start, start: candidate.start },
+        { end: candidate.end, start: implementation.end }
+      );
+    } else {
+      source.overwrite(candidate.start, candidate.end, "(() => undefined)");
+      removed.push({ end: candidate.end, start: candidate.start });
+    }
+    selected.push({ candidate, kept: implementation });
   }
-  const clientModules = transformClientModuleSource(input, filename, environment);
-  const source = clientModules.toString();
-  const clientModulesTransformed = source !== input;
+}
 
-  const { program, diagnostics } = parseSource(source, lang);
-  const firstError = diagnostics.find((diagnostic) => diagnostic.severity === "error");
-  if (firstError) {
-    throw new Error(`Failed to parse ${filename}: ${firstError.message}`);
+/** Removes `createIsomorphicFn` aliases the selected chains orphaned, until none is left. */
+function pruneFactoryAliases(module: ModuleTransform, bindings: IsomorphicBindings): void {
+  const aliases = bindings.constants.filter(
+    (binding) =>
+      binding.ancestors.at(-2)?.type !== "ExportNamedDeclaration" &&
+      isFactoryExpression(binding.initializer, bindings, binding.ancestors, new Set())
+  );
+  for (;;) {
+    const used = new Set<ConstantBinding>();
+    walk(module.program, {
+      Identifier(node, context) {
+        const ancestors = context.ancestors();
+        const parent = ancestors.at(-1);
+        if (
+          isRemoved(node, module.removed) ||
+          (parent?.type === "VariableDeclarator" && parent.id === node) ||
+          (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) ||
+          (parent?.type === "Property" &&
+            !parent.computed &&
+            !parent.shorthand &&
+            parent.key === node)
+        ) {
+          return;
+        }
+        const binding = resolveConstant(node.name, bindings, ancestors);
+        if (binding) {
+          used.add(binding);
+        }
+      },
+    });
+    const unused = aliases.filter(
+      (binding) => !(used.has(binding) || isRemoved(binding.declaration, module.removed))
+    );
+    if (unused.length === 0) {
+      return;
+    }
+    for (const binding of unused) {
+      removeDeclarator(module, binding.statement, binding.declaration);
+    }
   }
+}
 
+/** Applies the `createIsomorphicFn()` selection to a parsed module; reports whether it edited it. */
+export function selectIsomorphicFunctions(
+  module: ModuleTransform,
+  environment: IsomorphicEnvironment
+): boolean {
+  const { code: source, filename, program } = module;
   const bindings = collectBindings(program);
   if (bindings.named.size === 0 && bindings.namespaces.size === 0) {
-    return { code: source, transformed: clientModulesTransformed };
+    return false;
   }
   assertResolvedFactoryUses(program, bindings, filename);
   const builders = collectBuilderBindings(program, bindings);
@@ -643,26 +645,28 @@ export function transformIsomorphicFunctions(
   assertNoSplitChains(source, filename, program, builders);
   const candidates = collectCandidates(source, filename, program, bindings);
   if (candidates.length === 0) {
-    return { code: source, transformed: clientModulesTransformed };
+    return false;
   }
+  selectImplementations(module, candidates, environment);
+  pruneFactoryAliases(module, bindings);
+  return true;
+}
 
-  const transformed = new MagicString(source);
-  for (const candidate of candidates) {
-    const implementation = candidate[environment];
-    if (implementation) {
-      transformed.remove(candidate.start, implementation.start);
-      transformed.remove(implementation.end, candidate.end);
-      transformed.appendLeft(implementation.start, "(");
-      transformed.appendLeft(implementation.end, ")");
-    } else {
-      transformed.overwrite(candidate.start, candidate.end, "(() => undefined)");
-    }
+export function transformIsomorphicFunctions(
+  input: string,
+  filename: string,
+  environment: IsomorphicEnvironment
+): IsomorphicTransformResult {
+  if (detectLangFromPath(filename) === "dts") {
+    return { code: input, transformed: false };
   }
-
-  const aliasesPruned = new MagicString(pruneFactoryAliases(transformed.toString(), filename));
-  const pruned = pruneDeadCode(aliasesPruned, source, lang);
-  const nested = transformIsomorphicFunctions(pruned.toString(), filename, environment);
-  return { code: nested.code, transformed: true };
+  const module = parseModule(input, filename);
+  const clientModules = rewriteClientModules(module, environment);
+  const isomorphic = selectIsomorphicFunctions(module, environment);
+  if (isomorphic) {
+    pruneOrphanedCode(module, new Set(), new Set());
+  }
+  return { code: module.source.toString(), transformed: clientModules || isomorphic };
 }
 
 export function isomorphicTransformPlugin(environment: IsomorphicEnvironment): Bun.BunPlugin {

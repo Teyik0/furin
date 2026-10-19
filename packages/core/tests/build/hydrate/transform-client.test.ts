@@ -229,6 +229,22 @@ export const route = defineRoute().config({ ...sharedConfig, mode: "ssr" }).page
     expect(result.code).not.toContain("sharedConfig");
   });
 
+  test("a retained remount policy keeps only the client side of its isomorphic function", () => {
+    const result = transformForClient(
+      `import { createIsomorphicFn, defineRoute } from "furin";
+import { serverKeys } from "./server";
+export const route = defineRoute()
+  .config({ remountDeps: createIsomorphicFn().server(() => serverKeys()).client(() => ["CLIENT_KEYS"]) })
+  .page(() => null);`,
+      "route.tsx"
+    );
+    expect(result.code).toContain(
+      'defineRoute()\n  .config({ remountDeps: (() => ["CLIENT_KEYS"]) })\n  .page(() => null);'
+    );
+    expect(result.code).not.toContain("serverKeys");
+    expect(result.code).not.toContain("./server");
+  });
+
   test.each([
     { config: "...base, ...sharedConfig", expected: "remountDeps: () => [\"shared\"]" },
     { config: "...sharedConfig, remountDeps: () => [\"explicit\"]", expected: "remountDeps: () => [\"explicit\"]" },
