@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -48,8 +48,6 @@ function loadServerCodec(): Promise<ServerCodec> {
     if (builtCodecPath !== undefined) {
       return import(pathToFileURL(builtCodecPath).href) as Promise<ServerCodec>;
     }
-    const outdir = join(tmpdir(), `furin-rsc-${process.pid}-${Bun.hash(import.meta.url)}-${mode}`);
-    mkdirSync(outdir, { recursive: true });
     const sourcePath = join(import.meta.dir, "server-codec.ts");
     if (!existsSync(sourcePath)) {
       throw new Error(
@@ -58,26 +56,32 @@ function loadServerCodec(): Promise<ServerCodec> {
     }
     // Build-time only: compiled servers load the prebuilt codec above.
     const { flightLoaderPlugin } = await import("./build/flight-loader.ts");
-    const result = await Bun.build({
-      conditions: ["react-server"],
-      define: { "process.env.NODE_ENV": JSON.stringify(mode) },
-      entrypoints: [sourcePath],
-      format: "esm",
-      minify: false,
-      outdir,
-      plugins: [flightLoaderPlugin()],
-      sourcemap: "none",
-      target: "bun",
-    });
-    if (!result.success || result.outputs.length !== 1) {
-      const details = result.logs.map((log) => log.message).join("\n");
-      throw new Error(`[furin/rsc] Failed to build the isolated RSC codec graph.\n${details}`);
+    // The single-file codec is evaluated once imported, so its directory can go.
+    const outdir = mkdtempSync(join(tmpdir(), "furin-rsc-"));
+    try {
+      const result = await Bun.build({
+        conditions: ["react-server"],
+        define: { "process.env.NODE_ENV": JSON.stringify(mode) },
+        entrypoints: [sourcePath],
+        format: "esm",
+        minify: false,
+        outdir,
+        plugins: [flightLoaderPlugin()],
+        sourcemap: "none",
+        target: "bun",
+      });
+      if (!result.success || result.outputs.length !== 1) {
+        const details = result.logs.map((log) => log.message).join("\n");
+        throw new Error(`[furin/rsc] Failed to build the isolated RSC codec graph.\n${details}`);
+      }
+      const [output] = result.outputs;
+      if (output === undefined) {
+        throw new Error("[furin/rsc] Isolated RSC codec build produced no output.");
+      }
+      return (await import(pathToFileURL(output.path).href)) as ServerCodec;
+    } finally {
+      rmSync(outdir, { force: true, recursive: true });
     }
-    const [output] = result.outputs;
-    if (output === undefined) {
-      throw new Error("[furin/rsc] Isolated RSC codec build produced no output.");
-    }
-    return import(pathToFileURL(output.path).href) as Promise<ServerCodec>;
   })();
 
   serverCodecPromises.set(mode, codecPromise);
