@@ -162,20 +162,22 @@ export function filePathToPattern(path: string): string {
   return `/${segments.join("/")}`;
 }
 
-const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/;
+const REGEX_META_CHARS_RE = /[.*+?^${}()|[\]\\]/g;
 
-function escapeRegExpChar(ch: string): string {
-  return REGEX_META_CHARS_RE.test(ch) ? `\\${ch}` : ch;
+export function escapeRegExp(value: string): string {
+  return value.replace(REGEX_META_CHARS_RE, "\\$&");
 }
 
 /**
- * Builds a regex from a route pattern, extracts named capture groups for
- * each `:param` segment, and returns `{ regex, paramNames }`.
- *
- * Literal characters (e.g. dots in filenames like `v1.0`) are escaped so
- * they are matched exactly rather than interpreted as regex syntax.
+ * Unanchored regex source for a route pattern: literal characters (e.g. dots
+ * in `v1.0`) are escaped, each `:param` becomes `sources.param` and `*`
+ * becomes `sources.catchAll`. `paramNames` lists them in order (`*` for the
+ * catch-all).
  */
-export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: string[] } {
+export function routePatternRegexSource(
+  pattern: string,
+  sources: { catchAll: string; param: string }
+): { paramNames: string[]; source: string } {
   const paramNames: string[] = [];
   let source = "";
   let i = 0;
@@ -187,19 +189,31 @@ export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: s
         i += 1;
       }
       paramNames.push(pattern.slice(start, i));
-      source += "([^/]+)";
+      source += sources.param;
     } else if (pattern[i] === "*") {
       paramNames.push("*");
-      source += "(.*)";
+      source += sources.catchAll;
       i += 1;
     } else {
       const ch = pattern[i];
       if (ch !== undefined) {
-        source += escapeRegExpChar(ch);
+        source += escapeRegExp(ch);
       }
       i += 1;
     }
   }
+  return { paramNames, source };
+}
+
+/**
+ * Builds an anchored regex from a route pattern with one capture group per
+ * `:param` / `*` segment, and returns `{ regex, paramNames }`.
+ */
+export function buildRouteRegex(pattern: string): { regex: RegExp; paramNames: string[] } {
+  const { paramNames, source } = routePatternRegexSource(pattern, {
+    catchAll: "(.*)",
+    param: "([^/]+)",
+  });
   return {
     paramNames,
     regex: new RegExp(`^${source}${pattern === "/" || pattern.endsWith("/") ? "" : "/?"}$`),

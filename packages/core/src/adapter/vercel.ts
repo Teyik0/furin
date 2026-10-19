@@ -12,7 +12,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { runBunBuild } from "../build/bun-build.ts";
 import { ensureDir, toPosixPath } from "../build/shared.ts";
 import type { VercelTargetBuildManifest } from "../build/types.ts";
-import { compareRouteSpecificity } from "../server/router/patterns.ts";
+import {
+  compareRouteSpecificity,
+  escapeRegExp,
+  routePatternRegexSource,
+} from "../server/router/patterns.ts";
 import { physicalPath } from "../shared/prefix.ts";
 import { frameworkSourceModule } from "./runtime-build.ts";
 import type { AdapterApp, AdapterBuildOutput, AdapterRoute, FurinAdapter } from "./types.ts";
@@ -53,7 +57,6 @@ const HANDLER_MODULE = frameworkSourceModule("adapter/vercel/handler.ts");
 const BOOTSTRAP_MODULE = frameworkSourceModule("adapter/vercel/bootstrap.ts");
 const HANDLER_IMPORT_RE = /^\.\/handler\.js$/;
 const DYNAMIC_SEGMENT_RE = /\/:[^/]+|\/\*/;
-const REGEX_META_RE = /[.*+?^${}()|[\]\\]/;
 const UNSAFE_FUNCTION_PATH_RE = /[^a-zA-Z0-9_.[\]/-]/g;
 
 interface VercelRoute {
@@ -121,14 +124,6 @@ function frameworkVersion(): string {
   return packageJson.version;
 }
 
-function escapeRegex(value: string): string {
-  let escaped = "";
-  for (const character of value) {
-    escaped += REGEX_META_RE.test(character) ? `\\${character}` : character;
-  }
-  return escaped;
-}
-
 function encodeCacheTag(value: string): string {
   return value.replaceAll(",", "%2C");
 }
@@ -138,34 +133,15 @@ function cacheTagHeader(path: string, tags: readonly string[]): string {
 }
 
 function routePatternSource(prefix: string, pattern: string): string {
-  const path = physicalPath(prefix, pattern);
-  let source = "";
-  let index = 0;
-  while (index < path.length) {
-    const character = path[index];
-    if (character === ":") {
-      index += 1;
-      while (index < path.length && path[index] !== "/") {
-        index += 1;
-      }
-      source += "[^/]+";
-      continue;
-    }
-    if (character === "*") {
-      source += ".*";
-      index += 1;
-      continue;
-    }
-    if (character !== undefined) {
-      source += REGEX_META_RE.test(character) ? `\\${character}` : character;
-    }
-    index += 1;
-  }
+  const { source } = routePatternRegexSource(physicalPath(prefix, pattern), {
+    catchAll: ".*",
+    param: "[^/]+",
+  });
   return `(?<${ISR_PATH_PARAM}>${source})`;
 }
 
 function exactPathSource(path: string): string {
-  return `(?<${ISR_PATH_PARAM}>${escapeRegex(path)})`;
+  return `(?<${ISR_PATH_PARAM}>${escapeRegExp(path)})`;
 }
 
 function functionNameForPath(
@@ -464,7 +440,7 @@ function buildOutputConfig(apps: AdapterApp[], specs: PrerenderSpec[]): VercelBu
   const assetRoutes: VercelRoute[] = apps.map((app) => ({
     continue: true,
     headers: { "cache-control": "public, max-age=31536000, immutable" },
-    src: `${escapeRegex(app.prefix)}/_client/(.*)`,
+    src: `${escapeRegExp(app.prefix)}/_client/(.*)`,
   }));
   const pageRoutes = [
     ...specs.map((spec) => ({
