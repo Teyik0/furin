@@ -1,5 +1,11 @@
 import type { Context } from "elysia";
 import { isInvalidatedPath } from "../../shared/invalidation-header.ts";
+import {
+  buildSearchParams,
+  collectSearchDefaults,
+  type SearchParamsInput,
+} from "../../shared/search-params.ts";
+import { mergeRouteSchemas } from "../router/schema-merge.ts";
 import type { ResolvedRoute } from "../router/types.ts";
 
 export type RevalidateType = "page" | "layout";
@@ -55,50 +61,37 @@ export function pathWithRequestSearch(path: string, requestUrl: string): string 
 }
 
 /**
- * Cache key for a request: the path plus only the query params named in
- * `keys`, sorted by name. Undeclared or reordered params therefore share one
- * entry instead of minting a new key per unique URL.
- */
-function pathWithCanonicalSearch(
-  path: string,
-  requestUrl: string,
-  keys: ReadonlySet<string>
-): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of new URL(requestUrl).searchParams) {
-    if (keys.has(key)) {
-      params.append(key, value);
-    }
-  }
-  params.sort();
-  const search = params.toString();
-  return search === "" ? pathWithoutSearch(path) : `${pathWithoutSearch(path)}?${search}`;
-}
-
-/**
  * The cache key for a cached render of `path` and the context that render must
- * use. The key keeps only the query params that survived route query
- * validation (none when the route declares no query schema), and the context's
- * query and request URL carry exactly that search, so every URL sharing the
- * key would have rendered the same output.
+ * use. The key holds the query as the route's schema decoded it (none when the
+ * route declares no query schema), re-serialised the way client links build
+ * URLs: undeclared params dropped, schema defaults omitted, params sorted. So
+ * `?page=01`, `?page=1` and `?junk=x&page=1` share one entry. The context's
+ * request URL carries exactly that search, so every URL sharing the key would
+ * have rendered the same output. Invalid queries never get here: route
+ * validation rejects them first.
  */
 export function canonicalCacheRequest(
   route: ResolvedRoute,
   path: string,
   ctx: Context
 ): { cacheKey: string; ctx: Context } {
-  const hasQuerySchema = route.routeChain.some((entry) => entry.query !== undefined);
-  const cacheKey = pathWithCanonicalSearch(
-    path,
-    ctx.request.url,
-    new Set(hasQuerySchema ? Object.keys(ctx.query ?? {}) : [])
-  );
+  const querySchema = mergeRouteSchemas(route.routeChain, "query");
+  const params =
+    querySchema === undefined
+      ? new URLSearchParams()
+      : buildSearchParams(
+          (ctx.query ?? {}) as SearchParamsInput,
+          collectSearchDefaults(querySchema)
+        );
+  params.sort();
+  const search = params.toString();
+  const cacheKey = search === "" ? pathWithoutSearch(path) : `${pathWithoutSearch(path)}?${search}`;
   const url = new URL(ctx.request.url);
-  url.search = new URL(cacheKey, url).search;
+  url.search = search;
   return {
     cacheKey,
     ctx: Object.create(ctx, {
-      query: { enumerable: true, value: hasQuerySchema ? ctx.query : {} },
+      query: { enumerable: true, value: querySchema === undefined ? {} : ctx.query },
       request: { enumerable: true, value: new Request(url, { headers: ctx.request.headers }) },
     }) as Context,
   };

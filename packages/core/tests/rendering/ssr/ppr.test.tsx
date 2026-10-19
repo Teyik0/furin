@@ -607,6 +607,49 @@ describe.serial("partial prerendering", () => {
     });
   }
 
+  test("an ISR layout around an SSR page keys on declared query values as the schema decodes them", async () => {
+    const publicQueries: unknown[] = [];
+    const mixedRoot = defineRootRoute()
+      .config({ mode: "isr", revalidate: 60 })
+      .loader(({ query }) => {
+        publicQueries.push({ ...query });
+        return { catalog: "Coffee" };
+      })
+      .layout(({ children, catalog }) => (
+        <html lang="en">
+          <head>
+            <HeadContent />
+          </head>
+          <body>
+            <aside>{catalog}</aside>
+            {children}
+            <Scripts />
+          </body>
+        </html>
+      ));
+    const mixedPage = defineRoute()
+      .config({
+        layout: mixedRoot,
+        mode: "ssr",
+        query: t.Object({ page: t.Number({ default: 1 }) }),
+      })
+      .loader(() => ({}))
+      .page(() => <main>menu</main>);
+    const { app } = await mountProductionApp({
+      buildId: "build-1",
+      pages: [{ pattern: "/menu", route: mixedPage }],
+      root: mixedRoot,
+    });
+
+    for (const search of ["?page=02", "?page=2.0", "?page=2", "", "?page=01"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      const response = await app.handle(new Request(`http://localhost/menu${search}`));
+      expect(response.status).toBe(200);
+    }
+
+    expect(publicQueries).toEqual([{ page: 2 }, { page: 1 }]);
+  });
+
   test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
     let publicCalls = 0;
     let requestCalls = 0;
@@ -1082,6 +1125,43 @@ describe.serial("partial prerendering", () => {
       { sort: "new", view: "alpha" },
       { sort: "new", view: "beta" },
     ]);
+  });
+
+  test("keys PPR public shells on declared query values as the schema decodes them", async () => {
+    const observed: unknown[] = [];
+    const route = defineRoute()
+      .config({
+        layout: rootTerminal,
+        mode: "isr",
+        query: t.Object({ page: t.Number({ default: 1 }) }),
+        revalidate: 60,
+      })
+      .requestLoader(() => ({ user: "alice" }))
+      .loader(({ query }) => {
+        observed.push({ ...query });
+        return { page: query.page };
+      });
+    function User({ data }: { data: Promise<string> }) {
+      return <strong>{use(data)}</strong>;
+    }
+    const page = route.page(({ page: current, user }) => (
+      <main>
+        <h1>{current}</h1>
+        <Suspense fallback={<span>Loading</span>}>
+          <User data={user} />
+        </Suspense>
+      </main>
+    ));
+    const { app } = await mountAccount(page, undefined);
+
+    for (const search of ["?page=02", "?page=2.0", "?page=2", "", "?page=01"]) {
+      // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+      await app.handle(new Request(`http://localhost/account${search}`));
+    }
+    const invalid = await app.handle(new Request("http://localhost/account?page=abc"));
+
+    expect(invalid.status).toBeGreaterThanOrEqual(400);
+    expect(observed).toEqual([{ page: 2 }, { page: 1 }]);
   });
 
   test("PPR routes without a query schema share one shell while requestLoader holes see the raw query", async () => {

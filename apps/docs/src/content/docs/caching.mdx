@@ -54,7 +54,7 @@ export const route = defineRoute()
 4. Other stale hits reuse the same in-flight regeneration, including hits handled by another replica when the page cache is shared.
 5. Success replaces the entry atomically; failure retains the last good entry.
 
-ISR cache keys include the request search string. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
+ISR and PPR cache keys include the query as the route's `query` schema decodes it, serialized like a `Link` URL: undeclared params are dropped, schema defaults are omitted and params are sorted, so `?page=01`, `?page=1&utm_source=x` and `?page=1` share one entry. Invalid queries are rejected before rendering and never cached. Routes without a query schema are keyed on the pathname alone. Avoid query-dependent SSG output: SSG entries are keyed by concrete pathname.
 
 ## Runtime Data Cache
 

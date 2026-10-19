@@ -143,6 +143,50 @@ test("ISR cache keys ignore undeclared query params and canonicalise declared on
   ]);
 });
 
+test("ISR cache keys hold declared query values as the schema decodes them", async () => {
+  let loaderCalls = 0;
+  const route = defineRoute()
+    .config({
+      layout: rootTerminal,
+      mode: "isr",
+      query: t.Object({
+        page: t.Number({ default: 1 }),
+        tags: t.Optional(t.Array(t.String())),
+      }),
+      revalidate: 60,
+    })
+    .loader(({ query }) => {
+      loaderCalls += 1;
+      return { page: query.page };
+    })
+    .page(({ page }) => <main data-page={page}>{page}</main>);
+  const { app, instance } = await mountPage("/search", route, "build-1");
+
+  for (const search of ["?page=02", "?page=2", "?page=2.0&junk=1"]) {
+    // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+    const response = await app.handle(new Request(`http://localhost/search${search}`));
+    expect(await response.text()).toContain('data-page="2"');
+  }
+  for (const search of ["", "?page=1", "?page=01"]) {
+    // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+    await app.handle(new Request(`http://localhost/search${search}`));
+  }
+  for (const search of ["?tags=b&tags=a", "?page=1&tags=b&tags=a"]) {
+    // biome-ignore lint/performance/noAwaitInLoops: later requests must observe the first cache fill.
+    await app.handle(new Request(`http://localhost/search${search}`));
+  }
+  const invalid = await app.handle(new Request("http://localhost/search?page=abc"));
+
+  expect(invalid.status).toBeGreaterThanOrEqual(400);
+  expect(invalid.headers.get("cache-control") ?? "").not.toContain("public");
+  expect(loaderCalls).toBe(3);
+  expect(withInstance(instance, () => [...isrCache.keys()])).toEqual([
+    "/search?page=2",
+    "/search",
+    "/search?tags=b&tags=a",
+  ]);
+});
+
 test("ISR routes without a query schema key on the path and hide the raw query from loaders", async () => {
   const observed: unknown[] = [];
   const route = defineRoute()
