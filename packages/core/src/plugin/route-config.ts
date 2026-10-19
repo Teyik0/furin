@@ -6,7 +6,7 @@ import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
 import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
-import { fileRouteId, routeSourcePaths } from "./route-tree.ts";
+import { fileRouteId, type RouteInstanceSpec, routeSourcePaths } from "./route-tree.ts";
 
 /**
  * Static route-config checks shared by the dev server and `furin build`.
@@ -213,18 +213,29 @@ function checkLayout(
   );
 }
 
-/** A keyed `defineRoute(id)` names its file; its parent layout comes from the pages tree. */
+/**
+ * A keyed `defineRoute(id)` names its file; its parent layout comes from the
+ * pages tree. Only the root-mounted app gets `FileRoutes` entries.
+ */
 function checkKey(
   file: string,
-  pagesDir: string,
+  { pagesDir, prefix }: RouteInstanceSpec,
   parsed: ParsedRoute
 ): RouteConfigIssue | undefined {
   const { config, id } = parsed.route;
   if (!id) {
     return;
   }
-  const expected = fileRouteId(pagesDir, file);
   const key = unwrapTSExpression(id);
+  if (prefix !== "") {
+    return issueAt(
+      file,
+      parsed,
+      key,
+      "keyed routes are only supported in the root-mounted app; use defineRoute() with config({ layout }) here."
+    );
+  }
+  const expected = fileRouteId(pagesDir, file);
   if (!(key.type === "Literal" && key.value === expected)) {
     const written = key.type === "Literal" ? JSON.stringify(key.value) : "id";
     return issueAt(
@@ -398,9 +409,10 @@ function checkParams(
 
 function checkRoute(
   file: string,
-  pagesDir: string,
+  instance: RouteInstanceSpec,
   parsed: ParsedRoute
 ): (RouteConfigIssue | undefined)[] {
+  const { pagesDir } = instance;
   const factory = checkFactory(file, pagesDir, parsed);
   if (factory) {
     return [factory];
@@ -408,7 +420,7 @@ function checkRoute(
   const isLayout = basename(withoutExtension(file)) === "_route";
   return [
     checkConfig(file, pagesDir, parsed),
-    parsed.route.isRootFactory ? undefined : checkKey(file, pagesDir, parsed),
+    parsed.route.isRootFactory ? undefined : checkKey(file, instance, parsed),
     parsed.route.isRootFactory ? undefined : checkLayout(file, pagesDir, parsed),
     checkMode(file, parsed),
     parsed.route.isRootFactory || isLayout ? undefined : checkParams(file, pagesDir, parsed),
@@ -423,11 +435,11 @@ function routeFiles(pagesDir: string): string[] {
   ].toSorted((left, right) => left.localeCompare(right));
 }
 
-export function validateRouteConfig(pagesDir: string): RouteConfigIssue[] {
-  const pages = resolve(pagesDir);
-  return routeFiles(pages).flatMap((file) => {
+export function validateRouteConfig({ pagesDir, prefix }: RouteInstanceSpec): RouteConfigIssue[] {
+  const instance = { pagesDir: resolve(pagesDir), prefix };
+  return routeFiles(instance.pagesDir).flatMap((file) => {
     const parsed = parseRoute(file);
-    return parsed ? checkRoute(file, pages, parsed).filter((issue) => issue !== undefined) : [];
+    return parsed ? checkRoute(file, instance, parsed).filter((issue) => issue !== undefined) : [];
   });
 }
 
@@ -441,8 +453,8 @@ export function formatRouteConfigIssue(issue: RouteConfigIssue): string {
 }
 
 /** Build and typegen: fails before route modules are imported. */
-export function assertValidRouteConfig(pagesDir: string): void {
-  const issues = validateRouteConfig(pagesDir);
+export function assertValidRouteConfig(instance: RouteInstanceSpec): void {
+  const issues = validateRouteConfig(instance);
   if (issues.length > 0) {
     throw new Error(issues.map(formatRouteConfigIssue).join("\n\n"));
   }
@@ -455,10 +467,13 @@ const ROUTE_CONFIG_DIAGNOSTIC = "route config";
  * Dev: shows the first issue in the terminal and the error overlay, and
  * clears the overlay once the route files are valid again.
  */
-export function createRouteConfigReporter(pagesDir: string, store: DevDiagnosticStore): () => void {
+export function createRouteConfigReporter(
+  instance: RouteInstanceSpec,
+  store: DevDiagnosticStore
+): () => void {
   let reported: string | undefined;
   return () => {
-    const [issue] = validateRouteConfig(pagesDir);
+    const [issue] = validateRouteConfig(instance);
     if (!issue) {
       store.markReady(ROUTE_CONFIG_DIAGNOSTIC);
       reported = undefined;

@@ -224,7 +224,7 @@ The id is type-only. It looks the file up in the `FileRoutes` interface of [`fur
 
 A page still declares every dynamic segment in its own `params` schema, because that schema validates the URL at runtime. The [route config checks](#route-config-checks) report a missing segment, and an id that doesn't match the file with the id to write. TypeScript reports an id that isn't in `FileRoutes`, for example after a file moves, once `furin-env.d.ts` is regenerated. Furin doesn't rewrite the id for you.
 
-Keyed routes are opt-in: `defineRoute()` with `config({ layout })` keeps working, and both forms can wrap each other. Use the unkeyed form in apps mounted with a `prefix`, which have no `FileRoutes` entries.
+Keyed routes are opt-in: `defineRoute()` with `config({ layout })` keeps working, and both forms can wrap each other. Apps mounted with a `prefix` have no `FileRoutes` entries, so the [route config checks](#route-config-checks) reject keyed routes there: use the unkeyed form.
 
 ## Generated Route Types
 

@@ -75,7 +75,7 @@ export const route = defineRoute()
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
   });
 
   test("reports a layout reference that points at the wrong module", () => {
@@ -91,7 +91,7 @@ export const route = defineRoute()
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 21,
         file: join(pagesDir, "blog/index.tsx"),
@@ -113,7 +113,7 @@ export const route = defineRoute()
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 11,
         file: join(pagesDir, "about.tsx"),
@@ -144,7 +144,9 @@ export const route = defineRoute()
 `,
     });
 
-    expect(validateRouteConfig(pagesDir).map(({ line, message }) => ({ line, message }))).toEqual([
+    expect(
+      validateRouteConfig({ pagesDir, prefix: "" }).map(({ line, message }) => ({ line, message }))
+    ).toEqual([
       {
         line: 5,
         message: 'config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssr".',
@@ -166,7 +168,7 @@ export const route = defineRoute().page(() => <h1>Blog</h1>);
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 22,
         file: join(pagesDir, "blog/index.tsx"),
@@ -193,7 +195,7 @@ export const route = defineRoute()
 `,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 22,
         file: join(pagesDir, "about.tsx"),
@@ -244,7 +246,7 @@ export const route = defineRoute()
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 11,
         file: join(pagesDir, "blog/[...rest].tsx"),
@@ -282,7 +284,9 @@ export const route = defineRoute()
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir).map(({ file, line }) => ({ file, line }))).toEqual([
+    expect(
+      validateRouteConfig({ pagesDir, prefix: "" }).map(({ file, line }) => ({ file, line }))
+    ).toEqual([
       { file: join(pagesDir, "alias.tsx"), line: 6 },
       { file: join(pagesDir, "client.tsx"), line: 5 },
     ]);
@@ -308,7 +312,7 @@ export const route = defineRoute(${JSON.stringify(id)})
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
   });
 
   test("reports a stale keyed id with the file's id, and a layout option on a keyed route", () => {
@@ -330,7 +334,7 @@ export const route = defineRoute("/blog/latest")
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([
       {
         column: 34,
         file: join(pagesDir, "blog/index.tsx"),
@@ -344,6 +348,28 @@ export const route = defineRoute("/blog/latest")
         line: 5,
         message:
           "defineRoute(id) reads the parent layout from the pages tree: remove layout from config() and its import.",
+      },
+    ]);
+  });
+
+  test("reports a keyed route in an app mounted with a prefix", () => {
+    const pagesDir = createPages({
+      "about.tsx": `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/about")
+  .config({ mode: "ssg" })
+  .page(() => null);
+`,
+      "root.tsx": ROOT,
+    });
+
+    expect(validateRouteConfig({ pagesDir, prefix: "/admin" })).toEqual([
+      {
+        column: 34,
+        file: join(pagesDir, "about.tsx"),
+        line: 3,
+        message:
+          "keyed routes are only supported in the root-mounted app; use defineRoute() with config({ layout }) here.",
       },
     ]);
   });
@@ -365,7 +391,7 @@ export function preview() {
       "root.tsx": ROOT,
     });
 
-    expect(validateRouteConfig(pagesDir)).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
   });
 });
 
@@ -424,7 +450,7 @@ export const route = defineRoute()
   .config({ layout: blogRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })
   .page(() => null);
 `);
-    expect(validateRouteConfig(pagesDir)).toEqual([]);
+    expect(validateRouteConfig({ pagesDir, prefix: "" })).toEqual([]);
     expect(scaffoldEmptyRoutes(pagesDir)).toEqual([]);
   });
 });
@@ -446,7 +472,7 @@ export const route = defineRoute()
       events.push(event.type === "error" ? event.diagnostic.message : event.type);
     });
     const consoleError = spyOn(console, "error").mockImplementation(() => undefined);
-    const report = createRouteConfigReporter(pagesDir, store);
+    const report = createRouteConfigReporter({ pagesDir, prefix: "" }, store);
 
     const message = `[furin] ${aboutPath}:5:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".`;
     try {

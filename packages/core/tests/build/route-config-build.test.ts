@@ -26,3 +26,42 @@ test("furin build fails on a route config issue and leaves the file untouched", 
     app.cleanup();
   }
 });
+
+test("furin build rejects a keyed route in an app mounted with a prefix", async () => {
+  const app = createTmpApp("cli-app");
+  try {
+    writeAppFile(
+      app.path,
+      "src/server.ts",
+      `import { furin } from "@teyik0/furin";
+import { Elysia } from "elysia";
+
+export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "/shop" }));
+`
+    );
+    writeAppFile(
+      app.path,
+      "furin.config.ts",
+      'export default { apps: [{ pagesDir: "src/pages", prefix: "/shop" }] };\n'
+    );
+    writeAppFile(
+      app.path,
+      "src/pages/about.tsx",
+      `import { defineRoute } from "@teyik0/furin";
+
+export const route = defineRoute("/about")
+  .config({ mode: "ssg" })
+  .page(() => <h1>About</h1>);
+`
+    );
+
+    const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(
+      "[furin] src/pages/about.tsx:3:34: keyed routes are only supported in the root-mounted app; use defineRoute() with config({ layout }) here."
+    );
+  } finally {
+    app.cleanup();
+  }
+}, 30_000);

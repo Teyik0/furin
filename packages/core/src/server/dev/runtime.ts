@@ -99,10 +99,7 @@ export async function createDevRuntime(
   const { createRouteConfigReporter, scaffoldEmptyRoutes } = await import(
     "../../plugin/route-config.ts"
   );
-  const reportRouteConfig = createRouteConfigReporter(
-    resolvedPagesDir,
-    devDiagnosticStore(instance)
-  );
+  const reportRouteConfig = createRouteConfigReporter(routeInstance, devDiagnosticStore(instance));
   scaffoldEmptyRoutes(resolvedPagesDir);
 
   const graph = devGraph(instance);

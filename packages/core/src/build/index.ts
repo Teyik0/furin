@@ -164,7 +164,7 @@ async function scanApps(
   // scanPages throws if root.tsx is missing, so root is always defined per app.
   const apps: RuntimeTargetApp[] = [];
   for (const spec of appSpecs) {
-    assertValidRouteConfig(spec.pagesDir);
+    assertValidRouteConfig(spec);
     const { root, routes } = await scanPages(spec.pagesDir);
     apps.push({ pagesDir: spec.pagesDir, prefix: spec.prefix, root, routes });
   }
