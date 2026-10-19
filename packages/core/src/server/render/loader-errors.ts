@@ -45,8 +45,9 @@ async function readResponseMessage(res: Response): Promise<string> {
  * safe to send through `toCrossJSON` and that preserves the original semantics
  * after `fromCrossJSON` on the client.
  *
- * Symmetric to the rejection handling in `runLoaders` (lines 247-272) but for
- * the *deferred* path, where the rejection is delivered to a client-side
+ * Symmetric to the rejection handling in `runLoaders` (a redirect `Response`
+ * becomes a redirect result, anything else a failed route match via
+ * `recoverLoaderError`) but for the *deferred* path, where the rejection is delivered to a client-side
  * `<Await>` instead of becoming a top-level response.
  *
  *  - `notFound()`         → `Error` carrying `__furinBrand` + `data` so the
