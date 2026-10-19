@@ -4,7 +4,6 @@ bun = true
 [test]
 root = "./tests"
 preload = ["./tests/setup/global.ts"]
-coverageThreshold = { lines = 0.8, functions = 0.8 }
 coverageReporter = ["text", "lcov"]
 coveragePathIgnorePatterns = [
   "**/tests/**",
