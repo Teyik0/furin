@@ -39,7 +39,7 @@ describe("create-furin CLI", () => {
         ).json();
         expect(generated.dependencies.elysia).toBe(workspace.catalog.elysia);
         // --no-install skipped dependencies, so the next steps must include them.
-        expect(stdout).toContain("  cd generated-app\n  bun install\n  bun dev\n");
+        expect(Bun.stripANSI(stdout)).toContain("  cd generated-app\n  bun install\n  bun dev\n");
       } finally {
         rmSync(parentDir, { force: true, recursive: true });
       }
