@@ -1,8 +1,19 @@
 import MagicString from "magic-string";
-import type { ImportDeclaration, Program, SourceLang } from "yuku-parser";
+import type {
+  ImportDeclaration,
+  Node,
+  Program,
+  ProgramStatement,
+  SourceLang,
+  TSAsExpression,
+  TSSatisfiesExpression,
+  TSTypeAssertion,
+  VariableDeclaration,
+  VariableDeclarator,
+} from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
+import { isNode } from "../shared/utils/ast-walk.ts";
 
 const TYPE_SCOPE_NODES = new Set([
   "TSTypeAnnotation",
@@ -29,11 +40,11 @@ export interface SourceRange {
 /** A top-level statement, or one declarator of a top-level variable declaration. */
 interface ModuleUnit {
   /** Variable declaration owning a declarator unit; null for other statements. */
-  declaration: AstNode | null;
+  declaration: VariableDeclaration | null;
   exported: boolean;
   /** Bindings the unit declares and DCE may remove. */
   names: string[];
-  node: AstNode;
+  node: ProgramStatement | VariableDeclarator;
   references: Set<string>;
 }
 
@@ -59,34 +70,39 @@ export interface DeadCodeState {
   source: MagicString;
 }
 
+function isTypeAssertion(
+  node: Node
+): node is TSAsExpression | TSSatisfiesExpression | TSTypeAssertion {
+  return TYPE_ASSERTION_NODES.has(node.type);
+}
+
 function isRemoved(node: SourceRange, removed: readonly SourceRange[]): boolean {
   return removed.some((range) => range.start <= node.start && node.end <= range.end);
 }
 
 /** Identifiers a pattern declares are not reads; its default values are. */
-function excludeBindingIdentifiers(pattern: unknown, excluded: Set<unknown>): void {
-  if (!pattern || typeof pattern !== "object") {
+function excludeBindingIdentifiers(node: Node | null, excluded: Set<Node>): void {
+  if (!node) {
     return;
   }
-  const node = pattern as AstNode;
   if (node.type === "Identifier") {
     excluded.add(node);
   } else if (node.type === "AssignmentPattern") {
     excludeBindingIdentifiers(node.left, excluded);
   } else if (node.type === "RestElement") {
     excludeBindingIdentifiers(node.argument, excluded);
-  } else if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+  } else if (node.type === "ArrayPattern") {
     for (const element of node.elements) {
       excludeBindingIdentifiers(element, excluded);
     }
-  } else if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
-    for (const property of node.properties as AstNode[]) {
+  } else if (node.type === "ObjectPattern") {
+    for (const property of node.properties) {
       excludeBindingIdentifiers(property.type === "Property" ? property.value : property, excluded);
     }
   }
 }
 
-function excludeDeclaredIdentifiers(node: AstNode, excluded: Set<unknown>): void {
+function excludeDeclaredIdentifiers(node: Node, excluded: Set<Node>): void {
   if (node.type === "VariableDeclarator") {
     excludeBindingIdentifiers(node.id, excluded);
   } else if (
@@ -95,7 +111,7 @@ function excludeDeclaredIdentifiers(node: AstNode, excluded: Set<unknown>): void
     node.type === "ArrowFunctionExpression"
   ) {
     excludeBindingIdentifiers(node.id, excluded);
-    for (const parameter of node.params as unknown[]) {
+    for (const parameter of node.params) {
       excludeBindingIdentifiers(parameter, excluded);
     }
   } else if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
@@ -108,7 +124,7 @@ function excludeDeclaredIdentifiers(node: AstNode, excluded: Set<unknown>): void
 function collectReferences(
   value: unknown,
   removed: readonly SourceRange[],
-  excluded: Set<unknown>,
+  excluded: Set<Node>,
   references: Set<string>
 ): void {
   if (!value || typeof value !== "object") {
@@ -120,15 +136,15 @@ function collectReferences(
     }
     return;
   }
-  const node = value as AstNode;
   if (
-    typeof node.type !== "string" ||
-    excluded.has(node) ||
-    TYPE_SCOPE_NODES.has(node.type) ||
-    isRemoved(node, removed)
+    !isNode(value) ||
+    excluded.has(value) ||
+    TYPE_SCOPE_NODES.has(value.type) ||
+    isRemoved(value, removed)
   ) {
     return;
   }
+  const node = value;
   if (node.type === "Property" && !node.computed) {
     excluded.add(node.key);
   }
@@ -141,47 +157,43 @@ function collectReferences(
   if (node.type === "JSXMemberExpression") {
     excluded.add(node.property);
   }
-  if (TYPE_ASSERTION_NODES.has(node.type)) {
+  if (isTypeAssertion(node)) {
     excluded.add(node.typeAnnotation);
   }
   excludeDeclaredIdentifiers(node, excluded);
-  if (
-    (node.type === "Identifier" || node.type === "JSXIdentifier") &&
-    typeof node.name === "string"
-  ) {
+  if (node.type === "Identifier" || node.type === "JSXIdentifier") {
     references.add(node.name);
   }
-  for (const key of Object.keys(node)) {
+  for (const [key, child] of Object.entries(node)) {
     if (!WALK_SKIPPED_KEYS.has(key)) {
-      collectReferences(node[key], removed, excluded, references);
+      collectReferences(child, removed, excluded, references);
     }
   }
 }
 
 /** Identifier names a node references, excluding property keys and types. */
-export function referencedNames(node: AstNode): Set<string> {
+export function referencedNames(node: Node): Set<string> {
   const references = new Set<string>();
   collectReferences(node, [], new Set(), references);
   return references;
 }
 
-function collectPatternNames(pattern: unknown, names: string[]): void {
-  if (!pattern || typeof pattern !== "object") {
+function collectPatternNames(node: Node | null, names: string[]): void {
+  if (!node) {
     return;
   }
-  const node = pattern as AstNode;
-  if (node.type === "Identifier" && typeof node.name === "string") {
+  if (node.type === "Identifier") {
     names.push(node.name);
   } else if (node.type === "AssignmentPattern") {
     collectPatternNames(node.left, names);
   } else if (node.type === "RestElement") {
     collectPatternNames(node.argument, names);
-  } else if (node.type === "ArrayPattern" && Array.isArray(node.elements)) {
+  } else if (node.type === "ArrayPattern") {
     for (const element of node.elements) {
       collectPatternNames(element, names);
     }
-  } else if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
-    for (const property of node.properties as AstNode[]) {
+  } else if (node.type === "ObjectPattern") {
+    for (const property of node.properties) {
       collectPatternNames(property.type === "Property" ? property.value : property, names);
     }
   }
@@ -189,26 +201,26 @@ function collectPatternNames(pattern: unknown, names: string[]): void {
 
 function moduleUnits(program: Program): Omit<ModuleUnit, "references">[] {
   const units: Omit<ModuleUnit, "references">[] = [];
-  for (const statement of program.body as unknown as AstNode[]) {
+  for (const statement of program.body) {
     if (statement.type === "ImportDeclaration") {
       continue;
     }
     const exported =
       statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration";
-    const declaration = exported ? (statement.declaration as AstNode | null) : statement;
+    const declaration = exported ? statement.declaration : statement;
     if (declaration?.type === "VariableDeclaration") {
-      for (const declarator of declaration.declarations as AstNode[]) {
+      for (const declarator of declaration.declarations) {
         const names: string[] = [];
         collectPatternNames(declarator.id, names);
         units.push({ declaration, exported, names, node: declarator });
       }
       continue;
     }
-    const id = declaration?.type === "FunctionDeclaration" ? (declaration.id as AstNode) : null;
+    const id = declaration?.type === "FunctionDeclaration" ? declaration.id : null;
     units.push({
       declaration: null,
       exported,
-      names: typeof id?.name === "string" ? [id.name] : [],
+      names: id ? [id.name] : [],
       node: statement,
     });
   }
@@ -235,11 +247,11 @@ function referencedOutsideDeclaration(references: ModuleReferences, name: string
   return references.units.some((unit) => !unit.names.includes(name) && unit.references.has(name));
 }
 
-function isSideEffectFree(value: unknown): boolean {
-  if (!value || typeof value !== "object") {
+function isSideEffectFree(value: Node | null): boolean {
+  if (!value) {
     return true;
   }
-  const node = unwrapTSExpression(value as AstNode) as AstNode;
+  const node = unwrapTSExpression(value);
   switch (node.type) {
     case "ArrowFunctionExpression":
     case "FunctionExpression":
@@ -247,14 +259,14 @@ function isSideEffectFree(value: unknown): boolean {
     case "Literal":
       return true;
     case "TemplateLiteral":
-      return (node.expressions as unknown[]).every(isSideEffectFree);
+      return node.expressions.every(isSideEffectFree);
     case "ArrayExpression":
-      return (node.elements as (AstNode | null)[]).every(
+      return node.elements.every(
         (element) =>
           element === null || (element.type !== "SpreadElement" && isSideEffectFree(element))
       );
     case "ObjectExpression":
-      return (node.properties as AstNode[]).every(
+      return node.properties.every(
         (property) =>
           property.type === "Property" &&
           (!property.computed || isSideEffectFree(property.key)) &&
@@ -265,20 +277,19 @@ function isSideEffectFree(value: unknown): boolean {
   }
 }
 
-function isPatternSideEffectFree(pattern: unknown): boolean {
-  if (!pattern || typeof pattern !== "object") {
+function isPatternSideEffectFree(node: Node | null): boolean {
+  if (!node) {
     return true;
   }
-  const node = pattern as AstNode;
   switch (node.type) {
     case "AssignmentPattern":
       return isPatternSideEffectFree(node.left) && isSideEffectFree(node.right);
     case "RestElement":
       return isPatternSideEffectFree(node.argument);
     case "ArrayPattern":
-      return (node.elements as unknown[]).every(isPatternSideEffectFree);
+      return node.elements.every(isPatternSideEffectFree);
     case "ObjectPattern":
-      return (node.properties as AstNode[]).every((property) =>
+      return node.properties.every((property) =>
         property.type === "Property"
           ? (!property.computed || isSideEffectFree(property.key)) &&
             isPatternSideEffectFree(property.value)
@@ -305,7 +316,9 @@ function isDeadBinding(unit: ModuleUnit, after: ModuleReferences, state: DeadCod
   return (
     unit.names.some((name) => referencedOutsideDeclaration(state.before, name)) &&
     (unit.declaration === null ||
-      (isPatternSideEffectFree(unit.node.id) && isSideEffectFree(unit.node.init)))
+      (unit.node.type === "VariableDeclarator" &&
+        isPatternSideEffectFree(unit.node.id) &&
+        isSideEffectFree(unit.node.init)))
   );
 }
 
@@ -316,11 +329,11 @@ function removeRange(state: DeadCodeState, start: number, end: number): void {
 
 function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
   const { declaration, node } = unit;
-  if (!declaration) {
+  if (!declaration || node.type !== "VariableDeclarator") {
     removeRange(state, node.start, node.end);
     return;
   }
-  const declarators = (declaration.declarations as AstNode[]).filter(
+  const declarators = declaration.declarations.filter(
     (declarator) => declarator === node || !isRemoved(declarator, state.removed)
   );
   if (declarators.length === 1) {
@@ -329,8 +342,14 @@ function removeUnit(unit: ModuleUnit, state: DeadCodeState): void {
   }
   const index = declarators.indexOf(node);
   const next = declarators[index + 1];
-  const previous = declarators[index - 1] as AstNode;
-  removeRange(state, next ? node.start : previous.end, next ? next.start : node.end);
+  if (next) {
+    removeRange(state, node.start, next.start);
+    return;
+  }
+  const previous = declarators[index - 1];
+  if (previous) {
+    removeRange(state, previous.end, node.end);
+  }
 }
 
 /**
@@ -406,7 +425,7 @@ export function pruneDeadImports(state: DeadCodeState): void {
     if (statement?.type !== "ImportDeclaration") {
       continue;
     }
-    const declaration = statement as unknown as ImportDeclaration;
+    const declaration = statement;
     if (declaration.specifiers.length === 0) {
       continue;
     }
@@ -418,7 +437,7 @@ export function pruneDeadImports(state: DeadCodeState): void {
       const typeOnly =
         declaration.importKind === "type" ||
         declaration.specifiers.every(
-          (specifier) => (specifier as unknown as AstNode).importKind === "type"
+          (specifier) => specifier.type === "ImportSpecifier" && specifier.importKind === "type"
         );
       const wasUsedBeforeTransform = declaration.specifiers.some((specifier) =>
         state.before.names.has(specifier.local.name)

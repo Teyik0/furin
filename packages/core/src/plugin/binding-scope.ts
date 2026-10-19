@@ -1,9 +1,9 @@
 import { walk } from "yuku-ast";
-import type { Program } from "yuku-parser";
+import type { Expression, Node, Program } from "yuku-parser";
 import { unwrapTSExpression } from "../server/lang-detect.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
+import { isNode } from "../shared/utils/ast-walk.ts";
 
-export function fluentChain(call: AstNode, ancestors: AstNode[]): AstNode {
+export function fluentChain(call: Node, ancestors: Node[]): Node {
   let chain = call;
   for (const parent of ancestors.toReversed()) {
     if (parent === chain) {
@@ -22,7 +22,7 @@ export function fluentChain(call: AstNode, ancestors: AstNode[]): AstNode {
   return unwrapTSExpression(chain);
 }
 
-export function lexicalBindingScope(ancestors: AstNode[]): AstNode | undefined {
+export function lexicalBindingScope(ancestors: Node[]): Node | undefined {
   return ancestors.findLast((ancestor) =>
     [
       "Program",
@@ -36,7 +36,7 @@ export function lexicalBindingScope(ancestors: AstNode[]): AstNode | undefined {
   );
 }
 
-export function varBindingScope(ancestors: AstNode[]): AstNode | undefined {
+export function varBindingScope(ancestors: Node[]): Node | undefined {
   return ancestors.findLast((ancestor, index) => {
     if (ancestor.type === "Program" || ancestor.type === "StaticBlock") {
       return true;
@@ -51,11 +51,11 @@ export function varBindingScope(ancestors: AstNode[]): AstNode | undefined {
 }
 
 interface FactoryAlias {
-  ancestors: AstNode[];
+  ancestors: Node[];
   immutable: boolean;
-  initializer: AstNode;
+  initializer: Expression;
   name: string;
-  scope: AstNode;
+  scope: Node;
 }
 
 /** Import identities stay module-local; aliases resolve at their lexical declaration. */
@@ -71,16 +71,16 @@ export class FactoryBindings extends Set<string> {
     }
     walk(program, {
       VariableDeclarator: (node, context) => {
-        const ancestors = context.ancestors() as AstNode[];
+        const ancestors = context.ancestors();
         const declaration = ancestors.at(-1);
-        const scope =
-          declaration?.kind === "var" ? varBindingScope(ancestors) : lexicalBindingScope(ancestors);
+        const kind = declaration?.type === "VariableDeclaration" ? declaration.kind : undefined;
+        const scope = kind === "var" ? varBindingScope(ancestors) : lexicalBindingScope(ancestors);
         if (node.id.type === "Identifier" && node.init && scope) {
           const aliases = this.aliases.get(node.id.name) ?? [];
           aliases.push({
             ancestors,
-            immutable: declaration?.kind === "const",
-            initializer: node.init as AstNode,
+            immutable: kind === "const",
+            initializer: node.init,
             name: node.id.name,
             scope,
           });
@@ -94,24 +94,24 @@ export class FactoryBindings extends Set<string> {
     return this.size > 0 || this.namespaces.size > 0;
   }
 
-  factoryName(expression: AstNode, ancestors: AstNode[]): string | undefined {
+  factoryName(expression: Node, ancestors: Node[]): string | undefined {
     return this.size === 0 ? undefined : this.resolve(expression, ancestors, this, new Set());
   }
 
-  namespaceName(expression: AstNode, ancestors: AstNode[]): string | undefined {
+  namespaceName(expression: Node, ancestors: Node[]): string | undefined {
     return this.namespaces.size === 0
       ? undefined
       : this.resolve(expression, ancestors, this.namespaces, new Set());
   }
 
   private resolve(
-    expression: AstNode,
-    ancestors: AstNode[],
+    expression: Node,
+    ancestors: Node[],
     imports: Set<string>,
     seen: Set<FactoryAlias>
   ): string | undefined {
     const node = unwrapTSExpression(expression);
-    if (node.type !== "Identifier" || typeof node.name !== "string") {
+    if (node.type !== "Identifier") {
       return undefined;
     }
     if (imports.has(node.name) && !hasShadowingDeclaration(node.name, ancestors)) {
@@ -162,60 +162,49 @@ export class FactoryBindings extends Set<string> {
   }
 }
 
-function bindingPatternHasName(pattern: unknown, name: string): boolean {
-  if (!(pattern && typeof pattern === "object")) {
+function bindingPatternHasName(pattern: Node | null, name: string): boolean {
+  if (!pattern) {
     return false;
   }
-  const node = pattern as AstNode;
-  if (node.type === "Identifier") {
-    return node.name === name;
+  if (pattern.type === "Identifier") {
+    return pattern.name === name;
   }
-  if (node.type === "AssignmentPattern") {
-    return bindingPatternHasName(node.left, name);
+  if (pattern.type === "AssignmentPattern") {
+    return bindingPatternHasName(pattern.left, name);
   }
-  if (node.type === "RestElement") {
-    return bindingPatternHasName(node.argument, name);
+  if (pattern.type === "RestElement") {
+    return bindingPatternHasName(pattern.argument, name);
   }
-  if (node.type === "ArrayPattern") {
-    return (
-      Array.isArray(node.elements) &&
-      node.elements.some((element) => bindingPatternHasName(element, name))
+  if (pattern.type === "ArrayPattern") {
+    return pattern.elements.some((element) => bindingPatternHasName(element, name));
+  }
+  if (pattern.type === "ObjectPattern") {
+    return pattern.properties.some((property) =>
+      bindingPatternHasName(property.type === "Property" ? property.value : property.argument, name)
     );
   }
-  if (node.type === "ObjectPattern") {
-    return (
-      Array.isArray(node.properties) &&
-      node.properties.some((property) => {
-        if (!(property && typeof property === "object")) {
-          return false;
-        }
-        const propertyNode = property as AstNode;
-        return bindingPatternHasName(
-          propertyNode.type === "Property" ? propertyNode.value : propertyNode.argument,
-          name
-        );
-      })
-    );
-  }
-  if (node.type === "TSParameterProperty") {
-    return bindingPatternHasName(node.parameter, name);
+  if (pattern.type === "TSParameterProperty") {
+    return bindingPatternHasName(pattern.parameter, name);
   }
   return false;
 }
 
-function declarationHasName(node: AstNode, name: string): boolean {
-  if (node.type === "VariableDeclaration" && Array.isArray(node.declarations)) {
-    return node.declarations.some((declaration) =>
-      declaration && typeof declaration === "object"
-        ? bindingPatternHasName((declaration as AstNode).id, name)
-        : false
-    );
+function declarationHasName(node: Node, name: string): boolean {
+  if (node.type === "VariableDeclaration") {
+    return node.declarations.some((declaration) => bindingPatternHasName(declaration.id, name));
   }
   if (node.type === "FunctionDeclaration" || node.type === "ClassDeclaration") {
     return bindingPatternHasName(node.id, name);
   }
   return false;
 }
+
+const NESTED_VAR_SCOPES = new Set([
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "ArrowFunctionExpression",
+  "StaticBlock",
+]);
 
 function functionBodyHasVarName(value: unknown, name: string, root: boolean): boolean {
   if (!value || typeof value !== "object") {
@@ -224,32 +213,22 @@ function functionBodyHasVarName(value: unknown, name: string, root: boolean): bo
   if (Array.isArray(value)) {
     return value.some((entry) => functionBodyHasVarName(entry, name, false));
   }
-  const node = value as AstNode;
-  if (
-    !root &&
-    (node.type === "FunctionDeclaration" ||
-      node.type === "FunctionExpression" ||
-      node.type === "ArrowFunctionExpression" ||
-      node.type === "StaticBlock")
-  ) {
-    return false;
+  if (isNode(value)) {
+    if (!root && NESTED_VAR_SCOPES.has(value.type)) {
+      return false;
+    }
+    if (
+      value.type === "VariableDeclaration" &&
+      value.kind === "var" &&
+      value.declarations.some((declaration) => bindingPatternHasName(declaration.id, name))
+    ) {
+      return true;
+    }
   }
-  if (
-    node.type === "VariableDeclaration" &&
-    node.kind === "var" &&
-    Array.isArray(node.declarations) &&
-    node.declarations.some((declaration) =>
-      declaration && typeof declaration === "object"
-        ? bindingPatternHasName((declaration as AstNode).id, name)
-        : false
-    )
-  ) {
-    return true;
-  }
-  return Object.values(node).some((entry) => functionBodyHasVarName(entry, name, false));
+  return Object.values(value).some((entry) => functionBodyHasVarName(entry, name, false));
 }
 
-function functionScopeHasName(scope: AstNode, name: string): boolean {
+function functionScopeHasName(scope: Node, name: string): boolean {
   if (
     scope.type !== "FunctionDeclaration" &&
     scope.type !== "FunctionExpression" &&
@@ -258,57 +237,39 @@ function functionScopeHasName(scope: AstNode, name: string): boolean {
     return false;
   }
   return (
-    (Array.isArray(scope.params) &&
-      scope.params.some((parameter) => bindingPatternHasName(parameter, name))) ||
+    scope.params.some((parameter) => bindingPatternHasName(parameter, name)) ||
     (scope.type === "FunctionExpression" && bindingPatternHasName(scope.id, name)) ||
     functionBodyHasVarName(scope.body, name, true)
   );
 }
 
-function blockScopeHasName(scope: AstNode, name: string): boolean {
+function blockScopeHasName(scope: Node, name: string): boolean {
   return (
     (scope.type === "BlockStatement" || scope.type === "StaticBlock") &&
-    Array.isArray(scope.body) &&
-    scope.body.some((statement) =>
-      statement && typeof statement === "object"
-        ? declarationHasName(statement as AstNode, name)
-        : false
-    )
+    scope.body.some((statement) => declarationHasName(statement, name))
   );
 }
 
-function loopScopeHasName(scope: AstNode, name: string): boolean {
-  const declaration = scope.type === "ForStatement" ? scope.init : scope.left;
-  return (
-    (scope.type === "ForStatement" ||
-      scope.type === "ForInStatement" ||
-      scope.type === "ForOfStatement") &&
-    !!declaration &&
-    typeof declaration === "object" &&
-    declarationHasName(declaration as AstNode, name)
-  );
+function loopScopeHasName(scope: Node, name: string): boolean {
+  if (scope.type === "ForStatement") {
+    return !!scope.init && declarationHasName(scope.init, name);
+  }
+  if (scope.type === "ForInStatement" || scope.type === "ForOfStatement") {
+    return declarationHasName(scope.left, name);
+  }
+  return false;
 }
 
-function switchScopeHasName(scope: AstNode, name: string): boolean {
+function switchScopeHasName(scope: Node, name: string): boolean {
   return (
     scope.type === "SwitchStatement" &&
-    Array.isArray(scope.cases) &&
-    scope.cases.some(
-      (switchCase) =>
-        switchCase &&
-        typeof switchCase === "object" &&
-        Array.isArray((switchCase as AstNode).consequent) &&
-        ((switchCase as AstNode).consequent as unknown[]).some(
-          (statement) =>
-            statement &&
-            typeof statement === "object" &&
-            declarationHasName(statement as AstNode, name)
-        )
+    scope.cases.some((switchCase) =>
+      switchCase.consequent.some((statement) => declarationHasName(statement, name))
     )
   );
 }
 
-export function hasShadowingDeclaration(name: string, ancestors: AstNode[]): boolean {
+export function hasShadowingDeclaration(name: string, ancestors: Node[]): boolean {
   return ancestors.some(
     (scope) =>
       functionScopeHasName(scope, name) ||

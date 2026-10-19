@@ -10,7 +10,6 @@ import {
 } from "../../plugin/transform-isomorphic.ts";
 import { detectLangFromPath, detectLoaderFromPath } from "../../server/lang-detect.ts";
 import { parseSource } from "../../shared/parser.ts";
-import type { AstNode } from "../../shared/utils/ast-walk.ts";
 import { registerClientModule } from "../client-references.ts";
 import { clientModuleId, isClientModule } from "./client-references.ts";
 
@@ -78,7 +77,7 @@ function reexportedDependencies(source: string, path: string): Set<string> {
       if (
         target.type === "Identifier" &&
         (target.name === "module" || target.name === "exports") &&
-        !hasShadowingDeclaration(target.name, context.ancestors() as AstNode[])
+        !hasShadowingDeclaration(target.name, context.ancestors())
       ) {
         exported.push(node.right);
       }

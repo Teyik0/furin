@@ -1,4 +1,4 @@
-import type { SourceLang } from "yuku-parser";
+import type { Expression, Node, NodeOfType, NodeType, SourceLang } from "yuku-parser";
 
 export const SCRIPT_FILE_FILTER = /\.(?:[cm]?[jt]s|[jt]sx)(?:\?.*)?$/;
 const DECLARATION_FILE_RE = /\.d\.[cm]?ts$/;
@@ -26,12 +26,7 @@ export function detectLoaderFromPath(filePath: string): "js" | "jsx" | "ts" | "t
   return lang === "dts" ? "ts" : lang;
 }
 
-interface MaybeWrappedNode {
-  expression?: unknown;
-  type: string;
-}
-
-const TS_WRAPPER_TYPES = new Set([
+const TS_WRAPPER_TYPES = new Set<NodeType>([
   "TSAsExpression",
   "TSSatisfiesExpression",
   "TSTypeAssertion",
@@ -40,16 +35,25 @@ const TS_WRAPPER_TYPES = new Set([
   "ParenthesizedExpression",
 ]);
 
-export function unwrapTSExpression<T extends { type: string }>(node: T): T {
-  let current: MaybeWrappedNode = node;
-  while (
-    current &&
-    typeof current === "object" &&
-    TS_WRAPPER_TYPES.has(current.type) &&
-    current.expression &&
-    typeof current.expression === "object"
-  ) {
-    current = current.expression as MaybeWrappedNode;
+type TSWrapper = NodeOfType<
+  | "TSAsExpression"
+  | "TSSatisfiesExpression"
+  | "TSTypeAssertion"
+  | "TSNonNullExpression"
+  | "TSInstantiationExpression"
+  | "ParenthesizedExpression"
+>;
+
+function isTSWrapper(node: Node): node is TSWrapper {
+  return TS_WRAPPER_TYPES.has(node.type);
+}
+
+export function unwrapTSExpression(node: Expression): Expression;
+export function unwrapTSExpression(node: Node): Node;
+export function unwrapTSExpression(node: Node): Node {
+  let current = node;
+  while (isTSWrapper(current)) {
+    current = current.expression;
   }
-  return current as T;
+  return current;
 }

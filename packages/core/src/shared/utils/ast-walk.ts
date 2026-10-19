@@ -1,23 +1,9 @@
-import type { BaseNode, Node as YukuNode } from "yuku-parser";
-
-/**
- * Minimal ESTree node interface used by AST-walking utilities across the
- * framework (build scanning, client transform, etc.).
- */
-export interface AstNode extends BaseNode {
-  body?: AstNode[];
-  type: YukuNode["type"] | string;
-  [key: string]: unknown;
-}
+import type { Node } from "yuku-parser";
 
 const SKIP_KEYS = new Set(["type", "start", "end", "comments"]);
 
-function isAstNode(value: unknown): value is AstNode {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const candidate = value as Partial<AstNode>;
-  return typeof candidate.type === "string";
+export function isNode(value: object): value is Node {
+  return "type" in value && typeof value.type === "string";
 }
 
 /**
@@ -27,7 +13,7 @@ function isAstNode(value: unknown): value is AstNode {
  * Arrays are traversed element-by-element.  The keys `type`, `start` and `end`
  * are skipped so that the visitor is only invoked on genuine child nodes.
  */
-export function walkAST(node: unknown, visitor: (n: AstNode) => void): void {
+export function walkAST(node: unknown, visitor: (n: Node) => void): void {
   if (!node || typeof node !== "object") {
     return;
   }
@@ -37,15 +23,13 @@ export function walkAST(node: unknown, visitor: (n: AstNode) => void): void {
     }
     return;
   }
-  if (!isAstNode(node)) {
+  if (!isNode(node)) {
     return;
   }
-  const n = node;
-  visitor(n);
-  for (const key of Object.keys(n)) {
-    if (SKIP_KEYS.has(key)) {
-      continue;
+  visitor(node);
+  for (const [key, child] of Object.entries(node)) {
+    if (!SKIP_KEYS.has(key)) {
+      walkAST(child, visitor);
     }
-    walkAST(n[key], visitor);
   }
 }

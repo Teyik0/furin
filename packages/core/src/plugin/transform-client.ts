@@ -1,9 +1,17 @@
 import MagicString from "magic-string";
-import { walk } from "yuku-ast";
-import type { ImportDeclaration, Program } from "yuku-parser";
+import { literalValue, walk } from "yuku-ast";
+import type {
+  CallExpression,
+  Expression,
+  ImportDeclaration,
+  ImportDeclarationSpecifier,
+  Node,
+  NodeOfType,
+  Program,
+} from "yuku-parser";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
+import { isNode } from "../shared/utils/ast-walk.ts";
 import { FactoryBindings, fluentChain, hasShadowingDeclaration } from "./binding-scope.ts";
 import {
   collectModuleReferences,
@@ -23,14 +31,10 @@ const SERVER_ONLY_METHODS = new Set(["config", "head", "loader", "requestLoader"
 const REACT_HOOK_NAME_RE = /^use[A-Z0-9]/;
 const HMR_DATA_SIGNATURE = "furin.hmr.data-signature";
 const HMR_SOURCE_SIGNATURE = "furin.hmr.source-signature";
-const TYPESCRIPT_RUNTIME_WRAPPERS = new Map([
-  ["TSAsExpression", ["expression"]],
-  ["TSInstantiationExpression", ["expression"]],
-  ["TSNonNullExpression", ["expression"]],
-  ["TSParameterProperty", ["decorators", "parameter"]],
-  ["TSSatisfiesExpression", ["expression"]],
-  ["TSTypeAssertion", ["expression"]],
-]);
+
+type LocalDeclaration = NodeOfType<
+  "ClassDeclaration" | "FunctionDeclaration" | "VariableDeclarator"
+>;
 
 interface TransformResult {
   code: string;
@@ -45,28 +49,16 @@ function isFurinRouteModule(source: unknown): source is string {
   );
 }
 
-function importedName(specifier: AstNode): string | null {
-  const { imported } = specifier;
-  if (!imported || typeof imported !== "object") {
+function importedName(specifier: ImportDeclarationSpecifier): string | null {
+  if (specifier.type !== "ImportSpecifier") {
     return null;
   }
-  const node = imported as AstNode;
-  if (node.type === "Identifier" && typeof node.name === "string") {
-    return node.name;
-  }
-  if (node.type === "Literal" && typeof node.value === "string") {
-    return node.value;
-  }
-  return null;
+  const { imported } = specifier;
+  return imported.type === "Identifier" ? imported.name : imported.value;
 }
 
-function localName(specifier: AstNode): string | null {
-  const { local } = specifier;
-  if (!local || typeof local !== "object") {
-    return null;
-  }
-  const node = local as AstNode;
-  return node.type === "Identifier" && typeof node.name === "string" ? node.name : null;
+function localName(specifier: ImportDeclarationSpecifier): string {
+  return specifier.local.name;
 }
 
 function collectFactorySpecifiers(
@@ -74,7 +66,7 @@ function collectFactorySpecifiers(
   bindings: Set<string>,
   namespaces: Set<string>
 ): void {
-  for (const specifier of declaration.specifiers as unknown as AstNode[]) {
+  for (const specifier of declaration.specifiers) {
     const namespace = localName(specifier);
     if (specifier.type === "ImportNamespaceSpecifier" && namespace) {
       namespaces.add(namespace);
@@ -100,9 +92,8 @@ function collectDefineRouteBindings(program: Program): FactoryBindings {
     if (statement.type !== "ImportDeclaration") {
       continue;
     }
-    const declaration = statement as unknown as ImportDeclaration;
-    if (declaration.importKind !== "type" && isFurinRouteModule(declaration.source.value)) {
-      collectFactorySpecifiers(declaration, bindings, namespaces);
+    if (statement.importKind !== "type" && isFurinRouteModule(statement.source.value)) {
+      collectFactorySpecifiers(statement, bindings, namespaces);
     }
   }
   return new FactoryBindings(program, bindings, namespaces);
@@ -118,22 +109,17 @@ function rewriteClientImports(
     if (statement.type !== "ImportDeclaration") {
       continue;
     }
-    const declaration = statement as unknown as ImportDeclaration;
+    const declaration = statement;
     const moduleName = declaration.source.value;
-    if (typeof moduleName !== "string" || !FURIN_SERVER_MODULES.has(moduleName)) {
+    if (!FURIN_SERVER_MODULES.has(moduleName)) {
       continue;
     }
-    const importsClientValue = (declaration.specifiers as unknown as AstNode[]).some(
-      (specifier) => {
-        const local = localName(specifier);
-        const imported = importedName(specifier);
-        return (
-          (local !== null && bindings.has(local)) ||
-          imported === "HeadContent" ||
-          imported === "Scripts"
-        );
-      }
-    );
+    const importsClientValue = declaration.specifiers.some((specifier) => {
+      const imported = importedName(specifier);
+      return (
+        bindings.has(localName(specifier)) || imported === "HeadContent" || imported === "Scripts"
+      );
+    });
     if (!importsClientValue) {
       continue;
     }
@@ -144,47 +130,43 @@ function rewriteClientImports(
   return rewritten;
 }
 
-function asAstNode(node: unknown): AstNode | null {
-  if (!node || typeof node !== "object" || !("type" in node)) {
-    return null;
-  }
-  return unwrapTSExpression(node as { type: string }) as AstNode;
+function unwrapped(node: Expression | null | undefined): Expression | null;
+function unwrapped(node: Node | null | undefined): Node | null;
+function unwrapped(node: Node | null | undefined): Node | null {
+  return node ? unwrapTSExpression(node) : null;
 }
 
 function chainRootIsDefineRoute(
-  node: unknown,
+  node: Node | null,
   bindings: FactoryBindings,
-  ancestors: AstNode[]
+  ancestors: Node[]
 ): boolean {
-  let current = asAstNode(node);
+  let current = unwrapped(node);
   while (current) {
     if (current.type === "MemberExpression") {
-      current = asAstNode(current.object);
+      current = unwrapped(current.object);
       continue;
     }
     if (current.type === "CallExpression") {
-      current = asAstNode(current.callee);
+      current = unwrapped(current.callee);
       continue;
     }
-    return (
-      current.type === "Identifier" &&
-      typeof current.name === "string" &&
-      bindings.factoryName(current, ancestors) !== undefined
-    );
+    return current.type === "Identifier" && bindings.factoryName(current, ancestors) !== undefined;
   }
   return false;
 }
 
-function isLocalFactoryAlias(identifier: AstNode, ancestors: AstNode[], filename: string): boolean {
+function isLocalFactoryAlias(identifier: Node, ancestors: Node[], filename: string): boolean {
   const parent = ancestors.at(-1);
   if (
     parent?.type !== "VariableDeclarator" ||
-    asAstNode(parent.id)?.type !== "Identifier" ||
-    asAstNode(parent.init) !== identifier
+    unwrapped(parent.id)?.type !== "Identifier" ||
+    unwrapped(parent.init) !== identifier
   ) {
     return false;
   }
-  if (ancestors.at(-2)?.kind !== "const") {
+  const declaration = ancestors.at(-2);
+  if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") {
     throw new Error(`[furin] ${filename}: route factory aliases must be immutable.`);
   }
   return ancestors.at(-3)?.type !== "ExportNamedDeclaration";
@@ -200,14 +182,14 @@ function assertCompleteRouteChains(
   }
   walk(program, {
     CallExpression(call, context) {
-      const callee = asAstNode(call.callee);
-      const ancestors = context.ancestors() as AstNode[];
+      const callee = unwrapped(call.callee);
+      const ancestors = context.ancestors();
       if (!callee || bindings.factoryName(callee, ancestors) === undefined) {
         return;
       }
-      const chain = fluentChain(call as unknown as AstNode, ancestors);
-      const terminal = chain.type === "CallExpression" ? asAstNode(chain.callee) : null;
-      const method = terminal?.type === "MemberExpression" ? asAstNode(terminal.property) : null;
+      const chain = fluentChain(call, ancestors);
+      const terminal = chain.type === "CallExpression" ? unwrapped(chain.callee) : null;
+      const method = terminal?.type === "MemberExpression" ? unwrapped(terminal.property) : null;
       if (method?.type !== "Identifier" || (method.name !== "page" && method.name !== "layout")) {
         throw new Error(
           `[furin] ${filename}: route builders must use one fluent chain ending in .page() or .layout().`
@@ -215,8 +197,8 @@ function assertCompleteRouteChains(
       }
     },
     Identifier(node, context) {
-      const ancestors = context.ancestors() as AstNode[];
-      const identifier = node as unknown as AstNode;
+      const ancestors = context.ancestors();
+      const identifier = node;
       if (
         ancestors.some((ancestor) => ancestor.type === "ImportDeclaration") ||
         !isReferenceIdentifier(identifier, ancestors)
@@ -229,21 +211,21 @@ function assertCompleteRouteChains(
         return;
       }
       let index = ancestors.length - 1;
-      while (index >= 0 && asAstNode(ancestors[index]) === identifier) {
+      while (index >= 0 && unwrapped(ancestors[index]) === identifier) {
         index -= 1;
       }
       const parent = ancestors[index];
       if (
         namespace !== undefined &&
         parent?.type === "MemberExpression" &&
-        asAstNode(parent.object) === identifier
+        unwrapped(parent.object) === identifier
       ) {
         return;
       }
       if (
         factory !== undefined &&
         parent?.type === "CallExpression" &&
-        asAstNode(parent.callee) === identifier
+        unwrapped(parent.callee) === identifier
       ) {
         return;
       }
@@ -258,14 +240,13 @@ function assertCompleteRouteChains(
       );
     },
     MemberExpression(node, context) {
-      const object = asAstNode(node.object);
-      const property = asAstNode(node.property);
-      const method = property?.type === "Identifier" ? property.name : property?.value;
+      const object = unwrapped(node.object);
+      const property = unwrapped(node.property);
+      const method = property?.type === "Identifier" ? property.name : literalValue(property);
       const dynamic = node.computed && property?.type !== "Literal";
       if (
         object?.type === "Identifier" &&
-        typeof object.name === "string" &&
-        bindings.namespaceName(object, context.ancestors() as AstNode[]) !== undefined &&
+        bindings.namespaceName(object, context.ancestors()) !== undefined &&
         (dynamic || method === "defineRoute" || method === "defineRootRoute")
       ) {
         throw new Error(`[furin] ${filename}: route builders require a named import.`);
@@ -273,30 +254,25 @@ function assertCompleteRouteChains(
       if (
         node.computed &&
         context.parent?.type === "CallExpression" &&
-        chainRootIsDefineRoute(node.object, bindings, context.ancestors() as AstNode[])
+        chainRootIsDefineRoute(node.object, bindings, context.ancestors())
       ) {
         throw new Error(`[furin] ${filename}: route builders require static builder methods.`);
       }
     },
     VariableDeclarator(node, context) {
-      const initializer = asAstNode(node.init);
-      if (
-        !(
-          initializer &&
-          chainRootIsDefineRoute(initializer, bindings, context.ancestors() as AstNode[])
-        )
-      ) {
+      const initializer = unwrapped(node.init);
+      if (!(initializer && chainRootIsDefineRoute(initializer, bindings, context.ancestors()))) {
         return;
       }
       if (initializer.type === "Identifier") {
-        const declaration = context.ancestors().at(-1) as AstNode;
-        if (declaration.kind !== "const") {
+        const declaration = context.ancestors().at(-1);
+        if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") {
           throw new Error(`[furin] ${filename}: route factory aliases must be immutable.`);
         }
         return;
       }
-      const callee = initializer.type === "CallExpression" ? asAstNode(initializer.callee) : null;
-      const method = callee?.type === "MemberExpression" ? asAstNode(callee.property) : null;
+      const callee = initializer.type === "CallExpression" ? unwrapped(initializer.callee) : null;
+      const method = callee?.type === "MemberExpression" ? unwrapped(callee.property) : null;
       if (method?.type !== "Identifier" || (method.name !== "page" && method.name !== "layout")) {
         throw new Error(
           `[furin] ${filename}: route builders must use one fluent chain ending in .page() or .layout().`
@@ -306,7 +282,7 @@ function assertCompleteRouteChains(
   });
 }
 
-function memberAccessStart(source: string, object: AstNode, property: AstNode): number {
+function memberAccessStart(source: string, object: Node, property: Node): number {
   // Parser expression ranges exclude parentheses around a fluent receiver.
   const accessGap = source.slice(object.end, property.start);
   const separator = accessGap
@@ -328,7 +304,7 @@ function stripServerStage(
   source: MagicString,
   stripped: StrippedCode,
   range: SourceRange,
-  remount: AstNode | null
+  remount: Node | null
 ): void {
   if (remount) {
     source.update(
@@ -357,31 +333,25 @@ function removeChainedServerCalls(
 
   walk(program, {
     CallExpression(call, context) {
-      const callee = asAstNode(call.callee);
-      if (
-        callee?.type !== "MemberExpression" ||
-        callee.computed === true ||
-        !callee.property ||
-        typeof callee.property !== "object"
-      ) {
+      const callee = unwrapped(call.callee);
+      if (callee?.type !== "MemberExpression" || callee.computed === true) {
         return;
       }
-      const property = callee.property as AstNode;
+      const { property } = callee;
       if (
         property.type !== "Identifier" ||
-        typeof property.name !== "string" ||
         !SERVER_ONLY_METHODS.has(property.name) ||
-        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors() as AstNode[])
+        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors())
       ) {
         return;
       }
-      const object = asAstNode(callee.object);
+      const object = unwrapped(callee.object);
       if (!object) {
         return;
       }
-      let remount: AstNode | null = null;
+      let remount: Node | null = null;
       if (property.name === "config" && Array.isArray(call.arguments)) {
-        const config = asAstNode(call.arguments[0]);
+        const config = unwrapped(call.arguments[0]);
         if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
           collectConfigBindings(config, declarations, stripped.configBindings);
           remount = resolveRemountProperty(
@@ -401,42 +371,42 @@ function removeChainedServerCalls(
   return transformed;
 }
 
+function declaredInitializer(declaration: LocalDeclaration | undefined): Expression | null {
+  return declaration?.type === "VariableDeclarator" ? unwrapped(declaration.init) : null;
+}
+
 function collectConfigBindings(
-  config: AstNode | null,
-  declarations: Map<string, AstNode>,
+  config: Node | null,
+  declarations: Map<string, LocalDeclaration>,
   names: Set<string>
 ): void {
-  if (config?.type === "Identifier" && typeof config.name === "string" && !names.has(config.name)) {
+  if (config?.type === "Identifier" && !names.has(config.name)) {
     names.add(config.name);
     const declaration = declarations.get(config.name);
-    collectConfigBindings(asAstNode(declaration?.init), declarations, names);
+    collectConfigBindings(declaredInitializer(declaration), declarations, names);
   } else if (config?.type === "ObjectExpression" && Array.isArray(config.properties)) {
     for (const property of config.properties) {
-      const entry = asAstNode(property);
+      const entry = unwrapped(property);
       if (entry?.type === "SpreadElement") {
-        collectConfigBindings(asAstNode(entry.argument), declarations, names);
+        collectConfigBindings(unwrapped(entry.argument), declarations, names);
       }
     }
   }
 }
 
 function resolveRemountProperty(
-  config: AstNode | null,
-  declarations: Map<string, AstNode>,
+  config: Node | null,
+  declarations: Map<string, LocalDeclaration>,
   configBindings: Set<string>,
   visiting: Set<string>,
   filename: string
-): AstNode | null {
-  if (
-    config?.type === "Identifier" &&
-    typeof config.name === "string" &&
-    !visiting.has(config.name)
-  ) {
+): Node | null {
+  if (config?.type === "Identifier" && !visiting.has(config.name)) {
     visiting.add(config.name);
     configBindings.add(config.name);
     const declaration = declarations.get(config.name);
     const result = resolveRemountProperty(
-      asAstNode(declaration?.init),
+      declaredInitializer(declaration),
       declarations,
       configBindings,
       visiting,
@@ -451,10 +421,10 @@ function resolveRemountProperty(
     );
   }
   for (let index = config.properties.length - 1; index >= 0; index -= 1) {
-    const entry = asAstNode(config.properties[index]);
+    const entry = unwrapped(config.properties[index]);
     if (entry?.type === "SpreadElement") {
       const remount = resolveRemountProperty(
-        asAstNode(entry.argument),
+        unwrapped(entry.argument),
         declarations,
         configBindings,
         visiting,
@@ -464,7 +434,7 @@ function resolveRemountProperty(
         return remount;
       }
     } else if (entry?.type === "Property") {
-      const key = asAstNode(entry.key);
+      const key = unwrapped(entry.key);
       if (
         (key?.type === "Identifier" && entry.computed !== true && key.name === "remountDeps") ||
         (key?.type === "Literal" && key.value === "remountDeps")
@@ -476,12 +446,12 @@ function resolveRemountProperty(
   return null;
 }
 
-function collectBindingNames(pattern: unknown, names: string[]): void {
-  const node = asAstNode(pattern);
+function collectBindingNames(pattern: Node | null, names: string[]): void {
+  const node = unwrapped(pattern);
   if (!node) {
     return;
   }
-  if (node.type === "Identifier" && typeof node.name === "string") {
+  if (node.type === "Identifier") {
     names.push(node.name);
     return;
   }
@@ -501,22 +471,18 @@ function collectBindingNames(pattern: unknown, names: string[]): void {
   }
   if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
     for (const property of node.properties) {
-      const propertyNode = asAstNode(property);
-      collectBindingNames(
-        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument,
-        names
-      );
+      collectBindingNames(property.type === "Property" ? property.value : property.argument, names);
     }
   }
 }
 
 function collectDeclarationBindings(
-  declaration: AstNode | null,
-  declarations: Map<string, AstNode>
+  declaration: Node | null,
+  declarations: Map<string, LocalDeclaration>
 ): void {
   if (declaration?.type === "FunctionDeclaration" || declaration?.type === "ClassDeclaration") {
-    const identifier = asAstNode(declaration.id);
-    if (identifier?.type === "Identifier" && typeof identifier.name === "string") {
+    const identifier = unwrapped(declaration.id);
+    if (identifier?.type === "Identifier") {
       declarations.set(identifier.name, declaration);
     }
     return;
@@ -524,7 +490,7 @@ function collectDeclarationBindings(
   if (declaration?.type !== "VariableDeclaration" || !Array.isArray(declaration.declarations)) {
     return;
   }
-  for (const item of declaration.declarations as AstNode[]) {
+  for (const item of declaration.declarations) {
     const names: string[] = [];
     collectBindingNames(item.id, names);
     for (const name of names) {
@@ -534,32 +500,32 @@ function collectDeclarationBindings(
 }
 
 function collectModuleBindings(program: Program): {
-  declarations: Map<string, AstNode>;
+  declarations: Map<string, LocalDeclaration>;
   imports: Map<string, ImportDeclaration>;
 } {
-  const declarations = new Map<string, AstNode>();
+  const declarations = new Map<string, LocalDeclaration>();
   const imports = new Map<string, ImportDeclaration>();
-  for (const statement of program.body as unknown as AstNode[]) {
+  for (const statement of program.body) {
     if (statement.type === "ImportDeclaration" && Array.isArray(statement.specifiers)) {
-      for (const specifier of statement.specifiers as AstNode[]) {
+      for (const specifier of statement.specifiers) {
         const local = localName(specifier);
         if (local) {
-          imports.set(local, statement as unknown as ImportDeclaration);
+          imports.set(local, statement);
         }
       }
       continue;
     }
     const declaration =
       statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration"
-        ? asAstNode(statement.declaration)
+        ? unwrapped(statement.declaration)
         : statement;
     collectDeclarationBindings(declaration, declarations);
   }
   return { declarations, imports };
 }
 
-function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
-  const node = asAstNode(pattern);
+function isBindingIdentifier(identifier: Node, pattern: Node | null): boolean {
+  const node = unwrapped(pattern);
   if (!node) {
     return false;
   }
@@ -576,41 +542,54 @@ function isBindingIdentifier(identifier: AstNode, pattern: unknown): boolean {
     return node.elements.some((element) => isBindingIdentifier(identifier, element));
   }
   if (node.type === "ObjectPattern" && Array.isArray(node.properties)) {
-    return node.properties.some((property) => {
-      const propertyNode = asAstNode(property);
-      return isBindingIdentifier(
+    return node.properties.some((property) =>
+      isBindingIdentifier(
         identifier,
-        propertyNode?.type === "Property" ? propertyNode.value : propertyNode?.argument
-      );
-    });
+        property.type === "Property" ? property.value : property.argument
+      )
+    );
   }
   return false;
 }
 
-function nodeContains(container: unknown, node: AstNode): boolean {
+function nodeContains(container: Node | Node[], node: Node): boolean {
   if (Array.isArray(container)) {
     return container.some((entry) => nodeContains(entry, node));
   }
-  const containerNode = asAstNode(container);
-  return Boolean(
-    containerNode && containerNode.start <= node.start && node.end <= containerNode.end
-  );
+  const containerNode = unwrapTSExpression(container);
+  return containerNode.start <= node.start && node.end <= containerNode.end;
 }
 
-function isTypePosition(node: AstNode, ancestors: AstNode[]): boolean {
+/** The children of a TypeScript node that remain runtime code. */
+function typescriptRuntimeChildren(ancestor: Node): Array<Node | Node[]> | undefined {
+  switch (ancestor.type) {
+    case "TSAsExpression":
+    case "TSInstantiationExpression":
+    case "TSNonNullExpression":
+    case "TSSatisfiesExpression":
+    case "TSTypeAssertion":
+      return [ancestor.expression];
+    case "TSParameterProperty":
+      return [ancestor.decorators, ancestor.parameter];
+    default:
+      return;
+  }
+}
+
+function isTypePosition(node: Node, ancestors: Node[]): boolean {
   return ancestors.some((ancestor) => {
     if (!ancestor.type.startsWith("TS")) {
       return false;
     }
-    const runtimeChildren = TYPESCRIPT_RUNTIME_WRAPPERS.get(ancestor.type);
+    const runtimeChildren = typescriptRuntimeChildren(ancestor);
     if (runtimeChildren) {
-      return !runtimeChildren.some((key) => nodeContains(ancestor[key], node));
+      return !runtimeChildren.some((child) => nodeContains(child, node));
     }
     return true;
   });
 }
 
-function isNonReferenceKey(node: AstNode, parent: AstNode | undefined): boolean {
+function isNonReferenceKey(node: Node, parent: Node | undefined): boolean {
   return Boolean(
     parent &&
       ((parent.type === "MemberExpression" &&
@@ -630,7 +609,7 @@ function isNonReferenceKey(node: AstNode, parent: AstNode | undefined): boolean 
   );
 }
 
-function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
+function isReferenceIdentifier(node: Node, ancestors: Node[]): boolean {
   if (isTypePosition(node, ancestors) || isNonReferenceKey(node, ancestors.at(-1))) {
     return false;
   }
@@ -654,8 +633,8 @@ function isReferenceIdentifier(node: AstNode, ancestors: AstNode[]): boolean {
 
 function walkWithAncestors(
   value: unknown,
-  ancestors: AstNode[],
-  visitor: (node: AstNode, ancestors: AstNode[]) => void
+  ancestors: Node[],
+  visitor: (node: Node, ancestors: Node[]) => void
 ): void {
   if (Array.isArray(value)) {
     for (const entry of value) {
@@ -663,10 +642,10 @@ function walkWithAncestors(
     }
     return;
   }
-  const node = asAstNode(value);
-  if (!node) {
+  if (!value || typeof value !== "object" || !isNode(value)) {
     return;
   }
+  const node = unwrapTSExpression(value);
   visitor(node, ancestors);
   const nextAncestors = [...ancestors, node];
   for (const [key, child] of Object.entries(node)) {
@@ -677,7 +656,7 @@ function walkWithAncestors(
 }
 
 interface HmrDependencyState {
-  dependencies: Map<number, AstNode>;
+  dependencies: Map<number, LocalDeclaration>;
   dynamicImports: Set<string>;
   imports: Set<ImportDeclaration>;
   importTrackedDependencies: Set<number>;
@@ -685,22 +664,23 @@ interface HmrDependencyState {
 }
 
 function collectDependencyIdentifier(
-  child: AstNode,
-  ancestors: AstNode[],
+  child: Node,
+  ancestors: Node[],
   trackImports: boolean,
   state: HmrDependencyState
 ): void {
+  if (child.type !== "Identifier" && child.type !== "JSXIdentifier") {
+    return;
+  }
   const parent = ancestors.at(-1);
   const jsxReference =
     child.type === "JSXIdentifier" &&
     ((parent?.type === "JSXOpeningElement" &&
       parent.name === child &&
-      typeof child.name === "string" &&
       child.name[0] === child.name[0]?.toUpperCase()) ||
       (parent?.type === "JSXMemberExpression" && parent.object === child));
   if (
-    !(child.type === "Identifier" || jsxReference) ||
-    typeof child.name !== "string" ||
+    (child.type === "JSXIdentifier" && !jsxReference) ||
     !isReferenceIdentifier(child, ancestors) ||
     hasShadowingDeclaration(child.name, ancestors)
   ) {
@@ -729,15 +709,12 @@ function collectDependencyIdentifier(
   collectDependencies(declaration, trackImports, state);
 }
 
-function collectDependencies(
-  node: AstNode,
-  trackImports: boolean,
-  state: HmrDependencyState
-): void {
+function collectDependencies(node: Node, trackImports: boolean, state: HmrDependencyState): void {
   walkWithAncestors(node, [], (child, ancestors) => {
     collectDependencyIdentifier(child, ancestors, trackImports, state);
     if (trackImports && child.type === "ImportExpression") {
-      const specifier = asAstNode(child.source)?.value;
+      const source = unwrapped(child.source);
+      const specifier = source?.type === "Literal" ? source.value : undefined;
       if (typeof specifier === "string") {
         state.dynamicImports.add(specifier);
       }
@@ -762,25 +739,19 @@ function createHmrDataSignature(
 
   walk(program, {
     CallExpression(call, context) {
-      const callee = asAstNode(call.callee);
-      if (
-        callee?.type !== "MemberExpression" ||
-        callee.computed === true ||
-        !callee.property ||
-        typeof callee.property !== "object"
-      ) {
+      const callee = unwrapped(call.callee);
+      if (callee?.type !== "MemberExpression" || callee.computed === true) {
         return;
       }
-      const property = callee.property as AstNode;
+      const { property } = callee;
       if (
         property.type !== "Identifier" ||
-        typeof property.name !== "string" ||
         !SERVER_ONLY_METHODS.has(property.name) ||
-        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors() as AstNode[])
+        !chainRootIsDefineRoute(callee.object, bindings, context.ancestors())
       ) {
         return;
       }
-      const object = asAstNode(callee.object);
+      const object = unwrapped(callee.object);
       if (!object) {
         return;
       }
@@ -790,7 +761,7 @@ function createHmrDataSignature(
       });
       if (Array.isArray(call.arguments)) {
         for (const argument of call.arguments) {
-          const argumentNode = asAstNode(argument);
+          const argumentNode = unwrapped(argument);
           if (argumentNode) {
             collectDependencies(argumentNode, property.name !== "config", dependencyState);
           }
@@ -837,49 +808,35 @@ export function getHmrDataSignature(code: string, filename: string): string {
   return createHmrDataSignature(code, program, collectDefineRouteBindings(program), filename);
 }
 
-function calledHookName(call: AstNode): string | null {
-  const callee = asAstNode(call.callee);
-  if (callee?.type === "Identifier" && typeof callee.name === "string") {
+function calledHookName(call: CallExpression): string | null {
+  const callee = unwrapped(call.callee);
+  if (callee?.type === "Identifier") {
     return REACT_HOOK_NAME_RE.test(callee.name) ? callee.name : null;
   }
-  if (
-    callee?.type === "MemberExpression" &&
-    callee.computed !== true &&
-    callee.property &&
-    typeof callee.property === "object"
-  ) {
-    const property = callee.property as AstNode;
-    if (
-      property.type === "Identifier" &&
-      typeof property.name === "string" &&
-      REACT_HOOK_NAME_RE.test(property.name)
-    ) {
+  if (callee?.type === "MemberExpression" && callee.computed !== true) {
+    const { property } = callee;
+    if (property.type === "Identifier" && REACT_HOOK_NAME_RE.test(property.name)) {
       return property.name;
     }
   }
   return null;
 }
 
-function routeComponentExpression(program: Program, bindings: FactoryBindings): AstNode | null {
-  let component: AstNode | null = null;
+function routeComponentExpression(program: Program, bindings: FactoryBindings): Node | null {
+  let component: Node | null = null;
   walk(program, {
     CallExpression(call, context) {
-      const callee = asAstNode(call.callee);
-      if (
-        callee?.type !== "MemberExpression" ||
-        callee.computed === true ||
-        !callee.property ||
-        typeof callee.property !== "object"
-      ) {
+      const callee = unwrapped(call.callee);
+      if (callee?.type !== "MemberExpression" || callee.computed === true) {
         return;
       }
-      const property = callee.property as AstNode;
-      const ancestors = context.ancestors() as AstNode[];
+      const { property } = callee;
+      const ancestors = context.ancestors();
       const routeDeclarator = ancestors.find((ancestor) => {
         if (ancestor.type !== "VariableDeclarator") {
           return false;
         }
-        const identifier = asAstNode(ancestor.id);
+        const identifier = unwrapped(ancestor.id);
         return identifier?.type === "Identifier" && identifier.name === "route";
       });
       if (
@@ -894,22 +851,22 @@ function routeComponentExpression(program: Program, bindings: FactoryBindings): 
         return;
       }
       const args = call.arguments;
-      component = Array.isArray(args) ? asAstNode(args[0]) : null;
+      component = Array.isArray(args) ? unwrapped(args[0]) : null;
       context.stop();
     },
   });
   return component;
 }
 
-function namedFunction(declaration: AstNode, name: string): AstNode | null {
+function namedFunction(declaration: Node, name: string): Node | null {
   if (declaration.type === "FunctionDeclaration") {
-    const identifier = asAstNode(declaration.id);
+    const identifier = unwrapped(declaration.id);
     return identifier?.type === "Identifier" && identifier.name === name ? declaration : null;
   }
   if (declaration.type === "VariableDeclaration" && Array.isArray(declaration.declarations)) {
-    for (const item of declaration.declarations as AstNode[]) {
-      const identifier = asAstNode(item.id);
-      const initializer = asAstNode(item.init);
+    for (const item of declaration.declarations) {
+      const identifier = unwrapped(item.id);
+      const initializer = unwrapped(item.init);
       if (
         identifier?.type === "Identifier" &&
         identifier.name === name &&
@@ -923,11 +880,11 @@ function namedFunction(declaration: AstNode, name: string): AstNode | null {
   return null;
 }
 
-function localFunction(program: Program, name: string): AstNode | null {
-  for (const statement of program.body as unknown as AstNode[]) {
+function localFunction(program: Program, name: string): Node | null {
+  for (const statement of program.body) {
     const declaration =
       statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration"
-        ? asAstNode(statement.declaration)
+        ? unwrapped(statement.declaration)
         : statement;
     const component = declaration ? namedFunction(declaration, name) : null;
     if (component) {
@@ -948,8 +905,10 @@ function isImportedBinding(program: Program, name: string): boolean {
     (statement) =>
       statement.type === "ImportDeclaration" &&
       statement.importKind !== "type" &&
-      (statement.specifiers as unknown as AstNode[]).some(
-        (specifier) => specifier.importKind !== "type" && localName(specifier) === name
+      statement.specifiers.some(
+        (specifier) =>
+          !(specifier.type === "ImportSpecifier" && specifier.importKind === "type") &&
+          localName(specifier) === name
       )
   );
 }
@@ -968,9 +927,9 @@ function collectReactWrapperBindings(program: Program): ReactWrapperBindings {
     if (statement.type !== "ImportDeclaration" || statement.source.value !== "react") {
       continue;
     }
-    for (const specifier of statement.specifiers as unknown as AstNode[]) {
+    for (const specifier of statement.specifiers) {
       const local = localName(specifier);
-      if (!local || specifier.importKind === "type") {
+      if (!local || (specifier.type === "ImportSpecifier" && specifier.importKind === "type")) {
         continue;
       }
       const imported = importedName(specifier);
@@ -994,55 +953,48 @@ function collectReactWrapperBindings(program: Program): ReactWrapperBindings {
 
 function wrappedComponentFunction(
   program: Program,
-  expression: AstNode,
+  expression: Node,
   bindings: ReactWrapperBindings
-): AstNode | null {
+): Node | null {
   if (expression.type === "ArrowFunctionExpression" || expression.type === "FunctionExpression") {
     return expression;
   }
-  if (expression.type === "Identifier" && typeof expression.name === "string") {
+  if (expression.type === "Identifier") {
     return localFunction(program, expression.name);
   }
   if (expression.type !== "CallExpression") {
     return null;
   }
-  const callee = asAstNode(expression.callee);
-  const isNamedWrapper =
-    callee?.type === "Identifier" &&
-    typeof callee.name === "string" &&
-    bindings.members.has(callee.name);
-  const object = callee?.type === "MemberExpression" ? asAstNode(callee.object) : null;
-  const property = callee?.type === "MemberExpression" ? asAstNode(callee.property) : null;
+  const callee = unwrapped(expression.callee);
+  const isNamedWrapper = callee?.type === "Identifier" && bindings.members.has(callee.name);
+  const object = callee?.type === "MemberExpression" ? unwrapped(callee.object) : null;
+  const property = callee?.type === "MemberExpression" ? unwrapped(callee.property) : null;
   const isNamespaceWrapper =
     callee?.type === "MemberExpression" &&
     callee.computed !== true &&
     object?.type === "Identifier" &&
-    typeof object.name === "string" &&
     bindings.namespaces.has(object.name) &&
     property?.type === "Identifier" &&
-    typeof property.name === "string" &&
     REACT_COMPONENT_WRAPPERS.has(property.name);
   if (!(isNamedWrapper || isNamespaceWrapper)) {
     return null;
   }
   const args = expression.arguments;
-  const wrapped = Array.isArray(args) ? asAstNode(args[0]) : null;
+  const wrapped = Array.isArray(args) ? unwrapped(args[0]) : null;
   return wrapped ? wrappedComponentFunction(program, wrapped, bindings) : null;
 }
 
-function importedMemberBinding(program: Program, expression: AstNode): string | null {
-  let object = expression.type === "MemberExpression" ? asAstNode(expression.object) : null;
+function importedMemberBinding(program: Program, expression: Node): string | null {
+  let object = expression.type === "MemberExpression" ? unwrapped(expression.object) : null;
   while (object?.type === "MemberExpression") {
-    object = asAstNode(object.object);
+    object = unwrapped(object.object);
   }
-  return object?.type === "Identifier" &&
-    typeof object.name === "string" &&
-    isImportedBinding(program, object.name)
+  return object?.type === "Identifier" && isImportedBinding(program, object.name)
     ? object.name
     : null;
 }
 
-function sourceText(code: string, node: AstNode | null): string {
+function sourceText(code: string, node: Node | null): string {
   return node ? code.slice(node.start, node.end) : "";
 }
 
@@ -1065,14 +1017,14 @@ function unusedIdentifier(program: Program, preferred: string): string {
 
 function hookCallsiteSignature(
   code: string,
-  call: AstNode,
+  call: CallExpression,
   hookName: string,
-  parent: AstNode | null
+  parent: Node | null
 ): string {
-  let key = parent?.type === "VariableDeclarator" ? sourceText(code, asAstNode(parent.id)) : "";
+  let key = parent?.type === "VariableDeclarator" ? sourceText(code, unwrapped(parent.id)) : "";
   const args = call.arguments;
-  const stateArgument = Array.isArray(args) ? asAstNode(args[0]) : null;
-  const reducerArgument = Array.isArray(args) ? asAstNode(args[1]) : null;
+  const stateArgument = Array.isArray(args) ? unwrapped(args[0]) : null;
+  const reducerArgument = Array.isArray(args) ? unwrapped(args[1]) : null;
   if (hookName === "useState" && stateArgument) {
     key += `(${sourceText(code, stateArgument)})`;
   } else if (hookName === "useReducer" && reducerArgument) {
@@ -1081,20 +1033,17 @@ function hookCallsiteSignature(
   return `${hookName}{${key}}`;
 }
 
-function collectFunctionHookSignature(code: string, component: AstNode): string[] {
+function collectFunctionHookSignature(code: string, component: Node): string[] {
   const hooks: string[] = [];
-  walk(component as never, {
+  walk(component, {
     CallExpression(call, context) {
-      const callNode = call as unknown as AstNode;
-      const name = calledHookName(callNode);
+      const name = calledHookName(call);
       if (name) {
-        hooks.push(
-          hookCallsiteSignature(code, callNode, name, asAstNode(context.parent as unknown))
-        );
+        hooks.push(hookCallsiteSignature(code, call, name, unwrapped(context.parent)));
       }
     },
     Function(node, context) {
-      if ((node as unknown as AstNode) !== component) {
+      if (node !== component) {
         context.skip();
       }
     },
@@ -1119,7 +1068,7 @@ function collectClientHookSignature(
   if (wrappedComponent) {
     return collectFunctionHookSignature(code, wrappedComponent);
   }
-  if (componentExpression.type !== "Identifier" || typeof componentExpression.name !== "string") {
+  if (componentExpression.type !== "Identifier") {
     if (importedMemberBinding(program, componentExpression)) {
       return {
         end: componentExpression.end,

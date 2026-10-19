@@ -1,12 +1,18 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { walk } from "yuku-ast";
-import type { Program } from "yuku-parser";
+import type {
+  CallExpression,
+  Node,
+  ObjectExpression,
+  ObjectProperty,
+  Program,
+  VariableDeclarator,
+} from "yuku-parser";
 import type { DevDiagnosticStore } from "../server/dev/diagnostics.ts";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
-import type { AstNode } from "../shared/utils/ast-walk.ts";
 import { FactoryBindings, fluentChain } from "./binding-scope.ts";
 import { routeSourcePaths } from "./routes.ts";
 
@@ -37,8 +43,8 @@ interface Import {
 
 interface RouteExport {
   /** `config({...})` argument, when the chain declares one. */
-  config: AstNode | undefined;
-  head: AstNode;
+  config: ObjectExpression | undefined;
+  head: CallExpression;
   isRootFactory: boolean;
   methods: Set<string>;
 }
@@ -53,9 +59,8 @@ function withoutExtension(path: string): string {
   return path.replace(EXTENSION_RE, "");
 }
 
-function propertyName(node: unknown): string | undefined {
-  const key = node as AstNode | undefined;
-  if (key?.type === "Identifier" && typeof key.name === "string") {
+function propertyName(key: Node | null): string | undefined {
+  if (key?.type === "Identifier") {
     return key.name;
   }
   if (key?.type === "Literal" && typeof key.value === "string") {
@@ -63,23 +68,27 @@ function propertyName(node: unknown): string | undefined {
   }
 }
 
-function findProperty(object: AstNode, name: string): AstNode | undefined {
-  return (object.properties as AstNode[]).find(
-    (property) => property.type === "Property" && propertyName(property.key) === name
+function findProperty(object: ObjectExpression, name: string): ObjectProperty | undefined {
+  return object.properties.find(
+    (property): property is ObjectProperty =>
+      property.type === "Property" && propertyName(property.key) === name
   );
 }
 
 function collectImports(program: Program): Map<string, Import> {
   const imports = new Map<string, Import>();
-  for (const statement of program.body as unknown as AstNode[]) {
+  for (const statement of program.body) {
     if (statement.type !== "ImportDeclaration" || statement.importKind === "type") {
       continue;
     }
-    const specifier = (statement.source as AstNode).value;
-    for (const entry of statement.specifiers as AstNode[]) {
+    const specifier = statement.source.value;
+    for (const entry of statement.specifiers) {
+      if (entry.type !== "ImportSpecifier") {
+        continue;
+      }
       const imported = propertyName(entry.imported);
       const local = propertyName(entry.local);
-      if (entry.type === "ImportSpecifier" && imported && local && typeof specifier === "string") {
+      if (imported && local) {
         imports.set(local, { imported, specifier });
       }
     }
@@ -100,19 +109,21 @@ function findRouteExport(program: Program, imports: Map<string, Import>): RouteE
   }
   const bindings = new FactoryBindings(program, factories, new Set());
   let found: RouteExport | undefined;
-  walk(program as never, {
-    CallExpression(call, context) {
-      const ancestors = context.ancestors() as AstNode[];
-      const head = call as unknown as AstNode;
-      const factory = bindings.factoryName(head.callee as AstNode, ancestors);
+  walk(program, {
+    CallExpression(head, context) {
+      const ancestors = context.ancestors();
+      const factory = bindings.factoryName(head.callee, ancestors);
       if (factory === undefined) {
         return;
       }
       const chain = fluentChain(head, ancestors);
-      const declarator = ancestors.findLast((ancestor) => ancestor.type === "VariableDeclarator");
+      const declarator = ancestors.findLast(
+        (ancestor): ancestor is VariableDeclarator => ancestor.type === "VariableDeclarator"
+      );
       if (
         declarator === undefined ||
-        unwrapTSExpression(declarator.init as AstNode) !== chain ||
+        declarator.init === null ||
+        unwrapTSExpression(declarator.init) !== chain ||
         propertyName(declarator.id) !== "route" ||
         !ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
       ) {
@@ -129,24 +140,27 @@ function findRouteExport(program: Program, imports: Map<string, Import>): RouteE
 }
 
 function chainCalls(
-  chain: AstNode,
-  head: AstNode
-): { config: AstNode | undefined; methods: Set<string> } {
-  let config: AstNode | undefined;
+  chain: Node,
+  head: CallExpression
+): { config: ObjectExpression | undefined; methods: Set<string> } {
+  let config: ObjectExpression | undefined;
   const methods = new Set<string>();
-  let current: AstNode = chain;
+  let current = chain;
   while (current !== head && current.type === "CallExpression") {
-    const callee = unwrapTSExpression(current.callee as AstNode);
+    const callee = unwrapTSExpression(current.callee);
+    if (callee.type !== "MemberExpression") {
+      break;
+    }
     const method = propertyName(callee.property);
-    if (callee.type !== "MemberExpression" || method === undefined) {
+    if (method === undefined) {
       break;
     }
     methods.add(method);
-    const [argument] = current.arguments as AstNode[];
+    const [argument] = current.arguments;
     if (method === "config" && argument?.type === "ObjectExpression") {
       config = argument;
     }
-    current = unwrapTSExpression(callee.object as AstNode);
+    current = unwrapTSExpression(callee.object);
   }
   return { config, methods };
 }
@@ -206,12 +220,7 @@ function position(source: string, offset: number): { column: number; line: numbe
   return { column: offset - before.lastIndexOf("\n"), line: before.split("\n").length };
 }
 
-function issueAt(
-  file: string,
-  parsed: ParsedRoute,
-  node: AstNode,
-  message: string
-): RouteConfigIssue {
+function issueAt(file: string, parsed: ParsedRoute, node: Node, message: string): RouteConfigIssue {
   return { file, ...position(parsed.source, node.start), message };
 }
 
@@ -239,9 +248,8 @@ function checkLayout(
       `config() must declare layout: the nearest layout is ${relative(pagesDir, expected)}. ${layoutFix(file, expected)}`
     );
   }
-  const layout = unwrapTSExpression(property.value as AstNode);
-  const binding =
-    layout.type === "Identifier" ? parsed.imports.get(String(layout.name)) : undefined;
+  const layout = unwrapTSExpression(property.value);
+  const binding = layout.type === "Identifier" ? parsed.imports.get(layout.name) : undefined;
   if (!(binding?.imported === "route" && binding.specifier.startsWith("."))) {
     return;
   }
@@ -259,9 +267,7 @@ function checkLayout(
 
 /** Declared mode, else the one the runtime infers from the local chain. */
 function suggestedMode(route: RouteExport, isRoot: boolean): string {
-  const declared = (route.config && findProperty(route.config, "mode"))?.value as
-    | AstNode
-    | undefined;
+  const declared = (route.config && findProperty(route.config, "mode"))?.value;
   if (declared?.type === "Literal" && typeof declared.value === "string") {
     return declared.value;
   }
@@ -354,16 +360,16 @@ function declaredParams(route: RouteExport): Set<string> | true {
   if (value === undefined) {
     return new Set();
   }
-  const schema = unwrapTSExpression(value as AstNode);
-  const shape = schema.type === "CallExpression" ? (schema.arguments as AstNode[])[0] : undefined;
-  const properties = shape?.type === "ObjectExpression" ? (shape.properties as AstNode[]) : [];
+  const schema = unwrapTSExpression(value);
+  const shape = schema.type === "CallExpression" ? schema.arguments[0] : undefined;
+  const properties = shape?.type === "ObjectExpression" ? shape.properties : [];
   const keys = properties.map((property) =>
     property.type === "Property" ? propertyName(property.key) : undefined
   );
   if (!shape || keys.includes(undefined)) {
     return true;
   }
-  return new Set(keys as string[]);
+  return new Set(keys.filter((key) => key !== undefined));
 }
 
 /** Dynamic segments of the file's path missing from `declared`. */

@@ -1,11 +1,12 @@
 import MagicString from "magic-string";
+import type { ImportDeclaration, Node, Program, ProgramStatement } from "yuku-parser";
 import {
   detectLangFromPath,
   detectLoaderFromPath,
   unwrapTSExpression,
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
-import { type AstNode, walkAST } from "../shared/utils/ast-walk.ts";
+import { walkAST } from "../shared/utils/ast-walk.ts";
 import { FactoryBindings } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
 
@@ -14,43 +15,43 @@ interface SplitDevPage {
   render: string;
 }
 
-function node(value: unknown): AstNode | undefined {
-  if (value && typeof value === "object" && "type" in value) {
-    return unwrapTSExpression(value as AstNode) as AstNode;
+function node(value: Node | null | undefined): Node | undefined {
+  if (value) {
+    return unwrapTSExpression(value);
   }
 }
 
-function namesIn(value: unknown): Set<string> {
+function namesIn(value: Node | null | undefined): Set<string> {
   const names = new Set<string>();
   walkAST(value, (entry) => {
-    if (
-      (entry.type === "Identifier" || entry.type === "JSXIdentifier") &&
-      typeof entry.name === "string"
-    ) {
+    if (entry.type === "Identifier" || entry.type === "JSXIdentifier") {
       names.add(entry.name);
     }
   });
   return names;
 }
 
-const CALLBACK_BINDING_TYPES = new Set([
-  "ArrowFunctionExpression",
-  "CatchClause",
-  "ClassDeclaration",
-  "ClassExpression",
-  "FunctionDeclaration",
-  "FunctionExpression",
-  "VariableDeclarator",
-]);
+function bindingPatterns(entry: Node): (Node | null)[] {
+  switch (entry.type) {
+    case "ArrowFunctionExpression":
+    case "FunctionDeclaration":
+    case "FunctionExpression":
+      return [entry.id, ...entry.params];
+    case "CatchClause":
+      return [entry.param];
+    case "ClassDeclaration":
+    case "ClassExpression":
+    case "VariableDeclarator":
+      return [entry.id];
+    default:
+      return [];
+  }
+}
 
-function callbackBindings(callback: AstNode): Set<string> {
+function callbackBindings(callback: Node): Set<string> {
   const bindings = new Set<string>();
   walkAST(callback, (entry) => {
-    if (!CALLBACK_BINDING_TYPES.has(entry.type)) {
-      return;
-    }
-    const patterns = [entry.id, entry.param, ...(Array.isArray(entry.params) ? entry.params : [])];
-    for (const pattern of patterns) {
+    for (const pattern of bindingPatterns(entry)) {
       for (const name of namesIn(pattern)) {
         bindings.add(name);
       }
@@ -59,59 +60,78 @@ function callbackBindings(callback: AstNode): Set<string> {
   return bindings;
 }
 
-function defineRouteBindings(imports: AstNode[]): Set<string> {
+function defineRouteBindings(imports: ImportDeclaration[]): Set<string> {
   const bindings = new Set<string>();
   for (const declaration of imports) {
-    const specifier = node(declaration.source)?.value;
+    const specifier = declaration.source.value;
     if (specifier !== "furin" && specifier !== "@teyik0/furin") {
       continue;
     }
-    for (const entry of declaration.specifiers as AstNode[]) {
-      const local = node(entry.local)?.name;
-      if (node(entry.imported)?.name === "defineRoute" && typeof local === "string") {
-        bindings.add(local);
+    for (const entry of declaration.specifiers) {
+      if (
+        entry.type === "ImportSpecifier" &&
+        entry.imported.type === "Identifier" &&
+        entry.imported.name === "defineRoute"
+      ) {
+        bindings.add(entry.local.name);
       }
     }
   }
   return bindings;
 }
 
-function inspectModule(statements: AstNode[]) {
+function exportedDeclaration(statement: ProgramStatement): Node | undefined {
+  if (
+    statement.type === "ExportNamedDeclaration" ||
+    statement.type === "ExportDefaultDeclaration"
+  ) {
+    return node(statement.declaration);
+  }
+  return statement.type === "ExportAllDeclaration" ? undefined : statement;
+}
+
+function inspectModule(statements: ProgramStatement[]) {
   const imports = statements.filter((statement) => statement.type === "ImportDeclaration");
   let localBindings = new Set<string>();
-  let terminal: AstNode | undefined;
+  let terminal: Node | undefined;
   for (const statement of statements) {
-    const declaration = statement.type.startsWith("Export")
-      ? node(statement.declaration)
-      : statement;
+    const declaration = exportedDeclaration(statement);
     if (declaration?.type === "VariableDeclaration") {
-      for (const binding of declaration.declarations as AstNode[]) {
+      for (const binding of declaration.declarations) {
         localBindings = localBindings.union(namesIn(binding.id));
-        if (statement.type === "ExportNamedDeclaration" && node(binding.id)?.name === "route") {
+        if (
+          statement.type === "ExportNamedDeclaration" &&
+          binding.id.type === "Identifier" &&
+          binding.id.name === "route"
+        ) {
           terminal = node(binding.init);
         }
       }
     } else if (declaration) {
-      localBindings = localBindings.union(namesIn(declaration.id));
+      localBindings = localBindings.union(
+        namesIn("id" in declaration ? declaration.id : undefined)
+      );
     }
   }
   return { imports, localBindings, terminal };
 }
 
 function inlinePage(
-  terminal: AstNode | undefined,
+  terminal: Node | undefined,
   bindings: FactoryBindings,
-  ancestors: AstNode[]
-): AstNode | undefined {
-  const callee = node(terminal?.callee);
-  const args = terminal?.arguments as AstNode[] | undefined;
-  const callback = node(args?.[0]);
+  ancestors: Node[]
+): Node | undefined {
+  if (terminal?.type !== "CallExpression") {
+    return;
+  }
+  const callee = node(terminal.callee);
+  const args = terminal.arguments;
+  const callback = node(args[0]);
   if (
-    terminal?.type !== "CallExpression" ||
     callee?.type !== "MemberExpression" ||
     callee.computed ||
-    node(callee.property)?.name !== "page" ||
-    args?.length !== 1 ||
+    callee.property.name !== "page" ||
+    args.length !== 1 ||
     !callback ||
     (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression")
   ) {
@@ -126,7 +146,7 @@ function inlinePage(
   }
 }
 
-function hasLexicalCapture(callback: AstNode, program: unknown): boolean {
+function hasLexicalCapture(callback: Node, program: Program): boolean {
   let opaque = false;
   walkAST(program, (entry) => {
     if (
@@ -149,7 +169,7 @@ function hasLexicalCapture(callback: AstNode, program: unknown): boolean {
   return opaque;
 }
 
-function routeHasConsumers(statements: AstNode[]): boolean {
+function routeHasConsumers(statements: ProgramStatement[]): boolean {
   let references = 0;
   for (const statement of statements) {
     if (statement.type === "ImportDeclaration") {
@@ -181,33 +201,27 @@ export function splitDevPage(
   if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     return;
   }
-  const statements = program.body as unknown as AstNode[];
+  const statements = program.body;
   if (routeHasConsumers(statements)) {
     return;
   }
   const { imports, localBindings, terminal } = inspectModule(statements);
   const factories = new FactoryBindings(program, defineRouteBindings(imports), new Set());
-  const callback = inlinePage(terminal, factories, [program as unknown as AstNode]);
+  const callback = inlinePage(terminal, factories, [program]);
   if (!callback || hasLexicalCapture(callback, program)) {
     return;
   }
   const shadowed = callbackBindings(callback);
   if (
     imports.some((entry) =>
-      (entry.specifiers as AstNode[]).some((specifier) =>
-        shadowed.has(String(node(specifier.local)?.name))
-      )
+      entry.specifiers.some((specifier) => shadowed.has(specifier.local.name))
     )
   ) {
     return;
   }
   const references = namesIn(callback);
   const bindings = localBindings.union(
-    new Set(
-      imports.flatMap((entry) =>
-        (entry.specifiers as AstNode[]).map((specifier) => String(node(specifier.local)?.name))
-      )
-    )
+    new Set(imports.flatMap((entry) => entry.specifiers.map((specifier) => specifier.local.name)))
   );
   if (
     [...localBindings].some((name) => references.has(name)) ||
@@ -216,9 +230,7 @@ export function splitDevPage(
     return;
   }
   const renderImports = imports.filter((entry) =>
-    (entry.specifiers as AstNode[]).some((specifier) =>
-      references.has(String(node(specifier.local)?.name))
-    )
+    entry.specifiers.some((specifier) => references.has(specifier.local.name))
   );
   const rewritten = new MagicString(source);
   rewritten.overwrite(callback.start, callback.end, "__furinDeferredRender");
@@ -226,7 +238,7 @@ export function splitDevPage(
   // Splitting without removing an import cannot avoid loading any dependency.
   const scanner = new Bun.Transpiler({ loader: detectLoaderFromPath(filePath) });
   const retained = new Set(scanner.scanImports(contract).map((entry) => entry.path));
-  if (!renderImports.some((entry) => !retained.has(String(node(entry.source)?.value)))) {
+  if (!renderImports.some((entry) => !retained.has(entry.source.value))) {
     return;
   }
   const fragment = `${renderImports.map((entry) => source.slice(entry.start, entry.end)).join("\n")}\nexport default ${source.slice(callback.start, callback.end)};`;
