@@ -1,0 +1,33 @@
+packages/core/src/server/render/ssg.ts
+  s_3827fec5c7f2ed::t_ef9da7b701c483 251-257
+packages/core/src/server/render/route-frame-transport.ts
+  s_3827fec5c7f2ed::t_b710c3b6c15fd1 39
+  s_3827fec5c7f2ed::t_fc22912264710a 2
+packages/core/src/server/render/ssr.ts
+  s_3827fec5c7f2ed::t_fc22912264710a 5
+  s_3827fec5c7f2ed::t_b710c3b6c15fd1 91,113,714,824,827
+packages/core/src/server/cache/dev-loader.ts
+  s_3827fec5c7f2ed::t_ef9da7b701c483 3,20
+packages/core/src/server/render/loaders.ts
+  s_3827fec5c7f2ed::t_7b4cc0d9dbac12 674
+  s_3827fec5c7f2ed::t_b710c3b6c15fd1 29,160-161,164,210-211,214,365,425,472,495,498,521,693-694,696-697,699,781,801-802,854
+packages/core/src/server/render/mixed-cache.ts
+  s_3827fec5c7f2ed::t_b710c3b6c15fd1 115-116,137,145-146,193-194,234-235,260,262-263
+  s_3827fec5c7f2ed::t_fc22912264710a 3-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85cfecf98348fff41599daffd93d9883bdfa7d32",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
