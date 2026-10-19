@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative } from "node:path";
+import { toLogical } from "../../client/router/link-utils.ts";
 import {
   DEV_DIAGNOSTIC_PROTOCOL_VERSION,
   type DevDiagnostic,
@@ -53,18 +54,6 @@ function canonicalSourcePath(path: string): string {
   } catch {
     return path.replaceAll("\\", "/");
   }
-}
-
-function logicalDiagnosticRoute(route: string, instance: FurinInstance | undefined): string {
-  const prefix = instance?.prefix;
-  if (
-    prefix &&
-    route.startsWith(prefix) &&
-    (route.length === prefix.length || route[prefix.length] === "/")
-  ) {
-    return route.slice(prefix.length) || "/";
-  }
-  return route;
 }
 
 function explicitLocation(error: unknown, entryPath: string): DevSourceLocation | undefined {
@@ -227,7 +216,7 @@ export async function publishClientDiagnostic(
     : undefined;
   const graph = devGraph(instance);
   const { snapshot } = graph;
-  const logicalRoute = logicalDiagnosticRoute(report.route, instance);
+  const logicalRoute = toLogical(report.route, instance?.prefix ?? "");
   const routeMatch = snapshot ? buildRouteMatcher(snapshot.routes)(logicalRoute) : null;
   const routeEntry = routeMatch?.route.path;
   const sourceFile = symbolicated.location

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   assertNoPrefixSlugCollisions,
   clientDirNameForPrefix,
+  isWithinPrefix,
   prefixSlug,
 } from "../../../src/shared/prefix";
 
@@ -53,5 +54,21 @@ describe("assertNoPrefixSlugCollisions", () => {
   test("encodes Windows wildcard characters in generated directories", () => {
     expect(prefixSlug("/assets*")).not.toContain("*");
     expect(prefixSlug("/assets*")).not.toBe(prefixSlug("/assets%2A"));
+  });
+});
+
+describe("isWithinPrefix", () => {
+  test("every path lies within the root prefix", () => {
+    expect(isWithinPrefix("/anything", "")).toBe(true);
+  });
+
+  test("accepts the prefix itself and paths below it", () => {
+    expect(isWithinPrefix("/admin", "/admin")).toBe(true);
+    expect(isWithinPrefix("/admin/users", "/admin")).toBe(true);
+  });
+
+  test("rejects paths that only share the prefix text", () => {
+    expect(isWithinPrefix("/administrator", "/admin")).toBe(false);
+    expect(isWithinPrefix("/", "/admin")).toBe(false);
   });
 });

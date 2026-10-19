@@ -20,6 +20,15 @@ export function physicalPath(prefix: string, path: string): string {
   return path === "/" ? prefix : `${prefix}${path}`;
 }
 
+/** Whether `pathname` lies under `prefix` on a path-segment boundary. */
+export function isWithinPrefix(pathname: string, prefix: string): boolean {
+  return (
+    prefix === "" ||
+    pathname === prefix ||
+    (pathname.startsWith(prefix) && pathname.charCodeAt(prefix.length) === 47)
+  );
+}
+
 /** Filesystem-safe slug for a mount prefix (`/admin/v2` → `admin-v2`). */
 export function prefixSlug(prefix: string): string {
   return prefix

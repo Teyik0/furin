@@ -1,8 +1,10 @@
 import type { Context } from "elysia";
 import { toCrossJSONAsync } from "seroval";
 import type { RuntimeData } from "../../client/internal/runtime-types.ts";
+import { toLogical } from "../../client/router/link-utils.ts";
 import type { HeadOptions } from "../../client.ts";
 import { computeErrorDigest } from "../../shared/digest.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import { containsRscSource, isRouteFrameLine } from "../../shared/route-frame.ts";
 import { failRouteMatches, loaderFailureIndex } from "../../shared/route-matches.ts";
 import type { SearchParamsInput, SearchRouteMetadata } from "../../shared/search-params.ts";
@@ -151,11 +153,9 @@ export async function serializeNavigationRedirect(
     return response;
   }
   const target = new URL(location, pageUrl);
-  const withinMount =
-    prefix === "" || target.pathname === prefix || target.pathname.startsWith(`${prefix}/`);
   const href =
-    target.origin === pageUrl.origin && withinMount
-      ? (target.pathname.slice(prefix.length) || "/") + target.search + target.hash
+    target.origin === pageUrl.origin && isWithinPrefix(target.pathname, prefix)
+      ? toLogical(target.pathname, prefix) + target.search + target.hash
       : target.href;
   const serialized = await toCrossJSONAsync({ __furinRedirect: href });
   const headers = new Headers(response.headers);

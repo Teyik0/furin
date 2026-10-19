@@ -1,10 +1,12 @@
 import { type AnyElysia, type Context, problem } from "elysia";
+import { toLogical } from "../../client/router/link-utils.ts";
 import type {
   FurinNativeRouteContext,
   FurinRouteDispatcher,
   FurinRouteKey,
 } from "../../define-route.ts";
 import { stripNavigationDataSearch } from "../../shared/navigation-data.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import { getLogger } from "../context-logger.ts";
 import {
   adoptScopedRequest,
@@ -12,7 +14,6 @@ import {
   enterRequestScope,
   type FurinInstance,
   isNavigationDataRequest,
-  isWithinPrefix,
   markNavigationDataRequest,
   normalizePrefix,
   scopedInstance,
@@ -229,7 +230,7 @@ export function createRouteRenderer(
     paramsValidated: boolean
   ): Promise<unknown> => {
     const requestUrl = new URL(context.request.url);
-    const logicalPath = requestUrl.pathname.slice(prefix.length) || "/";
+    const logicalPath = toLogical(requestUrl.pathname, prefix);
     const parsedParams = paramsValidated
       ? { ok: true as const, params }
       : await parseRouteParams(params, mergeRouteSchemas(route.routeChain, "params"));
@@ -261,7 +262,7 @@ export function createRouteRenderer(
     const { request } = context;
     const matched =
       request.method === "GET"
-        ? matchRoute(new URL(request.url).pathname.slice(prefix.length) || "/")
+        ? matchRoute(toLogical(new URL(request.url).pathname, prefix))
         : null;
     if (matched && ports.routes.has(matched.route)) {
       return render(context, matched.route, matched.params, false);

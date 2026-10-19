@@ -19,6 +19,7 @@ import {
 import { buildRouteMatcher, resolveDocumentMode } from "../server/router/patterns.ts";
 import { createSearchRouteMetadata } from "../server/router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
+import { isWithinPrefix } from "../shared/prefix.ts";
 import type { SearchRouteMetadata } from "../shared/search-params.ts";
 import { mapWithConcurrency } from "../shared/utils/index.ts";
 
@@ -91,11 +92,7 @@ function resolveStaticRedirectLocation(
 
   const suffix = `${targetUrl.search}${targetUrl.hash}`;
   const spa = `${toLogical(targetUrl.pathname, basePath)}${suffix}`;
-  if (
-    basePath === "" ||
-    targetUrl.pathname === basePath ||
-    targetUrl.pathname.startsWith(`${basePath}/`)
-  ) {
+  if (isWithinPrefix(targetUrl.pathname, basePath)) {
     return { html: `${targetUrl.pathname}${suffix}`, spa };
   }
   const pathname = targetUrl.pathname === "/" ? `${basePath}/` : `${basePath}${targetUrl.pathname}`;

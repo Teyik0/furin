@@ -1,6 +1,7 @@
 import { log } from "evlog";
 import type { HeadOptions } from "../../client.ts";
 import { parseDeferredNdjson } from "../../shared/deferred-ndjson.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import { findRouteFailure } from "../../shared/route-matches.ts";
 import type { QuerySeed } from "../../shared/sync-query.ts";
 import { isAbortError } from "./abort.ts";
@@ -92,11 +93,7 @@ function resolveRedirect(context: PageFetchContext, redirect: string): PageResul
   const { basePath, routes } = context;
   const target = new URL(redirect, window.location.origin);
   const isLogicalPath = redirect.startsWith("/") && !redirect.startsWith("//");
-  const withinMount =
-    isLogicalPath ||
-    basePath === "" ||
-    target.pathname === basePath ||
-    target.pathname.startsWith(`${basePath}/`);
+  const withinMount = isLogicalPath || isWithinPrefix(target.pathname, basePath);
   const targetPath = isLogicalPath ? target.pathname : toLogical(target.pathname, basePath);
   if (
     target.origin !== window.location.origin ||

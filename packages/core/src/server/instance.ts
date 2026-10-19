@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { isWithinPrefix } from "../shared/prefix.ts";
 import { WeakRegistry } from "./weak-registry.ts";
 
 // ── Furin runtime model ──────────────────────────────────────────────────────
@@ -88,15 +89,6 @@ export function normalizePrefix(prefix: string | undefined): string {
     throw new Error(`[furin] invalid prefix "${prefix}".`);
   }
   return prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
-}
-
-/** Whether `pathname` lies under `prefix` on a path-segment boundary. */
-export function isWithinPrefix(pathname: string, prefix: string): boolean {
-  return (
-    prefix === "" ||
-    pathname === prefix ||
-    (pathname.startsWith(prefix) && pathname.charCodeAt(prefix.length) === 47)
-  );
 }
 
 /** Makes a runtime visible to process-wide helpers such as `revalidatePath()`. */

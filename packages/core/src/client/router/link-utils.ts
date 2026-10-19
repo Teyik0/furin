@@ -1,4 +1,5 @@
 import { decodeInvalidationEntry } from "../../shared/invalidation-header.ts";
+import { isWithinPrefix } from "../../shared/prefix.ts";
 import {
   buildSearchParams,
   findSearchDefaultsForRouteTarget,
@@ -280,27 +281,16 @@ export function shouldInterceptClick(
     return null;
   }
 
-  const logicalPath = normalizeHref(toLogical(url.pathname, basePath));
-  const normalizedBase = normalizePath(basePath);
-  const normalizedPathname = normalizePath(url.pathname);
-  if (
-    normalizedBase &&
-    normalizedPathname !== normalizedBase &&
-    !normalizedPathname.startsWith(`${normalizedBase}/`)
-  ) {
+  if (!isWithinPrefix(normalizePath(url.pathname), normalizePath(basePath))) {
     return null;
   }
-  return logicalPath + url.search + url.hash;
+  return normalizeHref(toLogical(url.pathname, basePath)) + url.search + url.hash;
 }
 
 /** Strips basePath prefix from a physical pathname, returning the logical path. */
 export function toLogical(physicalPathname: string, basePath: string): string {
-  if (
-    basePath &&
-    physicalPathname.startsWith(basePath) &&
-    // Require a path boundary after the prefix so "/furin" doesn't match "/furinity/foo"
-    (physicalPathname.length === basePath.length || physicalPathname[basePath.length] === "/")
-  ) {
+  // The path boundary check keeps "/furin" from matching "/furinity/foo".
+  if (basePath && isWithinPrefix(physicalPathname, basePath)) {
     return physicalPathname.slice(basePath.length) || "/";
   }
   return physicalPathname;
