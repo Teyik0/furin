@@ -53,8 +53,8 @@ afterAll(async () => {
 describe("navigation data cache contract", () => {
   test("loader redirects preserve external destinations and response cookies", async () => {
     const cookie = "session=; Max-Age=0; Path=/";
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    const route = defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(() => {
         throw new Response(null, {
           headers: {
@@ -78,8 +78,8 @@ describe("navigation data cache contract", () => {
   });
 
   test("caches SSG payloads for one year under the page cache tag", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssg" })
+    const route = defineRoute("/")
+      .config({ mode: "ssg" })
       .loader(() => ({ value: "static" }))
       .page(() => null);
 
@@ -92,8 +92,8 @@ describe("navigation data cache contract", () => {
   });
 
   test("caches ISR payloads with the route revalidation window", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 75 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 75 })
       .loader(() => ({ value: "fresh" }))
       .page(() => null);
 
@@ -106,8 +106,8 @@ describe("navigation data cache contract", () => {
   });
 
   test("never caches request-specific ISR payloads", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 75 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 75 })
       .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
       .loader(() => ({ value: "public" }))
       .page(() => null);
@@ -126,8 +126,8 @@ describe("navigation data cache contract", () => {
   });
 
   test("never caches failed ISR payloads", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 75 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 75 })
       .loader(() => {
         throw new Error("loader failed");
       })

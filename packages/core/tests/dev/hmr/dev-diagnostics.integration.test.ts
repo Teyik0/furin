@@ -116,10 +116,9 @@ async function openDiagnosticSocket(port: number): Promise<DiagnosticSocket> {
 function healthyPage(content: string): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     `  .page(() => <main>${content}</main>);`,
   ].join("\n");
 }
@@ -127,10 +126,9 @@ function healthyPage(content: string): string {
 function failingLoaderPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     '  .loader(() => { throw new Error("loader exploded", { cause: new Error("upstream") }); })',
     "  .page(() => <main>Unreachable loader page</main>);",
   ].join("\n");
@@ -139,10 +137,9 @@ function failingLoaderPage(): string {
 function failingResponseLoaderPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     '  .loader(() => { throw new Response("response exploded", { status: 500, statusText: "Upstream" }); })',
     "  .page(() => <main>Unreachable response page</main>);",
   ].join("\n");
@@ -151,10 +148,9 @@ function failingResponseLoaderPage(): string {
 function failingRenderPage(mode: "ssg" | "ssr"): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    `  .config({ layout: rootRoute, mode: "${mode}" })`,
+    'export const route = defineRoute("/")',
+    `  .config({ mode: "${mode}" })`,
     '  .page(() => { throw new Error("render exploded"); });',
   ].join("\n");
 }
@@ -163,10 +159,9 @@ function importedComponentPage(): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { BrokenCard } from "../components/broken-card";',
-    'import { route as rootRoute } from "./root";',
     "",
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssr" })',
+    'export const route = defineRoute("/")',
+    '  .config({ mode: "ssr" })',
     "  .page(() => <BrokenCard />);",
   ].join("\n");
 }
@@ -313,9 +308,8 @@ throw new Error("recovery exploded");`
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { ClientCard } from "../components/client-card.tsx";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <ClientCard />);",
       ].join("\n")
     );
@@ -354,9 +348,8 @@ throw new Error("recovery exploded");`
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ slug: t.String() }) })',
+        'export const route = defineRoute("/blog/[slug]")',
+        '  .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })',
         "  .page(() => <main>Dynamic client page</main>);",
       ].join("\n")
     );
@@ -462,7 +455,6 @@ throw new Error("recovery exploded");`
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import type { ReactNode } from "react";',
-        'import { route as rootRoute } from "./root";',
         "",
         "interface Props {",
         "  label: string;",
@@ -475,8 +467,8 @@ throw new Error("recovery exploded");`
         '  throw new Error(prefix + " exploded", { cause: "typed" });',
         "}",
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         '  .page(() => <Typed label="typed render" />);',
       ].join("\n")
     );
@@ -497,7 +489,7 @@ throw new Error("recovery exploded");`
 
     expect(state?.event.diagnostic.message).toBe("typed render exploded");
     expect(state?.event.diagnostic.location?.file).toContain("src/pages/index.tsx");
-    expect(state?.event.diagnostic.location?.line).toBe(13);
+    expect(state?.event.diagnostic.location?.line).toBe(12);
   }, 20_000);
 
   test("an imported component render failure is located on its source line", async () => {
@@ -522,10 +514,9 @@ throw new Error("recovery exploded");`
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { TypedCard } from "../components/typed-card";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         '  .page(() => <TypedCard title="typed card" />);',
       ].join("\n")
     );
@@ -631,10 +622,9 @@ throw new Error("recovery exploded");`
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .loader(() => ({}));",
       ].join("\n")
     );
@@ -668,10 +658,7 @@ throw new Error("recovery exploded");`
       await Bun.sleep(250);
     }
     const events = await openDiagnosticSocket(port);
-    const missingMode = healthyPage("Missing mode").replace(
-      '{ layout: rootRoute, mode: "ssr" }',
-      "{ layout: rootRoute }"
-    );
+    const missingMode = healthyPage("Missing mode").replace('{ mode: "ssr" }', "{}");
     writeAppFile(app.path, "src/pages/index.tsx", missingMode);
     // Skip the replayed state of earlier tests.
     let errorEvent = await events.next("error");
@@ -682,9 +669,9 @@ throw new Error("recovery exploded");`
       throw new Error(`Expected an error diagnostic, received ${errorEvent.type}`);
     }
     expect(errorEvent.diagnostic.message).toContain(
-      'src/pages/index.tsx:5:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".'
+      'src/pages/index.tsx:4:11: config() must declare mode ("ssg", "ssr" or "isr"), e.g. mode: "ssg".'
     );
-    expect(errorEvent.diagnostic.location?.line).toBe(5);
+    expect(errorEvent.diagnostic.location?.line).toBe(4);
     expect(readFileSync(join(app.path, "src/pages/index.tsx"), "utf8")).toBe(missingMode);
     // The socket event can arrive before the server's stderr is read.
     const configMessage = 'config() must declare mode ("ssg", "ssr" or "isr")';
@@ -710,10 +697,9 @@ throw new Error("recovery exploded");`
     const layoutSource = (terminal: string): string =>
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/section/_route")',
+        '  .config({ mode: "ssr" })',
         `  ${terminal};`,
       ].join("\n");
     writeAppFile(
@@ -726,10 +712,9 @@ throw new Error("recovery exploded");`
       "src/pages/section/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as sectionRoute } from "./_route";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: sectionRoute, mode: "ssr" })',
+        'export const route = defineRoute("/section")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <main>Section page</main>);",
       ].join("\n")
     );

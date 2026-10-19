@@ -348,9 +348,8 @@ describe("furinInvalidate macro", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["boards"],',
+        'export const route = defineRoute("/items/[id]")',
+        '  .config({ mode: "isr", revalidate: 60, tags: ["boards"],',
         "    params: t.Object({ id: t.String() }) })",
         '  .loader(() => ({ pageData: "from-page" }))',
         "  .page(({ pageData }) => <main>{pageData}</main>);",

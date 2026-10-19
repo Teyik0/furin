@@ -762,8 +762,7 @@ export default function Counter() {
 import { Link } from "@teyik0/furin/link";
 import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";
 import Counter from "../counter.tsx";
-import { route as rootRoute } from "./root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "isr", revalidate: 300 })
+export const route = defineRoute("/").config({ mode: "isr", revalidate: 300 })
   .loader(async () => ({ header: await createCompositeComponent(({ children }) => <header><Link to="/blog/hello">Blog</Link><Counter />{children}</header>) }))
   .page(({ header }) => <CompositeComponent src={header}><span>Client slot</span></CompositeComponent>);`
       );

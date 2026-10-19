@@ -21,8 +21,8 @@ const createRoot = () =>
 declare const root: ReturnType<typeof createRoot>;
 
 const createOrgLayout = () =>
-  defineRoute()
-    .config({ layout: root, mode: "ssr", params: t.Object({ org: t.String() }) })
+  defineRoute("/inheritance/[org]/_route")
+    .config({ mode: "ssr", params: t.Object({ org: t.String() }) })
     .layout(({ children, params, query }) => {
       expectTypeOf(params).toEqualTypeOf<{ org: string }>();
       expectTypeOf(query).toEqualTypeOf<{ lang: string }>();
@@ -30,9 +30,34 @@ const createOrgLayout = () =>
     });
 declare const orgLayout: ReturnType<typeof createOrgLayout>;
 
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/inheritance/[org]/_route": {
+      kind: "layout";
+      parent: typeof root;
+      pathParams: { org: string };
+    };
+    "/inheritance/[org]/board": {
+      kind: "page";
+      parent: typeof orgLayout;
+      pathParams: { org: string };
+    };
+    "/inheritance/[org]/override/_route": {
+      kind: "layout";
+      parent: typeof orgLayout;
+      pathParams: { org: string };
+    };
+    "/inheritance/[org]/schemaless": {
+      kind: "page";
+      parent: typeof orgLayout;
+      pathParams: { org: string };
+    };
+  }
+}
+
 const assertInheritedContract = () => {
-  const board = defineRoute()
-    .config({ layout: orgLayout, mode: "ssr", params: t.Object({ id: t.Number() }) })
+  const board = defineRoute("/inheritance/[org]/board")
+    .config({ mode: "ssr", params: t.Object({ id: t.Number() }) })
     .loader(({ params, query }) => {
       expectTypeOf(params).toEqualTypeOf<{ org: string; id: number }>();
       expectTypeOf(query).toEqualTypeOf<{ lang: string }>();
@@ -50,8 +75,8 @@ const assertInheritedContract = () => {
     });
   expectTypeOf<RouteParams<typeof board>>().toEqualTypeOf<{ org: string; id: number }>();
 
-  const schemaless = defineRoute()
-    .config({ layout: orgLayout, mode: "ssg" })
+  const schemaless = defineRoute("/inheritance/[org]/schemaless")
+    .config({ mode: "ssg" })
     .staticParams(({ params }) => {
       expectTypeOf(params).toEqualTypeOf<{ org?: string }>();
       return [{}];
@@ -65,9 +90,8 @@ const assertInheritedContract = () => {
 };
 
 const assertChildOverridesParent = () => {
-  const override = defineRoute()
+  const override = defineRoute("/inheritance/[org]/override/_route")
     .config({
-      layout: orgLayout,
       mode: "ssr",
       params: t.Object({ org: t.Number() }),
       query: t.Object({ lang: t.Optional(t.String()), page: t.Number() }),

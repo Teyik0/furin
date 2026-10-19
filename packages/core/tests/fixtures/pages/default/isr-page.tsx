@@ -1,8 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+export const route = defineRoute("/isr-page")
+  .config({ mode: "isr", revalidate: 60 })
   .loader(async () => ({ timestamp: Date.now() }))
   .page(({ timestamp }) => (
     <div data-testid="isr-page" data-timestamp={String(timestamp)}>

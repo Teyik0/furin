@@ -66,8 +66,8 @@ test("SSG invalidation during the first render prevents caching old data", async
   const started = Promise.withResolvers<void>();
   const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssg" })
     .loader(async () => {
       loaderCalls += 1;
       started.resolve();
@@ -91,8 +91,8 @@ test("PPR invalidation during the first render prevents caching the old shell", 
   const started = Promise.withResolvers<void>();
   const gate = Promise.withResolvers<void>();
   let loaderCalls = 0;
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssg" })
     .requestLoader(() => ({ user: "alice" }))
     .loader(async () => {
       loaderCalls += 1;
@@ -114,8 +114,8 @@ test("PPR invalidation during the first render prevents caching the old shell", 
 
 test("SSG shell failures return 500 without caching the error page", async () => {
   let renders = 0;
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssg" })
     .loader(() => ({}))
     .page(() => {
       renders += 1;
@@ -135,8 +135,8 @@ test("SSG shell failures return 500 without caching the error page", async () =>
 });
 
 test("SSG build prerendering rejects a failed React shell", async () => {
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssg" })
     .staticParams(() => [{}])
     .loader(() => ({}))
     .page(() => {
@@ -149,8 +149,8 @@ test("SSG build prerendering rejects a failed React shell", async () => {
 });
 
 test("SSG build prerendering keeps a notFound page and its 404 status", async () => {
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssg" })
     .staticParams(() => [{}])
     .loader(() => notFound(undefined))
     .page(() => <main>Catalog</main>);
@@ -173,12 +173,12 @@ test("SSG build prerendering keeps a notFound page and its 404 status", async ()
 });
 
 test("SSG cache snapshots skip staticParams paths owned by a more specific route", async () => {
-  const about = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const about = defineRoute("/about")
+    .config({ mode: "ssg" })
     .loader(() => ({ owner: "static-about" }))
     .page(({ owner }) => <main>{owner}</main>);
-  const slug = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const slug = defineRoute("/slug")
+    .config({ mode: "ssg" })
     .staticParams(() => [{ slug: "about" }, { slug: "other" }])
     .loader(({ params }) => ({ owner: `slug-${(params as { slug: string }).slug}` }))
     .page(({ owner }) => <main>{owner}</main>);

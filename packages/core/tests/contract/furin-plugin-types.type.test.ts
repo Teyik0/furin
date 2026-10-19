@@ -4,7 +4,7 @@ import { Elysia, t } from "elysia";
 import type { RequestLogger } from "evlog";
 import { expectTypeOf } from "expect-type";
 import { createClient } from "../../src/client.ts";
-import { defineRootRoute, defineRoute, furin, furinSync } from "../../src/furin.ts";
+import { defineRoute, furin, furinSync } from "../../src/furin.ts";
 import type { SyncRuntimeOptions } from "../../src/server/sync/index.ts";
 
 async function composePublicApplication(options: SyncRuntimeOptions) {
@@ -45,11 +45,8 @@ async function composePublicApplication(options: SyncRuntimeOptions) {
 }
 
 function definePublicPage() {
-  const layout = defineRootRoute()
-    .config({ mode: "ssr" })
-    .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout, mode: "ssr", query: t.Object({ page: t.Number() }) })
+  return defineRoute("/")
+    .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })
     .loader(({ log, query }) => {
       expectTypeOf(log).toEqualTypeOf<RequestLogger>();
       expectTypeOf(query.page).toEqualTypeOf<number>();

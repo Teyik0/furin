@@ -78,9 +78,8 @@ afterAll((done) => {
 
 test("ISR cache keys include the query string and path invalidation clears every variant", async () => {
   let loaderCalls = 0;
-  const route = defineRoute()
+  const route = defineRoute("/")
     .config({
-      layout: rootTerminal,
       mode: "isr",
       query: t.Object({ tenant: t.Optional(t.String()) }),
       revalidate: 60,
@@ -112,9 +111,8 @@ test("ISR cache keys include the query string and path invalidation clears every
 
 test("ISR cache keys ignore undeclared query params and canonicalise declared ones", async () => {
   let loaderCalls = 0;
-  const route = defineRoute()
+  const route = defineRoute("/")
     .config({
-      layout: rootTerminal,
       mode: "isr",
       query: t.Object({ sort: t.Optional(t.String()), tenant: t.Optional(t.String()) }),
       revalidate: 60,
@@ -145,9 +143,8 @@ test("ISR cache keys ignore undeclared query params and canonicalise declared on
 
 test("ISR cache keys hold declared query values as the schema decodes them", async () => {
   let loaderCalls = 0;
-  const route = defineRoute()
+  const route = defineRoute("/")
     .config({
-      layout: rootTerminal,
       mode: "isr",
       query: t.Object({
         page: t.Number({ default: 1 }),
@@ -189,8 +186,8 @@ test("ISR cache keys hold declared query values as the schema decodes them", asy
 
 test("ISR routes without a query schema key on the path and hide the raw query from loaders", async () => {
   const observed: unknown[] = [];
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "isr", revalidate: 0 })
+  const route = defineRoute("/")
+    .config({ mode: "isr", revalidate: 0 })
     .loader(({ query }) => {
       observed.push({ ...query });
       return {};
@@ -208,9 +205,8 @@ test("ISR routes without a query schema key on the path and hide the raw query f
 });
 
 test("ISR cached loaders reject request-specific context", async () => {
-  const route = defineRoute()
+  const route = defineRoute("/")
     .config({
-      layout: rootTerminal,
       mode: "isr",
       query: t.Object({ tenant: t.Optional(t.String()) }),
       revalidate: 60,
@@ -247,8 +243,8 @@ test("a thrown Eden problem reaches the error boundary without entering the ISR 
       type: "about:blank",
     },
   });
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+  const route = defineRoute("/")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(() => {
       loaderCalls += 1;
       throw error;
@@ -275,8 +271,8 @@ test("a thrown Eden problem reaches the error boundary without entering the ISR 
 
 test("synthetic ISR renders preserve repeated query values for loaders", async () => {
   let observedQuery: unknown;
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+  const route = defineRoute("/observed-query")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(({ query }) => {
       observedQuery = query;
       return {};
@@ -300,9 +296,8 @@ test("synthetic ISR renders preserve repeated query values for loaders", async (
 
 test("ISR regeneration preserves query coercion and schema defaults", async () => {
   const values: number[] = [];
-  const terminal = defineRoute()
+  const terminal = defineRoute("/terminal")
     .config({
-      layout: rootTerminal,
       mode: "isr",
       query: t.Object({ count: t.Number({ default: 1 }) }),
       revalidate: 0,
@@ -327,8 +322,8 @@ test("ISR regeneration preserves query coercion and schema defaults", async () =
 
 test("synthetic ISR renders preserve __proto__ query values for loaders", async () => {
   let observedQuery: unknown;
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+  const route = defineRoute("/observed-query")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(({ query }) => {
       observedQuery = query;
       return {};
@@ -355,8 +350,8 @@ test("an invalid ISR root document is not cached as a successful render", async 
   const invalidRootTerminal = defineRootRoute()
     .config({ mode: "ssr" })
     .layout(({ children }) => <main data-invalid-root="">{children}</main>);
-  const route = defineRoute()
-    .config({ layout: invalidRootTerminal, mode: "isr", revalidate: 60 })
+  const route = defineRoute("/")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(() => ({}))
     .page(() => <p>invalid ISR content</p>);
   const { app } = await mountProductionApp({

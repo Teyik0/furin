@@ -22,23 +22,34 @@ afterAll(() => {
   __setDevMode(previousDevMode);
 });
 
+const rootRoute = defineRootRoute()
+  .config({ mode: "ssr" })
+  .requestLoader(() => ({ user: "Alice" }))
+  .layout(({ children }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/csp/account": {
+      kind: "page";
+      parent: typeof rootRoute;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 test("SSR emits a fresh CSP nonce on framework and authored scripts", async () => {
-  const rootRoute = defineRootRoute()
+  const page = defineRoute("/csp/account")
     .config({ mode: "ssr" })
-    .requestLoader(() => ({ user: "Alice" }))
-    .layout(({ children }) => (
-      <html lang="en">
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          {children}
-          <Scripts />
-        </body>
-      </html>
-    ));
-  const page = defineRoute()
-    .config({ layout: rootRoute, mode: "ssr" })
     .loader(() => ({ title: "Account" }))
     .head(() => ({ scripts: [{ children: "window.accountReady = true" }] }))
     .page(({ title, user }) => (

@@ -28,10 +28,9 @@ function createSharedSchemaApp(schemaModule: string): TmpApp {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { schema } from "../schema";',
-      'import { route as root } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: root, mode: "ssr" })',
+      "export const route = defineRoute(\"/\")",
+      '  .config({ mode: "ssr" })',
       "  .page(() => <main>{JSON.stringify(schema)}</main>);",
     ].join("\n")
   );

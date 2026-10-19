@@ -45,10 +45,9 @@ function timestampFrom(html: string): string {
 // rejects the page, and development must too.
 const pprOutsideSuspensePage = `import { defineRoute } from "@teyik0/furin";
 import { use } from "react";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+export const route = defineRoute("/ppr-outside-suspense")
+  .config({ mode: "isr", revalidate: 60 })
   .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
   .page(({ session }) => <main>{String(use(session))}</main>);
 `;
@@ -56,10 +55,9 @@ export const route = defineRoute()
 // A valid PPR page whose public loader stamps its run.
 const pprLoaderPage = `import { Await, defineRoute } from "@teyik0/furin";
 import { Suspense } from "react";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/ppr-loader-page")
+  .config({ mode: "ssg" })
   .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))
   .loader(() => ({ timestamp: Date.now() }))
   .page(({ session, timestamp }) => (

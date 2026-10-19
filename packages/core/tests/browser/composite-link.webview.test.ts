@@ -107,9 +107,10 @@ export default app;`,
   for (const section of ["pages", "admin"]) {
     files[`src/${section}/root.tsx`] = rootSource;
     for (const page of ["index", "other"]) {
+      const prefix = section === "admin" ? "/admin" : "";
+      const id = page === "index" ? prefix || "/" : `${prefix}/${page}`;
       files[`src/${section}/${page}.tsx`] = `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("${id}").config({ mode: "ssr" })
   .page(() => <main data-page="${page === "index" ? "home" : "other"}">${page}</main>);`;
     }
   }

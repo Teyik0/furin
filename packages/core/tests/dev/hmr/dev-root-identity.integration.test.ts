@@ -50,10 +50,9 @@ describe.serial("dev root module identity", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssr" })',
       "  .page(() => <main>Home</main>);",
     ].join("\n")
   );

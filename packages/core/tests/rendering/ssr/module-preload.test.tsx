@@ -51,8 +51,8 @@ function createCanvasRoute(
       </html>
     ));
   const rootRoute = adaptDefinedLayout(rootTerminal, undefined);
-  const terminal = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "ssr" })
     .head(() => head ?? {})
     .page(() => {
       if (preloadScene) {

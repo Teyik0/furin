@@ -41,8 +41,8 @@ const rootTerminal = defineRootRoute()
 
 /** Mounts `/ssg-page` as an SSG page whose loader is `loader`. */
 function mountSsgPage(loader: () => unknown, pageCache: PageCacheAdapter) {
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssg" })
+  const route = defineRoute("/")
+    .config({ mode: "ssg" })
     .loader(loader as () => { timestamp: number })
     .page(({ timestamp }) => createElement("main", null, String(timestamp)));
   return mountProductionApp({

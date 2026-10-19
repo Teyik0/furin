@@ -1,8 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
 import { home } from "../shared.ts";
-import { route as rootRoute } from "./_route";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/")
+  .config({ mode: "ssg" })
   .loader(async ({ root }) => ({ home, root: await root }))
   .page(({ home: homeValue }) => String(homeValue));

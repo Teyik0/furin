@@ -49,12 +49,12 @@ function withLoaderPage(
   head: ((context: never) => HeadOptions) | undefined,
   layoutLoader: TestLoader | undefined
 ): ProductionPage {
-  const layout = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const layout = defineRoute("/layout/_route")
+    .config({ mode: "ssr" })
     .loader((layoutLoader ?? defaultLayoutLoader) as never)
     .layout(({ children }) => children);
-  const loaded = defineRoute()
-    .config({ layout, mode: "ssr" })
+  const loaded = defineRoute("/loaded")
+    .config({ mode: "ssr" })
     .loader((pageLoader ?? (async () => ({ pageData: "from-page" }))) as never);
   return {
     layout: { route: layout, segment: "with-loader-layout" },
@@ -66,8 +66,8 @@ function withLoaderPage(
 function deferPage(loader: TestLoader): ProductionPage {
   return {
     pattern: "/defer-page",
-    route: defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    route: defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(loader as never)
       .page(() => null),
   };
@@ -76,8 +76,8 @@ function deferPage(loader: TestLoader): ProductionPage {
 function numberPage(loader: TestLoader): ProductionPage {
   return {
     pattern: "/number/:id",
-    route: defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.Number() }) })
+    route: defineRoute("/")
+      .config({ mode: "ssr", params: t.Object({ id: t.Number() }) })
       .loader(loader as never)
       .page(() => null),
   };
@@ -87,9 +87,8 @@ function basePages(): ProductionPage[] {
   return [
     {
       pattern: "/query-default",
-      route: defineRoute()
+      route: defineRoute("/")
         .config({
-          layout: rootTerminal,
           mode: "ssr",
           query: t.Object({
             city: t.Optional(t.String({ default: "Paris" })),
@@ -99,9 +98,8 @@ function basePages(): ProductionPage[] {
     },
     {
       pattern: "/query-types",
-      route: defineRoute()
+      route: defineRoute("/")
         .config({
-          layout: rootTerminal,
           mode: "ssr",
           query: t.Object({
             active: t.Boolean(),
@@ -122,29 +120,29 @@ function basePages(): ProductionPage[] {
     ),
     {
       pattern: "/ssr-page",
-      route: defineRoute()
-        .config({ layout: rootTerminal, mode: "ssr" })
+      route: defineRoute("/")
+        .config({ mode: "ssr" })
         .page(() => null),
     },
     {
       pattern: "/dynamic/:id",
-      route: defineRoute()
-        .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ id: t.String() }) })
+      route: defineRoute("/")
+        .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
         .loader(() => ({ pageData: "from-dynamic" }))
         .page(() => null),
     },
     numberPage(({ params }: { params: { id: number } }) => ({ paramsFromLoader: params })),
     {
       pattern: "/dynamic/specific",
-      route: defineRoute()
-        .config({ layout: rootTerminal, mode: "ssr" })
+      route: defineRoute("/")
+        .config({ mode: "ssr" })
         .loader(() => ({ pageData: "from-static-specific" }))
         .page(() => null),
     },
     {
       pattern: "/account",
-      route: defineRoute()
-        .config({ layout: rootTerminal, mode: "ssr" })
+      route: defineRoute("/")
+        .config({ mode: "ssr" })
         .loader(({ redirect }) => {
           throw redirect("?tab=billing");
         })
@@ -152,8 +150,8 @@ function basePages(): ProductionPage[] {
     },
     {
       pattern: "/dynamic-defer/:slug",
-      route: defineRoute()
-        .config({ layout: rootTerminal, mode: "ssr", params: t.Object({ slug: t.String() }) })
+      route: defineRoute("/")
+        .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })
         .loader(({ params }) =>
           defer({
             post: Promise.resolve({ title: `Post for ${params.slug}` }),
@@ -340,8 +338,8 @@ describe("SPA navigation data (?_furin=data)", () => {
           createElement("body", null, children, createElement(Scripts))
         )
       );
-    const routeDefinition = defineRoute()
-      .config({ layout: documentRoot, mode: "isr", revalidate: 60 })
+    const routeDefinition = defineRoute("/route-definition")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
       .loader(() => ({ catalog: "Shoes" }))
       .page(() => null);
@@ -368,8 +366,8 @@ describe("SPA navigation data (?_furin=data)", () => {
   });
 
   test("forwards request headers to loaders reading request.headers", async () => {
-    const routeDefinition = defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    const routeDefinition = defineRoute("/route-definition")
+      .config({ mode: "ssr" })
       .loader(({ request }) => ({
         authHeader: request.headers.get("authorization"),
         cookieHeader: request.headers.get("cookie"),

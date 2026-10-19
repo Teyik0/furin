@@ -16,8 +16,7 @@ test("static export copies linked public directories without writing through the
     symlinkSync(external, join(app.path, "public/static"), "dir");
     writeAppFile(app.path, "src/pages/static.tsx", [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssg" }).page(() => <main>Static rendered</main>);',
+      'export const route = defineRoute("/static").config({ mode: "ssg" }).page(() => <main>Static rendered</main>);',
     ].join("\n"));
     await withBuildStub(() => buildApp({ rootDir: app.path, target: "static" }));
     expect(readFileSync(join(external, "index.html"), "utf8")).toBe("external-original");

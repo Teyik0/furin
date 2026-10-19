@@ -60,24 +60,21 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Home</main>);",
     ].join("\n")
   );
 
-  const schemaRouteSource = (viewExpression: string): string =>
+  const schemaRouteSource = (id: string, viewExpression: string): string =>
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       'import { schemaView } from "../schema-view";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
+      `export const route = defineRoute("${id}")`,
       "  .config({",
-      "    layout: rootRoute,",
       '    mode: "ssr",',
       `    query: t.Object({ view: t.Literal(${viewExpression}) }),`,
       "  })",
@@ -86,8 +83,12 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
     ].join("\n");
 
   writeAppFile(app.path, "src/schema-view.ts", 'export const schemaView = "before" as const;');
-  writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("schemaView"));
-  writeAppFile(app.path, "src/pages/schema-dependency.tsx", schemaRouteSource("schemaView"));
+  writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("/schema", "schemaView"));
+  writeAppFile(
+    app.path,
+    "src/pages/schema-dependency.tsx",
+    schemaRouteSource("/schema-dependency", "schemaView")
+  );
 
   beforeAll(async () => {
     port = await getFreePort();
@@ -141,10 +142,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       "src/pages/about.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/about")',
+        '  .config({ mode: "ssg" })',
         '  .loader(() => ({ title: "About page" }))',
         '  .page(({ title }) => <main data-about="v1">{title}</main>);',
       ].join("\n")
@@ -244,11 +244,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
+        'export const route = defineRoute("/items/[id]")',
         "  .config({",
-        "    layout: rootRoute,",
         '    mode: "ssr",',
         "    params: t.Object({ id: t.Number() }),",
         "    query: t.Object({ page: t.Optional(t.Number({ default: 7 })) }),",
@@ -305,7 +303,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       expect(await initialResponse.text()).toContain('data-schema="before"');
 
       if (page === "schema") {
-        writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource('"after"'));
+        writeAppFile(app.path, "src/pages/schema.tsx", schemaRouteSource("/schema", '"after"'));
       } else {
         writeAppFile(app.path, "src/schema-view.ts", 'export const schemaView = "after" as const;');
       }
@@ -384,8 +382,7 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       "src/pages/private-isr.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        'export const route = defineRoute().config({ layout: rootRoute, mode: "isr", revalidate: 60 }).page(() => <main>Private ISR</main>);',
+        'export const route = defineRoute("/private-isr").config({ mode: "isr", revalidate: 60 }).page(() => <main>Private ISR</main>);',
       ].join("\n")
     );
 
@@ -438,10 +435,9 @@ describe.serial("dev route topology — hot add/remove of route files", () => {
       );
       expect(scaffolded, `${server.getStdout()}\n${server.getStderr()}`).toBe(true);
       expect(readFileSync(starterPath, "utf8")).toBe(`import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/starter")
+  .config({ mode: "ssg" })
   .page(() => null);
 `);
       const served = await pollUntil(
@@ -513,10 +509,9 @@ describe.serial("dev route topology — hot-added routes under a hooked parent",
       "src/pages/added.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/added")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <main data-added>added</main>);",
       ].join("\n")
     );

@@ -6,46 +6,40 @@ import type { RouteLoaderData } from "../../src/furin.ts";
 declare const defineRoute: typeof import("../../src/furin.ts").defineRoute;
 declare const defineRootRoute: typeof import("../../src/furin.ts").defineRootRoute;
 
-const createRootRoute = () =>
-  defineRootRoute()
-    .config({ mode: "ssr" })
-    .layout(({ children }) => children);
-
 const createSsrWithRevalidate = () =>
-  defineRoute()
+  defineRoute("/")
     .config(
       // @ts-expect-error — revalidate is only valid when mode is "isr".
-      { layout: createRootRoute(), mode: "ssr", revalidate: 60 }
+      { mode: "ssr", revalidate: 60 }
     )
     .page(() => null);
 
 const createSsgWithRevalidate = () =>
-  defineRoute()
+  defineRoute("/")
     .config(
       // @ts-expect-error — revalidate is only valid when mode is "isr".
-      { layout: createRootRoute(), mode: "ssg", revalidate: 60 }
+      { mode: "ssg", revalidate: 60 }
     )
     .page(() => null);
 
 const createSsrWithStaticParams = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssr" })
+  defineRoute("/")
+    .config({ mode: "ssr" })
     // @ts-expect-error — staticParams is unavailable for SSR routes.
     .staticParams(() => [{}])
     .page(() => null);
 
 const createIsrWithoutRevalidate = () =>
-  defineRoute()
+  defineRoute("/")
     .config(
       // @ts-expect-error — ISR requires an explicit revalidation interval.
-      { layout: createRootRoute(), mode: "isr" }
+      { mode: "isr" }
     )
     .page(() => null);
 
 const createIsrWithStaticParams = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: createRootRoute(),
       mode: "isr",
       revalidate: 60,
     })
@@ -53,9 +47,8 @@ const createIsrWithStaticParams = () =>
     .page(() => null);
 
 const createLegacyConfigStaticParams = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: createRootRoute(),
       mode: "isr",
       revalidate: 60,
       // @ts-expect-error — staticParams is a builder stage, not route config.
@@ -64,24 +57,24 @@ const createLegacyConfigStaticParams = () =>
     .page(() => null);
 
 const createStaticParamsAfterLoader = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssg" })
+  defineRoute("/")
+    .config({ mode: "ssg" })
     .loader(() => ({ ready: true }))
     // @ts-expect-error — staticParams must run before loader.
     .staticParams(() => [{}])
     .page(() => null);
 
 const createStaticParamsAfterRequestLoader = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssg" })
+  defineRoute("/")
+    .config({ mode: "ssg" })
     .requestLoader(() => ({ session: true }))
     // @ts-expect-error — staticParams must run before requestLoader.
     .staticParams(() => [{}])
     .page(() => null);
 
 const createSsrLoaderWithRequest = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssr" })
+  defineRoute("/")
+    .config({ mode: "ssr" })
     .loader(({ request, cookie, headers, set }) => ({
       cookie,
       headers,
@@ -91,8 +84,8 @@ const createSsrLoaderWithRequest = () =>
     .page(() => null);
 
 const createIsrLoaderWithPublicContext = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "isr", revalidate: 60 })
+  defineRoute("/")
+    .config({ mode: "isr", revalidate: 60 })
     .loader((context) => {
       // @ts-expect-error request-specific values cannot enter a shared cache.
       context.request;
@@ -107,8 +100,8 @@ const createIsrLoaderWithPublicContext = () =>
     .page(() => null);
 
 const createSsgLoaderWithPublicContext = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssg" })
+  defineRoute("/")
+    .config({ mode: "ssg" })
     .loader((context) => {
       // @ts-expect-error request-specific values cannot enter a shared cache.
       context.request;
@@ -117,22 +110,22 @@ const createSsgLoaderWithPublicContext = () =>
     .page(() => null);
 
 const createSsrPageWithOwnRequestLoader = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssr" })
+  defineRoute("/")
+    .config({ mode: "ssr" })
     .requestLoader(() => ({ user: "private" }))
     // @ts-expect-error SSR pages use loader() and defer() instead.
     .page(() => null);
 
 const createSsrPageWithEmptyRequestLoader = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssr" })
+  defineRoute("/")
+    .config({ mode: "ssr" })
     .requestLoader(() => ({}))
     // @ts-expect-error even a requestLoader with no fields is unavailable on SSR pages.
     .page(() => null);
 
 const createSsrRequestLoaderChain = () =>
-  defineRoute()
-    .config({ layout: createRootRoute(), mode: "ssr" })
+  defineRoute("/_route")
+    .config({ mode: "ssr" })
     .requestLoader(() => ({ user: "private" }));
 
 const createSsrLayoutWithRequestLoader = () =>
@@ -141,13 +134,114 @@ const createSsrLayoutWithRequestLoader = () =>
     .requestLoader(() => ({ user: "private" }))
     .layout(({ children }) => children);
 
-const createPublicChildOfSsrLayout = () => {
-  const root = defineRootRoute()
+// Layouts of the parent-data tests below, wired through FileRoutes as
+// furin-env.d.ts would wire them from the pages tree.
+const createSsrSessionRoot = () =>
+  defineRootRoute()
     .config({ mode: "ssr" })
     .loader(({ request }) => ({ session: request.headers.get("cookie") }))
     .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout: root, mode: "isr", revalidate: 60 })
+declare const ssrSessionRoot: ReturnType<typeof createSsrSessionRoot>;
+
+const createWidenedModeRoot = () => {
+  const mode = Math.random() > 0.5 ? ("ssr" as const) : ("ssg" as const);
+  return defineRootRoute()
+    .config({ mode })
+    .loader(() => ({ session: "private" }))
+    .layout(({ children }) => children);
+};
+declare const widenedModeRoot: ReturnType<typeof createWidenedModeRoot>;
+
+const createSiteRoot = () =>
+  defineRootRoute()
+    .config({ mode: "ssg" })
+    .loader(() => ({ siteName: "Furin" }))
+    .layout(({ children }) => children);
+declare const siteRoot: ReturnType<typeof createSiteRoot>;
+const createSessionLayout = () =>
+  defineRoute("/mode/session/_route")
+    .config({ mode: "ssr" })
+    .loader(({ request }) => ({ session: request.headers.get("cookie") }))
+    .layout(({ children }) => children);
+declare const sessionLayout: ReturnType<typeof createSessionLayout>;
+
+const createPrivateTitleRoot = () =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .loader(() => ({ title: "private" as string }))
+    .layout(({ children }) => children);
+declare const privateTitleRoot: ReturnType<typeof createPrivateTitleRoot>;
+const createPublicTitleLayout = () =>
+  defineRoute("/mode/public-title/_route")
+    .config({ mode: "isr", revalidate: 60 })
+    .loader(() => ({ title: "public" as string }))
+    .layout(({ children, title }) => {
+      expectTypeOf(title).toEqualTypeOf<string>();
+      return children;
+    });
+declare const publicTitleLayout: ReturnType<typeof createPublicTitleLayout>;
+
+const createPublicTitleRoot = () =>
+  defineRootRoute()
+    .config({ mode: "ssg" })
+    .loader(() => ({ title: "public" as string }))
+    .layout(({ children }) => children);
+declare const publicTitleRoot: ReturnType<typeof createPublicTitleRoot>;
+const createPrivateTitleLayout = () =>
+  defineRoute("/mode/private-title/_route")
+    .config({ mode: "ssr" })
+    .loader(() => ({ title: 42 }))
+    .layout(({ children }) => children);
+declare const privateTitleLayout: ReturnType<typeof createPrivateTitleLayout>;
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/mode/private-title/_route": {
+      kind: "layout";
+      parent: typeof publicTitleRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/private-title/child": {
+      kind: "page";
+      parent: typeof privateTitleLayout;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/public-title/_route": {
+      kind: "layout";
+      parent: typeof privateTitleRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/public-title/child": {
+      kind: "page";
+      parent: typeof publicTitleLayout;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/session/_route": {
+      kind: "layout";
+      parent: typeof siteRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/session/child": {
+      kind: "page";
+      parent: typeof sessionLayout;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/ssr-layout-child": {
+      kind: "page";
+      parent: typeof ssrSessionRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/mode/widened-layout-child": {
+      kind: "page";
+      parent: typeof widenedModeRoot;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
+const createPublicChildOfSsrLayout = () =>
+  defineRoute("/mode/ssr-layout-child")
+    .config({ mode: "isr", revalidate: 60 })
     .staticParams((context) => {
       // @ts-expect-error request-scoped parent data cannot generate static paths.
       context.session;
@@ -168,35 +262,20 @@ const createPublicChildOfSsrLayout = () => {
       expectTypeOf(catalog).toEqualTypeOf<string>();
       return null;
     });
-};
 
-const createPublicChildOfWidenedLayoutMode = () => {
-  const mode = Math.random() > 0.5 ? ("ssr" as const) : ("ssg" as const);
-  const root = defineRootRoute()
-    .config({ mode })
-    .loader(() => ({ session: "private" }))
-    .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout: root, mode: "isr", revalidate: 60 })
+const createPublicChildOfWidenedLayoutMode = () =>
+  defineRoute("/mode/widened-layout-child")
+    .config({ mode: "isr", revalidate: 60 })
     .loader((context) => {
       // @ts-expect-error the parent could render in SSR and expose private data.
       context.session;
       return { catalog: "Coffee" };
     })
     .page(() => null);
-};
 
-const createPublicDataAcrossSsrLayout = () => {
-  const root = defineRootRoute()
-    .config({ mode: "ssg" })
-    .loader(() => ({ siteName: "Furin" }))
-    .layout(({ children }) => children);
-  const privateLayout = defineRoute()
-    .config({ layout: root, mode: "ssr" })
-    .loader(({ request }) => ({ session: request.headers.get("cookie") }))
-    .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout: privateLayout, mode: "isr", revalidate: 60 })
+const createPublicDataAcrossSsrLayout = () =>
+  defineRoute("/mode/session/child")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(async ({ siteName, ...context }) => {
       expectTypeOf(siteName).toEqualTypeOf<Promise<string>>();
       // @ts-expect-error the SSR segment's own result cannot enter public work.
@@ -209,47 +288,25 @@ const createPublicDataAcrossSsrLayout = () => {
       expectTypeOf(title).toEqualTypeOf<string>();
       return null;
     });
-};
 
-const createPublicOverrideOfSsrField = () => {
-  const root = defineRootRoute()
-    .config({ mode: "ssr" })
-    .loader(() => ({ title: "private" as string }))
-    .layout(({ children }) => children);
-  const publicLayout = defineRoute()
-    .config({ layout: root, mode: "isr", revalidate: 60 })
-    .loader(() => ({ title: "public" as string }))
-    .layout(({ children, title }) => {
-      expectTypeOf(title).toEqualTypeOf<string>();
-      return children;
-    });
-  return defineRoute()
-    .config({ layout: publicLayout, mode: "isr", revalidate: 60 })
+const createPublicOverrideOfSsrField = () =>
+  defineRoute("/mode/public-title/child")
+    .config({ mode: "isr", revalidate: 60 })
     .loader(({ title }) => {
       expectTypeOf(title).toEqualTypeOf<Promise<string>>();
       return {};
     })
     .page(() => null);
-};
 
-const createPrivateOverrideOfPublicField = () => {
-  const root = defineRootRoute()
-    .config({ mode: "ssg" })
-    .loader(() => ({ title: "public" as string }))
-    .layout(({ children }) => children);
-  const privateLayout = defineRoute()
-    .config({ layout: root, mode: "ssr" })
-    .loader(() => ({ title: 42 }))
-    .layout(({ children }) => children);
-  return defineRoute()
-    .config({ layout: privateLayout, mode: "isr", revalidate: 60 })
+const createPrivateOverrideOfPublicField = () =>
+  defineRoute("/mode/private-title/child")
+    .config({ mode: "isr", revalidate: 60 })
     .loader((context) => {
       // @ts-expect-error an override from an SSR loader remains private.
       context.title;
       return {};
     })
     .page(() => null);
-};
 
 describe("defineRoute rendering mode config", () => {
   test("rejects revalidate outside ISR", () => {

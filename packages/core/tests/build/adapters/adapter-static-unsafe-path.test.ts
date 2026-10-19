@@ -16,10 +16,9 @@ test("buildStaticTarget rejects all unsafe output paths before writing the expor
     app.path,
     "src/pages/[...slug].tsx",
     `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/[...slug]")
+  .config({ mode: "ssg" })
   .staticParams(async () => [{ "*": "../../etc/passwd" }])
   .page(() => null);
 `

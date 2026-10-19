@@ -73,8 +73,8 @@ test.each(["deferred", "request"] as const)(
       </html>
     ));
     const root = { path: "/root.tsx", route: adaptDefinedLayout(definition, undefined) };
-    const pageDefinition = defineRoute()
-      .config({ layout: definition, mode: "ssr" })
+    const pageDefinition = defineRoute("/page-definition")
+      .config({ mode: "ssr" })
       .loader(() => notFound(undefined))
       .page(() => <p>Resource</p>);
     const page = adaptDefinedPage(pageDefinition, root.route);
@@ -111,37 +111,53 @@ test.each(["deferred", "request"] as const)(
   }
 );
 
+const dashboardRoot = defineRootRoute()
+  .config({ mode: "ssr" })
+  .loader(() => ({ dashboard: { settings: { theme: "forest" } } }))
+  .layout(({ children, dashboard }) => (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body data-theme={dashboard.settings.theme}>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  ));
+const libraryLayout = defineRoute("/transport/library/_route")
+  .config({ mode: "ssr" })
+  .loader(async ({ dashboard }) => ({
+    dashboard: { ...(await dashboard), settings: { theme: "ocean" } },
+    section: "Library",
+  }))
+  .layout(({ children, dashboard, section }) => (
+    <section data-theme={dashboard.settings.theme}>
+      <h1>{section}</h1>
+      {children}
+    </section>
+  ));
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/transport/library/_route": {
+      kind: "layout";
+      parent: typeof dashboardRoot;
+      pathParams: NonNullable<unknown>;
+    };
+    "/transport/library/missing": {
+      kind: "page";
+      parent: typeof libraryLayout;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 test.each([404, 503])(
   "failed pages preserve each successful layout's own loader scope (%s)",
   async (status) => {
-    const rootDefinition = defineRootRoute()
+    const definition = defineRoute("/transport/library/missing")
       .config({ mode: "ssr" })
-      .loader(() => ({ dashboard: { settings: { theme: "forest" } } }))
-      .layout(({ children, dashboard }) => (
-        <html lang="en">
-          <head>
-            <HeadContent />
-          </head>
-          <body data-theme={dashboard.settings.theme}>
-            {children}
-            <Scripts />
-          </body>
-        </html>
-      ));
-    const nestedDefinition = defineRoute()
-      .config({ layout: rootDefinition, mode: "ssr" })
-      .loader(async ({ dashboard }) => ({
-        dashboard: { ...(await dashboard), settings: { theme: "ocean" } },
-        section: "Library",
-      }))
-      .layout(({ children, dashboard, section }) => (
-        <section data-theme={dashboard.settings.theme}>
-          <h1>{section}</h1>
-          {children}
-        </section>
-      ));
-    const definition = defineRoute()
-      .config({ layout: nestedDefinition, mode: "ssr" })
       .loader(async ({ dashboard }) => {
         expect((await dashboard).settings.theme).toBe("ocean");
         if (status === 404) {
@@ -158,14 +174,14 @@ test.each([404, 503])(
           layout: {
             error: () => <p>Library unavailable</p>,
             notFound: ({ error }: NotFoundProps) => <p>Library: {error.message}</p>,
-            route: nestedDefinition,
+            route: libraryLayout,
             segment: "library",
           },
           pattern: "/missing",
           route: definition,
         },
       ],
-      root: rootDefinition,
+      root: dashboardRoot,
     });
     const response = await app.handle(new Request("http://localhost/missing"));
 
@@ -199,8 +215,8 @@ test("buffered not-found documents carry the same status and payload as navigati
         </body>
       </html>
     ));
-  const definition = defineRoute()
-    .config({ layout, mode: "ssg" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssg" })
     .loader(() => notFound({ message: "Missing", data: { slug: "gone" } }))
     .page(() => <main>Page</main>);
   const root = { path: "/root.tsx", route: adaptDefinedLayout(layout, undefined) };
@@ -251,8 +267,8 @@ test("SSR hydration preserves rich loader values and escapes document delimiters
     ));
   const cycle: { self?: object } = {};
   cycle.self = cycle;
-  const definition = defineRoute()
-    .config({ layout, mode: "ssr" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssr" })
     .loader(() => ({
       date: new Date("2026-01-01"),
       big: 123n,
@@ -303,8 +319,8 @@ test("SSR document framing preserves raw script and comment closing-tag literals
         </body>
       </html>
     ));
-  const definition = defineRoute()
-    .config({ layout, mode: "ssr" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssr" })
     .loader(() => ({ rich: new Date("2026-01-01") }))
     .page(() => <main>Ready</main>);
   const { app } = await mountProductionApp({
@@ -339,8 +355,8 @@ test("SSR query seeds preserve opaque variants without exposing credentials or a
         </body>
       </html>
     ));
-  const definition = defineRoute()
-    .config({ layout, mode: "ssr" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssr" })
     .loader(async () => ({
       person: (
         await api.person.get({

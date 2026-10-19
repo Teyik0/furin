@@ -7,7 +7,13 @@ import { routeModuleSpecifier } from "../../../src/plugin/route-tree.ts";
 import { createMemoryPageCache } from "../../../src/server/cache/page-cache.ts";
 import type { CompileContext } from "../../../src/server/internal";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
-import { createTmpApp, removeAppPath, type TmpApp, writeAppFile } from "../../support/app-fixtures";
+import {
+  createTmpApp,
+  keyPagesForPrefix,
+  removeAppPath,
+  type TmpApp,
+  writeAppFile,
+} from "../../support/app-fixtures";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
 import { getFreePort } from "../../support/hmr.ts";
 import { waitForHttp } from "../../support/http";
@@ -36,9 +42,8 @@ const tmpApps: TmpApp[] = [];
 const ROOT_CATCH_ALL_PAGE = [
   'import { defineRoute, notFound } from "@teyik0/furin";',
   'import { t } from "elysia";',
-  'import { route as rootRoute } from "./root";',
-  "export const route = defineRoute()",
-  '  .config({ layout: rootRoute, mode: "ssr", params: t.Object({ "*": t.String() }) })',
+  'export const route = defineRoute("/[...rest]")',
+  '  .config({ mode: "ssr", params: t.Object({ "*": t.String() }) })',
   '  .loader(({ params }) => params["*"] === "missing" ? notFound({ message: "Missing page" }) : {})',
   "  .page(() => <main>Catch-all page</main>);",
 ].join("\n");
@@ -164,8 +169,7 @@ test.serial("furin() runs inherited private data in an SSR child loader", async 
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/").config({ mode: "ssr" })',
       "  .loader(async ({ session }) => ({ message: await session }))",
       "  .page(({ message }) => <main>{message}</main>);",
     ].join("\n")
@@ -355,7 +359,7 @@ test.serial("furin() scaffolds empty root and index route files into a working a
 
   expect(response.status).toBe(200);
   expect(readFileSync(rootPath, "utf8")).toContain("defineRootRoute()");
-  expect(readFileSync(indexPath, "utf8")).toContain('.config({ layout: rootRoute, mode: "ssg" })');
+  expect(readFileSync(indexPath, "utf8")).toContain('defineRoute("/")\n  .config({ mode: "ssg" })');
 });
 
 test.serial("furin() refreshes route types after a topology change", async () => {
@@ -376,9 +380,8 @@ test.serial("furin() refreshes route types after a topology change", async () =>
       "src/pages/settings.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/settings")',
+        '  .config({ mode: "ssg" })',
         "  .page(() => <main>Settings</main>);",
       ].join("\n")
     );
@@ -393,16 +396,15 @@ test.serial("a failed route import keeps its tags while healthy route types upda
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   const typesPath = join(app.path, "furin-env.d.ts");
-  const taggedRoute = (tag: string): string =>
+  const taggedRoute = (id: string, tag: string): string =>
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      `  .config({ layout: rootRoute, mode: "ssr", tags: ["${tag}"] })`,
+      `export const route = defineRoute("${id}")`,
+      `  .config({ mode: "ssr", tags: ["${tag}"] })`,
       "  .page(() => <main>Tagged</main>);",
     ].join("\n");
-  writeAppFile(app.path, "src/pages/fragile.tsx", taggedRoute("fragile"));
-  writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("before"));
+  writeAppFile(app.path, "src/pages/fragile.tsx", taggedRoute("/fragile", "fragile"));
+  writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("/healthy", "before"));
   __setDevMode(true);
   process.chdir(app.path);
 
@@ -414,14 +416,14 @@ test.serial("a failed route import keeps its tags while healthy route types upda
     });
     await waitForFileContent(typesPath, "fragile: 'fragile';");
     writeAppFile(app.path, "src/pages/fragile.tsx", 'throw new Error("broken route");');
-    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("after"));
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("/healthy", "after"));
 
     await waitForFileContent(typesPath, "after: 'after';");
     const generated = readFileSync(typesPath, "utf8");
     expect(generated).toContain("fragile: 'fragile';");
     expect(generated).not.toContain("before: 'before';");
 
-    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("latest"));
+    writeAppFile(app.path, "src/pages/healthy.tsx", taggedRoute("/healthy", "latest"));
     await waitForFileContent(typesPath, "latest: 'latest';");
     expect(readFileSync(typesPath, "utf8")).toContain("fragile: 'fragile';");
   } finally {
@@ -438,12 +440,11 @@ test.serial("furin() serves data requests from the watcher-managed route snapsho
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       `const importCountKey = ${JSON.stringify(importCountKey)};`,
       "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
       "testGlobal[importCountKey] = Number(testGlobal[importCountKey] ?? 0) + 1;",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssr" })',
       "  .loader(() => ({ title: 'Snapshot route' }))",
       "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
@@ -478,11 +479,10 @@ test.serial(
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "./root";',
         `const loaderRunsKey = ${JSON.stringify(loaderRunsKey)};`,
         "const testGlobal = globalThis as typeof globalThis & { [key: string]: unknown };",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ page: t.Number() }) })',
+        'export const route = defineRoute("/secret")',
+        '  .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })',
         "  .loader(({ path, query, redirect }) => {",
         "    testGlobal[loaderRunsKey] = Number(testGlobal[loaderRunsKey] ?? 0) + 1;",
         '    if (query.page === 3) throw redirect("/admin/login", 302);',
@@ -496,12 +496,12 @@ test.serial(
       "src/pages/login.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/login")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <main>Login</main>);",
       ].join("\n")
     );
+    keyPagesForPrefix(app.path, "src/pages", "/admin");
     __setDevMode(true);
     process.chdir(app.path);
 
@@ -560,6 +560,7 @@ test.serial(
 test.serial("page authorization leaves public assets accessible", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   writeAppFile(app.path, "public/logo.txt", "logo");
+  keyPagesForPrefix(app.path, "src/pages", "/admin");
   __setDevMode(true);
   process.chdir(app.path);
 
@@ -640,9 +641,8 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssr" })',
       "  .loader(() => ({ title: 'Last known good' }))",
       "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
@@ -691,7 +691,7 @@ test.serial("furin() preserves route data while an edited route is invalid", asy
   }
 });
 
-test.serial("furin() reports a removed route layout without rewriting the file", async () => {
+test.serial("furin() reports a removed route id without rewriting the file", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   const routePath = join(pagesDir, "index.tsx");
@@ -705,13 +705,13 @@ test.serial("furin() reports a removed route layout without rewriting the file",
   });
   const errorSpy = spyOn(console, "error").mockImplementation(() => undefined);
   try {
-    const source = readFileSync(routePath, "utf8").replace("layout: rootRoute, ", "");
+    const source = readFileSync(routePath, "utf8").replace('defineRoute("/")', "defineRoute()");
     writeAppFile(app.path, "src/pages/index.tsx", source);
 
     const deadline = Date.now() + 3000;
     while (
       !errorSpy.mock.calls.some(([message]) =>
-        String(message).includes("config() must declare layout")
+        String(message).includes("defineRoute() must name this file")
       )
     ) {
       if (Date.now() >= deadline) {
@@ -727,31 +727,6 @@ test.serial("furin() reports a removed route layout without rewriting the file",
   }
 });
 
-test.serial("furin() boots with a computed layout reference and leaves it untouched", async () => {
-  const app = rememberTmpApp(createTmpApp("cli-app"));
-  const pagesDir = join(app.path, "src/pages");
-  writeAppFile(
-    app.path,
-    "src/pages/index.tsx",
-    [
-      'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "const selectLayout = () => rootRoute;",
-      "export const route = defineRoute()",
-      '  .config({ layout: selectLayout(), mode: "ssg" })',
-      "  .page(() => <main>Index</main>);",
-    ].join("\n")
-  );
-  __setDevMode(true);
-  process.chdir(app.path);
-
-  const source = readFileSync(join(pagesDir, "index.tsx"), "utf8");
-
-  await furin({ pagesDir });
-
-  expect(readFileSync(join(pagesDir, "index.tsx"), "utf8")).toBe(source);
-});
-
 test.serial("furin() registers native routes in dev without replacing SSR responses", async () => {
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
@@ -760,9 +735,8 @@ test.serial("furin() registers native routes in dev without replacing SSR respon
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssr" })',
       "  .loader(() => ({ title: 'Native route' }))",
       "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
@@ -817,6 +791,7 @@ test.serial("furin() keeps a prefixed catch-all page behind a mounted handler", 
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   writeAppFile(app.path, "src/pages/[...rest].tsx", ROOT_CATCH_ALL_PAGE);
+  keyPagesForPrefix(app.path, "src/pages", "/site");
   __setDevMode(true);
   process.chdir(app.path);
 
@@ -918,9 +893,8 @@ test.serial(
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
-        "export const route = defineRoute()",
-        `  .config({ layout: rootRoute, ${version === "before" ? 'mode: "ssr"' : 'mode: "isr", revalidate: 60'},`,
+        'export const route = defineRoute("/items/[id]")',
+        `  .config({ ${version === "before" ? 'mode: "ssr"' : 'mode: "isr", revalidate: 60'},`,
         `    params: t.Object({ id: t.${version === "before" ? "Number" : "String"}() }),`,
         `    query: t.Object({ page: t.${version === "before" ? "Number" : "String"}() }) })`,
         `  .loader(({ params, query }) => ({ summary: "${version}:" + typeof params.id + ":" + typeof query.page, id: params.id }))`,
@@ -993,9 +967,8 @@ test.serial(
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as rootRoute } from "../root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr", query: t.Object({ locale: t.String() }) })',
+        'export const route = defineRoute("/boards/_route")',
+        '  .config({ mode: "ssr", query: t.Object({ locale: t.String() }) })',
         "  .loader(() => ({ organization: 'Furin' }))",
         "  .layout(({ children }) => <section>{children}</section>);",
       ].join("\n")
@@ -1006,9 +979,8 @@ test.serial(
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { t } from "elysia";',
-        'import { route as parentRoute } from "./_route";',
-        "export const route = defineRoute()",
-        '  .config({ layout: parentRoute, mode: "ssr", params: t.Object({ id: t.Number() }) })',
+        'export const route = defineRoute("/boards/[id]")',
+        '  .config({ mode: "ssr", params: t.Object({ id: t.Number() }) })',
         "  .loader(async (context) => {",
         "    const parent = context as typeof context & { organization: Promise<string> | string; query: { locale: string } };",
         // biome-ignore lint/suspicious/noTemplateCurlyInString: source fixture contains a template literal
@@ -1038,9 +1010,8 @@ test.serial("native routes preserve deferred renderer streaming", async () => {
     "src/pages/index.tsx",
     [
       'import { defer, defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "ssr" })',
       "  .loader(() => defer({ slow: Promise.resolve('later'), title: 'Native deferred' }))",
       "  .page(({ title }) => <main>{title}</main>);",
     ].join("\n")
@@ -1094,6 +1065,7 @@ test.serial("furin() dev serves public files and 404s under a prefix", async () 
   const app = rememberTmpApp(createTmpApp("cli-app"));
   const pagesDir = join(app.path, "src/pages");
   writeAppFile(app.path, "public/health.txt", "admin-public-health");
+  keyPagesForPrefix(app.path, "src/pages", "/admin");
   __setDevMode(true);
   process.chdir(app.path);
 
@@ -1186,9 +1158,8 @@ test.serial(
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .loader(() => ({ title: 'Compiled native' }))",
         "  .page(({ title }) => <main>{title}</main>);",
       ].join("\n")
@@ -1356,7 +1327,7 @@ test.serial("furin() rejects dev pages without a root layout", async () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "furin";',
-      "export const route = defineRoute().config({ mode: 'ssg' })",
+      "export const route = defineRoute(\"/\").config({ mode: 'ssg' })",
       "  .page(() => <main>No root</main>);",
     ].join("\n")
   );
@@ -1366,7 +1337,7 @@ test.serial("furin() rejects dev pages without a root layout", async () => {
     [
       'import { defineRoute } from "furin";',
       'import { t } from "elysia";',
-      "export const route = defineRoute().config({ mode: 'ssg',",
+      "export const route = defineRoute(\"/blog/[slug]\").config({ mode: 'ssg',",
       "  params: t.Object({ slug: t.String() }),",
       "}).staticParams(() => [{ slug: 'hello-world' }])",
       "  .page(() => <article>No root blog</article>);",

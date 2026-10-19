@@ -24,13 +24,12 @@ function createOriginApp(): TmpApp {
     "src/pages/blog/[slug].tsx",
     `import { defineRoute } from "@teyik0/furin";
 import { t } from "elysia";
-import { route as rootRoute } from "../root";
 
 const origin = import.meta.url.includes("/.furin/build/") ? "bundle" : "source";
 const phase = process.env.FURIN_TEST_PHASE ?? "unset";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg", params: t.Object({ slug: t.String() }) })
+export const route = defineRoute("/blog/[slug]")
+  .config({ mode: "ssg", params: t.Object({ slug: t.String() }) })
   .staticParams(() => [{ slug: "hello-world" }])
   .page(() => <article>rendered-from-{origin} during-{phase}</article>);
 `
@@ -90,10 +89,9 @@ test("static exports render pages in production mode", async () => {
     app.path,
     "src/pages/env.tsx",
     `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/env")
+  .config({ mode: "ssg" })
   .page(() => <main>node-env-{process.env.NODE_ENV}</main>);
 `
   );
@@ -111,10 +109,9 @@ test("static exports never render pages in the build process", async () => {
     app.path,
     "src/pages/global.tsx",
     `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssg" })
+export const route = defineRoute("/global")
+  .config({ mode: "ssg" })
   .page(() => {
     (globalThis as { __furinStaticRendered?: boolean }).__furinStaticRendered = true;
     return <main>global</main>;

@@ -31,7 +31,7 @@ import { db } from "./db";
 
 const loadPosts = () => db.posts();
 
-export const route = defineRoute()
+export const route = defineRoute("/")
   .loader(loadPosts)
   .page(() => null);
 `;
@@ -59,7 +59,7 @@ import { readSecret } from "./server-secret";
 const scene = clientModule(() => import("./scene"));
 const secret = createIsomorphicFn().server(() => readSecret()).client(() => null);
 
-export const route = defineRoute()
+export const route = defineRoute("/page")
   .loader(() => secret())
   .page(() => scene);
 `
@@ -89,7 +89,7 @@ const SPLIT_PAGE = `import { defineRoute } from "@teyik0/furin";
 import "./startup";
 import { Heavy } from "./heavy";
 
-export const route = defineRoute()
+export const route = defineRoute("/shared")
   .config({ mode: "ssr" })
   .page(() => <Heavy />);
 `;
@@ -111,7 +111,7 @@ test("client boundary discovery parses a route entry once for its view stripping
   writeFileSync(
     filename,
     `import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute().config({ mode: "ssr" }).page(() => null);
+export const route = defineRoute("/page").config({ mode: "ssr" }).page(() => null);
 `
   );
   const parse = spyOn(parser, "parseSource");

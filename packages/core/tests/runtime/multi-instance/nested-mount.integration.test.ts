@@ -45,13 +45,14 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin, isFurinPageRequest } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
-import { writeAppFile } from "./tests/support/app-fixtures.ts";
+import { keyPagesForPrefix, writeAppFile } from "./tests/support/app-fixtures.ts";
 
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
+  keyPagesForPrefix(fixture.path, "src/pages", "/outer/inner/admin");
   writeAppFile(fixture.path, "src/pages/not-found.tsx", 'export default () => <main>Nested missing</main>;');
   const app = new Elysia().onRequest(({ request }) =>
     request.headers.has("x-deny") && isFurinPageRequest(request, "/outer/inner/admin")
@@ -131,6 +132,7 @@ import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
+import { keyPagesForPrefix } from "./tests/support/app-fixtures.ts";
 
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
@@ -140,6 +142,7 @@ console.error = (...args) => failures.push(args.map(String).join(" "));
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
+  keyPagesForPrefix(fixture.path, "src/pages", "/admin");
   const app = new Elysia({ prefix: "/outer" }).use(
     new Elysia({ prefix: "/inner" }).use(
       await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" })
@@ -172,10 +175,12 @@ test("one furin() plugin cannot serve two applications", async () => {
   const proc = await runFixtureScript(
     `
 import { expect } from "bun:test";
+import { cpSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { furin } from "./src/furin.ts";
 import { __setDevMode } from "./src/server/runtime-env.ts";
+import { keyPagesForPrefix } from "./tests/support/app-fixtures.ts";
 
 const fixture = { path: process.env.FURIN_TEST_FIXTURE_PATH };
 const originalCwd = process.cwd();
@@ -186,13 +191,16 @@ const apps = [];
 try {
   process.chdir(fixture.path);
   __setDevMode(true);
+  keyPagesForPrefix(fixture.path, "src/pages", "/admin");
   const plugin = await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/admin" });
   new Elysia().use(plugin);
   expect(() => new Elysia().use(plugin)).toThrow("call furin() again");
 
   // Reusing a container that already holds the plugin shares one runtime.
+  cpSync(join(fixture.path, "src/pages"), join(fixture.path, "src/shared"), { recursive: true });
+  keyPagesForPrefix(fixture.path, "src/shared", "/shared");
   const container = new Elysia().use(
-    await furin({ pagesDir: join(fixture.path, "src/pages"), prefix: "/shared" })
+    await furin({ pagesDir: join(fixture.path, "src/shared"), prefix: "/shared" })
   );
   for (const _ of [0, 1]) {
     apps.push(new Elysia().use(container).listen({ hostname: "127.0.0.1", port: 0 }));
@@ -407,8 +415,7 @@ try {
   function addPage(name) {
     writeAppFile(fixture.path, "src/pages/" + name + ".tsx", [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/").config({ mode: "ssr" })',
       '.loader(() => ({ added: true })).page(() => <main>Added</main>);',
     ].join("\n"));
   }

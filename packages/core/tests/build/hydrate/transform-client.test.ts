@@ -8,9 +8,9 @@ import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
 
 describe("transformForClient", () => {
   test.each([
-    "defineRoute()?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
-    "(defineRoute())?.loader?.(() => 'PRIVATE_OPTIONAL_STAGE').page(() => null)",
-    "defineRoute()?.config({ remountDeps: () => ['PUBLIC_REMOUNT'], privateValue: 'PRIVATE_OPTIONAL_STAGE' })?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
+    "defineRoute(\"/\")?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
+    "(defineRoute(\"/\"))?.loader?.(() => 'PRIVATE_OPTIONAL_STAGE').page(() => null)",
+    "defineRoute(\"/\")?.config({ remountDeps: () => ['PUBLIC_REMOUNT'], privateValue: 'PRIVATE_OPTIONAL_STAGE' })?.loader(() => 'PRIVATE_OPTIONAL_STAGE')?.page(() => null)",
   ])(
     "browser builds strip optional server stages without damaging the fluent chain: %s",
     async (chain) => {
@@ -39,7 +39,7 @@ describe("transformForClient", () => {
     try {
       const entry = join(app.path, "entry.ts");
       writeAppFile(app.path, "entry.ts", 'import { route } from "./route.ts?revision=1"; console.log(route.component);');
-      writeAppFile(app.path, "route.ts", 'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute().loader(() => "PRIVATE_QUERY_SUFFIX").page(() => null);');
+      writeAppFile(app.path, "route.ts", 'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute("/").loader(() => "PRIVATE_QUERY_SUFFIX").page(() => null);');
       const versionedRoute: Bun.BunPlugin = {
         name: "versioned-route",
         setup(build) {
@@ -56,11 +56,11 @@ describe("transformForClient", () => {
   });
   test("preserves a static-block DSL whose var binding is hoisted from nested control flow", () => {
     const result = transformForClient(`import { defineRoute } from "furin";
-export const route = defineRoute().loader(() => "PRIVATE_REAL_ROUTE").page(() => null);
+export const route = defineRoute("/").loader(() => "PRIVATE_REAL_ROUTE").page(() => null);
 export class Local {
   static {
     if (globalThis.localFactory) { var defineRoute = globalThis.localFactory; }
-    globalThis.customRoute = defineRoute().loader(() => "LOCAL_STATIC_DSL").page(() => null);
+    globalThis.customRoute = defineRoute("/").loader(() => "LOCAL_STATIC_DSL").page(() => null);
   }
 }`, "route.ts");
     expect(result.code).not.toContain("PRIVATE_REAL_ROUTE");
@@ -69,7 +69,7 @@ export class Local {
 
   test.each([
     { body: "let create = defineRoute; return create().loader(() => 'PRIVATE_UNSAFE_ALIAS').page(() => null);", diagnostic: "immutable", imported: "{ defineRoute }" },
-    { body: "const create = Furin; return create.defineRoute().loader(() => 'PRIVATE_UNSAFE_ALIAS').page(() => null);", diagnostic: "named import", imported: "* as Furin" },
+    { body: "const create = Furin; return create.defineRoute(\"/\").loader(() => 'PRIVATE_UNSAFE_ALIAS').page(() => null);", diagnostic: "named import", imported: "* as Furin" },
   ])("browser builds reject unsafe factory aliases: $diagnostic", async ({ body, diagnostic, imported }) => {
     const app = createTmpApp("cli-app");
     try {
@@ -135,7 +135,7 @@ export const db = { query: (sql: string) => \`\${url}:\${sql}\` };`);
       writeAppFile(app.path, "src/pages/index.tsx", `import { defineRoute } from "@teyik0/furin";
 import { db } from "../db.server";
 const loadData = async () => ({ x: String(await db.query("secret")) });
-export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);
+export const route = defineRoute("/").loader(loadData).page(({ x }) => <div>{x}</div>);
 console.log(route.component);`);
       const build = await Bun.build({ entrypoints: [entry], target: "browser", minify: true, plugins: [furinClient, strip] });
       expect(build.success).toBe(true);
@@ -166,7 +166,7 @@ export const route = (() => {
 
   test("rejects an escaping incomplete builder before exposing downstream server code", () => {
     expect(() => transformForClient(`import { defineRoute } from "furin";
-function factory() { return defineRoute(); }
+function factory() { return defineRoute("/"); }
 export const route = factory().loader(() => "PRIVATE_ESCAPING_BUILDER").page(() => null);`, "route.ts"))
       .toThrow("one fluent chain");
   });
@@ -214,13 +214,12 @@ export const route = (() => {
   test("preserves a spread remount policy without retaining server configuration", () => {
     const result = transformForClient(
       `import { defineRoute } from "furin";
-import { secret, parentRoute } from "./server";
+import { secret } from "./server";
 const sharedConfig = {
-  layout: parentRoute,
   serverValue: secret,
   remountDeps: ({ query }) => [query.view],
 };
-export const route = defineRoute().config({ ...sharedConfig, mode: "ssr" }).page(() => null);`,
+export const route = defineRoute("/").config({ ...sharedConfig, mode: "ssr" }).page(() => null);`,
       "route.tsx"
     );
     expect(result.code).toContain("remountDeps: ({ query }) => [query.view]");
@@ -233,13 +232,13 @@ export const route = defineRoute().config({ ...sharedConfig, mode: "ssr" }).page
     const result = transformForClient(
       `import { createIsomorphicFn, defineRoute } from "furin";
 import { serverKeys } from "./server";
-export const route = defineRoute()
+export const route = defineRoute("/")
   .config({ remountDeps: createIsomorphicFn().server(() => serverKeys()).client(() => ["CLIENT_KEYS"]) })
   .page(() => null);`,
       "route.tsx"
     );
     expect(result.code).toContain(
-      'defineRoute()\n  .config({ remountDeps: (() => ["CLIENT_KEYS"]) })\n  .page(() => null);'
+      'defineRoute("/")\n  .config({ remountDeps: (() => ["CLIENT_KEYS"]) })\n  .page(() => null);'
     );
     expect(result.code).not.toContain("serverKeys");
     expect(result.code).not.toContain("./server");
@@ -255,7 +254,7 @@ export const route = defineRoute()
       `import { defineRoute } from "furin";
 const base = { mode: "ssr", remountDeps: () => ["base"] };
 const sharedConfig = { ...base, remountDeps: () => ["shared"] };
-export const route = defineRoute().config({ ${config} }).page(() => null);`,
+export const route = defineRoute("/").config({ ${config} }).page(() => null);`,
       "route.tsx"
     );
     expect(result.code).toContain(`.config({ ${expected} })`);
@@ -264,7 +263,7 @@ export const route = defineRoute().config({ ${config} }).page(() => null);`,
   test("requires an explicit policy after an unresolvable config spread", () => {
     const source = `import { defineRoute } from "furin";
 import { config } from "./shared";
-export const route = defineRoute().config({ ...config, POLICY }).page(() => null);`;
+export const route = defineRoute("/").config({ ...config, POLICY }).page(() => null);`;
     expect(() => transformForClient(source.replace("POLICY", "mode: 'ssr'"), "route.tsx"))
       .toThrow("declare remountDeps after dynamic spreads");
     expect(transformForClient(source.replace("POLICY", "remountDeps: () => []"), "route.tsx").code)
@@ -273,21 +272,21 @@ export const route = defineRoute().config({ ...config, POLICY }).page(() => null
 
   test("rejects a route builder split across variables before exposing its loader", () => {
     expect(() => transformForClient(
-      'import { defineRoute } from "furin"; const builder = defineRoute().config({ mode: "ssr" }); export const route = builder.loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      'import { defineRoute } from "furin"; const builder = defineRoute("/").config({ mode: "ssr" }); export const route = builder.loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
       "route.tsx"
     )).toThrow("one fluent chain");
   });
 
   test("rejects calculated builder methods before exposing server code", () => {
     expect(() => transformForClient(
-      'import { defineRoute } from "furin"; export const route = defineRoute().config({ mode: "ssr" })["loader"](() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      'import { defineRoute } from "furin"; export const route = defineRoute("/").config({ mode: "ssr" })["loader"](() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
       "route.tsx"
     )).toThrow("static builder methods");
   });
 
   test("rejects namespace route factories that cannot be stripped safely", () => {
     expect(() => transformForClient(
-      'import * as Furin from "furin"; export const route = Furin.defineRoute().config({ mode: "ssr" }).loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
+      'import * as Furin from "furin"; export const route = Furin.defineRoute("/").config({ mode: "ssr" }).loader(() => ({ secret: "PRIVATE_MARKER" })).page(() => null);',
       "route.tsx"
     )).toThrow("named import");
   });
@@ -302,8 +301,8 @@ export const route = defineRoute().config({ ...config, POLICY }).page(() => null
       `import { defineRoute } from "@teyik0/furin";
 const remountDeps = ({ params }) => [params.id];
 const selectIdentity = remountDeps;
-export const route = defineRoute()
-  .config({ layout: serverLayout, mode: "ssr", ${declaration} })
+export const route = defineRoute("/")
+  .config({ mode: "ssr", ${declaration} })
   .page(() => null);`,
       "route.tsx"
     );
@@ -314,10 +313,10 @@ export const route = defineRoute()
   test("keeps remount dependencies while removing server config and its imports", () => {
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
-import { schema, secret, parentRoute } from "./server";
+import { schema, secret } from "./server";
 import { documentKey } from "./identity";
-export const route = defineRoute()
-  .config({ layout: parentRoute, mode: "ssr", params: schema,
+export const route = defineRoute("/")
+  .config({ mode: "ssr", params: schema,
     remountDeps: ({ params }) => [documentKey(params.id)] })
   .loader(() => ({ secret }))
   .page(() => null);`,
@@ -327,7 +326,6 @@ export const route = defineRoute()
     expect(result.code).toContain('from "./identity"');
     expect(result.code).not.toContain("./server");
     expect(result.code).not.toContain("params: schema");
-    expect(result.code).not.toContain("layout: parentRoute");
   });
 
   test("removes server stages and rewrites the builder import", () => {
@@ -335,7 +333,7 @@ export const route = defineRoute()
       `import { defineRoute } from "@teyik0/furin";
 import { secret } from "./db";
 const Page = () => null;
-export const route = defineRoute()
+export const route = defineRoute("/")
   .config({ mode: "ssr", params: schema })
   .loader(() => ({ secret }))
   .head(({ secret }) => ({ meta: [{ title: secret }] }))
@@ -360,31 +358,31 @@ export const route = defineRoute()
       source: `import { db } from "../db.server";
 const query = "PRIVATE_QUERY";
 const loadData = async () => ({ x: String(await db.query(query)) });
-export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);`,
+export const route = defineRoute("/").loader(loadData).page(({ x }) => <div>{x}</div>);`,
     },
     {
       name: "function declaration head",
       source: `import { db } from "../db.server";
 function head() { return { meta: [{ title: db.title("PRIVATE_QUERY") }] }; }
-export const route = defineRoute().head(head).page(() => null);`,
+export const route = defineRoute("/").head(head).page(() => null);`,
     },
     {
       name: "object method request loader",
       source: `import { db } from "../db.server";
 const api = { load: () => db.query("PRIVATE_QUERY"), label: "PRIVATE_QUERY" };
-export const route = defineRoute().requestLoader(api.load).page(() => null);`,
+export const route = defineRoute("/").requestLoader(api.load).page(() => null);`,
     },
     {
       name: "destructured loader",
       source: `import { db } from "../db.server";
 const { load } = { load: () => db.query("PRIVATE_QUERY") };
-export const route = defineRoute().loader(load).page(() => null);`,
+export const route = defineRoute("/").loader(load).page(() => null);`,
     },
     {
       name: "imported helper behind a local loader",
       source: `import { readSecret } from "../db.server";
 async function loadData() { return { x: await readSecret("PRIVATE_QUERY") }; }
-export const route = defineRoute().loader(loadData).page(({ x }) => <div>{x}</div>);`,
+export const route = defineRoute("/").loader(loadData).page(({ x }) => <div>{x}</div>);`,
     },
   ])("removes server code only reachable from a $name", ({ source }) => {
     const result = transformForClient(
@@ -404,7 +402,7 @@ const loadData = () => db.query("PRIVATE_QUERY");
 function Page({ loadData }, [db] = []) {
   try { return <p>public</p>; } catch (db) { return null; }
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
       "route.tsx"
     );
     expect(result.code).not.toContain("PRIVATE_QUERY");
@@ -418,7 +416,7 @@ import { register } from "./registry";
 const sideEffect = register("KEEP_SIDE_EFFECT");
 const unusedHelper = () => "KEEP_UNUSED_HELPER";
 const loadData = () => ({ value: "PRIVATE_VALUE" });
-export const route = defineRoute().loader(loadData).page(() => null);`,
+export const route = defineRoute("/").loader(loadData).page(() => null);`,
       "route.tsx"
     );
     expect(result.code).toContain("KEEP_SIDE_EFFECT");
@@ -431,7 +429,7 @@ export const route = defineRoute().loader(loadData).page(() => null);`,
       `import { defineRoute } from "@teyik0/furin";
 import { createLoader } from "./loaders";
 const loadData = createLoader("KEEP_EFFECTFUL_INIT");
-export const route = defineRoute().loader(loadData).page(() => null);`,
+export const route = defineRoute("/").loader(loadData).page(() => null);`,
       "route.tsx"
     );
     expect(result.code).toContain('createLoader("KEEP_EFFECTFUL_INIT")');
@@ -447,7 +445,7 @@ function Page() {
   const [count] = useState(0);
   return <output ref={ref}>{count}</output>;
 }
-export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
+export const route = defineRoute("/").loader(() => useServerValue()).page(Page);`,
       "route.tsx"
     );
 
@@ -463,7 +461,7 @@ export const route = defineRoute().loader(() => useServerValue()).page(Page);`,
 function Page({ message }) {
   return <output>${componentMessage}: {message}</output>;
 }
-export const route = defineRoute()
+export const route = defineRoute("/")
   .loader(() => ({ message: "${loaderMessage}" }))
   .page(Page);`,
         "route.tsx"
@@ -491,7 +489,7 @@ function loadData() {
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
         "route.tsx"
       ).code;
     const signature = (code: string): string =>
@@ -506,7 +504,7 @@ export const route = defineRoute().loader(loadData).page(Page);`,
         `import { defineRoute } from "@teyik0/furin";
 const input = "${inputValue}";
 const widget = { Input: () => <span>${componentValue}</span> };
-export const route = defineRoute()
+export const route = defineRoute("/")
   .loader(() => ({ content: <><input /><widget.Input /></> }))
   .page(({ content }) => content);`,
         "route.tsx"
@@ -528,7 +526,7 @@ const loadMessage = createIsomorphicFn()
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute()
+export const route = defineRoute("/")
   .loader(() => ({ message: loadMessage() }))
   .page(Page);`,
         "route.tsx"
@@ -564,7 +562,7 @@ ${helperSource(loaderMessage)}
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
         "route.tsx"
       ).code;
     const signature = (code: string): string =>
@@ -587,7 +585,7 @@ function loadData() {
 function Page() {
   return <output>{message + value}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
         "route.tsx"
       ).code;
     const signature = (code: string): string =>
@@ -634,7 +632,7 @@ export const otherLoader = () => ({ message: "other" });`);
       const source = `import { defineRoute } from "@teyik0/furin";
 import { loadData } from "../lib/loader";
 export const message = "v1";
-export const route = defineRoute().loader(loadData).page(({ message }) => <p>{message}</p>);`;
+export const route = defineRoute("/").loader(loadData).page(({ message }) => <p>{message}</p>);`;
       writeAppFile(app.path, "src/pages/index.tsx", source);
       writeAppFile(app.path, "src/lib/loader.ts", `import { message } from "../pages/index";
 export const loadData = () => ({ message });`);
@@ -654,7 +652,7 @@ export const loadData = () => ({ message });`);
       const output = transformForClient(
         `import { defineRoute } from "@teyik0/furin";
 import { loadData } from "hmr-loader";
-export const route = defineRoute().loader(loadData).page(() => null);`,
+export const route = defineRoute("/").loader(loadData).page(() => null);`,
         join(app.path, "src/pages/index.tsx")
       );
       expect(output.code).toContain('const previousDataSignature = "imports:');
@@ -670,7 +668,7 @@ import { loadData } from "./loader";
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
       "route.tsx"
     );
 
@@ -686,7 +684,7 @@ const shared = () => loadData();
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute()
+export const route = defineRoute("/")
   .config({ query: shared })
   .loader(shared)
   .page(Page);`,
@@ -707,7 +705,7 @@ const { loadData = fallbackLoader } = {};
 function Page({ message }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
         "route.tsx"
       ).code;
     const signature = (code: string): string =>
@@ -727,7 +725,7 @@ function loadData(value: LoaderData): LoaderData {
 function Page({ message }: LoaderData) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
       "route.tsx"
     );
 
@@ -747,7 +745,7 @@ function loadData() {
 function Page({ message }: { message: string }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
       "route.tsx"
     );
 
@@ -767,7 +765,7 @@ function loadData() {
 function Page({ message }: { message: string }) {
   return <output>{message}</output>;
 }
-export const route = defineRoute().loader(loadData).page(Page);`,
+export const route = defineRoute("/").loader(loadData).page(Page);`,
       "route.tsx"
     );
 
@@ -789,7 +787,7 @@ function Page() {
   const [count] = useState(0);
   return <Child>{count}</Child>;
 }
-export const route = defineRoute().page(Page);`,
+export const route = defineRoute("/").page(Page);`,
       "route.tsx"
     );
 
@@ -806,7 +804,7 @@ function Page() {
 ${declarations}
   return null;
 }
-export const route = defineRoute().page(Page);`,
+export const route = defineRoute("/").page(Page);`,
         "route.tsx"
       ).code;
     const signature = (code: string): string[] => {
@@ -832,7 +830,7 @@ export const route = defineRoute().page(Page);`,
     const route = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 import { ImportedPage } from "../components/imported-page";
-export const route = defineRoute().page(ImportedPage);`,
+export const route = defineRoute("/").page(ImportedPage);`,
       "/app/pages/index.tsx"
     );
 
@@ -847,7 +845,7 @@ export const route = defineRoute().page(ImportedPage);`,
       `import { defineRoute } from "@teyik0/furin";
 import { Page } from "../components/page";
 const __furinCreateElement = "existing";
-export const route = defineRoute().page(Page);`,
+export const route = defineRoute("/").page(Page);`,
       "/app/pages/index.tsx"
     );
 
@@ -863,7 +861,7 @@ export const route = defineRoute().page(Page);`,
     const route = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 import * as Pages from "../components/pages";
-export const route = defineRoute().page(Pages.Page);`,
+export const route = defineRoute("/").page(Pages.Page);`,
       "/app/pages/index.tsx"
     );
 
@@ -877,7 +875,7 @@ export const route = defineRoute().page(Pages.Page);`,
     const route = transformForClient(
       `import { memo, useState } from "react";
 import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute().page(memo(function Page() {
+export const route = defineRoute("/").page(memo(function Page() {
   const [count] = useState(0);
   return <output>{count}</output>;
 }));`,
@@ -891,7 +889,7 @@ export const route = defineRoute().page(memo(function Page() {
     const route = transformForClient(
       `import { default as React, useState } from "react";
 import { defineRoute } from "@teyik0/furin";
-export const route = defineRoute().page(React.memo(function Page() {
+export const route = defineRoute("/").page(React.memo(function Page() {
   const [count] = useState(0);
   return <output>{count}</output>;
 }));`,
@@ -911,7 +909,7 @@ function Page() {
   const [count] = useState(0);
   return <output>{count}</output>;
 }
-export const route = defineRoute().page(${wrapper}(Page));`,
+export const route = defineRoute("/").page(${wrapper}(Page));`,
         "/app/pages/index.tsx"
       );
 
@@ -931,7 +929,7 @@ function helper() {
   }
   return Page;
 }
-export const route = defineRoute().page(Page);`,
+export const route = defineRoute("/").page(Page);`,
       "/app/pages/index.tsx"
     );
 
@@ -979,24 +977,24 @@ export const route = routeBuilder().config({ mode: "ssg" }).page(Page);`,
     expect(result.code).not.toContain("mode");
   });
 
-  test("eliminates a parent import used only by config", () => {
+  test("eliminates an import used only by config", () => {
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
-import { route as parentRoute } from "./_route";
+import { cacheTags } from "./tags";
 const Page = () => null;
-export const route = defineRoute().config({ layout: parentRoute, mode: "ssr" }).page(Page);`,
+export const route = defineRoute("/").config({ mode: "ssr", tags: cacheTags }).page(Page);`,
       "route.tsx"
     );
 
-    expect(result.code).not.toContain("./_route");
-    expect(result.code).toContain("defineRoute().page(Page)");
+    expect(result.code).not.toContain("./tags");
+    expect(result.code).toContain("defineRoute(\"/\").page(Page)");
   });
 
   test("preserves imports referenced by the terminal component", () => {
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 import { loaderOnly, Page } from "./feature";
-export const route = defineRoute()
+export const route = defineRoute("/")
   .loader(() => ({ loaderOnly }))
   .page(Page);`,
       "route.tsx"
@@ -1011,7 +1009,7 @@ export const route = defineRoute()
       `import { defineRoute } from "@teyik0/furin";
 import styles from "./styles.module.css";
 const Page = () => <main className={styles.color}>CSS module</main>;
-export const route = defineRoute().config({ mode: "ssr" }).page(Page);`,
+export const route = defineRoute("/").config({ mode: "ssr" }).page(Page);`,
       "route.tsx"
     );
 
@@ -1023,9 +1021,9 @@ export const route = defineRoute().config({ mode: "ssr" }).page(Page);`,
     const result = transformForClient(
       `import { defineRoute } from "@teyik0/furin";
 function local(defineRoute) {
-  return defineRoute().loader(() => "local").page(() => null);
+  return defineRoute("/").loader(() => "local").page(() => null);
 }
-export const route = defineRoute().page(() => null);`,
+export const route = defineRoute("/").page(() => null);`,
       "route.tsx"
     );
 
@@ -1043,7 +1041,7 @@ export const route = defineRoute().page(() => null);`,
 
   test("supports CRLF source", () => {
     const result = transformForClient(
-      'import { defineRoute } from "@teyik0/furin";\r\nexport const route = defineRoute().loader(() => ({})).page(() => null);\r\n',
+      'import { defineRoute } from "@teyik0/furin";\r\nexport const route = defineRoute("/").loader(() => ({})).page(() => null);\r\n',
       "route.tsx"
     );
 

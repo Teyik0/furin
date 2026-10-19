@@ -46,8 +46,8 @@ test("ISR Cache-Control preserves a non-default route revalidate value", async (
     pages: [
       {
         pattern: "/isr-page",
-        route: defineRoute()
-          .config({ layout: fixtureRoot, mode: "isr", revalidate: 17 })
+        route: defineRoute("/")
+          .config({ mode: "isr", revalidate: 17 })
           .loader(() => ({ timestamp: Date.now() }))
           .page(({ timestamp }) =>
             createElement("div", { "data-timestamp": String(timestamp) }, "ISR Page")

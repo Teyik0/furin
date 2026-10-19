@@ -1,6 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { createTmpApp, type TmpApp, writeAppFile } from "../support/app-fixtures.ts";
+import {
+  createTmpApp,
+  keyPagesForPrefix,
+  type TmpApp,
+  writeAppFile,
+} from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
 
 const tmpApps: TmpApp[] = [];
@@ -68,6 +73,7 @@ test("the build accepts furin() mounts that match config.apps", async () => {
     '.use(await furin({ pagesDir: "./src/pages", prefix: "/shop/" }))',
     '[{ pagesDir: "src/pages", prefix: "/shop" }]'
   );
+  keyPagesForPrefix(app.path, "src/pages", "/shop");
 
   const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
 
@@ -89,6 +95,7 @@ const app = new Elysia().use(await mountPages({ pagesDir, prefix: "/shop" }));
 export default app;
 `
   );
+  keyPagesForPrefix(app.path, "src/pages", "/shop");
 
   const result = await runCli(["build", "--target", "bun"], { cwd: app.path });
 

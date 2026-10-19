@@ -10,8 +10,7 @@ test("Vercel preserves distinct prerenders for root and literal index routes", a
   try {
     writeAppFile(app.path, "src/pages/index/index.tsx", [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "../root";',
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssg" }).page(() => <main>Literal index</main>);',
+      'export const route = defineRoute("/index").config({ mode: "ssg" }).page(() => <main>Literal index</main>);',
     ].join("\n"));
     await withBuildStub(() => buildApp({ rootDir: app.path, target: "vercel" }));
     const output = join(app.path, ".vercel/output");

@@ -35,6 +35,6 @@ export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ childre
 
   expect(error).toBeInstanceOf(Error);
   expect(String((error as Error).cause)).toContain(
-    `${pagePath} must provide a valid Furin page export: \`export const route = defineRoute().config({ layout, mode }).page(...)\``
+    `${pagePath} must provide a valid Furin page export: \`export const route = defineRoute(id).config({ mode }).page(...)\``
   );
 });

@@ -27,9 +27,8 @@ const createRootLayout = () =>
 declare const rootLayout: ReturnType<typeof createRootLayout>;
 
 const createGeneratedRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       query: t.Object({ page: t.Number(), tag: t.Optional(t.String()) }),
     })
@@ -37,9 +36,8 @@ const createGeneratedRoute = () =>
     .page(({ page }) => page);
 
 const createGeneratedBoardRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       params: t.Object({ boardId: t.Number() }),
       query: t.Object({ page: t.Number() }),
@@ -49,9 +47,8 @@ const createGeneratedBoardRoute = () =>
 declare const generatedBoardRoute: ReturnType<typeof createGeneratedBoardRoute>;
 
 const createGeneratedOptionalBoardRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       params: t.Object({ boardId: t.Optional(t.Number()), locale: t.Optional(t.String()) }),
     })
@@ -60,8 +57,8 @@ const createGeneratedOptionalBoardRoute = () =>
 declare const generatedOptionalBoardRoute: ReturnType<typeof createGeneratedOptionalBoardRoute>;
 
 const createGeneratedSlugRoute = () =>
-  defineRoute()
-    .config({ layout: rootLayout, mode: "ssr", params: t.Object({ slug: t.String() }) })
+  defineRoute("/")
+    .config({ mode: "ssr", params: t.Object({ slug: t.String() }) })
     .page(({ params }) => params.slug);
 
 declare const generatedSlugRoute: ReturnType<typeof createGeneratedSlugRoute>;
@@ -69,9 +66,8 @@ declare const generatedSlugRoute: ReturnType<typeof createGeneratedSlugRoute>;
 declare const generatedRoute: ReturnType<typeof createGeneratedRoute>;
 
 const createOrgLayout = () =>
-  defineRoute()
+  defineRoute("/manifest/[org]/_route")
     .config({
-      layout: rootLayout,
       mode: "ssr",
       params: t.Object({ org: t.String() }),
       query: t.Object({ lang: t.String() }),
@@ -80,12 +76,24 @@ const createOrgLayout = () =>
 declare const orgLayout: ReturnType<typeof createOrgLayout>;
 
 const createInheritedBoardRoute = () =>
-  defineRoute()
-    .config({ layout: orgLayout, mode: "ssr", params: t.Object({ boardId: t.Number() }) })
+  defineRoute("/manifest/[org]/boards/[boardId]")
+    .config({ mode: "ssr", params: t.Object({ boardId: t.Number() }) })
     .page(({ params }) => String(params.boardId));
 declare const inheritedBoardRoute: ReturnType<typeof createInheritedBoardRoute>;
 
 declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/manifest/[org]/_route": {
+      kind: "layout";
+      parent: typeof rootLayout;
+      pathParams: { org: string };
+    };
+    "/manifest/[org]/boards/[boardId]": {
+      kind: "page";
+      parent: typeof orgLayout;
+      pathParams: { boardId: string; org: string };
+    };
+  }
   interface RouteMap {
     "/elysia-boards/:boardId": typeof generatedBoardRoute;
     "/elysia-boards/new": typeof generatedRoute;

@@ -1,8 +1,7 @@
 import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/with-loader/_route")
+  .config({ mode: "ssr" })
   .loader(({ request, headers, cookie, path, set }) => {
     set.headers["x-loader-ran"] = "true";
     return {

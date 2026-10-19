@@ -39,8 +39,8 @@ test("prerenders a route without requestLoader fields", async () => {
         </body>
       </html>
     ));
-  const terminal = defineRoute()
-    .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "isr", revalidate: 60 })
     .page(() => <main>Public page</main>);
   const root = { path: "/root.tsx", route: adaptDefinedLayout(rootRoute, undefined) };
   const page = adaptDefinedPage(terminal, root.route);
@@ -93,8 +93,8 @@ test("a serialized public shell resumes independently for two sessions", async (
   function Private({ data }: { data: Promise<string> }) {
     return <strong>{use(data)}</strong>;
   }
-  const terminal = defineRoute()
-    .config({ layout: rootRoute, mode: "isr", revalidate: 60 })
+  const terminal = defineRoute("/terminal")
+    .config({ mode: "isr", revalidate: 60 })
     .requestLoader(async ({ cookies }) => {
       privateCalls += 1;
       if (cookies.get("session") === "Alice") {

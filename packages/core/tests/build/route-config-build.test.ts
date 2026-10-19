@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
+import { createTmpApp, keyPagesForPrefix, writeAppFile } from "../support/app-fixtures.ts";
 import { runCli } from "../support/process.ts";
 
 test("furin build fails on a route config issue and leaves the file untouched", async () => {
@@ -9,7 +9,7 @@ test("furin build fails on a route config issue and leaves the file untouched", 
   const source = [
     'import { defineRoute } from "@teyik0/furin";',
     "",
-    "export const route = defineRoute().page(() => <h1>About</h1>);",
+    'export const route = defineRoute("/about").page(() => <h1>About</h1>);',
     "",
   ].join("\n");
   try {
@@ -19,7 +19,7 @@ test("furin build fails on a route config issue and leaves the file untouched", 
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain(
-      '[furin] src/pages/about.tsx:3:22: defineRoute() must be followed by config(). Add:\n  import { route as rootRoute } from "./root";\n  .config({ layout: rootRoute, mode: "ssg" })'
+      '[furin] src/pages/about.tsx:3:22: defineRoute() must be followed by config(). Add:\n  .config({ mode: "ssg" })'
     );
     expect(readFileSync(join(app.path, "src/pages/about.tsx"), "utf8")).toBe(source);
   } finally {
@@ -27,7 +27,7 @@ test("furin build fails on a route config issue and leaves the file untouched", 
   }
 });
 
-test("furin build rejects a keyed route in an app mounted with a prefix", async () => {
+test("furin build expects the prefixed id in an app mounted with a prefix", async () => {
   const app = createTmpApp("cli-app");
   try {
     writeAppFile(
@@ -44,6 +44,7 @@ export default new Elysia().use(await furin({ pagesDir: "./src/pages", prefix: "
       "furin.config.ts",
       'export default { apps: [{ pagesDir: "src/pages", prefix: "/shop" }] };\n'
     );
+    keyPagesForPrefix(app.path, "src/pages", "/shop");
     writeAppFile(
       app.path,
       "src/pages/about.tsx",
@@ -59,7 +60,7 @@ export const route = defineRoute("/about")
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain(
-      "[furin] src/pages/about.tsx:3:34: keyed routes are only supported in the root-mounted app; use defineRoute() with config({ layout }) here."
+      '[furin] src/pages/about.tsx:3:34: defineRoute("/about") does not match this file. Its id is "/shop/about":\n  defineRoute("/shop/about")'
     );
   } finally {
     app.cleanup();

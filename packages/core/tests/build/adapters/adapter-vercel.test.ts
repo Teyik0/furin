@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { version } from "../../../package.json";
@@ -7,7 +7,12 @@ import { vercel } from "../../../src/adapter/vercel.ts";
 import { buildApp } from "../../../src/build/index.ts";
 import { ssgRouteCache } from "../../../src/server/cache/ssg.ts";
 import { __resetTemplateState } from "../../../src/server/render/template.ts";
-import { createTmpApp, type TmpApp, writeAppFile } from "../../support/app-fixtures.ts";
+import {
+  createTmpApp,
+  keyPagesForPrefix,
+  type TmpApp,
+  writeAppFile,
+} from "../../support/app-fixtures.ts";
 import { withBuildStub } from "../../support/with-build-stub.ts";
 
 const tmpApps: TmpApp[] = [];
@@ -53,10 +58,9 @@ function createVercelApp(): TmpApp {
     "src/pages/news.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
+      "export const route = defineRoute(\"/news\")",
+      '  .config({ mode: "isr", revalidate: 90, tags: ["news,world"] })',
       "  .page(() => <main>News</main>);",
       "",
     ].join("\n")
@@ -67,10 +71,9 @@ function createVercelApp(): TmpApp {
     [
       'import { t } from "elysia";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
+      "export const route = defineRoute(\"/search\")",
+      '  .config({ mode: "isr", query: t.Object({ q: t.Optional(t.String()) }), revalidate: 90 })',
       '  .loader(({ query }) => ({ q: query.q }))',
       '  .page(({ q }) => <main>Search: {q}</main>);',
       "",
@@ -82,10 +85,9 @@ function createVercelApp(): TmpApp {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
+      "export const route = defineRoute(\"/events/[slug]\")",
+      '  .config({ mode: "isr", params: t.Object({ slug: t.String() }), revalidate: 90 })',
       '  .staticParams(() => [{ slug: "launch" }])',
       '  .page(({ params }) => <main>Event: {params.slug}</main>);',
       "",
@@ -97,10 +99,9 @@ function createVercelApp(): TmpApp {
     [
       'import { t } from "elysia";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg", query: t.Object({ coupon: t.Optional(t.String()) }) })',
+      "export const route = defineRoute(\"/offers\")",
+      '  .config({ mode: "ssg", query: t.Object({ coupon: t.Optional(t.String()) }) })',
       '  .page(({ query }) => <main>Coupon: {query.coupon}</main>);',
       "",
     ].join("\n")
@@ -126,9 +127,8 @@ describe.serial("Vercel deployment adapter", () => {
         app.path,
         "src/pages/account/_route.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/account/_route")
+  .config({ mode: "ssr" })
   .loader(({ request }) => ({ session: request.headers.get("cookie") }))
   .layout(({ children, session }) => <section>{session}{children}</section>);`
       );
@@ -136,9 +136,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/account/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as accountRoute } from "./_route";
-export const route = defineRoute()
-  .config({ layout: accountRoute, mode: "isr", revalidate: 90 })
+export const route = defineRoute("/account")
+  .config({ mode: "isr", revalidate: 90 })
   .loader(() => ({ catalog: "Coffee" }))
   .page(({ catalog }) => <main>{catalog}</main>);`
       );
@@ -146,9 +145,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/catalog/_route.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 5 })
+export const route = defineRoute("/catalog/_route")
+  .config({ mode: "isr", revalidate: 5 })
   .loader(() => ({ heading: "Catalog" }))
   .layout(({ children, heading }) => <section>{heading}{children}</section>);`
       );
@@ -156,9 +154,8 @@ export const route = defineRoute()
         app.path,
         "src/pages/catalog/index.tsx",
         `import { defineRoute } from "@teyik0/furin";
-import { route as catalogRoute } from "./_route";
-export const route = defineRoute()
-  .config({ layout: catalogRoute, mode: "ssg" })
+export const route = defineRoute("/catalog")
+  .config({ mode: "ssg" })
   .loader(() => ({ product: "Coffee" }))
   .page(({ product }) => <main>{product}</main>);`
       );
@@ -494,8 +491,7 @@ export const route = defineRoute()
         app.path,
         `src/pages/blog/${name}.tsx`,
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" })
+export const route = defineRoute("/blog/${name}").config({ mode: "${mode}" })
   ${mode === "isr" ? '.requestLoader(({ cookies }) => ({ user: cookies.get("session") }))' : ""}
   .page(() => <main>${name}</main>);`
       );
@@ -520,6 +516,8 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
   test("keeps prefixed apps and their CDN assets isolated", (done) => {
     async function runScenario(): Promise<void> {
       const app = createVercelApp();
+      cpSync(join(app.path, "src/pages"), join(app.path, "src/admin"), { recursive: true });
+      keyPagesForPrefix(app.path, "src/admin", "/admin");
       writeAppFile(
         app.path,
         "src/server.ts",
@@ -529,7 +527,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
           "",
           "const app = new Elysia()",
           '  .use(await furin({ pagesDir: "./src/pages" }))',
-          '  .use(await furin({ pagesDir: "./src/pages", prefix: "/admin" }));',
+          '  .use(await furin({ pagesDir: "./src/admin", prefix: "/admin" }));',
           "",
           "if (import.meta.main) {",
           "  app.listen(3000);",
@@ -543,7 +541,7 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
       await buildApp({
         apps: [
           { pagesDir: "src/pages", prefix: "" },
-          { pagesDir: "src/pages", prefix: "/admin" },
+          { pagesDir: "src/admin", prefix: "/admin" },
         ],
         rootDir: app.path,
         target: "vercel",
@@ -594,19 +592,17 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "${mode}" }
     for (const name of ["tagged", "untagged"]) {
       writeAppFile(app.path, `src/pages/blog/${name}.tsx`,
         `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags: ${name === "tagged" ? '["specific"]' : "[]"} }).page(() => <main>${name}</main>);`);
+export const route = defineRoute("/blog/${name}").config({ mode: "ssg", tags: ${name === "tagged" ? '["specific"]' : "[]"} }).page(() => <main>${name}</main>);`);
     }
     writeAppFile(
       app.path,
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         "let renderCount = 0;",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        "export const route = defineRoute(\"/\")",
+        '  .config({ mode: "ssg" })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ renderCount }) => <main>SSG render {renderCount}</main>);',
         "",
@@ -617,11 +613,10 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
       "src/pages/news.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         "let renderCount = 0;",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "isr", revalidate: 90, tags: ["news,world"] })',
+        "export const route = defineRoute(\"/news\")",
+        '  .config({ mode: "isr", revalidate: 90, tags: ["news,world"] })',
         "  .loader(() => ({ renderCount: ++renderCount }))",
         '  .page(({ renderCount }) => <main>ISR render {renderCount}</main>);',
         "",
@@ -632,9 +627,8 @@ export const route = defineRoute().config({ layout: rootRoute, mode: "ssg", tags
       "src/pages/flight.tsx",
       `import { defineRoute } from "@teyik0/furin";
 import { renderServerComponent } from "@teyik0/furin/rsc";
-import { route as rootRoute } from "./root";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/flight")
+  .config({ mode: "ssr" })
   .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
   .page(({ article }) => <main>{article}</main>);`
     );
@@ -643,13 +637,12 @@ export const route = defineRoute()
       "src/pages/account.tsx",
       `import { defineRoute } from "@teyik0/furin";
 import { Suspense, use } from "react";
-import { route as rootRoute } from "./root";
 let calls = 0;
 function User({ data }: { data: Promise<unknown> }) {
   return <strong>{String(use(data))}</strong>;
 }
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "isr", revalidate: 60, tags: ["news,world"] })
+export const route = defineRoute("/account")
+  .config({ mode: "isr", revalidate: 60, tags: ["news,world"] })
   .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
   .loader(() => ({ count: ++calls }))
   .page(({ count, user }) => <main>public:{count}<Suspense fallback="loading"><User data={user} /></Suspense></main>);`

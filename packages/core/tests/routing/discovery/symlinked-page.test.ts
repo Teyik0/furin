@@ -28,9 +28,8 @@ export const route = defineRootRoute()
   writeFileSync(
     join(pagesDir, "_shared", "about.tsx"),
     `import { defineRoute } from "@teyik0/furin";
-import { route as rootRoute } from "../root.tsx";
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute("/about")
+  .config({ mode: "ssr" })
   .page(() => <p>shared about page</p>);`
   );
   symlinkSync(join(pagesDir, "_shared", "about.tsx"), join(pagesDir, "about.tsx"));

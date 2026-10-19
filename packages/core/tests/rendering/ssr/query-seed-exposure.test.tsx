@@ -68,8 +68,8 @@ function routeFor(
         </body>
       </html>
     ));
-  const definition = defineRoute()
-    .config({ layout, mode: "ssr" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssr" })
     .loader(() => loader(api))
     .page(() => <main>Account</main>);
   return { definition, layout };

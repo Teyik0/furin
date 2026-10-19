@@ -44,7 +44,7 @@ function createCompileTmpApp(): TmpApp {
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
       "",
-      "export const route = defineRoute()",
+      "export const route = defineRoute(\"/blog/[slug]\")",
       '  .config({ params: t.Object({ slug: t.String() }) })',
       "  .page(() => <article>Blog post page</article>);",
     ].join("\n"),
@@ -70,7 +70,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     try {
       writeFileSync(
         join(app.path, "src/pages/index.tsx"),
-        'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute().config({ mode: "ssr" }).page(() => <main>{process.env.FURIN_PUBLIC_AUDIT}{process.env.FURIN_PRIVATE_AUDIT}</main>);'
+        'import { defineRoute } from "@teyik0/furin"; export const route = defineRoute("/").config({ mode: "ssr" }).page(() => <main>{process.env.FURIN_PUBLIC_AUDIT}{process.env.FURIN_PRIVATE_AUDIT}</main>);'
       );
       const { root, routes } = await scanPages(join(app.path, "src/pages"));
       const outDir = join(app.path, "environment-build");
@@ -437,7 +437,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     const app = createCompileTmpApp();
     writeFileSync(
       join(app.path, "src/pages/index.tsx"),
-      'import { log } from "evlog";\nimport { defineRoute } from "@teyik0/furin";\nimport { route as root } from "./root";\nexport const route = defineRoute().config({ layout: root, mode: "ssr" }).page(() => <main>{String(log.info)}</main>);'
+      'import { log } from "evlog";\nimport { defineRoute } from "@teyik0/furin";\nexport const route = defineRoute("/").config({ mode: "ssr" }).page(() => <main>{String(log.info)}</main>);'
     );
     const { root, routes } = await scanPages(join(app.path, "src/pages"));
     const metafilePath = join(app.path, "client.json");

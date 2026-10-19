@@ -7,14 +7,14 @@ const Layout = ({ children }: { children: React.ReactNode }) => children;
 describe("client defineRoute", () => {
   test("retains remount dependencies on the client terminal", () => {
     const remountDeps = () => ["document"];
-    const route = defineRoute().config({ remountDeps }).page(Page);
+    const route = defineRoute("/").config({ remountDeps }).page(Page);
 
     expect(route.remountDeps).toBe(remountDeps);
   });
 
   test("keeps only the terminal component contract", () => {
-    const pageRoute = defineRoute().page(Page);
-    const layoutRoute = defineRoute().layout(Layout);
+    const pageRoute = defineRoute("/").page(Page);
+    const layoutRoute = defineRoute("/layout/_route").layout(Layout);
 
     expect(pageRoute.component({ message: "hello" })).toBe("page");
     expect(layoutRoute.component({ children: "layout" })).toBe("layout");
@@ -27,13 +27,13 @@ describe("client defineRoute", () => {
   test("builds the same terminal for a keyed route", () => {
     const keyed = defineRoute("/board/[boardId]").page(Page);
 
-    expect(keyed.page).toBe(defineRoute().page(Page).page);
+    expect(keyed.page).toBe(defineRoute("/").page(Page).page);
     expect(keyed.component({ boardId: "a" })).toBe("page");
   });
 
   test("passes the flat runtime context to a page without copying it", () => {
     let received: unknown;
-    const pageRoute = defineRoute().page((props) => {
+    const pageRoute = defineRoute("/received").page((props) => {
       received = props;
       return null;
     });
@@ -52,7 +52,7 @@ describe("client defineRoute", () => {
 
   test("passes the flat runtime context to a layout without copying it", () => {
     let received: unknown;
-    const layoutRoute = defineRoute().layout((props) => {
+    const layoutRoute = defineRoute("/received/_route").layout((props) => {
       received = props;
       return null;
     });

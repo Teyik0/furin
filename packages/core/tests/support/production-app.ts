@@ -27,7 +27,7 @@ type SegmentBoundaryMetadata = NonNullable<
   CompileContext["routeMetadata"]
 >[string]["segmentBoundaries"][number];
 
-/** A route terminal from `defineRoute()` / `defineRootRoute()`. */
+/** A route terminal from `defineRoute("/")` / `defineRootRoute()`. */
 interface RouteTerminal {
   elysia: AnyElysia;
 }

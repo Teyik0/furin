@@ -1,9 +1,19 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileRouteId, routeSourcePaths } from "../../src/plugin/route-tree.ts";
 import { assertDistFresh } from "./dist.ts";
 
 const FIXTURES_ROOT = resolve(import.meta.dir, "../fixtures/apps");
 const TMP_ROOT = resolve(import.meta.dir, "../../.tmp-tests");
+const ROUTE_ID_RE = /defineRoute\("[^"]*"\)/;
 
 export interface TmpApp {
   cleanup: () => void;
@@ -46,6 +56,19 @@ export function writeAppFile(appPath: string, relativePath: string, contents: st
   const directory = resolve(resolvedPath, "..");
   mkdirSync(directory, { recursive: true });
   writeFileSync(resolvedPath, contents);
+}
+
+/**
+ * Rewrites every route id under `pagesDir` for an app mounted at `prefix`.
+ * Route ids carry the prefix, so a fixture tree mounted under a prefix must
+ * name its prefixed ids.
+ */
+export function keyPagesForPrefix(appPath: string, pagesDir: string, prefix: string): void {
+  const instance = { pagesDir: assertWithinAppPath(appPath, pagesDir), prefix };
+  for (const file of routeSourcePaths(instance)) {
+    const id = JSON.stringify(fileRouteId(instance, file));
+    writeFileSync(file, readFileSync(file, "utf8").replace(ROUTE_ID_RE, `defineRoute(${id})`));
+  }
 }
 
 export function removeAppPath(appPath: string, relativePath: string): void {

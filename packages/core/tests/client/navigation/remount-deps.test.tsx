@@ -36,9 +36,8 @@ async function mountRouter(
         </section>
       );
     });
-  const definition = defineRoute()
+  const definition = defineRoute("/definition")
     .config({
-      layout,
       mode: "ssr",
       params: t.Object({ documentId: t.String(), tab: t.String() }),
       query: t.Object({ view: t.String() }),

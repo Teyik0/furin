@@ -42,6 +42,45 @@ interface RouteTerminal {
   elysia: AnyElysia;
 }
 
+const createDashboardRoot = (load: (path: string) => void) =>
+  defineRootRoute()
+    .config({ mode: "ssr" })
+    .loader(({ path }) => {
+      load(path);
+      return { dashboard: { settings: { theme: "forest" } } };
+    })
+    .layout(({ children, dashboard }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body data-theme={dashboard.settings.theme}>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+const createLibraryLayout = () =>
+  defineRoute("/loader-fallback/library/_route")
+    .config({ mode: "ssr" })
+    .loader(() => ({ section: "Library" }))
+    .layout(({ children, section }) => <section data-section={section}>{children}</section>);
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/loader-fallback/library/_route": {
+      kind: "layout";
+      parent: ReturnType<typeof createDashboardRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+    "/loader-fallback/library/page": {
+      kind: "page";
+      parent: ReturnType<typeof createLibraryLayout>;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 /**
  * Serves `/missing` and `/ok` through a production `furin()`. Both pages sit
  * under a `library/` layout; the root and the library directory each declare
@@ -127,30 +166,13 @@ test.each([
         throw new Response("Resource unavailable", { status });
       };
       let rootCalls = 0;
-      const layout = defineRootRoute()
-        .config({ mode: "ssr" })
-        .loader(({ path }) => {
-          rootCalls += 1;
-          if (rootFailure && path === "/missing") {
-            fail();
-          }
-          return { dashboard: { settings: { theme: "forest" } } };
-        })
-        .layout(({ children, dashboard }) => (
-          <html lang="en">
-            <head>
-              <HeadContent />
-            </head>
-            <body data-theme={dashboard.settings.theme}>
-              {children}
-              <Scripts />
-            </body>
-          </html>
-        ));
-      const nestedDefinition = defineRoute()
-        .config({ layout, mode: "ssr" })
-        .loader(() => ({ section: "Library" }))
-        .layout(({ children, section }) => <section data-section={section}>{children}</section>);
+      const layout = createDashboardRoot((path) => {
+        rootCalls += 1;
+        if (rootFailure && path === "/missing") {
+          fail();
+        }
+      });
+      const nestedDefinition = createLibraryLayout();
       const root = {
         error: Unavailable,
         notFound: Missing,
@@ -160,8 +182,8 @@ test.each([
       const nested = adaptDefinedLayout(nestedDefinition, root.route);
       const definitions = new Map<string, RouteTerminal>();
       const routes = ["/missing", "/ok"].map((pattern) => {
-        const definition = defineRoute()
-          .config({ layout: nestedDefinition, mode: "ssr" })
+        const definition = defineRoute("/loader-fallback/library/page")
+          .config({ mode: "ssr" })
           .loader(async ({ dashboard }) => {
             await dashboard;
             if (pattern === "/missing") {

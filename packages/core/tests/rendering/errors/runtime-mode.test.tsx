@@ -31,8 +31,8 @@ afterAll(() => {
 
 test("a production runtime keeps sanitizing errors after the default mode becomes development", async () => {
   __setDevMode(false);
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const route = defineRoute("/")
+    .config({ mode: "ssr" })
     .page(() => {
       throw new Error("database password leaked");
     });

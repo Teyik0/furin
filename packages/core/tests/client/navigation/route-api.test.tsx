@@ -8,19 +8,15 @@ import { RouterProvider, useRouter } from "../../../src/client/link.tsx";
 import { resolveRouteElement } from "../../../src/client/route-element.tsx";
 import type { LoadedClientRoute } from "../../../src/client/router/types.ts";
 import { getRouteApi } from "../../../src/client.ts";
-import { defineRoute as createRoute, defineRootRoute } from "../../../src/define-route.ts";
+import { defineRoute as createRoute } from "../../../src/define-route.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { useDomTests, waitForDom } from "../../support/dom.ts";
 
 declare const defineRoute: typeof import("../../../src/define-route.ts").defineRoute;
 declare const t: typeof import("elysia").t;
-const layout = defineRootRoute()
-  .config({ mode: "ssr" })
-  .layout(({ children }) => children);
-
 const defineBoard = () =>
-  defineRoute()
-    .config({ layout, mode: "ssr", params: t.Object({ boardId: t.Number() }) })
+  defineRoute("/route-api-board/[boardId]")
+    .config({ mode: "ssr", params: t.Object({ boardId: t.Number() }) })
     .loader(() => ({ title: "Board" }))
     .page(() => null);
 
@@ -69,8 +65,8 @@ describe("getRouteApi", () => {
   });
 
   test("route definitions do not expose a callable that pretends to read loader data", () => {
-    const definition = createRoute()
-      .config({ layout, mode: "ssr" })
+    const definition = createRoute("/board")
+      .config({ mode: "ssr" })
       .loader(() => ({ title: "Board" }))
       .page(() => null);
 

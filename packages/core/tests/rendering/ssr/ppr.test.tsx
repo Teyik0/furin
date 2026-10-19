@@ -51,6 +51,75 @@ const rootTerminal = defineRootRoute()
     </html>
   ));
 
+// Layouts of the inheritance tests, wired through FileRoutes as
+// furin-env.d.ts would wire them from the pages tree.
+const createCatalogRoot = (load: () => void) =>
+  defineRootRoute()
+    .config({ mode: "isr", revalidate: 60 })
+    .loader(() => {
+      load();
+      return { catalog: "Coffee" };
+    })
+    .layout(({ children, catalog }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          <aside>{catalog}</aside>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+const createAdminRoot = (onRequest: () => void, onLoad: () => void) =>
+  defineRootRoute()
+    .config({ mode: "ssg" })
+    .requestLoader(({ cookies }) => {
+      onRequest();
+      return { adminUser: cookies.get("session") };
+    })
+    .loader(() => {
+      onLoad();
+      return { siteName: "Coffee" };
+    })
+    .layout(({ children }) => (
+      <html lang="en">
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    ));
+const createVersionRoot = (version: () => number) =>
+  defineRootRoute()
+    .config({ mode: "isr", revalidate: 0 })
+    .loader(() => ({ layoutVersion: version() }))
+    .layout(({ children }) => children);
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/ppr/admin": {
+      kind: "page";
+      parent: ReturnType<typeof createAdminRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+    "/ppr/catalog": {
+      kind: "page";
+      parent: ReturnType<typeof createCatalogRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+    "/ppr/version": {
+      kind: "page";
+      parent: ReturnType<typeof createVersionRoot>;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 /** Mounts `route` at `/account` below the shared root through a production `furin()`. */
 function mountAccount(route: ProductionPage["route"], pageCache: PageCacheAdapter | undefined) {
   const hasRequestLoader = (route as { requestLoader?: unknown }).requestLoader !== undefined;
@@ -73,8 +142,8 @@ afterAll(async () => {
 
 test("SSR deferred responses stay private when a loader sets Cache-Control", async () => {
   const { app } = await mountAccount(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(({ request, set }) => {
         set.headers["Cache-Control"] = "public, s-maxage=60";
         return defer({
@@ -103,8 +172,8 @@ test("SSR deferred responses stay private when a loader sets Cache-Control", asy
 test("SSR exposes deferred fields as individual promises", async () => {
   let optionalWasAbsent = false;
   const { app } = await mountAccount(
-    defineRoute()
-      .config({ layout: rootTerminal, mode: "ssr" })
+    defineRoute("/")
+      .config({ mode: "ssr" })
       .loader(() => defer({ title: "Account", user: Promise.resolve("Alice") }))
       .page((props) => {
         optionalWasAbsent = (props as typeof props & { optional?: unknown }).optional === undefined;
@@ -146,8 +215,8 @@ describe.serial("partial prerendering", () => {
         },
       });
       const { app } = await mountAccount(
-        defineRoute()
-          .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+        defineRoute("/")
+          .config({ mode: "isr", revalidate: 60 })
           .requestLoader(() => ({ user: "alice" }))
           .loader(() => ({ catalog: "Fresh catalog" }))
           .page(({ catalog }) => <main>{catalog}</main>),
@@ -186,8 +255,8 @@ describe.serial("partial prerendering", () => {
     });
     let publicCalls = 0;
     let privateCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => {
         privateCalls += 1;
         return { user: `private-${privateCalls}` };
@@ -240,8 +309,8 @@ describe.serial("partial prerendering", () => {
     };
     let publicCalls = 0;
     const { app } = await mountAccount(
-      defineRoute()
-        .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+      defineRoute("/")
+        .config({ mode: "isr", revalidate: 60 })
         .requestLoader(() => ({ user: "alice" }))
         .loader(() => ({ catalog: (publicCalls += 1) }))
         .page(({ catalog }) => <main>{catalog}</main>),
@@ -261,8 +330,8 @@ describe.serial("partial prerendering", () => {
   });
 
   test("cross-instance invalidation removes tags from the cache-owning app", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ catalog: "Shoes" }))
       .page(({ catalog }) => <main>{catalog}</main>);
@@ -280,8 +349,8 @@ describe.serial("partial prerendering", () => {
   test("an ISR route caches public data while requestLoader reruns per request", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(({ cookies }) => {
         privateCalls += 1;
         return { user: cookies.get("session") };
@@ -321,8 +390,8 @@ describe.serial("partial prerendering", () => {
 
   test("a request field read through <Await> resumes into its Suspense boundary", async () => {
     const { app } = await mountAccount(
-      defineRoute()
-        .config({ layout: rootTerminal, mode: "ssg" })
+      defineRoute("/")
+        .config({ mode: "ssg" })
         .requestLoader(({ cookies }) => ({ user: cookies.get("session") }))
         .loader(() => ({ catalog: "Shoes" }))
         .page(({ catalog, user }) => (
@@ -362,8 +431,8 @@ describe.serial("partial prerendering", () => {
     function Private({ data }: { data: Promise<{ cards: { title: string | null }[] }> }) {
       return <strong>{use(data).cards[0]?.title}</strong>;
     }
-    const page = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
+    const page = defineRoute("/")
+      .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(({ cookies }) => ({
         user: api.cards
           .get({ headers: { "x-person": String(cookies.get("session")) } })
@@ -458,8 +527,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 60 })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(() => {
         publicCalls += 1;
         return { catalog: "Coffee" };
@@ -514,26 +583,11 @@ describe.serial("partial prerendering", () => {
   test("an ISR layout stays public around an SSR page", async () => {
     let publicCalls = 0;
     let privateCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 60 })
-      .loader(() => {
-        publicCalls += 1;
-        return { catalog: "Coffee" };
-      })
-      .layout(({ children, catalog }) => (
-        <html lang="en">
-          <head>
-            <HeadContent />
-          </head>
-          <body>
-            <aside>{catalog}</aside>
-            {children}
-            <Scripts />
-          </body>
-        </html>
-      ));
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssr" })
+    const mixedRoot = createCatalogRoot(() => {
+      publicCalls += 1;
+    });
+    const mixedPage = defineRoute("/ppr/catalog")
+      .config({ mode: "ssr" })
       .loader(async ({ request, catalog }) => {
         privateCalls += 1;
         return { session: request.headers.get("cookie"), title: await catalog };
@@ -589,16 +643,15 @@ describe.serial("partial prerendering", () => {
         return {};
       };
       const mixedPage = declared
-        ? defineRoute()
+        ? defineRoute("/")
             .config({
-              layout: mixedRoot,
               mode: "ssr",
               query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
             })
             .loader(recordPrivateQuery)
             .page(() => <main>menu</main>)
-        : defineRoute()
-            .config({ layout: mixedRoot, mode: "ssr" })
+        : defineRoute("/")
+            .config({ mode: "ssr" })
             .loader(recordPrivateQuery)
             .page(() => <main>menu</main>);
       const { app } = await mountProductionApp({
@@ -653,9 +706,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedPage = defineRoute()
+    const mixedPage = defineRoute("/mixed")
       .config({
-        layout: mixedRoot,
         mode: "ssr",
         query: t.Object({ page: t.Number({ default: 1 }) }),
       })
@@ -679,29 +731,16 @@ describe.serial("partial prerendering", () => {
   test("an SSR page loader inherits SSG layout request data in documents and navigations", async () => {
     let publicCalls = 0;
     let requestCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "ssg" })
-      .requestLoader(({ cookies }) => {
+    const mixedRoot = createAdminRoot(
+      () => {
         requestCalls += 1;
-        return { adminUser: cookies.get("session") };
-      })
-      .loader(() => {
+      },
+      () => {
         publicCalls += 1;
-        return { siteName: "Coffee" };
-      })
-      .layout(({ children }) => (
-        <html lang="en">
-          <head>
-            <HeadContent />
-          </head>
-          <body>
-            {children}
-            <Scripts />
-          </body>
-        </html>
-      ));
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssr" })
+      }
+    );
+    const mixedPage = defineRoute("/ppr/admin")
+      .config({ mode: "ssr" })
       .loader(async ({ adminUser, siteName }) => ({
         greeting: `${await siteName}: ${await adminUser}`,
       }))
@@ -749,8 +788,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "ssg" })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "ssg" })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(({ pageVersion }) => <main>{pageVersion}</main>);
     const { app } = await mountProductionApp({
@@ -785,8 +824,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 15 })
+    const mixedPage = defineRoute("/mixed")
+      .config({ mode: "isr", revalidate: 15 })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(({ pageVersion }) => <main>{pageVersion}</main>);
     const { app } = await mountProductionApp({
@@ -806,12 +845,12 @@ describe.serial("partial prerendering", () => {
   test("ISR layout and page keep their own revalidation intervals", async () => {
     let layoutCalls = 0;
     let pageCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 0 })
-      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
-      .layout(({ children }) => children);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+    const mixedRoot = createVersionRoot(() => {
+      layoutCalls += 1;
+      return layoutCalls;
+    });
+    const mixedPage = defineRoute("/ppr/version")
+      .config({ mode: "isr", revalidate: 30 })
       .loader(() => ({ pageVersion: (pageCalls += 1) }))
       .page(() => null);
     const { app } = await mountProductionApp({
@@ -832,12 +871,12 @@ describe.serial("partial prerendering", () => {
   test("renews a cached child when its parent data changes", async () => {
     let layoutCalls = 0;
     let pageCalls = 0;
-    const mixedRoot = defineRootRoute()
-      .config({ mode: "isr", revalidate: 0 })
-      .loader(() => ({ layoutVersion: (layoutCalls += 1) }))
-      .layout(({ children }) => children);
-    const mixedPage = defineRoute()
-      .config({ layout: mixedRoot, mode: "isr", revalidate: 30 })
+    const mixedRoot = createVersionRoot(() => {
+      layoutCalls += 1;
+      return layoutCalls;
+    });
+    const mixedPage = defineRoute("/ppr/version")
+      .config({ mode: "isr", revalidate: 30 })
       .loader(async ({ layoutVersion }) => {
         pageCalls += 1;
         return { derivedVersion: await layoutVersion };
@@ -877,8 +916,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .loader(() => ({ catalog: (publicCalls += 1) }))
       .page(({ catalog }) => <main>{catalog}</main>);
     const cache = createMemoryPageCache();
@@ -924,8 +963,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(() => ({ catalog: "Fresh catalog" }))
       .page(({ catalog }) => <main>{catalog}</main>);
     const { app, instance } = await mountProductionApp({
@@ -953,8 +992,8 @@ describe.serial("partial prerendering", () => {
       .config({ mode: "ssr" })
       .loader(() => ({ session: "private" }))
       .layout(({ children }) => children);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60 })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60 })
       .loader(async () => {
         publicCalls += 1;
         if (publicCalls === 1) {
@@ -993,8 +1032,8 @@ describe.serial("partial prerendering", () => {
       .config({ mode: "ssr" })
       .loader(() => ({ session: "private" }))
       .layout(({ children }) => children);
-    const terminal = defineRoute()
-      .config({ layout: privateRoot, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .loader(async () => {
         publicCalls += 1;
         if (publicCalls === 1) {
@@ -1042,8 +1081,8 @@ describe.serial("partial prerendering", () => {
           </body>
         </html>
       ));
-    const terminal = defineRoute()
-      .config({ layout: publicRoot, mode: "ssg" })
+    const terminal = defineRoute("/terminal")
+      .config({ mode: "ssg" })
       .loader(() => ({ catalog }))
       .page(({ catalog: value }) => <main>{value}</main>);
     const { app, instance } = await mountProductionApp({
@@ -1069,9 +1108,8 @@ describe.serial("partial prerendering", () => {
 
   test("keys PPR public shells by query string", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
+    const route = defineRoute("/")
       .config({
-        layout: rootTerminal,
         mode: "isr",
         query: t.Object({ view: t.Optional(t.String()) }),
         revalidate: 60,
@@ -1112,9 +1150,8 @@ describe.serial("partial prerendering", () => {
 
   test("keys PPR public shells on declared query params only, in canonical order", async () => {
     const observed: unknown[] = [];
-    const route = defineRoute()
+    const route = defineRoute("/")
       .config({
-        layout: rootTerminal,
         mode: "isr",
         query: t.Object({ sort: t.Optional(t.String()), view: t.Optional(t.String()) }),
         revalidate: 60,
@@ -1155,9 +1192,8 @@ describe.serial("partial prerendering", () => {
 
   test("keys PPR public shells on declared query values as the schema decodes them", async () => {
     const observed: unknown[] = [];
-    const route = defineRoute()
+    const route = defineRoute("/")
       .config({
-        layout: rootTerminal,
         mode: "isr",
         query: t.Object({ page: t.Number({ default: 1 }) }),
         revalidate: 60,
@@ -1192,8 +1228,8 @@ describe.serial("partial prerendering", () => {
 
   test("PPR routes without a query schema share one shell while requestLoader holes see the raw query", async () => {
     const observed: unknown[] = [];
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(({ query }) => ({ user: `ref:${Object.values(query).join()}` }))
       .loader(({ query }) => {
         observed.push({ ...query });
@@ -1228,8 +1264,8 @@ describe.serial("partial prerendering", () => {
   test("revalidateTag invalidates a PPR public shell", async () => {
     let catalog = "Shoes";
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
@@ -1271,8 +1307,8 @@ describe.serial("partial prerendering", () => {
 
   test("uses the shared page cache for PPR public artifacts", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60, tags: ["catalog"] })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60, tags: ["catalog"] })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
@@ -1305,8 +1341,8 @@ describe.serial("partial prerendering", () => {
         return { title: "Public" };
       })
     );
-    const page = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 3600 })
+    const page = defineRoute("/")
+      .config({ mode: "isr", revalidate: 3600 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(async () => ({ catalog: (await api.catalog.get()).data }))
       .page(({ catalog }) => <main>{catalog?.title}</main>);
@@ -1351,9 +1387,8 @@ describe.serial("partial prerendering", () => {
       return <strong>{use(data)}</strong>;
     }
     return mountAccount(
-      defineRoute()
+      defineRoute("/")
         .config({
-          layout: rootTerminal,
           mode: "isr",
           query: t.Object({ view: t.Optional(t.String()) }),
           revalidate: 60,
@@ -1446,8 +1481,8 @@ describe.serial("partial prerendering", () => {
 
   test("external prerender bypasses shared and local PPR artifacts", async () => {
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => {
         publicCalls += 1;
@@ -1470,8 +1505,8 @@ describe.serial("partial prerendering", () => {
   test("serves stale shared PPR while regeneration runs in the background", async () => {
     const gate = Promise.withResolvers<void>();
     let publicCalls = 0;
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(async () => {
         publicCalls += 1;
@@ -1536,8 +1571,8 @@ describe.serial("partial prerendering", () => {
       read: unavailable,
       release: unavailable,
     };
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader(() => ({ user: "alice" }))
       .loader(() => ({ catalog: "Fresh catalog" }))
       .page(({ catalog }) => <main>{catalog}</main>);
@@ -1554,8 +1589,8 @@ describe.serial("partial prerendering", () => {
   });
 
   test("streams a rejected request field instead of aborting the PPR response", async () => {
-    const route = defineRoute()
-      .config({ layout: rootTerminal, mode: "isr", revalidate: 60 })
+    const route = defineRoute("/")
+      .config({ mode: "isr", revalidate: 60 })
       .requestLoader((): { user: string } => {
         throw new Error("private boom");
       })

@@ -49,7 +49,7 @@ describe("root.tsx diagnostics", () => {
     expect(String(error)).toContain(
       "root.tsx must export `route = defineRootRoute().config({ mode }).layout(...)`"
     );
-    expect(String(error)).not.toContain("defineRoute()");
+    expect(String(error)).not.toContain("defineRoute(");
   });
 
   test("refers to defineRootRoute() when the root has no layout", async () => {
@@ -108,15 +108,14 @@ describe("nested layout diagnostics", () => {
     const pagesDir = createPagesDir({
       "blog/_route.tsx": "export const route = { layout: true };",
       "blog/index.tsx": `import { defineRoute } from ${furinEntry};
-import { route as rootRoute } from "../root";
-export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => null);`,
+export const route = defineRoute("/blog").config({ mode: "ssr" }).page(() => null);`,
       "root.tsx": VALID_ROOT,
     });
 
     const error = await scanPages(pagesDir).catch((caught: unknown) => caught);
 
     expect(String(error)).toContain(
-      `[furin] ${join(pagesDir, "blog/_route.tsx")}: _route.tsx must export \`route = defineRoute().config({ layout: parentRoute, mode }).layout(({ children }) => ...)\`.`
+      `[furin] ${join(pagesDir, "blog/_route.tsx")}: _route.tsx must export \`route = defineRoute(id).config({ mode }).layout(({ children }) => ...)\`, with the file's id.`
     );
   });
 });

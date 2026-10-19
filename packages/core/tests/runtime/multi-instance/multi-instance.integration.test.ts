@@ -81,10 +81,9 @@ function writeAdminPages(appPath) {
     "src/admin/index.tsx",
     [
       'import { defer, defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/admin')",
+      '  .config({ mode: "ssr" })',
       '  .loader(() => defer({ ready: Promise.resolve("yes") }))',
       "  .page(() => <main>Admin home</main>);",
     ].join("\\n")
@@ -95,9 +94,8 @@ function writeAdminPages(appPath) {
     [
       'import { Link } from "@teyik0/furin/link";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr" }).page(() => (',
+      'export const route = defineRoute("/admin/nav").config({ mode: "ssr" }).page(() => (',
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
       '      <Link to="/nav">Self link</Link>',
@@ -110,10 +108,9 @@ function writeAdminPages(appPath) {
     "src/admin/users.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/admin/users')",
+      '  .config({ mode: "ssr" })',
       "  .loader(() => {",
       '    revalidatePath("/from-admin", "page");',
       '    return { who: "admin" };',
@@ -133,10 +130,9 @@ async function mountBothApps(options) {
     "src/pages/revalidating.tsx",
     [
       'import { defineRoute, revalidatePath } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      "export const route = defineRoute('/revalidating')",
+      '  .config({ mode: "ssr" })',
       "  .loader(() => {",
       '    revalidatePath("/from-front", "page");',
       "    return {};",
@@ -149,10 +145,9 @@ async function mountBothApps(options) {
     [
       'import { Link } from "@teyik0/furin/link";',
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      "export const route = defineRoute('/nav')",
+      '  .config({ mode: "ssg" })',
       "  .page(() => (",
       "    <nav>",
       '      <Link to="/users">Users link</Link>',
@@ -187,8 +182,7 @@ try {
     writeAppFile(app.path, "src/pages/item/[id].tsx", [
       'import { defineRoute } from "@teyik0/furin";',
       'import { t } from "elysia";',
-      'import { route as rootRoute } from "../root";',
-      'export const route = defineRoute().config({ layout: rootRoute, mode: "ssr", params: t.Object({ id: t.String() }) })',
+      'export const route = defineRoute("/item/[id]").config({ mode: "ssr", params: t.Object({ id: t.String() }) })',
       '  .loader(({ params }) => ({ id: params.id })).page(({ id }) => <main>{id}</main>);',
     ].join("\\n"));
     const parent = new Elysia().use(await furin({ pagesDir: join(app.path, "src/pages") }));

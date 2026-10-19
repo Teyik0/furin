@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
-import { buildRouteTree, collectRouteFiles } from "../../../src/plugin/route-tree.ts";
+import { dirname, join } from "node:path";
+import { buildRouteTree, collectRouteFiles, fileRouteId } from "../../../src/plugin/route-tree.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
@@ -14,19 +14,12 @@ import { defineRootRoute } from ${JSON.stringify(FURIN_ENTRY)};
 export const route = defineRootRoute().config({ mode: "ssr" }).layout(({ children }) => children);
 `;
 
-// page module that inherits from root — import path is computed per page so
-// nested files (subdirs) still resolve to the same root module instance,
-// guaranteeing object identity for validateRouteChain.
+// page module keyed by its place under the root's directory.
 function pageModule(pageAbsPath: string, rootAbsPath: string): string {
-  let rel = relative(dirname(pageAbsPath), rootAbsPath).replaceAll("\\", "/");
-  if (!rel.startsWith(".")) {
-    rel = `./${rel}`;
-  }
   return `
 import { defineRoute } from ${JSON.stringify(FURIN_ENTRY)};
-import { route as rootRoute } from ${JSON.stringify(rel)};
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: "ssr" })
+export const route = defineRoute(${JSON.stringify(fileRouteId({ pagesDir: dirname(rootAbsPath), prefix: "" }, pageAbsPath))})
+  .config({ mode: "ssr" })
   .page(() => null);
 `;
 }

@@ -25,11 +25,9 @@ function typedRouteSource(version: "after" | "before"): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
     'import { t } from "elysia";',
-    'import { route as rootRoute } from "../root";',
     "",
-    "export const route = defineRoute()",
+    'export const route = defineRoute("/items/[id]")',
     "  .config({",
-    "    layout: rootRoute,",
     '    mode: "ssr",',
     `    params: t.Object({ id: ${schema} }),`,
     `    query: t.Object({ page: ${schema} }),`,

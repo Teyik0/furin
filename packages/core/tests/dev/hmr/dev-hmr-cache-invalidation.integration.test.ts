@@ -47,10 +47,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "isr", revalidate: 60 })',
       "  .page(() => <main>ISR home page</main>);",
     ].join("\n")
   );
@@ -60,9 +59,8 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     "src/pages/private.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/private")',
+      '  .config({ mode: "ssg" })',
       '  .loader(({ request }) => ({ session: request.headers.get("cookie") }))',
       "  .page(({ session }) => <main>{session}</main>);",
     ].join("\n")
@@ -74,10 +72,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     [
       'import { Await, defineRoute } from "@teyik0/furin";',
       'import { Suspense } from "react";',
-      'import { route as rootRoute } from "./root";',
       "let catalogRuns = 0;",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssg" })',
+      'export const route = defineRoute("/personal")',
+      '  .config({ mode: "ssg" })',
       '  .requestLoader(({ cookies }) => ({ session: cookies.get("session") }))',
       '  .loader(() => ({ catalog: "shared", catalogRuns: ++catalogRuns }))',
       '  .page(({ catalog, catalogRuns, session }) => <main>{catalog}<span data-test="catalog-runs">{catalogRuns}</span><Suspense fallback="Loading"><Await resolve={session}>{(value) => <strong>{String(value)}</strong>}</Await></Suspense></main>);',
@@ -89,10 +86,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     "src/pages/sub/_route.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/sub/_route")',
+      '  .config({ mode: "ssr" })',
       '  .layout(({ children }) => <section data-test="sub-v1">{children}</section>);',
     ].join("\n")
   );
@@ -102,10 +98,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
     "src/pages/sub/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "ssg" })',
+      'export const route = defineRoute("/sub")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Sub page</main>);",
     ].join("\n")
   );
@@ -182,10 +177,9 @@ describe.serial("dev HMR cache invalidation on unrelated _route edit", () => {
       "src/pages/sub/_route.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/sub/_route")',
+        '  .config({ mode: "ssr" })',
         '  .layout(({ children }) => <section data-test="sub-v2">{children}</section>);',
       ].join("\n")
     );

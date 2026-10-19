@@ -71,7 +71,7 @@ test("a virtual page can load its deferred render module", async () => {
       filePath,
       `import { defineRoute } from "@teyik0/furin";
       import { label } from "./label";
-      export const route = defineRoute().config({ mode: "ssr" }).page(() => <p>{label}</p>);`
+      export const route = defineRoute("/label").config({ mode: "ssr" }).page(() => <p>{label}</p>);`
     );
     registerDevPagePlugin();
     const { route } = await import(`${filePath}?furin-server&t=1`);

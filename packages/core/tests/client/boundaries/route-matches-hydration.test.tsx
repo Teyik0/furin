@@ -69,8 +69,8 @@ const root: RootLayout = {
   route: adaptDefinedLayout(rootDefinition, undefined),
 };
 
-const shopDefinition = defineRoute()
-  .config({ layout: rootDefinition, mode: "ssr" })
+const shopDefinition = defineRoute("/shop-definition/_route")
+  .config({ mode: "ssr" })
   .loader(({ path }) => {
     if (path === "/shop/broken") {
       throw new Response("Shop unavailable", { status: 503 });
@@ -124,8 +124,8 @@ function toTestRoute(
 }
 
 function shopPage(pattern: string): TestRoute {
-  const definition = defineRoute()
-    .config({ layout: shopDefinition, mode: "ssr" })
+  const definition = defineRoute("/definition")
+    .config({ mode: "ssr" })
     .loader(({ path }) => {
       if (path === "/shop/error") {
         throw new Response("Page unavailable", { status: 503 });
@@ -353,8 +353,8 @@ describe("route matches", () => {
   });
 
   test("a head() failure hydrates the page boundary inside the layouts", async () => {
-    const definition = defineRoute()
-      .config({ layout: shopDefinition, mode: "ssr" })
+    const definition = defineRoute("/definition")
+      .config({ mode: "ssr" })
       .head(() => {
         throw new Error("head exploded");
       })
@@ -375,8 +375,8 @@ describe("route matches", () => {
   });
 
   test("a shell render failure hydrates the same error document the server sent", async () => {
-    const definition = defineRoute()
-      .config({ layout: rootDefinition, mode: "ssr" })
+    const definition = defineRoute("/definition")
+      .config({ mode: "ssr" })
       .page(() => {
         throw new Error("render exploded");
       });

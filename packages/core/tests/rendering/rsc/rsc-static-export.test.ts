@@ -13,9 +13,8 @@ test("static exports render composite server components", async () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { CompositeComponent, createCompositeComponent } from "@teyik0/furin/rsc";',
-        'import { route as rootRoute } from "./root";',
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/rsc")',
+        '  .config({ mode: "ssg" })',
         "  .loader(async () => ({",
         "    shell: await createCompositeComponent<{ action: () => React.ReactNode }>(({ action }) => <main><h1>RSC page</h1>{action()}</main>),",
         "  }))",

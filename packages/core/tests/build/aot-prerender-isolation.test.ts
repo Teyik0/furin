@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
+import { createTmpApp, keyPagesForPrefix, writeAppFile } from "../support/app-fixtures.ts";
 import { getFreePort } from "../support/hmr.ts";
 import { waitForHttp } from "../support/http.ts";
 import { runCli, startProcess } from "../support/process.ts";
@@ -19,10 +19,9 @@ export const api = new Elysia().get("/api/message", () => ({ message: "In-memory
     `import { defineRoute } from "@teyik0/furin";
 import { createClient } from "@teyik0/furin/client";
 import { api } from "../api";
-import { route as rootRoute } from "./root";
 
-export const route = defineRoute()
-  .config({ layout: rootRoute, mode: ${JSON.stringify(mode)}, revalidate: 60 })
+export const route = defineRoute("/")
+  .config({ mode: ${JSON.stringify(mode)}, revalidate: 60 })
   .staticParams(() => [{}])
   .loader(async () => {
     const { data, error } = await createClient(api).api.message.get();
@@ -268,6 +267,7 @@ const sync = {
 };
 export default api.use(await furin({ pagesDir: "./src/pages", prefix: "/tasks", sync }));`
     );
+    keyPagesForPrefix(app.path, "src/pages", "/tasks");
     const build = await runCli(["build", "--target", "vercel"], { cwd: app.path });
     expect(build.exitCode, build.stderr).toBe(0);
     const fallback = await Bun.file(

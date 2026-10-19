@@ -261,9 +261,9 @@ describe("generateHydrateEntry", () => {
       writeFileSync(
         rootPath,
         [
-          'import { defineRoute } from "@teyik0/furin/client";',
+          'import { defineRootRoute } from "@teyik0/furin/client";',
           "",
-          "export const route = defineRoute().layout(({ children }) => <div>{children}</div>);",
+          "export const route = defineRootRoute().layout(({ children }) => <div>{children}</div>);",
         ].join("\n")
       );
 
@@ -273,7 +273,7 @@ describe("generateHydrateEntry", () => {
           'import { defineRoute } from "@teyik0/furin/client";',
           'import { Link } from "@teyik0/furin/link";',
           "",
-          'export const route = defineRoute().page(() => <Link to="/docs">Docs</Link>);',
+          'export const route = defineRoute("/").page(() => <Link to="/docs">Docs</Link>);',
         ].join("\n")
       );
 

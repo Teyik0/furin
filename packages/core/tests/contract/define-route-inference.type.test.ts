@@ -32,9 +32,41 @@ const createRoot = () =>
     });
 declare const root: ReturnType<typeof createRoot>;
 
+const createSessionLayout = () =>
+  defineRoute("/inference/session/_route")
+    .config({ mode: "ssr" })
+    .requestLoader(() => ({ session: "private" }))
+    .layout(({ children }) => children);
+declare const sessionLayout: ReturnType<typeof createSessionLayout>;
+
+declare module "@teyik0/furin/routes" {
+  interface FileRoutes {
+    "/inference/plain": {
+      kind: "page";
+      parent: typeof root;
+      pathParams: NonNullable<unknown>;
+    };
+    "/inference/request-data": {
+      kind: "page";
+      parent: typeof root;
+      pathParams: NonNullable<unknown>;
+    };
+    "/inference/session/_route": {
+      kind: "layout";
+      parent: typeof root;
+      pathParams: NonNullable<unknown>;
+    };
+    "/inference/session/child": {
+      kind: "page";
+      parent: typeof sessionLayout;
+      pathParams: NonNullable<unknown>;
+    };
+  }
+}
+
 const assertSchemaVariants = () => {
-  const plain = defineRoute()
-    .config({ layout: root, mode: "ssg" })
+  const plain = defineRoute("/inference/plain")
+    .config({ mode: "ssg" })
     .loader(({ params, query, site }) => {
       expectTypeOf(params).toEqualTypeOf<NoFields>();
       expectTypeOf(query).toEqualTypeOf<NoFields>();
@@ -50,8 +82,8 @@ const assertSchemaVariants = () => {
   expectTypeOf<"schemas" extends keyof typeof plain ? true : false>().toEqualTypeOf<false>();
   expectTypeOf<"loader" extends keyof typeof plain ? true : false>().toEqualTypeOf<true>();
 
-  const queryOnly = defineRoute()
-    .config({ layout: root, mode: "ssr", query: t.Object({ page: t.Number() }) })
+  const queryOnly = defineRoute("/query-only")
+    .config({ mode: "ssr", query: t.Object({ page: t.Number() }) })
     .loader(({ params, query }) => {
       expectTypeOf(params).toEqualTypeOf<NoFields>();
       expectTypeOf(query).toEqualTypeOf<{ page: number }>();
@@ -67,8 +99,8 @@ const assertSchemaVariants = () => {
   expectTypeOf<keyof (typeof queryOnly)["schemas"]>().toEqualTypeOf<"query">();
   expectTypeOf<HeadContext<typeof queryOnly>["page"]>().toEqualTypeOf<number>();
 
-  const paramsOnly = defineRoute()
-    .config({ layout: root, mode: "ssr", params: t.Object({ id: t.String() }) })
+  const paramsOnly = defineRoute("/params-only")
+    .config({ mode: "ssr", params: t.Object({ id: t.String() }) })
     .page(({ params, query }) => {
       expectTypeOf(params).toEqualTypeOf<{ id: string }>();
       expectTypeOf(query).toEqualTypeOf<NoFields>();
@@ -78,9 +110,8 @@ const assertSchemaVariants = () => {
   expectTypeOf<keyof (typeof paramsOnly)["schemas"]>().toEqualTypeOf<"params" | "query">();
   expectTypeOf<"loader" extends keyof typeof paramsOnly ? true : false>().toEqualTypeOf<false>();
 
-  const both = defineRoute()
+  const both = defineRoute("/both")
     .config({
-      layout: root,
       mode: "isr",
       params: t.Object({ id: t.Number() }),
       query: t.Object({ tab: t.Optional(t.String()) }),
@@ -99,11 +130,11 @@ const assertSchemaVariants = () => {
 };
 
 const assertStageAvailability = () => {
-  const ssr = defineRoute().config({ layout: root, mode: "ssr" });
+  const ssr = defineRoute("/ssr").config({ mode: "ssr" });
   expectTypeOf<keyof typeof ssr>().toEqualTypeOf<
     "head" | "layout" | "loader" | "page" | "requestLoader"
   >();
-  const ssg = defineRoute().config({ layout: root, mode: "ssg" });
+  const ssg = defineRoute("/ssg").config({ mode: "ssg" });
   expectTypeOf<keyof typeof ssg>().toEqualTypeOf<
     "head" | "layout" | "loader" | "page" | "requestLoader" | "staticParams"
   >();
@@ -122,8 +153,8 @@ const assertStageAvailability = () => {
 };
 
 const assertRequestLoaderData = () => {
-  const route = defineRoute()
-    .config({ layout: root, mode: "isr", query: t.Object({ q: t.String() }), revalidate: 1 })
+  const route = defineRoute("/inference/request-data")
+    .config({ mode: "isr", query: t.Object({ q: t.String() }), revalidate: 1 })
     .requestLoader(({ query, cookies }) => {
       expectTypeOf(query).toEqualTypeOf<{ q: string }>();
       return { user: cookies.get("user"), q: query.q };
@@ -142,12 +173,9 @@ const assertRequestLoaderData = () => {
     });
   expectTypeOf<RouteLoaderData<typeof route>>().toExtend<{ catalog: string; site: string }>();
 
-  const layout = defineRoute()
-    .config({ layout: root, mode: "ssr" })
-    .requestLoader(() => ({ session: "private" }))
-    .layout(({ children }) => children);
-  const child = defineRoute()
-    .config({ layout, mode: "ssr" })
+  expectTypeOf(createSessionLayout()).not.toBeNever();
+  const child = defineRoute("/inference/session/child")
+    .config({ mode: "ssr" })
     .page((props) => {
       expectTypeOf(props.session).toExtend<Promise<string>>();
       expectTypeOf(props.site).toEqualTypeOf<string>();

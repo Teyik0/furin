@@ -27,7 +27,7 @@ test("a deleted route remains loadable when its module query version changes", a
     );
     writeFileSync(
       path,
-      'import { defineRoute } from "furin"; export const route = defineRoute().loader(() => "PRIVATE_DELETED_ROUTE").page(() => "PUBLIC_DELETED_ROUTE");'
+      'import { defineRoute } from "furin"; export const route = defineRoute("/").loader(() => "PRIVATE_DELETED_ROUTE").page(() => "PUBLIC_DELETED_ROUTE");'
     );
     await load?.({ path: hydrationPath });
     const first = await load?.({ path: `${path}?t=1` });
@@ -79,7 +79,7 @@ test("strips a project whose directory name merely contains node_modules", async
   try {
     writeFileSync(
       path,
-      'import { defineRoute } from "furin"; export const route = defineRoute().loader(() => "PRIVATE_NESTED_NAME").page(() => null);'
+      'import { defineRoute } from "furin"; export const route = defineRoute("/").loader(() => "PRIVATE_NESTED_NAME").page(() => null);'
     );
     const loaded = await load?.({ path });
     expect(loaded).toBeDefined();

@@ -41,9 +41,8 @@ test.each(policies)(
     const layout = defineRootRoute()
       .config({ mode: "ssr" })
       .layout(({ children }) => <section>{children}</section>);
-    const definition = defineRoute()
+    const definition = defineRoute("/definition")
       .config({
-        layout,
         mode: "ssr",
         params: t.Object({ id: t.Number(), tab: t.String() }),
         query: t.Object({ view: t.String() }),

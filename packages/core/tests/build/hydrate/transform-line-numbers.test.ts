@@ -25,7 +25,7 @@ const loadPosts = async () => {
   return { count: await countPosts(), posts };
 };
 
-export const route = defineRoute()
+export const route = defineRoute("/")
   .config({
     mode: "ssr",
   })
@@ -50,7 +50,7 @@ test("the HMR wrapper of an imported page component adds no line", () => {
 import { Counter } from "./counter";
 
 export const label = "LABEL_MARKER";
-export const route = defineRoute()
+export const route = defineRoute("/page")
   .page(Counter);
 `;
   const { code } = transformForClient(source, "/app/page.tsx");
@@ -97,7 +97,7 @@ test("a split dev page keeps the source lines in its contract and render modules
   const source = `import { defineRoute } from "@teyik0/furin";
 import { Card } from "./card";
 
-export const route = defineRoute()
+export const route = defineRoute("/read")
   .config({ mode: "ssr" })
   .loader(() => {
     throw new Error("LOADER_MARKER");

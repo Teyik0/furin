@@ -81,7 +81,7 @@ describe("refreshLayoutChain", () => {
     ).catch((error: unknown) => error);
 
     expect(String((failure as Error).cause)).toContain(
-      "/pages/board/_route.tsx: _route.tsx must export `route = defineRoute()"
+      "/pages/board/_route.tsx: _route.tsx must export `route = defineRoute(id)"
     );
     expect(Reflect.get((failure as Error).cause as Error, "furinPosition")).toEqual({
       column: 1,

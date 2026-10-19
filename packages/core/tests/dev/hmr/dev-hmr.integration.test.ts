@@ -58,10 +58,9 @@ describe.serial("dev HMR", () => {
     [
       'import { defineRoute } from "@teyik0/furin";',
       'import { MobileNav } from "../../components/mobile-nav";',
-      'import { route as rootRoute } from "../root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "ssr" })',
+      'export const route = defineRoute("/docs/_route")',
+      '  .config({ mode: "ssr" })',
       "  .layout(({ children }) => (",
       "    <section>",
       "      <MobileNav />",
@@ -76,10 +75,9 @@ describe.serial("dev HMR", () => {
     "src/pages/docs/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as parentRoute } from "./_route";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: parentRoute, mode: "ssg" })',
+      'export const route = defineRoute("/docs")',
+      '  .config({ mode: "ssg" })',
       "  .page(() => <main>Docs page</main>);",
     ].join("\n")
   );
@@ -89,10 +87,9 @@ describe.serial("dev HMR", () => {
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "",
-      "export const route = defineRoute()",
-      '  .config({ layout: rootRoute, mode: "isr", revalidate: 60 })',
+      'export const route = defineRoute("/")',
+      '  .config({ mode: "isr", revalidate: 60 })',
       "  .page(() => <main>ISR home</main>);",
     ].join("\n")
   );
@@ -204,10 +201,9 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssg" })',
         "  .page(() => <main>Updated via HMR</main>);",
       ].join("\n")
     );
@@ -237,10 +233,9 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssg" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssg" })',
         "  .page(() => <main>Second edit works</main>);",
       ].join("\n")
     );
@@ -346,10 +341,9 @@ describe.serial("dev HMR", () => {
       [
         'import { defineRoute } from "@teyik0/furin";',
         'import { MobileNav } from "../../components/mobile-nav";',
-        'import { route as rootRoute } from "../root";',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/docs/_route")',
+        '  .config({ mode: "ssr" })',
         "  .layout(({ children }) => (",
         '    <section data-docs-layout="docs-v2">',
         "      <MobileNav />",
@@ -391,12 +385,11 @@ describe.serial("dev HMR", () => {
       "src/pages/index.tsx",
       [
         'import { defineRoute } from "@teyik0/furin";',
-        'import { route as rootRoute } from "./root";',
         "",
         'const example = `import "./styles/globals.css"`;',
         "",
-        "export const route = defineRoute()",
-        '  .config({ layout: rootRoute, mode: "ssr" })',
+        'export const route = defineRoute("/")',
+        '  .config({ mode: "ssr" })',
         "  .page(() => <main>{example}</main>);",
       ].join("\n")
     );

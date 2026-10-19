@@ -49,10 +49,9 @@ async function mountProduction(
     "src/pages/index.tsx",
     [
       'import { defineRoute } from "@teyik0/furin";',
-      'import { route as rootRoute } from "./root";',
       "const counters = globalThis as typeof globalThis & { [key: string]: number | undefined };",
-      "export const route = defineRoute()",
-      `  .config({ layout: rootRoute, mode: "${mode}", revalidate: 60 })`,
+      'export const route = defineRoute("/")',
+      `  .config({ mode: "${mode}", revalidate: 60 })`,
       "  .loader(() => {",
       `    counters[${JSON.stringify(counterKey)}] = (counters[${JSON.stringify(counterKey)}] ?? 0) + 1;`,
       '    return { headline: "cached headline" };',

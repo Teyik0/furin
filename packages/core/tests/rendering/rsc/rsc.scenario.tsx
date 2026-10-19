@@ -106,8 +106,8 @@ function ToolbarAction({ label }: { label: string }): ReactNode {
 }
 
 function createRscRoute(renderServerComponent: RenderServerComponent) {
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const route = defineRoute("/")
+    .config({ mode: "ssr" })
     .loader(async () => ({ article: await renderServerComponent(<h1>Flight article</h1>) }))
     .page(({ article }) => <main>{article}</main>);
   return { root, route };
@@ -261,8 +261,8 @@ try {
   expect(html).toContain("Flight article");
   expect(html).toContain('id="__FURIN_ROUTE_FRAMES__"');
 
-  const nestedSsrRoute = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const nestedSsrRoute = defineRoute("/nested-ssr")
+    .config({ mode: "ssr" })
     .loader(async () => ({
       content: { article: await renderServerComponent(<h1>SSR Nested Flight article</h1>) },
     }))
@@ -289,8 +289,8 @@ try {
   const slow = new Promise<string>((resolve) => {
     resolveSlow = resolve;
   });
-  const route = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const route = defineRoute("/")
+    .config({ mode: "ssr" })
     .loader(async () =>
       defer({
         content: { article: await renderServerComponent(<h1>Nested Flight article</h1>) },
@@ -314,8 +314,8 @@ try {
   resolveSlow("done");
   expect(await parsedRace.deferredPromises.slow).toBe("done");
 
-  const deferredRscRoute = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const deferredRscRoute = defineRoute("/deferred-rsc")
+    .config({ mode: "ssr" })
     .loader(async () =>
       defer({
         readyArticle: await renderServerComponent(<h1>Ready Flight article</h1>),
@@ -336,8 +336,8 @@ try {
     "<h1>Deferred Flight article</h1>"
   );
 
-  const deferredOnlyRscRoute = defineRoute()
-    .config({ layout: rootTerminal, mode: "ssr" })
+  const deferredOnlyRscRoute = defineRoute("/deferred-only-rsc")
+    .config({ mode: "ssr" })
     .loader(async () =>
       defer({
         slowArticle: Promise.resolve(
@@ -629,8 +629,8 @@ try {
   for (const mode of ["ssg", "isr"] as const) {
     const bufferedRoute =
       mode === "isr"
-        ? defineRoute()
-            .config({ layout: rootTerminal, mode: "isr", revalidate: 300 })
+        ? defineRoute("/")
+            .config({ mode: "isr", revalidate: 300 })
             .loader(async () => ({
               article: await renderServerComponent(<h1>Buffered article</h1>),
               shell: Card,
@@ -641,8 +641,8 @@ try {
                 {pageArticle}
               </>
             ))
-        : defineRoute()
-            .config({ layout: rootTerminal, mode: "ssg" })
+        : defineRoute("/")
+            .config({ mode: "ssg" })
             .loader(async () => ({
               article: await renderServerComponent(<h1>Buffered article</h1>),
               shell: Card,

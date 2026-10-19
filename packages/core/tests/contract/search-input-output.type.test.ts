@@ -36,15 +36,14 @@ const createRoot = () =>
 declare const root: ReturnType<typeof createRoot>;
 
 const createDefaultedRoute = () =>
-  defineRoute()
-    .config({ layout: root, mode: "ssr", query: defaultedQuery })
+  defineRoute("/")
+    .config({ mode: "ssr", query: defaultedQuery })
     .page(({ query }) => query.q);
 declare const defaultedRoute: ReturnType<typeof createDefaultedRoute>;
 
 const createOptionalRoute = () =>
-  defineRoute()
+  defineRoute("/")
     .config({
-      layout: root,
       mode: "ssr",
       query: t.Object({ page: t.Optional(t.Number({ default: 1 })), tag: t.Optional(t.String()) }),
     })

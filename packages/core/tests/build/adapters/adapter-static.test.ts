@@ -31,21 +31,20 @@ function makeApp(fixtureName: string): TmpApp {
   return app;
 }
 
-/** An SSG page module whose builder chain continues with `chain`. */
-function ssgPage(rootImport: string, chain: string): string {
+/** An SSG page module, keyed by `id`, whose builder chain continues with `chain`. */
+function ssgPage(id: string, chain: string): string {
   return [
     'import { defineRoute } from "@teyik0/furin";',
-    `import { route as rootRoute } from "${rootImport}";`,
-    "export const route = defineRoute()",
-    '  .config({ layout: rootRoute, mode: "ssg" })',
+    `export const route = defineRoute(${JSON.stringify(id)})`,
+    '  .config({ mode: "ssg" })',
     `  ${chain};`,
     "",
   ].join("\n");
 }
 
-function redirectPage(location: string): string {
+function redirectPage(id: string, location: string): string {
   return ssgPage(
-    "./root",
+    id,
     `.loader(async () => { throw new Response(null, { headers: { Location: ${JSON.stringify(location)} }, status: 302 }); })
   .page(() => <main>redirect</main>)`
   );
@@ -193,7 +192,7 @@ describe("static export output", () => {
       writeAppFile(
         app.path,
         "src/pages/blog/[slug].tsx",
-        ssgPage("../root", ".page(() => <article>Blog post page</article>)")
+        ssgPage("/blog/[slug]", ".page(() => <article>Blog post page</article>)")
       );
       const error = await rejectionError(exportApp(app, {}));
       expect(error.message).toMatch(STATIC_EXPORT_RE);
@@ -228,7 +227,7 @@ describe("static export output", () => {
         app.path,
         "src/pages/z-slow.tsx",
         ssgPage(
-          "./root",
+          "/z-slow",
           `.loader(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); return { pageData: "slow" }; })
   .page(() => <main>slow</main>)`
         )
@@ -236,7 +235,7 @@ describe("static export output", () => {
       writeAppFile(
         app.path,
         "src/pages/a-fast.tsx",
-        ssgPage("./root", '.loader(async () => ({ pageData: "fast" })).page(() => <main>fast</main>)')
+        ssgPage("/a-fast", '.loader(async () => ({ pageData: "fast" })).page(() => <main>fast</main>)')
       );
 
       const manifest = await exportApp(app, {});
@@ -252,13 +251,13 @@ describe("static export output", () => {
       writeAppFile(
         app.path,
         "src/pages/about.tsx",
-        ssgPage("./root", '.loader(async () => ({ owner: "static-about" })).page(() => <main>about</main>)')
+        ssgPage("/about", '.loader(async () => ({ owner: "static-about" })).page(() => <main>about</main>)')
       );
       writeAppFile(
         app.path,
         "src/pages/[slug].tsx",
         ssgPage(
-          "./root",
+          "/[slug]",
           `.loader(async ({ params }) => ({ owner: \`slug-\${params.slug}\` }))
   .staticParams(() => [{ slug: "about" }, { slug: "other" }])
   .page(() => <main>slug</main>)`
@@ -280,11 +279,11 @@ describe("static export redirects", () => {
     "exports same-origin redirects below the basePath",
     async () => {
       const app = makeApp("cli-app");
-      writeAppFile(app.path, "src/pages/redirect-me.tsx", redirectPage("/home"));
+      writeAppFile(app.path, "src/pages/redirect-me.tsx", redirectPage("/redirect-me", "/home"));
       writeAppFile(
         app.path,
         "src/pages/absolute-redirect.tsx",
-        redirectPage("http://localhost/home?from=redirect#content")
+        redirectPage("/absolute-redirect", "http://localhost/home?from=redirect#content")
       );
 
       const manifest = await exportApp(app, { basePath: "/furin" });
@@ -310,18 +309,18 @@ describe("static export redirects", () => {
     "resolves relative, prefixed and external redirects and skips unsafe ones",
     async () => {
       const app = makeApp("cli-app");
-      writeAppFile(app.path, "src/pages/relative-redirect.tsx", redirectPage("home"));
+      writeAppFile(app.path, "src/pages/relative-redirect.tsx", redirectPage("/relative-redirect", "home"));
       writeAppFile(
         app.path,
         "src/pages/prefixed-redirect.tsx",
-        redirectPage("/furin?from=redirect#content")
+        redirectPage("/prefixed-redirect", "/furin?from=redirect#content")
       );
       writeAppFile(
         app.path,
         "src/pages/external-redirect.tsx",
-        redirectPage("https://example.com/away?from=furin#content")
+        redirectPage("/external-redirect", "https://example.com/away?from=furin#content")
       );
-      writeAppFile(app.path, "src/pages/unsafe-redirect.tsx", redirectPage("javascript:alert(1)"));
+      writeAppFile(app.path, "src/pages/unsafe-redirect.tsx", redirectPage("/unsafe-redirect", "javascript:alert(1)"));
 
       const manifest = await exportApp(app, { basePath: "/furin", onSSR: "skip" });
       const html = (path: string) => readFileSync(join(app.path, "dist", path, "index.html"), "utf8");
@@ -349,7 +348,7 @@ describe("static export failures", () => {
         app.path,
         "src/pages/will-fail.tsx",
         ssgPage(
-          "./root",
+          "/will-fail",
           '.loader(async () => { throw new Error("prerender-boom"); }).page(() => <main>never</main>)'
         )
       );
@@ -372,7 +371,7 @@ describe("static export failures", () => {
         app.path,
         "src/pages/blog/[slug].tsx",
         ssgPage(
-          "../root",
+          "/blog/[slug]",
           `.staticParams(() => Promise.reject(new Error("staticParams-boom")))
   .page(() => <article>Blog post page</article>)`
         )
@@ -396,7 +395,7 @@ describe("static export failures", () => {
         app.path,
         "src/pages/flaky.tsx",
         ssgPage(
-          "./root",
+          "/flaky",
           `.loader(async () => { if (await Bun.file(${JSON.stringify(failFlag)}).exists()) throw new Error("boom"); return {}; })
   .page(() => <main>flaky page</main>)`
         )
