@@ -5,8 +5,8 @@ import { scanRouteManifest } from "../../plugin/route-tree.ts";
 import type { ErrorComponent } from "../../shared/error.ts";
 import type { NotFoundComponent } from "../../shared/not-found.ts";
 import { collectRouteChainFromRoute, validateRouteChain } from "../../shared/utils/index.ts";
+import { isDevelopment } from "../instance.ts";
 import { type CompileContext, type CompiledModule, getCompileContext } from "../internal.ts";
-import { IS_DEV } from "../runtime-env.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import { resolveMode } from "./patterns.ts";
 import { routeModuleSourceVersion } from "./source-version.ts";
@@ -232,7 +232,9 @@ export async function scanRootLayout(pagesDir: string): Promise<RootLayout> {
   // the pages' rewritten imports, so its top level runs once per edit.
   const mod = (ctx?.modules[rootPath] ??
     (await import(
-      IS_DEV ? `${rootPath}?furin-server&t=${routeModuleSourceVersion(rootPath)}` : rootPath
+      isDevelopment()
+        ? `${rootPath}?furin-server&t=${routeModuleSourceVersion(rootPath)}`
+        : rootPath
     ))) as CompiledModule;
   const rootExport = mod.route;
   if (!isDefinedRouteTerminal(rootExport)) {
@@ -287,7 +289,7 @@ async function loadConventionComponent<T>(
   for (const filePath of getSourceModuleCandidates(dir, name)) {
     if (existsSync(filePath) || ctx?.modules[filePath]) {
       const moduleSpecifier =
-        IS_DEV && existsSync(filePath)
+        isDevelopment() && existsSync(filePath)
           ? `${filePath}?furin-server&t=${routeModuleSourceVersion(filePath)}`
           : filePath;
       const mod = (ctx?.modules[filePath] ?? (await import(moduleSpecifier))) as {
@@ -323,7 +325,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
       errorCache
     );
 
-    if (IS_DEV) {
+    if (isDevelopment()) {
       const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root, pagesDir);
       devRoute.segmentBoundaries = alignSegmentBoundaryDepths(
         segmentBoundaries,
@@ -394,7 +396,9 @@ async function resolveDefinedLayoutParent(
         continue;
       }
       const layoutModule = (await import(
-        IS_DEV ? `${candidate}?furin-server&t=${routeModuleSourceVersion(candidate)}` : candidate
+        isDevelopment()
+          ? `${candidate}?furin-server&t=${routeModuleSourceVersion(candidate)}`
+          : candidate
       )) as { route?: unknown };
       const layout = layoutModule.route;
       if (!isDefinedRouteTerminal(layout) || typeof layout.layout !== "function") {
