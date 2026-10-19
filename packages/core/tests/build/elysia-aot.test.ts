@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildApp } from "../../src/build/index.ts";
 import { patchElysiaWebSocketStub } from "../../src/build/elysia-aot.ts";
-import { createTmpApp } from "../support/app-fixtures.ts";
+import { createTmpApp, writeAppFile } from "../support/app-fixtures.ts";
+import { runProcess } from "../support/process.ts";
 
 const websocketStub = `function e(){throw new Error("[elysia-aot] WebSocket route builder was stripped (strip mode) but a WS route was used.")}`;
 
@@ -49,3 +50,66 @@ test("Vercel marks only the first instance request", async () => {
     app.cleanup();
   }
 });
+
+function createInMemoryClientApp(apiConfig: string) {
+  const app = createTmpApp("cli-app");
+  writeAppFile(
+    app.path,
+    "src/api.ts",
+    `import Elysia from "elysia";
+export const api = new Elysia(${apiConfig}).get("/api/message", () => ({ message: "In-memory API" }));`
+  );
+  writeAppFile(
+    app.path,
+    "src/server.ts",
+    `import { furin } from "@teyik0/furin";
+import { createClient } from "@teyik0/furin/client";
+import Elysia from "elysia";
+import { api } from "./api";
+
+const client = createClient(api);
+
+export default new Elysia({ name: "fixture-app" })
+  .use(api)
+  .get("/probe", async () => {
+    const { data, error } = await client.api.message.get();
+    if (error) throw error.value;
+    return data;
+  })
+  .use(await furin({ pagesDir: import.meta.dir + "/pages" }));`
+  );
+  return app;
+}
+
+test("a Bun build serves an in-memory client of a named plugin the served app uses", async () => {
+  const app = createInMemoryClientApp('{ name: "fixture-api" }');
+  try {
+    await buildApp({ rootDir: app.path, target: "bun" });
+
+    const result = await runProcess(
+      [
+        process.execPath,
+        "-e",
+        'const { default: app } = await import(process.argv[1]); const response = await app.handle(new Request("http://localhost/probe")); console.log(response.status, await response.text());',
+        join(app.path, ".furin/build/bun/_furin-app.js"),
+      ],
+      { cwd: app.path, timeoutMs: 10_000 }
+    );
+
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain('200 {"message":"In-memory API"}');
+  } finally {
+    app.cleanup();
+  }
+}, 60_000);
+
+test("a build rejects an in-memory client of an unnamed plugin", async () => {
+  const app = createInMemoryClientApp("");
+  try {
+    await expect(buildApp({ rootDir: app.path, target: "bun" })).rejects.toThrow(
+      "An in-memory client calls an unnamed Elysia instance"
+    );
+  } finally {
+    app.cleanup();
+  }
+}, 60_000);

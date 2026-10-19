@@ -314,9 +314,9 @@ export const route = defineRoute("/catalog")
       expect(serverPluginNames.indexOf("test-user-plugin")).toBeLessThan(
         serverPluginNames.indexOf("elysia-aot")
       );
-      expect(readFileSync(captureEntry, "utf8")).toContain(
-        "export default __serverModule.default"
-      );
+      expect(
+        readFileSync(join(app.path, ".furin/build/vercel/_furin-application.ts"), "utf8")
+      ).toContain("export default __serverModule.default");
 
       const manifest = result.targets.vercel;
       if (!manifest || !("isrRoutes" in manifest)) {

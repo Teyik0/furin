@@ -229,7 +229,10 @@ describe.serial("buildBunTarget Bun branches", () => {
     const captureEntry = join(app.path, ".furin/build/bun/_furin-app.ts");
     const serverBuild = buildConfigs.find((config) => config.entrypoints.includes(captureEntry));
     const pluginNames = serverBuild?.plugins?.map((plugin) => plugin.name) ?? [];
-    const captureSource = readFileSync(captureEntry, "utf8");
+    const captureSource = readFileSync(
+      join(app.path, ".furin/build/bun/_furin-application.ts"),
+      "utf8"
+    );
 
     expect(pluginNames).toContain("elysia-aot");
     expect(pluginNames).toContain("test-user-plugin");
@@ -269,7 +272,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(compile.assets?.map((path) => basename(path))).toEqual(["client", "public"]);
     const entrypoint = serverBuild?.entrypoints[0];
     expect(entrypoint).toBe(join(app.path, ".furin/build/bun/server.js"));
-    const source = readFileSync(join(app.path, ".furin/build/bun/_furin-app.ts"), "utf8");
+    const source = readFileSync(join(app.path, ".furin/build/bun/_furin-application.ts"), "utf8");
     expect(source).toContain("import.meta.dir");
     expect(source).not.toContain('with { type: "file" }');
     expect(existsSync(entrypoint as string)).toBe(false);

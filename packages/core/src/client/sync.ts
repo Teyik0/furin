@@ -8,6 +8,7 @@ import {
 import type { RouteMap } from "@teyik0/furin/routes";
 import type { AnyElysia } from "elysia";
 import type { RouteLoaderData } from "../define-route.ts";
+import { recordInMemoryApp } from "../shared/in-memory-apps.ts";
 import type { QueryIdentity } from "../shared/sync-query.ts";
 import {
   currentQueryEnvironment,
@@ -446,8 +447,18 @@ export function withSync<
   client: Treaty.Instance<App, Head, Fns>,
   options?: SyncClientOptions
 ): Treaty.Instance<App, Head, [...Fns, SyncPluginType]> {
+  const synced = client.use(plugin) as unknown as Callable;
+  // An in-memory client compiles its own router: Elysia AOT needs that app's manifest too.
+  const { elysia } = Reflect.apply(
+    Reflect.get(synced, "__furinQuery"),
+    synced,
+    []
+  ) as PluginVerbContext;
+  if (elysia) {
+    recordInMemoryApp(elysia);
+  }
   return wrapClient(
-    client.use(plugin) as unknown as Callable,
+    synced,
     undefined,
     options,
     new Map(),

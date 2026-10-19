@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Fixed
+- **In-memory Eden clients under Elysia AOT** — an Elysia instance called in memory through `createClient(app)` or `withSync(treaty(app))` compiles its own router, so AOT builds now export it from the application entry and Elysia compiles its manifest too. Such an instance must be named (`new Elysia({ name: "api" })`); the build fails otherwise.
 - **Windows development route refresh** — on Windows the development server reported edited route sources with backslashes, so their dev ISR/SSG loader output was not cleared: after a params or query schema edit, a navigation could keep loader data parsed with the previous schema. Edited sources are now reported with forward slashes, the form route snapshots and caches use. The loader cache also accepts native paths, so edits to shared workspace sources clear their entries too.
 
 ## [0.8.0-alpha.0] — 2026-10-19
