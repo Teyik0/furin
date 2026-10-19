@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, jest, test } from "bun:test";
 import { Elysia } from "elysia";
 import {
   applyRevalidateEntries,
@@ -162,6 +162,42 @@ describe("createSyncCatchUp", () => {
     expect(requestedAfter).toEqual(["0"]);
     expect(invalidations).toEqual(["/:layout"]);
     expect(sync.cursor()).toBe("8");
+  });
+
+  test("throttles reset-driven full refreshes and always runs the trailing one", async () => {
+    jest.useFakeTimers();
+    try {
+      let cursor = 0;
+      const refreshes: string[] = [];
+      const sync = createSyncCatchUp({
+        fetchPage: () => {
+          cursor += 1;
+          return Promise.resolve({
+            changes: [],
+            cursor: String(cursor),
+            hasMore: false,
+            reset: true,
+          });
+        },
+        onInvalidations: () => refreshes.push(`invalidate@${sync.cursor()}`),
+        onReset: () => refreshes.push(`reset@${sync.cursor()}`),
+      });
+
+      for (let reset = 0; reset < 5; reset += 1) {
+        // biome-ignore lint/performance/noAwaitInLoops: each wake-up completes before the next.
+        await sync.catchUp();
+      }
+      expect(refreshes).toEqual(["reset@1", "invalidate@1"]);
+
+      jest.advanceTimersByTime(1000);
+      expect(refreshes).toEqual(["reset@1", "invalidate@1", "reset@5", "invalidate@5"]);
+
+      jest.advanceTimersByTime(1000);
+      await sync.catchUp();
+      expect(refreshes.slice(4)).toEqual(["reset@6", "invalidate@6"]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("starts from a cursor supplied by the sync stream", async () => {

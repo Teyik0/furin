@@ -8,6 +8,8 @@ import { type ResolvedSyncRuntime, resolveSyncRuntime } from "./runtime.ts";
 
 export type { ChangePage as SyncChangePage, SyncChange } from "./adapter.ts";
 
+/** Bursts of commits wake browsers once per window, always with the latest cursor. */
+const BROADCAST_WINDOW_MS = 100;
 const DEFAULT_CHANGE_LIMIT = 100;
 const MAX_CHANGE_LIMIT = 500;
 const MAX_CURSOR_LENGTH = 128;
@@ -19,7 +21,9 @@ const noOpSubscription: SyncSubscription = {
 };
 
 interface SyncCursorState {
+  broadcast: ReturnType<typeof setTimeout> | undefined;
   cursor: string;
+  latest: string;
   listeners: Set<(cursor: string) => void>;
   safetyPoll: ReturnType<typeof setInterval> | undefined;
   subscription: SyncSubscription;
@@ -42,23 +46,40 @@ function trackUnsubscription(subscription: SyncSubscription): Promise<void> {
   return pending;
 }
 
-function notifyState(state: SyncCursorState, cursor: string): void {
-  if (state.cursor === cursor) {
+function broadcastState(state: SyncCursorState): void {
+  state.broadcast = undefined;
+  if (state.cursor === state.latest) {
     return;
   }
-  state.cursor = cursor;
+  state.cursor = state.latest;
   for (const listener of state.listeners) {
     try {
-      listener(cursor);
+      listener(state.cursor);
     } catch {
       // One disconnected browser must not prevent delivery to other tabs.
     }
   }
 }
 
+function notifyState(state: SyncCursorState, cursor: string): void {
+  state.latest = cursor;
+  if (state.broadcast || state.cursor === cursor) {
+    return;
+  }
+  state.broadcast = setTimeout(() => broadcastState(state), BROADCAST_WINDOW_MS);
+  state.broadcast.unref?.();
+}
+
+function stopState(state: SyncCursorState): void {
+  clearInterval(state.safetyPoll);
+  clearTimeout(state.broadcast);
+}
+
 async function createCursorState(runtime: ResolvedSyncRuntime): Promise<SyncCursorState> {
   const state = {} as SyncCursorState;
   state.cursor = await runtime.adapter.currentCursor();
+  state.latest = state.cursor;
+  state.broadcast = undefined;
   state.listeners = new Set();
   state.safetyPoll = undefined;
   let subscriptionFailed = false;
@@ -105,9 +126,7 @@ export async function subscribeSyncCursor(
         cursorStates.delete(runtime.adapter);
       }
       resolvedStates.delete(state);
-      if (state.safetyPoll) {
-        clearInterval(state.safetyPoll);
-      }
+      stopState(state);
       trackUnsubscription(state.subscription);
     },
   };
@@ -172,9 +191,7 @@ export function createSyncChangesPlugin(options: FurinSyncOptions) {
 export function __resetSyncState(): void {
   for (const state of resolvedStates) {
     trackUnsubscription(state.subscription);
-    if (state.safetyPoll) {
-      clearInterval(state.safetyPoll);
-    }
+    stopState(state);
     state.listeners.clear();
   }
   cursorStates.clear();
@@ -192,9 +209,7 @@ export async function closeSyncCursorStates(): Promise<void> {
         return [];
       }
       const state = result.value;
-      if (state.safetyPoll) {
-        clearInterval(state.safetyPoll);
-      }
+      stopState(state);
       state.listeners.clear();
       resolvedStates.delete(state);
       return [trackUnsubscription(state.subscription)];

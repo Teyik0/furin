@@ -501,6 +501,8 @@ test("shutting down one server leaves another server's browser-event sockets ope
     expect(firstSocket.readyState).toBe(WebSocket.CLOSED);
     expect(secondSocket.readyState).toBe(WebSocket.OPEN);
     publish("8");
+    // Cursor broadcasts are coalesced on a trailing 100 ms window.
+    await Bun.sleep(150);
     expect(unsubscribed).toBe(false);
     expect(cursors).toEqual(["7", "8"]);
   } finally {

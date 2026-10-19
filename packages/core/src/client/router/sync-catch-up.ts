@@ -24,6 +24,8 @@ interface SyncCatchUpOptions {
 }
 
 const LAYOUT_SUFFIX_RE = /:layout$/;
+/** Minimum spacing between reset-driven full refreshes; the trailing one always runs. */
+const RESET_REFRESH_INTERVAL_MS = 1000;
 
 function changeInvalidations(change: SyncChangePayload): {
   paths: string[];
@@ -110,6 +112,28 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
   let currentCursor: string | undefined;
   let running: Promise<void> | undefined;
   let requested = false;
+  let lastReset = Number.NEGATIVE_INFINITY;
+  let pendingReset: ReturnType<typeof setTimeout> | undefined;
+
+  const refreshAfterReset = () => {
+    pendingReset = undefined;
+    lastReset = Date.now();
+    options.onReset?.();
+    options.onInvalidations(["/:layout"]);
+  };
+
+  // Another principal's write loop must not re-run every loader on every commit.
+  const scheduleResetRefresh = () => {
+    if (pendingReset) {
+      return;
+    }
+    const wait = lastReset + RESET_REFRESH_INTERVAL_MS - Date.now();
+    if (wait <= 0) {
+      refreshAfterReset();
+    } else {
+      pendingReset = setTimeout(refreshAfterReset, wait);
+    }
+  };
 
   const readUntilCurrent = async (): Promise<void> => {
     do {
@@ -118,9 +142,8 @@ export function createSyncCatchUp(options: SyncCatchUpOptions): SyncCatchUp {
       do {
         page = await options.fetchPage(currentCursor ?? "0");
         if (page.reset) {
-          options.onReset?.();
-          options.onInvalidations(["/:layout"]);
           currentCursor = page.cursor;
+          scheduleResetRefresh();
           break;
         }
         for (const change of page.changes) {

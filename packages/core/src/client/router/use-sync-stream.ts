@@ -74,7 +74,11 @@ export function useSyncStream(options: {
         return (await response.json()) as SyncChangePagePayload;
       },
       onInvalidations: applyInvalidations,
-      onReset: () => queries.invalidateAll(),
+      onReset: () => {
+        if (!disposed) {
+          queries.invalidateAll();
+        }
+      },
       onQueries: (identities) => {
         queries.invalidate(identities);
         const tags = new Set(identities.map(queryTag));
