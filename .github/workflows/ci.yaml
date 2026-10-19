@@ -196,8 +196,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Teyik0/furin-vercel-benchmarks
-          ref: b06822ae1d74cafa70787c9617f29081d9784929
+          ref: 0eabe4369a98d0d072019336f5050555725746e1
           path: .benchmark
+          persist-credentials: false
+
+      # The base branch predates file-id routes, so it builds the previous fixture.
+      - name: Checkout baseline benchmark
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Teyik0/furin-vercel-benchmarks
+          ref: b06822ae1d74cafa70787c9617f29081d9784929
+          path: .benchmark-base
           persist-credentials: false
 
       - name: Cache bun
@@ -275,8 +284,7 @@ jobs:
           bun pm pack --destination "$RUNNER_TEMP/furin-base-package"
           furin_tarball="$(find "$RUNNER_TEMP/furin-base-package" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
           test -n "$furin_tarball"
-          cd "$GITHUB_WORKSPACE/.benchmark"
-          git restore bun.lock package.json apps/furin/package.json
+          cd "$GITHUB_WORKSPACE/.benchmark-base"
           base_elysia_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.elysia)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog.react)' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
           react_types_version="$(bun -e 'const pkg = await Bun.file(process.argv.at(-1)).json(); console.log(pkg.catalog["@types/react"])' "$RUNNER_TEMP/furin-benchmark-base/package.json")"
