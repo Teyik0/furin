@@ -1,0 +1,32 @@
+packages/core/package.json
+  s_3827fec5c7f2ed::t_d69f0c9c30cb8c 177
+packages/core/tests/rendering/rsc/rsc-client-references.test.ts
+  s_3827fec5c7f2ed::t_09c678d0e49882 581-585
+  s_3827fec5c7f2ed::t_1f89ea790d4217 576-577,579-580,586-591,593-598,600-606,608-609
+  s_3827fec5c7f2ed::t_da8212379dc4d0 575,578,592,599,607
+  s_3827fec5c7f2ed::t_5435f4e554d9ca 610-622
+  s_3827fec5c7f2ed::t_71843c784eacdd 623-635
+packages/core/src/rsc/build/client-references.ts
+  s_3827fec5c7f2ed::t_a0988bcb936694 44-45,47-48
+  s_3827fec5c7f2ed::t_b7a56de883533d 34-42,50-51
+  s_3827fec5c7f2ed::t_a401f626419080 49
+  s_3827fec5c7f2ed::t_f4abe330866f79 2-3,119-126,128,145,148-154,158-160,162,164-166
+bun.lock
+  s_3827fec5c7f2ed::t_4610ff35f5c7ac 125,1039,2033-2034
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d69367081d3f326c14c217bf5eaceaf6a4dea378",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
