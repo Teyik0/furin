@@ -261,6 +261,52 @@ export const route = defineRoute()
       },
     ]);
   });
+
+  test("checks routes built from a factory alias or imported from @teyik0/furin/client", () => {
+    const pagesDir = createPages({
+      "alias.tsx": `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+const make = defineRoute;
+export const route = make()
+  .config({ layout: rootRoute })
+  .page(() => null);
+`,
+      "client.tsx": `import { defineRoute } from "@teyik0/furin/client";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute })
+  .page(() => null);
+`,
+      "root.tsx": ROOT,
+    });
+
+    expect(validateRouteConfig(pagesDir).map(({ file, line }) => ({ file, line }))).toEqual([
+      { file: join(pagesDir, "alias.tsx"), line: 6 },
+      { file: join(pagesDir, "client.tsx"), line: 5 },
+    ]);
+  });
+
+  test("reads the top-level route export, not a route binding nested in an export", () => {
+    const pagesDir = createPages({
+      "about.tsx": `import { defineRoute } from "@teyik0/furin";
+import { route as rootRoute } from "./root";
+
+export const route = defineRoute()
+  .config({ layout: rootRoute, mode: "ssg" })
+  .page(() => null);
+
+export function preview() {
+  const route = defineRoute().page(() => null);
+  return route;
+}
+`,
+      "root.tsx": ROOT,
+    });
+
+    expect(validateRouteConfig(pagesDir)).toEqual([]);
+  });
 });
 
 describe("scaffoldEmptyRoutes", () => {

@@ -4,6 +4,7 @@ import type { Node } from "yuku-parser";
 import { CLIENT_MODULE_PATH, LINK_MODULE_PATH } from "../../build/shared.ts";
 import { hasShadowingDeclaration } from "../../plugin/binding-scope.ts";
 import { deadCodeElimination } from "../../plugin/dead-code-elimination.ts";
+import { collectDefineRouteBindings, exportedRouteChain } from "../../plugin/route-chains.ts";
 import {
   isomorphicTransformPlugin,
   transformIsomorphicFunctions,
@@ -141,36 +142,10 @@ function stripRouteView(source: string, path: string): string {
   const lang = detectLangFromPath(path);
   const { program } = parseSource(source, lang);
   const transformed = new MagicString(source);
-  for (const statement of program.body) {
-    if (
-      statement.type !== "ExportNamedDeclaration" ||
-      statement.declaration?.type !== "VariableDeclaration"
-    ) {
-      continue;
-    }
-    for (const declaration of statement.declaration.declarations) {
-      const call = declaration.init;
-      if (
-        declaration.id.type !== "Identifier" ||
-        declaration.id.name !== "route" ||
-        call?.type !== "CallExpression"
-      ) {
-        continue;
-      }
-      const { callee } = call;
-      if (
-        callee.type !== "MemberExpression" ||
-        callee.computed ||
-        callee.property.type !== "Identifier" ||
-        (callee.property.name !== "page" && callee.property.name !== "layout")
-      ) {
-        continue;
-      }
-      const [view] = call.arguments;
-      if (view !== undefined) {
-        transformed.overwrite(view.start, view.end, "() => null");
-      }
-    }
+  const [terminal] = exportedRouteChain(program, collectDefineRouteBindings(program))?.calls ?? [];
+  const [view] = terminal?.call.arguments ?? [];
+  if ((terminal?.method === "page" || terminal?.method === "layout") && view !== undefined) {
+    transformed.overwrite(view.start, view.end, "() => null");
   }
   return deadCodeElimination(transformed, source, lang).toString();
 }

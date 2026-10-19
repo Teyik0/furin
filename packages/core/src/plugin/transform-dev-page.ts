@@ -1,5 +1,5 @@
 import MagicString from "magic-string";
-import type { ImportDeclaration, Node, Program, ProgramStatement } from "yuku-parser";
+import type { Node, Program, ProgramStatement } from "yuku-parser";
 import {
   detectLangFromPath,
   detectLoaderFromPath,
@@ -7,8 +7,8 @@ import {
 } from "../server/lang-detect.ts";
 import { parseSource } from "../shared/parser.ts";
 import { walkAST } from "../shared/utils/ast-walk.ts";
-import { FactoryBindings } from "./binding-scope.ts";
 import { deadCodeElimination } from "./dead-code-elimination.ts";
+import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
 
 interface SplitDevPage {
   contract: string;
@@ -60,26 +60,6 @@ function callbackBindings(callback: Node): Set<string> {
   return bindings;
 }
 
-function defineRouteBindings(imports: ImportDeclaration[]): Set<string> {
-  const bindings = new Set<string>();
-  for (const declaration of imports) {
-    const specifier = declaration.source.value;
-    if (specifier !== "furin" && specifier !== "@teyik0/furin") {
-      continue;
-    }
-    for (const entry of declaration.specifiers) {
-      if (
-        entry.type === "ImportSpecifier" &&
-        entry.imported.type === "Identifier" &&
-        entry.imported.name === "defineRoute"
-      ) {
-        bindings.add(entry.local.name);
-      }
-    }
-  }
-  return bindings;
-}
-
 function exportedDeclaration(statement: ProgramStatement): Node | undefined {
   if (
     statement.type === "ExportNamedDeclaration" ||
@@ -93,19 +73,11 @@ function exportedDeclaration(statement: ProgramStatement): Node | undefined {
 function inspectModule(statements: ProgramStatement[]) {
   const imports = statements.filter((statement) => statement.type === "ImportDeclaration");
   let localBindings = new Set<string>();
-  let terminal: Node | undefined;
   for (const statement of statements) {
     const declaration = exportedDeclaration(statement);
     if (declaration?.type === "VariableDeclaration") {
       for (const binding of declaration.declarations) {
         localBindings = localBindings.union(namesIn(binding.id));
-        if (
-          statement.type === "ExportNamedDeclaration" &&
-          binding.id.type === "Identifier" &&
-          binding.id.name === "route"
-        ) {
-          terminal = node(binding.init);
-        }
       }
     } else if (declaration) {
       localBindings = localBindings.union(
@@ -113,35 +85,19 @@ function inspectModule(statements: ProgramStatement[]) {
       );
     }
   }
-  return { imports, localBindings, terminal };
+  return { imports, localBindings };
 }
 
-function inlinePage(
-  terminal: Node | undefined,
-  bindings: FactoryBindings,
-  ancestors: Node[]
-): Node | undefined {
-  if (terminal?.type !== "CallExpression") {
-    return;
-  }
-  const callee = node(terminal.callee);
-  const args = terminal.arguments;
+/** The inline callback of the exported route's `.page()` terminal. */
+function inlinePage(program: Program): Node | undefined {
+  const [terminal] = exportedRouteChain(program, collectDefineRouteBindings(program))?.calls ?? [];
+  const args = terminal?.call.arguments ?? [];
   const callback = node(args[0]);
   if (
-    callee?.type !== "MemberExpression" ||
-    callee.computed ||
-    callee.property.name !== "page" ||
-    args.length !== 1 ||
-    !callback ||
-    (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression")
+    terminal?.method === "page" &&
+    args.length === 1 &&
+    (callback?.type === "ArrowFunctionExpression" || callback?.type === "FunctionExpression")
   ) {
-    return;
-  }
-  let root = node(callee.object);
-  while (root?.type === "CallExpression" || root?.type === "MemberExpression") {
-    root = node(root.type === "CallExpression" ? root.callee : root.object);
-  }
-  if (root && bindings.factoryName(root, ancestors) !== undefined) {
     return callback;
   }
 }
@@ -205,9 +161,8 @@ export function splitDevPage(
   if (routeHasConsumers(statements)) {
     return;
   }
-  const { imports, localBindings, terminal } = inspectModule(statements);
-  const factories = new FactoryBindings(program, defineRouteBindings(imports), new Set());
-  const callback = inlinePage(terminal, factories, [program]);
+  const { imports, localBindings } = inspectModule(statements);
+  const callback = inlinePage(program);
   if (!callback || hasLexicalCapture(callback, program)) {
     return;
   }

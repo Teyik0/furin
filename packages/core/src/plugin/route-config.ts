@@ -1,19 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { walk } from "yuku-ast";
-import type {
-  CallExpression,
-  Node,
-  ObjectExpression,
-  ObjectProperty,
-  Program,
-  VariableDeclarator,
-} from "yuku-parser";
+import type { CallExpression, Node, ObjectExpression, ObjectProperty, Program } from "yuku-parser";
 import type { DevDiagnosticStore } from "../server/dev/diagnostics.ts";
 import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts";
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
-import { FactoryBindings, fluentChain } from "./binding-scope.ts";
+import { collectDefineRouteBindings, exportedRouteChain } from "./route-chains.ts";
 import { routeSourcePaths } from "./route-tree.ts";
 
 /**
@@ -29,7 +21,6 @@ export interface RouteConfigIssue {
   message: string;
 }
 
-const FURIN_MODULES = new Set(["@teyik0/furin", "furin"]);
 const LAYOUT_FILE_NAMES = ["_route.tsx", "_route.ts", "_route.jsx", "_route.js"];
 const EXTENSION_RE = /\.(?:[cm]?[jt]sx?)$/;
 const NON_ALPHANUMERIC_RE = /[^a-zA-Z0-9]/g;
@@ -96,73 +87,27 @@ function collectImports(program: Program): Map<string, Import> {
   return imports;
 }
 
-/** `export const route = defineRoute()...` — the only export route discovery reads. */
+/** The `export const route` chain, as every transform reads it. */
 function findRouteExport(program: Program, imports: Map<string, Import>): RouteExport | undefined {
-  const factories = new Set<string>();
-  for (const [local, { imported, specifier }] of imports) {
-    if (
-      FURIN_MODULES.has(specifier) &&
-      (imported === "defineRoute" || imported === "defineRootRoute")
-    ) {
-      factories.add(local);
-    }
+  const chain = exportedRouteChain(program, collectDefineRouteBindings(program));
+  if (!chain) {
+    return;
   }
-  const bindings = new FactoryBindings(program, factories, new Set());
-  let found: RouteExport | undefined;
-  walk(program, {
-    CallExpression(head, context) {
-      const ancestors = context.ancestors();
-      const factory = bindings.factoryName(head.callee, ancestors);
-      if (factory === undefined) {
-        return;
-      }
-      const chain = fluentChain(head, ancestors);
-      const declarator = ancestors.findLast(
-        (ancestor): ancestor is VariableDeclarator => ancestor.type === "VariableDeclarator"
-      );
-      if (
-        declarator === undefined ||
-        declarator.init === null ||
-        unwrapTSExpression(declarator.init) !== chain ||
-        propertyName(declarator.id) !== "route" ||
-        !ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
-      ) {
-        return;
-      }
-      found = {
-        ...chainCalls(chain, head),
-        head,
-        isRootFactory: imports.get(factory)?.imported === "defineRootRoute",
-      };
-    },
-  });
-  return found;
-}
-
-function chainCalls(
-  chain: Node,
-  head: CallExpression
-): { config: ObjectExpression | undefined; methods: Set<string> } {
   let config: ObjectExpression | undefined;
   const methods = new Set<string>();
-  let current = chain;
-  while (current !== head && current.type === "CallExpression") {
-    const callee = unwrapTSExpression(current.callee);
-    if (callee.type !== "MemberExpression") {
-      break;
-    }
-    const method = propertyName(callee.property);
-    if (method === undefined) {
-      break;
-    }
+  for (const { call, method } of chain.calls) {
     methods.add(method);
-    const [argument] = current.arguments;
+    const [argument] = call.arguments;
     if (method === "config" && argument?.type === "ObjectExpression") {
       config = argument;
     }
-    current = unwrapTSExpression(callee.object);
   }
-  return { config, methods };
+  return {
+    config,
+    head: chain.head,
+    isRootFactory: imports.get(chain.factory)?.imported === "defineRootRoute",
+    methods,
+  };
 }
 
 /** Undefined when the file disappeared between the directory scan and the read. */

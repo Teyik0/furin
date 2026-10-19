@@ -51,6 +51,27 @@ test("recognizes aliased Furin imports and preserves explicit startup effects", 
   expect(renderImports).not.toContain("./startup");
 });
 
+test("splits a page whose defineRoute comes from @teyik0/furin/client", () => {
+  const source = `
+    import { defineRoute } from "@teyik0/furin/client";
+    import Heavy from "./heavy";
+    export const route = defineRoute().page(() => <Heavy />);
+  `;
+  const split = splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1");
+  expect(split?.contract).not.toContain('"./heavy"');
+  expect(split?.render).toContain('"./heavy"');
+});
+
+test("keeps a route that is not exported as `export const route` eager", () => {
+  const source = `
+    import { defineRoute } from "furin";
+    import Heavy from "./heavy";
+    const route = defineRoute().page(() => <Heavy />);
+    export { route };
+  `;
+  expect(splitDevPage(source, "/app/page.tsx", "/app/page.tsx?furin-render&t=1")).toBeUndefined();
+});
+
 test("keeps an import eager when a page parameter shadows its name", () => {
   const source = `
     import { defineRoute } from "furin";

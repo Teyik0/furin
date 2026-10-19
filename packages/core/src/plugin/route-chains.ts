@@ -219,18 +219,63 @@ export interface RouteChains {
   serverStages: ServerStage[];
 }
 
-function isExportedRouteDeclaration(ancestors: Node[]): boolean {
-  const routeDeclarator = ancestors.find((ancestor) => {
-    if (ancestor.type !== "VariableDeclarator") {
-      return false;
+export interface RouteChainCall {
+  call: CallExpression;
+  method: string;
+}
+
+/** `export const route = defineRoute()...`: the `route` export route discovery reads. */
+export interface ExportedRouteChain {
+  /** The builder calls after the factory call, the terminal call first. */
+  calls: RouteChainCall[];
+  /** Local name of the `defineRoute` or `defineRootRoute` import. */
+  factory: string;
+  head: CallExpression;
+}
+
+/**
+ * The module's top-level `export const route = <factory>()...` chain, the
+ * single definition of "the route export" for every transform and check.
+ */
+export function exportedRouteChain(
+  program: Program,
+  bindings: FactoryBindings
+): ExportedRouteChain | undefined {
+  for (const statement of program.body) {
+    if (
+      statement.type !== "ExportNamedDeclaration" ||
+      statement.declaration?.type !== "VariableDeclaration"
+    ) {
+      continue;
     }
-    const identifier = unwrapped(ancestor.id);
-    return identifier?.type === "Identifier" && identifier.name === "route";
-  });
-  return (
-    routeDeclarator !== undefined &&
-    ancestors.some((ancestor) => ancestor.type === "ExportNamedDeclaration")
-  );
+    for (const declarator of statement.declaration.declarations) {
+      const id = unwrapped(declarator.id);
+      if (id?.type === "Identifier" && id.name === "route") {
+        return routeChainOf(declarator.init, bindings, program);
+      }
+    }
+  }
+}
+
+function routeChainOf(
+  initializer: Expression | null,
+  bindings: FactoryBindings,
+  program: Program
+): ExportedRouteChain | undefined {
+  const calls: RouteChainCall[] = [];
+  let current = unwrapped(initializer);
+  while (current?.type === "CallExpression") {
+    const callee = unwrapped(current.callee);
+    if (callee?.type !== "MemberExpression") {
+      const factory = callee ? bindings.factoryName(callee, [program]) : undefined;
+      return factory === undefined ? undefined : { calls, factory, head: current };
+    }
+    if (callee.computed || callee.property.type !== "Identifier") {
+      return;
+    }
+    calls.push({ call: current, method: callee.property.name });
+    current = unwrapped(callee.object);
+  }
 }
 
 export function analyzeRouteChains(program: Program, bindings: FactoryBindings): RouteChains {
@@ -238,7 +283,10 @@ export function analyzeRouteChains(program: Program, bindings: FactoryBindings):
   if (bindings.size === 0) {
     return chains;
   }
-  let foundComponent = false;
+  const [terminal] = exportedRouteChain(program, bindings)?.calls ?? [];
+  if (terminal?.method === "page" || terminal?.method === "layout") {
+    chains.component = unwrapped(terminal.call.arguments[0]);
+  }
   walk(program, {
     CallExpression(call, context) {
       const callee = unwrapped(call.callee);
@@ -249,22 +297,11 @@ export function analyzeRouteChains(program: Program, bindings: FactoryBindings):
       if (property.type !== "Identifier") {
         return;
       }
-      const ancestors = context.ancestors();
       if (SERVER_ONLY_METHODS.has(property.name)) {
         const object = unwrapped(callee.object);
-        if (object && chainRootIsDefineRoute(callee.object, bindings, ancestors)) {
+        if (object && chainRootIsDefineRoute(callee.object, bindings, context.ancestors())) {
           chains.serverStages.push({ call, object, property });
         }
-        return;
-      }
-      if (
-        !foundComponent &&
-        (property.name === "page" || property.name === "layout") &&
-        isExportedRouteDeclaration(ancestors) &&
-        chainRootIsDefineRoute(callee.object, bindings, ancestors)
-      ) {
-        foundComponent = true;
-        chains.component = Array.isArray(call.arguments) ? unwrapped(call.arguments[0]) : null;
       }
     },
   });
