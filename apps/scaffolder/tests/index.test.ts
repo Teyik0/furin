@@ -66,6 +66,23 @@ describe("create-furin CLI", () => {
     expect(stdout.trim()).toBe(core.version);
   });
 
+  it("prints help that invokes the published package name", async () => {
+    const child = Bun.spawn(["bun", entrypoint, "--help"], {
+      cwd: appRoot,
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    const [exitCode, stdout] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    const scaffolder: { name: string } = await Bun.file(resolve(appRoot, "package.json")).json();
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain(`bunx ${scaffolder.name} <dir>`);
+  });
+
   it("formats parseArgs failures through the CLI error handler", async () => {
     const child = Bun.spawn(["bun", entrypoint, "--unknown-flag"], {
       cwd: appRoot,

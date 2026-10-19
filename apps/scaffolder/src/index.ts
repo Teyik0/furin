@@ -40,7 +40,7 @@ function printHelp(): void {
   Usage:
     bun create furin <dir>
     bun create furin <dir> --template full
-    bunx @teyik0/create-furin <dir>
+    bunx create-furin <dir>
 
   Options:
     --template <simple|full>   Template to use (default: prompted)
