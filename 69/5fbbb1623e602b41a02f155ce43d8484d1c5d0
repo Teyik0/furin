@@ -1,0 +1,23 @@
+packages/core/tests/support/production-app.ts
+  s_553967112fee2c::t_5f5c8d4647f493 26-29
+  s_553967112fee2c::t_8596c43a6e82da 110,113-124,129
+  s_553967112fee2c::t_820e75ea2f7c55 37-38,41-46
+packages/core/tests/rendering/ssr/transport-lifecycle.test.tsx
+  s_553967112fee2c::t_6ebe0a67750e0a 157-163,170-179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "695fbbb1623e602b41a02f155ce43d8484d1c5d0",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
