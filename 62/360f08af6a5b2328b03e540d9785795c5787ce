@@ -1,0 +1,23 @@
+packages/core/src/server/router/plugin.ts
+  s_3827fec5c7f2ed::t_7b4cc0d9dbac12 446
+packages/core/src/server/router/hmr.ts
+  s_3827fec5c7f2ed::t_eb026b0bc4a564 22,46,53,152,163,177,210,221,254
+packages/core/src/server/router/discovery.ts
+  s_3827fec5c7f2ed::t_eb026b0bc4a564 13,251
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "62360f08af6a5b2328b03e540d9785795c5787ce",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
