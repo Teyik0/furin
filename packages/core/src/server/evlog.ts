@@ -67,21 +67,32 @@ export function getRequestLogger(): RequestLogger {
   return logger ?? loggerStorage.useLogger();
 }
 
-const runtimeWaitUntil = new Set<NonNullable<FurinEvlogOptions["waitUntil"]>>();
+type EvlogWaitUntil = NonNullable<FurinEvlogOptions["waitUntil"]>;
 
-export function setRuntimeEvlogWaitUntil(
-  waitUntil: NonNullable<FurinEvlogOptions["waitUntil"]>
-): () => void {
+/** Process-wide fallback for emissions not tied to a server-scoped request. */
+const runtimeWaitUntil = new Set<EvlogWaitUntil>();
+const requestWaitUntil = new WeakMap<Request, EvlogWaitUntil>();
+
+export function setRuntimeEvlogWaitUntil(waitUntil: EvlogWaitUntil): () => void {
   runtimeWaitUntil.add(waitUntil);
   return () => runtimeWaitUntil.delete(waitUntil);
 }
 
+/** Routes the request log of `request` to the server that received it. */
+export function setRequestEvlogWaitUntil(request: Request, waitUntil: EvlogWaitUntil): void {
+  requestWaitUntil.set(request, waitUntil);
+}
+
 export function registerEmission(
   emission: Promise<void>,
-  options: FurinEvlogOptions | undefined
+  options: FurinEvlogOptions | undefined,
+  request: Request | undefined
 ): void {
+  const requestScoped = request === undefined ? undefined : requestWaitUntil.get(request);
   if (options?.waitUntil) {
     options.waitUntil(emission);
+  } else if (requestScoped) {
+    requestScoped(emission);
   } else {
     for (const waitUntil of runtimeWaitUntil) {
       waitUntil(emission);
@@ -92,6 +103,7 @@ export function registerEmission(
 async function finishRequestLog(
   handle: RequestLogHandle,
   options: FurinEvlogOptions | undefined,
+  request: Request,
   response: Response | undefined
 ): Promise<Response> {
   if (response === undefined) {
@@ -119,7 +131,7 @@ async function finishRequestLog(
   });
   // Register before the platform request context closes, even though the
   // emission itself starts after this response is returned.
-  registerEmission(emission, options);
+  registerEmission(emission, options, request);
   return response;
 }
 
@@ -135,7 +147,9 @@ export function createFurinEvlog(options: FurinEvlogOptions) {
       const slot: RequestLogSlot = { handle: undefined, options: undefined };
       try {
         const response = await requestLogSlots.run(slot, () => fetch(request, ...rest));
-        return slot.handle ? await finishRequestLog(slot.handle, slot.options, response) : response;
+        return slot.handle
+          ? await finishRequestLog(slot.handle, slot.options, request, response)
+          : response;
       } catch (error) {
         await slot.handle?.finish({
           error: error instanceof Error ? error : new Error(String(error)),

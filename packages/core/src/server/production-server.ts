@@ -1,7 +1,7 @@
 import type { AnyElysia } from "elysia";
 import { closeBrowserEventConnections } from "./browser-events/shutdown.ts";
 import { waitForPendingISRRevalidations } from "./cache/isr.ts";
-import { setRuntimeEvlogWaitUntil } from "./evlog.ts";
+import { setRequestEvlogWaitUntil, setRuntimeEvlogWaitUntil } from "./evlog.ts";
 import { closeSyncCursorStates, waitForSyncCursorUnsubscriptions } from "./sync/stream.ts";
 
 const DEFAULT_PRE_STOP_DELAY_MS = 5000;
@@ -40,10 +40,13 @@ export function startProductionServer(options: ProductionServerOptions): {
   let draining = false;
   let rejecting = false;
 
-  const unregisterWaitUntil = setRuntimeEvlogWaitUntil((emission) => {
+  const trackEmission = (emission: Promise<unknown>): void => {
     pendingEmissions.add(emission);
     emission.finally(() => pendingEmissions.delete(emission)).catch(() => undefined);
-  });
+  };
+  // Request logs drain on the server that received them; the process-wide
+  // registration covers emissions without a request (ISR background renders).
+  const unregisterWaitUntil = setRuntimeEvlogWaitUntil(trackEmission);
 
   app
     .wrap((fetch) => (request, ...rest) => {
@@ -51,6 +54,7 @@ export function startProductionServer(options: ProductionServerOptions): {
       if (rejecting && path !== "/_furin/health/live" && path !== "/_furin/health/ready") {
         return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
       }
+      setRequestEvlogWaitUntil(request, trackEmission);
       return fetch(request, ...rest);
     })
     .get("/_furin/health/live", () =>

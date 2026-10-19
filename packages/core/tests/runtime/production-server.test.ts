@@ -273,6 +273,45 @@ test("a second server does not steal the first server's pending log drains", asy
   }
 });
 
+test("an idle server's shutdown does not wait for another server's pending log drains", async () => {
+  const { promise: releaseDrain, resolve } = Promise.withResolvers<void>();
+  const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();
+  const busy = startProductionServer({
+    app: new Elysia()
+      .use(
+        createFurinEvlog({
+          drain: async () => {
+            markDrainStarted();
+            await releaseDrain;
+          },
+        })
+      )
+      .get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+  const idle = startProductionServer({
+    app: new Elysia().get("/", () => "ok"),
+    port: 0,
+    preStopDelayMs: 0,
+    shutdownTimeoutMs: 2000,
+  });
+
+  try {
+    await fetch(`http://localhost:${busy.server.port}/`);
+    await drainStarted;
+    const outcome = await Promise.race([
+      idle.shutdown().then(() => "stopped"),
+      Bun.sleep(500).then(() => "waiting"),
+    ]);
+    expect(outcome).toBe("stopped");
+  } finally {
+    resolve();
+    await Promise.all([busy.shutdown(), idle.shutdown()]);
+  }
+});
+
 test("waits for deferred log drains before application resource cleanup", async () => {
   const { promise: releaseDrain, resolve: resolveDrain } = Promise.withResolvers<void>();
   const { promise: drainStarted, resolve: markDrainStarted } = Promise.withResolvers<void>();

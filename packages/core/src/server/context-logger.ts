@@ -109,6 +109,6 @@ export async function runInSyntheticRenderScope<T>(
           console.error("[furin] Synthetic log emission failed", error);
         }
       );
-    registerEmission(emission, options);
+    registerEmission(emission, options, undefined);
   }
 }
