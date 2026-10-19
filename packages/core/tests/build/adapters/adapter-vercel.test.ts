@@ -303,7 +303,7 @@ export const route = defineRoute()
 
       const captureEntry = join(app.path, ".furin/build/vercel/_furin-app.ts");
       const serverBuild = buildConfigs.find((build) => build.entrypoints.includes(captureEntry));
-      expect(serverBuild?.entrypoints[0]).toEndWith("/src/adapter/vercel/handler.ts");
+      expect(serverBuild?.entrypoints[0]).toEndWith(join("src", "adapter", "vercel", "handler.ts"));
       const runtimeData = JSON.parse(
         readFileSync(join(serverFunctionDir, "furin-vercel.json"), "utf8")
       );

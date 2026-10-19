@@ -238,7 +238,7 @@ describe.serial("buildBunTarget Bun branches", () => {
     expect(captureSource).toContain("export default __serverModule.default");
     expect(captureSource).not.toContain(".listen(");
     expect(captureSource).toContain("_furin-routes-0.ts");
-    expect(serverBuild?.entrypoints[0]).toEndWith("/src/adapter/bun/server.ts");
+    expect(serverBuild?.entrypoints[0]).toEndWith(join("src", "adapter", "bun", "server.ts"));
   });
 
   test("embed compilation embeds asset directories into the bundled server", async () => {
