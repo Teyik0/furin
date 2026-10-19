@@ -11,7 +11,6 @@ import {
   type Cache,
   canonicalCacheRequest,
   createRouteCache,
-  pathWithRequestSearch,
   type RevalidateType,
 } from "../cache/route-cache.ts";
 import { getCache, hasExternalRuntimeCache, runtimeCacheScope } from "../cache/runtime-cache.ts";
@@ -351,22 +350,6 @@ async function getSharedPprArtifact(input: SharedPprInput): Promise<PprResult> {
   return renderSharedPpr(input, identity, lease, revalidate);
 }
 
-/**
- * The key and context the public shell renders with. Only the canonical query
- * reaches the shell; resuming still hands the live request to requestLoader
- * holes. External prerenders stay per-URL: the deployment caches them by URL
- * and resumes their holes from the shell's recorded path.
- */
-function pprShellRequest(
-  route: ResolvedRoute,
-  resolvedPath: string,
-  ctx: Context
-): { cacheKey: string; ctx: Context } {
-  return isExternalPrerenderRequest(ctx.request)
-    ? { cacheKey: pathWithRequestSearch(resolvedPath, ctx.request.url), ctx }
-    : canonicalCacheRequest(route, resolvedPath, ctx);
-}
-
 async function getPprArtifact(
   route: ResolvedRoute,
   requestCtx: Context,
@@ -376,10 +359,13 @@ async function getPprArtifact(
 ): Promise<PprResult> {
   const resolvedPath = resolvePath(route.pattern, requestCtx.params ?? {});
   const documentMode = resolveDocumentMode(route);
-  const shell = pprShellRequest(route, resolvedPath, requestCtx);
+  // Every shell, a platform prerender's included, renders the canonical query:
+  // its holes resume with what the shell recorded, so it must not carry query
+  // values another URL sharing the key did not send.
+  const shell = canonicalCacheRequest(route, resolvedPath, requestCtx);
   const { ctx } = shell;
   const cacheKey = `${documentMode}:${shell.cacheKey}`;
-  const externalPrerender = isExternalPrerenderRequest(ctx.request);
+  const externalPrerender = isExternalPrerenderRequest(requestCtx.request);
   const pageCache = externalPrerender ? undefined : getPageCacheAdapter();
   if (pageCache !== undefined) {
     return getSharedPprArtifact({

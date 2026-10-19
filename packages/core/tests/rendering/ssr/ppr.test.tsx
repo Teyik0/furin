@@ -35,6 +35,7 @@ afterEach(async () => {
   __resetCompileContext();
   await Promise.resolve();
 });
+const STATE_LENGTH_RE = /state-length=(\d+)/;
 const originalDevMode = IS_DEV;
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
@@ -1376,6 +1377,46 @@ describe.serial("partial prerendering", () => {
     expect(privateCalls).toBe(2);
     expect(writes).toHaveLength(1);
     expect(writes[0]).toContain('"isr:/account?view=alpha"');
+  });
+
+  test("a platform prerender stores its public shell where navigation data finds it", async () => {
+    installDeploymentCache();
+    let publicCalls = 0;
+    const { app } = await mountQueryAccount(
+      () => {
+        publicCalls += 1;
+      },
+      () => undefined
+    );
+
+    await app
+      .handle(
+        markExternalPrerenderRequest(new Request("http://localhost/account?junk=1&view=alpha"))
+      )
+      .then((response) => response.text());
+    await app
+      .handle(new Request("http://localhost/account?view=alpha&_furin=data"))
+      .then((response) => response.text());
+
+    expect(publicCalls).toBe(1);
+  });
+
+  test("a platform prerender records the canonical query its holes resume with", async () => {
+    const { app } = await mountQueryAccount(
+      () => undefined,
+      () => undefined
+    );
+
+    const response = await app.handle(
+      markExternalPrerenderRequest(new Request("http://localhost/account?view=alpha&utm_source=x"))
+    );
+    const stateLength = Number(response.headers.get("content-type")?.match(STATE_LENGTH_RE)?.[1]);
+    const body = new Uint8Array(await response.arrayBuffer());
+    const state = JSON.parse(new TextDecoder().decode(body.subarray(0, stateLength))) as {
+      path: string;
+    };
+
+    expect(state.path).toBe("/account?view=alpha");
   });
 
   test("external prerender bypasses shared and local PPR artifacts", async () => {

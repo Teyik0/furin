@@ -55,11 +55,6 @@ export function pathWithoutSearch(path: string): string {
   return path.slice(0, searchStart);
 }
 
-export function pathWithRequestSearch(path: string, requestUrl: string): string {
-  const { search } = new URL(requestUrl);
-  return `${pathWithoutSearch(path)}${search}`;
-}
-
 /**
  * The cache key for a cached render of `path` and the context that render must
  * use. The key holds the query as the route's schema decoded it (none when the

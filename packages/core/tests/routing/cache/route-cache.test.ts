@@ -1,12 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createRouteCache, pathWithRequestSearch } from "../../../src/server/cache/route-cache.ts";
-
-test("request search replaces any search already present in a resolved path", () => {
-  expect(pathWithRequestSearch("/search?stale=1", "http://localhost/search?fresh=2")).toBe(
-    "/search?fresh=2"
-  );
-});
+import { createRouteCache } from "../../../src/server/cache/route-cache.ts";
 
 describe("createRouteCache", () => {
   test("invalidates a single page by resolved URL path", () => {
