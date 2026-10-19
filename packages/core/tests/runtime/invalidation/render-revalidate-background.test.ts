@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
@@ -11,8 +11,11 @@ import {
 import { handleISR } from "../../../src/server/render/index.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 function createMockLoaderContext(overrides: Partial<Context>): Context {
   return {

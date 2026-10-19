@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { createElement, type ReactNode } from "react";
@@ -9,9 +9,12 @@ import { setFurinEvlogOptions } from "../../../src/server/evlog.ts";
 import { createInstance, withInstance } from "../../../src/server/instance.ts";
 import { renderSSR, renderToHTML } from "../../../src/server/render/index.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import type { ErrorComponent } from "../../../src/shared/error.ts";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 const ROOT_ROUTE: RuntimeRoute = {
   __type: "FURIN_ROUTE",

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import { createElement, type ElementType, type ReactNode } from "react";
@@ -9,10 +9,13 @@ import { renderRootNotFound, renderSSR, renderToHTML } from "../../../src/server
 import { runPublicLoaders } from "../../../src/server/render/loaders.ts";
 import { adaptDefinedLayout } from "../../../src/server/router/defined-route.ts";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { parseDeferredNdjson } from "../../../src/shared/deferred-ndjson.ts";
 import { type NotFoundComponent, notFound } from "../../../src/shared/not-found.ts";
 import { findRouteFailure } from "../../../src/shared/route-matches.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 const FURIN_DATA_SCRIPT_RE =
   /<script id="__FURIN_DATA__" type="application\/json">([\s\S]*?)<\/script>/;

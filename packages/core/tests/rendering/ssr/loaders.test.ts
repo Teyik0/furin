@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
 import type { HTTPHeaders } from "elysia/types";
 import type { WideEvent } from "evlog";
@@ -12,8 +12,11 @@ import {
   runRouteLoaders,
 } from "../../../src/server/render/loaders.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { captureEvlogEvents } from "../../support/evlog-capture.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 const CACHED_PUBLIC_LOADERS_RE = /Cached public loaders/;
 

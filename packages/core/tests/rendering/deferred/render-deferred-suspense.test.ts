@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import type { Context } from "elysia";
 import { createElement, Suspense } from "react";
 import type { ResolvedRoute, RootLayout } from "../../../src/server/router/types.ts";
@@ -8,8 +8,11 @@ const { defer } = await import("../../../src/client.ts");
 const { renderSSR } = await import("../../../src/server/render/index.ts");
 const { setProductionTemplateContent } = await import("../../../src/server/render/template.ts");
 const { scanPages } = await import("../../../src/server/router/discovery.ts");
-const { __setDevMode } = await import("../../../src/server/runtime-env.ts");
+const { __setDevMode, IS_DEV } = await import("../../../src/server/runtime-env.ts");
 const { Await } = await import("../../../src/shared/await.tsx");
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 const TEST_TEMPLATE =
   '<!DOCTYPE html><html><head><!--ssr-head--></head><body><div id="root"><!--ssr-outlet--></div><script type="module" src="/_hydrate.js"></script></body></html>';

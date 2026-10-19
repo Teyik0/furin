@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterAll, afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { treaty } from "@elysia/eden";
 import { type Context, Elysia } from "elysia";
@@ -21,13 +21,22 @@ import {
   resetPageCacheAdapter,
   setPageCacheAdapter,
 } from "../../../src/server/cache/page-cache-state.ts";
-import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
+import {
+  __clearInstanceRegistry,
+  createInstance,
+  registerInstance,
+  withInstance,
+} from "../../../src/server/instance.ts";
 import { handleISR } from "../../../src/server/render/index.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { notFound } from "../../../src/shared/not-found.ts";
 import { queryTag } from "../../../src/shared/sync-query.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
+afterEach(() => __clearInstanceRegistry());
 
 // Shared ISR entries store the document and its navigation data together.
 const STALE_PAYLOAD = JSON.stringify({ html: "<html>stale</html>", ndjson: "{}\n" });

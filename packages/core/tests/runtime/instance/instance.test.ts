@@ -28,6 +28,7 @@ import {
   type CompileContext,
   getCompileContext,
 } from "../../../src/server/internal.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 
 afterEach(() => {
   __clearInstanceRegistry();
@@ -124,17 +125,18 @@ describe("runtime binding", () => {
 
 describe("cache state reset", () => {
   test("keeps live runtimes and their configuration", async () => {
+    const originalDevMode = IS_DEV;
+    __setDevMode(true);
     const purged: string[][] = [];
-    const app = new Elysia().use(
-      await furin({
-        cachePurger: (paths) => {
-          purged.push(paths);
-          return Promise.resolve();
-        },
-        pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
-        prefix: "/reset",
-      })
-    );
+    const plugin = furin({
+      cachePurger: (paths) => {
+        purged.push(paths);
+        return Promise.resolve();
+      },
+      pagesDir: join(import.meta.dir, "../../fixtures/pages/default"),
+      prefix: "/reset",
+    }).finally(() => __setDevMode(originalDevMode));
+    const app = new Elysia().use(await plugin);
 
     __resetCacheState();
     await revalidatePath("/page", "page");

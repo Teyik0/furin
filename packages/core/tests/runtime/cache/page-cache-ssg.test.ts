@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { join } from "node:path";
 import { createElement, type ReactNode } from "react";
 import { defineRootRoute, defineRoute, HeadContent, Scripts } from "../../../src/furin.ts";
@@ -12,13 +12,21 @@ import {
   resetPageCacheAdapter,
   setPageCacheAdapter,
 } from "../../../src/server/cache/page-cache-state.ts";
-import { createInstance, registerInstance, withInstance } from "../../../src/server/instance.ts";
+import {
+  createInstance,
+  registerInstance,
+  unregisterInstance,
+  withInstance,
+} from "../../../src/server/instance.ts";
 import { __resetCompileContext } from "../../../src/server/internal.ts";
 import { warmSSGCache } from "../../../src/server/render/ssg.ts";
 import { scanPages } from "../../../src/server/router/discovery.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
-import { __setDevMode } from "../../../src/server/runtime-env.ts";
+import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { mountProductionApp } from "../../support/production-app.ts";
+
+const originalDevMode = IS_DEV;
+afterAll(() => __setDevMode(originalDevMode));
 
 const rootTerminal = defineRootRoute()
   .config({ mode: "ssr" })
@@ -219,5 +227,6 @@ async function runSharedSsgWarmup(): Promise<void> {
   } finally {
     resetPageCacheAdapter(instance);
     __resetCacheState();
+    unregisterInstance(instance);
   }
 }
