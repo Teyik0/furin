@@ -128,7 +128,8 @@ describe("sync adapter bundle isolation", () => {
       );
       const install = await runProcess(["bun", "install", "--production", "--ignore-scripts"], {
         cwd: directory,
-        timeoutMs: 25_000,
+        // A cold install of the packed tarball can exceed 25 s on Windows runners.
+        timeoutMs: 60_000,
       });
       expect(install.exitCode).toBe(0);
       const client = await runProcess(
@@ -144,7 +145,7 @@ describe("sync adapter bundle isolation", () => {
     } finally {
       rmSync(directory, { force: true, recursive: true });
     }
-  }, 30_000);
+  }, 120_000);
 
   test("bundles isolated subpaths from the packed core package", async () => {
     const root = resolve(import.meta.dir, "../../../..");
