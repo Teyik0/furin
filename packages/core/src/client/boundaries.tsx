@@ -4,13 +4,10 @@ import { type ErrorComponent, getPublicErrorMessage } from "../shared/error.ts";
 import { isNotFoundError, type NotFoundComponent } from "../shared/not-found.ts";
 import { DefaultErrorFallback, DefaultNotFoundFallback } from "./default-screens.tsx";
 import { FurinDocumentFallback } from "./document.tsx";
-import { isFurinServerError } from "./server-error.ts";
 
 /**
- * Default HTTP status surfaced to error UIs when the caught error has no
- * intrinsic status (e.g. a thrown `Error`, a non-Error throw). The loader
- * pipeline produces a `FurinServerError` with the right status when a thrown
- * `Response` is the cause; everything else collapses to 500.
+ * HTTP status surfaced to error UIs for an error caught while rendering. Route
+ * failures with their own status are rendered from the route match instead.
  */
 const DEFAULT_ERROR_STATUS = 500;
 
@@ -19,9 +16,6 @@ const SERVER_RESET_NOOP = () => {
 };
 
 function getServerDigest(error: unknown): string | undefined {
-  if (isFurinServerError(error)) {
-    return error.digest;
-  }
   if ((typeof error !== "object" && typeof error !== "function") || error === null) {
     return;
   }
@@ -159,13 +153,9 @@ export class FurinErrorBoundary extends Component<ErrorBoundaryProps, ErrorBound
       const serverDigest = getServerDigest(error);
       const finalDigest = serverDigest ?? digest ?? this.props.digest ?? computeErrorDigest(error);
       const message = this.props.fallback ? error.message : getPublicErrorMessage(error);
-      // Status precedence: FurinServerError carries the original Response.status
-      // (or the loader's computed 500 for non-Response throws); everything else
-      // collapses to the default 500.
-      const status = isFurinServerError(error) ? error.status : DEFAULT_ERROR_STATUS;
       const fallback = (
         <Fallback
-          error={{ digest: finalDigest, message, status }}
+          error={{ digest: finalDigest, message, status: DEFAULT_ERROR_STATUS }}
           reset={typeof window === "undefined" ? SERVER_RESET_NOOP : this.reset}
         />
       );
