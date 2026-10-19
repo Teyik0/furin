@@ -39,16 +39,21 @@ interface DevLoaderState {
   ssg: CacheKindHandle;
 }
 
+/** Source index key: Windows paths may arrive native or with forward slashes. */
+function sourceKey(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
 function indexEntryDependencies(
   index: Map<string, Set<string>>,
   cacheKey: string,
   deps: string[]
 ): void {
   for (const dep of deps) {
-    let bucket = index.get(dep);
+    let bucket = index.get(sourceKey(dep));
     if (!bucket) {
       bucket = new Set<string>();
-      index.set(dep, bucket);
+      index.set(sourceKey(dep), bucket);
     }
     bucket.add(cacheKey);
   }
@@ -60,13 +65,13 @@ function unindexEntryDependencies(
   deps: string[]
 ): void {
   for (const dep of deps) {
-    const bucket = index.get(dep);
+    const bucket = index.get(sourceKey(dep));
     if (!bucket) {
       continue;
     }
     bucket.delete(cacheKey);
     if (bucket.size === 0) {
-      index.delete(dep);
+      index.delete(sourceKey(dep));
     }
   }
 }
@@ -228,8 +233,7 @@ export function invalidateDevLoaderCacheBySource(filePath: string): InvalidateOu
 
 function invalidateInstanceBySource(instance: FurinInstance, filePath: string): InvalidateOutcome {
   const state = instanceDevLoaderState(instance);
-  // Dependencies are indexed with POSIX separators; Windows callers may pass native paths.
-  const keys = state.sourceFileToCacheKeys.get(filePath.replaceAll("\\", "/"));
+  const keys = state.sourceFileToCacheKeys.get(sourceKey(filePath));
   if (!keys || keys.size === 0) {
     return { cleared: [], isr: 0, ssg: 0 };
   }

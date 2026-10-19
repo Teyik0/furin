@@ -89,6 +89,12 @@ assertEqual(
   1,
   "a backslash path should clear its POSIX dependency"
 );
+setDevSSGLoaderCache("/win-route", makeEntry({ dependencies: ["C:\\\\app\\\\src/pages/mixed.tsx"] }));
+assertEqual(
+  invalidateDevLoaderCacheBySource("C:/app/src/pages/mixed.tsx").ssg,
+  1,
+  "a POSIX path should clear its native dependency"
+);
 
 resetDevCache();
 setDevSSGLoaderCache("/a", makeEntry({ loaderData: { page: "a" } }));
