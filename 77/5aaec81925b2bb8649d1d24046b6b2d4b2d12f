@@ -1,0 +1,47 @@
+packages/core/src/build/discover-mounts.ts
+  s_3827fec5c7f2ed::t_09adb3ddefd336 1-40
+packages/core/src/build/discover-mounts-process.ts
+  s_3827fec5c7f2ed::t_4368089cf58598 1-13
+CHANGELOG.md
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 26
+packages/core/src/cli/index.ts
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 248
+packages/core/src/furin.ts
+  s_3827fec5c7f2ed::t_fc02f0fad3d57d 301-309
+packages/core/src/build/index.ts
+  s_3827fec5c7f2ed::t_ff419dc94c6603 18,80,83,87,102-104,151
+packages/core/src/server/registrations.ts
+  s_3827fec5c7f2ed::t_6409ba5fc3fb3e 9-10,13-18,20,24,26,30-37
+packages/core/src/build/types.ts
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 108
+apps/docs/src/content/docs/configuration.mdx
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 42
+packages/core/src/cli/config.ts
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 123-124
+packages/core/src/config.ts
+  s_3827fec5c7f2ed::t_c9c497b7f5be73 52
+packages/core/tests/build/furin-registrations.test.ts
+  s_3827fec5c7f2ed::t_0c24bd21cda120 103-115
+  s_3827fec5c7f2ed::t_1420dc34643079 2
+  s_3827fec5c7f2ed::t_b36897253676ab 76-102
+knip.config.ts
+  s_3827fec5c7f2ed::t_8b1af84af63209 43-44
+packages/core/src/build/elysia-aot-worker.ts
+  s_3827fec5c7f2ed::t_65fd26668631ad 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "775aaec81925b2bb8649d1d24046b6b2d4b2d12f",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
