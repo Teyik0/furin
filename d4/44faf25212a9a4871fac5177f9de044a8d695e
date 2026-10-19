@@ -1,0 +1,21 @@
+packages/core/src/rsc/codec.ts
+  s_553967112fee2c::t_46d6f326dd6f8e 1,59-83
+packages/core/tests/rendering/rsc/rsc-build.test.ts
+  s_553967112fee2c::t_46d6f326dd6f8e 145-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d444faf25212a9a4871fac5177f9de044a8d695e",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "unknown"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
