@@ -14,7 +14,7 @@ import { detectLangFromPath, unwrapTSExpression } from "../server/lang-detect.ts
 import { parseDynamicRouteSegment } from "../server/router/patterns.ts";
 import { parseSource } from "../shared/parser.ts";
 import { FactoryBindings, fluentChain } from "./binding-scope.ts";
-import { routeSourcePaths } from "./routes.ts";
+import { routeSourcePaths } from "./route-tree.ts";
 
 /**
  * Static route-config checks shared by the dev server and `furin build`.

@@ -7,7 +7,8 @@ import { buildEntrySource, PRERENDER_SNAPSHOT_FILE } from "../build/entry-templa
 import { copyDirRecursive, ensureDir, toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions, PackageTargetBuildManifest } from "../build/types.ts";
 import { createVirtualBuildEntry } from "../build/virtual-entry.ts";
-import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import { composableRouteModuleSpecifier } from "../plugin/route-registry.ts";
+import { routeSourcePaths } from "../plugin/route-tree.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { prerenderFromBundle } from "./prerender.ts";
 import { serverBundlePlugins } from "./server-bundle.ts";

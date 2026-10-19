@@ -165,13 +165,13 @@ describe("createBuildFingerprint", () => {
         path: rootPath,
         route: { __type: "FURIN_ROUTE" },
       };
-      const routesPluginPath = resolve(import.meta.dir, "../../../src/plugin/routes.ts");
+      const routesPluginPath = resolve(import.meta.dir, "../../../src/plugin/route-registry.ts");
       const routesPluginSource = await Bun.file(routesPluginPath).text();
 
       const fingerprint = await createBuildFingerprint("entry.js", [], [], root, null, [], appDir);
 
       expect(fingerprint).toContain(
-        `furin/src/plugin/routes.ts:${routesPluginSource}`
+        `furin/src/plugin/route-registry.ts:${routesPluginSource}`
       );
     } finally {
       rmSync(appDir, { force: true, recursive: true });

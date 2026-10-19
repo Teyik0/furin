@@ -6,7 +6,8 @@ import { buildClient } from "../build/client.ts";
 import type { EntryAppContext } from "../build/entry-template.ts";
 import { toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
-import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
+import { composableRouteModuleSpecifier } from "../plugin/route-registry.ts";
+import { routeSourcePaths } from "../plugin/route-tree.ts";
 import { hasMixedLoaderModes } from "../server/render/loaders.ts";
 import { hasRequestLoader } from "../server/render/request-loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
@@ -46,7 +47,8 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/build/compile-entry${_ext}`,
   `${_pkgSrcDir}/build/entry-template${_ext}`,
   `${_pkgSrcDir}/build/request-keys${_ext}`,
-  `${_pkgSrcDir}/plugin/routes${_ext}`,
+  `${_pkgSrcDir}/plugin/route-registry${_ext}`,
+  `${_pkgSrcDir}/plugin/route-tree${_ext}`,
   `${_pkgSrcDir}/server/render/buffered-render${_ext}`,
   `${_pkgSrcDir}/server/render/document.tsx`,
   `${_pkgSrcDir}/server/render/document-stream${_ext}`,

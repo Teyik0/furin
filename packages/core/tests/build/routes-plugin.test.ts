@@ -6,9 +6,9 @@ import {
   composableRouteModuleSpecifier,
   createRoutesPlugin,
   materializedRouteModuleSource,
-  routeModuleSpecifier,
-  type RouteInstanceSpec,
-} from "../../src/plugin/routes.ts";
+} from "../../src/plugin/route-registry.ts";
+import type { RouteInstanceSpec } from "../../src/plugin/route-tree.ts";
+import { routeModuleSpecifier } from "../../src/plugin/routes.ts";
 import { routeMapDeclaration } from "../../src/shared/route-map.ts";
 
 const FIXTURES = join(import.meta.dir, "../fixtures/routes-v2");

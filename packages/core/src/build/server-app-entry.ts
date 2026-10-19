@@ -1,9 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  materializedRouteModuleSource,
-  type RouteInstanceSpec,
-} from "../plugin/routes.ts";
+import { materializedRouteModuleSource } from "../plugin/route-registry.ts";
+import type { RouteInstanceSpec } from "../plugin/route-tree.ts";
 import { buildEntrySource, type EntryAppContext } from "./entry-template.ts";
 import { ensureDir, toPosixPath } from "./shared.ts";
 

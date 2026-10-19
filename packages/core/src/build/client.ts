@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, join, resolve, sep } from "node:path";
 import { isPackageModule, stripServerCode } from "../plugin/strip-server.ts";
-import { createRoutesPlugin } from "../plugin/routes.ts";
+import { createRoutesPlugin } from "../plugin/route-registry.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";
 import { discoverClientBoundaries, registerServerBoundaries } from "../rsc/build/discover.ts";
 import { flightLoaderPlugin } from "../rsc/build/flight-loader.ts";

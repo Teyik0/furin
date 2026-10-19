@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import type { RouteInstanceSpec } from "../plugin/routes.ts";
+import type { RouteInstanceSpec } from "../plugin/route-tree.ts";
 import type { FurinRegistration } from "../server/registrations.ts";
 import type {
   AotWorkerOperation,

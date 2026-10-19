@@ -1,7 +1,7 @@
 import { dirname, relative } from "node:path";
 import { elysiaAot } from "../build/elysia-aot.ts";
 import { productionInstrumentationPlugin } from "../build/production-instrumentation.ts";
-import { createRoutesPlugin } from "../plugin/routes.ts";
+import { createRoutesPlugin } from "../plugin/route-registry.ts";
 import { isomorphicTransformPlugin } from "../plugin/transform-isomorphic.ts";
 import { clientReferencesPlugin } from "../rsc/build/client-references.ts";
 import { environmentGuardPlugin } from "../rsc/build/environment.ts";

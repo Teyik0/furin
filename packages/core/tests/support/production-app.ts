@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type AnyElysia, Elysia } from "elysia";
 import { furin } from "../../src/furin.ts";
-import { materializedRouteModuleSource } from "../../src/plugin/routes.ts";
+import { materializedRouteModuleSource } from "../../src/plugin/route-registry.ts";
 import type { PageCacheAdapter } from "../../src/server/cache/page-cache.ts";
 import { allInstances, type FurinInstance } from "../../src/server/instance.ts";
 import {

@@ -10,7 +10,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { registerDevRouteTopologyWatcher, routeSourcePaths } from "../../../src/plugin/routes.ts";
+import { routeSourcePaths } from "../../../src/plugin/route-tree.ts";
+import { registerDevRouteTopologyWatcher } from "../../../src/plugin/routes.ts";
 
 async function waitForCount(readCount: () => number, expected: number): Promise<void> {
   const deadline = Date.now() + 3000;
