@@ -20,9 +20,6 @@ import {
   writeDeferredSsrChunks,
 } from "./ssr-transport.ts";
 
-// Re-export types consumed by sibling render modules (not a public barrel).
-export type { LoaderResult } from "./loaders.ts";
-
 export async function renderSSR(
   route: ResolvedRoute,
   ctx: Context,
