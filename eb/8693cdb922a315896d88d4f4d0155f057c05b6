@@ -1,0 +1,29 @@
+packages/core/tests/routing/discovery/symlinked-page.test.ts
+  s_553967112fee2c::t_6a7e3913bb6312 1-52
+packages/core/src/server/router/discovery.ts
+  s_553967112fee2c::t_c47e7a26245a6f 308
+  s_553967112fee2c::t_1cda05e5750968 4,7,192-193
+  s_553967112fee2c::t_3821bbf98a49c2 11
+  s_553967112fee2c::t_e30517d12644ab 307,311
+packages/core/tests/routing/discovery/scan-order.test.ts
+  s_553967112fee2c::t_c0671e17a8c691 2,5,162-209
+  s_553967112fee2c::t_6e41664539b5e4 210
+packages/core/src/plugin/route-tree.ts
+  s_553967112fee2c::t_70bb9a95925dd4 112-125,128-147,171,173,178-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb8693cdb922a315896d88d4f4d0155f057c05b6",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
