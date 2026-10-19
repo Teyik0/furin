@@ -3,13 +3,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
-  loadDevPageContents,
-  registerDevPagePlugin,
   rewriteRelativeImports,
   rewriteSingletonImports,
   toImportSpecifier,
-  transformDevSource,
   WORKSPACE_SOURCE_FILTER,
+} from "../../../src/server/dev-page-imports.ts";
+import {
+  loadDevPageContents,
+  registerDevPagePlugin,
+  transformDevSource,
 } from "../../../src/server/dev-page-plugin.ts";
 import { createTmpApp } from "../../support/app-fixtures.ts";
 

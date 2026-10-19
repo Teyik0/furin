@@ -433,7 +433,8 @@ edit-to-paint, and memory behavior.
 | `src/plugin/transform-client.ts` | Remove server-only route stages, derive hook signatures, and inject route accept boundaries |
 | `src/client/hmr.ts` | Preserve component identities and remount boundaries when hook signatures change |
 | `src/client/router/provider.tsx` | Perform HMR data refreshes and reject stale navigations |
-| `src/server/dev-page-plugin.ts` | Load versioned SSR modules, transform source, rewrite imports, and preserve React singletons |
+| `src/server/dev-page-plugin.ts` | Load versioned SSR modules and transform their source |
+| `src/server/dev-page-imports.ts` | Rewrite imports of those modules and preserve React singletons |
 | `src/server/router/source-version.ts` | Compute source revisions and advance the explicit generation |
 | `src/server/router/dispatch.ts` | Dispatch pages for both runtimes through their route source, module loader, and cache policy ports |
 | `src/server/router/hmr.ts` | Rebuild routes, refresh layout chains, and provide the development ports: current modules, the loader cache, and server diagnostics |
