@@ -1,0 +1,30 @@
+packages/core/src/rsc/flight-drain.ts
+  s_3827fec5c7f2ed::t_7347146ea5dc96 1
+  s_3827fec5c7f2ed::t_b9b541b10efddc 17-21
+packages/core/src/server/logging/ingest-plugin.ts
+  s_3827fec5c7f2ed::t_d6d1552a9c00f7 3
+  s_3827fec5c7f2ed::t_8e3b52469dd428 38-40
+packages/core/src/server/bounded-body.ts
+  s_3827fec5c7f2ed::t_86a37fc115e7d8 1-38
+packages/core/src/server/sync/response.ts
+  s_3827fec5c7f2ed::t_1e58c1ecef18ee 2
+  s_3827fec5c7f2ed::t_9ff07909063eaf 114
+packages/core/tests/runtime/security/bounded-body.test.ts
+  s_3827fec5c7f2ed::t_041e9e37fde04c 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50a859caddcbe7066f76dbcd08775ea70cbcc506",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
