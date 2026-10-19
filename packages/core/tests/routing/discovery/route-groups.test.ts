@@ -52,13 +52,9 @@ test("group error and not-found boundaries belong only to their descendants", as
 
   expect(admin.segmentBoundaries).toHaveLength(1);
   expect(admin.segmentBoundaries[0]?.path).toBe(join(PAGES_DIR, "(admin)").replaceAll("\\", "/"));
-  expect(admin.segmentBoundaries[0]?.error).toBe(admin.error);
-  expect(admin.segmentBoundaries[0]?.notFound).toBe(admin.notFound);
-  expect(admin.error).toBeDefined();
-  expect(admin.notFound).toBeDefined();
+  expect(admin.segmentBoundaries[0]?.error).toBeDefined();
+  expect(admin.segmentBoundaries[0]?.notFound).toBeDefined();
   expect(marketing.segmentBoundaries).toEqual([]);
-  expect(marketing.error).toBeUndefined();
-  expect(marketing.notFound).toBeUndefined();
 });
 
 test("generated navigation types use public URLs and preserve grouped source imports", async () => {

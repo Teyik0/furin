@@ -101,23 +101,8 @@ export function loadProdRoutes(ctx: CompileContext): {
       notFound: resolveModuleComponent(b.notFoundPath),
     })) as SegmentBoundary[];
 
-    const error = boundaries.findLast((b) => b.error)?.error;
-    const notFound = boundaries.findLast((b) => b.notFound)?.notFound;
-
-    // Note: In production we store only the nearest segment-level convention
-    // (error / notFound) and do NOT fall back to root.error / root.notFound here.
-    // The dev-mode resolveNearestConvention() does include the root fallback,
-    // and the render layer applies the runtime fallback (route.error ?? root.error)
-    // when building the React element tree. This asymmetry is intentional:
-    // loadProdRoutes records the static wiring so buildElement can place React
-    // boundaries at the correct nesting depth, while the runtime fallback ensures
-    // every route always has a safety-net component even if no boundary was
-    // declared at any segment level.
-
     routes.push({
-      error,
       mode,
-      notFound,
       page,
       path,
       pattern,
@@ -354,28 +339,15 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     }
     seenPatterns.set(patternKey, relativePath);
 
-    const [notFound, errorComponent, segmentBoundaries] = await Promise.all([
-      resolveNearestConvention<NotFoundComponent>(
-        absolutePath,
-        pagesDir,
-        "not-found",
-        notFoundCache,
-        root.notFound
-      ),
-      resolveNearestConvention<ErrorComponent>(
-        absolutePath,
-        pagesDir,
-        "error",
-        errorCache,
-        root.error
-      ),
-      collectSegmentBoundaries(absolutePath, pagesDir, notFoundCache, errorCache),
-    ]);
+    const segmentBoundaries = await collectSegmentBoundaries(
+      absolutePath,
+      pagesDir,
+      notFoundCache,
+      errorCache
+    );
 
     if (IS_DEV) {
       const devRoute = await buildDevRoute(absolutePath, relativePath, pattern, root, pagesDir);
-      devRoute.notFound = notFound;
-      devRoute.error = errorComponent;
       devRoute.segmentBoundaries = alignSegmentBoundaryDepths(
         segmentBoundaries,
         devRoute.routeChain
@@ -398,9 +370,7 @@ async function scanPageFiles(pagesDir: string, root: RootLayout): Promise<Resolv
     validateRouteChain(routeChain, root.route, relativePath);
 
     routes.push({
-      error: errorComponent,
       mode: resolveMode(page, routeChain),
-      notFound,
       page,
       path: absolutePath,
       pattern,
@@ -541,32 +511,6 @@ async function collectSegmentBoundaries(
   }
 
   return boundaries;
-}
-
-async function resolveNearestConvention<T>(
-  pageAbsolutePath: string,
-  pagesDir: string,
-  conventionName: (typeof CONVENTION_FILE_NAMES)[number],
-  cache: Map<string, ConventionLookup<T> | undefined>,
-  rootFallback: T | undefined
-): Promise<T | undefined> {
-  // Walk from the page's directory up to pagesDir looking for the convention file.
-  // Cached per directory so repeated scans for sibling pages don't re-import.
-  let dir = pageAbsolutePath.slice(0, pageAbsolutePath.lastIndexOf("/"));
-  while (dir.length >= pagesDir.length) {
-    if (!cache.has(dir)) {
-      cache.set(dir, await loadConventionComponent<T>(dir, conventionName));
-    }
-    const found = cache.get(dir);
-    if (found) {
-      return found.component;
-    }
-    if (dir === pagesDir) {
-      break;
-    }
-    dir = dir.slice(0, dir.lastIndexOf("/"));
-  }
-  return rootFallback;
 }
 
 async function buildDevRoute(

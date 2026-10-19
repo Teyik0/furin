@@ -23,15 +23,15 @@ describe("scanPages — not-found discovery", () => {
   test("attaches nearest not-found.tsx to each route", async () => {
     const result = await scanPages(NESTED_FIXTURES_DIR);
 
-    const blogRoute = result.routes.find((r) => r.pattern === "/blog");
-    const homeRoute = result.routes.find((r) => r.pattern === "/");
-
-    expect(blogRoute?.notFound).toBeDefined();
-    expect(homeRoute?.notFound).toBeDefined();
+    const nearestNotFound = (pattern: string) =>
+      result.routes
+        .find((r) => r.pattern === pattern)
+        ?.segmentBoundaries.findLast((b) => b.notFound)?.notFound;
 
     // Blog route's nearest not-found is the nested one — distinct from root's.
-    expect(blogRoute?.notFound).not.toBe(result.root.notFound);
+    expect(nearestNotFound("/blog")).toBeDefined();
+    expect(nearestNotFound("/blog")).not.toBe(result.root.notFound);
     // Home route has no segment above root → falls back to root's not-found.
-    expect(homeRoute?.notFound).toBe(result.root.notFound);
+    expect(nearestNotFound("/")).toBe(result.root.notFound);
   });
 });

@@ -339,7 +339,7 @@ export async function resolveCurrentDevRoute(
     // errorPath, notFoundPath) populated by `scanRootLayout` from
     // `pages/error.tsx` and `pages/not-found.tsx`.  Replacing the whole
     // RootLayout with just `{ path, route }` would silently drop these
-    // fallbacks — `route.error ?? root.error` would resolve to `undefined`
+    // fallbacks — `root.error` / `root.notFound` would resolve to `undefined`
     // in dev after the first request, making custom 404/500 screens
     // disappear after a HMR refresh.
     currentRoot = {
