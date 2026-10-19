@@ -7,7 +7,7 @@ import {
   serializeRouteFrameValue,
 } from "../../shared/route-frame.ts";
 import { deferredQuerySeeds } from "../sync/query-context.ts";
-import { serializeDeferredRejection } from "./loaders.ts";
+import { serializeDeferredRejection } from "./loader-errors.ts";
 
 export async function serializeDeferredRouteFrame(
   key: string,

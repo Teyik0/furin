@@ -12,7 +12,7 @@ import { copyDirRecursive, ensureDir, toPosixPath, writeBuildMetafile } from "..
 import type { BuildAppOptions } from "../build/types.ts";
 import { buildRscGraph } from "../rsc/build/index.ts";
 import type { AppPrerender } from "../server/prerender.ts";
-import { hasRequestLoader } from "../server/render/loaders.ts";
+import { hasRequestLoader } from "../server/render/request-loaders.ts";
 import { resolveDocumentMode, resolveDocumentRevalidate } from "../server/router/patterns.ts";
 import { mergeRouteSchemas } from "../server/router/schema-merge.ts";
 import type { ResolvedRoute } from "../server/router/types.ts";

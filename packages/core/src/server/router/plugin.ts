@@ -18,15 +18,14 @@ import { injectSyncRuntimeScript, resolvePath } from "../render/assemble.ts";
 import { type CachedRouteData, handleISR, handleISRData } from "../render/isr.ts";
 import {
   hasMixedLoaderModes,
-  hasRequestLoader,
   type LoaderResult,
   runLoaders,
   runMixedLoaders,
   runPublicLoaders,
-  withRequestLoaderData,
 } from "../render/loaders.ts";
 import { withNavigationHead } from "../render/navigation-head.ts";
 import { renderPprRoute, runPprPublicLoaders } from "../render/ppr-route.ts";
+import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
 import { createDeferredRouteFrameStream } from "../render/route-frame-transport.ts";
 import { prerenderRoute, prerenderRuntimeSSG } from "../render/ssg.ts";
 import { renderSSR, serializeLoaderDataNdjson } from "../render/ssr.ts";

@@ -23,13 +23,12 @@ import { type CompileContext, type CompiledModule, getCompileContext } from "../
 import { resolvePath } from "../render/assemble.ts";
 import {
   hasMixedLoaderModes,
-  hasRequestLoader,
   type LoaderResult,
   runLoaders,
   runMixedLoaders,
   runPublicLoaders,
-  withRequestLoaderData,
 } from "../render/loaders.ts";
+import { hasRequestLoader, withRequestLoaderData } from "../render/request-loaders.ts";
 import { adaptDefinedLayout, adaptDefinedPage, isDefinedRouteTerminal } from "./defined-route.ts";
 import {
   annotateScannedRequestKeys,

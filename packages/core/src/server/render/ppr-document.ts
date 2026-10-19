@@ -18,9 +18,9 @@ import {
   type LoaderResult,
   runPublicLoaders,
   runSegmentPublicLoaders,
-  withRequestLoaderData,
 } from "./loaders.ts";
 import { isPprResumeState, type PprResumeState } from "./ppr-request.ts";
+import { withRequestLoaderData } from "./request-loaders.ts";
 import {
   assertDeferredModeAllowed,
   buildSsrTransportScripts,

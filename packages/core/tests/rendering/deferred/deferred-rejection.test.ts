@@ -5,7 +5,7 @@ import { fromCrossJSON, toCrossJSON } from "seroval";
 import "../../setup/evlog-mock";
 
 import { FurinErrorBoundary } from "../../../src/client/boundaries.tsx";
-import { serializeDeferredRejection } from "../../../src/server/render/loaders.ts";
+import { serializeDeferredRejection } from "../../../src/server/render/loader-errors.ts";
 import { __setDevMode, IS_DEV } from "../../../src/server/runtime-env.ts";
 import { computeErrorDigest } from "../../../src/shared/digest.ts";
 import { isNotFoundError, notFound } from "../../../src/shared/not-found.ts";

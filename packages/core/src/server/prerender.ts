@@ -1,7 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: prerendering runs routes sequentially for deterministic output
 import type { SsgCacheEntry } from "./cache/index.ts";
 import { allInstances, type FurinInstance, withInstance } from "./instance.ts";
-import { hasRequestLoader } from "./render/loaders.ts";
+import { hasRequestLoader } from "./render/request-loaders.ts";
 import { prerenderSSG } from "./render/ssg.ts";
 import { expandStaticPaths, hasStaticParams } from "./render/static-params.ts";
 import { buildRouteMatcher, resolveDocumentMode } from "./router/patterns.ts";

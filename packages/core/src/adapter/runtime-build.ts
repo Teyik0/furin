@@ -7,7 +7,8 @@ import type { EntryAppContext } from "../build/entry-template.ts";
 import { toPosixPath } from "../build/shared.ts";
 import type { BuildAppOptions } from "../build/types.ts";
 import { composableRouteModuleSpecifier, routeSourcePaths } from "../plugin/routes.ts";
-import { hasMixedLoaderModes, hasRequestLoader } from "../server/render/loaders.ts";
+import { hasMixedLoaderModes } from "../server/render/loaders.ts";
+import { hasRequestLoader } from "../server/render/request-loaders.ts";
 import { generateProdIndexHtml } from "../server/render/shell.ts";
 import { resolveDocumentMode } from "../server/router/patterns.ts";
 import type { ResolvedRoute, RootLayout } from "../server/router/types.ts";
@@ -50,11 +51,15 @@ const BUILD_ID_INPUT_PATHS = [
   `${_pkgSrcDir}/server/render/element.tsx`,
   `${_pkgSrcDir}/server/render/index${_ext}`,
   `${_pkgSrcDir}/server/render/isr${_ext}`,
+  `${_pkgSrcDir}/server/render/loader-errors${_ext}`,
+  `${_pkgSrcDir}/server/render/loader-segments${_ext}`,
   `${_pkgSrcDir}/server/render/loaders${_ext}`,
   `${_pkgSrcDir}/server/render/mixed-cache${_ext}`,
   `${_pkgSrcDir}/server/render/not-found${_ext}`,
+  `${_pkgSrcDir}/server/render/observe-loader${_ext}`,
   `${_pkgSrcDir}/server/render/ppr-route${_ext}`,
   `${_pkgSrcDir}/server/render/ppr-document${_ext}`,
+  `${_pkgSrcDir}/server/render/request-loaders${_ext}`,
   `${_pkgSrcDir}/server/render/route-frame-transport${_ext}`,
   `${_pkgSrcDir}/server/render/shell${_ext}`,
   `${_pkgSrcDir}/server/render/ssr${_ext}`,

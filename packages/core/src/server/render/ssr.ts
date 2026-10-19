@@ -42,6 +42,7 @@ import {
 } from "./assemble.ts";
 import { withDocumentState } from "./document.tsx";
 import { buildErrorElement, errorMessageForRender, SERVER_RESET_NOOP } from "./element.tsx";
+import { serializeDeferredRejection } from "./loader-errors.ts";
 import {
   hasMixedLoaderModes,
   hasSsrLoaderAncestor,
@@ -49,7 +50,6 @@ import {
   runPublicLoaders,
   runRouteLoaders,
   runSegmentPublicLoaders,
-  serializeDeferredRejection,
 } from "./loaders.ts";
 import { withNavigationHead } from "./navigation-head.ts";
 import { renderToReadableStream } from "./react-stream.ts";

@@ -13,12 +13,9 @@ import {
 } from "../../../src/server/cache/page-cache-state.ts";
 import { currentInstance } from "../../../src/server/instance.ts";
 import { withDocumentState } from "../../../src/server/render/document.tsx";
-import {
-  runLoaders,
-  runMixedLoaders,
-  withRequestLoaderData,
-} from "../../../src/server/render/loaders.ts";
+import { runLoaders, runMixedLoaders } from "../../../src/server/render/loaders.ts";
 import { clearMixedPublicCache } from "../../../src/server/render/mixed-cache.ts";
+import { withRequestLoaderData } from "../../../src/server/render/request-loaders.ts";
 import { createDeferredRouteFrameStream } from "../../../src/server/render/route-frame-transport.ts";
 import type { ResolvedRoute } from "../../../src/server/router/types.ts";
 import { __setDevMode } from "../../../src/server/runtime-env.ts";
