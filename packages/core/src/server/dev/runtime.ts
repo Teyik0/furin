@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { staticPlugin } from "@elysia/static";
 import { type AnyElysia, Elysia, file } from "elysia";
 import { prefixSlug } from "../../shared/prefix.ts";
@@ -14,6 +14,20 @@ import { createSearchRouteMetadata } from "../router/schemas.ts";
 import type { ResolvedRoute, RootLayout } from "../router/types.ts";
 import type { DevelopmentRouteSnapshot, DevGraph } from "./graph.ts";
 
+const LAYOUT_FILE_RE = /^_route\.[cm]?[jt]sx?$/;
+
+/**
+ * A page is wrapped by the `_route` files of its directory and its ancestors.
+ * Routes never import their layouts, so the import graph can't tell.
+ */
+function wrapsRoute(sourcePath: string, routePath: string): boolean {
+  if (!LAYOUT_FILE_RE.test(basename(sourcePath))) {
+    return false;
+  }
+  const directory = dirname(sourcePath).replaceAll("\\", "/");
+  return routePath.replaceAll("\\", "/").startsWith(`${directory}/`);
+}
+
 function repairedDevelopmentRoutes(
   snapshot: DevelopmentRouteSnapshot,
   changedSources: readonly string[],
@@ -23,7 +37,11 @@ function repairedDevelopmentRoutes(
   for (const route of snapshot.routes) {
     if (
       changedSources.some(
-        (sourcePath) => route.path === sourcePath || graph.dependsOn(route.path, sourcePath)
+        (sourcePath) =>
+          route.path === sourcePath ||
+          snapshot.root.path === sourcePath ||
+          graph.dependsOn(route.path, sourcePath) ||
+          wrapsRoute(sourcePath, route.path)
       )
     ) {
       patterns.add(route.pattern);
@@ -329,8 +347,10 @@ export async function createDevRuntime(
               reportRouteConfig();
             },
             onSourceError: (error, sourcePath) => {
-              const route = currentSnapshot().routes.find((candidate) =>
-                graph.dependsOn(candidate.path, sourcePath)
+              const route = currentSnapshot().routes.find(
+                (candidate) =>
+                  graph.dependsOn(candidate.path, sourcePath) ||
+                  wrapsRoute(sourcePath, candidate.path)
               );
               withInstance(instance, () =>
                 publishDevDiagnostic(error, {
