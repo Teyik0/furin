@@ -1,0 +1,28 @@
+examples/task-manager/furin-env.d.ts
+  s_553967112fee2c::t_587b15d01c6782 6-39
+  s_553967112fee2c::t_ba3bedfd44c6c7 5
+examples/task-manager/src/pages/board/_route.tsx
+  s_553967112fee2c::t_7fdfe3cb17d961 20-21
+examples/task-manager/src/pages/board/[boardId]/card/[cardId].tsx
+  s_553967112fee2c::t_0fdfdb08c3342e 11
+examples/task-manager/src/pages/board/[boardId]/index.tsx
+  s_553967112fee2c::t_7fdfe3cb17d961 9
+examples/task-manager/src/pages/board/[boardId]/card/_route.tsx
+  s_553967112fee2c::t_0fdfdb08c3342e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cf1e070fe8c9f90813d57f3eabd9380330cd02be",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
