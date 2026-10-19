@@ -100,7 +100,12 @@ export function pinJsxRuntime(source: string, loader: SourceLoader): string {
   if (!runtime || loader === "ts") {
     return source;
   }
-  return `/** @jsxImportSource ${pathToFileURL(dirname(runtime)).href} */ ${source}`;
+  const pragma = `/** @jsxImportSource ${pathToFileURL(dirname(runtime)).href} */ `;
+  // A shebang must stay first: pin on line 2 so no source line moves.
+  const shebangEnd = source.startsWith("#!") ? source.indexOf("\n") + 1 : 0;
+  return shebangEnd > 0
+    ? `${source.slice(0, shebangEnd)}${pragma}${source.slice(shebangEnd)}`
+    : `${pragma}${source}`;
 }
 
 /** @internal exported for testing */

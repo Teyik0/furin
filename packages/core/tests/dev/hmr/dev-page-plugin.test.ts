@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
+  pinJsxRuntime,
   rewriteRelativeImports,
   rewriteSingletonImports,
   toImportSpecifier,
@@ -261,6 +262,17 @@ test("development transform errors preserve their original stack", () => {
     expect((error as Error).stack).toContain("transform-isomorphic.ts");
     expect((error as Error).stack).not.toContain("rethrowWithSourcePath");
   }
+});
+
+describe("pinJsxRuntime", () => {
+  test("keeps a shebang first and every source line in place", () => {
+    const source = "#!/usr/bin/env bun\nexport const view = <p>line 2</p>;\n";
+    const pinned = pinJsxRuntime(source, "tsx");
+
+    expect(pinned.startsWith("#!/usr/bin/env bun\n")).toBe(true);
+    expect(pinned.split("\n")[1]).toContain("export const view");
+    expect(() => new Bun.Transpiler({ loader: "tsx" }).transformSync(pinned)).not.toThrow();
+  });
 });
 
 describe("toImportSpecifier", () => {
