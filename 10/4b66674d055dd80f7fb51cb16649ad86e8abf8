@@ -1,0 +1,36 @@
+packages/core/tests/client/navigation/router-context-identity.test.ts
+  s_553967112fee2c::t_c844df56cab7d3 2,4,8,10
+packages/core/src/client/router/navigation.ts
+  s_553967112fee2c::t_24bb7fcebfe2f7 1,6,8
+packages/core/src/client/router/types.ts
+  s_553967112fee2c::t_0b06e758e79cb5 343-359
+packages/core/src/client/link.tsx
+  s_553967112fee2c::t_51c1075a37ba69 4,9,17-23,30-32,38-39,41-44,68-73,79-83,89,124-125,131-141,318-320
+  s_553967112fee2c::t_4cabca51a6f036 74-78
+packages/core/tests/client/navigation/router-context.test.tsx
+  s_553967112fee2c::t_53e5ab8877d76f 5,77,79-80,87-88,90-138,140-145,147-149
+  s_553967112fee2c::t_c844df56cab7d3 6,78,81-86,89,139,146
+  s_553967112fee2c::t_03bbcca4331371 150
+packages/core/src/client/router/provider.tsx
+  s_553967112fee2c::t_b07aeaebbdb033 21,39-45,413,437-454,456-469
+packages/core/src/client/router/context.ts
+  s_553967112fee2c::t_fea066087f311d 9-10,16,19,21,24-26
+  s_553967112fee2c::t_1a94bfdbbefbc9 83
+  s_553967112fee2c::t_05b696e3e51295 1,67-82,126-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "104b66674d055dd80f7fb51cb16649ad86e8abf8",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
