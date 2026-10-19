@@ -1,4 +1,5 @@
 import { type Context, ElysiaStatus, StatusMap } from "elysia";
+import { readBoundedBytes } from "../bounded-body.ts";
 import type { StoredResponse } from "./adapter.ts";
 
 const NON_REPLAYABLE_HEADERS = new Set([
@@ -110,34 +111,7 @@ async function readBoundedResponseBody(response: Response): Promise<Uint8Array |
     return;
   }
 
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      // biome-ignore lint/performance/noAwaitInLoops: response body chunks must be read sequentially.
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      total += value.byteLength;
-      if (total > MAX_SYNC_REPLAY_RESPONSE_BYTES) {
-        await reader.cancel();
-        return;
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const body = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
+  return await readBoundedBytes(response.body, MAX_SYNC_REPLAY_RESPONSE_BYTES);
 }
 
 function unreplayable(): StoreResponseResult {

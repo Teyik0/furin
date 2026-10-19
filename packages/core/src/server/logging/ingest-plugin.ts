@@ -1,5 +1,6 @@
 import { Elysia, problem } from "elysia";
 import type { DrainContext, LoggerConfig } from "evlog";
+import { readBoundedBytes } from "../bounded-body.ts";
 import { instrumentationLoggerExclusions } from "../devtools/instrumentation.ts";
 import { createFurinEvlog, type FurinEvlogOptions, setFurinEvlogOptions } from "../evlog.ts";
 import type { FurinInstance } from "../instance.ts";
@@ -34,31 +35,9 @@ async function readBrowserIngest(request: Request): Promise<BrowserIngestRead> {
   if (request.body === null) {
     return { kind: "invalid" };
   }
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      // biome-ignore lint/performance/noAwaitInLoops: request body chunks must be read sequentially.
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      total += value.byteLength;
-      if (total > MAX_BROWSER_INGEST_BYTES) {
-        await reader.cancel();
-        return { kind: "oversized" };
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
+  const bytes = await readBoundedBytes(request.body, MAX_BROWSER_INGEST_BYTES);
+  if (bytes === undefined) {
+    return { kind: "oversized" };
   }
   try {
     return { body: JSON.parse(new TextDecoder().decode(bytes), dropPrototypeKeys), kind: "ok" };
