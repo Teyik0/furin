@@ -3,8 +3,19 @@ import { join } from "node:path";
 import { pruneOrphanedImports } from "../../../src/plugin/dead-code-elimination";
 import { parseModule } from "../../../src/plugin/module-transform.ts";
 import { transformForClient } from "../../../src/plugin/transform-client";
+import { createClientStripPlugin } from "../../../src/plugin/client-plugin.ts";
 import strip from "../../../src/plugin/index.ts";
 import { createTmpApp, writeAppFile } from "../../support/app-fixtures.ts";
+
+const buildStrip = createClientStripPlugin({ mode: "build" });
+
+/** The dev server serves a module that rethrows the failure, without the loader. */
+async function expectDevBuildHides(entry: string, secret: string): Promise<void> {
+  const result = await Bun.build({ entrypoints: [entry], plugins: [strip], target: "browser" });
+  const output = await result.outputs[0]?.text();
+  expect(output).toContain("throw new Error(");
+  expect(output).not.toContain(secret);
+}
 
 describe("transformForClient", () => {
   test.each([
@@ -77,7 +88,8 @@ export class Local {
       const source = `import ${imported} from "@teyik0/furin"; export const route = (() => { ${body} })(); console.log(route.component);`;
       writeAppFile(app.path, "entry.ts", source);
       expect(() => transformForClient(source, entry)).toThrow(diagnostic);
-      await expect(Bun.build({ entrypoints: [entry], plugins: [strip], target: "browser" })).rejects.toThrow();
+      await expect(Bun.build({ entrypoints: [entry], plugins: [buildStrip], target: "browser" })).rejects.toThrow();
+      await expectDevBuildHides(entry, "PRIVATE_UNSAFE_ALIAS");
     } finally {
       app.cleanup();
     }
@@ -155,8 +167,9 @@ export const route = (() => {
   const create = Math.random() ? defineRoute : defineRoute;
   return create().loader(() => "PRIVATE_AMBIGUOUS_FACTORY").page(() => null);
 })(); console.log(route.component);`);
-      await expect(Bun.build({ entrypoints: [entry], target: "browser", plugins: [strip] }))
+      await expect(Bun.build({ entrypoints: [entry], target: "browser", plugins: [buildStrip] }))
         .rejects.toThrow();
+      await expectDevBuildHides(entry, "PRIVATE_AMBIGUOUS_FACTORY");
       const source = await Bun.file(entry).text();
       expect(() => transformForClient(source, entry)).toThrow("route factory");
     } finally {
