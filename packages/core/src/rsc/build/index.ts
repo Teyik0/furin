@@ -8,6 +8,7 @@ import type { ResolvedRoute, RootLayout } from "../../server/router/types.ts";
 import { assertInstalledRscVersions } from "../version.ts";
 import { rscClientReferencesPlugin } from "./client-references.ts";
 import { environmentGuardPlugin } from "./environment.ts";
+import { flightLoaderPlugin } from "./flight-loader.ts";
 
 export interface ClientReference {
   chunks: readonly string[];
@@ -94,7 +95,7 @@ export async function buildRscGraph(
     entrypoints: [fileURLToPath(import.meta.resolve("../server-codec.ts"))],
     outdir: outDir,
     naming: "server-codec.js",
-    plugins: [...(userPlugins ?? []), ...reactServerPlugins()],
+    plugins: [...(userPlugins ?? []), flightLoaderPlugin(), ...reactServerPlugins()],
   });
   if (!codecResult.success) {
     throw new Error(

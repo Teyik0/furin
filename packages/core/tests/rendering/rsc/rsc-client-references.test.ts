@@ -291,6 +291,75 @@ console.log(await new Response(await renderToReadableStream(page)).text());`
   }
 });
 
+test("a Flight render leaves the client module's components unchanged", async () => {
+  const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
+  try {
+    await Bun.write(
+      join(directory, "label.tsx"),
+      "export default function Label() { return <u>l</u>; }"
+    );
+    await Bun.write(
+      join(directory, "components.tsx"),
+      `"use client";
+import { forwardRef, lazy, memo } from "react";
+export function Plain() { return <s>p</s>; }
+function MemoImplementation() { return <b>m</b>; }
+function forwardRender(_props: object, ref: unknown) { return <i ref={ref as never}>f</i>; }
+export const Memo = memo(MemoImplementation);
+export const Forward = forwardRef(forwardRender);
+export const Lazy = lazy(() => import("./label.tsx"));
+export const original = { forwardRender, lazyInit: Lazy._init, MemoImplementation, Plain };`
+    );
+    await Bun.write(
+      join(directory, "entry.tsx"),
+      `import { renderServerComponent } from "@teyik0/furin/rsc";
+import { renderToReadableStream } from "react-dom/server";
+import { Forward, Lazy, Memo, original, Plain } from "./components.tsx";
+const tree = await renderServerComponent(<><Plain /><Memo /><Forward /><Lazy /></>);
+const html = await new Response(await renderToReadableStream(tree)).text();
+console.log(JSON.stringify({
+  html,
+  plain: Plain === original.Plain,
+  plainOwnKeys: Reflect.ownKeys(Plain).filter((key) => String(key).startsWith("$$")),
+  memoType: Memo.type === original.MemoImplementation,
+  forwardRender: Forward.render === original.forwardRender,
+  lazyInit: Lazy._init === original.lazyInit,
+  objectOwnKeys: [Memo, Forward, Lazy].flatMap((value) => Reflect.ownKeys(value).filter((key) => key === "$$id")),
+}));`
+    );
+    const build = await Bun.build({
+      entrypoints: [join(directory, "entry.tsx")],
+      external: ["react", "react-dom", "react-dom/*", "@teyik0/furin/rsc"],
+      outdir: join(directory, "output"),
+      plugins: [clientReferencesPlugin()],
+      splitting: true,
+      target: "bun",
+    });
+    expect(build.success).toBe(true);
+    const child = Bun.spawn([process.execPath, join(directory, "output/entry.js")], {
+      stderr: "pipe",
+      stdout: "pipe",
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: "" });
+    expect(JSON.parse(stdout)).toEqual({
+      html: "<s>p</s><b>m</b><i>f</i><u>l</u>",
+      plain: true,
+      plainOwnKeys: [],
+      memoType: true,
+      forwardRender: true,
+      lazyInit: true,
+      objectOwnKeys: [],
+    });
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test("a client module imported while Flight renders an async server component renders as a client reference", async () => {
   const directory = mkdtempSync(join(temporaryDirectory, "rsc-references-"));
   try {

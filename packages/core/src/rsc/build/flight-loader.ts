@@ -4,6 +4,26 @@ import { BUNDLED_CLIENT_CODEC_PATH, CLIENT_REFERENCE_RUNTIME_PATH } from "./path
 const CLIENT_CODEC =
   /react-server-dom-webpack-client\.(?:edge|browser)\.(?:development|production)\.js$/;
 const CODEC_EXPORT = /exports\.([\w$]+)\s*=/g;
+const SERVER_CODEC =
+  /react-server-dom-webpack-server\.(?:edge|browser|node)\.(?:development|production)\.js$/;
+const REFERENCE_FIELD = /((?:[\w$]+\.)*[\w$]+)\.\$\$(typeof|id|async)\b/g;
+
+/** Flight recognizes Furin's client references through the registry's side table. */
+function readReferenceFieldsThroughRegistry(source: string, path: string): string {
+  const patched = source.replace(
+    REFERENCE_FIELD,
+    (_field, owner: string, name: string) => `__furinClientReference(${owner}).$$${name}`
+  );
+  if (patched === source) {
+    throw new Error(`[furin/rsc] Unsupported Flight server codec: ${path}`);
+  }
+  // The registry is ESM, the codec CommonJS: bind it after the strict directive.
+  return patched.replace(
+    '"use strict";',
+    `"use strict";
+var __furinClientReference = require(${JSON.stringify(CLIENT_REFERENCE_RUNTIME_PATH)}).clientReference;`
+  );
+}
 
 export function flightLoaderPlugin(): Bun.BunPlugin {
   return {
@@ -11,6 +31,10 @@ export function flightLoaderPlugin(): Bun.BunPlugin {
     setup(build) {
       build.onResolve({ filter: /(?:^|\/)server-client-codec\.ts$/ }, () => ({
         path: BUNDLED_CLIENT_CODEC_PATH,
+      }));
+      build.onLoad({ filter: SERVER_CODEC }, ({ path }) => ({
+        contents: readReferenceFieldsThroughRegistry(readFileSync(path, "utf8"), path),
+        loader: "js",
       }));
       // React's pinned codec expects a bundler module loader. Keep that adapter
       // lexical: Flight IDs resolve only through Furin's generated registry.

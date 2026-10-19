@@ -1,5 +1,6 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { $ } from "bun";
+import { flightLoaderPlugin } from "./src/rsc/build/flight-loader.ts";
 
 $.cwd(import.meta.dir);
 
@@ -63,8 +64,11 @@ await Bun.build({
   ...shared,
   conditions: ["react-server"],
   entrypoints: [`${import.meta.dir}/src/rsc/server-codec.ts`],
+  // The Flight renderer is bundled: it reads client references through Furin's registry.
+  external: shared.external.filter((name) => name !== "react-server-dom-webpack"),
   naming: "server-codec.js",
   outdir: `${import.meta.dir}/dist/rsc`,
+  plugins: [flightLoaderPlugin()],
 });
 
 // Copy ambient declaration so it is available for the ./env export.

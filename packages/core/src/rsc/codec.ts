@@ -56,6 +56,8 @@ function loadServerCodec(): Promise<ServerCodec> {
         "[furin/rsc] The isolated Flight codec artifact is missing. Rebuild the application with the Furin Bun adapter."
       );
     }
+    // Build-time only: compiled servers load the prebuilt codec above.
+    const { flightLoaderPlugin } = await import("./build/flight-loader.ts");
     const result = await Bun.build({
       conditions: ["react-server"],
       define: { "process.env.NODE_ENV": JSON.stringify(mode) },
@@ -63,6 +65,7 @@ function loadServerCodec(): Promise<ServerCodec> {
       format: "esm",
       minify: false,
       outdir,
+      plugins: [flightLoaderPlugin()],
       sourcemap: "none",
       target: "bun",
     });
