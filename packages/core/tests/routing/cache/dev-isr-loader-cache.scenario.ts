@@ -94,7 +94,10 @@ async function mountDevelopmentPages(
   process.chdir(appPath);
   __setDevMode(true);
   const app = new Elysia().use(await furin({ pagesDir }));
-  const instance = allInstances().find((candidate) => candidate.pagesDir === pagesDir);
+  // Furin stores pagesDir with POSIX separators on every platform.
+  const instance = allInstances().find(
+    (candidate) => candidate.pagesDir === pagesDir.replaceAll("\\", "/")
+  );
   if (!instance) {
     throw new Error(`No furin() runtime registered for ${pagesDir}`);
   }
