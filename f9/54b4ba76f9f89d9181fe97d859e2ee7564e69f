@@ -1,0 +1,21 @@
+packages/core/src/plugin/transform-isomorphic.ts
+  s_3827fec5c7f2ed::t_74620caaa23875 1,559,614,624,638,646,662,665
+packages/core/src/plugin/transform-client.ts
+  s_3827fec5c7f2ed::t_74620caaa23875 1105,1202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f954b4ba76f9f89d9181fe97d859e2ee7564e69f",
+  "prompts": {},
+  "sessions": {
+    "s_3827fec5c7f2ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7cbe33c5-923b-418a-b87c-00de79e0576a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
