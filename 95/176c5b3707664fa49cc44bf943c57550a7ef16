@@ -1,0 +1,43 @@
+packages/core/src/build/client.ts
+  s_553967112fee2c::t_c868960026e78a 137
+  s_553967112fee2c::t_de19c3b3edd3a3 3
+  s_553967112fee2c::t_dfaf726c02c359 145
+  s_553967112fee2c::t_279cff96b02b39 13,136
+packages/core/src/build/shared.ts
+  s_553967112fee2c::t_17e837e0a792f5 16-26
+packages/core/src/plugin/client-plugin.ts
+  s_553967112fee2c::t_adb445f581c0a2 111-112
+  s_553967112fee2c::t_56da482f708205 105-106
+  s_553967112fee2c::t_db68732f116b88 1
+  s_553967112fee2c::t_d5323dfa5a7457 21-34
+  s_553967112fee2c::t_e69b2a21e5ecab 2
+  s_553967112fee2c::t_4fbdc7eef21fc2 35
+  s_553967112fee2c::t_ced1998f414893 108,110,113-114,121-122
+  s_553967112fee2c::t_94888fb741abea 3-20,44,47-52,55-104,107,109,115-120
+  s_553967112fee2c::t_3ff6c4e869761d 36-43,45-46,53-54
+packages/core/src/plugin/index.ts
+  s_553967112fee2c::t_059defd1357d36 1,14,16
+packages/core/tests/build/client-plugin.test.ts
+  s_553967112fee2c::t_155edb7b08528d 63-66,68-93
+  s_553967112fee2c::t_eb8fe0febc1a0f 5
+  s_553967112fee2c::t_c4633f48f35f13 67
+  s_553967112fee2c::t_5401612e4b5853 1-2,4,6-51,94
+  s_553967112fee2c::t_aa136c34ba686c 3
+  s_553967112fee2c::t_1af08a7bfae3e6 52-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95176c5b3707664fa49cc44bf943c57550a7ef16",
+  "prompts": {},
+  "sessions": {
+    "s_553967112fee2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c24ff9a-8705-410c-ba8d-cf65e04daaaa",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "teyik0 <teyik0.fr@icloud.com>"
+    }
+  }
+}
